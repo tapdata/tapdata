@@ -3,12 +3,10 @@ package com.tapdata.tm.cluster.service;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.*;
-import com.tapdata.tm.cluster.params.NineBridgeConfigParam;
+import com.tapdata.tm.cluster.params.OracleLogParserConfigParam;
 import com.tapdata.tm.utils.HttpUtils;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,24 +20,24 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for NineBridgeService
+ * Unit tests for OracleLogParserService
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
  */
-class NineBridgeServiceTest {
+class OracleLogParserServiceTest {
     
-    NineBridgeService nineBridgeService;
+    OracleLogParserService oracleLogParserService;
     RawServerStateService rawServerStateService;
     
     @BeforeEach
     void init() {
-        nineBridgeService = mock(NineBridgeService.class);
+        oracleLogParserService = mock(OracleLogParserService.class);
         rawServerStateService = mock(RawServerStateService.class);
-        ReflectionTestUtils.setField(nineBridgeService, "rawServerStateService", rawServerStateService);
+        ReflectionTestUtils.setField(oracleLogParserService, "rawServerStateService", rawServerStateService);
     }
 
     @Test
     void testConstructor() {
-        NineBridgeService service = new NineBridgeService();
+        OracleLogParserService service = new OracleLogParserService();
         assertNotNull(service);
     }
     
@@ -48,16 +46,16 @@ class NineBridgeServiceTest {
         
         @Test
         void testServerIdIsNull() {
-            when(nineBridgeService.findByServerId(null)).thenCallRealMethod();
-            BizException exception = assertThrows(BizException.class, () -> nineBridgeService.findByServerId(null));
-            assertEquals("nine.bridge.server.id.empty", exception.getErrorCode());
+            when(oracleLogParserService.findByServerId(null)).thenCallRealMethod();
+            BizException exception = assertThrows(BizException.class, () -> oracleLogParserService.findByServerId(null));
+            assertEquals("oracle.log.parser.server.id.empty", exception.getErrorCode());
         }
         
         @Test
         void testServerIdIsBlank() {
-            when(nineBridgeService.findByServerId("")).thenCallRealMethod();
-            BizException exception = assertThrows(BizException.class, () -> nineBridgeService.findByServerId(""));
-            assertEquals("nine.bridge.server.id.empty", exception.getErrorCode());
+            when(oracleLogParserService.findByServerId("")).thenCallRealMethod();
+            BizException exception = assertThrows(BizException.class, () -> oracleLogParserService.findByServerId(""));
+            assertEquals("oracle.log.parser.server.id.empty", exception.getErrorCode());
         }
         
         @Test
@@ -65,10 +63,10 @@ class NineBridgeServiceTest {
             String serverId = "server123";
             Page<RawServerStateDto> emptyPage = new Page<>(0, new ArrayList<>());
             when(rawServerStateService.getAllLatest(any(Filter.class))).thenReturn(emptyPage);
-            when(nineBridgeService.findByServerId(serverId)).thenCallRealMethod();
+            when(oracleLogParserService.findByServerId(serverId)).thenCallRealMethod();
             
-            BizException exception = assertThrows(BizException.class, () -> nineBridgeService.findByServerId(serverId));
-            assertEquals("nine.bridge.unable.find.server", exception.getErrorCode());
+            BizException exception = assertThrows(BizException.class, () -> oracleLogParserService.findByServerId(serverId));
+            assertEquals("oracle.log.parser.unable.find.server", exception.getErrorCode());
         }
         
         @Test
@@ -78,10 +76,10 @@ class NineBridgeServiceTest {
             items.add(null);
             Page<RawServerStateDto> page = new Page<>(1, items);
             when(rawServerStateService.getAllLatest(any(Filter.class))).thenReturn(page);
-            when(nineBridgeService.findByServerId(serverId)).thenCallRealMethod();
+            when(oracleLogParserService.findByServerId(serverId)).thenCallRealMethod();
             
-            BizException exception = assertThrows(BizException.class, () -> nineBridgeService.findByServerId(serverId));
-            assertEquals("nine.bridge.unable.find.server", exception.getErrorCode());
+            BizException exception = assertThrows(BizException.class, () -> oracleLogParserService.findByServerId(serverId));
+            assertEquals("oracle.log.parser.unable.find.server", exception.getErrorCode());
         }
         
         @Test
@@ -94,10 +92,10 @@ class NineBridgeServiceTest {
             items.add(server);
             Page<RawServerStateDto> page = new Page<>(1, items);
             when(rawServerStateService.getAllLatest(any(Filter.class))).thenReturn(page);
-            when(nineBridgeService.findByServerId(serverId)).thenCallRealMethod();
+            when(oracleLogParserService.findByServerId(serverId)).thenCallRealMethod();
             
-            BizException exception = assertThrows(BizException.class, () -> nineBridgeService.findByServerId(serverId));
-            assertEquals("nine.bridge.unable.invalid.server", exception.getErrorCode());
+            BizException exception = assertThrows(BizException.class, () -> oracleLogParserService.findByServerId(serverId));
+            assertEquals("oracle.log.parser.unable.invalid.server", exception.getErrorCode());
         }
         
         @Test
@@ -110,10 +108,10 @@ class NineBridgeServiceTest {
             items.add(server);
             Page<RawServerStateDto> page = new Page<>(1, items);
             when(rawServerStateService.getAllLatest(any(Filter.class))).thenReturn(page);
-            when(nineBridgeService.findByServerId(serverId)).thenCallRealMethod();
+            when(oracleLogParserService.findByServerId(serverId)).thenCallRealMethod();
             
-            BizException exception = assertThrows(BizException.class, () -> nineBridgeService.findByServerId(serverId));
-            assertEquals("nine.bridge.unable.invalid.server", exception.getErrorCode());
+            BizException exception = assertThrows(BizException.class, () -> oracleLogParserService.findByServerId(serverId));
+            assertEquals("oracle.log.parser.unable.invalid.server", exception.getErrorCode());
         }
         
         @Test
@@ -126,9 +124,9 @@ class NineBridgeServiceTest {
             items.add(server);
             Page<RawServerStateDto> page = new Page<>(1, items);
             when(rawServerStateService.getAllLatest(any(Filter.class))).thenReturn(page);
-            when(nineBridgeService.findByServerId(serverId)).thenCallRealMethod();
+            when(oracleLogParserService.findByServerId(serverId)).thenCallRealMethod();
             
-            RawServerStateDto result = nineBridgeService.findByServerId(serverId);
+            RawServerStateDto result = oracleLogParserService.findByServerId(serverId);
             assertNotNull(result);
             assertEquals("192.168.1.1", result.getServiceIP());
             assertEquals(8080, result.getServicePort());
@@ -150,20 +148,20 @@ class NineBridgeServiceTest {
         @Test
         void testExecuteStartCommand() {
             String serverId = "server123";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            NineBridgeCommandExecResult expectedResult = new NineBridgeCommandExecResult();
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            OracleLogParserCommandExecResult expectedResult = new OracleLogParserCommandExecResult();
             expectedResult.setStatus("success");
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeCommandExecResult.class))).thenReturn(expectedResult);
-            when(nineBridgeService.executeCommand(serverId, "start")).thenCallRealMethod();
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserCommandExecResult.class))).thenReturn(expectedResult);
+            when(oracleLogParserService.executeCommand(serverId, "start")).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
                 httpUtils.when(() -> HttpUtils.sendPostData(anyString(), anyString(), any(), anyBoolean(), anyBoolean()))
                         .thenReturn("{\"status\":\"success\"}");
                 json.when(() -> JSON.toJSONString(any())).thenReturn("{}");
-                json.when(() -> JSON.parseObject(anyString(), eq(NineBridgeCommandExecResult.class))).thenReturn(expectedResult);
+                json.when(() -> JSON.parseObject(anyString(), eq(OracleLogParserCommandExecResult.class))).thenReturn(expectedResult);
 
-                NineBridgeCommandExecResult result = nineBridgeService.executeCommand(serverId, "start");
+                OracleLogParserCommandExecResult result = oracleLogParserService.executeCommand(serverId, "start");
                 assertNotNull(result);
                 assertEquals("success", result.getStatus());
             }
@@ -172,20 +170,20 @@ class NineBridgeServiceTest {
         @Test
         void testExecuteStopCommand() {
             String serverId = "server123";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            NineBridgeCommandExecResult expectedResult = new NineBridgeCommandExecResult();
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            OracleLogParserCommandExecResult expectedResult = new OracleLogParserCommandExecResult();
             expectedResult.setStatus("success");
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeCommandExecResult.class))).thenReturn(expectedResult);
-            when(nineBridgeService.executeCommand(serverId, "stop")).thenCallRealMethod();
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserCommandExecResult.class))).thenReturn(expectedResult);
+            when(oracleLogParserService.executeCommand(serverId, "stop")).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
                 httpUtils.when(() -> HttpUtils.sendPostData(anyString(), anyString(), any(), anyBoolean(), anyBoolean()))
                         .thenReturn("{\"status\":\"success\"}");
                 json.when(() -> JSON.toJSONString(any())).thenReturn("{}");
-                json.when(() -> JSON.parseObject(anyString(), eq(NineBridgeCommandExecResult.class))).thenReturn(expectedResult);
+                json.when(() -> JSON.parseObject(anyString(), eq(OracleLogParserCommandExecResult.class))).thenReturn(expectedResult);
 
-                NineBridgeCommandExecResult result = nineBridgeService.executeCommand(serverId, "stop");
+                OracleLogParserCommandExecResult result = oracleLogParserService.executeCommand(serverId, "stop");
                 assertNotNull(result);
                 assertEquals("success", result.getStatus());
             }
@@ -194,20 +192,20 @@ class NineBridgeServiceTest {
         @Test
         void testExecuteRestartCommand() {
             String serverId = "server123";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            NineBridgeCommandExecResult expectedResult = new NineBridgeCommandExecResult();
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            OracleLogParserCommandExecResult expectedResult = new OracleLogParserCommandExecResult();
             expectedResult.setStatus("success");
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeCommandExecResult.class))).thenReturn(expectedResult);
-            when(nineBridgeService.executeCommand(serverId, "restart")).thenCallRealMethod();
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserCommandExecResult.class))).thenReturn(expectedResult);
+            when(oracleLogParserService.executeCommand(serverId, "restart")).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
                 httpUtils.when(() -> HttpUtils.sendPostData(anyString(), anyString(), any(), anyBoolean(), anyBoolean()))
                         .thenReturn("{\"status\":\"success\"}");
                 json.when(() -> JSON.toJSONString(any())).thenReturn("{}");
-                json.when(() -> JSON.parseObject(anyString(), eq(NineBridgeCommandExecResult.class))).thenReturn(expectedResult);
+                json.when(() -> JSON.parseObject(anyString(), eq(OracleLogParserCommandExecResult.class))).thenReturn(expectedResult);
 
-                NineBridgeCommandExecResult result = nineBridgeService.executeCommand(serverId, "restart");
+                OracleLogParserCommandExecResult result = oracleLogParserService.executeCommand(serverId, "restart");
                 assertNotNull(result);
                 assertEquals("success", result.getStatus());
             }
@@ -216,30 +214,30 @@ class NineBridgeServiceTest {
         @Test
         void testExecuteInvalidCommand() {
             String serverId = "server123";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            when(nineBridgeService.executeCommand(serverId, "invalid")).thenCallRealMethod();
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            when(oracleLogParserService.executeCommand(serverId, "invalid")).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.executeCommand(serverId, "invalid"));
-            assertEquals("nine.bridge.unable.invalid.command", exception.getErrorCode());
+                () -> oracleLogParserService.executeCommand(serverId, "invalid"));
+            assertEquals("oracle.log.parser.unable.invalid.command", exception.getErrorCode());
         }
 
         @Test
         void testExecuteCommandWithException() {
             String serverId = "server123";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeCommandExecResult.class)))
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserCommandExecResult.class)))
                 .thenThrow(new RuntimeException("Network error"));
-            when(nineBridgeService.executeCommand(serverId, "start")).thenCallRealMethod();
+            when(oracleLogParserService.executeCommand(serverId, "start")).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.executeCommand(serverId, "start"));
-            assertEquals("nine.bridge.command.failed", exception.getErrorCode());
+                () -> oracleLogParserService.executeCommand(serverId, "start"));
+            assertEquals("oracle.log.parser.command.failed", exception.getErrorCode());
         }
     }
 
     @Nested
-    class UpdateNineBridgeConfigTest {
+    class UpdateOracleLogParserConfigTest {
 
         RawServerStateDto mockServer;
 
@@ -253,46 +251,46 @@ class NineBridgeServiceTest {
         @Test
         void testUpdateConfigWithBothParamsEmpty() {
             String serverId = "server123";
-            NineBridgeConfigParam param = new NineBridgeConfigParam();
+            OracleLogParserConfigParam param = new OracleLogParserConfigParam();
             param.setOracleUrl("");
             param.setMapTable("");
-            when(nineBridgeService.updateNineBridgeConfig(serverId, param)).thenCallRealMethod();
+            when(oracleLogParserService.updateOracleLogParserConfig(serverId, param)).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.updateNineBridgeConfig(serverId, param));
-            assertEquals("nine.bridge.update.config.cannot.be.empty", exception.getErrorCode());
+                () -> oracleLogParserService.updateOracleLogParserConfig(serverId, param));
+            assertEquals("oracle.log.parser.update.config.cannot.be.empty", exception.getErrorCode());
         }
 
         @Test
         void testUpdateConfigWithBothParamsNull() {
             String serverId = "server123";
-            NineBridgeConfigParam param = new NineBridgeConfigParam();
-            when(nineBridgeService.updateNineBridgeConfig(serverId, param)).thenCallRealMethod();
+            OracleLogParserConfigParam param = new OracleLogParserConfigParam();
+            when(oracleLogParserService.updateOracleLogParserConfig(serverId, param)).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.updateNineBridgeConfig(serverId, param));
-            assertEquals("nine.bridge.update.config.cannot.be.empty", exception.getErrorCode());
+                () -> oracleLogParserService.updateOracleLogParserConfig(serverId, param));
+            assertEquals("oracle.log.parser.update.config.cannot.be.empty", exception.getErrorCode());
         }
 
         @Test
         void testUpdateConfigWithOracleUrlOnly() {
             String serverId = "server123";
-            NineBridgeConfigParam param = new NineBridgeConfigParam();
+            OracleLogParserConfigParam param = new OracleLogParserConfigParam();
             param.setOracleUrl("jdbc:oracle:thin:@localhost:1521:orcl");
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            NineBridgeUpdateConfigResult expectedResult = new NineBridgeUpdateConfigResult();
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            OracleLogParserUpdateConfigResult expectedResult = new OracleLogParserUpdateConfigResult();
             expectedResult.setStatus("success");
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeUpdateConfigResult.class))).thenReturn(expectedResult);
-            when(nineBridgeService.updateNineBridgeConfig(serverId, param)).thenCallRealMethod();
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserUpdateConfigResult.class))).thenReturn(expectedResult);
+            when(oracleLogParserService.updateOracleLogParserConfig(serverId, param)).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
                 httpUtils.when(() -> HttpUtils.sendPostData(anyString(), anyString(), any(), anyBoolean(), anyBoolean()))
                         .thenReturn("{\"status\":\"success\"}");
                 json.when(() -> JSON.toJSONString(any())).thenReturn("{}");
-                json.when(() -> JSON.parseObject(anyString(), eq(NineBridgeUpdateConfigResult.class))).thenReturn(expectedResult);
+                json.when(() -> JSON.parseObject(anyString(), eq(OracleLogParserUpdateConfigResult.class))).thenReturn(expectedResult);
 
-                NineBridgeUpdateConfigResult result = nineBridgeService.updateNineBridgeConfig(serverId, param);
+                OracleLogParserUpdateConfigResult result = oracleLogParserService.updateOracleLogParserConfig(serverId, param);
                 assertNotNull(result);
                 assertEquals("success", result.getStatus());
             }
@@ -301,22 +299,22 @@ class NineBridgeServiceTest {
         @Test
         void testUpdateConfigWithMapTableOnly() {
             String serverId = "server123";
-            NineBridgeConfigParam param = new NineBridgeConfigParam();
+            OracleLogParserConfigParam param = new OracleLogParserConfigParam();
             param.setMapTable("table_mapping");
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            NineBridgeUpdateConfigResult expectedResult = new NineBridgeUpdateConfigResult();
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            OracleLogParserUpdateConfigResult expectedResult = new OracleLogParserUpdateConfigResult();
             expectedResult.setStatus("success");
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeUpdateConfigResult.class))).thenReturn(expectedResult);
-            when(nineBridgeService.updateNineBridgeConfig(serverId, param)).thenCallRealMethod();
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserUpdateConfigResult.class))).thenReturn(expectedResult);
+            when(oracleLogParserService.updateOracleLogParserConfig(serverId, param)).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
                 httpUtils.when(() -> HttpUtils.sendPostData(anyString(), anyString(), any(), anyBoolean(), anyBoolean()))
                         .thenReturn("{\"status\":\"success\"}");
                 json.when(() -> JSON.toJSONString(any())).thenReturn("{}");
-                json.when(() -> JSON.parseObject(anyString(), eq(NineBridgeUpdateConfigResult.class))).thenReturn(expectedResult);
+                json.when(() -> JSON.parseObject(anyString(), eq(OracleLogParserUpdateConfigResult.class))).thenReturn(expectedResult);
 
-                NineBridgeUpdateConfigResult result = nineBridgeService.updateNineBridgeConfig(serverId, param);
+                OracleLogParserUpdateConfigResult result = oracleLogParserService.updateOracleLogParserConfig(serverId, param);
                 assertNotNull(result);
                 assertEquals("success", result.getStatus());
             }
@@ -325,23 +323,23 @@ class NineBridgeServiceTest {
         @Test
         void testUpdateConfigWithBothParams() {
             String serverId = "server123";
-            NineBridgeConfigParam param = new NineBridgeConfigParam();
+            OracleLogParserConfigParam param = new OracleLogParserConfigParam();
             param.setOracleUrl("jdbc:oracle:thin:@localhost:1521:orcl");
             param.setMapTable("table_mapping");
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            NineBridgeUpdateConfigResult expectedResult = new NineBridgeUpdateConfigResult();
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            OracleLogParserUpdateConfigResult expectedResult = new OracleLogParserUpdateConfigResult();
             expectedResult.setStatus("success");
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeUpdateConfigResult.class))).thenReturn(expectedResult);
-            when(nineBridgeService.updateNineBridgeConfig(serverId, param)).thenCallRealMethod();
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserUpdateConfigResult.class))).thenReturn(expectedResult);
+            when(oracleLogParserService.updateOracleLogParserConfig(serverId, param)).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
                 httpUtils.when(() -> HttpUtils.sendPostData(anyString(), anyString(), any(), anyBoolean(), anyBoolean()))
                         .thenReturn("{\"status\":\"success\"}");
                 json.when(() -> JSON.toJSONString(any())).thenReturn("{}");
-                json.when(() -> JSON.parseObject(anyString(), eq(NineBridgeUpdateConfigResult.class))).thenReturn(expectedResult);
+                json.when(() -> JSON.parseObject(anyString(), eq(OracleLogParserUpdateConfigResult.class))).thenReturn(expectedResult);
 
-                NineBridgeUpdateConfigResult result = nineBridgeService.updateNineBridgeConfig(serverId, param);
+                OracleLogParserUpdateConfigResult result = oracleLogParserService.updateOracleLogParserConfig(serverId, param);
                 assertNotNull(result);
                 assertEquals("success", result.getStatus());
             }
@@ -350,21 +348,21 @@ class NineBridgeServiceTest {
         @Test
         void testUpdateConfigWithException() {
             String serverId = "server123";
-            NineBridgeConfigParam param = new NineBridgeConfigParam();
+            OracleLogParserConfigParam param = new OracleLogParserConfigParam();
             param.setOracleUrl("jdbc:oracle:thin:@localhost:1521:orcl");
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeUpdateConfigResult.class)))
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserUpdateConfigResult.class)))
                 .thenThrow(new RuntimeException("Network error"));
-            when(nineBridgeService.updateNineBridgeConfig(serverId, param)).thenCallRealMethod();
+            when(oracleLogParserService.updateOracleLogParserConfig(serverId, param)).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.updateNineBridgeConfig(serverId, param));
-            assertEquals("nine.bridge.update.config.failed", exception.getErrorCode());
+                () -> oracleLogParserService.updateOracleLogParserConfig(serverId, param));
+            assertEquals("oracle.log.parser.update.config.failed", exception.getErrorCode());
         }
     }
 
     @Nested
-    class UpgradeNineBridgeSNTest {
+    class UpgradeOracleLogParserSNTest {
 
         RawServerStateDto mockServer;
 
@@ -378,41 +376,41 @@ class NineBridgeServiceTest {
         @Test
         void testUpgradeSNWithNullContext() {
             String serverId = "server123";
-            when(nineBridgeService.upgradeNineBridgeSN(serverId, null)).thenCallRealMethod();
+            when(oracleLogParserService.upgradeOracleLogParserSN(serverId, null)).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.upgradeNineBridgeSN(serverId, null));
-            assertEquals("nine.bridge.sn.file.empty", exception.getErrorCode());
+                () -> oracleLogParserService.upgradeOracleLogParserSN(serverId, null));
+            assertEquals("oracle.log.parser.sn.file.empty", exception.getErrorCode());
         }
 
         @Test
         void testUpgradeSNWithBlankContext() {
             String serverId = "server123";
-            when(nineBridgeService.upgradeNineBridgeSN(serverId, "")).thenCallRealMethod();
+            when(oracleLogParserService.upgradeOracleLogParserSN(serverId, "")).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.upgradeNineBridgeSN(serverId, ""));
-            assertEquals("nine.bridge.sn.file.empty", exception.getErrorCode());
+                () -> oracleLogParserService.upgradeOracleLogParserSN(serverId, ""));
+            assertEquals("oracle.log.parser.sn.file.empty", exception.getErrorCode());
         }
 
         @Test
         void testUpgradeSNSuccessfully() {
             String serverId = "server123";
             String snContext = "SN_CONTEXT_12345";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            NineBridgeUpgradeSNResult expectedResult = new NineBridgeUpgradeSNResult();
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            OracleLogParserUpgradeSNResult expectedResult = new OracleLogParserUpgradeSNResult();
             expectedResult.setStatus("success");
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeUpgradeSNResult.class))).thenReturn(expectedResult);
-            when(nineBridgeService.upgradeNineBridgeSN(serverId, snContext)).thenCallRealMethod();
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserUpgradeSNResult.class))).thenReturn(expectedResult);
+            when(oracleLogParserService.upgradeOracleLogParserSN(serverId, snContext)).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
                 httpUtils.when(() -> HttpUtils.sendPostData(anyString(), anyString(), any(), anyBoolean(), anyBoolean()))
                         .thenReturn("{\"status\":\"success\"}");
                 json.when(() -> JSON.toJSONString(any())).thenReturn("{}");
-                json.when(() -> JSON.parseObject(anyString(), eq(NineBridgeUpgradeSNResult.class))).thenReturn(expectedResult);
+                json.when(() -> JSON.parseObject(anyString(), eq(OracleLogParserUpgradeSNResult.class))).thenReturn(expectedResult);
 
-                NineBridgeUpgradeSNResult result = nineBridgeService.upgradeNineBridgeSN(serverId, snContext);
+                OracleLogParserUpgradeSNResult result = oracleLogParserService.upgradeOracleLogParserSN(serverId, snContext);
                 assertNotNull(result);
                 assertEquals("success", result.getStatus());
             }
@@ -422,19 +420,19 @@ class NineBridgeServiceTest {
         void testUpgradeSNWithException() {
             String serverId = "server123";
             String snContext = "SN_CONTEXT_12345";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            when(nineBridgeService.post(anyString(), any(), eq(NineBridgeUpgradeSNResult.class)))
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            when(oracleLogParserService.post(anyString(), any(), eq(OracleLogParserUpgradeSNResult.class)))
                 .thenThrow(new RuntimeException("Network error"));
-            when(nineBridgeService.upgradeNineBridgeSN(serverId, snContext)).thenCallRealMethod();
+            when(oracleLogParserService.upgradeOracleLogParserSN(serverId, snContext)).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.upgradeNineBridgeSN(serverId, snContext));
-            assertEquals("nine.bridge.update.sn.failed", exception.getErrorCode());
+                () -> oracleLogParserService.upgradeOracleLogParserSN(serverId, snContext));
+            assertEquals("oracle.log.parser.update.sn.failed", exception.getErrorCode());
         }
     }
 
     @Nested
-    class FindNineBridgeSNTest {
+    class FindOracleLogParserSNTest {
 
         RawServerStateDto mockServer;
 
@@ -448,7 +446,7 @@ class NineBridgeServiceTest {
         @Test
         void testFindSNSuccessfully() {
             String serverId = "server123";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
 
             Map<String, Object> responseMap = new HashMap<>();
             responseMap.put("status", "success");
@@ -465,8 +463,8 @@ class NineBridgeServiceTest {
             dataMap.put("user", "admin");
             responseMap.put("data", dataMap);
 
-            when(nineBridgeService.get(anyString(), eq(Map.class))).thenReturn(responseMap);
-            when(nineBridgeService.findNineBridgeSN(serverId)).thenCallRealMethod();
+            when(oracleLogParserService.get(anyString(), eq(Map.class))).thenReturn(responseMap);
+            when(oracleLogParserService.findOracleLogParserSN(serverId)).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
@@ -474,7 +472,7 @@ class NineBridgeServiceTest {
                         .thenReturn("{\"status\":\"success\"}");
                 json.when(() -> JSON.parseObject(anyString(), eq(Map.class))).thenReturn(responseMap);
 
-                NineBridgeSNResult result = nineBridgeService.findNineBridgeSN(serverId);
+                OracleLogParserSNResult result = oracleLogParserService.findOracleLogParserSN(serverId);
                 assertNotNull(result);
                 assertEquals("success", result.getStatus());
                 assertEquals("OK", result.getMessage());
@@ -487,14 +485,14 @@ class NineBridgeServiceTest {
         @Test
         void testFindSNWithException() {
             String serverId = "server123";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
-            when(nineBridgeService.get(anyString(), eq(Map.class)))
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
+            when(oracleLogParserService.get(anyString(), eq(Map.class)))
                 .thenThrow(new RuntimeException("Network error"));
-            when(nineBridgeService.findNineBridgeSN(serverId)).thenCallRealMethod();
+            when(oracleLogParserService.findOracleLogParserSN(serverId)).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.findNineBridgeSN(serverId));
-            assertEquals("nine.bridge.find.sn.failed", exception.getErrorCode());
+                () -> oracleLogParserService.findOracleLogParserSN(serverId));
+            assertEquals("oracle.log.parser.find.sn.failed", exception.getErrorCode());
         }
     }
 
@@ -513,11 +511,11 @@ class NineBridgeServiceTest {
         @Test
         void testRemoveServerSuccessfully() {
             String serverId = "server123";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
             doNothing().when(rawServerStateService).deleteAll(serverId);
-            when(nineBridgeService.removeUselessServerInfo(serverId)).thenCallRealMethod();
+            when(oracleLogParserService.removeUselessServerInfo(serverId)).thenCallRealMethod();
 
-            Boolean result = nineBridgeService.removeUselessServerInfo(serverId);
+            Boolean result = oracleLogParserService.removeUselessServerInfo(serverId);
             assertTrue(result);
             verify(rawServerStateService, times(1)).deleteAll(serverId);
         }
@@ -525,13 +523,13 @@ class NineBridgeServiceTest {
         @Test
         void testRemoveServerWithException() {
             String serverId = "server123";
-            when(nineBridgeService.findByServerId(serverId)).thenReturn(mockServer);
+            when(oracleLogParserService.findByServerId(serverId)).thenReturn(mockServer);
             doThrow(new RuntimeException("Database error")).when(rawServerStateService).deleteAll(serverId);
-            when(nineBridgeService.removeUselessServerInfo(serverId)).thenCallRealMethod();
+            when(oracleLogParserService.removeUselessServerInfo(serverId)).thenCallRealMethod();
 
             BizException exception = assertThrows(BizException.class,
-                () -> nineBridgeService.removeUselessServerInfo(serverId));
-            assertEquals("nine.bridge.remove.server.failed", exception.getErrorCode());
+                () -> oracleLogParserService.removeUselessServerInfo(serverId));
+            assertEquals("oracle.log.parser.remove.server.failed", exception.getErrorCode());
         }
     }
 
@@ -543,7 +541,7 @@ class NineBridgeServiceTest {
             String url = "http://192.168.1.1:8080/api/test";
             Map<String, Object> expectedResult = new HashMap<>();
             expectedResult.put("key", "value");
-            when(nineBridgeService.get(url, Map.class)).thenCallRealMethod();
+            when(oracleLogParserService.get(url, Map.class)).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
@@ -551,7 +549,7 @@ class NineBridgeServiceTest {
                         .thenReturn("{\"key\":\"value\"}");
                 json.when(() -> JSON.parseObject("{\"key\":\"value\"}", Map.class)).thenReturn(expectedResult);
 
-                Map<String, Object> result = nineBridgeService.get(url, Map.class);
+                Map<String, Object> result = oracleLogParserService.get(url, Map.class);
                 assertNotNull(result);
                 assertEquals("value", result.get("key"));
             }
@@ -562,19 +560,19 @@ class NineBridgeServiceTest {
             String url = "http://192.168.1.1:8080/api/test";
             Map<String, Object> body = new HashMap<>();
             body.put("param", "value");
-            NineBridgeCommandExecResult expectedResult = new NineBridgeCommandExecResult();
+            OracleLogParserCommandExecResult expectedResult = new OracleLogParserCommandExecResult();
             expectedResult.setStatus("success");
-            when(nineBridgeService.post(url, body, NineBridgeCommandExecResult.class)).thenCallRealMethod();
+            when(oracleLogParserService.post(url, body, OracleLogParserCommandExecResult.class)).thenCallRealMethod();
 
             try (MockedStatic<HttpUtils> httpUtils = mockStatic(HttpUtils.class);
                  MockedStatic<JSON> json = mockStatic(JSON.class)) {
                 json.when(() -> JSON.toJSONString(body)).thenReturn("{\"param\":\"value\"}");
                 httpUtils.when(() -> HttpUtils.sendPostData(eq(url), eq("{\"param\":\"value\"}"), any(), eq(false), eq(false)))
                         .thenReturn("{\"status\":\"success\"}");
-                json.when(() -> JSON.parseObject("{\"status\":\"success\"}", NineBridgeCommandExecResult.class))
+                json.when(() -> JSON.parseObject("{\"status\":\"success\"}", OracleLogParserCommandExecResult.class))
                         .thenReturn(expectedResult);
 
-                NineBridgeCommandExecResult result = nineBridgeService.post(url, body, NineBridgeCommandExecResult.class);
+                OracleLogParserCommandExecResult result = oracleLogParserService.post(url, body, OracleLogParserCommandExecResult.class);
                 assertNotNull(result);
                 assertEquals("success", result.getStatus());
             }

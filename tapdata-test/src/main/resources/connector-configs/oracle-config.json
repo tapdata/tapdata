@@ -7,7 +7,7 @@
   "password": "Gotapd8",
   "timezone": "",
   "extParams": "",
-  "logPluginName": "bridge",
+  "logPluginName": "oracle-log-parser",
   "rawLogServerHost": "121.40.81.171",
   "rawLogServerPort": 8190
 }

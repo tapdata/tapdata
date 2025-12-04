@@ -11,7 +11,7 @@ import java.util.Map;
  * @description
  */
 @Data
-public class NineBridgeSNResult {
+public class OracleLogParserSNResult {
     DataInfo data;
 
     String message;
