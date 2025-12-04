@@ -99,7 +99,9 @@ public final class IncreaseRuleInstance {
             CompletableFuture.runAsync(() -> {
                 final AdjustInfo adjust = adjust(events, delayAvg);
                 try {
-                    queue.offer(adjust, 1000L, TimeUnit.MILLISECONDS);
+                    if (queue.offer(adjust, 1000L, TimeUnit.MILLISECONDS)) {
+                        //do nothing
+                    }
                 } catch (InterruptedException e) {
                     AdjustBatchSizeFactory.warn(taskId, "Offer adjust info failed, error message: {}", e.getMessage());
                     Thread.currentThread().interrupt();
@@ -147,24 +149,32 @@ public final class IncreaseRuleInstance {
         return info;
     }
 
+    boolean exit() {
+        return queue.isEmpty() || isAlive == null;
+    }
+
+    void collect(List<AdjustInfo> adjustInfos, long now) {
+        AdjustInfo adjustInfo = null;
+        do {
+            adjustInfo = queue.peek();
+            if (null != adjustInfo) {
+                if (now >= adjustInfo.getTimestamp()) {
+                    AdjustInfo item = queue.poll();
+                    adjustInfos.add(item);
+                } else {
+                    break;
+                }
+            }
+        } while (isAlive.get() && null != adjustInfo);
+    }
+
     public void checkOnce() {
-        if (queue.isEmpty() || isAlive == null) {
+        if (exit()) {
             return;
         }
         long now = System.currentTimeMillis();
         final List<AdjustInfo> adjustInfos = new ArrayList<>();
-        while (isAlive.get()) {
-            AdjustInfo adjustInfo = queue.peek();
-            if (null == adjustInfo) {
-                break;
-            }
-            if (now >= adjustInfo.getTimestamp()) {
-                AdjustInfo item = queue.poll();
-                adjustInfos.add(item);
-            } else {
-                break;
-            }
-        }
+        collect(adjustInfos, now);
         if (!adjustInfos.isEmpty()) {
             final AdjustStage.MetricInfo metricInfo = new AdjustStage.MetricInfo();
             final AdjustInfo avg = AdjustInfo.avg(taskId, adjustInfos);

@@ -114,7 +114,9 @@ public class DynamicLinkedBlockingQueue<E> {
     private void migrate(LinkedBlockingQueue<E> oldQ, LinkedBlockingQueue<E> newQ) {
         E e;
         while ((e = oldQ.poll()) != null && this.active()) {
-            newQ.offer(e);
+            if (!newQ.offer(e)) {
+                //do nothing
+            }
         }
     }
 

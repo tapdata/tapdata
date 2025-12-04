@@ -1817,12 +1817,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     pendingEvent = null;
                     isPending.compareAndSet(false, true);
                 } else {
-                    try {
-                        dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
+                    dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
                     isPending.compareAndSet(true, false);
                 }
 
@@ -1839,8 +1834,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     Optional.ofNullable(getSnapshotProgressManager())
                             .ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
                 }
+            } catch (InterruptedException ie) {
+                errorHandle(ie, "Start source consumer failed with InterruptedException: " + ie.getMessage());
+                Thread.currentThread().interrupt();
+                break;
             } catch (Exception e) {
-                errorHandle(e, "start source consumer failed: " + e.getMessage());
+                errorHandle(e, "Start source consumer failed: " + e.getMessage());
                 break;
             }
         }
