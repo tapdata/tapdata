@@ -13,18 +13,12 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedConstruction;
-import org.mockito.MockedStatic;
 import org.springframework.beans.factory.config.BeanDefinition;
-import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
-import org.springframework.core.type.AnnotationMetadata;
-import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.data.mongodb.core.CollectionOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -286,10 +280,10 @@ class CustomMongoConfigTest {
 
             doCallRealMethod().when(customMongoConfig).updateExistingCollection("testCollection", annotation);
             doReturn(stats).when(customMongoConfig).getCollectionStats("testCollection");
-            doNothing().when(customMongoConfig).recreateCappedCollection(anyString(), any());
+            doNothing().when(customMongoConfig).backupAndRecreateCollection(anyString(), any());
 
             Assertions.assertDoesNotThrow(() -> customMongoConfig.updateExistingCollection("testCollection", annotation));
-            verify(customMongoConfig, times(1)).recreateCappedCollection("testCollection", annotation);
+            verify(customMongoConfig, times(1)).backupAndRecreateCollection("testCollection", () -> {});
         }
 
         @Test
@@ -300,10 +294,10 @@ class CustomMongoConfigTest {
             doCallRealMethod().when(customMongoConfig).updateExistingCollection("testCollection", annotation);
             doReturn(stats).when(customMongoConfig).getCollectionStats("testCollection");
             doReturn(true).when(customMongoConfig).needsUpdate(stats, annotation);
-            doNothing().when(customMongoConfig).recreateCappedCollection(anyString(), any());
+            doNothing().when(customMongoConfig).backupAndRecreateCollection(anyString(), any());
 
             Assertions.assertDoesNotThrow(() -> customMongoConfig.updateExistingCollection("testCollection", annotation));
-            verify(customMongoConfig, times(1)).recreateCappedCollection("testCollection", annotation);
+            verify(customMongoConfig, times(1)).backupAndRecreateCollection("testCollection", () -> {});
         }
 
         @Test
@@ -316,7 +310,7 @@ class CustomMongoConfigTest {
             doReturn(false).when(customMongoConfig).needsUpdate(stats, annotation);
 
             Assertions.assertDoesNotThrow(() -> customMongoConfig.updateExistingCollection("testCollection", annotation));
-            verify(customMongoConfig, never()).recreateCappedCollection(anyString(), any());
+            verify(customMongoConfig, never()).backupAndRecreateCollection(anyString(), any());
         }
 
         @Test
@@ -327,7 +321,7 @@ class CustomMongoConfigTest {
             doThrow(new RuntimeException("Database error")).when(customMongoConfig).getCollectionStats("testCollection");
 
             Assertions.assertDoesNotThrow(() -> customMongoConfig.updateExistingCollection("testCollection", annotation));
-            verify(customMongoConfig, never()).recreateCappedCollection(anyString(), any());
+            verify(customMongoConfig, never()).backupAndRecreateCollection(anyString(), any());
         }
     }
 
@@ -483,14 +477,14 @@ class CustomMongoConfigTest {
             when(backupCollection.find()).thenReturn(mock(com.mongodb.client.FindIterable.class));
             when(backupCollection.find().iterator()).thenReturn(mongoCursor);
             when(mongoCursor.hasNext()).thenReturn(false);
-
-            doCallRealMethod().when(customMongoConfig).recreateCappedCollection("testCollection", annotation);
+            Runnable r = () -> {};
+            doCallRealMethod().when(customMongoConfig).backupAndRecreateCollection("testCollection", r);
             doNothing().when(customMongoConfig).createCappedCollection(anyString(), any());
             doNothing().when(mongoCollection).renameCollection(any(MongoNamespace.class));
 
-            Assertions.assertDoesNotThrow(() -> customMongoConfig.recreateCappedCollection("testCollection", annotation));
+            Assertions.assertDoesNotThrow(() -> customMongoConfig.backupAndRecreateCollection("testCollection", r));
             verify(mongoCollection, times(1)).renameCollection(any(MongoNamespace.class));
-            verify(customMongoConfig, times(1)).createCappedCollection("testCollection", annotation);
+            verify(customMongoConfig, times(0)).createCappedCollection("testCollection", annotation);
             verify(backupCollection, times(1)).drop();
         }
 
@@ -515,13 +509,13 @@ class CustomMongoConfigTest {
             when(backupCollection.find().iterator()).thenReturn(mongoCursor);
             when(mongoCursor.hasNext()).thenReturn(true, true, true, false);
             when(mongoCursor.next()).thenReturn(documents.get(0), documents.get(1), documents.get(2));
-
-            doCallRealMethod().when(customMongoConfig).recreateCappedCollection("testCollection", annotation);
+            Runnable r = () -> {};
+            doCallRealMethod().when(customMongoConfig).backupAndRecreateCollection("testCollection", r);
             doNothing().when(customMongoConfig).createCappedCollection(anyString(), any());
             doNothing().when(mongoCollection).renameCollection(any(MongoNamespace.class));
             when(mongoCollection.insertMany(any(List.class), any(InsertManyOptions.class))).thenReturn(mock(InsertManyResult.class));
 
-            Assertions.assertDoesNotThrow(() -> customMongoConfig.recreateCappedCollection("testCollection", annotation));
+            Assertions.assertDoesNotThrow(() -> customMongoConfig.backupAndRecreateCollection("testCollection", r));
             verify(mongoCollection, times(2)).insertMany(any(List.class), any(InsertManyOptions.class));
             verify(backupCollection, times(1)).drop();
         }
@@ -546,13 +540,13 @@ class CustomMongoConfigTest {
             when(backupCollection.find().iterator()).thenReturn(mongoCursor);
             when(mongoCursor.hasNext()).thenReturn(true, true, false);
             when(mongoCursor.next()).thenReturn(documents.get(0), documents.get(1));
-
-            doCallRealMethod().when(customMongoConfig).recreateCappedCollection("testCollection", annotation);
+            Runnable r = () -> {};
+            doCallRealMethod().when(customMongoConfig).backupAndRecreateCollection("testCollection", r);
             doNothing().when(customMongoConfig).createCappedCollection(anyString(), any());
             doNothing().when(mongoCollection).renameCollection(any(MongoNamespace.class));
             doThrow(new MongoException("Capped collection full")).when(mongoCollection).insertMany(any(List.class), any(InsertManyOptions.class));
 
-            Assertions.assertDoesNotThrow(() -> customMongoConfig.recreateCappedCollection("testCollection", annotation));
+            Assertions.assertDoesNotThrow(() -> customMongoConfig.backupAndRecreateCollection("testCollection", r));
             verify(mongoCollection, times(2)).insertMany(any(List.class), any(InsertManyOptions.class));
             verify(backupCollection, never()).drop(); // Should not drop backup when migration fails
         }
@@ -577,13 +571,13 @@ class CustomMongoConfigTest {
             when(backupCollection.find().iterator()).thenReturn(mongoCursor);
             when(mongoCursor.hasNext()).thenReturn(true, true, false);
             when(mongoCursor.next()).thenReturn(documents.get(0), documents.get(1));
-
-            doCallRealMethod().when(customMongoConfig).recreateCappedCollection("testCollection", annotation);
+            Runnable r = () -> {};
+            doCallRealMethod().when(customMongoConfig).backupAndRecreateCollection("testCollection", r);
             doNothing().when(customMongoConfig).createCappedCollection(anyString(), any());
             doNothing().when(mongoCollection).renameCollection(any(MongoNamespace.class));
             doThrow(new MongoException("Capped collection full")).when(mongoCollection).insertMany(any(List.class), any(InsertManyOptions.class));
 
-            Assertions.assertDoesNotThrow(() -> customMongoConfig.recreateCappedCollection("testCollection", annotation));
+            Assertions.assertDoesNotThrow(() -> customMongoConfig.backupAndRecreateCollection("testCollection", r));
             verify(mongoCollection, times(1)).insertMany(any(List.class), any(InsertManyOptions.class));
             verify(backupCollection, never()).drop();
         }
@@ -601,12 +595,12 @@ class CustomMongoConfigTest {
             when(backupCollection.find()).thenReturn(mock(com.mongodb.client.FindIterable.class));
             when(backupCollection.find().iterator()).thenReturn(mongoCursor);
             when(mongoCursor.hasNext()).thenReturn(false);
-
-            doCallRealMethod().when(customMongoConfig).recreateCappedCollection("testCollection", annotation);
+            Runnable r = () -> {};
+            doCallRealMethod().when(customMongoConfig).backupAndRecreateCollection("testCollection", r);
             doNothing().when(customMongoConfig).createCappedCollection(anyString(), any());
             doNothing().when(mongoCollection).renameCollection(any(MongoNamespace.class));
 
-            Assertions.assertDoesNotThrow(() -> customMongoConfig.recreateCappedCollection("testCollection", annotation));
+            Assertions.assertDoesNotThrow(() -> customMongoConfig.backupAndRecreateCollection("testCollection", r));
             verify(backupCollection, times(1)).drop();
         }
 
@@ -617,10 +611,10 @@ class CustomMongoConfigTest {
             when(mongoTemplate.getDb()).thenReturn(mongoDatabase);
             when(mongoDatabase.getCollection("testCollection")).thenReturn(mongoCollection);
             doThrow(new RuntimeException("Database error")).when(mongoCollection).renameCollection(any(MongoNamespace.class));
+            Runnable r = () -> {};
+            doCallRealMethod().when(customMongoConfig).backupAndRecreateCollection("testCollection", r);
 
-            doCallRealMethod().when(customMongoConfig).recreateCappedCollection("testCollection", annotation);
-
-            Assertions.assertDoesNotThrow(() -> customMongoConfig.recreateCappedCollection("testCollection", annotation));
+            Assertions.assertDoesNotThrow(() -> customMongoConfig.backupAndRecreateCollection("testCollection", r));
             verify(customMongoConfig, never()).createCappedCollection(anyString(), any());
         }
     }

@@ -1,6 +1,7 @@
 package com.tapdata.tm.config;
 
 import com.mongodb.MongoException;
+import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -61,10 +62,37 @@ public class CustomMongoConfig {
             String name = entityAnnotation.value();
             if (annotation.capped()) {
                 handleCappedCollection(name, annotation);
+            } else {
+                handleNonCappedCollection(name);
             }
         } catch (Exception e) {
             logger.warn("Failed to process capped collection for class: {}, error: {}",
                     beanDef.getBeanClassName(), e.getMessage());
+        }
+    }
+
+    protected void handleNonCappedCollection(String collectionName) {
+        try {
+            if (mongoTemplate.collectionExists(collectionName)) {
+                CollectionStats stats = getCollectionStats(collectionName);
+                if (stats.isCapped()) {
+                    changeToNonCappedCollection(collectionName);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Failed to handle capped collection: {}, error: {}", collectionName, e.getMessage(), e);
+        }
+    }
+
+    protected void changeToNonCappedCollection(String collectionName) {
+        try {
+            backupAndRecreateCollection(collectionName, () -> {
+                logger.info("Creating new non-capped collection: {}", collectionName);
+                mongoTemplate.createCollection(collectionName);
+                logger.info("Successfully created non-capped collection: {}", collectionName);
+            });
+        } catch (Exception e) {
+            logger.error("Failed to change capped collection to non-capped: {}, error: {}", collectionName, e.getMessage(), e);
         }
     }
 
@@ -101,10 +129,10 @@ public class CustomMongoConfig {
         try {
             CollectionStats stats = getCollectionStats(collectionName);
             if (!stats.isCapped()) {
-                recreateCappedCollection(collectionName, annotation);
+                backupAndRecreateCollection(collectionName, () -> createCappedCollection(collectionName, annotation));
             } else {
                 if (needsUpdate(stats, annotation)) {
-                    recreateCappedCollection(collectionName, annotation);
+                    backupAndRecreateCollection(collectionName, () -> createCappedCollection(collectionName, annotation));
                 } else {
                     logger.debug("Capped collection {} attributes are up to date", collectionName);
                 }
@@ -146,14 +174,15 @@ public class CustomMongoConfig {
         return stats.getMax() != annotation.maxLength();
     }
 
-    protected void recreateCappedCollection(String collectionName, CappedCollection annotation) {
+    protected void backupAndRecreateCollection(String collectionName, Runnable createCollection) {
         try {
             String backupCollectionName = collectionName + "_backup_" + System.currentTimeMillis();
             MongoDatabase database = mongoTemplate.getDb();
-            database.getCollection(collectionName).renameCollection(
+            MongoCollection<org.bson.Document> collection = database.getCollection(collectionName);
+            collection.renameCollection(
                     new com.mongodb.MongoNamespace(database.getName(), backupCollectionName)
             );
-            createCappedCollection(collectionName, annotation);
+            createCollection.run();
             MongoCollection<org.bson.Document> newCollection = database.getCollection(collectionName);
             MongoCollection<org.bson.Document> backupCollection = database.getCollection(backupCollectionName);
             long beforeCount = backupCollection.countDocuments();
@@ -174,11 +203,30 @@ public class CustomMongoConfig {
                 }
             }
             long afterCount = newCollection.countDocuments();
+            ListIndexesIterable<org.bson.Document> indexesIterable = backupCollection.listIndexes();
+            List<org.bson.Document> indexes = new ArrayList<>();
+            for (org.bson.Document document : indexesIterable) {
+                if (document.getString("name").equals("_id_")) {
+                    continue;
+                }
+                indexes.add(document);
+            }
             if (afterCount >= beforeCount || backupCollection.countDocuments() <= 0L) {
                 backupCollection.drop();
             }
+            syncIndex(indexes, newCollection);
         } catch (Exception e) {
             logger.error("Failed to recreate capped collection {}: {}", collectionName, e.getMessage(), e);
+        }
+    }
+
+    protected void syncIndex(List<org.bson.Document> indexes, MongoCollection<org.bson.Document> newCollection) {
+        for (org.bson.Document listIndex : indexes) {
+            try {
+                newCollection.createIndex(listIndex.get("key", org.bson.Document.class));
+            } catch (Exception e) {
+                logger.error("Failed to create index: {}, error: {}", listIndex, e.getMessage());
+            }
         }
     }
 
