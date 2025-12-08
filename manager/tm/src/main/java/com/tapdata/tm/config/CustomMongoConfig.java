@@ -202,22 +202,28 @@ public class CustomMongoConfig {
                     insertMany(newCollection, buffer);
                 }
             }
-            long afterCount = newCollection.countDocuments();
-            ListIndexesIterable<org.bson.Document> indexesIterable = backupCollection.listIndexes();
-            List<org.bson.Document> indexes = new ArrayList<>();
-            for (org.bson.Document document : indexesIterable) {
-                if (document.getString("name").equals("_id_")) {
-                    continue;
-                }
-                indexes.add(document);
-            }
-            if (afterCount >= beforeCount || backupCollection.countDocuments() <= 0L) {
-                backupCollection.drop();
-            }
-            syncIndex(indexes, newCollection);
+            doAfter(newCollection, backupCollection, beforeCount);
         } catch (Exception e) {
             logger.error("Failed to recreate capped collection {}: {}", collectionName, e.getMessage(), e);
         }
+    }
+
+    protected void doAfter(MongoCollection<org.bson.Document> newCollection,
+                           MongoCollection<org.bson.Document> backupCollection,
+                           long beforeCount) {
+        long afterCount = newCollection.countDocuments();
+        ListIndexesIterable<org.bson.Document> indexesIterable = backupCollection.listIndexes();
+        List<org.bson.Document> indexes = new ArrayList<>();
+        for (org.bson.Document document : indexesIterable) {
+            if (document.getString("name").equals("_id_")) {
+                continue;
+            }
+            indexes.add(document);
+        }
+        if (afterCount >= beforeCount || backupCollection.countDocuments() <= 0L) {
+            backupCollection.drop();
+        }
+        syncIndex(indexes, newCollection);
     }
 
     protected void syncIndex(List<org.bson.Document> indexes, MongoCollection<org.bson.Document> newCollection) {
