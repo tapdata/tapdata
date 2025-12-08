@@ -1133,13 +1133,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				.map(TapNodeSpecification::getAutoAccumulateBatch)
 				.map(AutoAccumulateBatchInfo::getIncreaseRead)
 				.orElse(new AutoAccumulateBatchInfo.Info());
+		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.max(50, this.getIncreaseReadSize() / 10), e -> isRunning(), consumer, obsLogger);
 		if (!autoAccumulateBatchInfo.isOpen()) {
-			final int delayMs = Math.max(50, this.getIncreaseReadSize() / 10);
-			streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> delayMs, null);
 			return consumer;
 		}
-		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.max(50, this.getIncreaseReadSize() / 10), consumer);
-		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o));
+		streamReadBatchAcceptor.startMonitor(sourceRunner);
+		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o))
+				.batchConsumer((es, o) -> streamReadBatchAcceptor.accept(es, o));
 	}
 
 	private void handleSyncProgressType(List<TapdataEvent> tapdataEvents) {
@@ -1519,6 +1519,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	@Override
 	public void doClose() throws TapCodeException {
 		try {
+			CommonUtils.handleAnyError(() -> {
+				if (null != streamReadBatchAcceptor) {
+					streamReadBatchAcceptor.close();
+				}
+			}, err -> obsLogger.warn(String.format("Close share cdc event accept failed: %s", err.getMessage())));
 			CommonUtils.handleAnyError(() -> {
 				if (null != shareCdcReader) {
 					shareCdcReader.close();
