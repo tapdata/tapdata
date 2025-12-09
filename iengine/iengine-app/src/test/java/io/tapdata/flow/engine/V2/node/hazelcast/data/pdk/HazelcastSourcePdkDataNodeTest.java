@@ -8,6 +8,7 @@ import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataMergeTableCacheRebuildCompleteEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
@@ -18,17 +19,22 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadEndAspect;
+import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.TapInterfaceUtil;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.DoSnapshotFunctions;
@@ -60,6 +66,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactor
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustStage.TaskInfo;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.BatchAcceptor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -146,13 +153,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
@@ -3644,5 +3645,220 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			);
 		}
 	}
+
+    @Nested
+    @DisplayName("StartSourceRunnerTest")
+    class StartSourceRunnerTest {
+
+        private HazelcastSourcePdkDataNodeImpl sourceNode;
+        private Node tableNode;
+        private TaskDto taskDto;
+        private HttpClientMongoOperator clientMongoOperator;
+        private ObsLogger obsLogger;
+        private SyncProgress syncProgress;
+        private TapTableMap<String, TapTable> tapTableMap;
+        private AtomicBoolean sourceRunnerFirstTime;
+        private CopyOnWriteArrayList<String> newTables;
+        private SnapshotProgressManager snapshotProgressManager;
+        private SourceStateAspect sourceStateAspect;
+        private TapdataTaskScheduler tapdataTaskScheduler;
+        private TaskClient<TaskDto> taskClient;
+        private DAG dag;
+
+        @BeforeEach
+        void setUp() {
+            tableNode = mock(TableNode.class);
+            taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+
+            clientMongoOperator = mock(HttpClientMongoOperator.class);
+            obsLogger = mock(ObsLogger.class);
+            syncProgress = mock(SyncProgress.class);
+            tapTableMap = mock(TapTableMap.class);
+            sourceRunnerFirstTime = new AtomicBoolean(true);
+            newTables = new CopyOnWriteArrayList<>();
+            snapshotProgressManager = mock(SnapshotProgressManager.class);
+            sourceStateAspect = mock(SourceStateAspect.class);
+            tapdataTaskScheduler = mock(TapdataTaskScheduler.class);
+            taskClient = mock(TaskClient.class);
+
+            when(dataProcessorContext.getNode()).thenReturn(tableNode);
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+            when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+            dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            when(dag.getNodes()).thenReturn(Collections.singletonList(tableNode));
+            sourceNode = spy(new HazelcastSourcePdkDataNodeImpl(dataProcessorContext));
+            ReflectionTestUtils.setField(sourceNode, "clientMongoOperator", clientMongoOperator);
+            ReflectionTestUtils.setField(sourceNode, "obsLogger", obsLogger);
+            ReflectionTestUtils.setField(sourceNode, "syncProgress", syncProgress);
+            ReflectionTestUtils.setField(sourceNode, "sourceRunnerFirstTime", sourceRunnerFirstTime);
+            ReflectionTestUtils.setField(sourceNode, "newTables", newTables);
+            ReflectionTestUtils.setField(sourceNode, "snapshotProgressManager", snapshotProgressManager);
+            ReflectionTestUtils.setField(sourceNode, "sourceStateAspect", sourceStateAspect);
+            ReflectionTestUtils.setField(sourceNode, "readBatchSize", 1000);
+        }
+
+        @Test
+        @DisplayName("测试正常流程 - 需要初始同步和CDC")
+        void testNormalFlowWithInitialSyncAndCDC() throws Throwable {
+            // Setup
+            Set<String> tables = new HashSet<>(Arrays.asList("table1", "table2"));
+            doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
+            doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
+            doReturn(true).when(sourceNode).need2InitialSync(syncProgress);
+            doReturn(false).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
+            doReturn(true).when(sourceNode).isRunning();
+            doNothing().when(sourceNode).doSnapshotWithControl(anyList());
+            doNothing().when(sourceNode).addLdpNewTablesIfNeed(taskDto);
+            doNothing().when(sourceNode).enqueue(any(TapdataCompleteSnapshotEvent.class));
+            doReturn(true).when(sourceNode).need2CDC();
+            doNothing().when(sourceNode).waitAllSnapshotCompleteIfNeed();
+            doNothing().when(sourceNode).doCdc();
+            doReturn(mock(AspectInterceptResult.class)).when(sourceNode).executeAspect(any());
+
+            try (MockedStatic<Snapshot2CDCAspect> snapshot2CDCAspectMock = mockStatic(Snapshot2CDCAspect.class);
+                 MockedStatic<AspectUtils> aspectUtilsMock = mockStatic(AspectUtils.class)) {
+                snapshot2CDCAspectMock.when(() -> Snapshot2CDCAspect.execute(dataProcessorContext)).thenAnswer(invocation -> null);
+                aspectUtilsMock.when(() -> AspectUtils.executeAspect(any(SourceStateAspect.class))).thenAnswer(invocation -> null);
+                // Execute
+                sourceNode.startSourceRunner();
+
+                // Verify
+                verify(sourceNode, times(1)).reportBatchSize(1000, 1000);
+                verify(sourceNode, times(1)).filterSubTableIfMasterExists();
+                verify(sourceNode, times(1)).doSnapshotWithControl(argThat(list -> list.size() == 2));
+                verify(sourceNode, times(1)).addLdpNewTablesIfNeed(taskDto);
+                verify(sourceNode, times(1)).enqueue(any(TapdataCompleteSnapshotEvent.class));
+                verify(sourceNode, times(1)).need2CDC();
+                verify(sourceNode, times(1)).waitAllSnapshotCompleteIfNeed();
+                verify(sourceNode, times(1)).doCdc();
+                verify(sourceNode, times(1)).executeAspect(any(CDCReadBeginAspect.class));
+                verify(sourceNode, times(1)).executeAspect(any(CDCReadEndAspect.class));
+                verify(snapshotProgressManager, times(1)).close();
+            }
+        }
+
+        @Test
+        @DisplayName("测试正常流程 - 仅初始同步不需要CDC")
+        void testNormalFlowWithInitialSyncOnly() throws Throwable {
+            // Setup
+            Set<String> tables = new HashSet<>(Arrays.asList("table1"));
+            doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
+            doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
+            doReturn(true).when(sourceNode).need2InitialSync(syncProgress);
+            doReturn(false).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
+            doReturn(true).when(sourceNode).isRunning();
+            doNothing().when(sourceNode).doSnapshotWithControl(anyList());
+            doNothing().when(sourceNode).addLdpNewTablesIfNeed(taskDto);
+            doNothing().when(sourceNode).enqueue(any(TapdataCompleteSnapshotEvent.class));
+            doReturn(false).when(sourceNode).need2CDC();
+            doReturn(mock(AspectInterceptResult.class)).when(sourceNode).executeAspect(any());
+
+            try (MockedStatic<Snapshot2CDCAspect> snapshot2CDCAspectMock = mockStatic(Snapshot2CDCAspect.class);
+                 MockedStatic<BeanUtil> beanUtilMock = mockStatic(BeanUtil.class)) {
+                snapshot2CDCAspectMock.when(() -> Snapshot2CDCAspect.execute(dataProcessorContext)).thenAnswer(invocation -> null);
+                beanUtilMock.when(() -> BeanUtil.getBean(TapdataTaskScheduler.class)).thenReturn(tapdataTaskScheduler);
+                when(tapdataTaskScheduler.getTaskClient(anyString())).thenReturn(taskClient);
+                doNothing().when(taskClient).terminalMode(any(TerminalMode.class));
+
+                // Execute
+                sourceNode.startSourceRunner();
+
+                // Verify
+                verify(sourceNode, times(1)).doSnapshotWithControl(anyList());
+                verify(sourceNode, times(1)).need2CDC();
+                verify(sourceNode, never()).doCdc();
+                verify(taskClient, times(1)).terminalMode(TerminalMode.COMPLETE);
+                verify(obsLogger, times(1)).info("Task run completed");
+            }
+        }
+
+        @Test
+        @DisplayName("测试正常流程 - 仅CDC")
+        void testNormalFlowWithCDCOnly() throws Throwable {
+            // Setup
+            Set<String> tables = new HashSet<>(Arrays.asList("table1"));
+            doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
+            doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
+            doReturn(false).when(sourceNode).need2InitialSync(syncProgress);
+            doReturn(false).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
+            doReturn(true).when(sourceNode).isRunning();
+            doReturn(true).when(sourceNode).need2CDC();
+            doNothing().when(sourceNode).waitAllSnapshotCompleteIfNeed();
+            doNothing().when(sourceNode).doCdc();
+            doReturn(mock(AspectInterceptResult.class)).when(sourceNode).executeAspect(any());
+
+            try (MockedStatic<Snapshot2CDCAspect> snapshot2CDCAspectMock = mockStatic(Snapshot2CDCAspect.class);
+                 MockedStatic<AspectUtils> aspectUtilsMock = mockStatic(AspectUtils.class)) {
+                snapshot2CDCAspectMock.when(() -> Snapshot2CDCAspect.execute(dataProcessorContext)).thenAnswer(invocation -> null);
+                aspectUtilsMock.when(() -> AspectUtils.executeAspect(any(SourceStateAspect.class))).thenAnswer(invocation -> null);
+
+                // Execute
+                sourceNode.startSourceRunner();
+
+                // Verify
+                verify(sourceNode, times(1)).reportBatchSize(1000, 1000);
+                verify(sourceNode, times(0)).doSnapshotWithControl(argThat(list -> list.size() == 2));
+                verify(sourceNode, times(1)).need2CDC();
+                verify(sourceNode, times(1)).waitAllSnapshotCompleteIfNeed();
+                verify(sourceNode, times(1)).doCdc();
+                verify(sourceNode, times(1)).executeAspect(any(CDCReadBeginAspect.class));
+                verify(sourceNode, times(1)).executeAspect(any(CDCReadEndAspect.class));
+                verify(snapshotProgressManager, times(1)).close();
+            }
+        }
+
+
+        @Test
+        @DisplayName("测试重建合并表缓存")
+        void testRebuildMergeTableCache() throws Throwable {
+            // Setup
+            TableNode tableNode = (TableNode) this.tableNode;
+            when(tableNode.isReFullRun()).thenReturn(true);
+            when(tableNode.getMergeNodeId()).thenReturn("mergeNode1");
+            when(tableNode.getMergeTablePropertiesId()).thenReturn("prop1");
+
+            Set<String> tables = new HashSet<>(Arrays.asList("table1"));
+            SnapshotOrderController controller = mock(SnapshotOrderController.class);
+
+            doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
+            doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
+            doReturn(false).when(sourceNode).need2InitialSync(syncProgress);
+            doReturn(true).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
+            doReturn(true).when(sourceNode).isRunning();
+            doNothing().when(sourceNode).doSnapshotWithControl(anyList());
+            doNothing().when(sourceNode).addLdpNewTablesIfNeed(taskDto);
+            doNothing().when(sourceNode).enqueue(any());
+            doReturn(false).when(sourceNode).need2CDC();
+            doReturn(mock(AspectInterceptResult.class)).when(sourceNode).executeAspect(any());
+
+            try (MockedStatic<Snapshot2CDCAspect> snapshot2CDCAspectMock = mockStatic(Snapshot2CDCAspect.class);
+                 MockedStatic<BeanUtil> beanUtilMock = mockStatic(BeanUtil.class);
+                 MockedStatic<SnapshotOrderService> snapshotOrderServiceMock = mockStatic(SnapshotOrderService.class)) {
+
+                snapshot2CDCAspectMock.when(() -> Snapshot2CDCAspect.execute(dataProcessorContext)).thenAnswer(invocation -> null);
+                beanUtilMock.when(() -> BeanUtil.getBean(TapdataTaskScheduler.class)).thenReturn(null);
+
+                SnapshotOrderService snapshotOrderService = mock(SnapshotOrderService.class);
+                snapshotOrderServiceMock.when(SnapshotOrderService::getInstance).thenReturn(snapshotOrderService);
+                when(snapshotOrderService.getController(anyString())).thenReturn(controller);
+                doNothing().when(controller).finish(any(Node.class));
+                doNothing().when(controller).flush();
+
+                // Execute
+                sourceNode.startSourceRunner();
+
+                // Verify
+                verify(sourceNode, times(1)).doSnapshotWithControl(anyList());
+                verify(controller, times(1)).finish(tableNode);
+                verify(controller, times(1)).flush();
+                verify(sourceNode, times(1)).enqueue(any(TapdataMergeTableCacheRebuildCompleteEvent.class));
+            }
+        }
+
+
+    }
 
 }
