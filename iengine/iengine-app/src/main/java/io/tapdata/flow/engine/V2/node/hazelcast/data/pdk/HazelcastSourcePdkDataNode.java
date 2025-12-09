@@ -378,7 +378,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 	}
 
-	private void waitAllSnapshotCompleteIfNeed() {
+	protected void waitAllSnapshotCompleteIfNeed() {
 		while (isRunning()) {
 			boolean need2InitialSync = need2InitialSync(syncProgress);
 			boolean checkRebuildMergeTableCache = checkRebuildMergeTableCache(false);
