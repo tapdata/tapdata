@@ -1191,13 +1191,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		TransactionBeginFunction transactionBeginFunction = connectorFunctions.getTransactionBeginFunction();
-		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
-					() -> pdkMethodInvoker.runnable(() -> transactionBeginFunction.begin(connectorNode.getConnectorContext())), TAG);
-		} finally {
-			removePdkMethodInvoker(pdkMethodInvoker);
-		}
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
+				() -> transactionBeginFunction.begin(connectorNode.getConnectorContext()), TAG);
 	}
 
 	@Override
@@ -1208,13 +1203,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		TransactionCommitFunction transactionCommitFunction = connectorFunctions.getTransactionCommitFunction();
-		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
-					() -> pdkMethodInvoker.runnable(() -> transactionCommitFunction.commit(connectorNode.getConnectorContext())), TAG);
-		} finally {
-			removePdkMethodInvoker(pdkMethodInvoker);
-		}
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
+				() -> transactionCommitFunction.commit(connectorNode.getConnectorContext()), TAG);
 	}
 
 	@Override
@@ -1225,13 +1215,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
-		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
-					() -> pdkMethodInvoker.runnable(() -> transactionRollbackFunction.rollback(connectorNode.getConnectorContext())), TAG);
-		} finally {
-			removePdkMethodInvoker(pdkMethodInvoker);
-		}
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
+				() -> transactionRollbackFunction.rollback(connectorNode.getConnectorContext()), TAG);
 	}
 
 	@Override
