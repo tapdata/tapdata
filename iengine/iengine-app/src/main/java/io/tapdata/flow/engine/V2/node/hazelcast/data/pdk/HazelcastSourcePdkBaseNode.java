@@ -673,7 +673,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         Long offsetStartTimeMs = null;
         switch (syncType) {
             case INITIAL_SYNC_CDC:
-                initStreamOffsetInitialAndCDC(offsetStartTimeMs);
+                initStreamOffsetInitialAndCDC(offsetStartTimeMs, taskDto);
                 syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
                 break;
             case INITIAL_SYNC:
@@ -726,7 +726,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_UNKNOWN_POINT_TYPE, "Unknown start point type: " + pointType);
 
             }
-            initStreamOffsetFromTime(offsetStartTimeMs);
+            boolean shareCdcEnable = taskDto.getShareCdcEnable();
+            if (shareCdcEnable) {
+                syncProgress.setStreamOffsetObj(new HashMap<>());
+            } else {
+                initStreamOffsetFromTime(offsetStartTimeMs);
+            }
         }
         return offsetStartTimeMs;
     }
@@ -740,6 +745,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             syncProgress.setStreamOffsetObj(new HashMap<>());
         } else {
             initStreamOffsetFromTime(offsetStartTimeMs);
+        }
+    }
+
+    protected void initStreamOffsetInitialAndCDC(Long offsetStartTimeMs, TaskDto taskDto) {
+        boolean shareCdcEnable = taskDto.getShareCdcEnable();
+        if (shareCdcEnable) {
+            syncProgress.setStreamOffsetObj(new HashMap<>());
+        } else {
+            initStreamOffsetInitialAndCDC(offsetStartTimeMs);
         }
     }
 
