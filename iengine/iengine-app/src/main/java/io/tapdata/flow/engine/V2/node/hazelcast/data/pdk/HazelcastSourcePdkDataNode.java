@@ -302,10 +302,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					}
 				}
 			}
-			boolean need2InitialSync = need2InitialSync(syncProgress);
-			boolean checkRebuildMergeTableCache = checkRebuildMergeTableCache(true);
 			try {
-				if (need2InitialSync || checkRebuildMergeTableCache) {
+				if (need2InitialSync(syncProgress) || checkRebuildMergeTableCache(true)) {
 					if (this.sourceRunnerFirstTime.get()) {
 						obsLogger.info("Starting batch read from {} tables", tables.size());
 						doSnapshotWithControl(new ArrayList<>(tables));
@@ -324,10 +322,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				throw e;
 			} finally {
 				if (isRunning()) {
-					if(need2InitialSync){
+					if(need2InitialSync(syncProgress)){
 						enqueue(new TapdataCompleteSnapshotEvent());
 					}
-					if(checkRebuildMergeTableCache){
+					if(checkRebuildMergeTableCache(false)){
 						SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
 						if(null != snapshotOrderController) {
 							snapshotOrderController.finish(getNode());
