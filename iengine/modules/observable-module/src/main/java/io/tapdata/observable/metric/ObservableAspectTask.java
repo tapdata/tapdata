@@ -547,14 +547,25 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handleSnapshotWriteTableCompleteFunc(SnapshotWriteTableCompleteAspect aspect) {
-		String nodeId = aspect.getSourceNodeId();
-		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-			handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis())
-		);
-		tableSampleHandlers.get(aspect.getSourceTableName()).setSnapshotDone();
-		taskSampleHandler.handleBatchReadFuncEnd();
-		return null;
-	}
+        String nodeId = aspect.getSourceNodeId();
+        Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
+            handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis())
+        );
+
+        boolean errorSkipped = aspect.isErrorSkipped();
+        Optional.ofNullable(aspect.getSourceTableName())
+            .map(tableSampleHandlers::get)
+            .ifPresent(sample -> {
+                sample.setSnapshotDone();
+                sample.setErrorSkipped(errorSkipped);
+            });
+
+        // 错误表，不统计完成数量
+        if (!errorSkipped) {
+            taskSampleHandler.handleBatchReadFuncEnd();
+        }
+        return null;
+    }
 
 	// processor node related
 
