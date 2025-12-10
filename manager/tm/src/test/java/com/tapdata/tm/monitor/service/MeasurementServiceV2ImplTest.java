@@ -463,7 +463,7 @@ class MeasurementServiceV2ImplTest {
         @Test
         public void testNonData() {
 
-            TableSyncStaticDto dto = new TableSyncStaticDto("taskRecordId", 1, 10, "test");
+            TableSyncStaticDto dto = new TableSyncStaticDto("taskRecordId", 1, 10, "test", null);
             UserDetail userDetail = mock(UserDetail.class);
 
             when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(null);
@@ -513,7 +513,7 @@ class MeasurementServiceV2ImplTest {
                 }
             });
 
-            TableSyncStaticDto dto = new TableSyncStaticDto("taskRecordId", 1, 10, "test");
+            TableSyncStaticDto dto = new TableSyncStaticDto("taskRecordId", 1, 10, "test", null);
             UserDetail userDetail = mock(UserDetail.class);
 
             Page<TableSyncStaticVo> result = measurementService.querySyncStatic(dto, userDetail);
@@ -587,7 +587,7 @@ class MeasurementServiceV2ImplTest {
             when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenReturn(measurementEntities);
 
-            TableSyncStaticDto dto = new TableSyncStaticDto("taskRecordId", 1, 10, "test");
+            TableSyncStaticDto dto = new TableSyncStaticDto("taskRecordId", 1, 10, "test", null);
             UserDetail userDetail = mock(UserDetail.class);
 
             Page<TableSyncStaticVo> result = measurementService.querySyncStatic(dto, userDetail);
@@ -609,7 +609,7 @@ class MeasurementServiceV2ImplTest {
             taskService = mock(TaskService.class);
             ReflectionTestUtils.setField(measurementServiceV2,"mongoOperations",mongoTemplate);
             ReflectionTestUtils.setField(measurementServiceV2,"taskService",taskService);
-            tableSyncStaticDto = new TableSyncStaticDto("test",1,20,"test");
+            tableSyncStaticDto = new TableSyncStaticDto("test",1,20,"test", null);
         }
         @Test
         void test(){
