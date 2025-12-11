@@ -191,7 +191,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	public HazelcastSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		sourceStateAspect = new SourceStateAspect().dataProcessorContext(dataProcessorContext);
-        skipErrorTable = ISkipErrorTable.get(dataProcessorContext.getTaskDto().getId().toHexString());
+        skipErrorTable = ISkipErrorTable.get(Optional.ofNullable(getNode()).map(Node::getTaskId).orElse(null));
 	}
 
 	@Override
