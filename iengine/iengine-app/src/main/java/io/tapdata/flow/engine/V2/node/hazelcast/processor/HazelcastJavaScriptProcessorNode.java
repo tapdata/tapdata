@@ -339,11 +339,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             case UPDATE:
                 result = TapUpdateRecordEvent.create();
                 tapEvent.clone(result);
-                if (StringUtils.equals(TapEventUtil.getOp(tapEvent), OperationType.INSERT.getOp())) {
-                    TapEventUtil.setBefore(result, before);
-                } else {
-                    TapEventUtil.setAfter(result, before);
-                }
+				if (before != null) {
+					if (StringUtils.equals(TapEventUtil.getOp(tapEvent), OperationType.INSERT.getOp())) {
+						TapEventUtil.setBefore(result, before);
+					} else {
+						TapEventUtil.setAfter(result, before);
+					}
+				}
                 break;
             case DELETE:
                 result = TapDeleteRecordEvent.create();
