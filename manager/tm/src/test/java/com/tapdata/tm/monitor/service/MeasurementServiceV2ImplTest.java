@@ -39,6 +39,7 @@ import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -54,12 +55,7 @@ import java.util.stream.Stream;
 import static com.tapdata.tm.monitor.param.MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class MeasurementServiceV2ImplTest {
     MeasurementServiceV2Impl measurementServiceV2;
@@ -645,6 +641,7 @@ class MeasurementServiceV2ImplTest {
             when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenReturn(Collections.singletonList(measurementEntity));
 
+            doReturn(mock(Criteria.class)).when(measurementServiceV2).createMinuteCriteria(anyString(), anyString(), anyString());
             doCallRealMethod().when(measurementServiceV2).querySyncStatic(any(),any());
             Page<TableSyncStaticVo> result = measurementServiceV2.querySyncStatic(tableSyncStaticDto,mock(UserDetail.class));
 
@@ -677,6 +674,7 @@ class MeasurementServiceV2ImplTest {
             when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenReturn(Collections.singletonList(measurementEntity));
 
+            doReturn(mock(Criteria.class)).when(measurementServiceV2).createMinuteCriteria(anyString(), anyString(), anyString());
             doCallRealMethod().when(measurementServiceV2).querySyncStatic(any(),any());
             Page<TableSyncStaticVo> result = measurementServiceV2.querySyncStatic(tableSyncStaticDto,mock(UserDetail.class));
 
@@ -706,6 +704,7 @@ class MeasurementServiceV2ImplTest {
             when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenReturn(Collections.singletonList(measurementEntity));
 
+            doReturn(mock(Criteria.class)).when(measurementServiceV2).createMinuteCriteria(anyString(), anyString(), anyString());
             doCallRealMethod().when(measurementServiceV2).querySyncStatic(any(),any());
             Page<TableSyncStaticVo> result = measurementServiceV2.querySyncStatic(tableSyncStaticDto,mock(UserDetail.class));
 
@@ -736,6 +735,7 @@ class MeasurementServiceV2ImplTest {
             when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenReturn(Collections.singletonList(measurementEntity));
 
+            doReturn(mock(Criteria.class)).when(measurementServiceV2).createMinuteCriteria(anyString(), anyString(), anyString());
             doCallRealMethod().when(measurementServiceV2).querySyncStatic(any(),any());
             Page<TableSyncStaticVo> result = measurementServiceV2.querySyncStatic(tableSyncStaticDto,mock(UserDetail.class));
 
@@ -764,6 +764,7 @@ class MeasurementServiceV2ImplTest {
             when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenReturn(Collections.singletonList(measurementEntity));
 
+            doReturn(mock(Criteria.class)).when(measurementServiceV2).createMinuteCriteria(anyString(), anyString(), anyString());
             doCallRealMethod().when(measurementServiceV2).querySyncStatic(any(),any());
             Page<TableSyncStaticVo> result = measurementServiceV2.querySyncStatic(tableSyncStaticDto,mock(UserDetail.class));
 
@@ -792,6 +793,7 @@ class MeasurementServiceV2ImplTest {
             when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenReturn(Collections.singletonList(measurementEntity));
 
+            doReturn(mock(Criteria.class)).when(measurementServiceV2).createMinuteCriteria(anyString(), anyString(), anyString());
             doCallRealMethod().when(measurementServiceV2).querySyncStatic(any(),any());
             Page<TableSyncStaticVo> result = measurementServiceV2.querySyncStatic(tableSyncStaticDto,mock(UserDetail.class));
 
@@ -808,6 +810,7 @@ class MeasurementServiceV2ImplTest {
             String tableName = "table1";
             MongoTemplate mongoOperations = mock(MongoTemplate.class);
             ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            doReturn(new Criteria()).when(measurementServiceV2).createMinuteCriteria(anyString(), anyString(), anyString());
             doCallRealMethod().when(measurementServiceV2).cleanRemovedTableMeasurement(taskId, taskRecordId, tableName);
             measurementServiceV2.cleanRemovedTableMeasurement(taskId, taskRecordId, tableName);
             verify(mongoOperations, new Times(1)).remove(any(Query.class), any(Class.class), anyString());
@@ -829,6 +832,7 @@ class MeasurementServiceV2ImplTest {
             tags.put("table", "test");
             when(measurementEntity.getTags()).thenReturn(tags);
             when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(measurementEntities);
+            doReturn(mock(Criteria.class)).when(measurementServiceV2).createMinuteCriteria(anyString(), anyString(), anyString());
             doCallRealMethod().when(measurementServiceV2).findRunTable(taskId, taskRecordId);
             List<String> actual = measurementServiceV2.findRunTable(taskId, taskRecordId);
             verify(mongoOperations, new Times(1)).find(any(Query.class), any(Class.class), anyString());
@@ -844,6 +848,9 @@ class MeasurementServiceV2ImplTest {
             ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
             when(mongoOperations.aggregate(any(Aggregation.class), anyString(), any(Class.class))).thenReturn(mock(AggregationResults.class));
             SyncStatusStatisticsParam param = mock(SyncStatusStatisticsParam.class);
+            doReturn("test-task-id").when(param).getTaskId();
+            doReturn("test-task-record-id").when(param).getTaskRecordId();
+            doReturn(mock(Criteria.class)).when(measurementServiceV2).createMinuteCriteria(anyString(), anyString(), anyString());
             doCallRealMethod().when(measurementServiceV2).queryTableSyncStatusStatistics(param);
             measurementServiceV2.queryTableSyncStatusStatistics(param);
             verify(mongoOperations, new Times(1)).aggregate(any(Aggregation.class), anyString(), any(Class.class));
