@@ -1138,7 +1138,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				.map(TapNodeSpecification::getAutoAccumulateBatch)
 				.map(AutoAccumulateBatchInfo::getIncreaseRead)
 				.orElse(new AutoAccumulateBatchInfo.Info());
-		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.max(50, this.getIncreaseReadSize() / 10), e -> isRunning(), consumer, obsLogger);
+		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.min(Math.max(50, this.getIncreaseReadSize() / 10), 5000), e -> isRunning(), consumer, obsLogger);
 		if (!autoAccumulateBatchInfo.isOpen()) {
 			return consumer;
 		}
