@@ -9,9 +9,11 @@ import lombok.Getter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 
@@ -56,6 +58,7 @@ public final class BatchAcceptor {
     private final ObsLogger obsLogger;
     boolean active = false;
     Future<?> monitor;
+    private final AtomicReference<Object> lastOffset = new AtomicReference<>();
 
 
     public BatchAcceptor(ValueGetter<Integer> batchSizeGetter, ValueGetter<Integer> delayMsGetter, Predicate<Boolean> isAlive, TapStreamReadConsumer<List<TapEvent>, Object> consumer, ObsLogger obsLogger) {
@@ -75,7 +78,6 @@ public final class BatchAcceptor {
     void consumer() {
         long lastTime = System.currentTimeMillis();
         List<TapEvent> events = new ArrayList<>();
-        Object lastOffset = null;
         int count = 0;
         while (alive.test(null)) {
             EventInfo eventInfo = null;
@@ -85,18 +87,18 @@ public final class BatchAcceptor {
                 eventInfo = pollSingle(timeout);
                 if (eventInfo != null) {
                     classification(eventInfo, events);
-                    lastOffset = eventInfo.getOffset();
+                    Optional.ofNullable(eventInfo.getOffset()).ifPresent(this.lastOffset::set);
                     count += eventInfo.getSize();
                 }
                 if (count >= batchSizeGetter.get()) {
-                    this.consumer.accept(events, lastOffset);
+                    this.consumer.accept(events, this.lastOffset.get());
                     lastTime = System.currentTimeMillis();
                     events = new ArrayList<>();
                     count = 0;
                 }
             }
             if (!events.isEmpty() && System.currentTimeMillis() - lastTime > delayMsGetter.get()) {
-                this.consumer.accept(events, lastOffset);
+                this.consumer.accept(events,  this.lastOffset.get());
                 lastTime = System.currentTimeMillis();
                 count = 0;
             }
