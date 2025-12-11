@@ -271,6 +271,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			op = (String) context.get("op");
 		}
 
+		Map<String, Object> contextBefore = (Map<String, Object>) context.get("before");
 		context.clear();
 
 		if (null == scriptInvokeResult.get()) {
@@ -284,7 +285,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
 				TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
 				CpuMemoryCollector.listening(getNode().getId(), cloneTapdataEvent);
-				TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op);
+				TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op, contextBefore);
 				setRecordMap(returnTapEvent, op, recordMap);
 				flushBeforeIfNeed(scriptInvokeBeforeResult.get(), returnTapEvent, beforeIndex);
 				cloneTapdataEvent.setTapEvent(returnTapEvent);
@@ -294,7 +295,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		} else {
 			Map<String, Object> recordMap = new HashMap<>();
 			MapUtil.copyToNewMap((Map<String, Object>) scriptInvokeResult.get(), recordMap);
-			TapEvent returnTapEvent = getTapEvent(tapEvent, op);
+			TapEvent returnTapEvent = getTapEvent(tapEvent, op, contextBefore);
 			CpuMemoryCollector.listening(getNode().getId(), returnTapEvent);
 			setRecordMap(returnTapEvent, op, recordMap);
 			flushBeforeIfNeed(scriptInvokeBeforeResult.get(), returnTapEvent, null);
@@ -320,30 +321,40 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		}
 	}
 
-	private TapEvent getTapEvent(TapEvent tapEvent, String op) {
-		if (StringUtils.equals(TapEventUtil.getOp(tapEvent), op)) {
-			return tapEvent;
-		}
-		OperationType operationType = OperationType.fromOp(op);
-		TapEvent result;
+    private TapEvent getTapEvent(TapEvent tapEvent, String op, Map<String, Object> before) {
+        if (StringUtils.equals(TapEventUtil.getOp(tapEvent), op)) {
+            return tapEvent;
+        }
+        OperationType operationType = OperationType.fromOp(op);
+        TapEvent result;
 
-		switch (operationType) {
-			case INSERT:
-				result = TapInsertRecordEvent.create();
-				break;
-			case UPDATE:
-				result = TapUpdateRecordEvent.create();
-				break;
-			case DELETE:
-				result = TapDeleteRecordEvent.create();
-				break;
-			default:
-				throw new IllegalArgumentException("Unsupported operation type: " + op);
-		}
-		tapEvent.clone(result);
+        if (operationType == null) {
+            throw new IllegalArgumentException("Unsupported operation type: " + op);
+        }
+        switch (operationType) {
+            case INSERT:
+                result = TapInsertRecordEvent.create();
+                tapEvent.clone(result);
+                break;
+            case UPDATE:
+                result = TapUpdateRecordEvent.create();
+                tapEvent.clone(result);
+                if (StringUtils.equals(TapEventUtil.getOp(tapEvent), OperationType.INSERT.getOp())) {
+                    TapEventUtil.setBefore(result, before);
+                } else {
+                    TapEventUtil.setAfter(result, before);
+                }
+                break;
+            case DELETE:
+                result = TapDeleteRecordEvent.create();
+                tapEvent.clone(result);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported operation type: " + op);
+        }
 
-		return result;
-	}
+        return result;
+    }
 
 	private static void setRecordMap(TapEvent tapEvent, String op, Map<String, Object> recordMap) {
 		if (ConnectorConstant.MESSAGE_OPERATION_DELETE.equals(op)) {
