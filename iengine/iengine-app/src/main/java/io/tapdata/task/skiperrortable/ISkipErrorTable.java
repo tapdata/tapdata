@@ -8,6 +8,7 @@ import com.tapdata.tm.skiperrortable.vo.SkipErrorTableReportVo;
 import com.tapdata.tm.skiperrortable.vo.SkipErrorTableStatusVo;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import org.bson.types.ObjectId;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -43,31 +44,33 @@ public interface ISkipErrorTable extends AutoCloseable {
      * @return 跳过错误表实例，如果任务不符合条件则返回空实例
      */
     static ISkipErrorTable create(TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
-        boolean enable = Optional.ofNullable(taskDto)
-            .map(dto -> Boolean.TRUE.equals(dto.getEnableSkipErrorTable()) ? dto : null)   // 禁用，没开启功能
-            .map(dto -> TaskDto.SYNC_TYPE_MIGRATE.equals(dto.getSyncType()) ? dto : null)  // 禁用，非迁移任务
-            .map(dto -> dto.isTestTask() ? null : dto)                                     // 禁用，测试任务
-            .map(dto -> dto.isPreviewTask() ? null : dto)                                  // 禁用，预览任务
-            .map(dto -> Optional.ofNullable(dto.getSkipErrorEvent())
-                .map(TaskDto.SkipErrorEvent::getErrorModeEnum)
-                .map(mode -> TaskDto.SkipErrorEvent.ErrorMode.Disable == mode ? dto : null)
-                .orElse(dto))                                                                      // 禁用，开启了跳过错误数据功能
-            .isPresent();                                                                          // 启用
+        if (null != taskDto) {
+            boolean enable = Optional.of(taskDto)
+                .map(dto -> Boolean.TRUE.equals(dto.getEnableSkipErrorTable()) ? dto : null)   // 禁用，没开启功能
+                .map(dto -> TaskDto.SYNC_TYPE_MIGRATE.equals(dto.getSyncType()) ? dto : null)  // 禁用，非迁移任务
+                .map(dto -> dto.isTestTask() ? null : dto)                                     // 禁用，测试任务
+                .map(dto -> dto.isPreviewTask() ? null : dto)                                  // 禁用，预览任务
+                .map(dto -> Optional.ofNullable(dto.getSkipErrorEvent())
+                    .map(TaskDto.SkipErrorEvent::getErrorModeEnum)
+                    .map(mode -> TaskDto.SkipErrorEvent.ErrorMode.Disable == mode ? dto : null)
+                    .orElse(dto))                                                                      // 禁用，开启了跳过错误数据功能
+                .isPresent();                                                                          // 启用
 
-        if (enable && clientMongoOperator instanceof HttpClientMongoOperator mongoOperator) {
-            String taskId = taskDto.getId().toHexString();
-            synchronized (INSTANCES) {
-                ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
-                ISkipErrorTable instance = INSTANCES.get(taskId);
-                if (null != instance) {
-                    obsLogger.warn("Instance already exists, taskId '{}'", taskId);
+            if (enable && clientMongoOperator instanceof HttpClientMongoOperator mongoOperator) {
+                String taskId = Optional.of(taskDto).map(TaskDto::getId).map(ObjectId::toHexString).orElse(null);
+                synchronized (INSTANCES) {
+                    ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+                    ISkipErrorTable instance = INSTANCES.get(taskId);
+                    if (null != instance) {
+                        obsLogger.warn("Instance already exists, taskId '{}'", taskId);
+                        return instance;
+                    }
+
+                    SkipErrorTableStorage storage = new SkipErrorTableStorage(mongoOperator);
+                    instance = new SkipErrorTable(taskId, obsLogger, storage);
+                    INSTANCES.put(taskId, instance);
                     return instance;
                 }
-
-                SkipErrorTableStorage storage = new SkipErrorTableStorage(mongoOperator);
-                instance = new SkipErrorTable(taskId, obsLogger, storage);
-                INSTANCES.put(taskId, instance);
-                return instance;
             }
         }
 

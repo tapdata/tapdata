@@ -82,6 +82,8 @@ public class SkipErrorTable implements ISkipErrorTable {
                 // 5 秒后再报错，等指标上报完成
                 TimeUnit.SECONDS.sleep(5);
             } catch (InterruptedException ignore) {
+                Thread.currentThread().interrupt();
+                return;
             }
             throw new TapCodeException(TaskTargetProcessorExCode_15.HAS_SKIP_ERROR_TABLE, String.format("%s error tables have been skipped", skippedSize))
                     .dynamicDescriptionParameters(skippedSize);
