@@ -921,7 +921,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			anyError = doBatchCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else if (streamReadConsumer instanceof StreamReadOneByOneConsumer consumer) {
 			if (this.needAdjustBatchSize) {
-				this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
+				setIncreaseReadSizeCompareDefault();
 				obsLogger.info("Stream read batch size will be adjusted automatically, start from: " + getIncreaseReadSize());
 			}
 			anyError = doOneByOneCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
@@ -952,6 +952,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					});
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
+		}
+	}
+
+	protected void setIncreaseReadSizeCompareDefault(){
+		int size = getIncreaseReadSize();
+		if (size < DEFAULT_ADJUST_INCREASE_BATCH_SIZE) {
+			this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
 		}
 	}
 
@@ -1136,7 +1143,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			return consumer;
 		}
 		streamReadBatchAcceptor.startMonitor(sourceRunner);
-		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o))
+		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o), this::getIncreaseReadSize)
 				.batchConsumer((es, o) -> streamReadBatchAcceptor.accept(es, o));
 	}
 
