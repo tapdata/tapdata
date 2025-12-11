@@ -10,6 +10,9 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.ObsLogger;
 
 import java.sql.BatchUpdateException;
+import java.sql.SQLDataException;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -62,18 +65,18 @@ public class SkipErrorTable implements ISkipErrorTable {
 
     @Override
     public boolean isSkippedOnCompleted(String sourceTableName) {
-        if (skippedSet.contains(sourceTableName)) {
+        if (isSkipped(sourceTableName)) {
             return true;
         }
         if (recoveringSet.contains(sourceTableName)) {
-            storage.reportTableRecovered(taskId, sourceTableName);
+            storage.reportTableRecovered(getTaskId(), sourceTableName);
         }
         return false;
     }
 
     @Override
     public void checkOnSnapshotCompleted() {
-        int skippedSize = skippedSet.size();
+        int skippedSize = getSkipCounts();
         if (skippedSize > 0) {
             try {
                 // 5 秒后再报错，等指标上报完成
@@ -81,43 +84,27 @@ public class SkipErrorTable implements ISkipErrorTable {
             } catch (InterruptedException ignore) {
             }
             throw new TapCodeException(TaskTargetProcessorExCode_15.HAS_SKIP_ERROR_TABLE, String.format("%s error tables have been skipped", skippedSize))
-                .dynamicDescriptionParameters(skippedSize);
+                    .dynamicDescriptionParameters(skippedSize);
         }
     }
 
     @Override
     public synchronized boolean skipTable(String sourceTableName, Throwable ex, Supplier<SkipErrorTableReportVo> supplier) {
-        // 暂不支持增量阶段的表错误跳过
-        if (SyncStage.CDC == syncStage) {
-            return false;
-        }
         // 已跳过的表，不需要再判断
         if (skippedSet.contains(sourceTableName)) {
             return true;
         }
 
-        // 不可跳过场景：网络异常、连接异常
-        // 可跳过场景：特殊格式数据、类型不匹配、字段名不匹配、非空字段限制、字段值超出范围
-        boolean doSkip = false;
-        if (ex instanceof TapCodeException tapCodeException) {
-            // 可跳过 + 不可恢复
-            String code = tapCodeException.getCode();
-            ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
-            if (errorCode.isSkippable() && !errorCode.isRecoverable()) {
-                doSkip = true;
-            }
-        } else if (ex instanceof RuntimeException) {
-            // 适配未纳入 TapException 的错误
-            Throwable cause = ex.getCause();
-            if (cause instanceof BatchUpdateException) {
-                doSkip = true;
-            }
+        // 增量阶段，不标记新跳过数据
+        if (SyncStage.CDC == syncStage) {
+            return false;
         }
 
-        if (doSkip) {
+        if (isSkippableException(ex)) {
             skippedSet.add(sourceTableName);
+            recoveringSet.remove(sourceTableName);
             obsLogger.error("Table '{}' skipped by error: {}", sourceTableName, ex.getMessage(), ex);
-            storage.reportTableSkipped(taskId, supplier.get());
+            storage.reportTableSkipped(getTaskId(), supplier.get());
             return true;
         }
         return false;
@@ -125,7 +112,7 @@ public class SkipErrorTable implements ISkipErrorTable {
 
     @Override
     public void initTables(Consumer<SkipErrorTableStatusVo> consumer) {
-        List<SkipErrorTableStatusVo> statusList = storage.getAllTableStatus(taskId);
+        List<SkipErrorTableStatusVo> statusList = storage.getAllTableStatus(getTaskId());
         if (null != statusList) {
             for (SkipErrorTableStatusVo vo : statusList) {
                 Optional.ofNullable(vo.getStatus()).ifPresent(status -> {
@@ -137,5 +124,39 @@ public class SkipErrorTable implements ISkipErrorTable {
                 consumer.accept(vo);
             }
         }
+    }
+
+    protected boolean isSkippableException(Throwable ex) {
+        // 不可跳过场景：网络异常、连接异常
+        // 可跳过场景：特殊格式数据、类型不匹配、字段名不匹配、非空字段限制、字段值超出范围
+
+        boolean isSkippableSQLException = false;
+        if (ex instanceof TapCodeException tapCodeException) {
+            // 可跳过 + 不可恢复
+            String code = tapCodeException.getCode();
+            ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
+            if (errorCode.isSkippable() && !errorCode.isRecoverable()) {
+                isSkippableSQLException = true;
+            }
+        } else if (ex instanceof SQLException sqlEx) {
+            isSkippableSQLException = isSkippableSQLException(sqlEx);
+        } else if (ex.getCause() instanceof SQLException sqlEx) {
+            isSkippableSQLException = isSkippableSQLException(sqlEx);
+        }
+
+        return isSkippableSQLException;
+    }
+
+    protected boolean isSkippableSQLException(SQLException sqlEx) {
+        // 连接异常（SQL 标准）：08001（无法建立连接）、08003（连接已关闭）、08006（连接失败）、08S01（通信链路失败）
+        if (Optional.ofNullable(sqlEx.getSQLState())
+                .map(s -> s.startsWith("08"))
+                .orElse(false)
+        ) return false;
+
+        return (sqlEx instanceof SQLDataException
+                || sqlEx instanceof SQLWarning
+                || sqlEx instanceof BatchUpdateException
+        );
     }
 }
