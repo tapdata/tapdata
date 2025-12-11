@@ -14,6 +14,10 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ErrorUtil;
+import com.tapdata.tm.skiperrortable.vo.SkipErrorTableReportVo;
+import io.tapdata.ErrorCodeConfig;
+import io.tapdata.ErrorCodeEntity;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.TapConstraintException;
@@ -31,7 +35,9 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
-import io.tapdata.exception.*;
+import io.tapdata.exception.NodeException;
+import io.tapdata.exception.TapCodeException;
+import io.tapdata.exception.TapPdkBaseException;
 import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
@@ -1042,6 +1048,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			throw new TapEventException(TaskTargetProcessorExCode_15.WRITE_RECORD_GET_TARGET_TABLE_NAME_FAILED, String.format("Source table id: %s", tableId)).addEvent(firstEvent).dynamicDescriptionParameters(tableId);
 		}
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+        // 跳过错误表
+        if (skipErrorTable.isSkipped(tapTable.getAncestorsName())) return;
+
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
 
@@ -1132,6 +1141,26 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 															}
 													);
 												} catch (Exception e) {
+                                                    if (skipErrorTable.skipTable(tapTable.getAncestorsName(), e, () -> SkipErrorTableReportVo.create()
+                                                        .sourceTableName(tapTable.getAncestorsName())
+                                                        .targetTableName(tapTable.getName())
+                                                        .skipStage(Optional.ofNullable(firstEvent.getInfo())
+                                                            .map(m -> m.get(TapRecordEvent.INFO_KEY_SYNC_STAGE))
+                                                            .map(Object::toString)
+                                                            .orElse(null))
+                                                        .cdcDate(firstEvent.getTime())
+                                                        .errorCode(Optional.of(e)
+                                                            .map(ex -> (ex instanceof TapCodeException codeEx) ? codeEx.getCode() : null)
+                                                            .map(exCode -> {
+                                                                ErrorCodeEntity errorCodeEntity = ErrorCodeConfig.getInstance().getErrorCode(exCode);
+                                                                if (null == errorCodeEntity) {
+                                                                    return exCode;
+                                                                }
+                                                                return errorCodeEntity.fullErrorCode();
+                                                            }).orElse(null))
+                                                        .errorMessage(ErrorUtil.getStackString(e)))
+                                                    ) return;
+
 													Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
 													if (null != matched) {
 														if (matched instanceof TapPdkBaseException) {

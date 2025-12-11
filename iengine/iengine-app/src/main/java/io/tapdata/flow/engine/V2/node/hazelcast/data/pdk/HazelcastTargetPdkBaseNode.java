@@ -75,6 +75,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.Par
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
+import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -186,6 +187,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
 	protected Connections sourceConnection;
     private final ITaskInspect taskInspect;
+    protected final ISkipErrorTable skipErrorTable;
 	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
@@ -197,6 +199,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             thread.setName(String.format("Flush-Offset-Thread-%s(%s)-%s(%s)", dataProcessorContext.getTaskDto().getName(), dataProcessorContext.getTaskDto().getId().toHexString(), getNode().getName(), getNode().getId()));
             return thread;
         });
+        skipErrorTable = ISkipErrorTable.get(Optional.ofNullable(getNode()).map(Node::getTaskId).orElse(null));
         TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
         String taskId = Optional.ofNullable(dataProcessorContext)
             .map(ProcessorBaseContext::getTaskDto)
@@ -913,6 +916,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
     private void initialProcessEvents(List<TapdataEvent> initialEvents, boolean async) {
+        skipErrorTable.setSyncStage(SyncStage.INITIAL_SYNC);
 
         if (CollectionUtils.isNotEmpty(initialEvents)) {
             if (initialConcurrent && null != this.initialPartitionConcurrentProcessor && this.initialPartitionConcurrentProcessor.isRunning()) {
@@ -924,6 +928,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     private void cdcProcessEvents(List<TapdataEvent> cdcEvents) {
+        skipErrorTable.setSyncStage(SyncStage.CDC);
         if (CollectionUtils.isNotEmpty(cdcEvents)) {
             if (cdcConcurrent && null != this.cdcPartitionConcurrentProcessor && this.cdcPartitionConcurrentProcessor.isRunning()) {
                 this.cdcPartitionConcurrentProcessor.process(cdcEvents, true);
@@ -1243,13 +1248,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (null == srcNode) {
             return;
         }
-        SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
+        String taskId = dataProcessorContext.getTaskDto().getId().toHexString();
+        SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(taskId);
         if (null != snapshotOrderController) {
             snapshotOrderController.finish(srcNode);
             snapshotOrderController.flush();
         }
         flushOffsetByTapdataEventForNoConcurrent(new AtomicReference<>(tapdataEvent));
-        executeAspect(new SnapshotWriteTableCompleteAspect().sourceNodeId(srcNodeId).sourceTableName(tapdataEvent.getSourceTableName()).dataProcessorContext(dataProcessorContext));
+
+        String sourceTableName = tapdataEvent.getSourceTableName();
+        executeAspect(new SnapshotWriteTableCompleteAspect()
+            .sourceNodeId(srcNodeId)
+            .sourceTableName(sourceTableName)
+            .errorSkipped(skipErrorTable.isSkippedOnCompleted(sourceTableName))
+            .dataProcessorContext(dataProcessorContext)
+        );
     }
 
     private void flushOffsetByTapdataEventForNoConcurrent(AtomicReference<TapdataEvent> lastTapdataEvent) {
@@ -1332,6 +1345,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     protected void handleTapdataCompleteSnapshotEvent() {
+        skipErrorTable.checkOnSnapshotCompleted();
         Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
 		String key = String.join("_", TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, getNode().getId());
         Object obj = taskGlobalVariable.get(key);
@@ -2079,17 +2093,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
 		Set<String> tableIds = tapTableMap.keySet();
+        AtomicInteger skippedTableCounts = new AtomicInteger(0);
 		for (String tableId : tableIds) {
 			CompletableFuture<Void> completableFuture = CompletableFuture.runAsync(() -> {
 				long startMillis = System.currentTimeMillis();
 				TapTable tapTable = tapTableMap.get(tableId);
+                if (skipErrorTable.isSkipped(tapTable.getAncestorsName())) {
+                    skippedTableCounts.incrementAndGet();
+                }
 				processConnectorAfterSnapshot(tapTable);
 				obsLogger.trace("Process after table \"{}\" initial sync finished, cost: {} ms", tableId, (System.currentTimeMillis() - startMillis));
 			});
 			completableFutures.add(completableFuture);
 		}
 		CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).join();
-		obsLogger.info("Process after all table(s) initial sync are finished，table number: {}", tableIds.size());
+        String message = String.format("Process after all table(s) initial sync are finished，table number: %s", tableIds.size());
+        if (skippedTableCounts.get() > 0) {
+            message += String.format("，skipped number: %s", skippedTableCounts.get());
+            obsLogger.warn(message);
+        } else {
+            obsLogger.info(message);
+        }
 	}
 
 	protected void processConnectorAfterSnapshot(TapTable tapTable) {

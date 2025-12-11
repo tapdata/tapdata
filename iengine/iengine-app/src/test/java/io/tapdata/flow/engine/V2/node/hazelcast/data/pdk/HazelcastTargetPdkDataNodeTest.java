@@ -55,6 +55,7 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -88,6 +89,13 @@ import static org.mockito.Mockito.*;
  **/
 class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 	private HazelcastTargetPdkDataNode hazelcastTargetPdkDataNode = mock(HazelcastTargetPdkDataNode.class);;
+    ISkipErrorTable skipErrorTable;
+
+    @BeforeEach
+    void beforeEach() {
+        skipErrorTable = mock(ISkipErrorTable.class);
+        ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "skipErrorTable", skipErrorTable);
+    }
 
 	@Nested
 	@DisplayName("ProcessEvents Method Test")

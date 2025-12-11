@@ -28,11 +28,11 @@ class TableSampleHandlerTest {
 
     @Mock
     private SampleCollector mockCollector;
-    
+
     @Mock
     private CounterSampler mockSnapshotInsertRowCounter;
 
-    
+
     private TaskDto taskDto;
     private TableSampleHandler tableSampleHandler;
     private Map<String, Number> retrievedTableValues;
@@ -43,7 +43,7 @@ class TableSampleHandlerTest {
         taskDto.setId(new ObjectId());
         taskDto.setTaskRecordId("test-record-id");
         taskDto.setStartTime(new Date());
-        
+
         retrievedTableValues = new HashMap<>();
         retrievedTableValues.put("snapshotInsertRowTotal", 100L);
     }
@@ -56,18 +56,11 @@ class TableSampleHandlerTest {
                 Sampler sampler = invocation.getArgument(1);
                 if ("snapshotRowTotal".equals(name)) {
                     assertEquals(1000L, sampler.value());
-                }
-                return null;
-            }).when(mockCollector).addSampler(eq("snapshotRowTotal"), any(io.tapdata.common.sample.SamplerPrometheus.class));
-
-            doAnswer(invocation -> {
-                String name = invocation.getArgument(0);
-                Sampler sampler = invocation.getArgument(1);
-                if ("snapshotSyncRate".equals(name)) {
+                } else if ("snapshotSyncRate".equals(name)) {
                     assertEquals(snapshotSyncRate, sampler.value());
                 }
                 return null;
-            }).when(mockCollector).addSampler(eq("snapshotSyncRate"), any(io.tapdata.common.sample.SamplerPrometheus.class));
+            }).when(mockCollector).addSampler(anyString(), any(io.tapdata.common.sample.SamplerPrometheus.class));
         }
 
         @BeforeEach
