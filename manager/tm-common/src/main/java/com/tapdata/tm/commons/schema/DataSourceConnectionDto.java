@@ -47,6 +47,7 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
         private String connection_type;
         /** 对应DataSourceDefinition type */
         private String database_type;
+        private String pdkRealName;
 
         /** definition实体中的scope跟version */
         private String definitionScope;
