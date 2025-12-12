@@ -92,6 +92,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.consumer.StreamReadOneByOneConsumer;
 import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
@@ -921,7 +922,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			anyError = doBatchCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else if (streamReadConsumer instanceof StreamReadOneByOneConsumer consumer) {
 			if (this.needAdjustBatchSize) {
-				this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
+				setIncreaseReadSizeCompareDefault();
 				obsLogger.info("Stream read batch size will be adjusted automatically, start from: " + getIncreaseReadSize());
 			}
 			anyError = doOneByOneCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
@@ -952,6 +953,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					});
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
+		}
+	}
+
+	protected void setIncreaseReadSizeCompareDefault(){
+		int size = getIncreaseReadSize();
+		if (size < DEFAULT_ADJUST_INCREASE_BATCH_SIZE) {
+			this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
 		}
 	}
 
@@ -1125,19 +1133,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
-		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
-		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(connectorNode.getConnectorContext())
-				.map(TapConnectorContext::getSpecification)
-				.map(TapNodeSpecification::getAutoAccumulateBatch)
-				.map(AutoAccumulateBatchInfo::getIncreaseRead)
-				.orElse(new AutoAccumulateBatchInfo.Info());
-		if (!autoAccumulateBatchInfo.isOpen()) {
-			final int delayMs = Math.max(50, this.getIncreaseReadSize() / 10);
-			streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> delayMs, null);
+		final StreamReadOneByOneFunction function = Optional.ofNullable(connectorNode.getConnectorFunctions())
+				.map(ConnectorFunctions::getStreamReadOneByOneFunction)
+				.orElse(null);
+		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.min(Math.max(50, this.getIncreaseReadSize() / 10), 5000), e -> isRunning(), consumer, obsLogger);
+		if (!needAdjustBatchSize || null == function) {
 			return consumer;
 		}
-		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.max(50, this.getIncreaseReadSize() / 10), consumer);
-		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o));
+		streamReadBatchAcceptor.startMonitor(sourceRunner);
+		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o), this::getIncreaseReadSize)
+				.batchConsumer((es, o) -> streamReadBatchAcceptor.accept(es, o));
 	}
 
 	private void handleSyncProgressType(List<TapdataEvent> tapdataEvents) {
@@ -1517,6 +1522,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	@Override
 	public void doClose() throws TapCodeException {
 		try {
+			CommonUtils.handleAnyError(() -> {
+				if (null != streamReadBatchAcceptor) {
+					streamReadBatchAcceptor.close();
+				}
+			}, err -> obsLogger.warn(String.format("Close share cdc event accept failed: %s", err.getMessage())));
 			CommonUtils.handleAnyError(() -> {
 				if (null != shareCdcReader) {
 					shareCdcReader.close();

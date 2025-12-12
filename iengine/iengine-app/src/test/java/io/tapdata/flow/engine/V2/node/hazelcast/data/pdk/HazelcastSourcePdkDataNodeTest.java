@@ -3318,7 +3318,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 spyNode.doNormalCDC();
 
                 verify(spyNode, times(1)).doOneByOneCDC(any(), any(), any(), any(), any(), any());
-                verify(spyNode, times(2)).setIncreaseReadSize(anyInt());
+                verify(spyNode, times(1)).setIncreaseReadSize(anyInt());
             }
         }
 

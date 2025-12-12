@@ -24,7 +24,6 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
 import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Setting;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -184,10 +183,21 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return hazelcastInstance;
 	}
 
+	protected boolean isOpenAutoIncrementalBatchSize(TaskDto taskDto) {
+		if (null == taskDto) {
+			return false;
+		}
+		final Boolean o = taskDto.getAutoIncrementalBatchSize();
+		if (null == o) {
+			return false;
+		}
+		return o;
+	}
+
 	@Override
 	public TaskClient<TaskDto> startTask(TaskDto taskDto) {
 		try {
-			boolean open = openAutoIncrementalBatchSize();
+			final boolean open = isOpenAutoIncrementalBatchSize(taskDto);
 			taskDto.setDag(taskDto.getDag());
 			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 
@@ -1277,14 +1287,5 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		String taskId = taskDto.getId().toHexString();
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		globalStateMap.put(TaskEnvMap.name(taskId), taskEnvMap);
-	}
-
-	boolean openAutoIncrementalBatchSize() {
-		Setting setting = settingService.getSetting("auto_incremental_batch_size");
-		if (null == setting) {
-			return false;
-		}
-		String value = Optional.ofNullable(setting.getValue()).orElse(setting.getDefault_value());
-		return Objects.equals("true", value) || Objects.equals("TRUE", value);
 	}
 }

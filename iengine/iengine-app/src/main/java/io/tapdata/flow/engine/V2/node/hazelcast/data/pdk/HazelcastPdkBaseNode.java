@@ -58,6 +58,7 @@ import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
+import lombok.Getter;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
@@ -94,15 +95,10 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private final List<PDKMethodInvoker> pdkMethodInvokerList = new CopyOnWriteArrayList<>();
 
 	protected Integer readBatchSize;
-	protected Integer increaseReadSize;
+	@Getter
+    protected Integer increaseReadSize;
 
-	public Integer getIncreaseReadSize() {
-		synchronized (this) {
-			return increaseReadSize;
-		}
-	}
-
-	public void setIncreaseReadSize(int increaseReadSize) {
+    public void setIncreaseReadSize(int increaseReadSize) {
 		synchronized (this) {
 			this.increaseReadSize = increaseReadSize;
 		}
