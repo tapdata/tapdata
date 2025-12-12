@@ -92,6 +92,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.consumer.StreamReadOneByOneConsumer;
 import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
@@ -1132,14 +1133,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
-		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
-		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(connectorNode.getConnectorContext())
-				.map(TapConnectorContext::getSpecification)
-				.map(TapNodeSpecification::getAutoAccumulateBatch)
-				.map(AutoAccumulateBatchInfo::getIncreaseRead)
-				.orElse(new AutoAccumulateBatchInfo.Info());
+		final StreamReadOneByOneFunction function = Optional.ofNullable(connectorNode.getConnectorFunctions())
+				.map(ConnectorFunctions::getStreamReadOneByOneFunction)
+				.orElse(null);
 		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.min(Math.max(50, this.getIncreaseReadSize() / 10), 5000), e -> isRunning(), consumer, obsLogger);
-		if (!autoAccumulateBatchInfo.isOpen()) {
+		if (!needAdjustBatchSize || null == function) {
 			return consumer;
 		}
 		streamReadBatchAcceptor.startMonitor(sourceRunner);
