@@ -556,11 +556,16 @@ public class ConnectorManager {
 				builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
 				builder.applyConnectionString(new ConnectionString(mongoURI));
 				if (ssl) {
-					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
-					String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
-					List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
+					SSLContext sslContext;
+					if(mongoURI.indexOf("tlsAllowInvalidCertificates=true") > 0 || mongoURI.indexOf("sslAllowInvalidCertificates=true") > 0){
+						sslContext = SSLUtil.createSSLContext();
+					}else{
+						List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
+						String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
+						List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
 
-					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
+						sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
+					}
 					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
 				}
 				client = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
@@ -586,11 +591,16 @@ public class ConnectorManager {
 				builder.applyConnectionString(new ConnectionString(mongoURI));
 
 				if (ssl) {
-					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
-					String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
-					List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
+					SSLContext sslContext;
+					if(mongoURI.indexOf("tlsAllowInvalidCertificates=true") > 0 || mongoURI.indexOf("sslAllowInvalidCertificates=true") > 0){
+						sslContext = SSLUtil.createSSLContext();
+					}else{
+						List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
+						String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
+						List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
 
-					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
+						sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
+					}
 					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
 				}
 				client = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
