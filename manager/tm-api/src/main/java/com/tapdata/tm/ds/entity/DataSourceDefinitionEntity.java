@@ -42,6 +42,9 @@ public class DataSourceDefinitionEntity extends BaseEntity {
      */
     @Indexed
     private String name;
+
+    private String realName;
+
     /**
      * 类型  amazon_s3_connection_verifier
      */

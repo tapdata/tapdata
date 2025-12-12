@@ -17,6 +17,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper=false)
 public class PdkSourceDto {
     private String name;
+    private String realName;
     private String icon;
     private String group;
     private String version;

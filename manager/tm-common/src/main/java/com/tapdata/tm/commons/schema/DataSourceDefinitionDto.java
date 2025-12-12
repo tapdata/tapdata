@@ -54,6 +54,7 @@ public class DataSourceDefinitionDto extends BaseDto {
 
     /** 名称 Amazon S3 Connection Verifier */
     private String name;
+    private String realName;
     /** 类型  amazon_s3_connection_verifier */
     private String type;
     /**  */

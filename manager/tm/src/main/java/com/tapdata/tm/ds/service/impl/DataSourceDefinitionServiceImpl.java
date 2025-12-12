@@ -180,7 +180,9 @@ public class DataSourceDefinitionServiceImpl extends DataSourceDefinitionService
         } catch (Exception e) {
             log.error("findByPdkHash updateConfigPropertiesTitle", e.getMessage());
         }
-
+        if (null != dataSourceDefinition && StringUtils.isNotBlank(dataSourceDefinition.getRealName())) {
+            dataSourceDefinition.setName(dataSourceDefinition.getRealName());
+        }
         return dataSourceDefinition;
     }
 
@@ -521,6 +523,11 @@ public class DataSourceDefinitionServiceImpl extends DataSourceDefinitionService
         Page<DataSourceTypeDto> dataSourceTypeDtoPage = new Page<>();
         dataSourceTypeDtoPage.setTotal(count);
         dataSourceTypeDtoPage.setItems(typeList);
+        typeList.forEach(e -> {
+            if (StringUtils.isNotBlank(e.getRealName())) {
+                e.setName(e.getRealName());
+            }
+        });
         return dataSourceTypeDtoPage.getItems();
     }
 
