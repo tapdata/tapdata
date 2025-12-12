@@ -107,6 +107,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                 .map(dto -> {
                     dto.setId(null);
                     dto.setType(MetadataInstancesCompareDto.TYPE_APPLY);
+                    dto.setDifferenceFieldList(dto.getDifferenceFieldList().stream().filter(differenceField -> !(differenceField.getType() == DifferenceTypeEnum.PrimaryKeyInconsistency)).collect(Collectors.toList()));
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -375,7 +376,16 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             }
             List<MetadataInstancesCompareDto> compareDtos;
             if(CollectionUtils.isNotEmpty(types)){
-                where.and("differenceFieldList.type").in(types);
+                if(types.contains(DifferenceTypeEnum.PrimaryKeyInconsistency.name())){
+                    where.andOperator(
+                            new Criteria().orOperator(
+                                    Criteria.where("differenceFieldList").elemMatch(Criteria.where("type").in(types)),
+                                    Criteria.where("differenceFieldList").elemMatch(Criteria.where("isPrimaryKey").is(true))
+                            )
+                    );
+                }else{
+                    where.and("differenceFieldList.type").in(types);
+                }
                 compareDtos = geMetadataInstancesCompareDtoByType(nodeId,page,pageSize,types,tableFilter);
             }else{
                 Query pageQuery = Query.query(where);
@@ -418,9 +428,21 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
 
     public List<MetadataInstancesCompareDto> geMetadataInstancesCompareDtoByType(String nodeId,Integer page,Integer pageSize,List<String> types,String tableFilter) {
         Criteria criteria = Criteria.where("nodeId").is(nodeId)
-                .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)
-                .and("differenceFieldList.type").in(types);
-        if(StringUtils.isNotBlank(tableFilter)){
+                .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE);
+        Document cond;
+        if(types.contains(DifferenceTypeEnum.PrimaryKeyInconsistency.name())){
+            criteria.andOperator(
+                    new Criteria().orOperator(
+                            Criteria.where("differenceFieldList").elemMatch(Criteria.where("type").in(types)),
+                            Criteria.where("differenceFieldList").elemMatch(Criteria.where("isPrimaryKey").is(true))
+                    ));
+            cond = new Document("$or", Arrays.asList(new Document("$in", Arrays.asList("$$item.type", types)), new Document("$eq", Arrays.asList("$$item.isPrimaryKey", true))));
+        }else{
+            criteria.and("differenceFieldList.type").in(types);
+            cond = new Document("$and", Arrays.asList(new Document("$in", Arrays.asList("$$item.type", types))));
+        }
+
+        if (StringUtils.isNotBlank(tableFilter)) {
             Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
             criteria.and("tableName").regex(pattern);
         }
@@ -433,20 +455,18 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                 .and(context -> new Document("$filter", new Document()
                         .append("input", "$differenceFieldList")
                         .append("as", "item")
-                        .append("cond", new Document("$in", Arrays.asList("$$item.type", types)))))
+                        .append("cond", cond)))
                 .as("differenceFieldList");
         Aggregation aggregation;
         if(pageSize > 0){
             long skip = (long) (Math.max(1, page) - 1) * pageSize;
-            SkipOperation skipOperation = Aggregation.skip(skip);
-            LimitOperation limitOperation = Aggregation.limit(pageSize);
             aggregation = Aggregation.newAggregation(
                     matchOperation,
                     projectionOperation,
-                    skipOperation,
-                    limitOperation
+                    Aggregation.skip(skip),
+                    Aggregation.limit(pageSize)
             );
-        }else {
+        } else {
             aggregation = Aggregation.newAggregation(matchOperation, projectionOperation);
         }
         return repository.getMongoOperations()
@@ -837,6 +857,9 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                         }
                         if(null != metadataInstancesCompareResult){
                             metadataInstancesCompareResult.computeDifferentFieldNumber(differenceField.getType());
+                            if(differenceField.getIsPrimaryKey() && differenceField.getType() != DifferenceTypeEnum.PrimaryKeyInconsistency){
+                                metadataInstancesCompareResult.computeDifferentFieldNumber(DifferenceTypeEnum.PrimaryKeyInconsistency);
+                            }
                         }
                     });
                     compareFieldsMap.put(tableName, fieldMap);
