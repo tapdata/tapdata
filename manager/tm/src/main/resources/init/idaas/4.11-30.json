@@ -1,0 +1,13 @@
+[
+  {
+    "createIndexes": "ApiCall",
+    "indexes": [{
+      "key": {
+        "createTime": 1
+      },
+      "expireAfterSeconds": 2592000,
+      "name": "ApiCall_1_ttl",
+      "background": true
+    }]
+  }
+]
