@@ -15,10 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.security.KeyFactory;
-import java.security.KeyStore;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
+import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -42,6 +39,34 @@ public class SSLUtil {
 				trustManagers,
 				null);
 
+		return sslContext;
+	}
+
+	public static SSLContext createSSLContext(){
+		SSLContext sslContext = null;
+		try {
+			sslContext = SSLContext.getInstance("SSL");
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
+		}
+		try {
+			sslContext.init(null, new TrustManager[]{new X509TrustManager() {
+				@Override
+				public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+				}
+
+				@Override
+				public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+				}
+
+				@Override
+				public X509Certificate[] getAcceptedIssuers() {
+					return null;
+				}
+			}}, new SecureRandom());
+		} catch (KeyManagementException e) {
+			throw new RuntimeException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
+		}
 		return sslContext;
 	}
 
