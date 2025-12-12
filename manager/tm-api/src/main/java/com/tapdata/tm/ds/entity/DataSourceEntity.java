@@ -56,6 +56,7 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
     private String connection_type;
     /** 对应DataSourceDefinition databasetype */
     private String database_type;
+    private String pdkRealName;
 
 
     /** definition实体中的scope跟version */
