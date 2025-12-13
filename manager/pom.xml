@@ -278,6 +278,7 @@
 							--add-opens=java.base/java.lang.reflect=ALL-UNNAMED
 							--add-opens=java.base/java.io=ALL-UNNAMED
 							--add-opens=java.base/java.util=ALL-UNNAMED
+							--add-opens=java.base/java.time=ALL-UNNAMED
 							--add-modules=java.se
 							--add-opens=java.management/sun.management=ALL-UNNAMED
 							--add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
