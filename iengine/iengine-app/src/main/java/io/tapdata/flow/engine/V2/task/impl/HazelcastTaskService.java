@@ -215,6 +215,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			obsLogger.info("Task started");
 			if (open) {
 				AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
+				obsLogger.info("Task supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data");
 			}
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
