@@ -40,7 +40,7 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
 
     public abstract void checkAccessNodeAvailable(String accessNodeType, List<String> accessNodeProcessIdList, UserDetail userDetail);
 
-    public abstract void buildPdkReanName(List<DataSourceConnectionDto> connectionDto, UserDetail user);
+    public abstract void buildPdkRealName(List<DataSourceConnectionDto> connectionDto, UserDetail user);
 
     public abstract Page<DataSourceConnectionDto> list(Filter filter, boolean noSchema, UserDetail userDetail);
 
