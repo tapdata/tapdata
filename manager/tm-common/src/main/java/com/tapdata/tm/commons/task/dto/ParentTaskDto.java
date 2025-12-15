@@ -280,11 +280,6 @@ public class ParentTaskDto extends SchedulableDto {
 
     private String pageVersion;
 
-    /**
-     * Automatically adjust the batch size of the source node during increment
-     * */
-    private Boolean autoIncrementalBatchSize;
-
     public Integer getWriteBatchSize() {
         return Objects.isNull(writeBatchSize) ? 0 : writeBatchSize;
     }
