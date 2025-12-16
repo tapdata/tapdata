@@ -172,6 +172,7 @@ jobs:
            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           scanMetadataReportFile: tapdata/target/sonar/report-task.txt
+          timeoutSeconds: 1200
       - name: Send SonarQube Quality Gate to Pr Comment
         if: ${{ always() && steps.sonar.outcome == 'failure' }}
         run: |

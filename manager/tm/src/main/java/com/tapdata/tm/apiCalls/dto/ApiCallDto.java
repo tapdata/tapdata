@@ -84,4 +84,37 @@ public class ApiCallDto extends BaseDto {
     private String workOid;
 
     private Boolean supplement;
+
+
+    /**
+     * Start time of database access for API request
+     * */
+    private Long dataQueryFromTime;
+    /**
+     * End time of database access for API request
+     * */
+    private Long dataQueryEndTime;
+    /**
+     * Database access time for API requests
+     * */
+    private Long dataQueryTotalTime;
+    /**
+     * query Of Count
+     * */
+    private String queryOfCount;
+
+    /**
+     * query Of Page
+     * */
+    private String queryOfPage;
+
+    /**
+     * query Of total count of table
+     * */
+    private Long totalRows;
+
+    /**
+     * query Of http request cost time(ms)
+     * */
+    private Long requestCost;
 }

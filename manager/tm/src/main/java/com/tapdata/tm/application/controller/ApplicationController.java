@@ -3,6 +3,7 @@ package com.tapdata.tm.application.controller;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
+import com.tapdata.tm.application.vo.ModulePermissionVo;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.oauth2.service.MongoRegisteredClientRepository;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -217,6 +219,19 @@ public class ApplicationController extends BaseController {
     public ResponseMessage<ApplicationDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody ApplicationDto metadataDefinition) {
         Where where = parseWhere(whereJson);
         return success(applicationService.upsertByWhere(where, metadataDefinition, getLoginUser()));
+    }
+
+    /**
+     * Get modules that the application has permission to access
+     *
+     * @param id Application ID
+     * @return List of modules with id and name only
+     */
+    @Operation(summary = "Get modules that the application has permission to access")
+    @GetMapping("{id}/modules")
+    public ResponseMessage<List<ModulePermissionVo>> getAccessibleModules(@PathVariable("id") String id) {
+        List<ModulePermissionVo> modules = applicationService.getAccessibleModules(id, getLoginUser());
+        return success(modules);
     }
 
 }

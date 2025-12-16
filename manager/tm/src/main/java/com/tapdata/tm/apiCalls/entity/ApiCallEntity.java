@@ -15,7 +15,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("ApiCall")
-@CappedCollection(maxLength = 1_000_000L, maxMemory = 1L << 40)
+@CappedCollection(maxLength = 1_000_000L, maxMemory = 1L << 40, capped = false)
 public class ApiCallEntity extends BaseEntity {
     @JsonProperty("req_params")
     @Field("req_params")
@@ -85,4 +85,37 @@ public class ApiCallEntity extends BaseEntity {
     private String workOid;
 
     private Boolean supplement;
+
+    /**
+     * api请求的数据库访问开始时间
+     * */
+    private Long dataQueryFromTime;
+    /**
+     * api请求的数据库访问结束时间
+     * */
+    private Long dataQueryEndTime;
+    /**
+     * api请求的数据库访问耗时
+     * */
+    private Long dataQueryTotalTime;
+
+    /**
+     * query Of Count
+     * */
+    private String queryOfCount;
+
+    /**
+     * query Of Page
+     * */
+    private String queryOfPage;
+
+    /**
+     * query Of total count of table
+     * */
+    private Long totalRows;
+
+    /**
+     * query Of http request cost time(ms)
+     * */
+    private Long requestCost;
 }

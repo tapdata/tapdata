@@ -67,6 +67,7 @@ public class TaskNodePdkConnector implements IPdkConnector {
 
     @Getter
     private final String databaseType;
+    private Map<String, Object> nodeConfig;
 
     public TaskNodePdkConnector(
         ClientMongoOperator clientMongoOperator
@@ -76,7 +77,9 @@ public class TaskNodePdkConnector implements IPdkConnector {
         , Connections connections
         , DatabaseTypeEnum.DatabaseType databaseType
         , TaskRetryConfig taskRetryConfig
+        , Map<String,Object> nodeConfig
     ) {
+        this.nodeConfig = nodeConfig;
         this.connections = connections;
         this.taskId = taskId;
         this.nodeId = node.getId();
@@ -88,9 +91,12 @@ public class TaskNodePdkConnector implements IPdkConnector {
             clientMongoOperator,
             associateId,
             connections.getConfig(),
+            nodeConfig,
             createPdkTableMap(getNodeId()),
             createPdkStateMap(getNodeId()),
             createGlobalStateMap(),
+            null,
+            null,
             createLog()
         );
     }
@@ -150,6 +156,11 @@ public class TaskNodePdkConnector implements IPdkConnector {
             throw new FindOneByKeysException(throwable.get(), tableName, keys);
         }
         return data.get();
+    }
+
+    @Override
+    public ClassLoader getConnectorClassLoader() {
+        return connectorNode.getConnectorClassLoader();
     }
 
     @Override
@@ -261,7 +272,8 @@ public class TaskNodePdkConnector implements IPdkConnector {
         , Connections connections
         , DatabaseTypeEnum.DatabaseType databaseType
         , TaskRetryConfig taskRetryConfig
+        , Map<String,Object> nodeConfig
     ) {
-        return new TaskNodePdkConnector(clientMongoOperator, taskId, node, associateId, connections, databaseType, taskRetryConfig);
+        return new TaskNodePdkConnector(clientMongoOperator, taskId, node, associateId, connections, databaseType, taskRetryConfig,nodeConfig);
     }
 }

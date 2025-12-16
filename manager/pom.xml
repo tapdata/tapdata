@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.0</version>
+		<version>3.5.7</version>
 		<relativePath/>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
@@ -27,23 +27,28 @@
 		<maven.compiler.target>${java.version}</maven.compiler.target>
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
-		<mongo.version>5.3.0</mongo.version>
-		<tapdata-api.version>2.0.4-SNAPSHOT</tapdata-api.version>
-		<tapdata-pdk-api.version>2.0.4-SNAPSHOT</tapdata-pdk-api.version>
-		<tapdata-common.version>2.4-SNAPSHOT</tapdata-common.version>
-		<tapdata-common.version>2.4-SNAPSHOT</tapdata-common.version>
-		<modules-api.version>2.4-SNAPSHOT</modules-api.version>
+		<mongo.version>5.5.1</mongo.version>
+		<tapdata-api.version>2.0.5-SNAPSHOT</tapdata-api.version>
+		<tapdata-pdk-api.version>2.0.5-SNAPSHOT</tapdata-pdk-api.version>
+		<tapdata-common.version>2.5-SNAPSHOT</tapdata-common.version>
+		<tapdata-common.version>2.5-SNAPSHOT</tapdata-common.version>
+		<modules-api.version>2.5-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
 		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
 		<mongodb-storage-module.version>${modules-api.version}</mongodb-storage-module.version>
 		<tcm.artifactId>tcm</tcm.artifactId>
 		<tcm.module>tcm-module</tcm.module>
-		<tapdata-pdk-runner.version>2.4-SNAPSHOT</tapdata-pdk-runner.version>
+		<tapdata-pdk-runner.version>2.5-SNAPSHOT</tapdata-pdk-runner.version>
 		<commons-net.version>3.11.1</commons-net.version>
 		<gson.version>2.12.1</gson.version>
-		<netty.version>4.1.119.Final</netty.version>
 		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
+
+		<!-- Override spring boot version -->
+		<netty.version>4.1.127.Final</netty.version>
+		<spring-framework.version>6.2.11</spring-framework.version>
+		<spring-security.version>6.5.4</spring-security.version>
+		<hutool.version>5.8.40</hutool.version>
 	</properties>
 
 	<modules>
@@ -101,6 +106,11 @@
 				<version>${tapdata-common.version}</version>
 			</dependency>
 			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>tapdata-common</artifactId>
+				<version>${tapdata-common.version}</version>
+			</dependency>
+			<dependency>
 				<groupId>org.mongodb</groupId>
 				<artifactId>mongodb-driver-sync</artifactId>
 				<version>${mongo.version}</version>
@@ -115,6 +125,18 @@
 				<artifactId>mongodb-driver-core</artifactId>
 				<version>${mongo.version}</version>
 			</dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>3.14.0</version> <!-- 使用最新稳定版本 -->
+            </dependency>
+
+            <!-- Google Gson -->
+            <dependency>
+                <groupId>com.google.code.gson</groupId>
+                <artifactId>gson</artifactId>
+                <version>2.11.0</version> <!-- 使用最新稳定版本 -->
+            </dependency>
 			<dependency>
 				<groupId>io.tapdata</groupId>
 				<artifactId>tapdata-api</artifactId>
@@ -160,6 +182,26 @@
 				<artifactId>commons-collections4</artifactId>
 				<version>${commons-collections4.version}</version>
 			</dependency>
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-core</artifactId>
+				<version>${hutool.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-crypto</artifactId>
+				<version>${hutool.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-json</artifactId>
+				<version>${hutool.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-extra</artifactId>
+				<version>${hutool.version}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 	<repositories>
@@ -169,6 +211,28 @@
 			<url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
 			<releases>
 				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>nexus-releases</id>
+			<name>nexus-maven-release</name>
+			<url>https://nexus.tapdata.net/repository/maven-releases/</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>nexus-snapshots</id>
+			<name>nexus-maven-snapshot</name>
+			<url>https://nexus.tapdata.net/repository/maven-snapshots/</url>
+			<releases>
+				<enabled>false</enabled>
 			</releases>
 			<snapshots>
 				<enabled>true</enabled>
@@ -253,4 +317,17 @@
 			</plugins>
 		</pluginManagement>
 	</build>
+
+	<distributionManagement>
+		<repository>
+			<id>nexus-tapdata-net</id>
+			<name>Nexus Release Repository</name>
+			<url>https://nexus.tapdata.net/repository/maven-releases/</url>
+		</repository>
+		<snapshotRepository>
+			<id>nexus-tapdata-net</id>
+			<name>Nexus Snapshot Repository</name>
+			<url>https://nexus.tapdata.net/repository/maven-snapshots/</url>
+		</snapshotRepository>
+	</distributionManagement>
 </project>

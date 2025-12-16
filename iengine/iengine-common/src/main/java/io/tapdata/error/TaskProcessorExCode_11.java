@@ -181,7 +181,6 @@ public interface TaskProcessorExCode_11 {
 	)
 	String SOURCE_NOT_SUPPORT_COUNT_BY_PARTITION_FILTER_FUNCTION = "11029";
 
-
 	@TapExCode(
 			describe = "Data convert failed",
 			describeCN = "数据转换失败"

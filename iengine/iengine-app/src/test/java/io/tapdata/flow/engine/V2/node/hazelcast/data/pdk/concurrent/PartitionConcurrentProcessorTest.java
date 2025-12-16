@@ -25,6 +25,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -32,6 +33,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -596,6 +598,8 @@ class PartitionConcurrentProcessorTest {
         void testInterrupted() throws InterruptedException {
             TapdataEvent tapdataEvent = mock(TapdataEvent.class);
             PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class, CALLS_REAL_METHODS);
+            AtomicLong atomicLong = new AtomicLong(0L);
+            UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "processDMLCounter", atomicLong);
             doAnswer(invocationOnMock -> {throw new InterruptedException();}).when(processor).getTapRecordEventData(any());
 
             AtomicBoolean singleMode = new AtomicBoolean(false);
@@ -760,6 +764,251 @@ class PartitionConcurrentProcessorTest {
             doThrow(throwable).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
             processor.partitionConsumer(finalPartition, linkedBlockingQueue);
             verify(errorHandler, new Times(1)).accept(throwable, "target write record(s) failed");
+        }
+    }
+
+    @Nested
+    @DisplayName("HandleUpdateEventPartition Test")
+    class HandleUpdateEventPartitionTest {
+        PartitionConcurrentProcessor processor;
+        TapdataEvent tapdataEvent;
+        int partitionSize = 4;
+
+        @BeforeEach
+        void setUp() {
+            processor = mock(PartitionConcurrentProcessor.class, CALLS_REAL_METHODS);
+            UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "partitionSize", partitionSize);
+            UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "keySelector", keySelector);
+            UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "partitioner", partitioner);
+            UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "pkHashMappingCache", new ConcurrentHashMap<>());
+            UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "logger", logger);
+
+            tapdataEvent = new TapdataEvent();
+        }
+
+        @Test
+        @DisplayName("Test update event without partition key change")
+        void testUpdateWithoutPartitionKeyChange() throws InterruptedException {
+            // Create update event with same partition key
+            Map<String, Object> before = new HashMap<>();
+            before.put("id", 1);
+            before.put("name", "old_name");
+
+            Map<String, Object> after = new HashMap<>();
+            after.put("id", 1);
+            after.put("name", "new_name");
+
+            TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
+                    .before(before)
+                    .after(after)
+                    .table("test_table");
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
+
+            // Should use standard partitioning based on after value
+            assertTrue(partition >= 0 && partition < partitionSize);
+        }
+
+        @Test
+        @DisplayName("Test update event with partition key change - no cache")
+        void testUpdateWithPartitionKeyChangeNoCache() throws Exception {
+            // Create update event with different partition keys
+            Map<String, Object> before = new HashMap<>();
+            before.put("id", 1);
+            before.put("name", "old_name");
+
+            Map<String, Object> after = new HashMap<>();
+            after.put("id", 2);
+            after.put("name", "new_name");
+
+            TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
+                    .before(before)
+                    .after(after)
+                    .table("test_table");
+
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
+
+            // Should calculate partition based on before value and cache the after hash
+            assertTrue(partition >= 0 && partition < partitionSize);
+
+            // Verify cache was populated with after hash
+            Field cacheField = PartitionConcurrentProcessor.class.getDeclaredField("pkHashMappingCache");
+            cacheField.setAccessible(true);
+            Integer afterHash = Objects.hash(afterValue);
+            Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping> cache =
+                    (Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping>) cacheField.get(processor);
+            assertTrue(cache.containsKey(afterHash));
+            assertEquals(partition, cache.get(afterHash).getPartition());
+        }
+
+        @Test
+        @DisplayName("Test update event with partition key change - with cache hit")
+        void testUpdateWithPartitionKeyChangeWithCacheHit() throws Exception {
+            // Pre-populate cache
+            Field cacheField = PartitionConcurrentProcessor.class.getDeclaredField("pkHashMappingCache");
+            cacheField.setAccessible(true);
+            Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping> cache =
+                    (Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping>) cacheField.get(processor);
+            int expectedPartition = 2;
+
+
+            // Create update event with different partition keys
+            Map<String, Object> before = new HashMap<>();
+            before.put("id", 1);
+            before.put("name", "old_name");
+
+            Map<String, Object> after = new HashMap<>();
+            after.put("id", 2);
+            after.put("name", "new_name");
+
+            TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
+                    .before(before)
+                    .after(after)
+                    .table("test_table");
+
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int beforeHash = Objects.hash(beforeValue);
+            cache.put(beforeHash, new PartitionConcurrentProcessor.CachedPartitionMapping(expectedPartition, 0L));
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
+
+            // Should use cached partition
+            assertEquals(expectedPartition, partition);
+
+            // Verify cache was updated with after hash
+//            int afterHash = Objects.hash(Collections.singletonList(2));
+            int afterHash = Objects.hash(afterValue);
+            assertTrue(cache.containsKey(afterHash));
+            assertEquals(expectedPartition, cache.get(afterHash).getPartition());
+
+            // Verify before hash counter was updated
+            assertEquals(1L, cache.get(beforeHash).getLastMatchedCounter());
+        }
+
+        @Test
+        @DisplayName("Test update event with null before value")
+        void testUpdateWithNullBeforeValue() throws InterruptedException {
+            // Create update event with null before
+            Map<String, Object> after = new HashMap<>();
+            after.put("id", 1);
+            after.put("name", "new_name");
+
+            TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
+                    .after(after)
+                    .table("test_table");
+
+            List<Object> afterValue = after.values().stream().toList();
+
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, null,afterValue,1L);
+
+            // Should use after value for partitioning
+            assertTrue(partition >= 0 && partition < partitionSize);
+        }
+
+        @Test
+        @DisplayName("Test update event with null after value")
+        void testUpdateWithNullAfterValue() throws InterruptedException {
+            // Create update event with null after
+            Map<String, Object> before = new HashMap<>();
+            before.put("id", 1);
+            before.put("name", "old_name");
+
+            TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
+                    .before(before)
+                    .table("test_table");
+
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,null,1L);
+
+
+            // Should use before value for partitioning
+            assertTrue(partition >= 0 && partition < partitionSize);
+        }
+
+        @Test
+        @DisplayName("Test update event with empty before value")
+        void testUpdateWithEmptyBeforeValue() throws InterruptedException {
+            // Create update event with empty before
+            Map<String, Object> before = new HashMap<>();
+            Map<String, Object> after = new HashMap<>();
+            after.put("id", 1);
+            after.put("name", "new_name");
+
+            TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
+                    .before(before)
+                    .after(after)
+                    .table("test_table");
+
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
+
+            // Should use after value for partitioning
+            assertTrue(partition >= 0 && partition < partitionSize);
+        }
+
+        @Test
+        @DisplayName("Test partition result less than zero defaults to 0")
+        void testPartitionResultLessThanZero() throws InterruptedException {
+            // Mock partitioner to return negative partition
+            Partitioner<TapdataEvent, List<Object>> mockPartitioner = mock(Partitioner.class);
+            when(mockPartitioner.partition(anyInt(), any(), any()))
+                    .thenReturn(new io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult<>(-1, tapdataEvent));
+            UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "partitioner", mockPartitioner);
+
+            Map<String, Object> before = new HashMap<>();
+            before.put("id", 1);
+            Map<String, Object> after = new HashMap<>();
+            after.put("id", 1);
+
+            TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
+                    .before(before)
+                    .after(after)
+                    .table("test_table");
+
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
+
+            // Should default to 0
+            assertEquals(0, partition);
+        }
+
+        @Test
+        @DisplayName("Test cache entry counter update on cache hit")
+        void testCacheEntryCounterUpdate() throws Exception {
+            // Pre-populate cache
+            Field cacheField = PartitionConcurrentProcessor.class.getDeclaredField("pkHashMappingCache");
+            cacheField.setAccessible(true);
+            Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping> cache =
+                    (Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping>) cacheField.get(processor);
+            int beforeHash = Objects.hash(Collections.singletonList(100));
+            int expectedPartition = 1;
+            PartitionConcurrentProcessor.CachedPartitionMapping mapping =
+                    new PartitionConcurrentProcessor.CachedPartitionMapping(expectedPartition, 5L);
+            cache.put(beforeHash, mapping);
+
+            // Create update event
+            Map<String, Object> before = new HashMap<>();
+            before.put("id", 100);
+            Map<String, Object> after = new HashMap<>();
+            after.put("id", 200);
+
+            TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
+                    .before(before)
+                    .after(after)
+                    .table("test_table");
+
+            long currentCounter = 10L;
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,10L);
+
+            // Verify counter was updated
+            assertEquals(currentCounter, mapping.getLastMatchedCounter());
         }
     }
 }

@@ -5,7 +5,6 @@ import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Queues;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
@@ -40,16 +39,19 @@ import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.Runnable.LoadSchemaRunner;
+import io.tapdata.aspect.BatchSizeAspect;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
+import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
+import io.tapdata.entity.BatchSizeInfo;
 import io.tapdata.entity.CountResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -91,6 +93,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -172,7 +175,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
      * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
      * blocked when reading data from data source while jet using async when passing the event to next node.
      */
-    protected LinkedBlockingQueue<TapdataEvent> eventQueue;
+    protected DynamicLinkedBlockingQueue<TapdataEvent> eventQueue;
     private final AtomicReference<Object> lastStreamOffset = new AtomicReference<>();
     protected StreamReadFuncAspect streamReadFuncAspect;
     protected TapdataEvent pendingEvent;
@@ -336,7 +339,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         try {
             List<TapdataEvent> tapdataEvents = new ArrayList<>();
             while (isRunning()) {
-                int drain = Queues.drain(eventQueue, tapdataEvents, readBatchSize, 1L, TimeUnit.MILLISECONDS);
+                int drain = eventQueue.drain(tapdataEvents, readBatchSize, 1L, TimeUnit.MILLISECONDS);
                 if (drain > 0) {
                     List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, toTapValueBatchSize);
                     for (List<TapdataEvent> events : partition) {
@@ -466,7 +469,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     private void initSourceEventQueue() {
         this.sourceQueueCapacity = readBatchSize * SOURCE_QUEUE_FACTOR;
         this.originalSourceQueueCapacity = sourceQueueCapacity;
-        this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
+        this.eventQueue = new DynamicLinkedBlockingQueue<TapdataEvent>(sourceQueueCapacity).active(this::isRunning);
         obsLogger.trace("Source node \"{}\" event queue capacity: {}", getNode().getName(), sourceQueueCapacity);
     }
 
@@ -693,7 +696,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         Long offsetStartTimeMs = null;
         switch (syncType) {
             case INITIAL_SYNC_CDC:
-                initStreamOffsetInitialAndCDC(offsetStartTimeMs);
+                initStreamOffsetInitialAndCDC(offsetStartTimeMs, taskDto);
                 syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
                 break;
             case INITIAL_SYNC:
@@ -732,30 +735,35 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 syncPoint = syncPoints.stream().filter(sp -> dataProcessorContext.getNode().getId().equals(sp.getNodeId())).findFirst().orElse(null);
             }
             if(null != syncPoint && syncPoint.getIsStreamOffset() && StringUtils.isNotBlank(syncPoint.getStreamOffsetString())){
-                initStreamOffsetFromString(syncPoint.getStreamOffsetString());
-            }else{
-                String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
-                if (StringUtils.isBlank(pointType)) {
-                    throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_SYNC_POINT_TYPE_IS_EMPTY);
-                }
-                switch (pointType) {
-                    case "localTZ":
-                    case "connTZ":
-                        if(null != syncPoint){
+				initStreamOffsetFromString(syncPoint.getStreamOffsetString());
+			}else{
+				String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
+				if (StringUtils.isBlank(pointType)) {
+					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_SYNC_POINT_TYPE_IS_EMPTY);
+				}
+				switch (pointType) {
+					case "localTZ":
+					case "connTZ":
+						if(null != syncPoint){
                             offsetStartTimeMs = syncPoint.getDateTime();
                         }
-                        break;
-                    case "current":
-                        break;
-                    default:
-                        throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_UNKNOWN_POINT_TYPE, "Unknown start point type: " + pointType);
+						break;
+					case "current":
+						break;
+					default:
+						throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_UNKNOWN_POINT_TYPE, "Unknown start point type: " + pointType);
 
+				}
+                boolean shareCdcEnable = taskDto.getShareCdcEnable();
+                if (shareCdcEnable) {
+                    syncProgress.setStreamOffsetObj(new HashMap<>());
+                } else {
+                    initStreamOffsetFromTime(offsetStartTimeMs);
                 }
-                initStreamOffsetFromTime(offsetStartTimeMs);
-            }
-        }
-        return offsetStartTimeMs;
-    }
+			}
+		}
+		return offsetStartTimeMs;
+	}
 
     protected void initStreamOffsetInitial() {
         syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
@@ -766,6 +774,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             syncProgress.setStreamOffsetObj(new HashMap<>());
         } else {
             initStreamOffsetFromTime(offsetStartTimeMs);
+        }
+    }
+
+    protected void initStreamOffsetInitialAndCDC(Long offsetStartTimeMs, TaskDto taskDto) {
+        boolean shareCdcEnable = taskDto.getShareCdcEnable();
+        if (shareCdcEnable) {
+            syncProgress.setStreamOffsetObj(new HashMap<>());
+        } else {
+            initStreamOffsetInitialAndCDC(offsetStartTimeMs);
         }
     }
 
@@ -794,24 +811,24 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     protected void initStreamOffsetFromString(String streamOffset){
-        AtomicReference<Object> tapStreamOffset = new AtomicReference<>();
-        GetStreamOffsetFunction getStreamOffsetFunction = getConnectorNode().getConnectorFunctions().getGetStreamOffsetFunction();
-        if (null != getStreamOffsetFunction) {
-            PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.GET_STREAM_OFFSET, () -> {
-                try {
-                    tapStreamOffset.set(getStreamOffsetFunction.getStreamOffset(getConnectorNode().getConnectorContext(), streamOffset));
-                }catch (Throwable e) {
-                    throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: "  + e.getMessage());
-                }
-                if(null == tapStreamOffset.get()){
-                    throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: " + streamOffset);
-                }
-                syncProgress.setStreamOffsetObj(tapStreamOffset.get());
-            }, TAG);
-        } else {
-            obsLogger.warn("Pdk connector does not support string to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
-        }
-    }
+		AtomicReference<Object> tapStreamOffset = new AtomicReference<>();
+		GetStreamOffsetFunction getStreamOffsetFunction = getConnectorNode().getConnectorFunctions().getGetStreamOffsetFunction();
+		if (null != getStreamOffsetFunction) {
+			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.GET_STREAM_OFFSET, () -> {
+				try {
+					tapStreamOffset.set(getStreamOffsetFunction.getStreamOffset(getConnectorNode().getConnectorContext(), streamOffset));
+				}catch (Throwable e) {
+					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: "  + e.getMessage());
+				}
+				if(null == tapStreamOffset.get()){
+					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: " + streamOffset);
+				}
+				syncProgress.setStreamOffsetObj(tapStreamOffset.get());
+			}, TAG);
+		} else {
+			obsLogger.warn("Pdk connector does not support string to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
+		}
+	}
 
     @Override
     public boolean complete() {
@@ -831,23 +848,25 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 tapdataEvents = pendingEvents;
                 pendingEvents = null;
             } else {
-                if (Boolean.TRUE.equals(toTapValueConcurrent)) {
+                if (toTapValueConcurrent) {
                     try {
                         tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
+                        accpetCdcEventIfHasInspect(tapdataEvents);
                     } catch (ConcurrentProcessorApplyException e) {
-                        // throw exception not include original events, local log file will include it
-                        logger.error("Concurrent transform to tap value failed, original events: {}", e.getOriginValue(), e.getCause());
-                        throw new Exception("Concurrent transform to tap value failed", e.getCause());
-                    }
-                } else {
-                    if (null != eventQueue) {
-                        int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 100L, TimeUnit.MILLISECONDS);
-                        if (drain > 0) {
+						// throw exception not include original events, local log file will include it
+						logger.error("Concurrent transform to tap value failed, original events: {}", e.getOriginValue(), e.getCause());
+						throw new Exception("Concurrent transform to tap value failed", e.getCause());
+					}
+				} else {
+					if (null != eventQueue) {
+						int drain = eventQueue.drain(tapdataEvents, drainSize, 100L, TimeUnit.MILLISECONDS);
+						if (drain > 0) {
                             batchTransformToTapValue(tapdataEvents);
-                        }
-                    }
-                }
-            }
+                            accpetCdcEventIfHasInspect(tapdataEvents);
+						}
+					}
+				}
+			}
 
             if (CollectionUtils.isNotEmpty(tapdataEvents)) {
                 for (int i = 0; i < tapdataEvents.size(); i++) {
@@ -875,6 +894,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         }
 
         return false;
+    }
+
+    private void accpetCdcEventIfHasInspect(List<TapdataEvent> tapdataEvents) {
+        if (null != taskInspect) {
+            if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+                for (TapdataEvent event : tapdataEvents) {
+                    if (SyncStage.CDC.equals(event.getSyncStage())) {
+                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
+                    }
+                }
+            }
+        }
     }
 
     private boolean checkAllTargetNodesFinishInitial() {
@@ -1585,9 +1616,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 TapdataEvent event = tapdataEvent;
                 if (SyncStage.CDC.name().equals(syncProgress.getSyncStage())) {
                     event = this.tapEventFilter.handle(tapdataEvent);
-                    if (null != taskInspect) {
-                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
-                    }
                 }
                 if (eventQueue.offer(event, 3, TimeUnit.SECONDS)) {
                     break;
@@ -1793,6 +1821,52 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
+    public void startSourceConsumer() {
+        while (isRunning()) {
+            try {
+                TapdataEvent dataEvent;
+                AtomicBoolean isPending = new AtomicBoolean();
+                if (pendingEvent != null) {
+                    dataEvent = pendingEvent;
+                    pendingEvent = null;
+                    isPending.compareAndSet(false, true);
+                } else {
+                    dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
+                    isPending.compareAndSet(true, false);
+                }
+
+                if (dataEvent != null) {
+                    if (!isPending.get()) {
+                        TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+                        TapEvent tapEvent = dataEvent.getTapEvent();
+                        tapRecordToTapValue(tapEvent, codecsFilterManager);
+                    }
+                    if (!offer(dataEvent)) {
+                        pendingEvent = dataEvent;
+                        continue;
+                    }
+                    Optional.ofNullable(getSnapshotProgressManager())
+                            .ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
+                }
+            } catch (InterruptedException ie) {
+                errorHandle(ie, "Start source consumer failed with InterruptedException: " + ie.getMessage());
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                errorHandle(e, "Start source consumer failed: " + e.getMessage());
+                break;
+            }
+        }
+    }
+
+    public LinkedBlockingQueue<TapdataEvent> getEventQueue() {
+        return eventQueue.getQueue();
+    }
+
+    public SnapshotProgressManager getSnapshotProgressManager() {
+        return snapshotProgressManager;
+    }
+
     public enum SourceMode {
         NORMAL,
         LOG_COLLECTOR,
@@ -1842,5 +1916,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     protected CountResult getCountResult(Long count,String tableId) {
         return new CountResult(count,null != syncProgress && BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId));
+    }
+
+    void reportBatchSize(int batchSize, long targetIntervalMs) {
+        BatchSizeInfo batchSizeInfo = new BatchSizeInfo();
+        batchSizeInfo.setBatchSize(batchSize);
+        batchSizeInfo.setTargetIntervalMs(targetIntervalMs);
+        BatchSizeAspect aspect = new BatchSizeAspect(batchSizeInfo);
+        aspect.setNodeId(getNode().getId());
+        Optional.ofNullable(TaskAspectManager.get(processorBaseContext.getTaskDto().getId().toHexString()))
+                .ifPresent(context -> context.onObserveAspect(aspect));
     }
 }

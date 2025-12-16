@@ -85,6 +85,18 @@
   </dependencyManagement>
 
   <dependencies>
+      <dependency>
+          <groupId>org.apache.commons</groupId>
+          <artifactId>commons-lang3</artifactId>
+          <version>3.14.0</version> <!-- 使用最新稳定版本 -->
+      </dependency>
+
+      <!-- Google Gson -->
+      <dependency>
+          <groupId>com.google.code.gson</groupId>
+          <artifactId>gson</artifactId>
+          <version>2.11.0</version> <!-- 使用最新稳定版本 -->
+      </dependency>
     <dependency>
       <groupId>com.tapdata</groupId>
       <artifactId>common</artifactId>
@@ -170,22 +182,18 @@
     <dependency>
       <groupId>cn.hutool</groupId>
       <artifactId>hutool-core</artifactId>
-      <version>5.8.36</version>
     </dependency>
     <dependency>
       <groupId>cn.hutool</groupId>
       <artifactId>hutool-crypto</artifactId>
-      <version>5.8.36</version>
     </dependency>
     <dependency>
       <groupId>cn.hutool</groupId>
       <artifactId>hutool-json</artifactId>
-      <version>5.8.36</version>
     </dependency>
     <dependency>
       <groupId>cn.hutool</groupId>
       <artifactId>hutool-extra</artifactId>
-      <version>5.8.36</version>
     </dependency>
 
     <dependency>
@@ -385,17 +393,6 @@
       <id>tapdata-wendangshujuku-mongo</id>
       <name>mongo</name>
       <url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
-      <releases>
-        <enabled>true</enabled>
-      </releases>
-      <snapshots>
-        <enabled>true</enabled>
-      </snapshots>
-    </repository>
-    <repository>
-      <id>tapdata-tapdata-maven</id>
-      <name>maven</name>
-      <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
       <releases>
         <enabled>true</enabled>
       </releases>

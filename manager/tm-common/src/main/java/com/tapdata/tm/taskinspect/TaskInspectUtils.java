@@ -1,6 +1,8 @@
 package com.tapdata.tm.taskinspect;
 
 import com.tapdata.tm.utils.MD5Utils;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 
 import java.io.*;
 import java.util.Base64;
@@ -63,12 +65,12 @@ public interface TaskInspectUtils {
 
     static String toRowId(String tableName, LinkedHashMap<String, Object> keys) {
         StringBuilder buf = new StringBuilder(tableName);
-        for (Object v : keys.values()) {
-            buf.append("|").append(v);
-        }
+        String serializedKeyStr = keysSerialization(keys);
+        buf.append("|").append(serializedKeyStr);
         return MD5Utils.toLowerHex(buf.toString());
     }
 
+    @Deprecated(since = "4.10.0")
     static String encodeKeys(Object obj) throws IOException {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             try (ObjectOutputStream odos = new ObjectOutputStream(baos)) {
@@ -79,6 +81,7 @@ public interface TaskInspectUtils {
         }
     }
 
+    @Deprecated(since = "4.10.0")
     static <T> T decodeKeys(String keysStr) throws IOException, ClassNotFoundException {
         byte[] bytes = Base64.getDecoder().decode(keysStr);
         try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes)) {
@@ -86,5 +89,43 @@ public interface TaskInspectUtils {
                 return (T) ois.readObject();
             }
         }
+    }
+
+    /**
+     * 主键序列化
+     *
+     * @param keys 主键数据
+     * @return Base64 格式序列化数据
+     */
+    static String keysSerialization(LinkedHashMap<String, Object> keys) {
+        ObjectSerializable serializable = InstanceFactory.instance(ObjectSerializable.class);
+        byte[] bytes = serializable.fromObject(keys);
+        return Base64.getEncoder().encodeToString(bytes);
+    }
+
+    /**
+     * 主键反序列化
+     *
+     * @param serializedData 序列化数据
+     * @return 主键数据
+     */
+    static LinkedHashMap<String, Object> keysDeserialization(String serializedData, ClassLoader classLoader) {
+        ObjectSerializable serializable = InstanceFactory.instance(ObjectSerializable.class);
+        byte[] bytes = Base64.getDecoder().decode(serializedData);
+        Object object = serializable.toObject(bytes, new ObjectSerializable
+            .ToObjectOptions()
+            .classLoader(classLoader)
+            .skipSerialVersionUID(true)
+        );
+
+        // 兼容 4.9.0 的数据
+        if (null == object) {
+            try {
+                return decodeKeys(serializedData);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return (LinkedHashMap<String, Object>) object;
     }
 }

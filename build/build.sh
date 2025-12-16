@@ -100,6 +100,14 @@ make_package_tapdata() {
   cp $TAPDATA_DIR/manager/tm/target/tm-*-exec.jar components/tm.jar
   cp $TAPDATA_DIR/iengine/ie.jar components/tapdata-agent.jar
   cp $TAPDATA_DIR/tapdata-cli/target/pdk.jar lib/pdk-deploy.jar
+  
+  # Copy openapi-generator directory to etc
+  if [[ -d "$TAPDATA_DIR/openapi-generator" ]]; then
+    info "Copying openapi-generator directory to etc/"
+    cp -r $TAPDATA_DIR/openapi-generator etc/
+  else
+    warn "openapi-generator directory not found at $TAPDATA_DIR/openapi-generator"
+  fi
 }
 
 make_package_connectors() {

@@ -495,9 +495,10 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TableNode node2 = new TableNode();
 			node2.setNodeConfig(nodeConfig);
 			taskDto.setDoubleActive(true);
-			Assertions.assertEquals(3, hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).size());
+			taskDto.setDataSaving(false);
+			Assertions.assertEquals(4, hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).size());
 			Assertions.assertTrue(hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).containsKey("doubleActive"));
-			Assertions.assertEquals(4, hazelcastPdkBaseNode.generateNodeConfig(node2, taskDto).size());
+			Assertions.assertEquals(5, hazelcastPdkBaseNode.generateNodeConfig(node2, taskDto).size());
 		}
 
 		@Test
@@ -509,9 +510,9 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			DatabaseNode node2 = new DatabaseNode();
 			node2.setNodeConfig(nodeConfig);
 			taskDto.setDoubleActive(true);
-			Assertions.assertEquals(3, hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).size());
+			Assertions.assertEquals(4, hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).size());
 			Assertions.assertTrue(hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).containsKey("doubleActive"));
-			Assertions.assertEquals(4, hazelcastPdkBaseNode.generateNodeConfig(node2, taskDto).size());
+			Assertions.assertEquals(5, hazelcastPdkBaseNode.generateNodeConfig(node2, taskDto).size());
 		}
 
 		@Test
@@ -523,9 +524,9 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			LogCollectorNode node2 = new LogCollectorNode();
 			node2.setNodeConfig(nodeConfig);
 			taskDto.setDoubleActive(true);
-			Assertions.assertEquals(2, hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).size());
+			Assertions.assertEquals(3, hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).size());
 			Assertions.assertTrue(hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).containsKey("doubleActive"));
-			Assertions.assertEquals(3, hazelcastPdkBaseNode.generateNodeConfig(node2, taskDto).size());
+			Assertions.assertEquals(4, hazelcastPdkBaseNode.generateNodeConfig(node2, taskDto).size());
 		}
 
 		@Test
@@ -533,7 +534,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void testOtherNode() {
 			CacheNode node = new CacheNode();
 			taskDto.setDoubleActive(true);
-			Assertions.assertEquals(2, hazelcastPdkBaseNode.generateNodeConfig(node, taskDto).size());
+			Assertions.assertEquals(3, hazelcastPdkBaseNode.generateNodeConfig(node, taskDto).size());
 			Assertions.assertTrue(hazelcastPdkBaseNode.generateNodeConfig(node, taskDto).containsKey("doubleActive"));
 		}
 
@@ -671,5 +672,13 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals(true, aspect.get().isRetrying());
 		}
 	}
-	
+
+	@Nested
+	class IncreaseReadSizeTest {
+		@Test
+		void testGet() {
+			hazelcastPdkBaseNode.setIncreaseReadSize(100);
+			Assertions.assertEquals(100, hazelcastPdkBaseNode.getIncreaseReadSize());
+		}
+	}
 }

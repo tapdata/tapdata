@@ -17,11 +17,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
@@ -39,7 +35,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -144,17 +139,11 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 					heartbeatEvent.setReferenceTime(tapRecordEvent.getReferenceTime());
 					tapdataEvent.setTapEvent(heartbeatEvent);
 				} else {
-					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
-					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
-					List<String> removedFields = null;
-					if (tapRecordEvent instanceof TapUpdateRecordEvent) {
-						removedFields = ((TapUpdateRecordEvent) tapRecordEvent).getRemovedFields();
-					}
-					tapRecordEvent = message2TapEvent(processedMessage);
-					if (null != removedFields) {
-						TapEventUtil.setRemoveFields(tapRecordEvent, removedFields);
-					}
-					tapdataEvent.setTapEvent(tapRecordEvent);
+					TapRecordEvent cloneRecordEvent = cloneTapRecordEvent(tapRecordEvent);
+					if (cloneRecordEvent == null) continue;
+					TapEventUtil.setBefore(cloneRecordEvent, processedMessage.getBefore());
+					TapEventUtil.setAfter(cloneRecordEvent, processedMessage.getAfter());
+					tapdataEvent.setTapEvent(cloneRecordEvent);
 				}
 				handleRemoveFields(tapdataEvent);
 				consumer.accept(tapdataEvent, getProcessResult(processedMessage.getTableName()));

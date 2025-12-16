@@ -41,7 +41,7 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 	}
 
 	@SneakyThrows
-	protected boolean need2InitialSync(SyncProgress syncProgress) {
+	public boolean need2InitialSync(SyncProgress syncProgress) {
 		if (!isRunning()) {
 			return false;
 		}

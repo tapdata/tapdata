@@ -7,6 +7,7 @@ import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.SyncObjects;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -27,6 +28,7 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
+import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -110,6 +112,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -343,9 +346,26 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
             obsLogger.trace("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
         } else if (node instanceof DatabaseNode) {
-            // Nonsupport
-        }
-        obsLogger.trace("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
+			com.tapdata.tm.commons.dag.vo.SyncObjects syncTables = ((DatabaseNode) node).getSyncObjects().stream().filter(o -> o.getType().equals(SyncObjects.TABLE_TYPE)).findFirst().orElse(null);
+			if (syncTables != null) {
+				List<String> objectNames = syncTables.getObjectNames();
+				if (CollectionUtils.isNotEmpty(objectNames)) {
+					objectNames.forEach(tableName -> {
+						ExactlyOnceWriteCleanerEntity exactlyOnceWriteCleanerEntity = new ExactlyOnceWriteCleanerEntity(
+								tableName,
+								node.getId(),
+								((DatabaseNode) node).getIncrementExactlyOnceEnableTimeWindowDay(),
+								((DatabaseNode) node).getConnectionId()
+						);
+						ExactlyOnceWriteCleaner.getInstance().registerCleaner(exactlyOnceWriteCleanerEntity);
+						exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
+						obsLogger.trace("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
+						exactlyOnceWriteTables.add(tableName);
+					});
+				}
+			}
+		}
+        obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
     }
 
     protected void checkUnwindConfiguration() {
@@ -548,7 +568,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
             final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
             this.concurrentWritePartitionMap = dataParentNode.getConcurrentWritePartitionMap();
-			Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
+			Function<TapEvent, List<String>> partitionKeyFunction = new Function<>() {
 				private final Set<String> warnTag = new HashSet<>();
 
 				@Override
@@ -798,51 +818,57 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     protected void processQueueConsume() {
         try {
-            drainAndRun(tapEventProcessQueue, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS, tapdataEvents -> {
-                dispatchTapdataEvents(
-                        tapdataEvents,
-                        consumeEvents -> {
-                            if (consumeEvents.size() == 1 && consumeEvents.get(0) instanceof TapdataAdjustMemoryEvent) {
-                                handleTapdataEvents(consumeEvents);
-                                return;
-                            }
-                            if (!inCdc) {
-                                List<TapdataEvent> partialCdcEvents = new ArrayList<>();
-                                final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
-                                while (iterator.hasNext()) {
-                                    final TapdataEvent tapdataEvent = iterator.next();
-                                    if (tapdataEvent instanceof TapdataStartingCdcEvent || inCdc) {
-                                        inCdc = true;
-                                        partialCdcEvents.add(tapdataEvent);
-                                        iterator.remove();
-                                    }
-                                }
+            drainAndRun(tapEventProcessQueue, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS, tapdataEvents -> dispatchTapdataEvents(
+					tapdataEvents,
+					consumeEvents -> {
+						if (consumeEvents.size() == 1 && consumeEvents.get(0) instanceof TapdataAdjustMemoryEvent) {
+							handleTapdataEvents(consumeEvents);
+							return;
+						}
+						if (!inCdc) {
+							List<TapdataEvent> partialCdcEvents = new ArrayList<>();
+							final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
+							while (iterator.hasNext()) {
+								final TapdataEvent tapdataEvent = iterator.next();
+								if (tapdataEvent instanceof TapdataStartingCdcEvent || inCdc) {
+									inCdc = true;
+									partialCdcEvents.add(tapdataEvent);
+									iterator.remove();
+								}
+							}
 
-                                // initial events and cdc events both in the queue
-                                if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
-                                    initialProcessEvents(consumeEvents, false);
-                                    // process partial cdc event
-                                    if (this.initialPartitionConcurrentProcessor != null) {
-                                        this.initialPartitionConcurrentProcessor.stop();
-                                    }
-                                    cdcProcessEvents(partialCdcEvents);
-                                } else {
-                                    initialProcessEvents(consumeEvents, true);
-                                }
-                            } else {
-                                cdcProcessEvents(consumeEvents);
-                            }
-                        }
-                );
-            });
+							// initial events and cdc events both in the queue
+							if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
+								initialProcessEvents(consumeEvents, false);
+								// process partial cdc event
+								if (this.initialPartitionConcurrentProcessor != null) {
+									this.initialPartitionConcurrentProcessor.stop();
+								}
+								cdcProcessEvents(partialCdcEvents);
+							} else {
+								initialProcessEvents(consumeEvents, true);
+							}
+						} else {
+							cdcProcessEvents(consumeEvents);
+						}
+					}
+			), e -> {
+				executeAspect(WriteErrorAspect.class, () -> new WriteErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
+				Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
+				if (null == matchThrowable) {
+					matchThrowable = new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, e);
+				}
+				TapCodeException tapCodeException = errorHandle(matchThrowable);
+				return null != tapCodeException;
+			});
         } catch (Exception e) {
             executeAspect(WriteErrorAspect.class, () -> new WriteErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
             Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
             if (null == matchThrowable) {
                 matchThrowable = new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, e);
             }
-            errorHandle(matchThrowable);
-        }
+			errorHandle(matchThrowable);
+		}
     }
 
     protected void drainAndRun(BlockingQueue<TapdataEvent> queue, int elementsNum, long timeout, TimeUnit timeUnit, TapdataEventsRunner tapdataEventsRunner) {
@@ -860,6 +886,31 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             }
         }
     }
+
+	protected void drainAndRun(BlockingQueue<TapdataEvent> queue, int elementsNum, long timeout, TimeUnit timeUnit, TapdataEventsRunner tapdataEventsRunner, Function<Exception, Boolean> errorHandle) {
+		List<TapdataEvent> tapdataEvents = new ArrayList<>();
+		while (isRunning()) {
+			try {
+				int drain = Queues.drain(queue, tapdataEvents, elementsNum, timeout, timeUnit);
+				if (drain > 0) {
+					try {
+						tapdataEventsRunner.run(tapdataEvents);
+					} catch (Exception e) {
+						if (null != errorHandle) {
+							Boolean exit = errorHandle.apply(e);
+							if(Boolean.TRUE.equals(exit)) {
+								break;
+							}
+						}
+					}
+					tapdataEvents = new ArrayList<>();
+				}
+			} catch (InterruptedException ignored) {
+				Thread.currentThread().interrupt();
+				break;
+			}
+		}
+	}
 
     private void initialProcessEvents(List<TapdataEvent> initialEvents, boolean async) {
 
@@ -916,7 +967,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         List<TapRecordEvent> exactlyOnceWriteCache = new ArrayList<>();
         List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
 
-        initAndGetExactlyOnceWriteLookupList();
         AtomicBoolean hasExactlyOnceWriteCache = new AtomicBoolean(false);
         for (TapdataEvent tapdataEvent : tapdataEvents) {
             if (!isRunning()) {
@@ -951,9 +1001,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    protected void handleTapdataEvent(List<TapEvent> tapEvents, List<TapdataShareLogEvent> tapdataShareLogEvents
-            , AtomicReference<TapdataEvent> lastTapdataEvent, AtomicBoolean hasExactlyOnceWriteCache
-            , List<TapRecordEvent> exactlyOnceWriteCache, TapdataEvent tapdataEvent) {
+    protected void handleTapdataEvent(List<TapEvent> tapEvents, List<TapdataShareLogEvent> tapdataShareLogEvents,
+									  AtomicReference<TapdataEvent> lastTapdataEvent, AtomicBoolean hasExactlyOnceWriteCache,
+									  List<TapRecordEvent> exactlyOnceWriteCache, TapdataEvent tapdataEvent) {
         try {
             Optional.ofNullable(tapdataEvent.getSyncStage()).ifPresent(this::handleAspectWithSyncStage);
 
@@ -961,7 +1011,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 handleTapdataHeartbeatEvent(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
                 handleTapdataCompleteSnapshotEvent();
-            } else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
+            } else if (tapdataEvent instanceof TapdataMergeTableCacheRebuildCompleteEvent) {
+				handleTapdataMergeTableCacheRebuildCompleteEvent((TapdataMergeTableCacheRebuildCompleteEvent) tapdataEvent);
+			} else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
                 handleTapdataStartCdcEvent(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
 				buildSourceConnectorNodeMap((TapdataStartedCdcEvent) tapdataEvent);
@@ -1010,6 +1062,45 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (CollectionUtils.isEmpty(tapEvents)) return;
 
+        // Group tapEvents by MergeInfo level
+        List<TapEvent> level1Events = new ArrayList<>();
+        List<TapEvent> otherLevelEvents = new ArrayList<>();
+        boolean hasMergeInfo = false;
+
+        for (TapEvent tapEvent : tapEvents) {
+            Object mergeInfoObj = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
+            if (mergeInfoObj instanceof MergeInfo) {
+                hasMergeInfo = true;
+                MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
+                Integer level = mergeInfo.getLevel();
+                if (level != null && level == 1) {
+                    level1Events.add(tapEvent);
+                } else {
+                    otherLevelEvents.add(tapEvent);
+                }
+            } else {
+                otherLevelEvents.add(tapEvent);
+            }
+        }
+
+        // If no MergeInfo exists, use original logic
+        if (!hasMergeInfo) {
+            processEventsWithExactlyOnceCheck(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
+            return;
+        }
+
+        // Process level=1 events with exactly once write if enabled
+        if (CollectionUtils.isNotEmpty(level1Events)) {
+            processEventsWithExactlyOnceCheck(tapdataEvents, level1Events, hasExactlyOnceWriteCache);
+        }
+
+        // Process other level events without exactly once write
+        if (CollectionUtils.isNotEmpty(otherLevelEvents)) {
+            processEvents(otherLevelEvents);
+        }
+    }
+
+    private void processEventsWithExactlyOnceCheck(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
             try {
                 transactionBegin();
@@ -1065,9 +1156,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
         String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
         if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
-            if (obsLogger.isDebugEnabled()) {
-                obsLogger.debug("Event check exactly once write exists, will ignore it: {}" + JSONUtil.obj2Json(tapRecordEvent));
-            }
+			obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
             return;
         } else {
             if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
@@ -1252,11 +1341,25 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
         executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
         syncMetricCollector.snapshotCompleted();
+		if(dataProcessorContext.getTaskDto().getDag().isMergeTableDag()){
+			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/saveMergeTableCacheInfo", dataProcessorContext.getTaskDto().getId().toHexString(), TaskDto.class);
+		}
     }
 
     private void handleTapdataHeartbeatEvent(TapdataEvent tapdataEvent) {
         flushOffsetByTapdataEventForNoConcurrent(new AtomicReference<>(tapdataEvent));
     }
+
+	protected void handleTapdataMergeTableCacheRebuildCompleteEvent(TapdataMergeTableCacheRebuildCompleteEvent tapdataEvent) {
+		clientMongoOperator.update(Query.query(Criteria.where("taskId").is(dataProcessorContext.getTaskDto().getId().toHexString())
+				.and("nodeId").is(tapdataEvent.getNodeId())
+				.and("mergeTablePropertiesId").is(tapdataEvent.getMergeTablePropertiesId())), new Update().set("status", CacheRebuildStatus.DONE.name()),ConnectorConstant.TASK_COLLECTION + "/mergeTablePropertiesRebuildStatus");
+		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
+		Object mergeRebuildCache = taskGlobalVariable.get(TaskGlobalVariable.MERGE_REBUILD_CACHE);
+		if(mergeRebuildCache instanceof AtomicInteger) {
+			((AtomicInteger) mergeRebuildCache).decrementAndGet();
+		}
+	}
 
     protected TapRecordEvent handleTapdataRecordEvent(TapdataEvent tapdataEvent) {
         TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
@@ -1371,7 +1474,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 
     protected boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
-        if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()))) {
+		String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
+		if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), tgtTableNameFromTapEvent)) {
             return false;
         }
         if (null == exactlyOnceWriteCache) {
@@ -1383,7 +1487,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED_TIMESTAMP_IS_NULL, String.format("Event from tableId:%s,exactlyOnceId is %s", tapEvent.getTableId(), tapEvent.getExactlyOnceId()))
                     .dynamicDescriptionParameters(tapEvent.getTableId(), tapEvent.getExactlyOnceId());
         }
-        Map<String, Object> data = ExactlyOnceUtil.generateExactlyOnceCacheRow(getNode().getId(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()), tapEvent, timestamp);
+        Map<String, Object> data = ExactlyOnceUtil.generateExactlyOnceCacheRow(getNode().getId(), tgtTableNameFromTapEvent, tapEvent, timestamp);
         TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create()
                 .after(data)
                 .referenceTime(System.currentTimeMillis())
@@ -1802,15 +1906,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     protected CheckExactlyOnceWriteEnableResult enableExactlyOnceWrite() {
         // Check whether the table supports exactly once write
-        Node node = getNode();
-        if (node instanceof TableNode) {
-            TableNode tableNode = (TableNode) getNode();
-            if (null == tableNode.getIncrementExactlyOnceEnable() || !tableNode.getIncrementExactlyOnceEnable()) {
+        Node<?> node = getNode();
+        if (node instanceof TableNode || node instanceof DatabaseNode) {
+            DataParentNode<?> dataParentNode = (DataParentNode<?>) node;
+            if (null == dataParentNode.getIncrementExactlyOnceEnable() || !dataParentNode.getIncrementExactlyOnceEnable()) {
                 return CheckExactlyOnceWriteEnableResult.createDisable("");
             }
         } else {
             // Other data node type nonsupport exactly once write
-            return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Node type %s nonsupport exactly once write", node.getClass().getSimpleName()));
+            return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Node type %s is not support exactly once write", node.getClass().getSimpleName()));
         }
 
         // Check whether the connector supports exactly once write functions
@@ -1821,7 +1925,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
         QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
         if (null == transactionBeginFunction || null == transactionCommitFunction || null == transactionRollbackFunction) {
-            return CheckExactlyOnceWriteEnableResult.createDisable("The connector nonsupport exactly once write transaction functions: begin, commit, rollback");
+            return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write transaction functions: begin, commit, rollback");
         }
         if (null == queryByAdvanceFilterFunction) {
             return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write functions: query by advance filter");
@@ -1829,24 +1933,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
         // Check only have one source node
         List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
-        if (predecessors.size() > 1) {
-            return CheckExactlyOnceWriteEnableResult.createDisable("Exactly once write is not supported in any merge scenarios");
-        }
-
         if (CollectionUtils.isNotEmpty(predecessors)) {
             Node<?> sourceNode = predecessors.get(0);
-            if (sourceNode instanceof TableNode) {
-                String connectionId = ((TableNode) sourceNode).getConnectionId();
-                Connections sourceConn = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(connectionId)), ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-                DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConn.getPdkHash());
-                List<Capability> capabilities = databaseType.getCapabilities();
-                if (null == capabilities
-                        || null == capabilities.stream().map(Capability::getId).filter(capabilityId -> capabilityId.equals(ConnectionOptions.CAPABILITY_SOURCE_SUPPORT_EXACTLY_ONCE)).findFirst().orElse(null)) {
-                    return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Source connector(%s) stream read is not supported exactly once", sourceConn.getName()));
-                }
-            } else if (sourceNode instanceof DatabaseNode) {
-                return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Exactly once write is not supported, source connector(%s) is not a table node", sourceNode.getName()));
-            }
+			String connectionId;
+			if (sourceNode instanceof TableNode || sourceNode instanceof DatabaseNode) {
+				connectionId = ((DataParentNode<?>) sourceNode).getConnectionId();
+			} else {
+				return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Exactly once write is not supported, source connector(%s) is not a database/table node", sourceNode.getName()));
+			}
+			Connections sourceConn = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(connectionId)), ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+			DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConn.getPdkHash());
+			List<Capability> capabilities = databaseType.getCapabilities();
+			if (null == capabilities
+					|| null == capabilities.stream().map(Capability::getId).filter(capabilityId -> capabilityId.equals(ConnectionOptions.CAPABILITY_SOURCE_SUPPORT_EXACTLY_ONCE)).findFirst().orElse(null)) {
+				return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Source connector(%s) stream read is not supported exactly once", sourceConn.getName()));
+			}
         }
         return CheckExactlyOnceWriteEnableResult.createEnable();
     }
@@ -1866,9 +1967,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     tables.add(tableName);
                 }
                 return tables;
-            } else if (node instanceof DatabaseNode) {
-                // Nonsupport
-            }
+            } else if (node instanceof DatabaseNode dbNode) {
+				com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = dbNode.getSyncObjects().stream().filter(o -> o.getType().equals(SyncObjects.TABLE_TYPE)).findFirst().orElse(null);
+				if (null != syncObjects) {
+					List<String> objectNames = syncObjects.getObjectNames();
+					if (CollectionUtils.isNotEmpty(objectNames)) {
+						return objectNames.stream().filter(exactlyOnceWriteTables::contains).collect(Collectors.toList());
+					}
+				}
+			}
             return null;
         });
     }

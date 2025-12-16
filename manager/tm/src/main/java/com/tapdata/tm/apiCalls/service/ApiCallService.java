@@ -50,9 +50,10 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -110,40 +111,24 @@ public class ApiCallService {
     public void deleteLogicsById(String id) {
     }
 
-    public ApiCallDetailVo findById(String id, Field fields, UserDetail loginUser) {
-        ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+    public ApiCallDetailVo findById(String id, UserDetail loginUser) {
         ApiCallEntity apiCallEntity = Optional.ofNullable(mongoOperations.findById(id, ApiCallEntity.class))
                 .map(this::afterFindEntity)
                 .orElse(null);
+        ApiCallDetailVo apiCallDetailVo = BeanUtil.copyProperties(apiCallEntity, ApiCallDetailVo.class);
+        apiCallDetailVo.setVisitTotalCount(Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getResRows).orElse(0L));
+        long latency = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getLatency).orElse(0L);
+        apiCallDetailVo.setLatency(latency);
+        long reqBytes = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getReqBytes).orElse(0L);
+        double speed = latency <= 0 ? 0D : (1000.0D * reqBytes / latency);
+        apiCallDetailVo.setSpeed(BigDecimal.valueOf(speed).setScale(2, RoundingMode.HALF_UP).doubleValue());
 
-        apiCallDetailVo = BeanUtil.copyProperties(apiCallEntity, ApiCallDetailVo.class);
         if (apiCallEntity != null && StringUtils.isNotBlank(apiCallEntity.getAllPathId())) {
-            ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(apiCallEntity.getAllPathId()));
+            ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(apiCallEntity.getAllPathId()), loginUser);
             if (null != modulesDto) {
                 apiCallDetailVo.setName(modulesDto.getName());
                 apiCallDetailVo.setApiId(apiCallEntity.getAllPathId());
                 apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
-
-                //
-                List<ApiCallEntity> apiCallEntityList = findByModuleIds(Arrays.asList(modulesDto.getId().toString()));
-                //计算平均耗时
-                if (CollectionUtils.isNotEmpty(apiCallEntityList)) {
-                    Double totalReqRows = apiCallEntityList.stream().filter(item -> null != item.getResRows()).collect(Collectors.toList()).stream().mapToDouble(ApiCallEntity::getResRows).sum();
-                    apiCallDetailVo.setVisitTotalCount(totalReqRows.longValue());
-
-                    double totalReqByte = apiCallEntityList.stream().mapToDouble(ApiCallEntity::getReqBytes).sum();
-                    //要转 成秒
-                    double totalLatency = apiCallEntityList.stream().mapToDouble(ApiCallEntity::getLatency).sum();
-                    if (totalLatency > 0) {
-                        apiCallDetailVo.setSpeed((long) ((totalReqByte / totalLatency) * 1000));
-                    }
-
-                    if (totalReqRows > 0) {
-                        apiCallDetailVo.setAverResponseTime((long) (totalLatency / totalReqRows));
-                    }
-
-                    apiCallDetailVo.setLatency((long) (totalLatency / apiCallEntityList.size()));
-                }
             }
         }
         return apiCallDetailVo;
@@ -364,9 +349,11 @@ public class ApiCallService {
         item.setName(e.getApiName());
         item.setCode(e.getCode());
         item.setLatency(e.getLatency());
-        item.setSpeed(e.getSpeed());
+        item.setSpeed(1.0D * Optional.ofNullable(e.getSpeed()).orElse(0L));
         item.setCodeMsg(e.getCodeMsg());
-        item.setAverResponseTime(e.getAverResponseTime());
+        item.setDataQueryEndTime(e.getDataQueryEndTime());
+        item.setDataQueryFromTime(e.getDataQueryFromTime());
+        item.setDataQueryTotalTime(e.getDataQueryTotalTime());
         item.setVisitTotalCount(e.getVisitTotalCount());
         item.setUserIp(e.getUserIp());
         item.setLastUpdAt(e.getLastUpdAt());

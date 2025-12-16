@@ -1,0 +1,44 @@
+package {{invokerPackage}};
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.openapitools.jackson.nullable.JsonNullableModule;
+
+public enum JacksonFactory {
+
+    INSTANCE;
+
+    private final ObjectMapper objectMapper;
+
+    JacksonFactory() {
+        this.objectMapper = createConfiguredObjectMapper();
+    }
+
+    public ObjectMapper getObjectMapper() {
+        return objectMapper;
+    }
+
+    public static ObjectMapper getInstance() {
+        return INSTANCE.getObjectMapper();
+    }
+
+    private ObjectMapper createConfiguredObjectMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.enable(SerializationFeature.WRITE_ENUMS_USING_TO_STRING);
+        objectMapper.enable(DeserializationFeature.READ_ENUMS_USING_TO_STRING);
+        objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        objectMapper.disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE);
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
+        objectMapper.setDateFormat(new RFC3339DateFormat());
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.registerModule(new RFC3339JavaTimeModule());
+        JsonNullableModule jnm = new JsonNullableModule();
+        objectMapper.registerModule(jnm);
+        return objectMapper;
+    }
+}

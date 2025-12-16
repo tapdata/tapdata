@@ -9,6 +9,7 @@ import com.tapdata.constant.*;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
+import com.tapdata.entity.Setting;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
@@ -25,8 +26,10 @@ import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
+import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
+import com.tapdata.tm.utils.MergeTablePropertiesUtil;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -54,8 +57,10 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.core.api.impl.JsonParserImpl;
+import io.tapdata.pdk.core.executor.ThreadFactory;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -70,6 +75,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+
+import com.hazelcast.persistence.ConstructType;
+import com.hazelcast.persistence.PersistenceStorage;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 
 
 public class HazelcastTaskServiceTest {
@@ -620,7 +630,7 @@ public class HazelcastTaskServiceTest {
                  MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)) {
 
                 TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
-                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, true);
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, true, true);
 
                 when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
                 Connections connections = new Connections();
@@ -637,7 +647,7 @@ public class HazelcastTaskServiceTest {
                 tapTableMap.put("testNodeId", new TapTable());
 
                 when(hazelcastTaskService.getTapTableMap(any(), any(), any(), any())).thenReturn(tapTableMap);
-                hazelcastTaskService.task2HazelcastDAG(taskDto, true);
+                hazelcastTaskService.task2HazelcastDAG(taskDto, true, true);
                 verify(hazelcastTaskService, times(2)).singleTaskFilterEventDataIfNeed(eq(connections), any(), any());
             }
         }
@@ -649,7 +659,7 @@ public class HazelcastTaskServiceTest {
                  MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)) {
 
                 TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
-                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, false);
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, false, false);
 
                 when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
                 Connections connections = new Connections();
@@ -666,7 +676,7 @@ public class HazelcastTaskServiceTest {
                 tapTableMap.put("testNodeId", new TapTable());
 
                 when(hazelcastTaskService.getTapTableMap(any(), any(), any(), any())).thenReturn(tapTableMap);
-                hazelcastTaskService.task2HazelcastDAG(taskDto, false);
+                hazelcastTaskService.task2HazelcastDAG(taskDto, false, false);
                 verify(hazelcastTaskService, times(2)).singleTaskFilterEventDataIfNeed(eq(connections), any(), any());
             }
         }
@@ -1071,12 +1081,22 @@ public class HazelcastTaskServiceTest {
             JetDag jetDag = mock(JetDag.class);
             com.hazelcast.jet.core.DAG dag = mock(com.hazelcast.jet.core.DAG.class);
             when(jetDag.getDag()).thenReturn(dag);
-            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, true);
+            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, true, false);
             JetService jet = mock(JetService.class);
             when(hazelcastInstance.getJet()).thenReturn(jet);
             Job job = mock(Job.class);
             when(jet.newJob(eq(dag), any(JobConfig.class))).thenReturn(job);
-            TaskClient<TaskDto> taskDtoTaskClient = assertDoesNotThrow(() -> hazelcastTaskService.startPreviewTask(taskDto));
+            TaskClient<TaskDto> taskDtoTaskClient = assertDoesNotThrow(() ->  {
+                try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+                    cm.when(() -> CpuMemoryCollector.startTask(taskDto)).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.addNode(anyString(), anyString())).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.registerTask(anyString(), any(ThreadFactory.class))).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.unregisterTask(anyString())).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.listening(anyString(), any(Object.class))).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.collectOnce(anyList())).thenReturn(new HashMap<>());
+                    return hazelcastTaskService.startPreviewTask(taskDto);
+                }
+            });
             assertNotNull(taskDtoTaskClient);
             assertSame(job, ReflectionTestUtils.getField(taskDtoTaskClient, "job"));
             assertSame(taskDto, taskDtoTaskClient.getTask());
@@ -1090,7 +1110,7 @@ public class HazelcastTaskServiceTest {
             JetDag jetDag = mock(JetDag.class);
             com.hazelcast.jet.core.DAG dag = mock(com.hazelcast.jet.core.DAG.class);
             when(jetDag.getDag()).thenReturn(dag);
-            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(eq(taskDto), any(Boolean.class));
+            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(eq(taskDto), any(Boolean.class), any(Boolean.class));
             JetService jet = mock(JetService.class);
             when(hazelcastInstance.getJet()).thenReturn(jet);
             Job job = mock(Job.class);
@@ -1098,10 +1118,10 @@ public class HazelcastTaskServiceTest {
 
             taskDto.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
             assertDoesNotThrow(() -> hazelcastTaskService.startPreviewTask(taskDto));
-            verify(hazelcastTaskService, times(1)).task2HazelcastDAG(taskDto, false);
+            verify(hazelcastTaskService, times(1)).task2HazelcastDAG(taskDto, false, false);
             taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
             assertDoesNotThrow(() -> hazelcastTaskService.startPreviewTask(taskDto));
-            verify(hazelcastTaskService, times(2)).task2HazelcastDAG(taskDto, false);
+            verify(hazelcastTaskService, times(2)).task2HazelcastDAG(taskDto, false, false);
         }
     }
 
@@ -1436,7 +1456,7 @@ public class HazelcastTaskServiceTest {
             HazelcastTaskService hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
             doReturn(false).when(hazelcastTaskService).testTaskUsingPreview(taskDto);
             JetDag jetDag = mock(JetDag.class);
-            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, false);
+            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, false, false);
             com.hazelcast.jet.core.DAG dag = mock(com.hazelcast.jet.core.DAG.class);
             when(jetDag.getDag()).thenReturn(dag);
             HazelcastInstance hazelcastInstance = mock(HazelcastInstance.class);
@@ -1687,6 +1707,488 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
             TapConnectorContext.IsomorphismType isomorphismType = hazelcastTaskService.sourceAndSinkIsomorphismType(taskDto);
             assertEquals(TapConnectorContext.IsomorphismType.HETEROGENEOUS, isomorphismType);
+        }
+    }
+
+    @Nested
+    @DisplayName("Method openAutoIncrementalBatchSize test")
+    class OpenAutoIncrementalBatchSizeTest {
+        private HazelcastTaskService hazelcastTaskService;
+        private SettingService settingService;
+
+        @BeforeEach
+        void setUp() {
+            HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
+            settingService = mock(SettingService.class);
+            ReflectionTestUtils.setField(hazelcastTaskService, "settingService", settingService);
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when setting is null")
+        void testOpenAutoIncrementalBatchSizeWhenSettingNull() {
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(null);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is 'true'")
+        void testOpenAutoIncrementalBatchSizeWhenValueIsTrue() {
+            Setting setting = new Setting();
+            setting.setValue("true");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertTrue(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is 'TRUE'")
+        void testOpenAutoIncrementalBatchSizeWhenValueIsTRUE() {
+            Setting setting = new Setting();
+            setting.setValue("TRUE");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertTrue(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is 'false'")
+        void testOpenAutoIncrementalBatchSizeWhenValueIsFalse() {
+            Setting setting = new Setting();
+            setting.setValue("false");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is null and default_value is 'true'")
+        void testOpenAutoIncrementalBatchSizeWhenValueNullAndDefaultTrue() {
+            Setting setting = new Setting();
+            setting.setValue(null);
+            setting.setDefault_value("true");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertTrue(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is null and default_value is 'TRUE'")
+        void testOpenAutoIncrementalBatchSizeWhenValueNullAndDefaultTRUE() {
+            Setting setting = new Setting();
+            setting.setValue(null);
+            setting.setDefault_value("TRUE");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertTrue(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is null and default_value is 'false'")
+        void testOpenAutoIncrementalBatchSizeWhenValueNullAndDefaultFalse() {
+            Setting setting = new Setting();
+            setting.setValue(null);
+            setting.setDefault_value("false");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when both value and default_value are null")
+        void testOpenAutoIncrementalBatchSizeWhenBothNull() {
+            Setting setting = new Setting();
+            setting.setValue(null);
+            setting.setDefault_value(null);
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is other string")
+        void testOpenAutoIncrementalBatchSizeWhenValueIsOtherString() {
+            Setting setting = new Setting();
+            setting.setValue("enabled");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+    }
+
+    @Nested
+    @DisplayName("CheckMergeTaskReBuildCache测试类")
+    class CheckMergeTaskReBuildCacheTest {
+        private HazelcastTaskService hazelcastTaskService;
+        private TaskDto taskDto;
+        private DAG dag;
+        private MergeTableNode mergeTableNode;
+
+        @BeforeEach
+        void setUp() {
+            HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
+
+            taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setAttrs(new HashMap<>());
+
+            dag = mock(DAG.class);
+            taskDto.setDag(dag);
+
+            mergeTableNode = mock(MergeTableNode.class);
+        }
+
+        @Test
+        @DisplayName("测试DAG为null时直接返回")
+        void testDagIsNull() {
+            taskDto.setDag(null);
+
+            assertDoesNotThrow(() -> hazelcastTaskService.checkMergeTaskReBuildCache(taskDto));
+        }
+
+        @Test
+        @DisplayName("测试非合并表DAG时直接返回")
+        void testNotMergeTableDag() {
+            when(dag.isMergeTableDag()).thenReturn(false);
+
+            assertDoesNotThrow(() -> hazelcastTaskService.checkMergeTaskReBuildCache(taskDto));
+        }
+
+        @Test
+        @DisplayName("测试初始同步任务且无同步进度时直接返回")
+        void testInitialSyncTaskWithoutProgress() {
+            when(dag.isMergeTableDag()).thenReturn(true);
+            taskDto.setType(TaskDto.TYPE_INITIAL_SYNC);
+            assertDoesNotThrow(() -> hazelcastTaskService.checkMergeTaskReBuildCache(taskDto));
+        }
+
+        @Test
+        @DisplayName("测试有待重建缓存的合并表属性")
+        void testWithPendingCacheRebuild() {
+            // 准备数据
+            when(dag.isMergeTableDag()).thenReturn(true);
+            taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+            taskDto.getAttrs().put("syncProgress", new ArrayList<>());
+
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(mergeTableNode);
+            when(dag.getNodes()).thenReturn(nodes);
+
+            when(mergeTableNode.getId()).thenReturn("mergeNode1");
+
+            // 准备MergeTableProperties
+            List<MergeTableProperties> mergeProperties = new ArrayList<>();
+            MergeTableProperties property1 = new MergeTableProperties();
+            property1.setId("prop1");
+            property1.setTableName("table1");
+            property1.setCacheRebuildStatus(CacheRebuildStatus.PENDING);
+            mergeProperties.add(property1);
+
+            when(mergeTableNode.getMergeProperties()).thenReturn(mergeProperties);
+
+            // 准备源表节点
+            TableNode sourceTableNode = mock(TableNode.class);
+            List<TableNode> sourceTableNodes = new ArrayList<>();
+            sourceTableNodes.add(sourceTableNode);
+            when(dag.getSourceTableNodes("prop1")).thenReturn(sourceTableNodes);
+
+            try (MockedStatic<MergeTablePropertiesUtil> utilMock = mockStatic(MergeTablePropertiesUtil.class)) {
+
+
+                utilMock.when(() -> MergeTablePropertiesUtil.initLookupMergeProperties(any(), any()))
+                        .thenAnswer(invocation -> {
+                            Map<String, List<MergeTableProperties>> lookupMap = invocation.getArgument(1);
+                            lookupMap.put("key1", mergeProperties);
+                            return null;
+                        });
+                doNothing().when(hazelcastTaskService).deleteMergeTableCache(any(), any());
+
+                // 执行测试
+                hazelcastTaskService.checkMergeTaskReBuildCache(taskDto);
+
+                // 验证
+                verify(sourceTableNode).setReFullRun(true);
+                verify(sourceTableNode).setMergeTablePropertiesId("prop1");
+                verify(sourceTableNode).setMergeNodeId("mergeNode1");
+                assertTrue(taskDto.isReFullRun());
+                assertFalse(taskDto.getAttrs().containsKey("snapshotOrderList"));
+                Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
+                assertEquals(1, ((AtomicInteger) taskGlobalVariable.get(TaskGlobalVariable.MERGE_REBUILD_CACHE)).get());
+            }
+        }
+
+        @Test
+        @DisplayName("测试清除失效缓存")
+        void testDeleteInvalidCache() {
+            // 准备数据
+            when(dag.isMergeTableDag()).thenReturn(true);
+            taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+            taskDto.getAttrs().put("syncProgress", new ArrayList<>());
+
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(mergeTableNode);
+            when(dag.getNodes()).thenReturn(nodes);
+
+            when(mergeTableNode.getId()).thenReturn("mergeNode1");
+
+            // 准备新的MergeTableProperties
+            List<MergeTableProperties> mergeProperties = new ArrayList<>();
+            MergeTableProperties property1 = new MergeTableProperties();
+            property1.setId("prop1");
+            property1.setCacheRebuildStatus(CacheRebuildStatus.PENDING);
+            mergeProperties.add(property1);
+
+            when(mergeTableNode.getMergeProperties()).thenReturn(mergeProperties);
+
+            // 准备旧的缓存ID列表（包含已删除的prop2）
+            Map<String, List<Map<String, String>>> cacheIdsMap = new HashMap<>();
+            List<Map<String, String>> cacheIdList = new ArrayList<>();
+            Map<String, String> cache1 = new HashMap<>();
+            cache1.put("id", "prop1");
+            cache1.put("tableName", "table1");
+            Map<String, String> cache2 = new HashMap<>();
+            cache2.put("id", "prop2");
+            cache2.put("tableName", "table2");
+            cacheIdList.add(cache1);
+            cacheIdList.add(cache2);
+            cacheIdsMap.put("mergeNode1", cacheIdList);
+            taskDto.getAttrs().put("mergeTableCacheIdList", cacheIdsMap);
+
+            // 准备源表节点
+            TableNode sourceTableNode = mock(TableNode.class);
+            List<TableNode> sourceTableNodes = new ArrayList<>();
+            sourceTableNodes.add(sourceTableNode);
+            when(dag.getSourceTableNodes("prop1")).thenReturn(sourceTableNodes);
+
+            try (MockedStatic<MergeTablePropertiesUtil> utilMock = mockStatic(MergeTablePropertiesUtil.class)) {
+
+
+                utilMock.when(() -> MergeTablePropertiesUtil.initLookupMergeProperties(any(), any()))
+                        .thenAnswer(invocation -> {
+                            Map<String, List<MergeTableProperties>> lookupMap = invocation.getArgument(1);
+                            lookupMap.put("key1", mergeProperties);
+                            return null;
+                        });
+
+                // Mock deleteMergeTableCache方法
+                doNothing().when(hazelcastTaskService).deleteMergeTableCache(any(), any());
+
+                // 执行测试
+                hazelcastTaskService.checkMergeTaskReBuildCache(taskDto);
+
+                // 验证deleteMergeTableCache被调用，且参数包含prop2
+                verify(hazelcastTaskService).deleteMergeTableCache(any(), argThat(list ->
+                    list.size() == 1 && "prop2".equals(list.get(0).get("id"))
+                ));
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("DeleteMergeTableCache测试类")
+    class DeleteMergeTableCacheTest {
+        private HazelcastTaskService hazelcastTaskService;
+        private MergeTableNode mergeTableNode;
+        private ExternalStorageDto externalStorageDto;
+
+        @BeforeEach
+        void setUp() {
+            HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
+            hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
+
+            mergeTableNode = mock(MergeTableNode.class);
+            externalStorageDto = mock(ExternalStorageDto.class);
+        }
+
+        @Test
+        @DisplayName("测试非MergeTableNode时不执行删除")
+        void testNotMergeTableNode() {
+            Node normalNode = mock(TableNode.class);
+            List<Map<String, String>> cacheInfoList = new ArrayList<>();
+
+            assertDoesNotThrow(() -> hazelcastTaskService.deleteMergeTableCache(normalNode, cacheInfoList));
+        }
+
+        @Test
+        @DisplayName("测试成功删除合并表缓存")
+        void testDeleteCacheSuccess() {
+            // 准备缓存信息列表
+            List<Map<String, String>> cacheInfoList = new ArrayList<>();
+            Map<String, String> cache1 = new HashMap<>();
+            cache1.put("id", "prop1");
+            cache1.put("tableName", "table1");
+            cacheInfoList.add(cache1);
+
+            try (MockedStatic<ExternalStorageUtil> storageMock = mockStatic(ExternalStorageUtil.class);
+                 MockedStatic<HazelcastUtil> hazelcastMock = mockStatic(HazelcastUtil.class);
+                 MockedStatic<io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode> mergeMock =
+                         mockStatic(io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode.class);
+                 MockedStatic<PersistenceStorage> persistenceMock = mockStatic(PersistenceStorage.class)) {
+
+                storageMock.when(() -> ExternalStorageUtil.getExternalStorage(mergeTableNode))
+                        .thenReturn(externalStorageDto);
+
+                HazelcastInstance hazelcastInstance = mock(HazelcastInstance.class);
+                com.hazelcast.config.Config config = mock(com.hazelcast.config.Config.class);
+                hazelcastMock.when(HazelcastUtil::getInstance).thenReturn(hazelcastInstance);
+                when(hazelcastInstance.getConfig()).thenReturn(config);
+
+                mergeMock.when(() -> io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode
+                        .getMergeCacheName("prop1", "table1"))
+                        .thenReturn("cache_prop1_table1");
+
+                PersistenceStorage persistenceStorage = mock(PersistenceStorage.class);
+                persistenceMock.when(PersistenceStorage::getInstance).thenReturn(persistenceStorage);
+
+                // 执行测试
+                hazelcastTaskService.deleteMergeTableCache(mergeTableNode, cacheInfoList);
+
+                // 验证
+                storageMock.verify(() -> ExternalStorageUtil.initHZMapStorage(
+                        eq(externalStorageDto),
+                        eq(io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode.class.getSimpleName()),
+                        eq(String.valueOf("cache_prop1_table1".hashCode())),
+                        eq(config)
+                ), times(1));
+
+                verify(persistenceStorage).clear(
+                        eq(ConstructType.IMAP),
+                        eq(String.valueOf("cache_prop1_table1".hashCode()))
+                );
+
+                verify(persistenceStorage).destroy(
+                        eq(io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode.class.getSimpleName()),
+                        eq(ConstructType.IMAP),
+                        eq(String.valueOf("cache_prop1_table1".hashCode()))
+                );
+            }
+        }
+
+        @Test
+        @DisplayName("测试删除缓存时发生异常")
+        void testDeleteCacheWithException() {
+            // 准备缓存信息列表
+            List<Map<String, String>> cacheInfoList = new ArrayList<>();
+            Map<String, String> cache1 = new HashMap<>();
+            cache1.put("id", "prop1");
+            cache1.put("tableName", "table1");
+            cacheInfoList.add(cache1);
+
+            try (MockedStatic<ExternalStorageUtil> storageMock = mockStatic(ExternalStorageUtil.class);
+                 MockedStatic<HazelcastUtil> hazelcastMock = mockStatic(HazelcastUtil.class);
+                 MockedStatic<io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode> mergeMock =
+                         mockStatic(io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode.class);
+                 MockedStatic<PersistenceStorage> persistenceMock = mockStatic(PersistenceStorage.class)) {
+
+                storageMock.when(() -> ExternalStorageUtil.getExternalStorage(mergeTableNode))
+                        .thenReturn(externalStorageDto);
+
+                HazelcastInstance hazelcastInstance = mock(HazelcastInstance.class);
+                com.hazelcast.config.Config config = mock(com.hazelcast.config.Config.class);
+                hazelcastMock.when(HazelcastUtil::getInstance).thenReturn(hazelcastInstance);
+                when(hazelcastInstance.getConfig()).thenReturn(config);
+
+                mergeMock.when(() -> io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode
+                        .getMergeCacheName("prop1", "table1"))
+                        .thenReturn("cache_prop1_table1");
+
+                PersistenceStorage persistenceStorage = mock(PersistenceStorage.class);
+                persistenceMock.when(PersistenceStorage::getInstance).thenReturn(persistenceStorage);
+
+                // 模拟clear方法抛出异常
+                doThrow(new RuntimeException("Clear cache failed"))
+                        .when(persistenceStorage).clear(any(), anyString());
+
+                // 执行测试 - 应该捕获异常并继续执行destroy
+                assertDoesNotThrow(() -> hazelcastTaskService.deleteMergeTableCache(mergeTableNode, cacheInfoList));
+
+                // 验证destroy仍然被调用
+                verify(persistenceStorage).destroy(
+                        eq(io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode.class.getSimpleName()),
+                        eq(ConstructType.IMAP),
+                        eq(String.valueOf("cache_prop1_table1".hashCode()))
+                );
+            }
+        }
+
+        @Test
+        @DisplayName("测试删除多个缓存")
+        void testDeleteMultipleCaches() {
+            // 准备多个缓存信息
+            List<Map<String, String>> cacheInfoList = new ArrayList<>();
+            Map<String, String> cache1 = new HashMap<>();
+            cache1.put("id", "prop1");
+            cache1.put("tableName", "table1");
+            Map<String, String> cache2 = new HashMap<>();
+            cache2.put("id", "prop2");
+            cache2.put("tableName", "table2");
+            cacheInfoList.add(cache1);
+            cacheInfoList.add(cache2);
+
+            try (MockedStatic<ExternalStorageUtil> storageMock = mockStatic(ExternalStorageUtil.class);
+                 MockedStatic<HazelcastUtil> hazelcastMock = mockStatic(HazelcastUtil.class);
+                 MockedStatic<io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode> mergeMock =
+                         mockStatic(io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode.class);
+                 MockedStatic<PersistenceStorage> persistenceMock = mockStatic(PersistenceStorage.class)) {
+
+                storageMock.when(() -> ExternalStorageUtil.getExternalStorage(mergeTableNode))
+                        .thenReturn(externalStorageDto);
+
+                HazelcastInstance hazelcastInstance = mock(HazelcastInstance.class);
+                com.hazelcast.config.Config config = mock(com.hazelcast.config.Config.class);
+                hazelcastMock.when(HazelcastUtil::getInstance).thenReturn(hazelcastInstance);
+                when(hazelcastInstance.getConfig()).thenReturn(config);
+
+                mergeMock.when(() -> io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode
+                        .getMergeCacheName("prop1", "table1"))
+                        .thenReturn("cache_prop1_table1");
+                mergeMock.when(() -> io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode
+                        .getMergeCacheName("prop2", "table2"))
+                        .thenReturn("cache_prop2_table2");
+
+                PersistenceStorage persistenceStorage = mock(PersistenceStorage.class);
+                persistenceMock.when(PersistenceStorage::getInstance).thenReturn(persistenceStorage);
+
+                // 执行测试
+                hazelcastTaskService.deleteMergeTableCache(mergeTableNode, cacheInfoList);
+
+                // 验证两个缓存都被处理
+                verify(persistenceStorage, times(2)).clear(eq(ConstructType.IMAP), anyString());
+                verify(persistenceStorage, times(2)).destroy(
+                        eq(io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode.class.getSimpleName()),
+                        eq(ConstructType.IMAP),
+                        anyString()
+                );
+            }
         }
     }
 }

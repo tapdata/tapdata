@@ -12,6 +12,8 @@ import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
+import com.hazelcast.persistence.ConstructType;
+import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.cache.external.ExternalStorageCacheService;
 import com.tapdata.constant.ConfigurationCenter;
@@ -22,6 +24,7 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
 import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.Setting;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -43,10 +46,11 @@ import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
-import com.tapdata.tm.commons.task.dto.ErrorEvent;
-import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
+import com.tapdata.tm.utils.MergeTablePropertiesUtil;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.taskmilestones.EngineDeductionAspect;
@@ -74,6 +78,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControll
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControllerExCode_21;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
@@ -115,6 +120,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService.SNAPSHOT_ORDER_LIST_KEY;
 
 /**
  * @author jackin
@@ -180,6 +187,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	@Override
 	public TaskClient<TaskDto> startTask(TaskDto taskDto) {
 		try {
+			boolean open = openAutoIncrementalBatchSize();
 			taskDto.setDag(taskDto.getDag());
 			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 
@@ -192,9 +200,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
 			HazelcastTaskClient hazelcastTaskClient = HazelcastTaskClient.create(taskDto, clientMongoOperator, pingClientMongoOperator, configurationCenter, hazelcastInstance);
-			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient);
+			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient, open);
 			hazelcastTaskClient.setJob(job);
 			obsLogger.info("Task started");
+			if (open) {
+				AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
+			}
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
@@ -202,10 +213,10 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
-	private @NotNull Job startJetJob(TaskDto taskDto, ObsLogger obsLogger, JetService jet, JobConfig jobConfig, HazelcastTaskClient hazelcastTaskClient) {
+	private @NotNull Job startJetJob(TaskDto taskDto, ObsLogger obsLogger, JetService jet, JobConfig jobConfig, HazelcastTaskClient hazelcastTaskClient, boolean open) {
 		Job job;
 		try {
-			final JetDag jetDag = task2HazelcastDAG(taskDto, true);
+			final JetDag jetDag = task2HazelcastDAG(taskDto, true, open);
 			cpuMemoryScheduler.reportOnce(List.of(taskDto.getId().toHexString()));
 			obsLogger.trace("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
 			job = jet.newJob(jetDag.getDag(), jobConfig);
@@ -261,7 +272,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				logger.info(stopWatch.prettyPrint(TimeUnit.MILLISECONDS));
 				return null;
 			} else {
-				final JetDag jetDag = task2HazelcastDAG(taskDto, false);
+				final JetDag jetDag = task2HazelcastDAG(taskDto, false, false);
 				JobConfig jobConfig = new JobConfig();
 				jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 				Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
@@ -280,7 +291,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			testTaskUsingPreview(taskDto);
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).info("KYE_OF_SCRIPT_RUN_RESULT", result).log(new TapLog()));
 			long startTs = System.currentTimeMillis();
-			final JetDag jetDag = task2HazelcastDAG(taskDto, false);
+			final JetDag jetDag = task2HazelcastDAG(taskDto, false, false);
 			JobConfig jobConfig = new JobConfig();
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
@@ -301,7 +312,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		if (StringUtils.equalsAny(syncType, TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			deduce = false;
 		}
-		JetDag jetDag = task2HazelcastDAG(taskDto, deduce);
+		JetDag jetDag = task2HazelcastDAG(taskDto, deduce, false);
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 		Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
@@ -309,7 +320,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	@SneakyThrows
-	protected JetDag task2HazelcastDAG(TaskDto taskDto, Boolean deduce) {
+	protected JetDag task2HazelcastDAG(TaskDto taskDto, Boolean deduce, boolean open) {
 		CpuMemoryCollector.startTask(taskDto);
 		handleDagWhenProcessAfterMerge(taskDto);
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
@@ -343,6 +354,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		if (taskDto.isNormalTask()) {
 			initSourceInitialCounter(taskDtoAtomicReference.get());
 			// init snapshot order (only for normal task)
+			checkMergeTaskReBuildCache(taskDtoAtomicReference.get());
 			initSnapshotOrder(taskDtoAtomicReference);
 		}
 
@@ -447,7 +459,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								finalDatabaseType,
 								null,
 								finalTapTableMap,
-								taskConfig
+								taskConfig,
+								open
 						);
 						CpuMemoryCollector.listening(node.getId(), hazelcastBaseNode);
 					} catch (Exception e) {
@@ -551,6 +564,24 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			TapTableMap<String, TapTable> tapTableMap,
 			TaskConfig taskConfig
 	) throws Exception {
+		return createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig, false);
+	}
+
+	public static HazelcastBaseNode createNode(
+			TaskDto taskDto,
+			List<Node> nodes,
+			List<Edge> edges,
+			Node node,
+			List<Node> predecessors,
+			List<Node> successors,
+			ConfigurationCenter config,
+			Connections connection,
+			DatabaseTypeEnum.DatabaseType databaseType,
+			Map<String, MergeTableNode> mergeTableMap,
+			TapTableMap<String, TapTable> tapTableMap,
+			TaskConfig taskConfig,
+			boolean open
+	) throws Exception {
 		List<RelateDataBaseTable> nodeSchemas = new ArrayList<>();
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA) &&
 				(node instanceof ProcessorNode || node instanceof MigrateProcessorNode) && node.disabledNode()) {
@@ -623,6 +654,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 							if (taskDto.isTestUsingPreview()) {
 								hazelcastNode = new HazelcastPreviewSourcePdkDataNode(processorContext);
+								((HazelcastPreviewSourcePdkDataNode)hazelcastNode).needAdjustBatchSize(open);
 							} else {
 								hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
 							}
@@ -634,12 +666,16 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 							if (readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE && !Objects.equals(taskDto.getType(), SyncTypeEnum.CDC.getSyncType())) {
 								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
+								((HazelcastSourcePartitionReadDataNode)hazelcastNode).needAdjustBatchSize(open);
 							} else if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE) && node instanceof DatabaseNode && ((DatabaseNode) node).isEnableConcurrentRead()) {
 								hazelcastNode = new HazelcastSourceConcurrentReadDataNode(processorContext);
+								((HazelcastSourceConcurrentReadDataNode)hazelcastNode).needAdjustBatchSize(open);
 							} else if (previewTask) {
 								hazelcastNode = new HazelcastPreviewSourcePdkDataNode(processorContext);
+								((HazelcastPreviewSourcePdkDataNode)hazelcastNode).needAdjustBatchSize(open);
 							} else {
 								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
+								((HazelcastSourcePdkDataNode)hazelcastNode).needAdjustBatchSize(open);
 							}
 //							hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
 						}
@@ -1133,6 +1169,78 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		logger.info("Clear {} master-slave merge cache", nodeId);
 	}
 
+	protected void checkMergeTaskReBuildCache(TaskDto taskDto) {
+		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
+		if (null == dag || !dag.isMergeTableDag() || (taskDto.isInitialSyncTask() && !taskDto.hasSyncProgress())){
+			return;
+		}
+		List<Node> nodes = taskDto.getDag().getNodes();
+		Map<String,List<Map<String, String>>> cacheIdsMap =  null != taskDto.getAttrs() ? (Map<String,List<Map<String, String>>>) taskDto.getAttrs().get("mergeTableCacheIdList") : null;
+		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
+		AtomicInteger mergeRebuildCache = new AtomicInteger(0);
+		nodes.stream().filter(node -> node instanceof MergeTableNode).forEach(node -> {
+			MergeTableNode mergeTableNode = (MergeTableNode) node;
+			Map<String, List<MergeTableProperties>> lookupMap = new HashMap<>();
+			MergeTablePropertiesUtil.initLookupMergeProperties(mergeTableNode.getMergeProperties(),lookupMap);
+			lookupMap.values().forEach(lookupList -> {
+				List<MergeTableProperties> cacheRebuildList = lookupList.stream()
+						.filter(mergeTableProperties -> null !=mergeTableProperties
+								&& null != mergeTableProperties.getCacheRebuildStatus()
+								&& CacheRebuildStatus.PENDING.equals(mergeTableProperties.getCacheRebuildStatus())).toList();
+				//清除失效缓存
+				if(MapUtils.isNotEmpty(cacheIdsMap) && cacheIdsMap.containsKey(mergeTableNode.getId()) && CollectionUtils.isNotEmpty(cacheRebuildList)){
+					List<String> newCacheIdList = lookupList.stream().map(MergeTableProperties::getId).toList();
+					List<Map<String, String>> cacheIdList = cacheIdsMap.get(mergeTableNode.getId());
+					List<Map<String, String>> deleteCacheIdList = cacheIdList.stream().filter(info -> !newCacheIdList.contains(info.get("id"))).toList();
+					deleteMergeTableCache(node,deleteCacheIdList);
+				}
+				if(CollectionUtils.isNotEmpty(cacheRebuildList)){
+					deleteMergeTableCache(node,cacheRebuildList.stream().map(mergeTableProperties -> {
+						Map<String, String> cacheInfo = new HashMap<>();
+						cacheInfo.put("id", mergeTableProperties.getId());
+						cacheInfo.put("tableName", mergeTableProperties.getTableName());
+						return cacheInfo;
+					}).toList());
+				}
+				cacheRebuildList.forEach(mergeTableProperties -> {
+					List<TableNode> sourceTableNodes = dag.getSourceTableNodes(mergeTableProperties.getId());
+					if(CollectionUtils.isNotEmpty(sourceTableNodes)){
+						sourceTableNodes.forEach(sourceTableNode -> {
+							sourceTableNode.setReFullRun(true);
+							sourceTableNode.setMergeTablePropertiesId(mergeTableProperties.getId());
+							sourceTableNode.setMergeNodeId(mergeTableNode.getId());
+							mergeRebuildCache.incrementAndGet();
+						});
+						taskDto.setReFullRun(true);
+						taskDto.getAttrs().remove(SNAPSHOT_ORDER_LIST_KEY);
+					}
+				});
+
+			});
+		});
+		taskGlobalVariable.put(TaskGlobalVariable.MERGE_REBUILD_CACHE, mergeRebuildCache);
+
+	}
+
+	protected void deleteMergeTableCache(Node node,List<Map<String, String>> cacheInfoList){
+		if(node instanceof MergeTableNode){
+			Map<String,String> deleteCacheIdMap = cacheInfoList.stream().collect(Collectors.toMap(map -> map.get("id"), map -> map.get("tableName")));
+			ExternalStorageDto externalStorageDto = ExternalStorageUtil.getExternalStorage(node);
+			for(Map.Entry<String,String> entry : deleteCacheIdMap.entrySet()) {
+				String cacheName = HazelcastMergeNode.getMergeCacheName(entry.getKey(), entry.getValue());
+				try {
+					HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
+					ExternalStorageUtil.initHZMapStorage(externalStorageDto, HazelcastMergeNode.class.getSimpleName(),String.valueOf(cacheName.hashCode()),hazelcastInstance.getConfig());
+					PersistenceStorage.getInstance().clear(ConstructType.IMAP, String.valueOf(cacheName.hashCode()));
+				}catch (Exception e){
+					logger.warn("Clear merge table cache failed, message: {}", e.getMessage());
+				}finally {
+					PersistenceStorage.getInstance().destroy(HazelcastMergeNode.class.getSimpleName(), ConstructType.IMAP, String.valueOf(cacheName.hashCode()));
+				}
+			}
+		}
+	}
+
 	protected TapConnectorContext.IsomorphismType sourceAndSinkIsomorphismType(TaskDto taskDto) {
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
 		List<Node> sourceNodes = dag.getSourceNodes();
@@ -1169,5 +1277,14 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		String taskId = taskDto.getId().toHexString();
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		globalStateMap.put(TaskEnvMap.name(taskId), taskEnvMap);
+	}
+
+	boolean openAutoIncrementalBatchSize() {
+		Setting setting = settingService.getSetting("auto_incremental_batch_size");
+		if (null == setting) {
+			return false;
+		}
+		String value = Optional.ofNullable(setting.getValue()).orElse(setting.getDefault_value());
+		return Objects.equals("true", value) || Objects.equals("TRUE", value);
 	}
 }

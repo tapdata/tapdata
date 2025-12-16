@@ -1,5 +1,7 @@
 package io.tapdata.construct;
 
+import com.tapdata.tm.commons.task.dto.CacheStatistics;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,6 +89,10 @@ public interface HazelcastConstruct<T> {
 	}
 
 	default String getName() {
+		throw new UnsupportedOperationException();
+	}
+
+	default CacheStatistics getStatistics(){
 		throw new UnsupportedOperationException();
 	}
 }

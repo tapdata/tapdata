@@ -3,10 +3,25 @@ package com.tapdata.tm.cluster.controller;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.cluster.dto.*;
+import com.tapdata.tm.cluster.dto.AccessNodeInfo;
+import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.ClusterStateMonitorRequest;
+import com.tapdata.tm.cluster.dto.OracleLogParserCommandExecResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserSNResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserUpdateConfigResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserUpgradeSNResult;
+import com.tapdata.tm.cluster.dto.RawServerStateDto;
+import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
+import com.tapdata.tm.cluster.dto.UpdateAgentVersionParam;
+import com.tapdata.tm.cluster.params.OracleLogParserConfigParam;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.cluster.service.OracleLogParserService;
 import com.tapdata.tm.cluster.service.RawServerStateService;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.utils.MongoUtils;
@@ -17,8 +32,21 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +69,7 @@ public class ClusterStateController extends BaseController {
     private PermissionService permissionService;
     @Autowired
     private SettingsService settingsService;
+    private OracleLogParserService oracleLogParserService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -333,6 +362,75 @@ public class ClusterStateController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(rawServerStateService.getAllLatest(filter));
+        Page<RawServerStateDto> allLatest = rawServerStateService.getAllLatest(filter);
+        for (RawServerStateDto item : allLatest.getItems()) {
+            item.setServiceIP(null);
+            item.setServicePort(null);
+        }
+        return success(allLatest);
+    }
+
+    @Operation(summary = "Execute Oracle Log Parser command, start/stop/restart")
+    @PostMapping("/oracle-log-parser")
+    public ResponseMessage<OracleLogParserCommandExecResult> executeCommand(
+            @RequestParam(value = "serverId") String serverId,
+            @RequestParam(value = "command") String command) {
+        return success(oracleLogParserService.executeCommand(serverId, command));
+    }
+
+
+    @Operation(summary = "Upgrade Oracle Log Parser sn file")
+    @PostMapping("/oracle-log-parser/upgrade-sn")
+    public ResponseMessage<OracleLogParserUpgradeSNResult> upgradeOracleLogParserSN(
+            @RequestParam(value = "serverId") String serverId,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                throw new BizException("oracle.log.parser.sn.file.empty");
+            }
+            String contentType = file.getContentType();
+            if (!isTextFile(contentType, file.getOriginalFilename())) {
+                throw new BizException("oracle.log.parser.sn.file.not.text");
+            }
+            String content = new String(file.getBytes(), StandardCharsets.UTF_8);
+            return success(oracleLogParserService.upgradeOracleLogParserSN(serverId, content));
+        } catch (IOException e) {
+            throw new BizException("oracle.log.parser.sn.file.upload.error", e.getMessage());
+        }
+    }
+
+    private boolean isTextFile(String contentType, String filename) {
+        // 检查常见的文本文件类型
+        return contentType != null && (
+                contentType.startsWith("text/") ||
+                        contentType.equals("application/json") ||
+                        contentType.equals("application/xml") ||
+                        filename.endsWith(".txt") ||
+                        filename.endsWith(".csv") ||
+                        filename.endsWith(".json") ||
+                        filename.endsWith(".xml")
+        );
+    }
+
+    @Operation(summary = "Get Oracle Log Parser sn info")
+    @GetMapping("/oracle-log-parser/sn")
+    public ResponseMessage<OracleLogParserSNResult> findOracleLogParserSN(
+            @RequestParam(value = "serverId") String serverId) {
+        return success(oracleLogParserService.findOracleLogParserSN(serverId));
+    }
+
+    @Operation(summary = "Update Oracle Log Parser config")
+    @PostMapping("/oracle-log-parser/update-config")
+    public ResponseMessage<OracleLogParserUpdateConfigResult> updateOracleLogParserConfig(
+            @RequestParam(value = "serverId") String serverId,
+            @RequestBody OracleLogParserConfigParam parma) {
+        return success(oracleLogParserService.updateOracleLogParserConfig(serverId, parma));
+    }
+
+    @Operation(summary = "remove Oracle Log Parser in list")
+    @DeleteMapping("/oracle-log-parser")
+    public ResponseMessage<Boolean> removeUselessServerInfo(
+            @RequestParam(value = "serverId") String serverId) {
+        return success(oracleLogParserService.removeUselessServerInfo(serverId));
     }
 }

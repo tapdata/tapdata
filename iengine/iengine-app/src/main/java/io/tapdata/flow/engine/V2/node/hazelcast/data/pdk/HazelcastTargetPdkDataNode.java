@@ -88,6 +88,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private Map<String, TapTable> partitionTapTables;
     @Getter
     private boolean writeGroupByTableEnable = true;
+	private ConcurrentHashMap<String, PDKMethodInvoker> exactlyOncePdkMethodInvokerMap = new ConcurrentHashMap<>();
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -108,7 +109,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					dbNode.setUpdateConditionFieldMap(Maps.newHashMap());
 				}
 				updateConditionFieldsMap.putAll(dbNode.getUpdateConditionFieldMap());
-                writeGroupByTableEnable = !Boolean.FALSE.equals(dbNode.getWriteWithGroupByTableEnable());
+                writeGroupByTableEnable = Boolean.TRUE.equals(dbNode.getWriteWithGroupByTableEnable());
 			}
 			if (getNode() instanceof DataParentNode) {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
@@ -1267,33 +1268,39 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
-		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		PDKMethodInvoker pdkMethodInvoker = exactlyOncePdkMethodInvokerMap.computeIfAbsent(Thread.currentThread().getName(), k -> createPdkMethodInvoker());
 		AtomicBoolean result = new AtomicBoolean(false);
-		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-					pdkMethodInvoker.runnable(
-							() -> {
-								try {
-									queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, rs -> {
-										if (null != rs.getError()) {
-											throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
-										}
-										result.set(CollectionUtils.isNotEmpty(rs.getResults()));
-									});
-								} catch (Exception e) {
-									throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters(tapAdvanceFilter,ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME));
-								}
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+				pdkMethodInvoker.runnable(
+						() -> {
+							try {
+								queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, rs -> {
+									if (null != rs.getError()) {
+										throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
+									}
+									result.set(CollectionUtils.isNotEmpty(rs.getResults()));
+								});
+							} catch (Exception e) {
+								throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters(tapAdvanceFilter, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME));
 							}
-					));
-		} finally {
-			removePdkMethodInvoker(pdkMethodInvoker);
-		}
+						}
+				));
 		return result.get();
 	}
 
 	@Override
 	public void doClose() throws TapCodeException {
 		super.doClose();
+		CommonUtils.ignoreAnyError(() -> {
+			if (MapUtils.isNotEmpty(exactlyOncePdkMethodInvokerMap)) {
+				for (PDKMethodInvoker pdkMethodInvoker : exactlyOncePdkMethodInvokerMap.values()) {
+					if (null == pdkMethodInvoker) continue;
+					pdkMethodInvoker.cancelRetry();
+				}
+				exactlyOncePdkMethodInvokerMap.clear();
+				exactlyOncePdkMethodInvokerMap = null;
+			}
+		}, TAG);
 	}
 
 	@Override

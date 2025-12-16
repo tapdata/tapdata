@@ -47,4 +47,6 @@ public class InspectResult extends BaseEntity implements Serializable {
 	private boolean partStats;  // 标识是否只上报了一部分 stats 信息
 
 	private boolean repeat;
+
+	private boolean judgeAutomaticCheck;
 }

@@ -185,14 +185,17 @@ public class TableNode extends DataNode {
     private boolean enableCustomCommand;
     private Map<String, Object> customCommand;
 
-    private Boolean incrementExactlyOnceEnable;
-    private Integer incrementExactlyOnceEnableTimeWindowDay = 3;
-
     private String previewQualifiedName;
     private TapTable previewTapTable;
     private static final String MONGODB = "MongoDB";
 
     private boolean sourceAndTarget;
+
+    private boolean reFullRun = false;
+
+    private String mergeTablePropertiesId;
+
+    private String mergeNodeId;
 
     public TableNode() {
         super("table");

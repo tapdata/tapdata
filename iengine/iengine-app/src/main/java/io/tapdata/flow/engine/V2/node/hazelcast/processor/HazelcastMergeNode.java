@@ -94,6 +94,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	public static final int DEFAULT_UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE = 10;
 	public static final String UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY = "UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE";
 	public static final String HANDLE_UPDATE_JOIN_KEY_THREAD_NUM_PROP_KEY = "HANDLE_UPDATE_JOIN_KEY_THREAD_NUM";
+	public static final String CACHE_STATISTICS = "_CacheStatistics";
 	public static final int DEFAULT_UPDATE_JOIN_KEY_THREAD_NUM = 4;
 	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
@@ -243,6 +244,15 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		this.mapIterator = new AllLayerMapIterator();
 		batchProcessMetrics = new BatchProcessMetrics();
 		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryKey(), this), TAG);
+		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryKey() + CACHE_STATISTICS, this::getCacheStatistics), TAG);
+	}
+
+	private DataMap getCacheStatistics(String s, String s1) {
+		DataMap dataMap = DataMap.create();
+		for(Map.Entry<String, ConstructIMap<Document>> entry : mergeCacheMap.entrySet()) {
+			dataMap.put(entry.getKey(), entry.getValue().getStatistics());
+		}
+		return dataMap;
 	}
 
 	protected void initFirstLevelIds() {
@@ -1070,7 +1080,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return false;
 	}
 
-	private static String getMergeCacheName(String nodeId, String tableName) {
+	public static String getMergeCacheName(String nodeId, String tableName) {
 		String name;
 		if (StringUtils.isBlank(nodeId)) {
 			throw new IllegalArgumentException("Get merge node cache name failed, node id is blank");
@@ -2089,21 +2099,173 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	@Override
 	protected void doClose() throws TapCodeException {
 		try {
-			if (MapUtils.isNotEmpty(mergeCacheMap)) {
-				for (ConstructIMap<Document> constructIMap : mergeCacheMap.values()) {
-					try {
-						obsLogger.trace("Destroy merge cache resource: {}", constructIMap.getName());
-						constructIMap.destroy();
-					} catch (Exception e) {
-						obsLogger.warn("Destroy merge cache failed, name: {}, error message: {}\nStack: {}", constructIMap.getName(), e.getMessage(), Log4jUtil.getStackString(e));
-					}
-				}
-			}
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(lookupThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
+			// Clean up merge cache resources
+			cleanupMergeCacheResources();
+
+			// Clean up check join key update cache resources
+			cleanupCheckJoinKeyUpdateCacheResources();
+
+			// Shutdown thread pools with proper timeout
+			shutdownThreadPoolsGracefully();
+
+			// Clear collections to help garbage collection
+			clearCollectionsForGC();
+
+			// Unregister PDK memory fetcher
 			CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(memoryKey()), TAG);
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(handleUpdateJoinKeyThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
+
+            CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(memoryKey() + CACHE_STATISTICS), TAG);
+
 		} finally {
 			super.doClose();
+		}
+	}
+
+	/**
+	 * Clean up merge cache resources
+	 */
+	private void cleanupMergeCacheResources() {
+		if (MapUtils.isNotEmpty(mergeCacheMap)) {
+			obsLogger.trace("Cleaning up {} merge cache resources", mergeCacheMap.size());
+			for (ConstructIMap<Document> constructIMap : mergeCacheMap.values()) {
+				try {
+					if (constructIMap != null) {
+						obsLogger.trace("Destroy merge cache resource: {}", constructIMap.getName());
+						constructIMap.destroy();
+					}
+				} catch (Exception e) {
+					obsLogger.warn("Destroy merge cache failed, name: {}, error message: {}\nStack: {}",
+							constructIMap.getName(),
+							e.getMessage(), Log4jUtil.getStackString(e));
+				}
+			}
+			mergeCacheMap.clear();
+		}
+	}
+
+	/**
+	 * Clean up check join key update cache resources
+	 */
+	private void cleanupCheckJoinKeyUpdateCacheResources() {
+		if (MapUtils.isNotEmpty(checkJoinKeyUpdateCacheMap)) {
+			obsLogger.trace("Cleaning up {} check join key update cache resources", checkJoinKeyUpdateCacheMap.size());
+			for (ConstructIMap<Document> constructIMap : checkJoinKeyUpdateCacheMap.values()) {
+				try {
+					if (constructIMap != null) {
+						obsLogger.trace("Destroy check join key update cache resource: {}", constructIMap.getName());
+						constructIMap.destroy();
+					}
+				} catch (Exception e) {
+					obsLogger.warn("Destroy check join key update cache failed, name: {}, error message: {}\nStack: {}",
+							constructIMap.getName(),
+							e.getMessage(), Log4jUtil.getStackString(e));
+				}
+			}
+			checkJoinKeyUpdateCacheMap.clear();
+		}
+	}
+
+	/**
+	 * Shutdown thread pools gracefully with timeout
+	 */
+	private void shutdownThreadPoolsGracefully() {
+		// Shutdown lookup thread pool
+		shutdownExecutorService(lookupThreadPool, "lookup thread pool", 5);
+
+		// Shutdown handle update join key thread pool
+		shutdownExecutorService(handleUpdateJoinKeyThreadPool, "handle update join key thread pool", 5);
+
+		// Clear lookup queue
+		if (lookupQueue != null) {
+			try {
+				int queueSize = lookupQueue.size();
+				if (queueSize > 0) {
+					obsLogger.trace("Clearing lookup queue with {} pending tasks", queueSize);
+					lookupQueue.clear();
+				}
+			} catch (Exception e) {
+				obsLogger.warn("Failed to clear lookup queue: {}", e.getMessage());
+			}
+		}
+	}
+
+	/**
+	 * Shutdown executor service gracefully with timeout
+	 */
+	private void shutdownExecutorService(ExecutorService executorService, String serviceName, long timeoutSeconds) {
+		if (executorService != null) {
+			try {
+				obsLogger.trace("Shutting down {}", serviceName);
+				executorService.shutdown();
+
+				// Wait for existing tasks to terminate
+				if (!executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
+					obsLogger.warn("{} did not terminate gracefully within {} seconds, forcing shutdown", serviceName, timeoutSeconds);
+					executorService.shutdownNow();
+
+					// Wait a bit more for tasks to respond to being cancelled
+					if (!executorService.awaitTermination(2, TimeUnit.SECONDS)) {
+						obsLogger.warn("{} did not terminate after forced shutdown", serviceName);
+					}
+				} else {
+					obsLogger.trace("{} shutdown successfully", serviceName);
+				}
+			} catch (InterruptedException e) {
+				obsLogger.warn("{} shutdown interrupted, forcing shutdown", serviceName);
+				executorService.shutdownNow();
+				Thread.currentThread().interrupt();
+			} catch (Exception e) {
+				obsLogger.warn("Error shutting down {}: {}", serviceName, e.getMessage());
+				executorService.shutdownNow();
+			}
+		}
+	}
+
+	/**
+	 * Clear collections to help garbage collection
+	 */
+	private void clearCollectionsForGC() {
+		try {
+			// Clear maps to help GC
+			if (mergeTablePropertiesMap != null) {
+				mergeTablePropertiesMap.clear();
+			}
+			if (lookupMap != null) {
+				lookupMap.clear();
+			}
+			if (sourceNodeMap != null) {
+				sourceNodeMap.clear();
+			}
+			if (sourceConnectionMap != null) {
+				sourceConnectionMap.clear();
+			}
+			if (sourcePkOrUniqueFieldMap != null) {
+				sourcePkOrUniqueFieldMap.clear();
+			}
+			if (needCacheIdList != null) {
+				needCacheIdList.clear();
+			}
+			preNodeMap.clear();
+			preNodeIdPdkMergeTablePropertieMap.clear();
+			if (sourceNodeLevelMap != null) {
+				sourceNodeLevelMap.clear();
+			}
+			if (firstLevelMergeNodeIds != null) {
+				firstLevelMergeNodeIds.clear();
+			}
+			if (shareJoinKeysMap != null) {
+				shareJoinKeysMap.clear();
+			}
+			if (mergeTablePropertyReferenceMap != null) {
+				mergeTablePropertyReferenceMap.clear();
+			}
+			if (enableUpdateJoinKeyMap != null) {
+				enableUpdateJoinKeyMap.clear();
+			}
+
+			obsLogger.trace("Collections cleared for garbage collection");
+		} catch (Exception e) {
+			obsLogger.warn("Error clearing collections for GC: {}", e.getMessage());
 		}
 	}
 
@@ -2251,7 +2413,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				} catch (JsonProcessingException e) {
 					// ignore
 				}
-				throw new TapCodeException(TaskMergeProcessorExCode_16.UPDATE_JOIN_KEY_CANNOT_GET_CACHE)
+				throw new TapCodeException(TaskMergeProcessorExCode_16.UPDATE_JOIN_KEY_CANNOT_GET_CACHE, "Cannot get before data from cache")
 						.dynamicDescriptionParameters(
 								preNode.getName(), preNodeId,
 								null != srcConnections ? srcConnections.getName() : "Unknown",

@@ -201,6 +201,11 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private Boolean doubleActive;
 
     /**
+     * 是否开启省流
+     */
+    private Boolean dataSaving;
+
+    /**
      * 是否启用同步指标收集，启用时任务停止打印同步指标
      */
     private Boolean enableSyncMetricCollector;
@@ -228,6 +233,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private boolean testUsingPreview;
 
     private Map<String, String> env;
+
+    private boolean reFullRun = false;
 
     /**
      * 任务指标信息
@@ -289,12 +296,20 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
         return TYPE_CDC.equals(getType());
     }
 
+    public boolean isInitialSyncTask() {
+        return TYPE_INITIAL_SYNC.equals(getType()) || TYPE_INITIAL_SYNC_CDC.equals(getType());
+    }
+
     public boolean hasSyncProgress() {
         return null != getAttrs() && getAttrs().containsKey("syncProgress");
     }
 
     public boolean hasDisableNode() {
         return null != dag && null != dag.getNodes() && dag.getNodes().stream().anyMatch(Element::disabledNode);
+    }
+
+    public boolean hashMergeTableCacheIdList(){
+        return null != getAttrs() && getAttrs().containsKey("mergeTableCacheIdList");
     }
 
     @Data

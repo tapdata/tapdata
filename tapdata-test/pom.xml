@@ -22,8 +22,8 @@
         <logback.version>1.4.5</logback.version>
         <commons.lang3.version>3.12.0</commons.lang3.version>
         <commons.cli.version>1.5.0</commons.cli.version>
-        <tapdata.pdk.runner.version>2.4-SNAPSHOT</tapdata.pdk.runner.version>
-        <tapdata.pdk.api.version>2.0.4-SNAPSHOT</tapdata.pdk.api.version>
+        <tapdata.pdk.runner.version>2.5-SNAPSHOT</tapdata.pdk.runner.version>
+        <tapdata.pdk.api.version>2.0.5-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>
@@ -61,7 +61,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-common</artifactId>
-            <version>0.2.23-SNAPSHOT</version>
+            <version>${tapdata.pdk.runner.version}</version>
         </dependency>
         <!-- 测试框架 -->
         <dependency>
@@ -187,4 +187,42 @@
             </properties>
         </profile>
     </profiles>
+
+    <repositories>
+        <repository>
+            <id>nexus-releases</id>
+            <name>nexus-maven-release</name>
+            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>nexus-snapshots</id>
+            <name>nexus-maven-snapshot</name>
+            <url>https://nexus.tapdata.net/repository/maven-snapshots/</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <distributionManagement>
+        <repository>
+            <id>nexus-tapdata-net</id>
+            <name>Nexus Release Repository</name>
+            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>nexus-tapdata-net</id>
+            <name>Nexus Snapshot Repository</name>
+            <url>https://nexus.tapdata.net/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
