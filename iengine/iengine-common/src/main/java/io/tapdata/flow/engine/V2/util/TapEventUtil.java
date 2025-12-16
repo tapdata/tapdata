@@ -192,4 +192,11 @@ public class TapEventUtil {
 		}
 		baseEvent.setPartitionMasterTableId(tableId);
 	}
+
+	public static String getExactlyOnceId(TapEvent tapEvent) {
+		if (tapEvent instanceof TapRecordEvent) {
+			return ((TapRecordEvent) tapEvent).getExactlyOnceId();
+		}
+		return null;
+	}
 }
