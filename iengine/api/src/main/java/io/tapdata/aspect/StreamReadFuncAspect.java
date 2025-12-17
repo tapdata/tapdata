@@ -8,6 +8,7 @@ import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import lombok.Getter;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -17,7 +18,8 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 	private static final String TAG = StreamReadFuncAspect.class.getSimpleName();
 	private boolean waitRawData = true;
 	private Throwable errorDuringWait;
-	private TapStreamReadConsumer<?, ?> streamReadConsumer;
+	@Getter
+    private TapStreamReadConsumer<?, ?> streamReadConsumer;
 	public StreamReadFuncAspect streamReadConsumer(TapStreamReadConsumer<?, ?> streamReadConsumer) {
 		this.streamReadConsumer = streamReadConsumer;
 		return this;
@@ -180,10 +182,6 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 
 	public void setStreamReadFunction(String streamReadFunction) {
 		this.streamReadFunction = streamReadFunction;
-	}
-
-	public TapStreamReadConsumer<?, ?> getStreamReadConsumer() {
-		return streamReadConsumer;
 	}
 
 	public void setStreamReadConsumer(StreamReadConsumer streamReadConsumer) {

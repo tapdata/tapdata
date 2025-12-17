@@ -177,7 +177,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	private ShareCdcReader shareCdcReader;
 	protected final SourceStateAspect sourceStateAspect;
 	private List<String> conditionFields;
-	private TapStreamReadConsumer<?, ?> streamReadConsumer;
+	private TapStreamReadConsumer<?, Object	> streamReadConsumer;
 	private BatchAcceptor streamReadBatchAcceptor;
 
 	private PDKMethodInvoker streamReadMethodInvoker;
@@ -925,7 +925,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			}
 			anyError = doOneByOneCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else {
-			logger.error("Unknown stream read consumer: " + streamReadConsumer);
+			logger.error("Unknown stream read consumer: {}", Optional.ofNullable(streamReadConsumer).map(Object::getClass).map(Class::getName).orElse("null"));
 			return;
 		}
 		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
@@ -1069,7 +1069,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		return anyError;
 	}
 
-	protected TapStreamReadConsumer<?, ?> generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
+	protected TapStreamReadConsumer<?, Object> generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
 		StreamReadConsumer consumer = StreamReadConsumer.create((events, offsetObj) -> {
 			try {
 				while (isRunning()) {
@@ -1706,11 +1706,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	@Override
 	public Consumer<List<TapEvent>> consumer() {
 		return this.streamReadBatchSizeConsumer;
-	}
-
-	@Override
-	public void metric(MetricInfo metricInfo) {
-
 	}
 
 	@Override
