@@ -100,6 +100,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -458,20 +459,20 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					HazelcastBaseNode hazelcastBaseNode;
 					try {
-						hazelcastBaseNode = createNode(
-								taskDto,
-								nodes,
-								edges,
-								node,
-								predecessors,
-								successors,
-								config,
-								finalConnection,
-								finalDatabaseType,
-								null,
-								finalTapTableMap,
-								taskConfig,
-								open
+						hazelcastBaseNode = createNode(new CreateNodeEntity()
+								.taskDto(taskDto)
+								.nodes(nodes)
+								.edges(edges)
+								.node(node)
+								.predecessors(predecessors)
+								.successors(successors)
+								.config(config)
+								.connection(finalConnection)
+								.databaseType(finalDatabaseType)
+								.mergeTableMap(null)
+								.tapTableMap(finalTapTableMap)
+								.taskConfig(taskConfig)
+								.open(open)
 						);
 						CpuMemoryCollector.listening(node.getId(), hazelcastBaseNode);
 					} catch (Exception e) {
@@ -575,24 +576,37 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			TapTableMap<String, TapTable> tapTableMap,
 			TaskConfig taskConfig
 	) throws Exception {
-		return createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig, false);
+		CreateNodeEntity createNodeEntity = new CreateNodeEntity()
+				.taskDto(taskDto)
+				.nodes(nodes)
+				.edges(edges)
+				.node(node)
+				.predecessors(predecessors)
+				.successors(successors)
+				.config(config)
+				.connection(connection)
+				.databaseType(databaseType)
+				.mergeTableMap(mergeTableMap)
+				.tapTableMap(tapTableMap)
+				.taskConfig(taskConfig)
+				.open(false);
+		return createNode(createNodeEntity);
 	}
 
-	public static HazelcastBaseNode createNode(
-			TaskDto taskDto,
-			List<Node> nodes,
-			List<Edge> edges,
-			Node node,
-			List<Node> predecessors,
-			List<Node> successors,
-			ConfigurationCenter config,
-			Connections connection,
-			DatabaseTypeEnum.DatabaseType databaseType,
-			Map<String, MergeTableNode> mergeTableMap,
-			TapTableMap<String, TapTable> tapTableMap,
-			TaskConfig taskConfig,
-			boolean open
-	) throws Exception {
+	public static HazelcastBaseNode createNode(CreateNodeEntity createNodeEntity) throws Exception {
+		final TaskDto taskDto = createNodeEntity.getTaskDto();
+		final List<Node> nodes = createNodeEntity.getNodes();
+		final List<Edge> edges = createNodeEntity.getEdges();
+		final Node node = createNodeEntity.getNode();
+		final List<Node> predecessors = createNodeEntity.getPredecessors();
+		final List<Node> successors = createNodeEntity.getSuccessors();
+		final ConfigurationCenter config = createNodeEntity.getConfig();
+		final Connections connection = createNodeEntity.getConnection();
+		final DatabaseTypeEnum.DatabaseType databaseType = createNodeEntity.getDatabaseType();
+		final Map<String, MergeTableNode> mergeTableMap = createNodeEntity.getMergeTableMap();
+		final TapTableMap<String, TapTable> tapTableMap = createNodeEntity.getTapTableMap();
+		final TaskConfig taskConfig = createNodeEntity.getTaskConfig();
+		final boolean open = createNodeEntity.isOpen();
 		List<RelateDataBaseTable> nodeSchemas = new ArrayList<>();
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA) &&
 				(node instanceof ProcessorNode || node instanceof MigrateProcessorNode) && node.disabledNode()) {
@@ -1288,5 +1302,78 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		String taskId = taskDto.getId().toHexString();
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		globalStateMap.put(TaskEnvMap.name(taskId), taskEnvMap);
+	}
+
+	@Getter
+	public static class CreateNodeEntity {
+		TaskDto taskDto;
+		List<Node> nodes;
+		List<Edge> edges;
+		Node node;
+		List<Node> predecessors;
+		List<Node> successors;
+		ConfigurationCenter config;
+		Connections connection;
+		DatabaseTypeEnum.DatabaseType databaseType;
+		Map<String, MergeTableNode> mergeTableMap;
+		TapTableMap<String, TapTable> tapTableMap;
+		TaskConfig taskConfig;
+		boolean open;
+
+		public CreateNodeEntity() {
+
+		}
+		CreateNodeEntity taskDto(TaskDto taskDto) {
+			this.taskDto = taskDto;
+			return this;
+		}
+		CreateNodeEntity nodes(List<Node> nodes) {
+			this.nodes = nodes;
+			return this;
+		}
+		CreateNodeEntity edges(List<Edge> edges) {
+			this.edges = edges;
+			return this;
+		}
+		CreateNodeEntity node(Node node) {
+			this.node = node;
+			return this;
+		}
+		CreateNodeEntity predecessors(List<Node> predecessors) {
+			this.predecessors = predecessors;
+			return this;
+		}
+		CreateNodeEntity successors(List<Node> successors) {
+			this.successors = successors;
+			return this;
+		}
+		CreateNodeEntity config(ConfigurationCenter config) {
+			this.config = config;
+			return this;
+		}
+		CreateNodeEntity connection(Connections connection) {
+			this.connection = connection;
+			return this;
+		}
+		CreateNodeEntity databaseType(DatabaseTypeEnum.DatabaseType databaseType) {
+			this.databaseType = databaseType;
+			return this;
+		}
+		CreateNodeEntity mergeTableMap(Map<String, MergeTableNode> mergeTableMap) {
+			this.mergeTableMap = mergeTableMap;
+			return this;
+		}
+		CreateNodeEntity tapTableMap(TapTableMap<String, TapTable> tapTableMap) {
+			this.tapTableMap = tapTableMap;
+			return this;
+		}
+		CreateNodeEntity taskConfig(TaskConfig taskConfig) {
+			this.taskConfig = taskConfig;
+			return this;
+		}
+		CreateNodeEntity open(boolean open) {
+			this.open = open;
+			return this;
+		}
 	}
 }
