@@ -200,18 +200,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		if (!this.needAdjustBatchSize) {
 			return;
 		}
-		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
-		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(getConnectorNode())
-				.map(ConnectorNode::getConnectorContext)
-				.map(TapConnectorContext::getSpecification)
-				.map(TapNodeSpecification::getAutoAccumulateBatch)
-				.map(AutoAccumulateBatchInfo::getIncreaseRead)
-				.orElse(new AutoAccumulateBatchInfo.Info());
-		if (autoAccumulateBatchInfo.isOpen()) {
-			Node<?> node = getNode();
-			AdjustBatchSizeFactory.register(node.getTaskId(), this, this.sourceRunner);
-			obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
+		final StreamReadOneByOneFunction function = Optional.ofNullable(getConnectorNode())
+				.map(ConnectorNode::getConnectorFunctions)
+				.map(ConnectorFunctions::getStreamReadOneByOneFunction)
+				.orElse(null);
+		if (!needAdjustBatchSize || null == function) {
+			return;
 		}
+		Node<?> node = getNode();
+		AdjustBatchSizeFactory.register(node.getTaskId(), this, this.sourceRunner);
+		obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
 	}
 
 	@Override
