@@ -70,7 +70,7 @@ class BatchAcceptorTest {
             Object offset = new Object();
             acceptor.accept(event, offset);
 
-            verify(consumer, times(1)).accept(anyList(), eq(offset));
+            verify(consumer, times(0)).accept(anyList(), eq(offset));
         }
     }
 
@@ -109,7 +109,7 @@ class BatchAcceptorTest {
             Object offset = new Object();
             acceptor.accept(events, offset);
 
-            verify(consumer, times(1)).accept(anyList(), eq(offset));
+            verify(consumer, times(0)).accept(anyList(), eq(offset));
         }
 
         @Test

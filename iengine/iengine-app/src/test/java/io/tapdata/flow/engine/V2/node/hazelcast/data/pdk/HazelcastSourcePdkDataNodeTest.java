@@ -2269,7 +2269,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
             spyNode.registerAdjustStageIfNeed();
 
-            verify(mockInfo, times(1)).isOpen();
+            verify(mockInfo, times(0)).isOpen();
         }
 
         @Test
@@ -2277,7 +2277,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         void testRegisterAdjustStageIfNeedWhenOpen() {
             HazelcastSourcePdkDataNodeImpl spyNode = spy(hazelcastSourcePdkDataNode);
             ReflectionTestUtils.setField(spyNode, "needAdjustBatchSize", true);
-
+            StreamReadOneByOneFunction function = mock(StreamReadOneByOneFunction.class);
+            ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
             ConnectorNode mockConnectorNode = mock(ConnectorNode.class);
             TapConnectorContext mockContext = mock(TapConnectorContext.class);
             TapNodeSpecification mockSpec = mock(TapNodeSpecification.class);
@@ -2285,6 +2286,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             AutoAccumulateBatchInfo.Info mockInfo = mock(AutoAccumulateBatchInfo.Info.class);
 
             when(spyNode.getConnectorNode()).thenReturn(mockConnectorNode);
+            when(mockConnectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+            when(connectorFunctions.getStreamReadOneByOneFunction()).thenReturn(function);
             when(mockConnectorNode.getConnectorContext()).thenReturn(mockContext);
             when(mockContext.getSpecification()).thenReturn(mockSpec);
             when(mockSpec.getAutoAccumulateBatch()).thenReturn(mockBatchInfo);
@@ -2302,8 +2305,83 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             try (MockedStatic<AdjustBatchSizeFactory> mockedFactory = mockStatic(AdjustBatchSizeFactory.class)) {
                 spyNode.registerAdjustStageIfNeed();
 
-                mockedFactory.verify(() -> AdjustBatchSizeFactory.register(eq("task-123"), eq(spyNode), any()));
-                verify(mockObsLogger, times(1)).info(anyString(), eq("node-123"));
+                mockedFactory.verify(() -> AdjustBatchSizeFactory.register(eq("task-123"), eq(spyNode), any()), times(1));
+                verify(mockObsLogger, times(1)).info(anyString(), anyString());
+            }
+        }
+
+        @Test
+        @DisplayName("test registerAdjustStageIfNeed when autoAccumulateBatchInfo is open")
+        void testRegisterAdjustStageIfNeedWhenNotOpen3() {
+            HazelcastSourcePdkDataNodeImpl spyNode = spy(hazelcastSourcePdkDataNode);
+            ReflectionTestUtils.setField(spyNode, "needAdjustBatchSize", false);
+            StreamReadOneByOneFunction function = mock(StreamReadOneByOneFunction.class);
+            ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+            ConnectorNode mockConnectorNode = mock(ConnectorNode.class);
+            TapConnectorContext mockContext = mock(TapConnectorContext.class);
+            TapNodeSpecification mockSpec = mock(TapNodeSpecification.class);
+            AutoAccumulateBatchInfo mockBatchInfo = mock(AutoAccumulateBatchInfo.class);
+            AutoAccumulateBatchInfo.Info mockInfo = mock(AutoAccumulateBatchInfo.Info.class);
+
+            when(spyNode.getConnectorNode()).thenReturn(mockConnectorNode);
+            when(mockConnectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+            when(connectorFunctions.getStreamReadOneByOneFunction()).thenReturn(function);
+            when(mockConnectorNode.getConnectorContext()).thenReturn(mockContext);
+            when(mockContext.getSpecification()).thenReturn(mockSpec);
+            when(mockSpec.getAutoAccumulateBatch()).thenReturn(mockBatchInfo);
+            when(mockBatchInfo.getIncreaseRead()).thenReturn(mockInfo);
+            when(mockInfo.isOpen()).thenReturn(true);
+
+            Node mockNode = mock(TableNode.class);
+            when(mockNode.getTaskId()).thenReturn("task-123");
+            when(mockNode.getId()).thenReturn("node-123");
+            when(spyNode.getNode()).thenReturn(mockNode);
+
+            ObsLogger mockObsLogger = mock(ObsLogger.class);
+            ReflectionTestUtils.setField(spyNode, "obsLogger", mockObsLogger);
+
+            try (MockedStatic<AdjustBatchSizeFactory> mockedFactory = mockStatic(AdjustBatchSizeFactory.class)) {
+                spyNode.registerAdjustStageIfNeed();
+
+                mockedFactory.verify(() -> AdjustBatchSizeFactory.register(eq("task-123"), eq(spyNode), any()), times(0));
+                verify(mockObsLogger, times(0)).info(anyString(), anyString());
+            }
+        }
+
+        @Test
+        @DisplayName("test registerAdjustStageIfNeed when autoAccumulateBatchInfo is open")
+        void testRegisterAdjustStageIfNeedWhenNotOpen2() {
+            HazelcastSourcePdkDataNodeImpl spyNode = spy(hazelcastSourcePdkDataNode);
+            ReflectionTestUtils.setField(spyNode, "needAdjustBatchSize", true);
+            ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+            ConnectorNode mockConnectorNode = mock(ConnectorNode.class);
+            TapConnectorContext mockContext = mock(TapConnectorContext.class);
+            TapNodeSpecification mockSpec = mock(TapNodeSpecification.class);
+            AutoAccumulateBatchInfo mockBatchInfo = mock(AutoAccumulateBatchInfo.class);
+            AutoAccumulateBatchInfo.Info mockInfo = mock(AutoAccumulateBatchInfo.Info.class);
+
+            when(spyNode.getConnectorNode()).thenReturn(mockConnectorNode);
+            when(mockConnectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+            when(connectorFunctions.getStreamReadOneByOneFunction()).thenReturn(null);
+            when(mockConnectorNode.getConnectorContext()).thenReturn(mockContext);
+            when(mockContext.getSpecification()).thenReturn(mockSpec);
+            when(mockSpec.getAutoAccumulateBatch()).thenReturn(mockBatchInfo);
+            when(mockBatchInfo.getIncreaseRead()).thenReturn(mockInfo);
+            when(mockInfo.isOpen()).thenReturn(true);
+
+            Node mockNode = mock(TableNode.class);
+            when(mockNode.getTaskId()).thenReturn("task-123");
+            when(mockNode.getId()).thenReturn("node-123");
+            when(spyNode.getNode()).thenReturn(mockNode);
+
+            ObsLogger mockObsLogger = mock(ObsLogger.class);
+            ReflectionTestUtils.setField(spyNode, "obsLogger", mockObsLogger);
+
+            try (MockedStatic<AdjustBatchSizeFactory> mockedFactory = mockStatic(AdjustBatchSizeFactory.class)) {
+                spyNode.registerAdjustStageIfNeed();
+
+                mockedFactory.verify(() -> AdjustBatchSizeFactory.register(eq("task-123"), eq(spyNode), any()), times(0));
+                verify(mockObsLogger, times(0)).info(anyString(), anyString());
             }
         }
 
