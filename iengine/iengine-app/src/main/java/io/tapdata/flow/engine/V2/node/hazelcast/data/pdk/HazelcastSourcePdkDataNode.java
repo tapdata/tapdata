@@ -146,6 +146,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
@@ -921,7 +922,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			}
 			anyError = doOneByOneCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else {
-			logger.error("Unknown stream read consumer: {}", Optional.ofNullable(streamReadConsumer).map(Object::getClass).map(Class::getName).orElse("null"));
+			logger.error("Unknown stream read consumer");
 			return;
 		}
 		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
@@ -1130,12 +1131,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		final StreamReadOneByOneFunction function = Optional.ofNullable(connectorNode.getConnectorFunctions())
 				.map(ConnectorFunctions::getStreamReadOneByOneFunction)
 				.orElse(null);
-		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.min(Math.max(50, this.getIncreaseReadSize() / 10), 5000), e -> isRunning(), consumer, obsLogger);
+		Supplier<Long> batchSizeTimeoutMSGetter = () -> Math.min(Math.max(50L, this.getIncreaseReadSize() / 10L), 5000L);
+		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, batchSizeTimeoutMSGetter, e -> isRunning(), consumer, obsLogger);
 		if (!needAdjustBatchSize || null == function) {
 			return consumer;
 		}
 		streamReadBatchAcceptor.startMonitor(sourceRunner);
-		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o), this::getIncreaseReadSize)
+		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o), this::getIncreaseReadSize, batchSizeTimeoutMSGetter)
 				.batchConsumer((es, o) -> streamReadBatchAcceptor.accept(es, o));
 	}
 

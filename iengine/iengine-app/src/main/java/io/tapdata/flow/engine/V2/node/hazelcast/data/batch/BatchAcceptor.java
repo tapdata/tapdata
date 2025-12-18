@@ -15,6 +15,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 
 /**
@@ -51,7 +52,7 @@ public final class BatchAcceptor {
     }
 
     private final ValueGetter<Integer> batchSizeGetter;
-    private final ValueGetter<Integer> delayMsGetter;
+    private final Supplier<Long> delayMsGetter;
     private final TapStreamReadConsumer<List<TapEvent>, Object> consumer;
     private final LinkedBlockingQueue<EventInfo> pipeline;
     private final Predicate<Boolean> alive;
@@ -61,7 +62,7 @@ public final class BatchAcceptor {
     private final AtomicReference<Object> lastOffset = new AtomicReference<>();
 
 
-    public BatchAcceptor(ValueGetter<Integer> batchSizeGetter, ValueGetter<Integer> delayMsGetter, Predicate<Boolean> isAlive, TapStreamReadConsumer<List<TapEvent>, Object> consumer, ObsLogger obsLogger) {
+    public BatchAcceptor(ValueGetter<Integer> batchSizeGetter, Supplier<Long> delayMsGetter, Predicate<Boolean> isAlive, TapStreamReadConsumer<List<TapEvent>, Object> consumer, ObsLogger obsLogger) {
         this.batchSizeGetter = batchSizeGetter;
         this.delayMsGetter = delayMsGetter;
         this.consumer = consumer;
@@ -82,7 +83,7 @@ public final class BatchAcceptor {
         while (alive.test(null)) {
             EventInfo eventInfo = null;
             while (alive.test(null) && !pipeline.isEmpty()) {
-                Integer delay = delayMsGetter.get();
+                Long delay = delayMsGetter.get();
                 long timeout = fixDelay(delay);
                 eventInfo = pollSingle(timeout);
                 if (eventInfo != null) {
@@ -106,8 +107,8 @@ public final class BatchAcceptor {
         this.active = false;
     }
 
-    long fixDelay(Integer delay) {
-        return delay <= 0 ? 1000L : delay.longValue();
+    long fixDelay(Long delay) {
+        return null == delay || delay <= 0L ? 1000L : delay;
     }
 
     void classification(EventInfo eventInfo, List<TapEvent> events) {
