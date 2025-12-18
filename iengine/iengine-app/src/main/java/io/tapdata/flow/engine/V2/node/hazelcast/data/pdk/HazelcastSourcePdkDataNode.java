@@ -91,8 +91,6 @@ import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.consumer.StreamReadOneByOneConsumer;
 import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
@@ -113,8 +111,6 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionO
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadOneByOneFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.apis.spec.AutoAccumulateBatchInfo;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;

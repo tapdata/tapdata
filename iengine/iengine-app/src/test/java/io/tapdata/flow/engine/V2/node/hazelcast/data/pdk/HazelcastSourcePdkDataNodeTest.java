@@ -3939,4 +3939,49 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
     }
 
+    @Nested
+    @DisplayName("测试doSnapshotWithControl方法")
+    class setIncreaseReadSizeCompareDefaultTest {
+        @Test
+        @DisplayName("测试正常流程")
+        void testNormalFlow() throws Throwable {
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            doReturn(100).when(node).getIncreaseReadSize();
+            doNothing().when(node).setIncreaseReadSize(anyInt());
+            doCallRealMethod().when(node).setIncreaseReadSizeCompareDefault();
+            Assertions.assertDoesNotThrow(node::setIncreaseReadSizeCompareDefault);
+        }
+        @Test
+        @DisplayName("测试正常流程")
+        void testNormalFlow1() throws Throwable {
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            doReturn(1).when(node).getIncreaseReadSize();
+            doNothing().when(node).setIncreaseReadSize(anyInt());
+            doCallRealMethod().when(node).setIncreaseReadSizeCompareDefault();
+            Assertions.assertDoesNotThrow(node::setIncreaseReadSizeCompareDefault);
+        }
+    }
+
+    @Nested
+    class doCloseTest {
+        @Test
+        void test1() {
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            when(node.getNode()).thenReturn(mock(Node.class));
+            doCallRealMethod().when(node).doClose();
+            Assertions.assertDoesNotThrow(node::doClose);
+        }
+        @Test
+        void testStreamReadBatchAcceptorNotNull() {
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            BatchAcceptor mockBatchAcceptor = mock(BatchAcceptor.class);
+            when(node.getNode()).thenReturn(mock(Node.class));
+            ReflectionTestUtils.setField(node, "streamReadBatchAcceptor", mockBatchAcceptor);
+            doCallRealMethod().when(node).doClose();
+            Assertions.assertDoesNotThrow(node::doClose);
+            verify(mockBatchAcceptor, times(1)).close();
+        }
+    }
 }
