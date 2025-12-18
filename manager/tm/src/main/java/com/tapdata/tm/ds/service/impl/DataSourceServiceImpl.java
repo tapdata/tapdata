@@ -120,8 +120,9 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 //@Setter(onMethod_ = {@Autowired})
 public class DataSourceServiceImpl extends DataSourceService{
-    public static final String DATABASE_TYPE = "databaseType";
+    public static final String DATABASETYPE = "databaseType";
     public static final String PDK_HASH = "pdkHash";
+    public static final String DATABASE_TYPE = "database_type";
 
     private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])[\\s\\S]*$";
     @Value("${gateway.secret:}")
@@ -1377,7 +1378,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         } else if (DataSourceDefinitionDto.PDK_TYPE.equals(connectionDto.getPdkType())) {
             //TODO 由于pdk是自定义配置，所以不太好确定这个判断怎么写。
         } else {
-            criteria.and("database_type").ne(connectionDto.getDatabase_type());
+            criteria.and(DATABASE_TYPE).ne(connectionDto.getDatabase_type());
             criteria.and("database_host").ne(connectionDto.getDatabase_host());
             criteria.and("database_port").ne(connectionDto.getDatabase_port());
             criteria.and("database_name").ne(connectionDto.getDatabase_name());
@@ -1724,7 +1725,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.FRONTEND, KeyEnum.ALLOW_CONNECTION_TYPE);
         String allowDatabaseType = (String) settings.getValue();
         List<String> supportDbTypeList = Arrays.asList(allowDatabaseType.split(","));
-        List<String> allDbType = distinct("database_type", user);
+        List<String> allDbType = distinct(DATABASE_TYPE, user);
         allDbType.retainAll(supportDbTypeList);
         return allDbType;
     }
@@ -2029,7 +2030,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         Criteria criteria = Criteria.where("_id").is(id);
         Query query = new Query(criteria);
-        query.fields().include("_id", "database_type", "encryptConfig");
+        query.fields().include("_id", DATABASE_TYPE, "encryptConfig");
         DataSourceConnectionDto connectionDto = findOne(query, user);
         if (connectionDto == null) {
             return;
@@ -2342,8 +2343,8 @@ public class DataSourceServiceImpl extends DataSourceService{
                         return queryObject;
                     }
                 })),
-                Aggregation.group("database_type")
-                        .first("database_type").as(DATABASE_TYPE)
+                Aggregation.group(DATABASE_TYPE)
+                        .first(DATABASE_TYPE).as(DATABASETYPE)
                         .first(PDK_HASH).as(PDK_HASH)
         );
         final AggregationResults<Document> results = repository.aggregate(aggregation, Document.class);
@@ -2352,7 +2353,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         final List<Document> resultsItems = results.getMappedResults();
         for (Document doc : resultsItems) {
             final Map<String, String> result = new HashMap<>();
-            result.put(DATABASE_TYPE, doc.getString(DATABASE_TYPE));
+            result.put(DATABASETYPE, doc.getString(DATABASETYPE));
             result.put(PDK_HASH, doc.getString(PDK_HASH));
             Optional.ofNullable(doc.getString(PDK_HASH)).ifPresent(pdkHashList::add);
             databaseTypes.add(result);
