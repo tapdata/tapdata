@@ -5,7 +5,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import io.tapdata.entity.event.TapBaseEvent;
-import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.junit.jupiter.api.Assertions;
@@ -15,7 +15,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.function.BiConsumer;
 
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class HazelcastMigrateUnionProcessorNodeTest extends BaseHazelcastNodeTest {
     HazelcastMigrateUnionProcessorNode hazelcastMigrateUnionProcessorNode;
@@ -43,5 +43,15 @@ public class HazelcastMigrateUnionProcessorNodeTest extends BaseHazelcastNodeTes
             Assertions.assertEquals("union_test",tapBaseEvent.getTableId());
         };
         hazelcastMigrateUnionProcessorNode.tryProcess(tapdataEvent,consumer);
+    }
+
+    @Test
+    void test_DDLEvent(){
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+        tapdataEvent.setTapEvent(createTableEvent);
+        BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult> consumer = mock(BiConsumer.class);
+        hazelcastMigrateUnionProcessorNode.tryProcess(tapdataEvent,consumer);
+        verify(consumer,times(0)).accept(any(),any());
     }
 }
