@@ -18,13 +18,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.*;
 
 class BatchAcceptorTest {
     ObsLogger obsLogger;
     BatchAcceptor.ValueGetter<Integer> batchSizeGetter;
-    BatchAcceptor.ValueGetter<Integer> delayMsGetter;
+    Supplier<Long> delayMsGetter;
     Predicate<Boolean> isAlive;
     TapStreamReadConsumer<List<TapEvent>, Object> consumer;
 
@@ -32,7 +33,7 @@ class BatchAcceptorTest {
     void beforeEach() {
         obsLogger = mock(ObsLogger.class);
         batchSizeGetter = () -> 10;
-        delayMsGetter = () -> 100;
+        delayMsGetter = () -> 100L;
         isAlive = b -> true;
         consumer = mock(TapStreamReadConsumer.class);
         doNothing().when(obsLogger).debug(anyString(), anyString());
@@ -43,7 +44,7 @@ class BatchAcceptorTest {
         @Test
         void testGetDelayMs() {
             BatchAcceptor.ValueGetter<Integer> batchSizeGetter = () -> 10;
-            BatchAcceptor.ValueGetter<Integer> delayGetter = () -> 1000;
+            Supplier<Long>  delayGetter = () -> 1000L;
             TapStreamReadConsumer<List<TapEvent>, Object> consumer = mock(TapStreamReadConsumer.class);
 
             BatchAcceptor acceptor = new BatchAcceptor(batchSizeGetter, delayGetter, isAlive, consumer, obsLogger);
@@ -56,7 +57,7 @@ class BatchAcceptorTest {
         @Test
         void testAcceptNullEvent() {
             BatchAcceptor.ValueGetter<Integer> batchSizeGetter = () -> 1;
-            BatchAcceptor.ValueGetter<Integer> delayGetter = () -> 1000;
+            Supplier<Long>  delayGetter = () -> 1000L;
             TapStreamReadConsumer<List<TapEvent>, Object> consumer = mock(TapStreamReadConsumer.class);
 
             BatchAcceptor acceptor = new BatchAcceptor(batchSizeGetter, delayGetter, isAlive, consumer, obsLogger);
@@ -68,7 +69,7 @@ class BatchAcceptorTest {
         @Test
         void testAcceptSingleEventTriggerBySize() {
             BatchAcceptor.ValueGetter<Integer> batchSizeGetter = () -> 1;
-            BatchAcceptor.ValueGetter<Integer> delayGetter = () -> 10_000;
+            Supplier<Long>  delayGetter = () -> 10_000L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> consumer = mock(TapStreamReadConsumer.class);
             ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
@@ -88,7 +89,7 @@ class BatchAcceptorTest {
         @Test
         void testAcceptEmptyOrAllNullCollection() {
             BatchAcceptor.ValueGetter<Integer> batchSizeGetter = () -> 2;
-            BatchAcceptor.ValueGetter<Integer> delayGetter = () -> 1000;
+            Supplier<Long>  delayGetter = () -> 1000L;
             TapStreamReadConsumer<List<TapEvent>, Object> consumer = mock(TapStreamReadConsumer.class);
 
             BatchAcceptor acceptor = new BatchAcceptor(batchSizeGetter, delayGetter, isAlive, consumer, obsLogger);
@@ -104,7 +105,7 @@ class BatchAcceptorTest {
         @Test
         void testAcceptCollectionFilterNullAndTriggerBySize() {
             BatchAcceptor.ValueGetter<Integer> batchSizeGetter = () -> 2;
-            BatchAcceptor.ValueGetter<Integer> delayGetter = () -> 10_000;
+            Supplier<Long>  delayGetter = () -> 10_000L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> consumer = mock(TapStreamReadConsumer.class);
 
@@ -124,7 +125,7 @@ class BatchAcceptorTest {
         @Test
         void testAcceptCollectionTriggerByDelay() throws InterruptedException {
             BatchAcceptor.ValueGetter<Integer> batchSizeGetter = () -> 1000;
-            BatchAcceptor.ValueGetter<Integer> delayGetter = () -> 10;
+            Supplier<Long>  delayGetter = () -> 10L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> consumer = mock(TapStreamReadConsumer.class);
 
@@ -187,7 +188,7 @@ class BatchAcceptorTest {
                 return count <= 5;
             };
             BatchAcceptor.ValueGetter<Integer> batchSize = () -> 2;
-            BatchAcceptor.ValueGetter<Integer> delay = () -> 10000;
+            Supplier<Long>  delay = () -> 10000L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> mockConsumer = mock(TapStreamReadConsumer.class);
 
@@ -217,7 +218,7 @@ class BatchAcceptorTest {
                 return count <= 3;
             };
             BatchAcceptor.ValueGetter<Integer> batchSize = () -> 1000;
-            BatchAcceptor.ValueGetter<Integer> delay = () -> 1;
+            Supplier<Long>  delay = () -> 1L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> mockConsumer = mock(TapStreamReadConsumer.class);
 
@@ -246,7 +247,7 @@ class BatchAcceptorTest {
                 return count <= 3;
             };
             BatchAcceptor.ValueGetter<Integer> batchSize = () -> 1;
-            BatchAcceptor.ValueGetter<Integer> delay = () -> 1000;
+            Supplier<Long>  delay = () -> 1000L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> mockConsumer = mock(TapStreamReadConsumer.class);
 
@@ -289,7 +290,7 @@ class BatchAcceptorTest {
                 return count <= 3;
             };
             BatchAcceptor.ValueGetter<Integer> batchSize = () -> 2;
-            BatchAcceptor.ValueGetter<Integer> delay = () -> 10000;
+            Supplier<Long>  delay = () -> 10000L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> mockConsumer = mock(TapStreamReadConsumer.class);
 
@@ -319,7 +320,7 @@ class BatchAcceptorTest {
                 return count <= 3;
             };
             BatchAcceptor.ValueGetter<Integer> batchSize = () -> 10;
-            BatchAcceptor.ValueGetter<Integer> delay = () -> 1;
+            Supplier<Long>  delay = () -> 1L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> mockConsumer = mock(TapStreamReadConsumer.class);
 
@@ -346,7 +347,7 @@ class BatchAcceptorTest {
                 return count <= 2;
             };
             BatchAcceptor.ValueGetter<Integer> batchSize = () -> 100;
-            BatchAcceptor.ValueGetter<Integer> delay = () -> 100000;
+            Supplier<Long>  delay = () -> 100000L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> mockConsumer = mock(TapStreamReadConsumer.class);
 
@@ -375,7 +376,7 @@ class BatchAcceptorTest {
                 return count <= 2;
             };
             BatchAcceptor.ValueGetter<Integer> batchSize = () -> 100000000;
-            BatchAcceptor.ValueGetter<Integer> delay = () -> 0;
+            Supplier<Long>  delay = () -> 0L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> mockConsumer = mock(TapStreamReadConsumer.class);
 
@@ -403,7 +404,7 @@ class BatchAcceptorTest {
                 return count <= 4;
             };
             BatchAcceptor.ValueGetter<Integer> batchSize = () -> 10;
-            BatchAcceptor.ValueGetter<Integer> delay = () -> 100000;
+            Supplier<Long>  delay = () -> 100000L;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> mockConsumer = mock(TapStreamReadConsumer.class);
 
@@ -430,21 +431,21 @@ class BatchAcceptorTest {
         @Test
         void testFixDelayWithZero() {
             BatchAcceptor acceptor = new BatchAcceptor(batchSizeGetter, delayMsGetter, isAlive, consumer, obsLogger);
-            long result = acceptor.fixDelay(0);
+            long result = acceptor.fixDelay(0L);
             Assertions.assertEquals(1000L, result);
         }
 
         @Test
         void testFixDelayWithNegative() {
             BatchAcceptor acceptor = new BatchAcceptor(batchSizeGetter, delayMsGetter, isAlive, consumer, obsLogger);
-            long result = acceptor.fixDelay(-100);
+            long result = acceptor.fixDelay(-100L);
             Assertions.assertEquals(1000L, result);
         }
 
         @Test
         void testFixDelayWithPositive() {
             BatchAcceptor acceptor = new BatchAcceptor(batchSizeGetter, delayMsGetter, isAlive, consumer, obsLogger);
-            long result = acceptor.fixDelay(500);
+            long result = acceptor.fixDelay(500L);
             Assertions.assertEquals(500L, result);
         }
     }
@@ -672,7 +673,7 @@ class BatchAcceptorTest {
         @Test
         void testConstructor() {
             BatchAcceptor.ValueGetter<Integer> batchSize = () -> 100;
-            BatchAcceptor.ValueGetter<Integer> delay = () -> 500;
+            Supplier<Long>  delay = () -> 500L;
             Predicate<Boolean> alive = b -> true;
             @SuppressWarnings("unchecked")
             TapStreamReadConsumer<List<TapEvent>, Object> mockConsumer = mock(TapStreamReadConsumer.class);

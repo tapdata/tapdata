@@ -129,7 +129,7 @@ import static io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderS
  **/
 @Service
 @DependsOn("tapdataTaskScheduler")
-public class HazelcastTaskService implements TaskService<TaskDto> {
+public class 	HazelcastTaskService implements TaskService<TaskDto> {
 
 	private static final Logger logger = LogManager.getLogger(HazelcastTaskService.class);
 	private static final String TAG = HazelcastTaskService.class.getSimpleName();
@@ -460,19 +460,19 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 					HazelcastBaseNode hazelcastBaseNode;
 					try {
 						hazelcastBaseNode = createNode(new CreateNodeEntity()
-								.taskDto(taskDto)
-								.nodes(nodes)
-								.edges(edges)
-								.node(node)
-								.predecessors(predecessors)
-								.successors(successors)
-								.config(config)
-								.connection(finalConnection)
-								.databaseType(finalDatabaseType)
-								.mergeTableMap(null)
-								.tapTableMap(finalTapTableMap)
-								.taskConfig(taskConfig)
-								.open(open)
+								.withTaskDto(taskDto)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withNode(node)
+								.withPredecessors(predecessors)
+								.withSuccessors(successors)
+								.withConfig(config)
+								.withConnection(finalConnection)
+								.withDatabaseType(finalDatabaseType)
+								.withMergeTableMap(null)
+								.withTapTableMap(finalTapTableMap)
+								.withTaskConfig(taskConfig)
+								.withOpen(open)
 						);
 						CpuMemoryCollector.listening(node.getId(), hazelcastBaseNode);
 					} catch (Exception e) {
@@ -577,19 +577,19 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			TaskConfig taskConfig
 	) throws Exception {
 		CreateNodeEntity createNodeEntity = new CreateNodeEntity()
-				.taskDto(taskDto)
-				.nodes(nodes)
-				.edges(edges)
-				.node(node)
-				.predecessors(predecessors)
-				.successors(successors)
-				.config(config)
-				.connection(connection)
-				.databaseType(databaseType)
-				.mergeTableMap(mergeTableMap)
-				.tapTableMap(tapTableMap)
-				.taskConfig(taskConfig)
-				.open(false);
+				.withTaskDto(taskDto)
+				.withNodes(nodes)
+				.withEdges(edges)
+				.withNode(node)
+				.withPredecessors(predecessors)
+				.withSuccessors(successors)
+				.withConfig(config)
+				.withConnection(connection)
+				.withDatabaseType(databaseType)
+				.withMergeTableMap(mergeTableMap)
+				.withTapTableMap(tapTableMap)
+				.withTaskConfig(taskConfig)
+				.withOpen(false);
 		return createNode(createNodeEntity);
 	}
 
@@ -1321,57 +1321,57 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		boolean open;
 
 		public CreateNodeEntity() {
-
+			//do nothing
 		}
-		CreateNodeEntity taskDto(TaskDto taskDto) {
+		CreateNodeEntity withTaskDto(TaskDto taskDto) {
 			this.taskDto = taskDto;
 			return this;
 		}
-		CreateNodeEntity nodes(List<Node> nodes) {
+		CreateNodeEntity withNodes(List<Node> nodes) {
 			this.nodes = nodes;
 			return this;
 		}
-		CreateNodeEntity edges(List<Edge> edges) {
+		CreateNodeEntity withEdges(List<Edge> edges) {
 			this.edges = edges;
 			return this;
 		}
-		CreateNodeEntity node(Node node) {
+		CreateNodeEntity withNode(Node node) {
 			this.node = node;
 			return this;
 		}
-		CreateNodeEntity predecessors(List<Node> predecessors) {
+		CreateNodeEntity withPredecessors(List<Node> predecessors) {
 			this.predecessors = predecessors;
 			return this;
 		}
-		CreateNodeEntity successors(List<Node> successors) {
+		CreateNodeEntity withSuccessors(List<Node> successors) {
 			this.successors = successors;
 			return this;
 		}
-		CreateNodeEntity config(ConfigurationCenter config) {
+		CreateNodeEntity withConfig(ConfigurationCenter config) {
 			this.config = config;
 			return this;
 		}
-		CreateNodeEntity connection(Connections connection) {
+		CreateNodeEntity withConnection(Connections connection) {
 			this.connection = connection;
 			return this;
 		}
-		CreateNodeEntity databaseType(DatabaseTypeEnum.DatabaseType databaseType) {
+		CreateNodeEntity withDatabaseType(DatabaseTypeEnum.DatabaseType databaseType) {
 			this.databaseType = databaseType;
 			return this;
 		}
-		CreateNodeEntity mergeTableMap(Map<String, MergeTableNode> mergeTableMap) {
+		CreateNodeEntity withMergeTableMap(Map<String, MergeTableNode> mergeTableMap) {
 			this.mergeTableMap = mergeTableMap;
 			return this;
 		}
-		CreateNodeEntity tapTableMap(TapTableMap<String, TapTable> tapTableMap) {
+		CreateNodeEntity withTapTableMap(TapTableMap<String, TapTable> tapTableMap) {
 			this.tapTableMap = tapTableMap;
 			return this;
 		}
-		CreateNodeEntity taskConfig(TaskConfig taskConfig) {
+		CreateNodeEntity withTaskConfig(TaskConfig taskConfig) {
 			this.taskConfig = taskConfig;
 			return this;
 		}
-		CreateNodeEntity open(boolean open) {
+		CreateNodeEntity withOpen(boolean open) {
 			this.open = open;
 			return this;
 		}
