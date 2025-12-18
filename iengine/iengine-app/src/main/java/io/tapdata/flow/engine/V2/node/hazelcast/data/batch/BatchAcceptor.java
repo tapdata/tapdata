@@ -97,7 +97,7 @@ public final class BatchAcceptor {
                     count = 0;
                 }
             }
-            if (!events.isEmpty() && System.currentTimeMillis() - lastTime > delayMsGetter.get()) {
+            if (!events.isEmpty() && System.currentTimeMillis() - lastTime >= delayMsGetter.get()) {
                 this.consumer.accept(events,  this.lastOffset.get());
                 lastTime = System.currentTimeMillis();
                 count = 0;
