@@ -25,6 +25,7 @@ import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.Lists;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
@@ -54,12 +55,7 @@ import java.util.stream.Stream;
 import static com.tapdata.tm.monitor.param.MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class MeasurementServiceV2ImplTest {
     MeasurementServiceV2Impl measurementServiceV2;
@@ -866,4 +862,216 @@ class MeasurementServiceV2ImplTest {
         }
 
     }
+
+    @Nested
+    class AggregateMeasurementByGranularityTest {
+        private Map<String, String> queryTags;
+        private MongoTemplate mongoOperations;
+        private BulkOperations bulkOperations;
+
+        @BeforeEach
+        void setUp() {
+            queryTags = new HashMap<>();
+            queryTags.put("taskId", "test-task-id");
+            queryTags.put("type", "task");
+
+            mongoOperations = mock(MongoTemplate.class);
+            bulkOperations = mock(BulkOperations.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+        }
+
+        @Test
+        @DisplayName("test aggregateMeasurementByGranularity - skip when interval not fully completed")
+        void testSkipWhenIntervalNotFullyCompleted() {
+            long start = 1000L;
+            long end = 1500L; // Less than one minute interval (60000ms)
+            String granularity = Granularity.GRANULARITY_MINUTE;
+
+            doCallRealMethod().when(measurementServiceV2).aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            measurementServiceV2.aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            // Should not query database when interval is not fully completed
+            verify(mongoOperations, times(0)).find(any(Query.class), any(Class.class), anyString());
+        }
+
+        @Test
+        @DisplayName("test aggregateMeasurementByGranularity - no data to aggregate")
+        void testNoDataToAggregate() {
+            long start = 0L;
+            long end = 120000L; // 2 minutes
+            String granularity = Granularity.GRANULARITY_MINUTE;
+
+            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            doCallRealMethod().when(measurementServiceV2).aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            measurementServiceV2.aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            verify(mongoOperations, times(1)).find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME));
+            // Should not execute bulk operations when no data
+            verify(mongoOperations, times(0)).bulkOps(any(), any(), anyString());
+        }
+
+        @Test
+        @DisplayName("test aggregateMeasurementByGranularity - aggregate single entity")
+        void testAggregateSingleEntity() {
+            long start = 0L;
+            long end = 120000L; // 2 minutes
+            String granularity = Granularity.GRANULARITY_MINUTE;
+
+            // Create test measurement entity
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setDate(new Date(60000L)); // 1 minute
+            entity.setGranularity(granularity);
+            Map<String, String> tags = new HashMap<>();
+            tags.put("taskId", "test-task-id");
+            tags.put("type", "task");
+            entity.setTags(tags);
+
+            // Create sample data
+            List<Sample> samples = new ArrayList<>();
+            Sample sample = new Sample();
+            sample.setDate(new Date(60000L));
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("inputQps", 100);
+            vs.put("outputQps", 90);
+            sample.setVs(vs);
+            samples.add(sample);
+            entity.setSamples(samples);
+
+            // Mock averageValues
+            Map<String, Number> avgValues = new HashMap<>();
+            avgValues.put("inputQps", 100);
+            avgValues.put("outputQps", 90);
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(Collections.singletonList(entity));
+            when(mongoOperations.bulkOps(any(), any(), anyString())).thenReturn(bulkOperations);
+            doCallRealMethod().when(measurementServiceV2).aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            measurementServiceV2.aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            verify(mongoOperations, times(1)).find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME));
+            verify(mongoOperations, times(1)).bulkOps(eq(BulkOperations.BulkMode.UNORDERED), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME));
+            verify(bulkOperations, times(1)).execute();
+        }
+
+        @Test
+        @DisplayName("test aggregateMeasurementByGranularity - aggregate multiple entities with same tags")
+        void testAggregateMultipleEntitiesWithSameTags() {
+            long start = 0L;
+            long end = 180000L; // 3 minutes
+            String granularity = Granularity.GRANULARITY_MINUTE;
+
+            Map<String, String> tags = new HashMap<>();
+            tags.put("taskId", "test-task-id");
+            tags.put("type", "task");
+
+            // Create multiple entities
+            List<MeasurementEntity> entities = new ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                MeasurementEntity entity = new MeasurementEntity();
+                entity.setDate(new Date(60000L * i));
+                entity.setGranularity(granularity);
+                entity.setTags(tags);
+
+                List<Sample> samples = new ArrayList<>();
+                Sample sample = new Sample();
+                sample.setDate(new Date(60000L * i));
+                Map<String, Number> vs = new HashMap<>();
+                vs.put("inputQps", 100 + i * 10);
+                sample.setVs(vs);
+                samples.add(sample);
+                entity.setSamples(samples);
+
+                entities.add(entity);
+            }
+
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(entities);
+            when(mongoOperations.bulkOps(any(), any(), anyString())).thenReturn(bulkOperations);
+            doCallRealMethod().when(measurementServiceV2).aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            measurementServiceV2.aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            verify(mongoOperations, times(1)).find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME));
+            verify(bulkOperations, times(1)).execute();
+        }
+
+        @Test
+        @DisplayName("test aggregateMeasurementByGranularity - aggregate entities with different tags")
+        void testAggregateEntitiesWithDifferentTags() {
+            long start = 0L;
+            long end = 120000L; // 2 minutes
+            String granularity = Granularity.GRANULARITY_MINUTE;
+
+            // Create entities with different tags
+            List<MeasurementEntity> entities = new ArrayList<>();
+
+            // Entity 1
+            MeasurementEntity entity1 = new MeasurementEntity();
+            entity1.setDate(new Date(60000L));
+            entity1.setGranularity(granularity);
+            Map<String, String> tags1 = new HashMap<>();
+            tags1.put("taskId", "task-1");
+            tags1.put("type", "task");
+            entity1.setTags(tags1);
+            List<Sample> samples1 = new ArrayList<>();
+            Sample sample1 = new Sample();
+            sample1.setDate(new Date(60000L));
+            Map<String, Number> vs1 = new HashMap<>();
+            vs1.put("inputQps", 100);
+            sample1.setVs(vs1);
+            samples1.add(sample1);
+            entity1.setSamples(samples1);
+            entities.add(entity1);
+
+            // Entity 2
+            MeasurementEntity entity2 = new MeasurementEntity();
+            entity2.setDate(new Date(60000L));
+            entity2.setGranularity(granularity);
+            Map<String, String> tags2 = new HashMap<>();
+            tags2.put("taskId", "task-2");
+            tags2.put("type", "task");
+            entity2.setTags(tags2);
+            List<Sample> samples2 = new ArrayList<>();
+            Sample sample2 = new Sample();
+            sample2.setDate(new Date(60000L));
+            Map<String, Number> vs2 = new HashMap<>();
+            vs2.put("inputQps", 200);
+            sample2.setVs(vs2);
+            samples2.add(sample2);
+            entity2.setSamples(samples2);
+            entities.add(entity2);
+
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(entities);
+            when(mongoOperations.bulkOps(any(), any(), anyString())).thenReturn(bulkOperations);
+            doCallRealMethod().when(measurementServiceV2).aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            measurementServiceV2.aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            verify(mongoOperations, times(1)).find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME));
+            // Should create upsert operations for both tag groups
+            verify(bulkOperations, atLeast(2)).upsert(any(Query.class), any());
+            verify(bulkOperations, times(1)).execute();
+        }
+
+        @Test
+        @DisplayName("test aggregateMeasurementByGranularity - hour granularity")
+        void testHourGranularity() {
+            long start = 0L;
+            long end = 7200000L; // 2 hours
+            String granularity = Granularity.GRANULARITY_HOUR;
+
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(new ArrayList<>());
+            doCallRealMethod().when(measurementServiceV2).aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            measurementServiceV2.aggregateMeasurementByGranularity(queryTags, start, end, granularity);
+
+            verify(mongoOperations, times(1)).find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME));
+        }
+    }
+
+
 }

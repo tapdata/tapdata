@@ -17,6 +17,7 @@ import com.tapdata.tm.monitor.constant.Granularity;
 import com.tapdata.tm.monitor.constant.KeyWords;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.entity.TDigestEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
@@ -218,7 +219,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                         }
                     }
                     timeline = getTimeline(start, end, timelineInterval);
-                    Map<String, List<Sample>> continuousSamples = getContinuousSamples(querySample, start, end, granularity);
+                    Map<String, MeasurementEntity>  continuousSamples = getContinuousSamples(querySample, start, end, granularity);
 
                     // calculate the last point value
                     if (!granularity.equals(Granularity.GRANULARITY_MINUTE)) {
@@ -237,6 +238,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                                 List<String> includedFields = new ArrayList<>();
                                 includedFields.add(MeasurementEntity.FIELD_DATE);
                                 includedFields.add(MeasurementEntity.FIELD_TAGS);
+                                includedFields.add(MeasurementEntity.FIELD_GRANULARITY);
+                                includedFields.add(MeasurementEntity.FIELD_DIGEST);
+                                includedFields.add("ss.date");
                                 for (String field : querySample.getFields()) {
                                     includedFields.add(String.format(FIELD_FORMAT, field));
                                 }
@@ -248,18 +252,22 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                                 List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
                                 for (MeasurementEntity entity : measurementEntities) {
                                     String hash = hashTag(entity.getTags());
-                                    continuousSamples.putIfAbsent(hash, new ArrayList<>());
+                                    continuousSamples.putIfAbsent(hash, new MeasurementEntity(new ArrayList<>(),new ArrayList<>()));
                                     Sample sample = new Sample();
                                     sample.setDate(new Date(timeline.get(idx)));
                                     sample.setVs(entity.averageValues());
-                                    continuousSamples.get(hash).add(sample);
+                                    TDigestEntity tDigestEntity = new TDigestEntity();
+                                    tDigestEntity.setDate(new Date(timeline.get(idx)));
+                                    tDigestEntity.setDigest(entity.getDigestBytes());
+                                    continuousSamples.get(hash).getSamples().add(sample);
+                                    continuousSamples.get(hash).getDigest().add(tDigestEntity);
                                 }
                                 break;
                             }
                         }
                     }
 
-                    List<Map<String, Object>> formatContinuousSamples = formatContinuousSamples(continuousSamples, timeline, timelineInterval);
+                    List<Map<String, Object>> formatContinuousSamples = formatContinuousSamples(granularity,continuousSamples, timeline, timelineInterval);
                     uniqueData.addAll(formatContinuousSamples);
                     break;
             }
@@ -534,8 +542,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         return data;
     }
 
-    protected Map<String, List<Sample>> getContinuousSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end,String granularity) {
-        Map<String, List<Sample>> data = new HashMap<>();
+    protected Map<String, MeasurementEntity> getContinuousSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end,String granularity) {
+        Map<String, MeasurementEntity>data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
                 MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS)) {
             return data;
@@ -551,8 +559,11 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
         List<String> includedFields = new ArrayList<>();
         includedFields.add(MeasurementEntity.FIELD_TAGS);
+        if(Granularity.isCalculateQuantiles(granularity)) {
+            includedFields.add(MeasurementEntity.FIELD_DIGEST);
+        }
         includedFields.add(String.format("%s.%s", MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_DATE));
-        if (!granularity.equals(Granularity.GRANULARITY_MINUTE)) {
+        if(Granularity.isCalculateQuantiles(granularity)){
             querySample.getFields().add(MeasurementEntity.MAX_INPUT_QPS);
             querySample.getFields().add(MeasurementEntity.MAX_OUTPUT_QPS);
             querySample.getFields().add(MeasurementEntity.MAX_INPUT_SIZE_QPS);
@@ -569,9 +580,12 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         for (MeasurementEntity entity : entities) {
             String hash = hashTag(entity.getTags());
             if (!data.containsKey(hash)) {
-                data.put(hash, new ArrayList<>());
+                data.put(hash, new MeasurementEntity(new ArrayList<>(),new ArrayList<>()));
             }
-            data.get(hash).addAll(entity.getSamples());
+            data.get(hash).getSamples().addAll(entity.getSamples());
+            if(Granularity.isCalculateQuantiles(granularity) && null != entity.getDigest()){
+                data.get(hash).getDigest().addAll(entity.getDigest());
+            }
         }
 
         return data;
@@ -609,16 +623,18 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         return data;
     }
 
-    private  List<Map<String, Object>> formatContinuousSamples(Map<String, List<Sample>> continuousSamples, List<Long> timeline, long interval) {
+    private  List<Map<String, Object>> formatContinuousSamples(String granularity , Map<String,MeasurementEntity>  continuousSamples, List<Long> timeline, long interval) {
         List<Map<String, Object>> data = new ArrayList<>();
-        for (Map.Entry<String, List<Sample>> entry : continuousSamples.entrySet()) {
+        for (Map.Entry<String, MeasurementEntity> entry : continuousSamples.entrySet()) {
             Map<String, String> tags = reverseHashTag(entry.getKey());
             Map<String, Number[]> values = new HashMap<>();
 
-            List<Sample> samples = entry.getValue().stream().sorted(Comparator.comparing(Sample::getDate)).collect(Collectors.toList());
+            List<Sample> samples = entry.getValue().getSamples().stream().sorted(Comparator.comparing(Sample::getDate)).collect(Collectors.toList());
+            List<TDigestEntity> digests = entry.getValue().getDigest().stream().sorted(Comparator.comparing(TDigestEntity::getDate)).collect(Collectors.toList());
 
             int timeLineIdx = 0;
             int sampleIdx1 = 0;
+            Map<Integer,Sample> finalSample = new HashMap<>();
             while (timeLineIdx < timeline.size() && sampleIdx1 < samples.size()) {
                 Sample sample1 = samples.get(sampleIdx1);
                 long time1 = sample1.getDate().getTime();
@@ -650,10 +666,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 // |________*__|__________|__________|
                 //             t1          t2          t3
                 // the s1 is in the ranging area of t1, so set data of s1 to t1 temporarily.
-                for(String key : sample1.getVs().keySet()) {
-                    values.putIfAbsent(key, new Number[timeline.size()]);
-                    values.get(key)[timeLineIdx] = sample1.getVs().get(key);
-                }
+                finalSample.put(timeLineIdx,sample1);
 
                 //         s1   s2
                 //         \/   \/
@@ -679,10 +692,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     }
 
                     // set the new value into array, only if the gap is smaller than the former one
-                    for(String key : sample2.getVs().keySet()) {
-                        values.putIfAbsent(key, new Number[timeline.size()]);
-                        values.get(key)[timeLineIdx] = sample2.getVs().get(key);
-                    }
+                    finalSample.put(timeLineIdx,sample2);
                     // got a new value, use the new gap to compare
                     gap1 = gap2;
 
@@ -699,6 +709,14 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 }
                 timeLineIdx += 1;
                 sampleIdx1 = sampleIdx2;
+            }
+
+            Granularity.quantileCalculation(granularity,finalSample.values().stream().toList(),digests);
+            for (Map.Entry<Integer,Sample> sampleEntry: finalSample.entrySet()){
+                for(String key : sampleEntry.getValue().getVs().keySet()) {
+                    values.putIfAbsent(key, new Number[timeline.size()]);
+                    values.get(key)[sampleEntry.getKey()] = sampleEntry.getValue().getVs().get(key);
+                }
             }
 
             // 补充null数据，取null上一个点的数据
@@ -793,6 +811,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         includedFields.add(MeasurementEntity.FIELD_DATE);
         includedFields.add(MeasurementEntity.FIELD_TAGS);
         includedFields.add(MeasurementEntity.FIELD_SAMPLES);
+        includedFields.add(MeasurementEntity.FIELD_DIGEST);
+        includedFields.add(MeasurementEntity.FIELD_GRANULARITY);
 
         Query query = new Query(criteria);
         query.fields().include(includedFields.toArray(new String[]{}));
@@ -821,6 +841,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 Long first = null, last = null;
                 List<MeasurementEntity> entities = entry.getValue();
                 List<Map<String, Object>> samples = new ArrayList<>();
+                List<Map<String, Object>> digests = new ArrayList<>();
                 // the last value should not be included, it should be [start, end)
                 for (long time = innerStart; time < innerEnd && idx < entry.getValue().size(); time += interval) {
                     MeasurementEntity entity = entities.get(idx);
@@ -839,7 +860,10 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     nextGranularitySample.setDate(new Date(time));
                     nextGranularitySample.setVs(entity.averageValues());
                     samples.add(nextGranularitySample.toMap());
-
+                    TDigestEntity nextGranularityDigest = new TDigestEntity();
+                    nextGranularityDigest.setDate(new Date(time));
+                    nextGranularityDigest.setDigest(entity.getDigestBytes());
+                    digests.add(nextGranularityDigest.toMap());
                     idx += 1;
                 }
 
@@ -861,7 +885,12 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 // affect the data since the generated value will always be the same.
                 ss.put("$slice", 200);
                 ss.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
+                Document digest = new Document();
+                digest.put("$each", digests);
+                digest.put("$slice", 200);
+                digest.put("$sort", new Document().append(TDigestEntity.FIELD_DATE, -1));
                 Update update = new Update().push(MeasurementEntity.FIELD_SAMPLES, ss)
+                        .push(MeasurementEntity.FIELD_DIGEST, digest)
                         .min(MeasurementEntity.FIELD_FIRST, new Date(first))
                         .max(MeasurementEntity.FIELD_LAST, new Date(last));
 
