@@ -2365,7 +2365,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         final Map<String, String> mapPdkHash = all.stream()
                 .filter(e -> StringUtils.isNotBlank(e.getRealName()))
                 .collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, DataSourceDefinitionDto::getRealName, (e1, e2) -> e2));
-        databaseTypes.forEach(item -> Optional.ofNullable(mapPdkHash.get(item.get(PDK_HASH))).ifPresent(n -> item.put(DATABASE_TYPE, n)));
+        databaseTypes.forEach(item -> Optional.ofNullable(mapPdkHash.get(item.get(PDK_HASH))).ifPresent(n -> item.put(DATABASE_TYPE_HUMP, n)));
         return databaseTypes;
     }
 
