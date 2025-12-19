@@ -549,66 +549,134 @@ public class ConnectorManager {
 	@DependsOn({"restTemplateOperator", "configCenter"})
 	@Primary
 	public ClientMongoOperator initMongoOperator() {
-		MongoTemplate mongoTemplate = null;
-		MongoClient client = null;
 		try {
-			if (StringUtils.isNotBlank(mongoURI)) {
-				MongoClientSettings.Builder builder = MongoClientSettings.builder();
-				builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
-				builder.applyConnectionString(new ConnectionString(mongoURI));
-				if (ssl) {
-					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
-					String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
-					List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
+			MongoClient client = createMongoClient();
+			MongoTemplate mongoTemplate = createMongoTemplate(client);
 
-					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
-					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
-				}
-				client = MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
-				mongoTemplate = new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
-			}
-			clientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, new ConnectionString(mongoURI),restTemplateOperator, configCenter);
+			clientMongoOperator = new HttpClientMongoOperator(
+					mongoTemplate,
+					client,
+					new ConnectionString(mongoURI),
+					restTemplateOperator,
+					configCenter
+			);
 			clientMongoOperator.setCloudRegion(jobTags);
+			return clientMongoOperator;
 		} catch (Exception e) {
-			throw new RuntimeException(e);
+			throw new RuntimeException("Failed to initialize MongoDB operator", e);
 		}
-		return clientMongoOperator;
 	}
 
 	@Bean("pingClientMongoOperator")
 	@DependsOn({"restTemplateOperator", "configCenter"})
 	public ClientMongoOperator initPingMongoOperator() {
-		MongoTemplate mongoTemplate = null;
-		MongoClient client = null;
 		try {
-			if (StringUtils.isNotBlank(mongoURI)) {
-				MongoClientSettings.Builder builder = MongoClientSettings.builder();
-				builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
-				builder.applyConnectionString(new ConnectionString(mongoURI));
+			MongoClient client = createMongoClient();
+			MongoTemplate mongoTemplate = createMongoTemplate(client);
 
-				if (ssl) {
-					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
-					String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
-					List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
-
-					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
-					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
-				}
-				client = MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
-				mongoTemplate = new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
-			}
-			pingClientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, new ConnectionString(mongoURI) ,new RestTemplateOperator(
+			RestTemplateOperator pingRestTemplateOperator = new RestTemplateOperator(
 					baseURLs,
 					restRetryTime,
-					() -> {
-						return 2000L;
-					}, 1000, 30000, 30000
-			), configCenter);
+					() -> 2000L,
+					1000,
+					30000,
+					30000
+			);
+
+			pingClientMongoOperator = new HttpClientMongoOperator(
+					mongoTemplate,
+					client,
+					new ConnectionString(mongoURI),
+					pingRestTemplateOperator,
+					configCenter
+			);
 			pingClientMongoOperator.setCloudRegion(jobTags);
+			return pingClientMongoOperator;
 		} catch (Exception e) {
-			throw new RuntimeException(e);
+			throw new RuntimeException("Failed to initialize ping MongoDB operator", e);
 		}
-		return pingClientMongoOperator;
+	}
+
+	/**
+	 * 创建 MongoClient 实例
+	 *
+	 * @return MongoClient 实例
+	 * @throws Exception 创建失败时抛出异常
+	 */
+	private MongoClient createMongoClient() throws Exception {
+		if (StringUtils.isBlank(mongoURI)) {
+			return null;
+		}
+
+		MongoClientSettings.Builder builder = MongoClientSettings.builder();
+		builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
+		builder.applyConnectionString(new ConnectionString(mongoURI));
+
+		if (ssl) {
+			configureSSL(builder);
+		}
+
+		return MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
+	}
+
+	/**
+	 * 创建 MongoTemplate 实例
+	 *
+	 * @param client MongoClient 实例
+	 * @return MongoTemplate 实例,如果 client 为 null 则返回 null
+	 */
+	private MongoTemplate createMongoTemplate(MongoClient client) {
+		if (client == null) {
+			return null;
+		}
+		return new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
+	}
+
+	/**
+	 * 配置 SSL 设置
+	 *
+	 * @param builder MongoClientSettings.Builder 实例
+	 * @throws Exception SSL 配置失败时抛出异常
+	 */
+	private void configureSSL(MongoClientSettings.Builder builder) throws Exception {
+		SSLContext sslContext = createSSLContext();
+		builder.applyToSslSettings(sslSettingsBuilder -> {
+			sslSettingsBuilder.context(sslContext)
+					.enabled(true)
+					.invalidHostNameAllowed(true);
+		});
+	}
+
+	/**
+	 * 创建 SSL 上下文
+	 *
+	 * @return SSLContext 实例
+	 * @throws Exception 创建失败时抛出异常
+	 */
+	private SSLContext createSSLContext() throws Exception {
+		// 检查是否允许无效证书
+		if (isAllowInvalidCertificates()) {
+			return SSLUtil.createSSLContext();
+		}
+
+		// 使用证书和私钥创建 SSL 上下文
+		List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
+		String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
+		List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
+
+		return SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
+	}
+
+	/**
+	 * 检查 URI 中是否配置了允许无效证书
+	 *
+	 * @return true 如果允许无效证书,否则返回 false
+	 */
+	private boolean isAllowInvalidCertificates() {
+		return mongoURI != null &&
+				(mongoURI.contains("tlsAllowInvalidCertificates=true") ||
+				 mongoURI.contains("sslAllowInvalidCertificates=true") ||
+				 mongoURI.contains("tlsInsecure=true"));
 	}
 
 	@Bean("targetProgressRateStats")
