@@ -3,6 +3,7 @@ package com.tapdata.tm.monitor.entity;
 import com.tapdata.tm.monitor.constant.Granularity;
 import com.tdunning.math.stats.MergingDigest;
 import com.tdunning.math.stats.TDigest;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.utils.NumberUtils;
 import lombok.Data;
@@ -26,7 +27,6 @@ public class MeasurementEntity {
     public static final String FIELD_LAST = "last";
     public static final String FIELD_TAGS = "tags";
     public static final String FIELD_SAMPLES = "ss";
-    public static final String FIELD_DIGEST = "digest";
     public static final String INPUT_QPS = "inputQps";
     public static final String OUTPUT_QPS = "outputQps";
     public static final String MAX_INPUT_QPS = "maxInputQps";
@@ -35,37 +35,25 @@ public class MeasurementEntity {
     public static final String OUTPUT_SIZE_QPS = "outputSizeQps";
     public static final String MAX_INPUT_SIZE_QPS = "maxInputSizeQps";
     public static final String MAX_OUTPUT_SIZE_QPS = "maxOutputSizeQps";
-    public static final String INPUT_QPS_95TH = "inputQps95th";
-    public static final String INPUT_QPS_99TH = "inputQps99th";
-    public static final String OUTPUT_QPS_95TH = "outputQps95th";
-    public static final String OUTPUT_QPS_99TH = "outputQps99th";
-    public static final String INPUT_SIZE_QPS_95TH = "inputSizeQps95th";
-    public static final String INPUT_SIZE_QPS_99TH = "inputSizeQps99th";
-    public static final String OUTPUT_SIZE_QPS_95TH = "outputSizeQps95th";
-    public static final String OUTPUT_SIZE_QPS_99TH = "outputSizeQps99th";
-    public static final String REPLICATE_LAG = "replicateLag";
-    public static final String REPLICATE_LAG_95TH = "replicateLag95th";
-    public static final String REPLICATE_LAG_99TH = "replicateLag99th";
-
     
 
     @BsonId
     private String id;
 
-    @Field(FIELD_GRANULARITY)
+    @Field(MetricCons.F_GRANULARITY)
     private String granularity;
-    @Field(FIELD_DATE)
+    @Field(MetricCons.F_DATE)
     private Date date;
-    @Field(FIELD_SAMPLE_SIZE)
+    @Field(MetricCons.F_SIZE)
     private Long sampleSize;
-    @Field(FIELD_FIRST)
+    @Field(MetricCons.F_FIRST)
     private Date first;
-    @Field(FIELD_LAST)
+    @Field(MetricCons.F_LAST)
     private Date last;
 
-    @Field(FIELD_TAGS)
+    @Field(MetricCons.F_TAGS)
     private Map<String, String> tags;
-    @Field(FIELD_SAMPLES)
+    @Field(MetricCons.F_SAMPLES)
     private List<Sample> samples;
 
     @Field(FIELD_DIGEST)

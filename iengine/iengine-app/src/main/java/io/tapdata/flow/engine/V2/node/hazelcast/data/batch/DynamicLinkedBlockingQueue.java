@@ -167,9 +167,6 @@ public class DynamicLinkedBlockingQueue<E> {
     }
 
     public int drain(Collection<E> accept, int maxElements, long timeout, TimeUnit unit) throws InterruptedException {
-        if (isEmpty()) {
-            return 0;
-        }
         QueueHolder<E> h = holderRef.get();
         int drain = 0;
         if (h.migrating) {

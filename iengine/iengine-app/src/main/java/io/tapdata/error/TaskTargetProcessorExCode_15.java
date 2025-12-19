@@ -10,6 +10,8 @@ import io.tapdata.exception.TapExCode;
  **/
 @TapExClass(code = 15, module = "Task Target Processor", prefix = "TTP", describe = "Task target processor")
 public interface TaskTargetProcessorExCode_15 {
+    String LINE_SEPARATOR = "\n";
+
 	@TapExCode
 	String UNKNOWN_ERROR = "15001";
 
@@ -226,4 +228,19 @@ public interface TaskTargetProcessorExCode_15 {
 			solutionCN = "全量同步完成后，引擎会对数据库做一些额外的处理，比如自增列当前值对齐等，请查看是否权限不足导致操作失败，具体执行情况参考异常信息"
 	)
 	String PROCESS_CONNECTOR_AFTER_SNAPSHOT = "15024";
+    @TapExCode(
+        describe = "There are skipped error tables, and the task will stop at the end of full synchronization",
+        describeCN = "存在被跳过的错误表，全量同步结束时停止任务",
+        dynamicDescription = "There were {} table synchronization errors that were skipped",
+        dynamicDescriptionCN = "有 {} 张表同步错误被跳过处理",
+        solution = "1. Check the logs to view the error reasons for the skipped tables"
+            + LINE_SEPARATOR + "2. Fix the target model or adjust the data format"
+            + LINE_SEPARATOR + "3. Perform recovery operations on the error tables"
+            + LINE_SEPARATOR + "4. Restart the task and attempt to resynchronize the error tables",
+        solutionCN = "1. 检查日志，查看被跳过表的错误原因"
+            + LINE_SEPARATOR + "2. 修复目标模型或调整数据格式"
+            + LINE_SEPARATOR + "3. 将错误表进行恢复操作"
+            + LINE_SEPARATOR + "4. 重启任务，对错误表尝试重新同步"
+    )
+	String HAS_SKIP_ERROR_TABLE = "15025";
 }

@@ -19,26 +19,31 @@ public class DifferenceField {
     private Field targetField;
     private DifferenceTypeEnum type;
     private String applyType;
+    private Boolean isPrimaryKey = false;
 
 
     public static DifferenceField buildMissingField(String columnName,Field sourceField) {
-        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).type(DifferenceTypeEnum.Missing).build();
+        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).isPrimaryKey(sourceField.getPrimaryKey()).type(DifferenceTypeEnum.Missing).build();
     }
 
     public static DifferenceField buildAdditionalField(String columnName,Field targetField) {
-        return DifferenceField.builder().columnName(columnName).targetField(targetField).type(DifferenceTypeEnum.Additional).build();
+        return DifferenceField.builder().columnName(columnName).targetField(targetField).isPrimaryKey(targetField.getPrimaryKey()).type(DifferenceTypeEnum.Additional).build();
     }
 
     public static DifferenceField buildDifferentField(String columnName,Field sourceField,Field targetField) {
-        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).targetField(targetField).type(DifferenceTypeEnum.Different).build();
+        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).targetField(targetField).isPrimaryKey(sourceField.getPrimaryKey() || targetField.getPrimaryKey()).type(DifferenceTypeEnum.Different).build();
     }
 
     public static DifferenceField buildPrecisionField(String columnName,Field sourceField,Field targetField) {
-        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).targetField(targetField).type(DifferenceTypeEnum.Precision).build();
+        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).targetField(targetField).isPrimaryKey(sourceField.getPrimaryKey() || targetField.getPrimaryKey()).type(DifferenceTypeEnum.Precision).build();
     }
 
     public static DifferenceField buildCannotWriteField(String columnName,Field sourceField,Field targetField) {
-        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).targetField(targetField).type(DifferenceTypeEnum.CannotWrite).build();
+        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).targetField(targetField).isPrimaryKey(sourceField.getPrimaryKey() || targetField.getPrimaryKey()).type(DifferenceTypeEnum.CannotWrite).build();
+    }
+
+    public static DifferenceField buildPrimaryKeyInconsistencyField(String columnName,Field sourceField,Field targetField) {
+        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).targetField(targetField).isPrimaryKey(true).type(DifferenceTypeEnum.PrimaryKeyInconsistency).build();
     }
 
     @Override

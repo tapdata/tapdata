@@ -200,7 +200,7 @@ public class DataSourceController extends BaseController {
         //隐藏密码
         List<DataSourceConnectionDto> dataSourceConnectionDtoList = dataSourceService.findAll(filter.getWhere(), getLoginUser());
         List<AllDataSourceConnectionVo> allDataSourceConnectionVoList = BeanUtil.deepCloneList(dataSourceConnectionDtoList, AllDataSourceConnectionVo.class);
-
+        dataSourceService.buildPdkRealName(dataSourceConnectionDtoList, getLoginUser());
         return success(allDataSourceConnectionVoList);
     }
 

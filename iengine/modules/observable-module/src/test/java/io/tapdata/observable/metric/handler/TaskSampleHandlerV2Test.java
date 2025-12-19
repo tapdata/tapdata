@@ -1,5 +1,6 @@
 package io.tapdata.observable.metric.handler;
 
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -255,12 +256,12 @@ class TaskSampleHandlerV2Test {
 
 			assertEquals(0, sourceTaskInputOutputCounterQueue.size());
 			assertEquals(0, targetTaskInputOutputCounterQueue.size());
-			assertEquals(3L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.INPUT_INSERT_TOTAL).value().longValue());
-			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.INPUT_UPDATE_TOTAL).value().longValue());
-			assertEquals(1L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.INPUT_DELETE_TOTAL).value().longValue());
-			assertEquals(1L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.OUTPUT_INSERT_TOTAL).value().longValue());
-			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.OUTPUT_UPDATE_TOTAL).value().longValue());
-			assertEquals(3L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.OUTPUT_DELETE_TOTAL).value().longValue());
+			assertEquals(3L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL).value().longValue());
+			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL).value().longValue());
+			assertEquals(1L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_INPUT_DELETE_TOTAL).value().longValue());
+			assertEquals(1L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL).value().longValue());
+			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL).value().longValue());
+			assertEquals(3L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL).value().longValue());
 		}
 
 		@Test
@@ -276,12 +277,12 @@ class TaskSampleHandlerV2Test {
 
 			assertEquals(0, sourceTaskInputOutputCounterQueue.size());
 			assertEquals(0, targetTaskInputOutputCounterQueue.size());
-			assertEquals(3L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.INPUT_INSERT_TOTAL).value().longValue());
-			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.INPUT_UPDATE_TOTAL).value().longValue());
-			assertEquals(1L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.INPUT_DELETE_TOTAL).value().longValue());
-			assertEquals(0L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.OUTPUT_INSERT_TOTAL).value().longValue());
-			assertEquals(0L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.OUTPUT_UPDATE_TOTAL).value().longValue());
-			assertEquals(0L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.OUTPUT_DELETE_TOTAL).value().longValue());
+			assertEquals(3L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL).value().longValue());
+			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL).value().longValue());
+			assertEquals(1L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_INPUT_DELETE_TOTAL).value().longValue());
+			assertEquals(0L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL).value().longValue());
+			assertEquals(0L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL).value().longValue());
+			assertEquals(0L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL).value().longValue());
 			assertEquals(1, ReflectionTestUtils.getField(taskSampleHandlerV2, "missingTarget"));
 		}
 
@@ -305,12 +306,12 @@ class TaskSampleHandlerV2Test {
 
 			assertEquals(0, sourceTaskInputOutputCounterQueue.size());
 			assertEquals(0, targetTaskInputOutputCounterQueue.size());
-			assertEquals(3L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.INPUT_INSERT_TOTAL).value().longValue());
-			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.INPUT_UPDATE_TOTAL).value().longValue());
-			assertEquals(1L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.INPUT_DELETE_TOTAL).value().longValue());
-			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.OUTPUT_INSERT_TOTAL).value().longValue());
-			assertEquals(4L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.OUTPUT_UPDATE_TOTAL).value().longValue());
-			assertEquals(6L, taskSampleHandlerV2.getCollector().getCounterSampler(Constants.OUTPUT_DELETE_TOTAL).value().longValue());
+			assertEquals(3L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL).value().longValue());
+			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL).value().longValue());
+			assertEquals(1L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_INPUT_DELETE_TOTAL).value().longValue());
+			assertEquals(2L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL).value().longValue());
+			assertEquals(4L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL).value().longValue());
+			assertEquals(6L, taskSampleHandlerV2.getCollector().getCounterSampler(MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL).value().longValue());
 		}
 	}
 }
