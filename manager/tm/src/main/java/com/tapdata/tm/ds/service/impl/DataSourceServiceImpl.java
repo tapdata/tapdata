@@ -120,7 +120,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 //@Setter(onMethod_ = {@Autowired})
 public class DataSourceServiceImpl extends DataSourceService{
-    public static final String DATABASETYPE = "databaseType";
+    public static final String DATABASE_TYPE_HUMP = "databaseType";
     public static final String PDK_HASH = "pdkHash";
     public static final String DATABASE_TYPE = "database_type";
 
@@ -2039,7 +2039,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         Criteria criteria = Criteria.where("_id").is(id);
         Query query = new Query(criteria);
-        query.fields().include("_id", DATABASE_TYPE, "encryptConfig");
+        query.fields().include("_id", "database_type", "encryptConfig");
         DataSourceConnectionDto connectionDto = findOne(query, user);
         if (connectionDto == null) {
             return;
@@ -2353,7 +2353,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                     }
                 })),
                 Aggregation.group(DATABASE_TYPE)
-                        .first(DATABASE_TYPE).as(DATABASETYPE)
+                        .first(DATABASE_TYPE).as(DATABASE_TYPE_HUMP)
                         .first(PDK_HASH).as(PDK_HASH)
         );
         final AggregationResults<Document> results = repository.aggregate(aggregation, Document.class);
@@ -2362,7 +2362,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         final List<Document> resultsItems = results.getMappedResults();
         for (Document doc : resultsItems) {
             final Map<String, String> result = new HashMap<>();
-            result.put(DATABASETYPE, doc.getString(DATABASETYPE));
+            result.put(DATABASE_TYPE_HUMP, doc.getString(DATABASE_TYPE_HUMP));
             result.put(PDK_HASH, doc.getString(PDK_HASH));
             Optional.ofNullable(doc.getString(PDK_HASH)).ifPresent(pdkHashList::add);
             databaseTypes.add(result);
