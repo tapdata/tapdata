@@ -46,7 +46,7 @@ public class SSLUtil {
 	public static SSLContext createSSLContext(){
 		SSLContext sslContext = null;
 		try {
-			sslContext = SSLContext.getInstance("SSL");
+			sslContext = SSLContext.getInstance("TLS");
 		} catch (NoSuchAlgorithmException e) {
 			throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
 		}
