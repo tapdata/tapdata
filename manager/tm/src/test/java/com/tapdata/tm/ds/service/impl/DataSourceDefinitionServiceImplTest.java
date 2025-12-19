@@ -118,13 +118,13 @@ class DataSourceDefinitionServiceImplTest {
         @Test
         void shouldSetNameAsRealName() {
             DataSourceTypeDto dataSourceTypeDto = new DataSourceTypeDto();
-            dataSourceTypeDto.setName("name");
+            dataSourceTypeDto.setRealName("name");
             dataSourceDefinitionService.nameAsRealNameForDataSource(List.of(dataSourceTypeDto));
         }
         @Test
         void shouldDoNothingWhenNameIsBlank() {
             DataSourceTypeDto dataSourceTypeDto = new DataSourceTypeDto();
-            dataSourceTypeDto.setName("");
+            dataSourceTypeDto.setRealName("");
             dataSourceDefinitionService.nameAsRealNameForDataSource(List.of(dataSourceTypeDto));
         }
     }
