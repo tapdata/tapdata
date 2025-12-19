@@ -148,6 +148,10 @@
                     <artifactId>commons-beanutils</artifactId>
                     <groupId>commons-beanutils</groupId>
                 </exclusion>
+                <exclusion>
+                    <artifactId>jose4j</artifactId>
+                    <groupId>org.bitbucket.b_c</groupId>
+                </exclusion>
 
             </exclusions>
         </dependency>
@@ -430,9 +434,15 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>org.lz4</groupId>
+            <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-            <version>1.8.1</version>
+            <version>1.10.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.bitbucket.b_c</groupId>
+            <artifactId>jose4j</artifactId>
+            <version>0.9.6</version>
         </dependency>
 
         <dependency>
