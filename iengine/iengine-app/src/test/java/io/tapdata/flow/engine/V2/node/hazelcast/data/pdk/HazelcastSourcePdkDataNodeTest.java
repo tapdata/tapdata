@@ -105,6 +105,7 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -418,6 +419,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         }
 
         MergeHazelcastSourcePdkDataNode instance;
+        ISkipErrorTable skipErrorTable;
         SyncProgress syncProgress;
         ObsLogger obsLogger;
         AtomicBoolean sourceRunnerFirstTime;
@@ -430,6 +432,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         @BeforeEach
         void init() {
             instance = mock(MergeHazelcastSourcePdkDataNode.class);
+            skipErrorTable = mock(ISkipErrorTable.class);
 
             syncProgress = mock(SyncProgress.class);
             ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
@@ -448,6 +451,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             newTables = mock(CopyOnWriteArrayList.class);
             ReflectionTestUtils.setField(instance, "newTables", newTables);
             ReflectionTestUtils.setField(instance, "dataProcessorContext", dataProcessorContext);
+            ReflectionTestUtils.setField(instance, "skipErrorTable", skipErrorTable);
             instance.readBatchSize = 100;
         }
 
