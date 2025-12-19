@@ -1,5 +1,6 @@
 package com.tapdata.constant;
 
+import com.tapdata.tm.utils.TrustAllX509TrustManager;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -50,20 +51,7 @@ public class SSLUtil {
 			throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
 		}
 		try {
-			sslContext.init(null, new TrustManager[]{new X509TrustManager() {
-				@Override
-				public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-				}
-
-				@Override
-				public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-				}
-
-				@Override
-				public X509Certificate[] getAcceptedIssuers() {
-					return null;
-				}
-			}}, new SecureRandom());
+			sslContext.init(null, new TrustManager[]{ new TrustAllX509TrustManager()}, new SecureRandom());
 		} catch (KeyManagementException e) {
 			throw new RuntimeException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
 		}
