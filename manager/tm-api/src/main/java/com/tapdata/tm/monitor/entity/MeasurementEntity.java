@@ -1,5 +1,6 @@
 package com.tapdata.tm.monitor.entity;
 
+import com.tapdata.tm.commons.metrics.MetricCons;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.utils.NumberUtils;
 import lombok.Data;
@@ -14,41 +15,24 @@ import java.util.Map;
 @Data
 public class MeasurementEntity {
     public static final String COLLECTION_NAME = "AgentMeasurementV2";
-    public static final String FIELD_ID = "_id";
-    public static final String FIELD_GRANULARITY = "grnty";
-    public static final String FIELD_DATE = "date";
-    public static final String FIELD_SAMPLE_SIZE = "size";
-    public static final String FIELD_FIRST = "first";
-    public static final String FIELD_LAST = "last";
-    public static final String FIELD_TAGS = "tags";
-    public static final String FIELD_SAMPLES = "ss";
-    public static final String INPUT_QPS = "inputQps";
-    public static final String OUTPUT_QPS = "outputQps";
-    public static final String MAX_INPUT_QPS = "maxInputQps";
-    public static final String MAX_OUTPUT_QPS = "maxOutputQps";
-    public static final String INPUT_SIZE_QPS = "inputSizeQps";
-    public static final String OUTPUT_SIZE_QPS = "outputSizeQps";
-    public static final String MAX_INPUT_SIZE_QPS = "maxInputSizeQps";
-    public static final String MAX_OUTPUT_SIZE_QPS = "maxOutputSizeQps";
-    
 
     @BsonId
     private String id;
 
-    @Field(FIELD_GRANULARITY)
+    @Field(MetricCons.F_GRANULARITY)
     private String granularity;
-    @Field(FIELD_DATE)
+    @Field(MetricCons.F_DATE)
     private Date date;
-    @Field(FIELD_SAMPLE_SIZE)
+    @Field(MetricCons.F_SIZE)
     private Long sampleSize;
-    @Field(FIELD_FIRST)
+    @Field(MetricCons.F_FIRST)
     private Date first;
-    @Field(FIELD_LAST)
+    @Field(MetricCons.F_LAST)
     private Date last;
 
-    @Field(FIELD_TAGS)
+    @Field(MetricCons.F_TAGS)
     private Map<String, String> tags;
-    @Field(FIELD_SAMPLES)
+    @Field(MetricCons.F_SAMPLES)
     private List<Sample> samples;
 
     public Map<String, Number> averageValues() {
@@ -68,19 +52,19 @@ public class MeasurementEntity {
                     Number value = entry.getValue();
 
                     // 跟踪最大输入和输出QPS
-                    if (INPUT_QPS.equals(key) && value != null) {
+                    if (MetricCons.SS.VS.F_INPUT_QPS.equals(key) && value != null) {
                         if (compareNumbers(value, maxInputQps) > 0) {
                             maxInputQps = value;
                         }
-                    } else if (OUTPUT_QPS.equals(key) && value != null) {
+                    } else if (MetricCons.SS.VS.F_OUTPUT_QPS.equals(key) && value != null) {
                         if (compareNumbers(value, maxOutputQps) > 0) {
                             maxOutputQps = value;
                         }
-                    } else if (INPUT_SIZE_QPS.equals(key) && value != null) {
+                    } else if (MetricCons.SS.VS.F_INPUT_SIZE_QPS.equals(key) && value != null) {
                         if (compareNumbers(value, maxInputSizeQps) > 0) {
                             maxInputSizeQps = value;
                         }
-                    } else if (OUTPUT_SIZE_QPS.equals(key) && value != null) {
+                    } else if (MetricCons.SS.VS.F_OUTPUT_SIZE_QPS.equals(key) && value != null) {
                         if (compareNumbers(value, maxOutputSizeQps) > 0) {
                             maxOutputSizeQps = value;
                         }
@@ -119,10 +103,10 @@ public class MeasurementEntity {
                 }
             }
 
-            finalKeyValueMap.put(MAX_INPUT_QPS, maxInputQps);
-            finalKeyValueMap.put(MAX_OUTPUT_QPS, maxOutputQps);
-            finalKeyValueMap.put(MAX_INPUT_SIZE_QPS, maxInputSizeQps);
-            finalKeyValueMap.put(MAX_OUTPUT_SIZE_QPS, maxOutputSizeQps);
+            finalKeyValueMap.put(MetricCons.SS.VS.F_MAX_INPUT_QPS, maxInputQps);
+            finalKeyValueMap.put(MetricCons.SS.VS.F_MAX_OUTPUT_QPS, maxOutputQps);
+            finalKeyValueMap.put(MetricCons.SS.VS.F_MAX_INPUT_SIZE_QPS, maxInputSizeQps);
+            finalKeyValueMap.put(MetricCons.SS.VS.F_MAX_OUTPUT_SIZE_QPS, maxOutputSizeQps);
         }
         return finalKeyValueMap;
     }
