@@ -542,7 +542,7 @@ public class DataSourceDefinitionServiceImpl extends DataSourceDefinitionService
             return;
         }
         for (DataSourceTypeDto dataSourceTypeDto : typeList) {
-            final String realName = dataSourceTypeDto.getName();
+            final String realName = dataSourceTypeDto.getRealName();
             if (StringUtils.isBlank(realName)) {
                 continue;
             }

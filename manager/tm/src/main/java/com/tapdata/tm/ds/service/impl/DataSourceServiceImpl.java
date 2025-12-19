@@ -485,7 +485,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
         List<DataSourceDefinitionDto> all = dataSourceDefinitionService.findByPdkHashList(pdkHashList, user);
         Map<String, String> mapPdkHash = all.stream().filter(e -> StringUtils.isNotBlank(e.getRealName())).collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, DataSourceDefinitionDto::getRealName, (e1, e2) -> e2));
-        connectionDto.forEach(item -> item.setPdkRealName(mapPdkHash.get(item.getPdkHash())));
+        connectionDto.forEach(item -> item.setPdkRealName(Optional.ofNullable(mapPdkHash.get(item.getPdkHash())).orElse(item.getName())));
     }
 
     public Page<DataSourceConnectionDto> list(Filter filter, boolean noSchema, UserDetail userDetail) {
@@ -2374,7 +2374,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         final Map<String, String> mapPdkHash = all.stream()
                 .filter(e -> StringUtils.isNotBlank(e.getRealName()))
                 .collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, DataSourceDefinitionDto::getRealName, (e1, e2) -> e2));
-        databaseTypes.forEach(item -> Optional.ofNullable(mapPdkHash.get(item.get(PDK_HASH))).ifPresent(n -> item.put(DATABASE_TYPE, n)));
+        databaseTypes.forEach(item -> Optional.ofNullable(mapPdkHash.get(item.get(PDK_HASH))).ifPresent(n -> item.put(DATABASE_TYPE_HUMP, n)));
         return databaseTypes;
     }
 
