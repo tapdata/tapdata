@@ -6801,4 +6801,48 @@ class TaskServiceImplTest {
             assertTrue(result.isEmpty());
         }
     }
+
+    @Nested
+    class getTargetConnectionIds_Test {
+
+        DAG dag;
+
+        @BeforeEach
+        void setUp() {
+            dag = mock(DAG.class);
+            doReturn(dag).when(taskDto).getDag();
+        }
+
+        @Test
+        void testGetTargetConnectionIds() {
+            // 模拟数据
+            String taskId = ObjectId.get().toHexString();
+            String tableNodeConnectionId = "table-node-connection-id";
+            String databaseNodeConnectionId = "database-node-connection-id";
+            LinkedList<DataParentNode<?>> targetNodes = new LinkedList<>();
+            targetNodes.add(new TableNode()); // 没有连接编号的测试
+            targetNodes.add(Optional.of(new TableNode()).map(n -> {
+                n.setConnectionId(tableNodeConnectionId);
+                return n;
+            }).get());
+            targetNodes.add(Optional.of(new DatabaseNode()).map(n -> {
+                n.setConnectionId(databaseNodeConnectionId);
+                return n;
+            }).get());
+
+            // 逻辑设置
+            doReturn(targetNodes).when(dag).getTargetDataParentNode();
+            doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class));
+            doCallRealMethod().when(taskService).getTargetConnectionIds(eq(taskId));
+
+            // 执行方法
+            List<String> targetConnectionIds = taskService.getTargetConnectionIds(taskId);
+
+            // 验证结果
+            assertNotNull(targetConnectionIds);
+            assertEquals(2, targetConnectionIds.size());
+            assertEquals(tableNodeConnectionId, targetConnectionIds.get(0));
+            assertEquals(databaseNodeConnectionId, targetConnectionIds.get(1));
+        }
+    }
 }

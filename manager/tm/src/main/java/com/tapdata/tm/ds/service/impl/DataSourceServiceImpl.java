@@ -28,10 +28,7 @@ import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
-import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
@@ -2309,9 +2306,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         return DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> {
             Query query = new Query();
             query = repository.applyUserDetail(query, user);
-            
+
             Document queryObject = query.getQueryObject();
-            
+
             Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(Criteria.matchingDocumentStructure(new org.springframework.data.mongodb.core.schema.MongoJsonSchema() {
                     @Override
@@ -2330,14 +2327,14 @@ public class DataSourceServiceImpl extends DataSourceService{
 
             AggregationResults<Document> results = repository.aggregate(aggregation, Document.class);
             List<Map<String, String>> databaseTypes = new ArrayList<>();
-            
+
             for (Document doc : results) {
                 Map<String, String> result = new HashMap<>();
                 result.put("databaseType", doc.getString("databaseType"));
                 result.put("pdkHash", doc.getString("pdkHash"));
                 databaseTypes.add(result);
             }
-            
+
             return databaseTypes;
         });
     }
@@ -2359,6 +2356,24 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (CollectionUtils.isNotEmpty(dataSourceConnectionDtoList)) {
             dataSourceConnectionDtoList.forEach(v -> sendScheduleMonitor(v, userDetailMap.get(v.getUserId())));
         }
+    }
+
+    @Override
+    public Set<CapabilityEnum> checkCapabilities(String connectionId, Set<CapabilityEnum> capabilities) {
+        Set<CapabilityEnum> notSupports = new HashSet<>(capabilities);
+        Query datasSourceQuery = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(connectionId)));
+        datasSourceQuery.fields().include("capabilities");
+        DataSourceConnectionDto dto = findOne(datasSourceQuery);
+        Optional.ofNullable(dto)
+            .map(DataSourceConnectionDto::getCapabilities)
+            .ifPresent(list ->
+                list.forEach(item ->
+                    notSupports.removeIf(capability ->
+                        capability.getId().equalsIgnoreCase(item.getId())
+                    )
+                )
+            );
+        return notSupports;
     }
 
     public void sendScheduleMonitor(DataSourceConnectionDto connectionDto, UserDetail user) {
