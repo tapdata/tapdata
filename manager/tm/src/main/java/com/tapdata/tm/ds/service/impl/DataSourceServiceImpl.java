@@ -28,10 +28,7 @@ import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
-import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
@@ -2395,6 +2392,24 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (CollectionUtils.isNotEmpty(dataSourceConnectionDtoList)) {
             dataSourceConnectionDtoList.forEach(v -> sendScheduleMonitor(v, userDetailMap.get(v.getUserId())));
         }
+    }
+
+    @Override
+    public Set<CapabilityEnum> checkCapabilities(String connectionId, Set<CapabilityEnum> capabilities) {
+        Set<CapabilityEnum> notSupports = new HashSet<>(capabilities);
+        Query datasSourceQuery = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(connectionId)));
+        datasSourceQuery.fields().include("capabilities");
+        DataSourceConnectionDto dto = findOne(datasSourceQuery);
+        Optional.ofNullable(dto)
+            .map(DataSourceConnectionDto::getCapabilities)
+            .ifPresent(list ->
+                list.forEach(item ->
+                    notSupports.removeIf(capability ->
+                        capability.getId().equalsIgnoreCase(item.getId())
+                    )
+                )
+            );
+        return notSupports;
     }
 
     public void sendScheduleMonitor(DataSourceConnectionDto connectionDto, UserDetail user) {

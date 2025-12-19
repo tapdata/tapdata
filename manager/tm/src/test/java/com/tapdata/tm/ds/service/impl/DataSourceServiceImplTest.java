@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
@@ -27,6 +28,7 @@ import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
+import io.tapdata.pdk.apis.entity.Capability;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -1253,6 +1255,52 @@ class DataSourceServiceImplTest {
             verify(dataSourceRepository, times(1)).applyUserDetail(any(Query.class), any(UserDetail.class));
             verify(query, times(1)).getQueryObject();
             verify(results, times(1)).getMappedResults();
+        }
+    }
+
+    @Nested
+    class checkCapabilities_Test {
+
+        String connectionId;
+        CapabilityEnum capabilityEnum;
+        Set<CapabilityEnum> capabilities;
+        DataSourceConnectionDto dto;
+
+        @BeforeEach
+        void setUp() {
+            connectionId = ObjectId.get().toHexString();
+            capabilityEnum = CapabilityEnum.BATCH_READ_FUNCTION;
+            capabilities = Set.of(capabilityEnum);
+
+            dto = mock(DataSourceConnectionDto.class);
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            doReturn(dto).when(dataSourceService).findOne(any(Query.class));
+            doCallRealMethod().when(dataSourceService).checkCapabilities(anyString(), anySet());
+        }
+
+        @Test
+        void testSupport() {
+            List<Capability> dtoCapabilities = new ArrayList<>();
+            dtoCapabilities.add(Capability.create(capabilityEnum.getId()));
+
+            doReturn(dtoCapabilities).when(dto).getCapabilities();
+            Set<CapabilityEnum> notSupports = dataSourceService.checkCapabilities(connectionId, capabilities);
+            assertNotNull(notSupports);
+            assertTrue(notSupports.isEmpty());
+        }
+
+        @Test
+        void testNotSupport() {
+            List<Capability> dtoCapabilities = new ArrayList<>();
+            dtoCapabilities.add(Capability.create(CapabilityEnum.EXPORT_EVENT_SQL_FUNCTION.getId()));
+
+            doReturn(dtoCapabilities).when(dto).getCapabilities();
+            Set<CapabilityEnum> notSupports = dataSourceService.checkCapabilities(connectionId, capabilities);
+            assertNotNull(notSupports);
+            assertEquals(1, notSupports.size());
+            for (CapabilityEnum e : capabilities) {
+                assertTrue(notSupports.contains(e), e.name());
+            }
         }
     }
 }
