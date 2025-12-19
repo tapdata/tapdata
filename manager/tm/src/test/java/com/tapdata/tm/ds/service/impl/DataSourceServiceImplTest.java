@@ -33,6 +33,8 @@ import org.junit.jupiter.api.*;
 import org.mockito.Answers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -1140,6 +1142,117 @@ class DataSourceServiceImplTest {
             assertNotNull(result);
             verify(externalStorageService, never()).findById(any(ObjectId.class));
             verify(dataSourceService, times(1)).importEntity(connectionDto, user);
+        }
+    }
+
+    @Nested
+    @DisplayName("buildPdkRealName Tests")
+    class buildPdkRealNameTest {
+        DataSourceServiceImpl dc;
+        DataSourceDefinitionService dataSourceDefinitionService;
+        @BeforeEach
+        void init() {
+            dc = mock(DataSourceServiceImpl.class);
+            dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(dc, "dataSourceDefinitionService", dataSourceDefinitionService);
+        }
+
+        @Test
+        void shouldDoNothingWhenPdkHashListIsEmpty() {
+            doCallRealMethod().when(dc).buildPdkRealName(anyList(), any(UserDetail.class));
+            when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+            dc.buildPdkRealName(Collections.singletonList(new DataSourceConnectionDto()), mock(UserDetail.class));
+            verify(dataSourceDefinitionService, times(0)).findByPdkHashList(anySet(), any(UserDetail.class));
+        }
+
+        @Test
+        void shouldDoNothingWhenPdkHashListNotEmpty() {
+            doCallRealMethod().when(dc).buildPdkRealName(anyList(), any(UserDetail.class));
+            List<DataSourceConnectionDto> connectionDto = new ArrayList<>();
+            DataSourceConnectionDto item = new DataSourceConnectionDto();
+            item.setPdkHash("123");
+            connectionDto.add(item);
+            dc.buildPdkRealName(connectionDto, mock(UserDetail.class));
+            List<DataSourceDefinitionDto> all = new ArrayList<>();
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            definitionDto.setRealName("123");
+            definitionDto.setPdkHash("123");
+            all.add(definitionDto);
+            when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(all);
+            verify(dataSourceDefinitionService, times(1)).findByPdkHashList(anySet(), any(UserDetail.class));
+        }
+    }
+
+    @Nested
+    class bulidGetDatabaseTypesTest {
+        DataSourceServiceImpl dc;
+        DataSourceDefinitionService dataSourceDefinitionService;
+        DataSourceRepository dataSourceRepository;
+        @BeforeEach
+        void init() {
+            dc = mock(DataSourceServiceImpl.class);
+            dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
+            dataSourceRepository = mock(DataSourceRepository.class);
+            ReflectionTestUtils.setField(dc, "repository", dataSourceRepository);
+            ReflectionTestUtils.setField(dc, "dataSourceDefinitionService", dataSourceDefinitionService);
+        }
+
+        @Test
+        void shouldDoNothingWhenPdkHashListIsEmpty() {
+            Query query = mock(Query.class);
+            Document queryObject = new Document();
+            when(query.getQueryObject()).thenReturn(queryObject);
+            when(dataSourceRepository.applyUserDetail(any(Query.class), any(UserDetail.class))).thenReturn(query);
+
+            List<Document> documents = new ArrayList<>();
+            AggregationResults<Document> results = mock(AggregationResults.class);
+            when(results.getMappedResults()).thenReturn(documents);
+            when(dataSourceRepository.aggregate(any(Aggregation.class), any(Class.class))).thenReturn(results);
+
+            doCallRealMethod().when(dc).bulidGetDatabaseTypes(any(UserDetail.class));
+
+            when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            dc.bulidGetDatabaseTypes(mock(UserDetail.class));
+            verify(dataSourceDefinitionService, times(0)).findByPdkHashList(anySet(), any(UserDetail.class));
+            verify(dataSourceRepository, times(1)).aggregate(any(Aggregation.class), any(Class.class));
+            verify(dataSourceRepository, times(1)).applyUserDetail(any(Query.class), any(UserDetail.class));
+            verify(query, times(1)).getQueryObject();
+            verify(results, times(1)).getMappedResults();
+        }
+
+        @Test
+        void shouldDoNothingWhenPdkHashListNotEmpty() {
+            Query query = mock(Query.class);
+            Document queryObject = new Document();
+            when(query.getQueryObject()).thenReturn(queryObject);
+            when(dataSourceRepository.applyUserDetail(any(Query.class), any(UserDetail.class))).thenReturn(query);
+
+            List<Document> documents = new ArrayList<>();
+            Document d1 = new Document();
+            d1.put(DataSourceServiceImpl.PDK_HASH, "123456");
+            documents.add(d1);
+            AggregationResults<Document> results = mock(AggregationResults.class);
+            when(results.getMappedResults()).thenReturn(documents);
+            when(dataSourceRepository.aggregate(any(Aggregation.class), any(Class.class))).thenReturn(results);
+
+            doCallRealMethod().when(dc).bulidGetDatabaseTypes(any(UserDetail.class));
+
+            List<DataSourceDefinitionDto> all = new ArrayList<>();
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            definitionDto.setRealName("123");
+            definitionDto.setPdkHash("123456");
+            all.add(definitionDto);
+            when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(all);
+
+            dc.bulidGetDatabaseTypes(mock(UserDetail.class));
+            verify(dataSourceDefinitionService, times(1)).findByPdkHashList(anySet(), any(UserDetail.class));
+            verify(dataSourceRepository, times(1)).aggregate(any(Aggregation.class), any(Class.class));
+            verify(dataSourceRepository, times(1)).applyUserDetail(any(Query.class), any(UserDetail.class));
+            verify(query, times(1)).getQueryObject();
+            verify(results, times(1)).getMappedResults();
         }
     }
 }

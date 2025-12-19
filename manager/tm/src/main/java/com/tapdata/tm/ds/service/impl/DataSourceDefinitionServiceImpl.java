@@ -9,7 +9,6 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
@@ -180,8 +179,18 @@ public class DataSourceDefinitionServiceImpl extends DataSourceDefinitionService
         } catch (Exception e) {
             log.error("findByPdkHash updateConfigPropertiesTitle", e.getMessage());
         }
-
+        nameAsRealName(dataSourceDefinition);
         return dataSourceDefinition;
+    }
+
+    protected void nameAsRealName(DataSourceDefinitionDto dataSourceDefinition) {
+        if (null == dataSourceDefinition) {
+            return;
+        }
+        final String realName = dataSourceDefinition.getRealName();
+        if (StringUtils.isNotBlank(realName)) {
+            dataSourceDefinition.setName(realName);
+        }
     }
 
     public List<DataSourceDefinitionDto> findByPdkHashList(Set<String> pdkHashList, UserDetail user) {
@@ -198,7 +207,7 @@ public class DataSourceDefinitionServiceImpl extends DataSourceDefinitionService
      * 按照cookie的lang更新属性title，支持pdk多语言
      * @param dataSourceDefinition dataSourceDefinition
      */
-    private void updateConfigPropertiesTitle(DataSourceDefinitionDto dataSourceDefinition) {
+    protected void updateConfigPropertiesTitle(DataSourceDefinitionDto dataSourceDefinition) {
         if (!Objects.isNull(dataSourceDefinition)
                 && !Objects.isNull(dataSourceDefinition.getProperties())) {
             LinkedHashMap<String, Object> properties = dataSourceDefinition.getProperties();
@@ -521,7 +530,24 @@ public class DataSourceDefinitionServiceImpl extends DataSourceDefinitionService
         Page<DataSourceTypeDto> dataSourceTypeDtoPage = new Page<>();
         dataSourceTypeDtoPage.setTotal(count);
         dataSourceTypeDtoPage.setItems(typeList);
+        nameAsRealNameForDataSource(typeList);
         return dataSourceTypeDtoPage.getItems();
+    }
+
+    protected void nameAsRealNameForDataSource(List<DataSourceTypeDto> typeList) {
+        if (null == typeList) {
+            return;
+        }
+        if (typeList.isEmpty()) {
+            return;
+        }
+        for (DataSourceTypeDto dataSourceTypeDto : typeList) {
+            final String realName = dataSourceTypeDto.getName();
+            if (StringUtils.isBlank(realName)) {
+                continue;
+            }
+            dataSourceTypeDto.setName(realName);
+        }
     }
 
     public DataSourceDefinitionDto getMongoDbByDataSourceType(String dataSourceType, String... fields) {

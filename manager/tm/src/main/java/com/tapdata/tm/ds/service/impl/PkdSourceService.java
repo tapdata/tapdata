@@ -106,6 +106,7 @@ public class PkdSourceService {
 			//definitionDto.setId(Objects.nonNull(oldDefinitionDto) ? oldDefinitionDto.getId() : null);
 			definitionDto.setConnectionType(pdkSourceDto.getType());
 			definitionDto.setType(pdkSourceDto.getName());
+			definitionDto.setRealName(pdkSourceDto.getRealName());
 			definitionDto.setPdkType("pdk");
 			definitionDto.setPdkId(pdkSourceDto.getId());
 			definitionDto.setJarFile(jarFile.getOriginalFilename());

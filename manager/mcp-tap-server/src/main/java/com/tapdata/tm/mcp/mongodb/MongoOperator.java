@@ -12,6 +12,7 @@ import com.mongodb.connection.ConnectionPoolSettings;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.mcp.exception.McpException;
+import com.tapdata.tm.utils.TrustAllX509TrustManager;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
@@ -244,20 +245,7 @@ public class MongoOperator implements Closeable {
                         throw new McpException(String.format("Create ssl context failed %s", e.getMessage()), e);
                     }
                     try {
-                        sslContext.init(null, new TrustManager[]{new X509TrustManager() {
-                            @Override
-                            public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-                            }
-
-                            @Override
-                            public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-                            }
-
-                            @Override
-                            public X509Certificate[] getAcceptedIssuers() {
-                                return null;
-                            }
-                        }}, new SecureRandom());
+                        sslContext.init(null, new TrustManager[]{ new TrustAllX509TrustManager()}, new SecureRandom());
                     } catch (KeyManagementException e) {
                         throw new McpException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
                     }
