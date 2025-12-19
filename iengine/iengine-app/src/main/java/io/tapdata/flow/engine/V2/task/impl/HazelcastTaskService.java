@@ -253,7 +253,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				throw new IllegalArgumentException("After the master-slave merges nodes, the connection Python node is not supported. Please change to the Enhanced JS node.");
 			} else if (successors.stream().anyMatch(n -> n instanceof CustomProcessorNode)) {
 				throw new IllegalArgumentException("After the master-slave merges nodes, the connection Custom processor node is not supported. Please change to the Enhanced JS node.");
-			} else if (successors.stream().anyMatch(n -> n instanceof JsProcessorNode)) {
+			} else if (successors.stream().anyMatch(JsProcessorNode.class::isInstance)) {
 				throw new IllegalArgumentException("After the master-slave merges nodes, the connection standard js type is not supported. Please change the standard js to the default.");
 			}
 			return true;
