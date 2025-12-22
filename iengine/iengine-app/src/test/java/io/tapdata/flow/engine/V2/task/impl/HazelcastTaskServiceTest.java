@@ -1239,8 +1239,7 @@ public class HazelcastTaskServiceTest {
 
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
             HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
-            boolean result = hazelcastTaskService.testTaskUsingPreview(taskDto);
-            assertTrue(result);
+            assertThrows(IllegalArgumentException.class, () -> hazelcastTaskService.testTaskUsingPreview(taskDto));
         }
 
         @Test
