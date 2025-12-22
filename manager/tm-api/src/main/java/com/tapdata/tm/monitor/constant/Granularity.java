@@ -157,26 +157,14 @@ public class Granularity {
         }
         Map<Date,TDigestEntity> tDigestEntityMap = digests.stream().collect(Collectors.toMap(TDigestEntity::getDate, Function.identity()));
         String[] metricKeys = {
-                MetricCons.SS.VS.F_INPUT_QPS,
-                MetricCons.SS.VS.F_INPUT_SIZE_QPS,
-                MetricCons.SS.VS.F_OUTPUT_QPS,
-                MetricCons.SS.VS.F_OUTPUT_SIZE_QPS,
                 MetricCons.SS.VS.F_REPLICATE_LAG
         };
 
         String[] digest95Keys = {
-                MetricCons.SS.VS.F_95TH_INPUT_QPS,
-                MetricCons.SS.VS.F_95TH_INPUT_SIZE_QPS,
-                MetricCons.SS.VS.F_95TH_OUTPUT_QPS,
-                MetricCons.SS.VS.F_95TH_OUTPUT_SIZE_QPS,
                 MetricCons.SS.VS.F_95TH_REPLICATE_LAG
         };
 
         String[] digest99Keys = {
-                MetricCons.SS.VS.F_99TH_INPUT_QPS,
-                MetricCons.SS.VS.F_99TH_INPUT_SIZE_QPS,
-                MetricCons.SS.VS.F_99TH_OUTPUT_QPS,
-                MetricCons.SS.VS.F_99TH_OUTPUT_SIZE_QPS,
                 MetricCons.SS.VS.F_99TH_REPLICATE_LAG
         };
         long start = continuousSamples.get(0).getDate().getTime() / 1000;

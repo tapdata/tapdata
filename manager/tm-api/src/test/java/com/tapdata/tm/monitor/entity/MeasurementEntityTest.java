@@ -67,14 +67,14 @@ public class MeasurementEntityTest {
         double expected99th = calculatePercentile(inputQpsValues, 0.99);
 
         // 验证 INPUT_QPS 的 95 分位和 99 分位
-        assertNull(result.get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
-        assertNull(result.get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
+        assertNull(result.get(MetricCons.SS.VS.F_95TH_REPLICATE_LAG));
+        assertNull(result.get(MetricCons.SS.VS.F_99TH_REPLICATE_LAG));
 
         // TDigest 有一定的误差容忍度，通常在 1% 以内
 
         Map<String,byte[]> resultDigestBytes = entity.getDigestBytes();
-        double actual95th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_95TH_INPUT_QPS))).quantile(0.95);
-        double actual99th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_99TH_INPUT_QPS))).quantile(0.99);
+        double actual95th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_95TH_REPLICATE_LAG))).quantile(0.95);
+        double actual99th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_99TH_REPLICATE_LAG))).quantile(0.99);
         System.out.println(expected95th);
         System.out.println(actual95th);
         System.out.println(expected99th);
@@ -193,14 +193,6 @@ public class MeasurementEntityTest {
             digestEntity.setDate(minuteDate);
 
             Map<String, byte[]> digestMap = new HashMap<>();
-            digestMap.put(MetricCons.SS.VS.F_95TH_INPUT_QPS, toBytes(inputQps95Digest));
-            digestMap.put(MetricCons.SS.VS.F_99TH_INPUT_QPS, toBytes(inputQps99Digest));
-            digestMap.put(MetricCons.SS.VS.F_95TH_OUTPUT_QPS, toBytes(outputQps95Digest));
-            digestMap.put(MetricCons.SS.VS.F_99TH_OUTPUT_QPS, toBytes(outputQps99Digest));
-            digestMap.put(MetricCons.SS.VS.F_95TH_INPUT_SIZE_QPS, toBytes(inputSizeQps95Digest));
-            digestMap.put(MetricCons.SS.VS.F_99TH_INPUT_SIZE_QPS, toBytes(inputSizeQps99Digest));
-            digestMap.put(MetricCons.SS.VS.F_95TH_OUTPUT_SIZE_QPS, toBytes(outputSizeQps95Digest));
-            digestMap.put(MetricCons.SS.VS.F_99TH_OUTPUT_SIZE_QPS, toBytes(outputSizeQps99Digest));
             digestMap.put(MetricCons.SS.VS.F_95TH_REPLICATE_LAG, toBytes(replicateLag95Digest));
             digestMap.put(MetricCons.SS.VS.F_99TH_REPLICATE_LAG, toBytes(replicateLag99Digest));
 
@@ -223,8 +215,8 @@ public class MeasurementEntityTest {
 
 
         Map<String,byte[]> resultDigestBytes = entity.getDigestBytes();
-        double actual95th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_95TH_OUTPUT_QPS))).quantile(0.95);
-        double actual99th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_99TH_OUTPUT_QPS))).quantile(0.99);
+        double actual95th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_95TH_REPLICATE_LAG))).quantile(0.95);
+        double actual99th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_99TH_REPLICATE_LAG))).quantile(0.99);
 
 
         // 允许 5% 的误差范围（TDigest 的近似算法 + 合并误差）

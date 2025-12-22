@@ -9,6 +9,7 @@ import io.tapdata.common.utils.NumberUtils;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.codecs.pojo.annotations.BsonId;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -116,10 +117,10 @@ public class MeasurementEntity {
 
         public MetricsTracker() {
             // 配置需要追踪的指标
-            metricConfigs.put(MetricCons.SS.VS.F_INPUT_QPS, new MetricConfig(MetricCons.SS.VS.F_95TH_INPUT_QPS, MetricCons.SS.VS.F_99TH_INPUT_QPS, MetricCons.SS.VS.F_MAX_INPUT_QPS));
-            metricConfigs.put(MetricCons.SS.VS.F_OUTPUT_QPS, new MetricConfig(MetricCons.SS.VS.F_95TH_OUTPUT_QPS, MetricCons.SS.VS.F_99TH_OUTPUT_QPS, MetricCons.SS.VS.F_MAX_OUTPUT_QPS));
-            metricConfigs.put(MetricCons.SS.VS.F_INPUT_SIZE_QPS, new MetricConfig(MetricCons.SS.VS.F_95TH_INPUT_SIZE_QPS, MetricCons.SS.VS.F_99TH_INPUT_SIZE_QPS, MetricCons.SS.VS.F_MAX_INPUT_SIZE_QPS));
-            metricConfigs.put(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS, new MetricConfig(MetricCons.SS.VS.F_95TH_OUTPUT_SIZE_QPS, MetricCons.SS.VS.F_99TH_OUTPUT_SIZE_QPS, MetricCons.SS.VS.F_MAX_OUTPUT_SIZE_QPS));
+            metricConfigs.put(MetricCons.SS.VS.F_INPUT_QPS, new MetricConfig(null, null, MetricCons.SS.VS.F_MAX_INPUT_QPS));
+            metricConfigs.put(MetricCons.SS.VS.F_OUTPUT_QPS, new MetricConfig(null, null, MetricCons.SS.VS.F_MAX_OUTPUT_QPS));
+            metricConfigs.put(MetricCons.SS.VS.F_INPUT_SIZE_QPS, new MetricConfig(null, null, MetricCons.SS.VS.F_MAX_INPUT_SIZE_QPS));
+            metricConfigs.put(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS, new MetricConfig(null, null, MetricCons.SS.VS.F_MAX_OUTPUT_SIZE_QPS));
             metricConfigs.put(MetricCons.SS.VS.REPLICATE_LAG, new MetricConfig(MetricCons.SS.VS.F_95TH_REPLICATE_LAG,MetricCons.SS.VS.F_99TH_REPLICATE_LAG, null));
         }
 
@@ -133,6 +134,10 @@ public class MeasurementEntity {
             // 更新最大值
             if (config.maxKey != null && compareNumbers(value, config.maxValue) > 0) {
                 config.maxValue = value;
+            }
+
+            if(StringUtils.isBlank(config.digest95thKey) && StringUtils.isBlank(config.digest99thKey)) {
+                return;
             }
 
             // 更新分位数 digest

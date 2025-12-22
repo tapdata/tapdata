@@ -58,11 +58,11 @@ public class GranularityTest {
             // Verify that percentile values are calculated after threshold
             // After 5 minutes (start95), 95th percentile should be set
             Sample sample6 = samples.get(6); // 6th minute
-            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
+            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_REPLICATE_LAG));
 
             // After 10 minutes (start99), 99th percentile should be set
             Sample sample11 = samples.get(11); // 11th minute
-            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
+            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_REPLICATE_LAG));
         }
 
         @Test
@@ -108,13 +108,13 @@ public class GranularityTest {
 
             // After 5 minutes, 95th percentile should be calculated
             Sample sample6 = samples.get(6);
-            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
-            assertTrue(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS).doubleValue() > 0);
+            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_REPLICATE_LAG));
+            assertTrue(sample6.getVs().get(MetricCons.SS.VS.F_95TH_REPLICATE_LAG).doubleValue() > 0);
 
             // After 10 minutes, 99th percentile should be calculated
             Sample sample11 = samples.get(11);
-            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
-            assertTrue(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS).doubleValue() > 0);
+            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_REPLICATE_LAG));
+            assertTrue(sample11.getVs().get(MetricCons.SS.VS.F_99TH_REPLICATE_LAG).doubleValue() > 0);
         }
 
         @Test
@@ -126,18 +126,10 @@ public class GranularityTest {
 
             // Check sample after 95th threshold (6th minute)
             Sample sample6 = samples.get(6);
-            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
-            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_SIZE_QPS));
-            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_OUTPUT_QPS));
-            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_OUTPUT_SIZE_QPS));
             assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_REPLICATE_LAG));
 
             // Check sample after 99th threshold (11th minute)
             Sample sample11 = samples.get(11);
-            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
-            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_SIZE_QPS));
-            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_OUTPUT_QPS));
-            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_OUTPUT_SIZE_QPS));
             assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_REPLICATE_LAG));
         }
 
@@ -152,11 +144,11 @@ public class GranularityTest {
 
             // After 1 hour (start95), 95th percentile should be set
             Sample sample2 = samples.get(2); // 2nd hour
-            assertNotNull(sample2.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
+            assertNotNull(sample2.getVs().get(MetricCons.SS.VS.F_95TH_REPLICATE_LAG));
 
             // After 2 hours (start99), 99th percentile should be set
             Sample sample3 = samples.get(3); // 3rd hour
-            assertNotNull(sample3.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
+            assertNotNull(sample3.getVs().get(MetricCons.SS.VS.F_99TH_REPLICATE_LAG));
         }
 
         @Test
