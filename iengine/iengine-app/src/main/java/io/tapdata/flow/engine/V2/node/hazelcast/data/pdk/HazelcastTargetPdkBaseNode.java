@@ -199,7 +199,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             thread.setName(String.format("Flush-Offset-Thread-%s(%s)-%s(%s)", dataProcessorContext.getTaskDto().getName(), dataProcessorContext.getTaskDto().getId().toHexString(), getNode().getName(), getNode().getId()));
             return thread;
         });
-        skipErrorTable = ISkipErrorTable.get(Optional.ofNullable(getNode()).map(Node::getTaskId).orElse(null));
+        skipErrorTable = ISkipErrorTable.get(Optional.ofNullable(dataProcessorContext.getTaskDto()).map(TaskDto::getId).map(ObjectId::toHexString).orElse(null));
         TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
         String taskId = Optional.ofNullable(dataProcessorContext)
             .map(ProcessorBaseContext::getTaskDto)
