@@ -442,6 +442,14 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 			boolean actual = hazelcastProcessorNode.needTransformValue();
 			assertFalse(actual);
 		}
+		@Test
+		@DisplayName("test for node type is row_filter_processor")
+		void test3() {
+			when(node.getType()).thenReturn("row_filter_processor");
+			doCallRealMethod().when(hazelcastProcessorNode).needTransformValue();
+			boolean actual = hazelcastProcessorNode.needTransformValue();
+			assertTrue(actual);
+		}
 	}
 
 	@Nested
