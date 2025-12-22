@@ -1,5 +1,6 @@
 package com.tapdata.tm.monitor.constant;
 
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.monitor.entity.TDigestEntity;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.utils.TimeUtil;
@@ -156,27 +157,27 @@ public class Granularity {
         }
         Map<Date,TDigestEntity> tDigestEntityMap = digests.stream().collect(Collectors.toMap(TDigestEntity::getDate, Function.identity()));
         String[] metricKeys = {
-                MeasurementEntity.INPUT_QPS,
-                MeasurementEntity.INPUT_SIZE_QPS,
-                MeasurementEntity.OUTPUT_QPS,
-                MeasurementEntity.OUTPUT_SIZE_QPS,
-                MeasurementEntity.REPLICATE_LAG
+                MetricCons.SS.VS.F_INPUT_QPS,
+                MetricCons.SS.VS.F_INPUT_SIZE_QPS,
+                MetricCons.SS.VS.F_OUTPUT_QPS,
+                MetricCons.SS.VS.F_OUTPUT_SIZE_QPS,
+                MetricCons.SS.VS.F_REPLICATE_LAG
         };
 
         String[] digest95Keys = {
-                MeasurementEntity.INPUT_QPS_95TH,
-                MeasurementEntity.INPUT_SIZE_QPS_95TH,
-                MeasurementEntity.OUTPUT_QPS_95TH,
-                MeasurementEntity.OUTPUT_SIZE_QPS_95TH,
-                MeasurementEntity.REPLICATE_LAG_95TH
+                MetricCons.SS.VS.F_95TH_INPUT_QPS,
+                MetricCons.SS.VS.F_95TH_INPUT_SIZE_QPS,
+                MetricCons.SS.VS.F_95TH_OUTPUT_QPS,
+                MetricCons.SS.VS.F_95TH_OUTPUT_SIZE_QPS,
+                MetricCons.SS.VS.F_95TH_REPLICATE_LAG
         };
 
         String[] digest99Keys = {
-                MeasurementEntity.INPUT_QPS_99TH,
-                MeasurementEntity.INPUT_SIZE_QPS_99TH,
-                MeasurementEntity.OUTPUT_QPS_99TH,
-                MeasurementEntity.OUTPUT_SIZE_QPS_99TH,
-                MeasurementEntity.REPLICATE_LAG_99TH
+                MetricCons.SS.VS.F_99TH_INPUT_QPS,
+                MetricCons.SS.VS.F_99TH_INPUT_SIZE_QPS,
+                MetricCons.SS.VS.F_99TH_OUTPUT_QPS,
+                MetricCons.SS.VS.F_99TH_OUTPUT_SIZE_QPS,
+                MetricCons.SS.VS.F_99TH_REPLICATE_LAG
         };
         long start = continuousSamples.get(0).getDate().getTime() / 1000;
 

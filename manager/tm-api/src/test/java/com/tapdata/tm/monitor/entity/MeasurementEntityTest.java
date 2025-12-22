@@ -1,5 +1,6 @@
 package com.tapdata.tm.monitor.entity;
 
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.monitor.constant.Granularity;
 import com.tdunning.math.stats.MergingDigest;
 import com.tdunning.math.stats.TDigest;
@@ -43,11 +44,11 @@ public class MeasurementEntityTest {
             sample.setDate(new Date(baseDate.getTime() + i * 1000)); // 每秒一个样本
 
             Map<String, Number> vs = new HashMap<>();
-            vs.put(MeasurementEntity.INPUT_QPS, inputQpsValues.get(i));
-            vs.put(MeasurementEntity.OUTPUT_QPS, outputQpsValues.get(i));
-            vs.put(MeasurementEntity.INPUT_SIZE_QPS, inputSizeQpsValues.get(i));
-            vs.put(MeasurementEntity.OUTPUT_SIZE_QPS, outputSizeQpsValues.get(i));
-            vs.put(MeasurementEntity.REPLICATE_LAG, replicateLagValues.get(i));
+            vs.put(MetricCons.SS.VS.F_INPUT_QPS, inputQpsValues.get(i));
+            vs.put(MetricCons.SS.VS.F_OUTPUT_QPS, outputQpsValues.get(i));
+            vs.put(MetricCons.SS.VS.F_INPUT_SIZE_QPS, inputSizeQpsValues.get(i));
+            vs.put(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS, outputSizeQpsValues.get(i));
+            vs.put(MetricCons.SS.VS.F_REPLICATE_LAG, replicateLagValues.get(i));
 
             sample.setVs(vs);
             samples.add(sample);
@@ -66,14 +67,14 @@ public class MeasurementEntityTest {
         double expected99th = calculatePercentile(inputQpsValues, 0.99);
 
         // 验证 INPUT_QPS 的 95 分位和 99 分位
-        assertNull(result.get(MeasurementEntity.INPUT_QPS_95TH));
-        assertNull(result.get(MeasurementEntity.INPUT_QPS_99TH));
+        assertNull(result.get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
+        assertNull(result.get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
 
         // TDigest 有一定的误差容忍度，通常在 1% 以内
 
         Map<String,byte[]> resultDigestBytes = entity.getDigestBytes();
-        double actual95th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MeasurementEntity.INPUT_QPS_95TH))).quantile(0.95);
-        double actual99th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MeasurementEntity.INPUT_QPS_99TH))).quantile(0.99);
+        double actual95th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_95TH_INPUT_QPS))).quantile(0.95);
+        double actual99th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_99TH_INPUT_QPS))).quantile(0.99);
         System.out.println(expected95th);
         System.out.println(actual95th);
         System.out.println(expected99th);
@@ -88,11 +89,11 @@ public class MeasurementEntityTest {
 
         // 验证最大值
         double maxInputQps = Collections.max(inputQpsValues);
-        assertEquals(maxInputQps, result.get(MeasurementEntity.MAX_INPUT_QPS).doubleValue(), 0.01);
+        assertEquals(maxInputQps, result.get(MetricCons.SS.VS.F_MAX_INPUT_QPS).doubleValue(), 0.01);
 
         // 验证平均值
         double avgInputQps = inputQpsValues.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-        assertEquals(avgInputQps, result.get(MeasurementEntity.INPUT_QPS).doubleValue(), 0.01);
+        assertEquals(avgInputQps, result.get(MetricCons.SS.VS.F_INPUT_QPS).doubleValue(), 0.01);
 
     }
 
@@ -178,11 +179,11 @@ public class MeasurementEntityTest {
 
             double avgValue = secondInputQpsValues.stream().mapToDouble(Double::doubleValue).average().orElse(0);
             Map<String, Number> vs = new HashMap<>();
-            vs.put(MeasurementEntity.INPUT_QPS, avgValue);
-            vs.put(MeasurementEntity.OUTPUT_QPS, avgValue);
-            vs.put(MeasurementEntity.INPUT_SIZE_QPS, avgValue);
-            vs.put(MeasurementEntity.OUTPUT_SIZE_QPS, avgValue);
-            vs.put(MeasurementEntity.REPLICATE_LAG, avgValue);
+            vs.put(MetricCons.SS.VS.F_INPUT_QPS, avgValue);
+            vs.put(MetricCons.SS.VS.F_OUTPUT_QPS, avgValue);
+            vs.put(MetricCons.SS.VS.F_INPUT_SIZE_QPS, avgValue);
+            vs.put(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS, avgValue);
+            vs.put(MetricCons.SS.VS.F_REPLICATE_LAG, avgValue);
 
             sample.setVs(vs);
             samples.add(sample);
@@ -192,16 +193,16 @@ public class MeasurementEntityTest {
             digestEntity.setDate(minuteDate);
 
             Map<String, byte[]> digestMap = new HashMap<>();
-            digestMap.put(MeasurementEntity.INPUT_QPS_95TH, toBytes(inputQps95Digest));
-            digestMap.put(MeasurementEntity.INPUT_QPS_99TH, toBytes(inputQps99Digest));
-            digestMap.put(MeasurementEntity.OUTPUT_QPS_95TH, toBytes(outputQps95Digest));
-            digestMap.put(MeasurementEntity.OUTPUT_QPS_99TH, toBytes(outputQps99Digest));
-            digestMap.put(MeasurementEntity.INPUT_SIZE_QPS_95TH, toBytes(inputSizeQps95Digest));
-            digestMap.put(MeasurementEntity.INPUT_SIZE_QPS_99TH, toBytes(inputSizeQps99Digest));
-            digestMap.put(MeasurementEntity.OUTPUT_SIZE_QPS_95TH, toBytes(outputSizeQps95Digest));
-            digestMap.put(MeasurementEntity.OUTPUT_SIZE_QPS_99TH, toBytes(outputSizeQps99Digest));
-            digestMap.put(MeasurementEntity.REPLICATE_LAG_95TH, toBytes(replicateLag95Digest));
-            digestMap.put(MeasurementEntity.REPLICATE_LAG_99TH, toBytes(replicateLag99Digest));
+            digestMap.put(MetricCons.SS.VS.F_95TH_INPUT_QPS, toBytes(inputQps95Digest));
+            digestMap.put(MetricCons.SS.VS.F_99TH_INPUT_QPS, toBytes(inputQps99Digest));
+            digestMap.put(MetricCons.SS.VS.F_95TH_OUTPUT_QPS, toBytes(outputQps95Digest));
+            digestMap.put(MetricCons.SS.VS.F_99TH_OUTPUT_QPS, toBytes(outputQps99Digest));
+            digestMap.put(MetricCons.SS.VS.F_95TH_INPUT_SIZE_QPS, toBytes(inputSizeQps95Digest));
+            digestMap.put(MetricCons.SS.VS.F_99TH_INPUT_SIZE_QPS, toBytes(inputSizeQps99Digest));
+            digestMap.put(MetricCons.SS.VS.F_95TH_OUTPUT_SIZE_QPS, toBytes(outputSizeQps95Digest));
+            digestMap.put(MetricCons.SS.VS.F_99TH_OUTPUT_SIZE_QPS, toBytes(outputSizeQps99Digest));
+            digestMap.put(MetricCons.SS.VS.F_95TH_REPLICATE_LAG, toBytes(replicateLag95Digest));
+            digestMap.put(MetricCons.SS.VS.F_99TH_REPLICATE_LAG, toBytes(replicateLag99Digest));
 
             digestEntity.setDigest(digestMap);
             digestEntities.add(digestEntity);
@@ -222,8 +223,8 @@ public class MeasurementEntityTest {
 
 
         Map<String,byte[]> resultDigestBytes = entity.getDigestBytes();
-        double actual95th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MeasurementEntity.INPUT_QPS_95TH))).quantile(0.95);
-        double actual99th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MeasurementEntity.INPUT_QPS_99TH))).quantile(0.99);
+        double actual95th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_95TH_OUTPUT_QPS))).quantile(0.95);
+        double actual99th = MergingDigest.fromBytes(ByteBuffer.wrap(resultDigestBytes.get(MetricCons.SS.VS.F_99TH_OUTPUT_QPS))).quantile(0.99);
 
 
         // 允许 5% 的误差范围（TDigest 的近似算法 + 合并误差）

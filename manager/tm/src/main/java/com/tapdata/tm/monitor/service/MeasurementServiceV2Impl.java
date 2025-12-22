@@ -245,11 +245,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                                 List<String> includedFields = new ArrayList<>();
                                 includedFields.add(MetricCons.F_DATE);
                                 includedFields.add(MetricCons.F_TAGS);
-                                includedFields.add(MeasurementEntity.FIELD_DATE);
-                                includedFields.add(MeasurementEntity.FIELD_TAGS);
-                                includedFields.add(MeasurementEntity.FIELD_GRANULARITY);
-                                includedFields.add(MeasurementEntity.FIELD_DIGEST);
-                                includedFields.add("ss.date");
+                                includedFields.add(MetricCons.F_GRANULARITY);
+                                includedFields.add(MetricCons.F_DIGEST);
+                                includedFields.add(MetricCons.SS.F_DATE);
                                 for (String field : querySample.getFields()) {
                                     String keyPath = MetricCons.SS.VS.path(field);
                                     includedFields.add(keyPath);
@@ -569,16 +567,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             querySample.getFields().add(MetricCons.SS.VS.F_MAX_OUTPUT_QPS);
             querySample.getFields().add(MetricCons.SS.VS.F_MAX_INPUT_SIZE_QPS);
             querySample.getFields().add(MetricCons.SS.VS.F_MAX_OUTPUT_SIZE_QPS);
-        includedFields.add(MeasurementEntity.FIELD_TAGS);
-        if(Granularity.isCalculateQuantiles(granularity)) {
-            includedFields.add(MeasurementEntity.FIELD_DIGEST);
-        }
-        includedFields.add(String.format("%s.%s", MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_DATE));
-        if(Granularity.isCalculateQuantiles(granularity)){
-            querySample.getFields().add(MeasurementEntity.MAX_INPUT_QPS);
-            querySample.getFields().add(MeasurementEntity.MAX_OUTPUT_QPS);
-            querySample.getFields().add(MeasurementEntity.MAX_INPUT_SIZE_QPS);
-            querySample.getFields().add(MeasurementEntity.MAX_OUTPUT_SIZE_QPS);
+            includedFields.add(MetricCons.F_DIGEST);
         }
         for (String field : querySample.getFields()) {
             String keyPath = MetricCons.SS.VS.path(field);
@@ -821,8 +810,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         includedFields.add(MetricCons.F_DATE);
         includedFields.add(MetricCons.F_TAGS);
         includedFields.add(MetricCons.F_SAMPLES);
-        includedFields.add(MeasurementEntity.FIELD_DIGEST);
-        includedFields.add(MeasurementEntity.FIELD_GRANULARITY);
+        includedFields.add(MetricCons.F_DIGEST);
+        includedFields.add(MetricCons.F_GRANULARITY);
 
         Query query = new Query(criteria);
         query.fields().include(includedFields.toArray(new String[]{}));
@@ -895,18 +884,14 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 // affect the data since the generated value will always be the same.
                 ss.put("$slice", 200);
                 ss.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
-                Update update = new Update().push(MetricCons.F_SAMPLES, ss)
-                        .min(MetricCons.F_FIRST, new Date(first))
-                        .max(MetricCons.F_LAST, new Date(last));
                 Document digest = new Document();
                 digest.put("$each", digests);
                 digest.put("$slice", 200);
                 digest.put("$sort", new Document().append(TDigestEntity.FIELD_DATE, -1));
-                Update update = new Update().push(MeasurementEntity.FIELD_SAMPLES, ss)
-                        .push(MeasurementEntity.FIELD_DIGEST, digest)
-                        .min(MeasurementEntity.FIELD_FIRST, new Date(first))
-                        .max(MeasurementEntity.FIELD_LAST, new Date(last));
-
+                Update update = new Update().push(MetricCons.F_SAMPLES, ss)
+                        .push(MetricCons.F_DIGEST, digest)
+                        .min(MetricCons.F_FIRST, new Date(first))
+                        .max(MetricCons.F_LAST, new Date(last));
                 if (null == bulkOperations) {
                     bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
                 }
@@ -1266,3 +1251,4 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         criteria.and(keyPath).is(value);
     }
 }
+

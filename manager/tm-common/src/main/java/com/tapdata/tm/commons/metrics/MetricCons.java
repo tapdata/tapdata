@@ -53,6 +53,7 @@ public final class MetricCons {
     public static final String F_LAST = "last";
     public static final String F_TAGS = "tags";
     public static final String F_SAMPLES = "ss";
+    public static final String F_DIGEST = "digest";
 
     // fields tags
     public static final class Tags {
@@ -91,6 +92,10 @@ public final class MetricCons {
             public static final String F_INPUT_OTHERS_TOTAL = "inputOthersTotal";
             public static final String F_MAX_INPUT_QPS = "maxInputQps";
             public static final String F_MAX_INPUT_SIZE_QPS = "maxInputSizeQps";
+            public static final String F_95TH_INPUT_QPS = "inputQps95th";
+            public static final String F_95TH_INPUT_SIZE_QPS = "inputSizeQps95th";
+            public static final String F_99TH_INPUT_QPS = "inputQps99th";
+            public static final String F_99TH_INPUT_SIZE_QPS = "inputSizeQps99th";
 
             // output
             public static final String F_OUTPUT_QPS = "outputQps";
@@ -108,6 +113,15 @@ public final class MetricCons {
             public static final String F_MAX_OUTPUT_SIZE_QPS = "maxOutputSizeQps";
             public static final String F_BATCH_READ_SIZE = "batchReadSize"; // 源节点事件读取批大小
             public static final String F_BATCH_READ_TIMEOUT_MS = "batchReadTimeoutMs"; // 源节点事件攒批超时时长
+            public static final String F_95TH_OUTPUT_QPS = "outputQps95th";
+            public static final String F_95TH_OUTPUT_SIZE_QPS = "outputSizeQps95th";
+            public static final String F_99TH_OUTPUT_QPS = "outputQps99th";
+            public static final String F_99TH_OUTPUT_SIZE_QPS = "outputSizeQps99th";
+
+            //replicateLag
+            public static final String REPLICATE_LAG = "replicateLag";
+            public static final String F_95TH_REPLICATE_LAG = "replicateLag95th";
+            public static final String F_99TH_REPLICATE_LAG = "replicateLag99th";
 
             // snapshot
             public static final String F_SNAPSHOT_START_AT = "snapshotStartAt";

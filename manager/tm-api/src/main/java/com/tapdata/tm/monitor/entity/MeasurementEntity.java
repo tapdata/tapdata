@@ -19,23 +19,6 @@ import java.util.*;
 @NoArgsConstructor
 public class MeasurementEntity {
     public static final String COLLECTION_NAME = "AgentMeasurementV2";
-    public static final String FIELD_ID = "_id";
-    public static final String FIELD_GRANULARITY = "grnty";
-    public static final String FIELD_DATE = "date";
-    public static final String FIELD_SAMPLE_SIZE = "size";
-    public static final String FIELD_FIRST = "first";
-    public static final String FIELD_LAST = "last";
-    public static final String FIELD_TAGS = "tags";
-    public static final String FIELD_SAMPLES = "ss";
-    public static final String INPUT_QPS = "inputQps";
-    public static final String OUTPUT_QPS = "outputQps";
-    public static final String MAX_INPUT_QPS = "maxInputQps";
-    public static final String MAX_OUTPUT_QPS = "maxOutputQps";
-    public static final String INPUT_SIZE_QPS = "inputSizeQps";
-    public static final String OUTPUT_SIZE_QPS = "outputSizeQps";
-    public static final String MAX_INPUT_SIZE_QPS = "maxInputSizeQps";
-    public static final String MAX_OUTPUT_SIZE_QPS = "maxOutputSizeQps";
-    
 
     @BsonId
     private String id;
@@ -56,7 +39,7 @@ public class MeasurementEntity {
     @Field(MetricCons.F_SAMPLES)
     private List<Sample> samples;
 
-    @Field(FIELD_DIGEST)
+    @Field(MetricCons.F_DIGEST)
     private List<TDigestEntity> digest;
 
     public MeasurementEntity(List<Sample> samples,List<TDigestEntity> digest) {
@@ -133,11 +116,11 @@ public class MeasurementEntity {
 
         public MetricsTracker() {
             // 配置需要追踪的指标
-            metricConfigs.put(INPUT_QPS, new MetricConfig(INPUT_QPS_95TH, INPUT_QPS_99TH, MAX_INPUT_QPS));
-            metricConfigs.put(OUTPUT_QPS, new MetricConfig( OUTPUT_QPS_95TH, OUTPUT_QPS_99TH, MAX_OUTPUT_QPS));
-            metricConfigs.put(INPUT_SIZE_QPS, new MetricConfig(INPUT_SIZE_QPS_95TH, INPUT_SIZE_QPS_99TH, MAX_INPUT_SIZE_QPS));
-            metricConfigs.put(OUTPUT_SIZE_QPS, new MetricConfig( OUTPUT_SIZE_QPS_95TH, OUTPUT_SIZE_QPS_99TH, MAX_OUTPUT_SIZE_QPS));
-            metricConfigs.put(REPLICATE_LAG, new MetricConfig(REPLICATE_LAG_95TH, REPLICATE_LAG_99TH, null));
+            metricConfigs.put(MetricCons.SS.VS.F_INPUT_QPS, new MetricConfig(MetricCons.SS.VS.F_95TH_INPUT_QPS, MetricCons.SS.VS.F_99TH_INPUT_QPS, MetricCons.SS.VS.F_MAX_INPUT_QPS));
+            metricConfigs.put(MetricCons.SS.VS.F_OUTPUT_QPS, new MetricConfig(MetricCons.SS.VS.F_95TH_OUTPUT_QPS, MetricCons.SS.VS.F_99TH_OUTPUT_QPS, MetricCons.SS.VS.F_MAX_OUTPUT_QPS));
+            metricConfigs.put(MetricCons.SS.VS.F_INPUT_SIZE_QPS, new MetricConfig(MetricCons.SS.VS.F_95TH_INPUT_SIZE_QPS, MetricCons.SS.VS.F_99TH_INPUT_SIZE_QPS, MetricCons.SS.VS.F_MAX_INPUT_SIZE_QPS));
+            metricConfigs.put(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS, new MetricConfig(MetricCons.SS.VS.F_95TH_OUTPUT_SIZE_QPS, MetricCons.SS.VS.F_99TH_OUTPUT_SIZE_QPS, MetricCons.SS.VS.F_MAX_OUTPUT_SIZE_QPS));
+            metricConfigs.put(MetricCons.SS.VS.REPLICATE_LAG, new MetricConfig(MetricCons.SS.VS.F_95TH_REPLICATE_LAG,MetricCons.SS.VS.F_99TH_REPLICATE_LAG, null));
         }
 
         public void processMetric(String key, Number value, boolean isMinuteGranularity,

@@ -1,5 +1,6 @@
 package com.tapdata.tm.monitor.constant;
 
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.entity.TDigestEntity;
 import com.tdunning.math.stats.MergingDigest;
@@ -57,11 +58,11 @@ public class GranularityTest {
             // Verify that percentile values are calculated after threshold
             // After 5 minutes (start95), 95th percentile should be set
             Sample sample6 = samples.get(6); // 6th minute
-            assertNotNull(sample6.getVs().get(MeasurementEntity.INPUT_QPS_95TH));
+            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
 
             // After 10 minutes (start99), 99th percentile should be set
             Sample sample11 = samples.get(11); // 11th minute
-            assertNotNull(sample11.getVs().get(MeasurementEntity.INPUT_QPS_99TH));
+            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
         }
 
         @Test
@@ -77,8 +78,8 @@ public class GranularityTest {
 
             // Verify no percentile values are set
             for (Sample sample : samples) {
-                assertNull(sample.getVs().get(MeasurementEntity.INPUT_QPS_95TH));
-                assertNull(sample.getVs().get(MeasurementEntity.INPUT_QPS_99TH));
+                assertNull(sample.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
+                assertNull(sample.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
             }
         }
 
@@ -95,9 +96,9 @@ public class GranularityTest {
 
                 Map<String, Number> vs = new HashMap<>();
                 // Create varying values: 0, 10, 20, ..., 140
-                vs.put(MeasurementEntity.INPUT_QPS, i * 10.0);
-                vs.put(MeasurementEntity.OUTPUT_QPS, i * 5.0);
-                vs.put(MeasurementEntity.REPLICATE_LAG, i * 2.0);
+                vs.put(MetricCons.SS.VS.F_INPUT_QPS, i * 10.0);
+                vs.put(MetricCons.SS.VS.F_OUTPUT_QPS, i * 5.0);
+                vs.put(MetricCons.SS.VS.F_REPLICATE_LAG, i * 2.0);
 
                 sample.setVs(vs);
                 samples.add(sample);
@@ -107,13 +108,13 @@ public class GranularityTest {
 
             // After 5 minutes, 95th percentile should be calculated
             Sample sample6 = samples.get(6);
-            assertNotNull(sample6.getVs().get(MeasurementEntity.INPUT_QPS_95TH));
-            assertTrue(sample6.getVs().get(MeasurementEntity.INPUT_QPS_95TH).doubleValue() > 0);
+            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
+            assertTrue(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS).doubleValue() > 0);
 
             // After 10 minutes, 99th percentile should be calculated
             Sample sample11 = samples.get(11);
-            assertNotNull(sample11.getVs().get(MeasurementEntity.INPUT_QPS_99TH));
-            assertTrue(sample11.getVs().get(MeasurementEntity.INPUT_QPS_99TH).doubleValue() > 0);
+            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
+            assertTrue(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS).doubleValue() > 0);
         }
 
         @Test
@@ -125,19 +126,19 @@ public class GranularityTest {
 
             // Check sample after 95th threshold (6th minute)
             Sample sample6 = samples.get(6);
-            assertNotNull(sample6.getVs().get(MeasurementEntity.INPUT_QPS_95TH));
-            assertNotNull(sample6.getVs().get(MeasurementEntity.INPUT_SIZE_QPS_95TH));
-            assertNotNull(sample6.getVs().get(MeasurementEntity.OUTPUT_QPS_95TH));
-            assertNotNull(sample6.getVs().get(MeasurementEntity.OUTPUT_SIZE_QPS_95TH));
-            assertNotNull(sample6.getVs().get(MeasurementEntity.REPLICATE_LAG_95TH));
+            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
+            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_SIZE_QPS));
+            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_OUTPUT_QPS));
+            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_OUTPUT_SIZE_QPS));
+            assertNotNull(sample6.getVs().get(MetricCons.SS.VS.F_95TH_REPLICATE_LAG));
 
             // Check sample after 99th threshold (11th minute)
             Sample sample11 = samples.get(11);
-            assertNotNull(sample11.getVs().get(MeasurementEntity.INPUT_QPS_99TH));
-            assertNotNull(sample11.getVs().get(MeasurementEntity.INPUT_SIZE_QPS_99TH));
-            assertNotNull(sample11.getVs().get(MeasurementEntity.OUTPUT_QPS_99TH));
-            assertNotNull(sample11.getVs().get(MeasurementEntity.OUTPUT_SIZE_QPS_99TH));
-            assertNotNull(sample11.getVs().get(MeasurementEntity.REPLICATE_LAG_99TH));
+            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
+            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_SIZE_QPS));
+            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_OUTPUT_QPS));
+            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_OUTPUT_SIZE_QPS));
+            assertNotNull(sample11.getVs().get(MetricCons.SS.VS.F_99TH_REPLICATE_LAG));
         }
 
         @Test
@@ -151,11 +152,11 @@ public class GranularityTest {
 
             // After 1 hour (start95), 95th percentile should be set
             Sample sample2 = samples.get(2); // 2nd hour
-            assertNotNull(sample2.getVs().get(MeasurementEntity.INPUT_QPS_95TH));
+            assertNotNull(sample2.getVs().get(MetricCons.SS.VS.F_95TH_INPUT_QPS));
 
             // After 2 hours (start99), 99th percentile should be set
             Sample sample3 = samples.get(3); // 3rd hour
-            assertNotNull(sample3.getVs().get(MeasurementEntity.INPUT_QPS_99TH));
+            assertNotNull(sample3.getVs().get(MetricCons.SS.VS.F_99TH_INPUT_QPS));
         }
 
         @Test
@@ -170,8 +171,8 @@ public class GranularityTest {
 
                 Map<String, Number> vs = new HashMap<>();
                 // Add null value for some metrics
-                vs.put(MeasurementEntity.INPUT_QPS, i % 2 == 0 ? i * 10.0 : null);
-                vs.put(MeasurementEntity.OUTPUT_QPS, i * 5.0);
+                vs.put(MetricCons.SS.VS.F_INPUT_QPS, i % 2 == 0 ? i * 10.0 : null);
+                vs.put(MetricCons.SS.VS.F_OUTPUT_QPS, i * 5.0);
 
                 sample.setVs(vs);
                 samples.add(sample);
@@ -213,8 +214,8 @@ public class GranularityTest {
 
                 Map<String, byte[]> digestMap = new HashMap<>();
                 // Add empty byte array
-                digestMap.put(MeasurementEntity.INPUT_QPS_95TH, new byte[0]);
-                digestMap.put(MeasurementEntity.INPUT_QPS_99TH, new byte[0]);
+                digestMap.put(MetricCons.SS.VS.F_95TH_INPUT_QPS, new byte[0]);
+                digestMap.put(MetricCons.SS.VS.F_99TH_INPUT_QPS, new byte[0]);
 
                 digestEntity.setDigest(digestMap);
                 digests.add(digestEntity);
@@ -240,11 +241,11 @@ public class GranularityTest {
                 sample.setDate(new Date(baseDate.getTime() + i * 60 * 1000)); // Each minute
 
                 Map<String, Number> vs = new HashMap<>();
-                vs.put(MeasurementEntity.INPUT_QPS, value);
-                vs.put(MeasurementEntity.INPUT_SIZE_QPS, value);
-                vs.put(MeasurementEntity.OUTPUT_QPS, value);
-                vs.put(MeasurementEntity.OUTPUT_SIZE_QPS, value);
-                vs.put(MeasurementEntity.REPLICATE_LAG, value);
+                vs.put(MetricCons.SS.VS.F_INPUT_QPS, value);
+                vs.put(MetricCons.SS.VS.F_INPUT_SIZE_QPS, value);
+                vs.put(MetricCons.SS.VS.F_OUTPUT_QPS, value);
+                vs.put(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS, value);
+                vs.put(MetricCons.SS.VS.F_REPLICATE_LAG, value);
 
                 sample.setVs(vs);
                 samples.add(sample);
@@ -265,11 +266,11 @@ public class GranularityTest {
                 sample.setDate(new Date(baseDate.getTime() + i * 60 * 60 * 1000)); // Each hour
 
                 Map<String, Number> vs = new HashMap<>();
-                vs.put(MeasurementEntity.INPUT_QPS, value);
-                vs.put(MeasurementEntity.INPUT_SIZE_QPS, value);
-                vs.put(MeasurementEntity.OUTPUT_QPS, value);
-                vs.put(MeasurementEntity.OUTPUT_SIZE_QPS, value);
-                vs.put(MeasurementEntity.REPLICATE_LAG, value);
+                vs.put(MetricCons.SS.VS.F_INPUT_QPS, value);
+                vs.put(MetricCons.SS.VS.F_INPUT_SIZE_QPS, value);
+                vs.put(MetricCons.SS.VS.F_OUTPUT_QPS, value);
+                vs.put(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS, value);
+                vs.put(MetricCons.SS.VS.F_REPLICATE_LAG, value);
 
                 sample.setVs(vs);
                 samples.add(sample);
@@ -299,16 +300,16 @@ public class GranularityTest {
                 }
 
                 Map<String, byte[]> digestMap = new HashMap<>();
-                digestMap.put(MeasurementEntity.INPUT_QPS_95TH, toBytes(digest95));
-                digestMap.put(MeasurementEntity.INPUT_QPS_99TH, toBytes(digest99));
-                digestMap.put(MeasurementEntity.INPUT_SIZE_QPS_95TH, toBytes(digest95));
-                digestMap.put(MeasurementEntity.INPUT_SIZE_QPS_99TH, toBytes(digest99));
-                digestMap.put(MeasurementEntity.OUTPUT_QPS_95TH, toBytes(digest95));
-                digestMap.put(MeasurementEntity.OUTPUT_QPS_99TH, toBytes(digest99));
-                digestMap.put(MeasurementEntity.OUTPUT_SIZE_QPS_95TH, toBytes(digest95));
-                digestMap.put(MeasurementEntity.OUTPUT_SIZE_QPS_99TH, toBytes(digest99));
-                digestMap.put(MeasurementEntity.REPLICATE_LAG_95TH, toBytes(digest95));
-                digestMap.put(MeasurementEntity.REPLICATE_LAG_99TH, toBytes(digest99));
+                digestMap.put(MetricCons.SS.VS.F_95TH_INPUT_QPS, toBytes(digest95));
+                digestMap.put(MetricCons.SS.VS.F_99TH_INPUT_QPS, toBytes(digest99));
+                digestMap.put(MetricCons.SS.VS.F_95TH_INPUT_SIZE_QPS, toBytes(digest95));
+                digestMap.put(MetricCons.SS.VS.F_99TH_INPUT_SIZE_QPS, toBytes(digest99));
+                digestMap.put(MetricCons.SS.VS.F_95TH_OUTPUT_QPS, toBytes(digest95));
+                digestMap.put(MetricCons.SS.VS.F_99TH_OUTPUT_QPS, toBytes(digest99));
+                digestMap.put(MetricCons.SS.VS.F_95TH_OUTPUT_SIZE_QPS, toBytes(digest95));
+                digestMap.put(MetricCons.SS.VS.F_99TH_OUTPUT_SIZE_QPS, toBytes(digest99));
+                digestMap.put(MetricCons.SS.VS.F_95TH_REPLICATE_LAG, toBytes(digest95));
+                digestMap.put(MetricCons.SS.VS.F_99TH_REPLICATE_LAG, toBytes(digest99));
 
                 digestEntity.setDigest(digestMap);
                 digests.add(digestEntity);
