@@ -166,6 +166,9 @@ public class MeasurementEntity {
 
         public void saveDigestBytes(Map<String, byte[]> digestBytesMap) {
             for (MetricConfig config : metricConfigs.values()) {
+                if(StringUtils.isBlank(config.digest95thKey) && StringUtils.isBlank(config.digest99thKey)) {
+                    continue;
+                }
                 digestBytesMap.put(config.digest95thKey, getDigestBytes(config.digest95th));
                 digestBytesMap.put(config.digest99thKey, getDigestBytes(config.digest99th));
             }
