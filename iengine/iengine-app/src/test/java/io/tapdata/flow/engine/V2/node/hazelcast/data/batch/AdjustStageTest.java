@@ -11,6 +11,12 @@ import java.util.function.Consumer;
 
 class AdjustStageTest {
 
+    @Test
+    void metric() {
+        TestAdjustStage stage = new TestAdjustStage();
+        Assertions.assertNull(stage.metricInfo);
+    }
+
     static class TestAdjustStage implements AdjustStage {
         private boolean needAdjust;
         private Consumer<List<TapEvent>> consumer;

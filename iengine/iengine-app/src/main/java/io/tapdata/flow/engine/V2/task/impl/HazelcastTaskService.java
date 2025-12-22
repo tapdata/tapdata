@@ -24,7 +24,6 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
 import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Setting;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -101,6 +100,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -129,7 +129,7 @@ import static io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderS
  **/
 @Service
 @DependsOn("tapdataTaskScheduler")
-public class HazelcastTaskService implements TaskService<TaskDto> {
+public class 	HazelcastTaskService implements TaskService<TaskDto> {
 
 	private static final Logger logger = LogManager.getLogger(HazelcastTaskService.class);
 	private static final String TAG = HazelcastTaskService.class.getSimpleName();
@@ -184,10 +184,21 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return hazelcastInstance;
 	}
 
+	protected boolean isOpenAutoIncrementalBatchSize(TaskDto taskDto) {
+		if (null == taskDto) {
+			return false;
+		}
+		final Boolean o = taskDto.getAutoIncrementalBatchSize();
+		if (null == o) {
+			return false;
+		}
+		return o;
+	}
+
 	@Override
 	public TaskClient<TaskDto> startTask(TaskDto taskDto) {
 		try {
-			boolean open = openAutoIncrementalBatchSize();
+			final boolean open = isOpenAutoIncrementalBatchSize(taskDto);
 			taskDto.setDag(taskDto.getDag());
 			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 
@@ -205,6 +216,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			obsLogger.info("Task started");
 			if (open) {
 				AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
+				obsLogger.info("Task supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data");
 			}
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
@@ -447,20 +459,20 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					HazelcastBaseNode hazelcastBaseNode;
 					try {
-						hazelcastBaseNode = createNode(
-								taskDto,
-								nodes,
-								edges,
-								node,
-								predecessors,
-								successors,
-								config,
-								finalConnection,
-								finalDatabaseType,
-								null,
-								finalTapTableMap,
-								taskConfig,
-								open
+						hazelcastBaseNode = createNode(new CreateNodeEntity()
+								.withTaskDto(taskDto)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withNode(node)
+								.withPredecessors(predecessors)
+								.withSuccessors(successors)
+								.withConfig(config)
+								.withConnection(finalConnection)
+								.withDatabaseType(finalDatabaseType)
+								.withMergeTableMap(null)
+								.withTapTableMap(finalTapTableMap)
+								.withTaskConfig(taskConfig)
+								.withOpen(open)
 						);
 						CpuMemoryCollector.listening(node.getId(), hazelcastBaseNode);
 					} catch (Exception e) {
@@ -564,24 +576,37 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			TapTableMap<String, TapTable> tapTableMap,
 			TaskConfig taskConfig
 	) throws Exception {
-		return createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig, false);
+		CreateNodeEntity createNodeEntity = new CreateNodeEntity()
+				.withTaskDto(taskDto)
+				.withNodes(nodes)
+				.withEdges(edges)
+				.withNode(node)
+				.withPredecessors(predecessors)
+				.withSuccessors(successors)
+				.withConfig(config)
+				.withConnection(connection)
+				.withDatabaseType(databaseType)
+				.withMergeTableMap(mergeTableMap)
+				.withTapTableMap(tapTableMap)
+				.withTaskConfig(taskConfig)
+				.withOpen(false);
+		return createNode(createNodeEntity);
 	}
 
-	public static HazelcastBaseNode createNode(
-			TaskDto taskDto,
-			List<Node> nodes,
-			List<Edge> edges,
-			Node node,
-			List<Node> predecessors,
-			List<Node> successors,
-			ConfigurationCenter config,
-			Connections connection,
-			DatabaseTypeEnum.DatabaseType databaseType,
-			Map<String, MergeTableNode> mergeTableMap,
-			TapTableMap<String, TapTable> tapTableMap,
-			TaskConfig taskConfig,
-			boolean open
-	) throws Exception {
+	public static HazelcastBaseNode createNode(CreateNodeEntity createNodeEntity) throws Exception {
+		final TaskDto taskDto = createNodeEntity.getTaskDto();
+		final List<Node> nodes = createNodeEntity.getNodes();
+		final List<Edge> edges = createNodeEntity.getEdges();
+		final Node node = createNodeEntity.getNode();
+		final List<Node> predecessors = createNodeEntity.getPredecessors();
+		final List<Node> successors = createNodeEntity.getSuccessors();
+		final ConfigurationCenter config = createNodeEntity.getConfig();
+		final Connections connection = createNodeEntity.getConnection();
+		final DatabaseTypeEnum.DatabaseType databaseType = createNodeEntity.getDatabaseType();
+		final Map<String, MergeTableNode> mergeTableMap = createNodeEntity.getMergeTableMap();
+		final TapTableMap<String, TapTable> tapTableMap = createNodeEntity.getTapTableMap();
+		final TaskConfig taskConfig = createNodeEntity.getTaskConfig();
+		final boolean open = createNodeEntity.isOpen();
 		List<RelateDataBaseTable> nodeSchemas = new ArrayList<>();
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA) &&
 				(node instanceof ProcessorNode || node instanceof MigrateProcessorNode) && node.disabledNode()) {
@@ -1279,12 +1304,76 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		globalStateMap.put(TaskEnvMap.name(taskId), taskEnvMap);
 	}
 
-	boolean openAutoIncrementalBatchSize() {
-		Setting setting = settingService.getSetting("auto_incremental_batch_size");
-		if (null == setting) {
-			return false;
+	@Getter
+	public static class CreateNodeEntity {
+		TaskDto taskDto;
+		List<Node> nodes;
+		List<Edge> edges;
+		Node node;
+		List<Node> predecessors;
+		List<Node> successors;
+		ConfigurationCenter config;
+		Connections connection;
+		DatabaseTypeEnum.DatabaseType databaseType;
+		Map<String, MergeTableNode> mergeTableMap;
+		TapTableMap<String, TapTable> tapTableMap;
+		TaskConfig taskConfig;
+		boolean open;
+
+		public CreateNodeEntity() {
+			//do nothing
 		}
-		String value = Optional.ofNullable(setting.getValue()).orElse(setting.getDefault_value());
-		return Objects.equals("true", value) || Objects.equals("TRUE", value);
+		CreateNodeEntity withTaskDto(TaskDto taskDto) {
+			this.taskDto = taskDto;
+			return this;
+		}
+		CreateNodeEntity withNodes(List<Node> nodes) {
+			this.nodes = nodes;
+			return this;
+		}
+		CreateNodeEntity withEdges(List<Edge> edges) {
+			this.edges = edges;
+			return this;
+		}
+		CreateNodeEntity withNode(Node node) {
+			this.node = node;
+			return this;
+		}
+		CreateNodeEntity withPredecessors(List<Node> predecessors) {
+			this.predecessors = predecessors;
+			return this;
+		}
+		CreateNodeEntity withSuccessors(List<Node> successors) {
+			this.successors = successors;
+			return this;
+		}
+		CreateNodeEntity withConfig(ConfigurationCenter config) {
+			this.config = config;
+			return this;
+		}
+		CreateNodeEntity withConnection(Connections connection) {
+			this.connection = connection;
+			return this;
+		}
+		CreateNodeEntity withDatabaseType(DatabaseTypeEnum.DatabaseType databaseType) {
+			this.databaseType = databaseType;
+			return this;
+		}
+		CreateNodeEntity withMergeTableMap(Map<String, MergeTableNode> mergeTableMap) {
+			this.mergeTableMap = mergeTableMap;
+			return this;
+		}
+		CreateNodeEntity withTapTableMap(TapTableMap<String, TapTable> tapTableMap) {
+			this.tapTableMap = tapTableMap;
+			return this;
+		}
+		CreateNodeEntity withTaskConfig(TaskConfig taskConfig) {
+			this.taskConfig = taskConfig;
+			return this;
+		}
+		CreateNodeEntity withOpen(boolean open) {
+			this.open = open;
+			return this;
+		}
 	}
 }

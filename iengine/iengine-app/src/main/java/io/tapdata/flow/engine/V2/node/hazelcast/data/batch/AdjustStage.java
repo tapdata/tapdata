@@ -25,7 +25,9 @@ public interface AdjustStage {
     /**
      * Indicator for reporting changes in batch frequency
      * */
-    void metric(MetricInfo metricInfo);
+    default void metric(MetricInfo metricInfo) {
+        //do nothing
+    }
 
     /**
      * Obtain the node ID of the task node
