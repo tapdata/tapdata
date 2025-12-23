@@ -290,6 +290,8 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      */
     private Boolean dataSaving = true;
 
+    private Boolean fileLog = false;
+
     private List<ErrorEvent> errorEvents;
     /**
      * Compatible with old versions of timezone processing
