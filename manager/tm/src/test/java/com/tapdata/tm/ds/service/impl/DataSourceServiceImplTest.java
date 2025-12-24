@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;

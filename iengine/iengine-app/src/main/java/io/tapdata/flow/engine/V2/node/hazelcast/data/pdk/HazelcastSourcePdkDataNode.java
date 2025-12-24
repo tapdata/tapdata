@@ -151,6 +151,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
@@ -178,7 +179,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	private ShareCdcReader shareCdcReader;
 	protected final SourceStateAspect sourceStateAspect;
 	private List<String> conditionFields;
-	private TapStreamReadConsumer<?, ?> streamReadConsumer;
+	private TapStreamReadConsumer<?, Object	> streamReadConsumer;
 	private BatchAcceptor streamReadBatchAcceptor;
 
 	private PDKMethodInvoker streamReadMethodInvoker;
@@ -203,18 +204,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		if (!this.needAdjustBatchSize) {
 			return;
 		}
-		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
-		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(getConnectorNode())
-				.map(ConnectorNode::getConnectorContext)
-				.map(TapConnectorContext::getSpecification)
-				.map(TapNodeSpecification::getAutoAccumulateBatch)
-				.map(AutoAccumulateBatchInfo::getIncreaseRead)
-				.orElse(new AutoAccumulateBatchInfo.Info());
-		if (autoAccumulateBatchInfo.isOpen()) {
-			Node<?> node = getNode();
-			AdjustBatchSizeFactory.register(node.getTaskId(), this, this.sourceRunner);
-			obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
+		final StreamReadOneByOneFunction function = Optional.ofNullable(getConnectorNode())
+				.map(ConnectorNode::getConnectorFunctions)
+				.map(ConnectorFunctions::getStreamReadOneByOneFunction)
+				.orElse(null);
+		if (!needAdjustBatchSize || null == function) {
+			return;
 		}
+		Node<?> node = getNode();
+		AdjustBatchSizeFactory.register(node.getTaskId(), this, this.sourceRunner);
+		obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
 	}
 
 	@Override
@@ -947,12 +946,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			anyError = doBatchCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else if (streamReadConsumer instanceof StreamReadOneByOneConsumer consumer) {
 			if (this.needAdjustBatchSize) {
-				this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
+				setIncreaseReadSizeCompareDefault();
 				obsLogger.info("Stream read batch size will be adjusted automatically, start from: " + getIncreaseReadSize());
 			}
 			anyError = doOneByOneCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else {
-			logger.error("Unknown stream read consumer: " + streamReadConsumer);
+			logger.error("Unknown stream read consumer");
 			return;
 		}
 		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
@@ -978,6 +977,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					});
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
+		}
+	}
+
+	protected void setIncreaseReadSizeCompareDefault(){
+		int size = getIncreaseReadSize();
+		if (size < DEFAULT_ADJUST_INCREASE_BATCH_SIZE) {
+			this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
 		}
 	}
 
@@ -1089,7 +1095,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		return anyError;
 	}
 
-	protected TapStreamReadConsumer<?, ?> generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
+	protected TapStreamReadConsumer<?, Object> generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
 		StreamReadConsumer consumer = StreamReadConsumer.create((events, offsetObj) -> {
 			try {
 				while (isRunning()) {
@@ -1151,19 +1157,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
-		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
-		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(connectorNode.getConnectorContext())
-				.map(TapConnectorContext::getSpecification)
-				.map(TapNodeSpecification::getAutoAccumulateBatch)
-				.map(AutoAccumulateBatchInfo::getIncreaseRead)
-				.orElse(new AutoAccumulateBatchInfo.Info());
-		if (!autoAccumulateBatchInfo.isOpen()) {
-			final int delayMs = Math.max(50, this.getIncreaseReadSize() / 10);
-			streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> delayMs, null);
+		final StreamReadOneByOneFunction function = Optional.ofNullable(connectorNode.getConnectorFunctions())
+				.map(ConnectorFunctions::getStreamReadOneByOneFunction)
+				.orElse(null);
+		Supplier<Long> batchSizeTimeoutMSGetter = () -> Math.min(Math.max(50L, this.getIncreaseReadSize() / 10L), 5000L);
+		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, batchSizeTimeoutMSGetter, e -> isRunning(), consumer, obsLogger);
+		if (!needAdjustBatchSize || null == function) {
 			return consumer;
 		}
-		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.max(50, this.getIncreaseReadSize() / 10), consumer);
-		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o));
+		streamReadBatchAcceptor.startMonitor(sourceRunner);
+		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o), this::getIncreaseReadSize, batchSizeTimeoutMSGetter)
+				.batchConsumer((es, o) -> streamReadBatchAcceptor.accept(es, o));
 	}
 
 	private void handleSyncProgressType(List<TapdataEvent> tapdataEvents) {
@@ -1544,6 +1548,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	public void doClose() throws TapCodeException {
 		try {
 			CommonUtils.handleAnyError(() -> {
+				if (null != streamReadBatchAcceptor) {
+					streamReadBatchAcceptor.close();
+				}
+			}, err -> obsLogger.warn(String.format("Close share cdc event accept failed: %s", err.getMessage())));
+			CommonUtils.handleAnyError(() -> {
 				if (null != shareCdcReader) {
 					shareCdcReader.close();
 				}
@@ -1724,11 +1733,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	@Override
 	public Consumer<List<TapEvent>> consumer() {
 		return this.streamReadBatchSizeConsumer;
-	}
-
-	@Override
-	public void metric(MetricInfo metricInfo) {
-
 	}
 
 	@Override

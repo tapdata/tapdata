@@ -1157,18 +1157,30 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (null == tapRecordEvent) {
             return;
         }
-        hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
-        List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
-        String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
-        if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
-			obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
-            return;
-        } else {
-            if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
-                obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
-                lookupTables.remove(tgtTableNameFromTapEvent);
-            }
-        }
+		boolean needCheckExactlyOnceWrite = true;
+		Object info = tapRecordEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
+		if(info instanceof MergeInfo mergeInfo) {
+			Integer level = mergeInfo.getLevel();
+			if (!level.equals(1)) {
+				needCheckExactlyOnceWrite = false;
+			}
+		}
+		if (needCheckExactlyOnceWrite) {
+			hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
+			List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
+			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
+			if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
+				tapdataEvent.setExactlyOnceWriteCache(null);
+				obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
+				return;
+			} else {
+				if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
+					obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
+					lookupTables.remove(tgtTableNameFromTapEvent);
+				}
+			}
+		}
+
         tapEvents.add(tapRecordEvent);
         if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
             lastTapdataEvent.set(tapdataEvent);
