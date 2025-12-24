@@ -912,31 +912,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	protected void drainAndRun(BlockingQueue<TapdataEvent> queue, int elementsNum, long timeout, TimeUnit timeUnit, TapdataEventsRunner tapdataEventsRunner, Function<Exception, Boolean> errorHandle) {
-		List<TapdataEvent> tapdataEvents = new ArrayList<>();
-		while (isRunning()) {
-			try {
-				int drain = Queues.drain(queue, tapdataEvents, elementsNum, timeout, timeUnit);
-				if (drain > 0) {
-					try {
-						tapdataEventsRunner.run(tapdataEvents);
-					} catch (Exception e) {
-						if (null != errorHandle) {
-							Boolean exit = errorHandle.apply(e);
-							if(Boolean.TRUE.equals(exit)) {
-								break;
-							}
-						}
-					}
-					tapdataEvents = new ArrayList<>();
-				}
-			} catch (InterruptedException ignored) {
-				Thread.currentThread().interrupt();
-				break;
-			}
-		}
-	}
-
     private void initialProcessEvents(List<TapdataEvent> initialEvents, boolean async) {
 
         if (CollectionUtils.isNotEmpty(initialEvents)) {
