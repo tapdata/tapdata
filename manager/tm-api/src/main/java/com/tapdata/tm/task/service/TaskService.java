@@ -75,6 +75,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     //@Transactional
     public abstract TaskDto updateById(TaskDto taskDto, UserDetail user);
 
+    public abstract TaskDto updateById(TaskDto taskDto, UserDetail user,Boolean importTask);
+
     public abstract TaskDto updateAfter(TaskDto taskDto, UserDetail user);
 
     public abstract TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user);

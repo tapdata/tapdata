@@ -38,7 +38,7 @@ import static com.tapdata.tm.mcp.McpConfig.USER_ID;
 /**
  * Server-side implementation of the Model Context Protocol (MCP) transport layer using
  * HTTP with Server-Sent Events (SSE) through Spring WebMVC. This implementation provides
- * a bridge between synchronous WebMVC operations and reactive programming patterns to
+ * a Oracle Log Parser between synchronous WebMVC operations and reactive programming patterns to
  * maintain compatibility with the reactive transport interface.
  *
  * <p>

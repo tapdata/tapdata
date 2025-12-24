@@ -595,7 +595,7 @@ public class TaskServiceImpl extends TaskService{
      * @return TaskDto
      */
     //@Transactional
-    public TaskDto updateById(TaskDto taskDto, UserDetail user) {
+    public TaskDto updateById(TaskDto taskDto, UserDetail user, Boolean importTask) {
         checkTaskInspectFlag(taskDto);
         //根据id校验当前需要更新到任务是否存在
         TaskDto oldTaskDto = null;
@@ -657,7 +657,7 @@ public class TaskServiceImpl extends TaskService{
         dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean agentReq = isAgentReq();
-        if (!agentReq) {
+        if (!agentReq && !importTask) {
             if (taskDto.getEditVersion() != null && !oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
                 if (taskDto.getPageVersion() != null && oldTaskDto.getPageVersion() != null && !oldTaskDto.getPageVersion().equals(taskDto.getPageVersion())) {
                     throw new BizException("Task.OldVersion");
@@ -719,6 +719,10 @@ public class TaskServiceImpl extends TaskService{
 
         return save(taskDto, user);
 
+    }
+
+    public TaskDto updateById(TaskDto taskDto, UserDetail user) {
+        return updateById(taskDto, user, false);
     }
 
     protected void buildLdpNewTablesFromBatchOffset(TaskDto taskDto, DAG newDag) {
@@ -942,7 +946,7 @@ public class TaskServiceImpl extends TaskService{
             }
         }
 
-        updateById(taskDto, user);
+        updateById(taskDto, user,importTask);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.CONFIRM, user);
 
@@ -3728,7 +3732,7 @@ public class TaskServiceImpl extends TaskService{
             }
             // 根据导入模式处理
             switch (importMode) {
-                case REPLACE:
+                case REPLACE,REUSE_EXISTING:
                     handleReplaceMode(taskDto, existingTaskByName, user, tagList, conMap,nodeMap,taskMap);
                     break;
                 case IMPORT_AS_COPY:
@@ -3856,11 +3860,10 @@ public class TaskServiceImpl extends TaskService{
     protected void updateConnectionIds(TaskDto taskDto, Map<String, DataSourceConnectionDto> conMap) {
         if (taskDto.getDag() != null && taskDto.getDag().getNodes() != null) {
             taskDto.getDag().getNodes().forEach(node -> {
-                if (node instanceof DatabaseNode) {
-                    DatabaseNode databaseNode = (DatabaseNode) node;
-                    if (conMap.containsKey(databaseNode.getConnectionId())) {
-                        DataSourceConnectionDto dataSourceCon = conMap.get(databaseNode.getConnectionId());
-                        databaseNode.setConnectionId(dataSourceCon.getId().toString());
+                if (node instanceof DataParentNode dataParentNode) {
+                    if (conMap.containsKey(dataParentNode.getConnectionId())) {
+                        DataSourceConnectionDto dataSourceCon = conMap.get(dataParentNode.getConnectionId());
+                        dataParentNode.setConnectionId(dataSourceCon.getId().toString());
                     }
                 }
             });
@@ -3871,9 +3874,8 @@ public class TaskServiceImpl extends TaskService{
         AtomicBoolean result = new AtomicBoolean(false);
         if (taskDto.getDag() != null && taskDto.getDag().getNodes() != null) {
             taskDto.getDag().getNodes().forEach(node -> {
-                if (node instanceof DatabaseNode) {
-                    DatabaseNode databaseNode = (DatabaseNode) node;
-                    if(conMap.get(databaseNode.getConnectionId()) == null){
+                if (node instanceof DataParentNode dataParentNode) {
+                    if(conMap.get(dataParentNode.getConnectionId()) == null){
                         result.set(true);
                     }
                 }

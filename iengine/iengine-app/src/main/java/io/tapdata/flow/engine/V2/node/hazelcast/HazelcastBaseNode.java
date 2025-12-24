@@ -25,6 +25,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
@@ -896,7 +897,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (null == tapdataEvent) {
 			return;
 		}
-		if (!tapdataEvent.isDDL()) {
+		if (!tapdataEvent.isDDL() || getNode() instanceof MigrateUnionProcessorNode) {
 			return;
 		}
 		try {

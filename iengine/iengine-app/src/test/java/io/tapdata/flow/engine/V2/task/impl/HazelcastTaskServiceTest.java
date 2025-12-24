@@ -15,6 +15,7 @@ import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
+import com.tapdata.entity.Setting;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
@@ -152,6 +153,11 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.hazelcast.persistence.ConstructType;
+import com.hazelcast.persistence.PersistenceStorage;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 
 
 public class HazelcastTaskServiceTest {
@@ -1158,7 +1164,7 @@ public class HazelcastTaskServiceTest {
             when(hazelcastInstance.getJet()).thenReturn(jet);
             Job job = mock(Job.class);
             when(jet.newJob(eq(dag), any(JobConfig.class))).thenReturn(job);
-            TaskClient<TaskDto> taskDtoTaskClient = assertDoesNotThrow(() -> {
+            TaskClient<TaskDto> taskDtoTaskClient = assertDoesNotThrow(() ->  {
                 try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
                     cm.when(() -> CpuMemoryCollector.startTask(taskDto)).thenAnswer(a -> null);
                     cm.when(() -> CpuMemoryCollector.addNode(anyString(), anyString())).thenAnswer(a -> null);

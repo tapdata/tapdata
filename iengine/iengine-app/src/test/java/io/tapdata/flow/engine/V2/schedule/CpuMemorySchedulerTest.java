@@ -1,9 +1,11 @@
 package io.tapdata.flow.engine.V2.schedule;
 
+import com.tapdata.entity.Setting;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.aspect.CpuMemUsageAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.TaskAspectManager;
+import io.tapdata.common.SettingService;
 import io.tapdata.entity.Usage;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,12 +30,15 @@ class CpuMemorySchedulerTest {
 
     private CpuMemoryScheduler scheduler;
     ClientMongoOperator clientMongoOperator;
+    SettingService settingService;
 
     @BeforeEach
     void setUp() {
         clientMongoOperator = mock(ClientMongoOperator.class);
         scheduler = new CpuMemoryScheduler();
+        settingService = mock(SettingService.class);
         ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
+        ReflectionTestUtils.setField(scheduler, "settingService", settingService);
     }
 
     @Nested
@@ -42,11 +47,42 @@ class CpuMemorySchedulerTest {
         @Test
         @DisplayName("test scheduler annotation")
         void test1() throws NoSuchMethodException {
+            Setting setting = new Setting();
+            setting.setValue("true");
+            when(settingService.getSetting("cpu_mem_collector")).thenReturn(setting);
             Method method = CpuMemoryScheduler.class.getDeclaredMethod("collectCpuUsage");
             Scheduled annotation = method.getAnnotation(Scheduled.class);
             
             assertNotNull(annotation);
             assertEquals("0/10 * * * * ?", annotation.cron());
+        }
+
+        @Test
+        @DisplayName("test method execution")
+        void test2() {
+            Setting setting = new Setting();
+            setting.setValue("true");
+            when(settingService.getSetting("cpu_mem_collector")).thenReturn(setting);
+            try (MockedStatic<CpuMemoryCollector> mockedCollector = mockStatic(CpuMemoryCollector.class)) {
+                Map<String, Usage> mockUsageMap = new HashMap<>();
+                mockedCollector.when(() -> CpuMemoryCollector.collectOnce(null))
+                        .thenReturn(mockUsageMap);
+                assertDoesNotThrow(() -> scheduler.collectCpuUsage());
+                mockedCollector.verify(() -> CpuMemoryCollector.collectOnce(null));
+            }
+        }
+
+        @Test
+        @DisplayName("test method execution")
+        void test3() {
+            when(settingService.getSetting("cpu_mem_collector")).thenReturn(null);
+            try (MockedStatic<CpuMemoryCollector> mockedCollector = mockStatic(CpuMemoryCollector.class)) {
+                Map<String, Usage> mockUsageMap = new HashMap<>();
+                mockedCollector.when(() -> CpuMemoryCollector.collectOnce(null))
+                        .thenReturn(mockUsageMap);
+                assertDoesNotThrow(() -> scheduler.collectCpuUsage());
+                mockedCollector.verify(() -> CpuMemoryCollector.collectOnce(null));
+            }
         }
     }
 
@@ -60,6 +96,9 @@ class CpuMemorySchedulerTest {
         @Test
         @DisplayName("test main process")
         void test1() {
+            Setting setting = new Setting();
+            setting.setValue("true");
+            when(settingService.getSetting("cpu_mem_collector")).thenReturn(setting);
             List<String> taskIds = List.of("task1", "task2");
             Map<String, Usage> usageMap = new HashMap<>();
             Usage usage1 = new Usage();
@@ -88,6 +127,9 @@ class CpuMemorySchedulerTest {
         @Test
         @DisplayName("test with null aspectTask")
         void test2() {
+            Setting setting = new Setting();
+            setting.setValue("true");
+            when(settingService.getSetting("cpu_mem_collector")).thenReturn(setting);
             List<String> taskIds = List.of("task1");
             Map<String, Usage> usageMap = new HashMap<>();
             usageMap.put("task1", new Usage());
@@ -110,6 +152,9 @@ class CpuMemorySchedulerTest {
         @Test
         @DisplayName("test with null taskIds")
         void test3() {
+            Setting setting = new Setting();
+            setting.setValue("true");
+            when(settingService.getSetting("cpu_mem_collector")).thenReturn(setting);
             Map<String, Usage> usageMap = new HashMap<>();
             
             try (MockedStatic<CpuMemoryCollector> mockedCollector = mockStatic(CpuMemoryCollector.class)) {
@@ -125,6 +170,9 @@ class CpuMemorySchedulerTest {
         @Test
         @DisplayName("test with empty usageMap")
         void test4() {
+            Setting setting = new Setting();
+            setting.setValue("true");
+            when(settingService.getSetting("cpu_mem_collector")).thenReturn(setting);
             List<String> taskIds = List.of("task1");
             Map<String, Usage> usageMap = new HashMap<>();
             
