@@ -5546,6 +5546,22 @@ public class TaskServiceImpl extends TaskService{
         }
     }
 
+    @Override
+    public List<String> getTargetConnectionIds(String taskId) {
+        List<String> targetConnectionIds = new ArrayList<>();
+        TaskDto taskDto = findById(MongoUtils.toObjectId(taskId), Field.includes("dag"));
+        Optional.ofNullable(taskDto)
+            .map(TaskDto::getDag)
+            .map(DAG::getTargetDataParentNode)
+            .ifPresent(targetNodes -> {
+                targetNodes.forEach(node -> {
+                    if (null != node.getConnectionId()) {
+                        targetConnectionIds.add(node.getConnectionId());
+                    }
+                });
+            });
+        return targetConnectionIds;
+    }
 
     protected Boolean checkMergeTableTask(TaskDto taskDto){
         if (taskDto == null || taskDto.getDag() == null || taskDto.getDag().getNodes() == null) {

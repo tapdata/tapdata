@@ -312,6 +312,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract List<MergeTablePropertiesInfo> getMergeTaskCacheManager(String taskId, String nodeId, UserDetail userDetail,Boolean check);
     public abstract void updateMergeTablePropertiesRebuildStatus(String taskId, String nodeId, String mergeTablePropertiesId,UserDetail userDetail,String status);
     public abstract void saveMergeTableCacheInfo(String taskId);
+    public abstract List<String> getTargetConnectionIds(String taskId);
 
     @Data
     @AllArgsConstructor
