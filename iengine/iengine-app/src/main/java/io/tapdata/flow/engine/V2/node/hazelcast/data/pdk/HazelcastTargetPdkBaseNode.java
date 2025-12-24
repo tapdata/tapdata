@@ -1165,6 +1165,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
 			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
 			if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
+				tapdataEvent.setExactlyOnceWriteCache(null);
 				obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
 				return;
 			} else {
