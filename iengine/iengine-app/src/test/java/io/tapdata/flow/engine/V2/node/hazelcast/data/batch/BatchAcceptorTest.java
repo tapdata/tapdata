@@ -591,6 +591,19 @@ class BatchAcceptorTest {
             Assertions.assertFalse(acceptor.active);
             verify(mockFuture, times(1)).cancel(true);
         }
+        @Test
+        void testCloseNull() {
+            Future<?> mockFuture = mock(Future.class);
+            when(mockFuture.cancel(true)).thenReturn(true);
+
+            BatchAcceptor acceptor = new BatchAcceptor(batchSizeGetter, delayMsGetter, isAlive, consumer, obsLogger);
+            acceptor.active = true;
+
+            acceptor.close();
+
+            Assertions.assertFalse(acceptor.active);
+            verify(mockFuture, times(0)).cancel(true);
+        }
     }
 
     @Nested
