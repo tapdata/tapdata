@@ -6,6 +6,8 @@ import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.observable.logging.util.TokenBucketRateLimiter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.*;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
@@ -43,6 +45,7 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 	private final int batchSize;
 	private final AtomicBoolean running = new AtomicBoolean(true);
 	private final String taskId;
+	private final Logger rootLogger = LogManager.getLogger(ObsHttpTMLog4jAppender.class);
 
 	protected ObsHttpTMLog4jAppender(String name, Filter filter, Layout<? extends Serializable> layout, boolean ignoreExceptions, Property[] properties,
 									 ClientMongoOperator clientMongoOperator, int batchSize, String taskId) {
@@ -91,7 +94,11 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 				.collect(Collectors.toList());
 
         if (CollectionUtils.isNotEmpty(tmp)) {
-            this.clientMongoOperator.insertMany(bufferList, "MonitoringLogs/batchJson");
+			try {
+				this.clientMongoOperator.insertMany(bufferList, "MonitoringLogs/batchJson");
+			} catch (Exception e) {
+				rootLogger.warn("Call tm api insert logs failed, {}", e.getMessage(), e);
+			}
         }
         bufferList.clear();
     }
