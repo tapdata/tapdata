@@ -2,6 +2,7 @@ package io.tapdata.threadgroup;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.Usage;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.pdk.core.executor.ThreadFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.threadgroup.utils.ThreadGroupUtil;
@@ -226,19 +227,21 @@ public final class CpuMemoryCollector {
 		weakReferences.stream()
 				.filter(Objects::nonNull)
 				.forEach(weakReference -> {
-					if (null == weakReference.get()) {
+					Object o = weakReference.get();
+					if (null == o) {
 						return;
 					}
 					ignore(() -> {
-						Object o = weakReference.get();
-						if (null == o) {
-							return;
-						}
 						long sizeOf;
-						try {
-							sizeOf = GraphLayout.parseInstance().totalSize();
-						} catch (Exception e) {
-							sizeOf = RamUsageEstimator.sizeOfObject(o);
+						if (o instanceof TapRecordEvent event && null != event.getMemorySize() && event.getMemorySize() > 0L) {
+							sizeOf = event.getMemorySize();
+						} else {
+							//Calculated at 3 times the consumption
+							try {
+								sizeOf = 3 * GraphLayout.parseInstance().totalSize();
+							} catch (Exception e) {
+								sizeOf = 3 * RamUsageEstimator.sizeOfObject(o);
+							}
 						}
 						//WeakReference 32~40B, 按40B计算
 						final long value = usage.getHeapMemoryUsage() + sizeOf + 40;
@@ -248,28 +251,30 @@ public final class CpuMemoryCollector {
 	}
 
 	void collectMemoryUsage(List<String> filterTaskIds, Map<String, Usage> usageMap) {
-		final List<String> taskIds = new ArrayList<>(weakReferenceMap.keySet());
+		final List<String> taskIds = new ArrayList<>(taskDtoMap.keySet());
 		taskIds.stream()
 				.filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
-				.filter(taskId -> {
-					Info item = COLLECTOR.taskInfo.get(taskId);
-					if (null == item) {
-						item = new Info();
-						item.taskId = taskId;
-						COLLECTOR.taskInfo.put(taskId, item);
-					}
-					List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
-					if (CollectionUtils.isEmpty(weakReferences)) {
-						return false;
-					}
-					return item.judged(weakReferences.size());
-				}).forEach(taskId -> {
+				.forEach(taskId -> {
 					final Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
 					Optional.ofNullable(COLLECTOR.taskDtoMap.get(taskId))
 							.map(WeakReference::get)
 							.ifPresent(info -> usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + GraphLayout.parseInstance(info).totalSize()));
-					final List<WeakReference<Object>> weakReferences = weakReferenceMap.get(taskId);
-					eachTaskOnce(weakReferences, usage);
+					List<WeakReference<Object>> weakReferences = COLLECTOR.cacheRightWeakReferenceMap.get(taskId);
+					if (!CollectionUtils.isEmpty(weakReferences)) {
+						try {
+							eachTaskOnce(weakReferences, usage);
+						} catch (Exception e) {
+							//ignore Errors do not affect the process
+						}
+					}
+					weakReferences = COLLECTOR.cacheLeftWeakReferenceMap.get(taskId);
+					if (!CollectionUtils.isEmpty(weakReferences)) {
+						try {
+							eachTaskOnce(weakReferences, usage);
+						} catch (Exception e) {
+							//ignore Errors do not affect the process
+						}
+					}
 				});
 	}
 
@@ -354,10 +359,9 @@ public final class CpuMemoryCollector {
 			return usageMap;
 		}
 		final CompletableFuture<Void> futureCpu = CompletableFuture.runAsync(() -> COLLECTOR.collectCpuUsage(taskIds, usageMap));
-		final CompletableFuture<Void> futureMemory = CompletableFuture.runAsync(() -> COLLECTOR.collectMemoryUsage(taskIds, usageMap));
+		COLLECTOR.collectMemoryUsage(taskIds, usageMap);
 		try {
 			futureCpu.get();
-			futureMemory.get();
 		} catch (InterruptedException e) {
 			log.error("Collect cpu and memory usage failed InterruptedException, {}", e.getMessage(), e);
 			Thread.currentThread().interrupt();

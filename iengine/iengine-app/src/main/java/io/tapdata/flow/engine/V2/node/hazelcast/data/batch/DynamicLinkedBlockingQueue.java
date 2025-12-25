@@ -2,7 +2,9 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.batch;
 
 import com.google.common.collect.Queues;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -107,15 +109,21 @@ public class DynamicLinkedBlockingQueue<E> {
         if (!holderRef.compareAndSet(oldHolder, newHolder)) {
             return newSize;
         }
-        migrator.submit(() -> migrate(oldHolder.queue, newQueue));
+        migrator.submit(() -> {
+            migrate(oldHolder.queue, newQueue);
+            holderRef.compareAndSet(oldHolder, newHolder);
+        });
         return newSize;
     }
 
     private void migrate(LinkedBlockingQueue<E> oldQ, LinkedBlockingQueue<E> newQ) {
-        E e;
-        while ((e = oldQ.poll()) != null && this.active()) {
-            if (!newQ.offer(e)) {
-                //do nothing
+        List<E> buf = new ArrayList<>(512);
+        while (this.active()) {
+            buf.clear();
+            oldQ.drainTo(buf, 512);
+            if (buf.isEmpty()) break;
+            for (E e : buf) {
+                newQ.offer(e);
             }
         }
     }
@@ -167,13 +175,10 @@ public class DynamicLinkedBlockingQueue<E> {
     }
 
     public int drain(Collection<E> accept, int maxElements, long timeout, TimeUnit unit) throws InterruptedException {
-        if (isEmpty()) {
-            return 0;
-        }
         QueueHolder<E> h = holderRef.get();
         int drain = 0;
-        if (h.migrating) {
-            drain = Queues.drain(h.migratingQueue, accept, maxElements, 1L, unit);
+        if (h.migrating && !h.migratingQueue.isEmpty()) {
+            drain = h.migratingQueue.drainTo(accept, maxElements);
         }
         if (drain < maxElements) {
             drain += Queues.drain(h.queue, accept, maxElements - drain, timeout, unit);

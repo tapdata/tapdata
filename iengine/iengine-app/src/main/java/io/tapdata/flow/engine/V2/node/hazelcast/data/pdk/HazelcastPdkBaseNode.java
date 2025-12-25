@@ -99,9 +99,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
     protected Integer increaseReadSize;
 
     public void setIncreaseReadSize(int increaseReadSize) {
-		synchronized (this) {
-			this.increaseReadSize = increaseReadSize;
-		}
+		this.increaseReadSize = increaseReadSize;
 	}
 
 	public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";

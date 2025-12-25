@@ -3,7 +3,17 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.entity.*;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataAdjustMemoryEvent;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataMergeTableCacheRebuildCompleteEvent;
+import com.tapdata.entity.TapdataStartedCdcEvent;
+import com.tapdata.entity.TapdataStartingCdcEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
@@ -68,6 +78,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustStage;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.BatchAcceptor;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustResult;
@@ -83,7 +94,6 @@ import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -91,6 +101,7 @@ import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.consumer.StreamReadOneByOneConsumer;
 import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
@@ -111,7 +122,11 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionO
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadOneByOneFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.spec.AutoAccumulateBatchInfo;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.async.AsyncUtils;
+import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -137,8 +152,18 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -205,7 +230,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			return;
 		}
 		Node<?> node = getNode();
-		AdjustBatchSizeFactory.register(node.getTaskId(), this, this.sourceRunner);
+		ThreadPoolExecutorEx threadPoolExecutor = AsyncUtils.createThreadPoolExecutor(
+				String.format("Source-Runner-adjust-batch-size-%s-%s[%s]", node.getTaskId(), node.getName(), node.getId()),
+				100,
+				(io.tapdata.pdk.core.executor.ThreadFactory) this.sourceRunner.getThreadFactory(),
+				500,
+				TAG);
+		AdjustBatchSizeFactory.register(node.getTaskId(), this, threadPoolExecutor);
 		obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
 	}
 
@@ -1079,9 +1110,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					}
 				}
 				if (events != null && !events.isEmpty()) {
+					HandlerUtil.sampleMemoryToTapEvent(events);
 					List<TapEvent> finalEvents = events;
 					Optional.ofNullable(this.streamReadBatchSizeConsumer).ifPresent(e -> e.accept(finalEvents));
-					HandlerUtil.sampleMemoryToTapEvent(events);
 					events = events.stream().map(event -> {
 						if (null == event.getTime()) {
 							throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
@@ -1131,8 +1162,26 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		final StreamReadOneByOneFunction function = Optional.ofNullable(connectorNode.getConnectorFunctions())
 				.map(ConnectorFunctions::getStreamReadOneByOneFunction)
 				.orElse(null);
-		Supplier<Long> batchSizeTimeoutMSGetter = () -> Math.min(Math.max(50L, this.getIncreaseReadSize() / 10L), 5000L);
-		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, batchSizeTimeoutMSGetter, e -> isRunning(), consumer, obsLogger);
+		Supplier<Long> batchSizeTimeoutMSGetter = () -> {
+			int size = this.getIncreaseReadSize();
+			if (size <= 100) {
+				return Math.max(100L, size * 10L);
+			}
+			if (size < 1000) {
+				return 2L * size;
+			}
+			if (size > 5000) {
+				return Math.min(Math.max(100L, size / 10L), 5000L);
+			}
+			return Math.max(50L, size);
+		};
+
+		streamReadBatchAcceptor = new BatchAcceptor(
+				this::getIncreaseReadSize,
+				batchSizeTimeoutMSGetter,
+				e -> isRunning(),
+				consumer,
+				obsLogger);
 		if (!needAdjustBatchSize || null == function) {
 			return consumer;
 		}
@@ -1735,6 +1784,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		reportBatchSize(changeTo, streamReadBatchAcceptor.getDelayMs());
 		if (changeTo != old) {
 			obsLogger.debug("Data node [{} - {}] | Change event queue capacity from {} to {}", getNode().getName(), getNode().getId(), old, changeTo);
+			streamReadBatchAcceptor.updateBatchSize(changeTo);
 		}
 	}
 }

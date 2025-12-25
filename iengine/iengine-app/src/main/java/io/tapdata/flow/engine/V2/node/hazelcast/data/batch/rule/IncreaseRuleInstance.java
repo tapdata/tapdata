@@ -11,6 +11,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.JvmMemoryService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.vo.increase.AdjustInfo;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.vo.increase.JudgeResult;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
+import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import org.openjdk.jol.info.GraphLayout;
 import org.springframework.util.CollectionUtils;
@@ -94,19 +95,21 @@ public final class IncreaseRuleInstance {
     }
 
     public void accept(List<TapEvent> events) {
-        final long delayAvg = delayAvg(events);
+        if (queue.size() >= 100) {
+            return;
+        }
         try {
-            CompletableFuture.runAsync(() -> {
+            //this.sourceRunner.submit(() -> {
+                final long delayAvg = delayAvg(events);
                 final AdjustInfo adjust = adjust(events, delayAvg);
                 try {
-                    if (queue.offer(adjust, 1000L, TimeUnit.MILLISECONDS)) {
+                    if (queue.offer(adjust)) {
                         //do nothing
                     }
-                } catch (InterruptedException e) {
+                } catch (Exception e) {
                     AdjustBatchSizeFactory.warn(taskId, "Offer adjust info failed, error message: {}", e.getMessage());
-                    Thread.currentThread().interrupt();
                 }
-            }, this.sourceRunner);
+            //});
         } catch (Exception e) {
             AdjustBatchSizeFactory.warn(taskId, "Offer adjust info failed, error message: {}", e.getMessage());
         }
@@ -132,10 +135,13 @@ public final class IncreaseRuleInstance {
         final AdjustInfo info = new AdjustInfo(taskId);
         info.setEventSize(events.size());
         if (info.getEventSize() > 0) {
-            info.setEventMem(GraphLayout.parseInstance(events).totalSize());
-            if (info.getEventSize() > 1) {
-                info.setEventMemAvg(info.getEventMem() / info.getEventSize());
+            TapEvent tapEvent = events.get(0);
+            if (tapEvent instanceof TapRecordEvent e) {
+                info.setEventMemAvg(e.getMemorySize());
+            } else {
+                info.setEventMemAvg(GraphLayout.parseInstance(tapEvent).totalSize());
             }
+            info.setEventMem(info.getEventMemAvg() * info.getEventSize());
         }
         final AdjustStage.TaskInfo adjust = this.stage.getTaskInfo();
         info.setBatchSize(adjust.getIncreaseReadSize());
@@ -156,12 +162,10 @@ public final class IncreaseRuleInstance {
     void collect(List<AdjustInfo> adjustInfos, long now) {
         AdjustInfo adjustInfo = null;
         do {
-            adjustInfo = queue.peek();
+            adjustInfo = queue.poll();
             if (null != adjustInfo) {
-                if (now >= adjustInfo.getTimestamp()) {
-                    AdjustInfo item = queue.poll();
-                    adjustInfos.add(item);
-                } else {
+                adjustInfos.add(adjustInfo);
+                if (now < adjustInfo.getTimestamp()) {
                     break;
                 }
             }
@@ -251,9 +255,15 @@ public final class IncreaseRuleInstance {
         if (fix > (3 * item / 4)) {
             return base + item;
         }
+        if (fix > item / 2) {
+            return base + 3 * item / 4;
+        }
         if (fix > item / 4) {
             return base + item / 2;
         }
-        return base;
+        if (fix < item / 10) {
+            return base;
+        }
+        return base + item / 4;
     }
 }
