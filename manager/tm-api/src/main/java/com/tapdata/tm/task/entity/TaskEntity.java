@@ -162,7 +162,6 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     private Boolean canOpenInspect = false;
 
     private TaskDto.SkipErrorEvent skipErrorEvent;
-    private Boolean enableSkipErrorTable; // 开启跳过错误表，复制任务才生效（默认：关闭）
 
     /**
      * 计划开始时间
