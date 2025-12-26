@@ -5119,6 +5119,7 @@ public class TaskServiceImpl extends TaskService{
                         TableStatusInfoDto upstreamTableStatusInfoDto = new TableStatusInfoDto();
                         upstreamTableStatusInfoDto.setTaskId(lineageTask.getId());
                         upstreamTableStatusInfoDto.setTaskName(lineageTask.getName());
+                        upstreamTableStatusInfoDto.setSyncType(lineageTask.getSyncType());
 
                         if(TaskDto.STATUS_RUNNING.equals(lineageTask.getStatus())){
                             upstreamTableStatusInfoDto.setStatus(TableStatusEnum.STATUS_NORMAL.getValue());

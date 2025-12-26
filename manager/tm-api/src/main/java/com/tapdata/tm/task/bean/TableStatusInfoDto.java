@@ -21,4 +21,6 @@ public class TableStatusInfoDto {
     private List<TableStatusInfoDto> upstreamTableStatus;
 
     private Boolean onDelayPath;
+
+    private String syncType;
 }
