@@ -6,6 +6,7 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public abstract class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
     public DataSourceService(@NonNull DataSourceRepository repository) {
@@ -133,6 +135,15 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
     public abstract List<Map<String, String>> getDatabaseTypes(UserDetail user);
 
     public abstract void startDatasourceCronMonitor();
+
+    /**
+     * 检测数据源能力
+     *
+     * @param connectionId 连接编号
+     * @param capabilities 检查项
+     * @return 不满足的项
+     */
+    public abstract Set<CapabilityEnum> checkCapabilities(String connectionId, Set<CapabilityEnum> capabilities);
 
     @Data
     public static class Part {

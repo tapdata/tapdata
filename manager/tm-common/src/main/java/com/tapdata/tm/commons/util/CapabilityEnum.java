@@ -37,7 +37,8 @@ public enum CapabilityEnum {
     CREATE_TABLE_FUNCTION("create_table_function", "支持建表 "),
     CREATE_TABLE_V2_FUNCTION("create_table_v2_function", "支持建表2"),
     CLEAR_TABLE_FUNCTION("clear_table_function", "支持清理数据"),
-    DROP_TABLE_FUNCTION("drop_table_function", "支持删表");
+    DROP_TABLE_FUNCTION("drop_table_function", "支持删表"),
+    EXPORT_EVENT_SQL_FUNCTION("export_event_sql_function", "导出修复SQL");
 
     private final String id;
 

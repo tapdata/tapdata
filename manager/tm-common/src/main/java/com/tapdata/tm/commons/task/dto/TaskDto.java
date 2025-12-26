@@ -247,6 +247,12 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private Map<String, Object> metricInfo;
 
+    /**
+     * Automatically adjust the batch size of the source node during increment
+     * */
+    private Boolean autoIncrementalBatchSize;
+
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());

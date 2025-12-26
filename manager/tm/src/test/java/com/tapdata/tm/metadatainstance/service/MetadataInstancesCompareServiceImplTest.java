@@ -1054,6 +1054,7 @@ class MetadataInstancesCompareServiceImplTest {
         void testCompareAndGetMetadataInstancesCompareResult_PerformComparison() {
             // Given
             TaskDto taskDto = createMockTaskDto();
+            when(taskDto.getSyncType()).thenReturn(TaskDto.SYNC_TYPE_MIGRATE);
             DataParentNode targetNode = new DatabaseNode();
             targetNode.setConnectionId("connectionId");
             targetNode.setAttrs(Collections.singletonMap("connectionTags", new ArrayList<>()));

@@ -44,6 +44,7 @@ public class LogContent implements Serializable {
 	private List<String> removeFields;
 
 	private Boolean isReplaceEvent = false;
+	protected String exactlyOnceId;
 
 	public LogContent() {
 	}
@@ -244,6 +245,14 @@ public class LogContent implements Serializable {
 		this.connectionId = connectionId;
 	}
 
+	public String getExactlyOnceId() {
+		return exactlyOnceId;
+	}
+
+	public void setExactlyOnceId(String exactlyOnceId) {
+		this.exactlyOnceId = exactlyOnceId;
+	}
+
 	public static LogContent valueOf(Document document) {
 		LogContent logContent = new LogContent();
 		logContent.setFromTable(document.getOrDefault("fromTable", "").toString());
@@ -284,6 +293,7 @@ public class LogContent implements Serializable {
 			logContent.setTapDDLEvent((byte[]) tapDDLEventObj);
 		}
 		logContent.setType(logContentType.name());
+		logContent.setExactlyOnceId(document.getOrDefault("exactlyOnceId", "").toString());
 		return logContent;
 	}
 

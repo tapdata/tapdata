@@ -858,7 +858,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 tapdataEvents = pendingEvents;
                 pendingEvents = null;
             } else {
-                if (toTapValueConcurrent) {
+                if (Boolean.TRUE.equals(toTapValueConcurrent)) {
                     try {
                         tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
                         accpetCdcEventIfHasInspect(tapdataEvents);
@@ -1308,7 +1308,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             if (SyncStage.CDC == syncStage) {
                 // Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
                 //todo: Remove lastStreamOffset if need add transaction in streamReadConsumer.
-                if (isLast) lastStreamOffset.set(offsetObj);
+                if (isLast && null != offsetObj) lastStreamOffset.set(offsetObj);
                 return wrapSingleTapdataEvent(tapEvent, syncStage, lastStreamOffset.get(), isLast);
             } else {
                 return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);

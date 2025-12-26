@@ -301,6 +301,12 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     private Boolean oldVersionTimezone = true;
 
     /**
+     * Automatically adjust the batch size of the source node during increment
+     * */
+    private Boolean autoIncrementalBatchSize;
+
+
+    /**
      * 任务指标信息
      * cpu: cpuUsage<Double>
      * mem: memoryUsage<Long>
