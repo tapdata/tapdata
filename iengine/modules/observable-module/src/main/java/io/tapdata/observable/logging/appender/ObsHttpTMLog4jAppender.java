@@ -89,19 +89,19 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 	}
 
 	protected void callTmApiInsertLogs(List<String> bufferList) {
-		List<String> tmp = bufferList.stream()
-				.filter(r -> !r.contains(LOG_TAG_SOURCE_FOR_USER_SCRIPT) || TokenBucketRateLimiter.get().tryAcquire(taskId))
-				.collect(Collectors.toList());
+		try {
+			List<String> tmp = bufferList.stream()
+					.filter(r -> !r.contains(LOG_TAG_SOURCE_FOR_USER_SCRIPT) || TokenBucketRateLimiter.get().tryAcquire(taskId))
+					.collect(Collectors.toList());
 
-        if (CollectionUtils.isNotEmpty(tmp)) {
-			try {
+			if (CollectionUtils.isNotEmpty(tmp)) {
 				this.clientMongoOperator.insertMany(bufferList, "MonitoringLogs/batchJson");
-			} catch (Exception e) {
-				rootLogger.warn("Call tm api insert logs failed, {}", e.getMessage(), e);
+				bufferList.clear();
 			}
-        }
-        bufferList.clear();
-    }
+		} catch (Exception e) {
+			rootLogger.warn("Call tm api insert logs failed, {}", e.getMessage());
+		}
+	}
 
 	@PluginFactory
 	public static ObsHttpTMLog4jAppender createAppender(
