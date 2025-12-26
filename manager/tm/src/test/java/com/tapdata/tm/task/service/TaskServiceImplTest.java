@@ -23,6 +23,10 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+import com.tapdata.tm.lineage.analyzer.AnalyzerService;
+import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
+import com.tapdata.tm.lineage.entity.LineageType;
+import com.tapdata.tm.utils.MergeTablePropertiesUtil;
 
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.MergeTablePropertiesInfo;
@@ -104,6 +108,7 @@ import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -6851,4 +6856,436 @@ class TaskServiceImplTest {
             assertEquals(databaseNodeConnectionId, targetConnectionIds.get(1));
         }
     }
+    @Nested
+    class TaskServiceImplGetTableStatusMaxDelayTest {
+
+        private TaskServiceImpl taskService;
+
+        private TaskRepository taskRepository;
+
+        private MeasurementServiceV2 measurementServiceV2;
+
+        private AnalyzerService analyzerService;
+
+        private UserDetail userDetail;
+
+        private String connectionId = "test-connection-id";
+        private String tableName = "test-table";
+
+        @BeforeEach
+        void setUp() {
+            taskRepository = mock(TaskRepository.class);
+            measurementServiceV2 = mock(MeasurementServiceV2.class);
+            analyzerService = mock(AnalyzerService.class);
+            userDetail = mock(UserDetail.class);
+            taskService = spy(new TaskServiceImpl(taskRepository));
+            ReflectionTestUtils.setField(taskService, "measurementServiceV2", measurementServiceV2);
+            ReflectionTestUtils.setField(taskService, "analyzerService", analyzerService);
+
+            // Mock common methods
+            doReturn(Collections.emptyList()).when(taskService).findAll(any(Query.class));
+            doReturn(true).when(taskService).judgeTargetNode(any(), anyString());
+            doReturn(true).when(taskService).judgeTargetInspect(anyString(), anyString(), any());
+        }
+
+        @Nested
+        @DisplayName("Single Path Delay Calculation")
+        class SinglePathDelayTests {
+
+            @Test
+            @DisplayName("Should calculate delay for single task in path")
+            void testSingleTaskDelay() throws Exception {
+                // Given
+                ObjectId taskId = new ObjectId();
+                Long expectedDelay = 1000L;
+
+                TaskDto runningTask = createRunningTask(taskId);
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithSinglePath(taskId.toHexString());
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                // Mock measurement service to set delay
+                doAnswer(invocation -> {
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    dto.setCdcDelayTime(expectedDelay);
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(TableStatusEnum.STATUS_NORMAL.getValue(), result.getStatus());
+                assertEquals(expectedDelay, result.getCdcDelayTime());
+                assertEquals(1, result.getUpstreamTableStatus().size());
+                assertTrue(result.getUpstreamTableStatus().get(0).getOnDelayPath());
+            }
+
+            @Test
+            @DisplayName("Should calculate delay for multiple tasks in single path")
+            void testMultipleTasksInSinglePath() throws Exception {
+                // Given
+                String task1Id = "task-1";
+                String task2Id = "task-2";
+                String task3Id = "task-3";
+                Long delay1 = 500L;
+                Long delay2 = 800L;
+                Long delay3 = 300L;
+                Long expectedTotalDelay = delay1 + delay2 + delay3; // 1600L
+                ObjectId taskId1 = new ObjectId();
+                TaskDto runningTask = createRunningTask(taskId1);
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithMultipleTasksInPath(task1Id, task2Id, task3Id);
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                // Mock measurement service for each task
+                doAnswer(invocation -> {
+                    String taskId = invocation.getArgument(0);
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    if (task1Id.equals(taskId)) {
+                        dto.setCdcDelayTime(delay1);
+                    } else if (task2Id.equals(taskId)) {
+                        dto.setCdcDelayTime(delay2);
+                    } else if (task3Id.equals(taskId)) {
+                        dto.setCdcDelayTime(delay3);
+                    }
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(expectedTotalDelay, result.getCdcDelayTime());
+                assertEquals(3, result.getUpstreamTableStatus().size());
+
+                // All tasks should be on delay path
+                long tasksOnDelayPath = result.getUpstreamTableStatus().stream()
+                        .filter(dto -> Boolean.TRUE.equals(dto.getOnDelayPath()))
+                        .count();
+                assertEquals(3, tasksOnDelayPath);
+            }
+        }
+
+        @Nested
+        @DisplayName("Multiple Paths Delay Calculation")
+        class MultiplePathsDelayTests {
+
+            @Test
+            @DisplayName("Should select path with maximum total delay")
+            void testMaximumDelayPathSelection() throws Exception {
+                // Given
+                // Path 1: task1 (500ms) -> task2 (300ms) = 800ms total
+                // Path 2: task3 (1000ms) -> task4 (500ms) = 1500ms total (maximum)
+                // Path 3: task5 (400ms) = 400ms total
+                ObjectId taskId1 = new ObjectId();
+                TaskDto runningTask = createRunningTask(taskId1);
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithMultiplePaths();
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                Map<String, Long> delayMap = new HashMap<>();
+                delayMap.put("task-1", 500L);
+                delayMap.put("task-2", 300L);
+                delayMap.put("task-3", 1000L);
+                delayMap.put("task-4", 500L);
+                delayMap.put("task-5", 400L);
+
+                doAnswer(invocation -> {
+                    String taskId = invocation.getArgument(0);
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    dto.setCdcDelayTime(delayMap.get(taskId));
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(1500L, result.getCdcDelayTime()); // Maximum path delay
+
+                // Only tasks in path 2 should be marked as on delay path
+                List<TableStatusInfoDto> upstreamTasks = result.getUpstreamTableStatus();
+                assertEquals(5, upstreamTasks.size());
+
+                long tasksOnDelayPath = upstreamTasks.stream()
+                        .filter(dto -> Boolean.TRUE.equals(dto.getOnDelayPath()))
+                        .count();
+                assertEquals(2, tasksOnDelayPath); // task-3 and task-4
+
+                // Verify task-3 and task-4 are on delay path
+                assertTrue(upstreamTasks.stream()
+                        .anyMatch(dto -> "task-3".equals(dto.getTaskId()) && Boolean.TRUE.equals(dto.getOnDelayPath())));
+                assertTrue(upstreamTasks.stream()
+                        .anyMatch(dto -> "task-4".equals(dto.getTaskId()) && Boolean.TRUE.equals(dto.getOnDelayPath())));
+            }
+
+            @Test
+            @DisplayName("Should handle paths with null delay values")
+            void testPathsWithNullDelays() throws Exception {
+                // Given
+                // Path 1: task1 (null) -> task2 (500ms) = 500ms
+                // Path 2: task3 (1000ms) -> task4 (null) = 1000ms (maximum)
+
+                TaskDto runningTask = createRunningTask(new ObjectId());
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithTwoPaths("task-1", "task-2", "task-3", "task-4");
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                doAnswer(invocation -> {
+                    String taskId = invocation.getArgument(0);
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    if ("task-2".equals(taskId)) {
+                        dto.setCdcDelayTime(500L);
+                    } else if ("task-3".equals(taskId)) {
+                        dto.setCdcDelayTime(1000L);
+                    }
+                    // task-1 and task-4 will have null delay
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(1000L, result.getCdcDelayTime());
+            }
+        }
+
+        @Nested
+        @DisplayName("Edge Cases")
+        class EdgeCaseTests {
+
+            @Test
+            @DisplayName("Should handle zero delay")
+            void testZeroDelay() throws Exception {
+                // Given
+                ObjectId taskId = new ObjectId();
+                TaskDto runningTask = createRunningTask(taskId);
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithSinglePath(taskId.toHexString());
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                doAnswer(invocation -> {
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    dto.setCdcDelayTime(0L);
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(0L, result.getCdcDelayTime());
+            }
+
+            @Test
+            @DisplayName("Should handle all paths with null delays")
+            void testAllPathsWithNullDelays() throws Exception {
+                // Given
+                TaskDto runningTask = createRunningTask(new ObjectId());
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithMultiplePaths();
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                // All tasks return null delay
+                doNothing().when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(0L, result.getCdcDelayTime()); // Default to 0 when all null
+            }
+
+            @Test
+            @DisplayName("Should cache delay values for same task appearing multiple times")
+            void testDelayCaching() throws Exception {
+                // Given - task-1 appears in multiple paths
+                String sharedTaskId = "task-1";
+                Long sharedDelay = 1000L;
+
+                TaskDto runningTask = createRunningTask(new ObjectId());
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithSharedTask(sharedTaskId);
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                doAnswer(invocation -> {
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    dto.setCdcDelayTime(sharedDelay);
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(eq(sharedTaskId), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                // Verify queryTableMeasurement is called only once for the shared task
+                verify(measurementServiceV2, times(1)).queryTableMeasurement(eq(sharedTaskId), any(TableStatusInfoDto.class));
+            }
+        }
+
+        // Helper methods to create test data
+
+        private TaskDto createRunningTask(ObjectId taskId) {
+            TaskDto task = new TaskDto();
+            task.setId(taskId);
+            task.setName("Task " + taskId);
+            task.setStatus(TaskDto.STATUS_RUNNING);
+            return task;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithSinglePath(String taskId) {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            // Mock DFS traversal
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                LineageTask task = new LineageTask(taskId, "Task " + taskId, null, "sync", TaskDto.STATUS_RUNNING, new Date());
+                edgePath.add(task);
+                result.add(new LinkedList<>(edgePath));
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithMultipleTasksInPath(String task1Id, String task2Id, String task3Id) {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                // Create a path with three tasks
+                LineageTask task1 = new LineageTask(task1Id, "Task " + task1Id, null, "sync", TaskDto.STATUS_RUNNING, new Date());
+                LineageTask task2 = new LineageTask(task2Id, "Task " + task2Id, null, "sync", TaskDto.STATUS_RUNNING, new Date());
+                LineageTask task3 = new LineageTask(task3Id, "Task " + task3Id, null, "sync", TaskDto.STATUS_RUNNING, new Date());
+
+                edgePath.add(task1);
+                edgePath.add(task2);
+                edgePath.add(task3);
+                result.add(new LinkedList<>(edgePath));
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithMultiplePaths() {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                // Path 1: task1 -> task2
+                LinkedList<LineageTask> path1 = new LinkedList<>();
+                path1.add(new LineageTask("task-1", "Task 1", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                path1.add(new LineageTask("task-2", "Task 2", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path1);
+
+                // Path 2: task3 -> task4
+                LinkedList<LineageTask> path2 = new LinkedList<>();
+                path2.add(new LineageTask("task-3", "Task 3", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                path2.add(new LineageTask("task-4", "Task 4", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path2);
+
+                // Path 3: task5
+                LinkedList<LineageTask> path3 = new LinkedList<>();
+                path3.add(new LineageTask("task-5", "Task 5", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path3);
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithTwoPaths(String task1Id, String task2Id, String task3Id, String task4Id) {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                // Path 1
+                LinkedList<LineageTask> path1 = new LinkedList<>();
+                path1.add(new LineageTask(task1Id, "Task " + task1Id, null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                path1.add(new LineageTask(task2Id, "Task " + task2Id, null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path1);
+
+                // Path 2
+                LinkedList<LineageTask> path2 = new LinkedList<>();
+                path2.add(new LineageTask(task3Id, "Task " + task3Id, null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                path2.add(new LineageTask(task4Id, "Task " + task4Id, null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path2);
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithSharedTask(String sharedTaskId) {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                LineageTask sharedTask = new LineageTask(sharedTaskId, "Shared Task", null, "sync", TaskDto.STATUS_RUNNING, new Date());
+
+                // Path 1: shared task -> task2
+                LinkedList<LineageTask> path1 = new LinkedList<>();
+                path1.add(sharedTask);
+                path1.add(new LineageTask("task-2", "Task 2", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path1);
+
+                // Path 2: shared task -> task3
+                LinkedList<LineageTask> path2 = new LinkedList<>();
+                path2.add(sharedTask);
+                path2.add(new LineageTask("task-3", "Task 3", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path2);
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+    }
+
 }
