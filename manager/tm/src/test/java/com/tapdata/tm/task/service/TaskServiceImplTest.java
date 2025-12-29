@@ -1226,6 +1226,167 @@ class TaskServiceImplTest {
             verify(taskService, times(1)).updateById(taskDto, user);
             verify(taskService, never()).confirmById(any(), any(), anyBoolean(), anyBoolean());
         }
+        @Test
+        @DisplayName("test handleImportAsCopyMode with MergeTableNode")
+        void testHandleImportAsCopyModeWithMergeTableNode() {
+            DatabaseNode sourceNode1 = new DatabaseNode();
+            String sourceNodeId1 = UUID.randomUUID().toString();
+            sourceNode1.setId(sourceNodeId1);
+            DatabaseNode sourceNode2 = new DatabaseNode();
+            String sourceNodeId2 = UUID.randomUUID().toString();
+            sourceNode2.setId(sourceNodeId2);
+            DatabaseNode sourceNode3 = new DatabaseNode();
+            String sourceNodeId3 = UUID.randomUUID().toString();
+            sourceNode3.setId(sourceNodeId3);
+
+
+            MergeTableNode mergeTableNode = new MergeTableNode();
+            mergeTableNode.setId(UUID.randomUUID().toString());
+
+            MergeTableProperties parentProperty = new MergeTableProperties();
+            parentProperty.setId(sourceNodeId1);
+
+            MergeTableProperties childProperty1 = new MergeTableProperties();
+            childProperty1.setId(sourceNodeId2);
+
+            MergeTableProperties childProperty2 = new MergeTableProperties();
+            childProperty2.setId(sourceNodeId3);
+
+            List<MergeTableProperties> children = new ArrayList<>();
+            children.add(childProperty1);
+            children.add(childProperty2);
+            parentProperty.setChildren(children);
+
+            List<MergeTableProperties> mergeProperties = new ArrayList<>();
+            mergeProperties.add(parentProperty);
+            mergeTableNode.setMergeProperties(mergeProperties);
+
+            nodes.add(sourceNode1);
+            nodes.add(sourceNode2);
+            nodes.add(sourceNode3);
+            nodes.add(mergeTableNode);
+
+            Edge edge = new Edge("edge1", "source1", "mergeNode1");
+            edges.add(edge);
+
+            Dag dagDto = new Dag();
+            dagDto.setNodes(nodes);
+            dagDto.setEdges(edges);
+            taskDto.setDag(DAG.build(dagDto));
+
+            ObjectId taskId = new ObjectId();
+            ObjectId existingId = new ObjectId();
+            when(taskDto.getId()).thenReturn(taskId);
+            when(existingTaskById.getId()).thenReturn(existingId);
+
+            Query idQuery = new Query(Criteria.where("_id").is(taskId).and("is_deleted").ne(true));
+            idQuery.fields().include("_id", "user_id", "name");
+            when(taskService.findOne(idQuery)).thenReturn(existingTaskById);
+            when(taskService.checkTaskNameNotError(anyString(), any(UserDetail.class), any())).thenReturn(false);
+            doNothing().when(taskService).updateConnectionIds(any(TaskDto.class), any(Map.class));
+
+            TaskEntity taskEntity = new TaskEntity();
+            taskEntity.setId(new ObjectId());
+            when(repository.importEntity(any(TaskEntity.class), any(UserDetail.class))).thenReturn(taskEntity);
+            when(taskService.convertToEntity(eq(TaskEntity.class), any(TaskDto.class))).thenReturn(taskEntity);
+            when(taskService.convertToDto(any(TaskEntity.class), eq(TaskDto.class))).thenReturn(taskDto);
+
+            when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(TaskEntity.class)))
+                    .thenReturn(mock(UpdateResult.class));
+            doReturn(new TaskDto()).when(taskService).confirmById(any(TaskDto.class), any(UserDetail.class), anyBoolean(), anyBoolean());
+
+            doCallRealMethod().when(taskService).handleImportAsCopyMode(
+                    any(TaskDto.class), any(UserDetail.class), any(List.class),
+                    any(Map.class), any(Map.class), any(Map.class)
+            );
+
+            taskService.handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+
+            MergeTableNode resultNode = (MergeTableNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof MergeTableNode).findFirst().get();
+            List<MergeTableProperties> resultProperties = resultNode.getMergeProperties();
+
+            assertNotNull(resultProperties);
+            assertEquals(1, resultProperties.size());
+
+            MergeTableProperties resultParent = resultProperties.get(0);
+            assertNotNull(resultParent.getId());
+            assertNotEquals(sourceNodeId1, resultParent.getId());
+
+            List<MergeTableProperties> resultChildren = resultParent.getChildren();
+            assertNotNull(resultChildren);
+            assertEquals(2, resultChildren.size());
+            assertNotEquals(sourceNodeId2, resultChildren.get(0).getId());
+            assertNotEquals(sourceNodeId3, resultChildren.get(1).getId());
+
+            verify(taskService, times(1)).confirmById(any(TaskDto.class), any(UserDetail.class), eq(true), eq(true));
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyMode with JoinProcessorNode")
+        void testHandleImportAsCopyModeWithJoinProcessorNode() {
+            DatabaseNode sourceNode1 = new DatabaseNode();
+            String sourceNodeId1 = UUID.randomUUID().toString();
+            sourceNode1.setId(sourceNodeId1);
+            DatabaseNode sourceNode2 = new DatabaseNode();
+            String sourceNodeId2 = UUID.randomUUID().toString();
+            sourceNode2.setId(sourceNodeId2);
+            JoinProcessorNode joinProcessorNode = new JoinProcessorNode();
+            joinProcessorNode.setId(UUID.randomUUID().toString());
+            joinProcessorNode.setLeftNodeId(sourceNodeId1);
+            joinProcessorNode.setRightNodeId(sourceNodeId2);
+
+
+            nodes.add(sourceNode1);
+            nodes.add(sourceNode2);
+            nodes.add(joinProcessorNode);
+
+            Edge edge1 = new Edge("edge1", "leftNode1", "joinNode1");
+            Edge edge2 = new Edge("edge2", "rightNode1", "joinNode1");
+            edges.add(edge1);
+            edges.add(edge2);
+
+            Dag dagDto = new Dag();
+            dagDto.setNodes(nodes);
+            dagDto.setEdges(edges);
+            taskDto.setDag(DAG.build(dagDto));
+            ObjectId taskId = new ObjectId();
+            ObjectId existingId = new ObjectId();
+            when(taskDto.getId()).thenReturn(taskId);
+            when(existingTaskById.getId()).thenReturn(existingId);
+
+            Query idQuery = new Query(Criteria.where("_id").is(taskId).and("is_deleted").ne(true));
+            idQuery.fields().include("_id", "user_id", "name");
+            when(taskService.findOne(idQuery)).thenReturn(existingTaskById);
+            when(taskService.checkTaskNameNotError(anyString(), any(UserDetail.class), any())).thenReturn(false);
+            doNothing().when(taskService).updateConnectionIds(any(TaskDto.class), any(Map.class));
+
+            TaskEntity taskEntity = new TaskEntity();
+            taskEntity.setId(new ObjectId());
+            when(repository.importEntity(any(TaskEntity.class), any(UserDetail.class))).thenReturn(taskEntity);
+            when(taskService.convertToEntity(eq(TaskEntity.class), any(TaskDto.class))).thenReturn(taskEntity);
+            when(taskService.convertToDto(any(TaskEntity.class), eq(TaskDto.class))).thenReturn(taskDto);
+
+            when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(TaskEntity.class)))
+                    .thenReturn(mock(UpdateResult.class));
+            doReturn(new TaskDto()).when(taskService).confirmById(any(TaskDto.class), any(UserDetail.class), anyBoolean(), anyBoolean());
+
+            doCallRealMethod().when(taskService).handleImportAsCopyMode(
+                    any(TaskDto.class), any(UserDetail.class), any(List.class),
+                    any(Map.class), any(Map.class), any(Map.class)
+            );
+
+            taskService.handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+
+            JoinProcessorNode resultNode = (JoinProcessorNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof JoinProcessorNode).findFirst().get();
+
+            assertNotNull(resultNode.getLeftNodeId());
+            assertNotNull(resultNode.getRightNodeId());
+            assertNotEquals(sourceNodeId1, resultNode.getLeftNodeId());
+            assertNotEquals(sourceNodeId2, resultNode.getRightNodeId());
+
+            verify(taskService, times(1)).confirmById(any(TaskDto.class), any(UserDetail.class), eq(true), eq(true));
+        }
+
     }
 
     @Nested
