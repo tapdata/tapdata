@@ -46,7 +46,11 @@ public interface ISkipErrorTable extends AutoCloseable {
     static ISkipErrorTable create(TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
         if (null != taskDto) {
             boolean enable = Optional.of(taskDto)
-                .map(dto -> Boolean.TRUE.equals(dto.getEnableSkipErrorTable()) ? dto : null)   // 禁用，没开启功能
+                .map(dto -> Optional.ofNullable(dto.getSkipErrorEvent())
+                    .map(TaskDto.SkipErrorEvent::getErrorModeEnum)
+                    .map(mode -> mode == TaskDto.SkipErrorEvent.ErrorMode.SkipTableForMigrateSnapshot)
+                    .orElse(false)
+                    ? dto : null)   // 禁用，没开启功能
                 .map(dto -> TaskDto.SYNC_TYPE_MIGRATE.equals(dto.getSyncType()) ? dto : null)  // 禁用，非迁移任务
                 .map(dto -> dto.isTestTask() ? null : dto)                                     // 禁用，测试任务
                 .map(dto -> dto.isPreviewTask() ? null : dto)                                  // 禁用，预览任务
