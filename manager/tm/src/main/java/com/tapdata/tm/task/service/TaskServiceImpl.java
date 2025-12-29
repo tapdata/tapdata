@@ -3825,6 +3825,28 @@ public class TaskServiceImpl extends TaskService{
                 edge.setSource(nodeMap.get(edge.getSource()));
                 edge.setTarget(nodeMap.get(edge.getTarget()));
             });
+            taskDto.getDag().getNodes().forEach(node -> {
+                if (node instanceof MergeTableNode mergeTableNode) {
+                    List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
+                    if(CollectionUtils.isNotEmpty(mergeProperties)){
+                        for(MergeTableProperties mergeProperty : mergeProperties){
+                            MergeTablePropertiesUtil.recursiveGetLookupList(mergeProperty).forEach(mergeTableProperties -> {
+                                if(nodeMap.containsKey(mergeTableProperties.getId())){
+                                    mergeTableProperties.setId(nodeMap.get(mergeTableProperties.getId()));
+                                }
+                            });
+                        }
+                    }
+                }
+                if(node instanceof JoinProcessorNode joinProcessorNode){
+                    if(nodeMap.containsKey(joinProcessorNode.getLeftNodeId())){
+                        joinProcessorNode.setLeftNodeId(nodeMap.get(joinProcessorNode.getLeftNodeId()));
+                    }
+                    if(nodeMap.containsKey(joinProcessorNode.getRightNodeId())){
+                        joinProcessorNode.setRightNodeId(nodeMap.get(joinProcessorNode.getRightNodeId()));
+                    }
+                }
+            });
         }
         // 更新连接ID映射
         updateConnectionIds(taskDto, conMap);
