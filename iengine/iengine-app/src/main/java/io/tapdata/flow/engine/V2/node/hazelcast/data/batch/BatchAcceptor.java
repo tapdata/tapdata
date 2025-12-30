@@ -163,7 +163,9 @@ public final class BatchAcceptor {
 
     public void close() {
         this.active = false;
-        this.monitor.cancel(true);
+        if (null != this.monitor) {
+            this.monitor.cancel(true);
+        }
     }
 
 
