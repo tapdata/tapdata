@@ -106,11 +106,7 @@ public class TaskRestartSchedule {
         }
 
         //云版不需要这个重新调度的逻辑
-        Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
-        if (Objects.isNull(buildProfile)) {
-            buildProfile = "DAAS";
-        }
-        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+        boolean isCloud = isCloud();
         long heartExpire = getHeartExpire();
 
         if (System.currentTimeMillis() - lastCheckTime < heartExpire / 2) {
@@ -133,36 +129,16 @@ public class TaskRestartSchedule {
         Map<String, List<Worker>> userWorkerMap = this.getUserWorkMap();
         List<TaskDto> orderTask = metadataDefinitionService.orderTaskByTagPriority(all);
         for (TaskDto taskDto : orderTask) {
-            if (isCloud) {
-                String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
-                if ("offline".equals(status) ) {
-                    log.debug("The cloud version does not need this rescheduling");
-                    return;
-                }
-                if ("online".equals(status)) {
-                    taskScheduleService.sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
-                    return;
-                }
-            }
             UserDetail user = userDetailMap.get(taskDto.getUserId());
-            if (user == null) {
-                continue;
-            }
+            if (null == user || restartInCloud(isCloud, taskDto, user)) continue;
 
-            List<Worker> workerList = null;
-            if (isCloud) {
-                workerList = userWorkerMap.get(user.getUserId());
-            } else {
-                workerList = userWorkerMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
-            }
-            if (CollectionUtils.isEmpty(workerList)) {
-                continue;
-            }
-
-            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
-            if (stateMachineResult.isOk()) {
-                transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                taskScheduleService.scheduling(taskDto, user);
+            List<Worker> workerList = getUserWorkList(isCloud, userWorkerMap, user.getUserId());
+            if (CollectionUtils.isNotEmpty(workerList)) {
+                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
+                if (stateMachineResult.isOk()) {
+                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
+                    taskScheduleService.scheduling(taskDto, user);
+                }
             }
         }
     }
@@ -236,9 +212,9 @@ public class TaskRestartSchedule {
     }
 
     public void schedulingTask() {
-        long overTime = 30000L;
+        long timeout = 30000L;
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
-                .and("schedulingTime").lt(new Date(System.currentTimeMillis() - overTime));
+            .and("schedulingTime").lt(new Date(System.currentTimeMillis() - timeout));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
 
         if (CollectionUtils.isEmpty(all)) {
@@ -246,45 +222,23 @@ public class TaskRestartSchedule {
         }
 
         Map<String, UserDetail> userMap = this.getUserDetailMap(all);
-        Map<String, List<Worker>> userWorkMap = this.getUserWorkMap();
-
         for (TaskDto taskDto : all) {
+            String agentId = taskDto.getAgentId();
             UserDetail user = userMap.get(taskDto.getUserId());
-            if (Objects.isNull(user)) {
+            if (Objects.isNull(user)
+                || isCloud() && skipCloudEngineOffline(agentId, user)) {
                 continue;
             }
-
-            if (CollectionUtils.isEmpty(userWorkMap.get(user.getUserId()))) {
-                continue;
-            }
-
 
             long heartExpire = getHeartExpire();
-
-            transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
             if (Objects.nonNull(taskDto.getSchedulingTime()) && (
-                    System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
-
-                CompletableFuture.runAsync(() -> {
-                    String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
-                    String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
-                    monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-                });
-                StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
-                if (result.isOk()) {
-                    try {
-                        CompletableFuture.runAsync(() -> {
-                            String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
-                            String msg = MessageFormat.format(template, taskDto.getAgentId());
-                            monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-                        });
-
-                    } catch (Exception e) {
-                        monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
-                        throw e;
-                    }
-                }
+                System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
+                asyncTaskWarnLog(taskDto, user, "The engine[{0}] takes over the task with a timeout of {1}ms."
+                    , agentId, timeout
+                );
+                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             } else {
+                transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
                 taskScheduleService.scheduling(taskDto, user);
             }
         }
@@ -302,25 +256,22 @@ public class TaskRestartSchedule {
 
         Map<String, UserDetail> userMap = this.getUserDetailMap(all);
         for (TaskDto taskDto : all) {
+            String agentId = taskDto.getAgentId();
             UserDetail user = userMap.get(taskDto.getUserId());
-            if (Objects.isNull(user)) {
+            if (Objects.isNull(user)
+                || (isCloud() && skipCloudEngineOffline(agentId, user))) {
                 continue;
             }
 
-            CompletableFuture.runAsync(() -> {
-                String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
-                String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
-                monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-            });
+            asyncTaskWarnLog(taskDto, user, "The engine[{0}] takes over the task with a timeout of {1}ms."
+                , agentId, heartExpire
+            );
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
             if (stateMachineResult.isOk()) {
                 try {
-                    CompletableFuture.runAsync(() -> {
-                        String template = "In the process of rescheduling tasks, the scheduling engine is {0}.";
-                        String msg = MessageFormat.format(template, taskDto.getAgentId());
-                        monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
-                    });
-
+                    asyncTaskWarnLog(taskDto, user, "In the process of rescheduling tasks, the scheduling engine is {0}."
+                        , agentId
+                    );
                     taskScheduleService.scheduling(taskDto, user);
                 } catch (Exception e) {
                     monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
@@ -336,6 +287,53 @@ public class TaskRestartSchedule {
         Optional.ofNullable(workers).ifPresent(list -> userWorkerMap.set(list.stream().collect(Collectors.groupingBy(Worker::getUserId))));
 
         return userWorkerMap.get();
+    }
+
+    private boolean isCloud() {
+        //云版不需要这个重新调度的逻辑
+        Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
+        if (Objects.isNull(buildProfile)) {
+            buildProfile = "DAAS";
+        }
+        return buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+    }
+
+    protected boolean skipCloudEngineOffline(String agentId, UserDetail user) {
+        // 云版，只在引擎在线时重新调度
+        String status = workerService.checkUsedAgent(agentId, user);
+        if ("online".equals(status)) return false;
+
+        log.debug("The cloud version does not need this rescheduling, engine: '{}', status {}", agentId, status);
+        return true;
+    }
+
+    private boolean restartInCloud(boolean isCloud, TaskDto taskDto, UserDetail user) {
+        if (isCloud) {
+            String status = workerService.checkUsedAgent(taskDto.getAgentId(), user);
+            if ("offline".equals(status)) {
+                log.debug("The cloud version does not need this rescheduling");
+                return true;
+            } else if ("online".equals(status)) {
+                taskScheduleService.sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<Worker> getUserWorkList(boolean isCloud, Map<String, List<Worker>> userWorkerMap, String userId) {
+        if (isCloud) {
+            return userWorkerMap.get(userId);
+        } else {
+            return userWorkerMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
+        }
+    }
+
+    protected void asyncTaskWarnLog(TaskDto taskDto, UserDetail user, String template, Object... arguments) {
+        CompletableFuture.runAsync(() -> {
+            String msg = MessageFormat.format(template, arguments);
+            monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
+        });
     }
 
     /**
