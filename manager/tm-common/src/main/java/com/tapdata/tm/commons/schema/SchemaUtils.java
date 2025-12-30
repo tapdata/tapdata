@@ -352,7 +352,7 @@ public class SchemaUtils {
                     differenceFieldList.add(DifferenceField.buildDifferentField(sourceField.getFieldName(), sourceField, targetField));
                 } else if (!sourceField.getDataType().equalsIgnoreCase(targetField.getDataType())) {
                     differenceFieldList.add(DifferenceField.buildPrecisionField(sourceField.getFieldName(), sourceField, targetField));
-                }else if (!sourceField.getPrimaryKey().equals(targetField.getPrimaryKey())){
+                }else if (null != sourceField.getPrimaryKey() && null != targetField.getPrimaryKey() && !sourceField.getPrimaryKey().equals(targetField.getPrimaryKey())){
                     differenceFieldList.add(DifferenceField.buildPrimaryKeyInconsistencyField(sourceField.getFieldName(), sourceField, targetField));
                 }
 
