@@ -41,7 +41,9 @@ public class AlarmRuleDto extends BaseDto implements Serializable {
 
     public void setKey(AlarmKeyEnum key) {
         this.key = key;
-        this.type = key.getType();
+				if (null != key) {
+					this.type = key.getType();
+				}
     }
 
     public String toEqualsFlag() {

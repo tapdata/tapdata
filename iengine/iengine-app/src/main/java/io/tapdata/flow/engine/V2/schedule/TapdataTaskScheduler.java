@@ -5,6 +5,8 @@ import com.tapdata.constant.ConnectorConstant;
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.firedome.MultiTaggedGauge;
 import io.tapdata.firedome.PrometheusName;
+import io.tapdata.flow.engine.V2.task.OpType;
+import io.tapdata.flow.engine.V2.util.TaskOperationQueue;
 import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -94,7 +96,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	@Qualifier("taskControlScheduler")
 	@Autowired
 	private TaskScheduler taskScheduler;
-	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
+	private final TaskOperationQueue taskOperationQueue = new TaskOperationQueue(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
 	private final Map<String, ScheduleTaskConfig> scheduleTaskConfigs = new ConcurrentHashMap<>();
@@ -161,9 +163,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			Thread.currentThread().setName("Task-Operation-Consumer");
 			while (true) {
 				try {
-					TaskOperation taskOperation = taskOperationsQueue.poll(1L, TimeUnit.SECONDS);
-					if (null == taskOperation) continue;
-					handleTaskOperation(taskOperation);
+					TaskOperation taskOperation = taskOperationQueue.poll(1L, TimeUnit.SECONDS);
+					if (null != taskOperation) {
+						handleTaskOperation(taskOperation);
+					}
 				} catch (InterruptedException e) {
 					break;
 				} catch (Throwable throwable) {
@@ -228,6 +231,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		return () -> {
 			String taskId;
 			try {
+				logger.info("hstest>>>>>>> {}", taskOperation);
 				if (taskOperation instanceof StartTaskOperation) {
 					StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
@@ -259,9 +263,14 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		};
 	}
 
-	protected void handleTaskOperation(TaskOperation taskOperation) {
+	protected void handleTaskOperation(TaskOperation taskOperation) throws InterruptedException, ExecutionException {
+		// 将处理变成单线程处理，避免操作在线程池中积压
 		Runnable runnable = getHandleTaskOperationRunnable(taskOperation);
-		taskOperationThreadPool.submit(runnable);
+		Future<?> future = taskOperationThreadPool.submit(runnable);
+		if (taskOperation.getOpType() == OpType.START) {
+			// 启动任务有限流，单线程处理
+			future.get();
+		}
 	}
 
 	public void sendStartTask(TaskDto taskDto) {
@@ -288,9 +297,13 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (null == taskOperation) return;
 		while (true) {
 			try {
-				if (taskOperationsQueue.offer(taskOperation)) {
+				if (taskOperationQueue.offer(taskOperation)) {
 					break;
 				}
+				TimeUnit.MILLISECONDS.sleep(500);
+			} catch (InterruptedException ignore) {
+				Thread.currentThread().interrupt();
+				break;
 			} catch (Exception e) {
 				break;
 			}
@@ -432,52 +445,52 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	protected void startTask(TaskDto taskDto) {
+		final String taskId = taskDto.getId().toHexString();
+		TaskClient<TaskDto> taskClient = getTaskClient(taskId);
+		if (null != taskClient) {
+			// 正在执行的任务，只更新状态
+			String status = taskClient.getStatus();
+			logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
+			Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
+				.ifPresent(log -> log.info("This task is already running"));
+			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskOpRespDto.class);
+			return;
+		}
+
 		// 应用限流控制
 		applyStartTaskRateLimit(taskDto);
 
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
-		final String taskId = taskDto.getId().toHexString();
-		AtomicBoolean isReturn = new AtomicBoolean(false);
-		taskClientMap.computeIfPresent(taskId, (id, taskClient)->{
-			if (taskClientMap.containsKey(taskId)) {
-				String status = taskClient.getStatus();
-				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
-				Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
-						.ifPresent(log -> log.info("This task is already running"));
-				try {
-					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-				} catch (Exception e) {
-					if (e instanceof RestDoNotRetryException && "Transition.Not.Supported".equals(((RestDoNotRetryException) e).getCode())) {
-						// ignored Transition.Not.Supported error
-					} else {
-						throw e;
-					}
-				}
-				isReturn.compareAndSet(false, true);
-			}
-			return taskClient;
-		});
-		if (isReturn.get()) {
-			return;
-		}
 		try {
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
-			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
+
+			TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskOpRespDto.class);
+			if (null == taskOpRespDto || !taskOpRespDto.getSuccessIds().contains(taskId)) {
+				// 防止任务异常状态下再次启动任务
+				throw new RuntimeException("Update task status to 'running' failed");
+			}
+
+			// 使用 computeIfAbsent 防止创建重复的 TaskClient
+			taskClientMap.computeIfAbsent(taskId, id -> hazelcastTaskService.startTask(taskDto));
 		} catch (Throwable e) {
 			if (TmUnavailableException.isInstance(e)) {
 				logger.warn("Start task {} failed because TM unavailable: {}", taskDto.getName(), e.getMessage());
 			} else {
-				logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
+				taskClient = getTaskClient(taskId);
+				if (null != taskClient) {
+					taskClient.stop();
+					logger.error("Start task {} failed, current status '{}', {}", taskDto.getName(), taskClient.getStatus(), e.getMessage(), e);
+				} else {
+					logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
+				}
 				CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class)).join();
 			}
 			if (ObsLoggerFactory.getInstance().getObsLogger(taskDto) != null) {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDto).error( "Start task failed: " + e.getMessage(), e);
 			}
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
-			Optional.of(taskDto).ifPresent(task -> ConnectorConstant.TASK_STATUS_GAUGE.set(1, task.getId().toHexString(), task.getName(), task.getSyncType()));
+			Optional.of(taskDto).ifPresent(task -> ConnectorConstant.TASK_STATUS_GAUGE.set(1, taskId, task.getName(), task.getSyncType()));
 		} finally {
 			ThreadContext.clearAll();
 		}
