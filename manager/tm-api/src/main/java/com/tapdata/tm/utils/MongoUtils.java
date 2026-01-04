@@ -279,6 +279,31 @@ public class MongoUtils {
     }
 
     /**
+     * 解析排序字符串，转换为 Sort 对象
+     *
+     * @param sortString 排序字符串，格式为"字段名 [排序方向]"，多个排序条件用逗号分隔，
+     *                   排序方向可选值为"asc"(升序，默认)或"desc"(降序)
+     * @return 解析后的 Sort 对象，如果输入为空或解析失败则返回 null
+     */
+    public static Sort parseSort(String sortString) {
+        if (null == sortString || sortString.isBlank()) return null;
+
+        // 解析排序字段和方向
+        List<Sort.Order> orders = new ArrayList<>();
+        for (String item : sortString.trim().split(",")) {
+            String[] arr = item.trim().split(" +");
+            if (arr.length > 1 && "desc".equalsIgnoreCase(arr[1])) {
+                orders.add(Sort.Order.desc(arr[0]));
+            } else {
+                orders.add(Sort.Order.asc(arr[0]));
+            }
+        }
+
+        return Sort.by(orders);
+    }
+
+
+    /**
      * set fields filter to request
      *
      * @param query

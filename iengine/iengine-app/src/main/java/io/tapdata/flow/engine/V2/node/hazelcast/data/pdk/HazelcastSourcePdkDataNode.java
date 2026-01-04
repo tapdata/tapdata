@@ -121,6 +121,8 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.pdk.core.utils.RetryUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.task.skiperrortable.ISkipErrorTable;
+import io.tapdata.task.skiperrortable.SkipErrorTableException;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -149,6 +151,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
@@ -176,18 +179,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	private ShareCdcReader shareCdcReader;
 	protected final SourceStateAspect sourceStateAspect;
 	private List<String> conditionFields;
-	private TapStreamReadConsumer<?, ?> streamReadConsumer;
+	private TapStreamReadConsumer<?, Object	> streamReadConsumer;
 	private BatchAcceptor streamReadBatchAcceptor;
 
 	private PDKMethodInvoker streamReadMethodInvoker;
 	private SyncProgress.Type syncProgressType = SyncProgress.Type.NORMAL;
-	protected boolean needAdjustBatchSize;
+    private final ISkipErrorTable skipErrorTable;
+    protected boolean needAdjustBatchSize;
 
-	private Consumer<List<TapEvent>> streamReadBatchSizeConsumer;
+    private Consumer<List<TapEvent>> streamReadBatchSizeConsumer;
 
 	public HazelcastSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		sourceStateAspect = new SourceStateAspect().dataProcessorContext(dataProcessorContext);
+        skipErrorTable = ISkipErrorTable.get(Optional.ofNullable(getNode()).map(Node::getTaskId).orElse(null));
 	}
 
 	@Override
@@ -199,18 +204,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		if (!this.needAdjustBatchSize) {
 			return;
 		}
-		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
-		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(getConnectorNode())
-				.map(ConnectorNode::getConnectorContext)
-				.map(TapConnectorContext::getSpecification)
-				.map(TapNodeSpecification::getAutoAccumulateBatch)
-				.map(AutoAccumulateBatchInfo::getIncreaseRead)
-				.orElse(new AutoAccumulateBatchInfo.Info());
-		if (autoAccumulateBatchInfo.isOpen()) {
-			Node<?> node = getNode();
-			AdjustBatchSizeFactory.register(node.getTaskId(), this, this.sourceRunner);
-			obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
+		final StreamReadOneByOneFunction function = Optional.ofNullable(getConnectorNode())
+				.map(ConnectorNode::getConnectorFunctions)
+				.map(ConnectorFunctions::getStreamReadOneByOneFunction)
+				.orElse(null);
+		if (!needAdjustBatchSize || null == function) {
+			return;
 		}
+		Node<?> node = getNode();
+		AdjustBatchSizeFactory.register(node.getTaskId(), this, this.sourceRunner);
+		obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
 	}
 
 	@Override
@@ -457,7 +460,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 
 	@SneakyThrows
 	protected void doSnapshot(List<String> tableList) {
-		DoSnapshotFunctions functions = checkFunctions(tableList);
+        initSkipErrorTable();
+        DoSnapshotFunctions functions = checkFunctions(tableList);
 		try {
 			AtomicBoolean firstBatch = new AtomicBoolean(true);
 			while (isRunning()) {
@@ -516,6 +520,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	}
 	protected void handleThrowable(String tableName, Throwable throwable) throws Throwable {
 		executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
+
+        SkipErrorTableException skipErrorTableException = skipErrorTable.getSkipErrorTableException(throwable);
+        if (null != skipErrorTableException) {
+            obsLogger.warn("Skipped table '{}' with write error, offset: {}"
+                , skipErrorTableException.getTableName()
+                , BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName)
+            );
+            TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
+            tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName));
+            tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+            enqueue(tapdataCompleteTableSnapshotEvent);
+            return;
+        }
+
 		Throwable throwableWrapper = CommonUtils.matchThrowable(throwable, TapCodeException.class);
 		if (!(throwableWrapper instanceof TapCodeException)) {
 			throwableWrapper = new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
@@ -555,119 +573,126 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	}
 
 	protected void doSnapshotInvoke(String tableName, DoSnapshotFunctions functions, TapTable tapTable, AtomicBoolean firstBatch, String tableId) throws Exception {
-		ConnectorNode connectorNode = functions.getConnectorNode();
-		BatchCountFunction batchCountFunction = functions.getBatchCountFunction();
-		BatchReadFunction batchReadFunction = functions.getBatchReadFunction();
-		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = functions.getQueryByAdvanceFilterFunction();
-		ExecuteCommandFunction executeCommandFunction = functions.getExecuteCommandFunction();
+        ConnectorNode connectorNode = functions.getConnectorNode();
+        BatchCountFunction batchCountFunction = functions.getBatchCountFunction();
+        BatchReadFunction batchReadFunction = functions.getBatchReadFunction();
+        QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = functions.getQueryByAdvanceFilterFunction();
+        ExecuteCommandFunction executeCommandFunction = functions.getExecuteCommandFunction();
 
-		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		try {
-			executeDataFuncAspect(
-					BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
-							.eventBatchSize(readBatchSize)
-							.connectorContext(connectorNode.getConnectorContext())
-							.offsetState(null)
-							.dataProcessorContext(this.getDataProcessorContext())
-							.start()
-							.table(tapTable),
-					batchReadFuncAspect -> PDKInvocationMonitor.invoke(
-							connectorNode,
-							PDKMethod.SOURCE_BATCH_READ,
-							pdkMethodInvoker.runnable(() -> {
-										BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
-											if (events != null && !events.isEmpty()) {
-												HandlerUtil.sampleMemoryToTapEvent(events);
-												if (firstBatch.compareAndSet(true, false)) {
-													TapdataAdjustMemoryEvent tapdataAdjustMemoryEvent = resizeEventQueueIfNeed(events);
-													if (null != tapdataAdjustMemoryEvent) {
-														enqueue(tapdataAdjustMemoryEvent);
-													}
-												}
-												events = events.stream().map(event -> {
-													if (null == event.getTime()) {
-														throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
-													}
-													return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
-												}).collect(Collectors.toList());
+        PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+        try {
+            executeDataFuncAspect(
+                BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
+                    .eventBatchSize(readBatchSize)
+                    .connectorContext(connectorNode.getConnectorContext())
+                    .offsetState(null)
+                    .dataProcessorContext(this.getDataProcessorContext())
+                    .start()
+                    .table(tapTable),
+                batchReadFuncAspect -> PDKInvocationMonitor.invoke(
+                    connectorNode,
+                    PDKMethod.SOURCE_BATCH_READ,
+                    pdkMethodInvoker.runnable(() -> {
+                            try {
+                                BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
+                                    if (events != null && !events.isEmpty()) {
+                                        if (skipErrorTable.isSkipped(tableName))
+                                            throw new SkipErrorTableException(tableName);
 
-												if (batchReadFuncAspect != null)
-													AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
+                                        HandlerUtil.sampleMemoryToTapEvent(events);
+                                        if (firstBatch.compareAndSet(true, false)) {
+                                            TapdataAdjustMemoryEvent tapdataAdjustMemoryEvent = resizeEventQueueIfNeed(events);
+                                            if (null != tapdataAdjustMemoryEvent) {
+                                                enqueue(tapdataAdjustMemoryEvent);
+                                            }
+                                        }
+                                        events = events.stream().map(event -> {
+                                            if (null == event.getTime()) {
+                                                throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
+                                            }
+                                            return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+                                        }).collect(Collectors.toList());
 
-												if (obsLogger.isDebugEnabled()) {
-													obsLogger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(connectorNode));
-												}
-												BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offsetObject, TableBatchReadStatus.RUNNING.name());
+                                        if (batchReadFuncAspect != null)
+                                            AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
 
-																flushPollingCDCOffset(events);
+                                        if (obsLogger.isDebugEnabled()) {
+                                            obsLogger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(connectorNode));
+                                        }
+                                        BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offsetObject, TableBatchReadStatus.RUNNING.name());
 
-																setPartitionMasterTableId(tapTable, events);
-																List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
+                                        flushPollingCDCOffset(events);
 
-												if (batchReadFuncAspect != null)
-													AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
+                                        setPartitionMasterTableId(tapTable, events);
+                                        List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
 
-												if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-													tapdataEvents.forEach(this::enqueue);
+                                        if (batchReadFuncAspect != null)
+                                            AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
 
-													if (batchReadFuncAspect != null)
-														AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
-												}
-											}
-										};
-										Node<?> node = getNode();
-										if (node instanceof TableNode) {
-											TableNode tableNode = (TableNode) dataProcessorContext.getNode();
-											if (isTableFilter(tableNode) || isPollingCDC(tableNode)) {
-												TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
-												queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
-													List<TapEvent> tempList = new ArrayList<>();
-													if (filterResults != null && CollectionUtils.isNotEmpty(filterResults.getResults())) {
-														filterResults.getResults().forEach(filterResult -> tempList.add(TapSimplify.insertRecordEvent(filterResult, tableId)));
-													}
-													if (CollectionUtils.isNotEmpty(tempList)) {
-														consumer.accept(tempList, null);
-														tempList.clear();
-													}
-												});
-											} else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
-												Map<String, Object> customCommand = tableNode.getCustomCommand();
-												customCommand.put("batchSize", readBatchSize);
-												executeCommandFunction.execute(connectorNode.getConnectorContext(), TapExecuteCommand.create()
-														.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
-													if (executeResult.getError() != null) {
-														throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
-													}
-													if (executeResult.getResult() == null) {
-														obsLogger.trace("Execute result is null");
-														return;
-													}
+                                        if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+                                            tapdataEvents.forEach(this::enqueue);
 
-																	Object result = executeResult.getResult();
-																	handleCustomCommandResult(result, tableName, consumer);
-																});
-															} else {
-																batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
-															}
-														} else {
-															batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
-														}
-													}
-											)
-									));
-							if (getTerminatedMode() == null || getTerminatedMode() == TerminalMode.COMPLETE) {
-								BatchOffsetUtil.updateBatchOffset(syncProgress, tableName, null,  TableBatchReadStatus.OVER.name());
-								obsLogger.info("Table {} has been completed batch read", tableName);
-							}
-		} finally {
-			removePdkMethodInvoker(pdkMethodInvoker);
-		}
-		executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
-		TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
-		tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName));
-		tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
-		enqueue(tapdataCompleteTableSnapshotEvent);
-	}
+                                            if (batchReadFuncAspect != null)
+                                                AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
+                                        }
+                                    }
+                                };
+                                Node<?> node = getNode();
+                                if (node instanceof TableNode) {
+                                    TableNode tableNode = (TableNode) dataProcessorContext.getNode();
+                                    if (isTableFilter(tableNode) || isPollingCDC(tableNode)) {
+                                        TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
+                                        queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+                                            List<TapEvent> tempList = new ArrayList<>();
+                                            if (filterResults != null && CollectionUtils.isNotEmpty(filterResults.getResults())) {
+                                                filterResults.getResults().forEach(filterResult -> tempList.add(TapSimplify.insertRecordEvent(filterResult, tableId)));
+                                            }
+                                            if (CollectionUtils.isNotEmpty(tempList)) {
+                                                consumer.accept(tempList, null);
+                                                tempList.clear();
+                                            }
+                                        });
+                                    } else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
+                                        Map<String, Object> customCommand = tableNode.getCustomCommand();
+                                        customCommand.put("batchSize", readBatchSize);
+                                        executeCommandFunction.execute(connectorNode.getConnectorContext(), TapExecuteCommand.create()
+                                            .command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
+                                            if (executeResult.getError() != null) {
+                                                throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
+                                            }
+                                            if (executeResult.getResult() == null) {
+                                                obsLogger.trace("Execute result is null");
+                                                return;
+                                            }
+
+                                            Object result = executeResult.getResult();
+                                            handleCustomCommandResult(result, tableName, consumer);
+                                        });
+                                    } else {
+                                        batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
+                                    }
+                                } else {
+                                    batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
+                                }
+                            } catch (SkipErrorTableException e) {
+                                logger.warn("skip error table '{}'", e.getTableName());
+                            }
+                        }
+                    )
+                ));
+            if (getTerminatedMode() == null || getTerminatedMode() == TerminalMode.COMPLETE) {
+                BatchOffsetUtil.updateBatchOffset(syncProgress, tableName, null, TableBatchReadStatus.OVER.name());
+                obsLogger.info("Table {} has been completed batch read", tableName);
+            }
+        } finally {
+            removePdkMethodInvoker(pdkMethodInvoker);
+        }
+        executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
+        TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
+        tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName));
+        tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+        enqueue(tapdataCompleteTableSnapshotEvent);
+    }
 
 	protected TerminalMode getTerminatedMode() {
 		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
@@ -921,12 +946,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			anyError = doBatchCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else if (streamReadConsumer instanceof StreamReadOneByOneConsumer consumer) {
 			if (this.needAdjustBatchSize) {
-				this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
+				setIncreaseReadSizeCompareDefault();
 				obsLogger.info("Stream read batch size will be adjusted automatically, start from: " + getIncreaseReadSize());
 			}
 			anyError = doOneByOneCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else {
-			logger.error("Unknown stream read consumer: " + streamReadConsumer);
+			logger.error("Unknown stream read consumer");
 			return;
 		}
 		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
@@ -952,6 +977,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					});
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
+		}
+	}
+
+	protected void setIncreaseReadSizeCompareDefault(){
+		int size = getIncreaseReadSize();
+		if (size < DEFAULT_ADJUST_INCREASE_BATCH_SIZE) {
+			this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
 		}
 	}
 
@@ -1063,7 +1095,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		return anyError;
 	}
 
-	protected TapStreamReadConsumer<?, ?> generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
+	protected TapStreamReadConsumer<?, Object> generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
 		StreamReadConsumer consumer = StreamReadConsumer.create((events, offsetObj) -> {
 			try {
 				while (isRunning()) {
@@ -1125,19 +1157,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
-		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
-		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(connectorNode.getConnectorContext())
-				.map(TapConnectorContext::getSpecification)
-				.map(TapNodeSpecification::getAutoAccumulateBatch)
-				.map(AutoAccumulateBatchInfo::getIncreaseRead)
-				.orElse(new AutoAccumulateBatchInfo.Info());
-		if (!autoAccumulateBatchInfo.isOpen()) {
-			final int delayMs = Math.max(50, this.getIncreaseReadSize() / 10);
-			streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> delayMs, null);
+		final StreamReadOneByOneFunction function = Optional.ofNullable(connectorNode.getConnectorFunctions())
+				.map(ConnectorFunctions::getStreamReadOneByOneFunction)
+				.orElse(null);
+		Supplier<Long> batchSizeTimeoutMSGetter = () -> Math.min(Math.max(50L, this.getIncreaseReadSize() / 10L), 5000L);
+		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, batchSizeTimeoutMSGetter, e -> isRunning(), consumer, obsLogger);
+		if (!needAdjustBatchSize || null == function) {
 			return consumer;
 		}
-		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.max(50, this.getIncreaseReadSize() / 10), consumer);
-		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o));
+		streamReadBatchAcceptor.startMonitor(sourceRunner);
+		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o), this::getIncreaseReadSize, batchSizeTimeoutMSGetter)
+				.batchConsumer((es, o) -> streamReadBatchAcceptor.accept(es, o));
 	}
 
 	private void handleSyncProgressType(List<TapdataEvent> tapdataEvents) {
@@ -1518,6 +1548,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	public void doClose() throws TapCodeException {
 		try {
 			CommonUtils.handleAnyError(() -> {
+				if (null != streamReadBatchAcceptor) {
+					streamReadBatchAcceptor.close();
+				}
+			}, err -> obsLogger.warn(String.format("Close share cdc event accept failed: %s", err.getMessage())));
+			CommonUtils.handleAnyError(() -> {
 				if (null != shareCdcReader) {
 					shareCdcReader.close();
 				}
@@ -1701,11 +1736,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	}
 
 	@Override
-	public void metric(MetricInfo metricInfo) {
-
-	}
-
-	@Override
 	public TaskInfo getTaskInfo() {
 		final TaskInfo info = new TaskInfo();
 		final int capacity = eventQueue.capacity();
@@ -1736,4 +1766,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			obsLogger.debug("Data node [{} - {}] | Change event queue capacity from {} to {}", getNode().getName(), getNode().getId(), old, changeTo);
 		}
 	}
+
+    @Override
+    public boolean need2InitialSync(SyncProgress syncProgress) {
+        return super.need2InitialSync(syncProgress) || skipErrorTable.getSkipCounts() > 0;
+    }
 }

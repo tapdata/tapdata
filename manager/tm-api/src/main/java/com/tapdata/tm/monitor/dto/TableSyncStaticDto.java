@@ -17,6 +17,7 @@ public class TableSyncStaticDto {
     private Integer size;
 
     private String tableName;
+    private Boolean skipErrorTable;
 
     public Integer getSize() {
         return size > 100 ? 20 : size;

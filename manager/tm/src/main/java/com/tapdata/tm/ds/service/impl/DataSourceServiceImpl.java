@@ -28,10 +28,7 @@ import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
-import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
@@ -120,6 +117,9 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 //@Setter(onMethod_ = {@Autowired})
 public class DataSourceServiceImpl extends DataSourceService{
+    public static final String DATABASE_TYPE_HUMP = "databaseType";
+    public static final String PDK_HASH = "pdkHash";
+    public static final String DATABASE_TYPE = "database_type";
 
     private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])[\\s\\S]*$";
     @Value("${gateway.secret:}")
@@ -470,6 +470,20 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
     }
 
+    @Override
+    public void buildPdkRealName(List<DataSourceConnectionDto> connectionDto, UserDetail user) {
+        Set<String> pdkHashList = connectionDto.stream()
+                .filter(Objects::nonNull)
+                .map(DataSourceConnectionDto::getPdkHash)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+        if (pdkHashList.isEmpty()) {
+            return;
+        }
+        List<DataSourceDefinitionDto> all = dataSourceDefinitionService.findByPdkHashList(pdkHashList, user);
+        Map<String, String> mapPdkHash = all.stream().filter(e -> StringUtils.isNotBlank(e.getRealName())).collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, DataSourceDefinitionDto::getRealName, (e1, e2) -> e2));
+        connectionDto.forEach(item -> item.setPdkRealName(Optional.ofNullable(mapPdkHash.get(item.getPdkHash())).orElse(item.getName())));
+    }
 
     public Page<DataSourceConnectionDto> list(Filter filter, boolean noSchema, UserDetail userDetail) {
         Page<DataSourceConnectionDto> dataSourceConnectionDtoPage = find(filter, userDetail);
@@ -478,7 +492,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         Map<ObjectId, DataSourceConnectionDto> newResultObj = buildFindResult(noSchema, items, userDetail);
         items = items.stream().map(i -> newResultObj.get(i.getId())).collect(Collectors.toList());
 
-        dataSourceConnectionDtoPage.setItems(items);
+        buildPdkRealName(items, userDetail);
 
         return dataSourceConnectionDtoPage;
     }
@@ -488,10 +502,10 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (Objects.isNull(connectionDto)) {
             return null;
         }
-
+        List<DataSourceConnectionDto> items = new ArrayList<>();
+        items.add(connectionDto);
+        buildPdkRealName(items, user);
         if (!Objects.isNull(noSchema)) {
-            List<DataSourceConnectionDto> items = new ArrayList<>();
-            items.add(connectionDto);
             Map<ObjectId, DataSourceConnectionDto> map = buildFindResult(noSchema, items, user);
             return map.get(connectionDto.getId());
         } else {
@@ -895,6 +909,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         connectionDto.setConfig(config);
         sendTestConnection(connectionDto, true, true, user);
         connectionDto.setConfig(null);
+        buildPdkRealName(List.of(connectionDto), user);
         defaultDataDirectoryService.addConnection(connectionDto, user);
         return connectionDto;
     }
@@ -1066,7 +1081,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             log.debug("schema size = {}", tableSchemas.size());
             connectionDto.setSchema(schemaDto);
         }
-
+        buildPdkRealName(List.of(connectionDto), user);
         return connectionDto;
     }
 
@@ -1360,7 +1375,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         } else if (DataSourceDefinitionDto.PDK_TYPE.equals(connectionDto.getPdkType())) {
             //TODO 由于pdk是自定义配置，所以不太好确定这个判断怎么写。
         } else {
-            criteria.and("database_type").ne(connectionDto.getDatabase_type());
+            criteria.and(DATABASE_TYPE).ne(connectionDto.getDatabase_type());
             criteria.and("database_host").ne(connectionDto.getDatabase_host());
             criteria.and("database_port").ne(connectionDto.getDatabase_port());
             criteria.and("database_name").ne(connectionDto.getDatabase_name());
@@ -1707,7 +1722,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.FRONTEND, KeyEnum.ALLOW_CONNECTION_TYPE);
         String allowDatabaseType = (String) settings.getValue();
         List<String> supportDbTypeList = Arrays.asList(allowDatabaseType.split(","));
-        List<String> allDbType = distinct("database_type", user);
+        List<String> allDbType = distinct(DATABASE_TYPE, user);
         allDbType.retainAll(supportDbTypeList);
         return allDbType;
     }
@@ -1744,10 +1759,10 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (connectionDto == null) {
             return null;
         }
-
+        List<DataSourceConnectionDto> items = new ArrayList<>();
+        items.add(connectionDto);
+        buildPdkRealName(items, user);
         if (noSchema != null) {
-            List<DataSourceConnectionDto> items = new ArrayList<>();
-            items.add(connectionDto);
             Map<ObjectId, DataSourceConnectionDto> map = buildFindResult(noSchema, items, user);
             return map.get(connectionDto.getId());
         } else {
@@ -1934,7 +1949,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         Query query = repository.filterToQuery(filter);
         query.skip(0);
         query.limit(0);
-        return findAllDto(query, loginUser);
+        List<DataSourceConnectionDto> dataSourceConnectionDtoList = findAllDto(query, loginUser);
+        buildPdkRealName(dataSourceConnectionDtoList, loginUser);
+        return dataSourceConnectionDtoList;
     }
 
     public List<String> findIdByName(String name) {
@@ -2315,13 +2332,13 @@ public class DataSourceServiceImpl extends DataSourceService{
 
     @Override
     public List<Map<String, String>> getDatabaseTypes(UserDetail user) {
-        return DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> {
-            Query query = new Query();
-            query = repository.applyUserDetail(query, user);
-            
-            Document queryObject = query.getQueryObject();
-            
-            Aggregation aggregation = Aggregation.newAggregation(
+        return DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> bulidGetDatabaseTypes(user));
+    }
+
+    protected List<Map<String, String>> bulidGetDatabaseTypes(UserDetail user) {
+        final Query query = repository.applyUserDetail(new Query(), user);
+        final Document queryObject = query.getQueryObject();
+        final Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(Criteria.matchingDocumentStructure(new org.springframework.data.mongodb.core.schema.MongoJsonSchema() {
                     @Override
                     public Document schemaDocument() {
@@ -2332,23 +2349,30 @@ public class DataSourceServiceImpl extends DataSourceService{
                         return queryObject;
                     }
                 })),
-                Aggregation.group("database_type")
-                    .first("database_type").as("databaseType")
-                    .first("pdkHash").as("pdkHash")
-            );
-
-            AggregationResults<Document> results = repository.aggregate(aggregation, Document.class);
-            List<Map<String, String>> databaseTypes = new ArrayList<>();
-            
-            for (Document doc : results) {
-                Map<String, String> result = new HashMap<>();
-                result.put("databaseType", doc.getString("databaseType"));
-                result.put("pdkHash", doc.getString("pdkHash"));
-                databaseTypes.add(result);
-            }
-            
+                Aggregation.group(DATABASE_TYPE)
+                        .first(DATABASE_TYPE).as(DATABASE_TYPE_HUMP)
+                        .first(PDK_HASH).as(PDK_HASH)
+        );
+        final AggregationResults<Document> results = repository.aggregate(aggregation, Document.class);
+        final List<Map<String, String>> databaseTypes = new ArrayList<>();
+        final Set<String> pdkHashList = new HashSet<>();
+        final List<Document> resultsItems = results.getMappedResults();
+        for (Document doc : resultsItems) {
+            final Map<String, String> result = new HashMap<>();
+            result.put(DATABASE_TYPE_HUMP, doc.getString(DATABASE_TYPE_HUMP));
+            result.put(PDK_HASH, doc.getString(PDK_HASH));
+            Optional.ofNullable(doc.getString(PDK_HASH)).ifPresent(pdkHashList::add);
+            databaseTypes.add(result);
+        }
+        if (pdkHashList.isEmpty()) {
             return databaseTypes;
-        });
+        }
+        final List<DataSourceDefinitionDto> all = dataSourceDefinitionService.findByPdkHashList(pdkHashList, user);
+        final Map<String, String> mapPdkHash = all.stream()
+                .filter(e -> StringUtils.isNotBlank(e.getRealName()))
+                .collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, DataSourceDefinitionDto::getRealName, (e1, e2) -> e2));
+        databaseTypes.forEach(item -> Optional.ofNullable(mapPdkHash.get(item.get(PDK_HASH))).ifPresent(n -> item.put(DATABASE_TYPE_HUMP, n)));
+        return databaseTypes;
     }
 
     @Override
@@ -2368,6 +2392,24 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (CollectionUtils.isNotEmpty(dataSourceConnectionDtoList)) {
             dataSourceConnectionDtoList.forEach(v -> sendScheduleMonitor(v, userDetailMap.get(v.getUserId())));
         }
+    }
+
+    @Override
+    public Set<CapabilityEnum> checkCapabilities(String connectionId, Set<CapabilityEnum> capabilities) {
+        Set<CapabilityEnum> notSupports = new HashSet<>(capabilities);
+        Query datasSourceQuery = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(connectionId)));
+        datasSourceQuery.fields().include("capabilities");
+        DataSourceConnectionDto dto = findOne(datasSourceQuery);
+        Optional.ofNullable(dto)
+            .map(DataSourceConnectionDto::getCapabilities)
+            .ifPresent(list ->
+                list.forEach(item ->
+                    notSupports.removeIf(capability ->
+                        capability.getId().equalsIgnoreCase(item.getId())
+                    )
+                )
+            );
+        return notSupports;
     }
 
     public void sendScheduleMonitor(DataSourceConnectionDto connectionDto, UserDetail user) {

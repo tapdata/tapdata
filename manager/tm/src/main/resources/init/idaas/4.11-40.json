@@ -1,0 +1,13 @@
+[
+  {
+    "delete": "Settings",
+    "deletes": [
+      {
+        "q": {
+          "key": "auto_incremental_batch_size"
+        },
+        "limit": 1
+      }
+    ]
+  }
+]

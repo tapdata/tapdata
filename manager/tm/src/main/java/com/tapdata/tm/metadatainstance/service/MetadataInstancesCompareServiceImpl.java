@@ -7,6 +7,7 @@ import java.util.function.Function;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -107,6 +108,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                 .map(dto -> {
                     dto.setId(null);
                     dto.setType(MetadataInstancesCompareDto.TYPE_APPLY);
+                    dto.setDifferenceFieldList(dto.getDifferenceFieldList().stream().filter(differenceField -> !(differenceField.getType() == DifferenceTypeEnum.PrimaryKeyInconsistency)).collect(Collectors.toList()));
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -375,7 +377,16 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             }
             List<MetadataInstancesCompareDto> compareDtos;
             if(CollectionUtils.isNotEmpty(types)){
-                where.and("differenceFieldList.type").in(types);
+                if(types.contains(DifferenceTypeEnum.PrimaryKeyInconsistency.name())){
+                    where.andOperator(
+                            new Criteria().orOperator(
+                                    Criteria.where("differenceFieldList").elemMatch(Criteria.where("type").in(types)),
+                                    Criteria.where("differenceFieldList").elemMatch(Criteria.where("isPrimaryKey").is(true))
+                            )
+                    );
+                }else{
+                    where.and("differenceFieldList.type").in(types);
+                }
                 compareDtos = geMetadataInstancesCompareDtoByType(nodeId,page,pageSize,types,tableFilter);
             }else{
                 Query pageQuery = Query.query(where);
@@ -418,9 +429,21 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
 
     public List<MetadataInstancesCompareDto> geMetadataInstancesCompareDtoByType(String nodeId,Integer page,Integer pageSize,List<String> types,String tableFilter) {
         Criteria criteria = Criteria.where("nodeId").is(nodeId)
-                .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)
-                .and("differenceFieldList.type").in(types);
-        if(StringUtils.isNotBlank(tableFilter)){
+                .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE);
+        Document cond;
+        if(types.contains(DifferenceTypeEnum.PrimaryKeyInconsistency.name())){
+            criteria.andOperator(
+                    new Criteria().orOperator(
+                            Criteria.where("differenceFieldList").elemMatch(Criteria.where("type").in(types)),
+                            Criteria.where("differenceFieldList").elemMatch(Criteria.where("isPrimaryKey").is(true))
+                    ));
+            cond = new Document("$or", Arrays.asList(new Document("$in", Arrays.asList("$$item.type", types)), new Document("$eq", Arrays.asList("$$item.isPrimaryKey", true))));
+        }else{
+            criteria.and("differenceFieldList.type").in(types);
+            cond = new Document("$and", Arrays.asList(new Document("$in", Arrays.asList("$$item.type", types))));
+        }
+
+        if (StringUtils.isNotBlank(tableFilter)) {
             Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
             criteria.and("tableName").regex(pattern);
         }
@@ -433,20 +456,18 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                 .and(context -> new Document("$filter", new Document()
                         .append("input", "$differenceFieldList")
                         .append("as", "item")
-                        .append("cond", new Document("$in", Arrays.asList("$$item.type", types)))))
+                        .append("cond", cond)))
                 .as("differenceFieldList");
         Aggregation aggregation;
         if(pageSize > 0){
             long skip = (long) (Math.max(1, page) - 1) * pageSize;
-            SkipOperation skipOperation = Aggregation.skip(skip);
-            LimitOperation limitOperation = Aggregation.limit(pageSize);
             aggregation = Aggregation.newAggregation(
                     matchOperation,
                     projectionOperation,
-                    skipOperation,
-                    limitOperation
+                    Aggregation.skip(skip),
+                    Aggregation.limit(pageSize)
             );
-        }else {
+        } else {
             aggregation = Aggregation.newAggregation(matchOperation, projectionOperation);
         }
         return repository.getMongoOperations()
@@ -509,6 +530,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         // Get task and validate
         Query taskQuery = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId)));
         taskQuery.fields().include("dag");
+        taskQuery.fields().include("syncType");
         TaskDto taskDto = taskService.findOne(taskQuery, userDetail);
         if (taskDto == null) {
             return null;
@@ -541,6 +563,10 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         List<MetadataInstancesCompareDto> applyDtos = findAll(
             Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_APPLY))
         );
+        String targetTableName = null;
+        if(targetNode instanceof TableNode tableNode){
+            targetTableName = tableNode.getTableName();
+        }
 
         return ComparisonContext.builder()
             .nodeId(nodeId)
@@ -552,6 +578,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             .applyRules(applyRules)
             .targetSchemaLoadTime(targetSchemaLoadTime)
             .applyDtos(applyDtos).compareIgnoreCase(targetNode.getCompareIgnoreCase())
+                .targetTableName(targetTableName)
             .build();
     }
 
@@ -631,15 +658,25 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             context.getNodeId(), context.getApplyRules()
         );
 
-        Map<String, MetadataInstancesDto> deductionMap = context.getDeductionMetadataInstances().stream()
-            .collect(Collectors.toMap(MetadataInstancesDto::getName, Function.identity()));
-
-        List<String> tableNames = context.getDeductionMetadataInstances().stream()
-            .map(MetadataInstancesDto::getName)
-            .collect(Collectors.toList());
+        Map<String, MetadataInstancesDto> deductionMap;
 
         // Get target metadata instances
         List<MetadataInstancesDto> targetMetadataInstances;
+        List<String> tableNames;
+        if(context.getTaskDto().getSyncType().equals(TaskDto.SYNC_TYPE_SYNC) && StringUtils.isNotBlank(context.getTargetTableName()) && context.getDeductionMetadataInstances().size() == 1){
+            tableNames = Collections.singletonList(context.getTargetTableName());
+            deductionMap = new HashMap<>();
+            deductionMap.put(context.getCompareIgnoreCase() ? context.getTargetTableName().toLowerCase() : context.getTargetTableName(), context.getDeductionMetadataInstances().get(0));
+        }else if(context.getTaskDto().getSyncType().equals(TaskDto.SYNC_TYPE_MIGRATE)){
+            tableNames = context.getDeductionMetadataInstances().stream()
+                    .map(MetadataInstancesDto::getName)
+                    .collect(Collectors.toList());
+            deductionMap = context.getDeductionMetadataInstances().stream()
+                    .collect(Collectors.toMap(MetadataInstancesDto::getName, Function.identity()));
+        }else{
+            return new MetadataInstancesCompareResult();
+        }
+
         if(context.getCompareIgnoreCase()){
             targetMetadataInstances = metadataInstancesService.findSourceSchemaBySourceIdIgnoreCase(
                     context.getConnectionId(), tableNames, userDetail,
@@ -778,6 +815,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         private Long targetSchemaLoadTime;
         private List<MetadataInstancesCompareDto> applyDtos;
         private Boolean compareIgnoreCase;
+        private String targetTableName;
     }
 
     protected void saveMetadataInstancesCompare(String taskId,String nodeId,MetadataInstancesDto deductionMetadataInstance,MetadataInstancesDto targetMetadataInstance,List<MetadataInstancesCompareDto> compareDtos,Map<String,List<DifferenceField>> applyFields,Boolean compareIgnoreCase) {
@@ -837,6 +875,9 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                         }
                         if(null != metadataInstancesCompareResult){
                             metadataInstancesCompareResult.computeDifferentFieldNumber(differenceField.getType());
+                            if(differenceField.getIsPrimaryKey() && differenceField.getType() != DifferenceTypeEnum.PrimaryKeyInconsistency){
+                                metadataInstancesCompareResult.computeDifferentFieldNumber(DifferenceTypeEnum.PrimaryKeyInconsistency);
+                            }
                         }
                     });
                     compareFieldsMap.put(tableName, fieldMap);

@@ -4,8 +4,14 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.JetService;
 import com.hazelcast.jet.Job;
 import com.hazelcast.jet.config.JobConfig;
+import com.hazelcast.persistence.ConstructType;
+import com.hazelcast.persistence.PersistenceStorage;
 import com.mongodb.MongoClientException;
-import com.tapdata.constant.*;
+import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.ConnectionUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
@@ -19,12 +25,28 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.*;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.AddDateFieldProcessorNode;
+import com.tapdata.tm.commons.dag.process.DateProcessorNode;
+import com.tapdata.tm.commons.dag.process.FieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.HuaweiDrsKafkaConvertorNode;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -43,9 +65,32 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastCacheTarget;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSource;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarget;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkSourceAndTargetTableNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourceConcurrentReadDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkShareCDCNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkAutoInspectNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastAddDateFieldProcessNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastDateProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastHuaweiDrsKafkaConvertorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateFieldRenameProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateUnionProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastRenameTableProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastTypeFilterProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastUnwindProcessNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.preview.TaskPreviewInstance;
@@ -63,18 +108,51 @@ import io.tapdata.schema.TapTableUtil;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
@@ -1239,8 +1317,7 @@ public class HazelcastTaskServiceTest {
 
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
             HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
-            boolean result = hazelcastTaskService.testTaskUsingPreview(taskDto);
-            assertTrue(result);
+            assertThrows(IllegalArgumentException.class, () -> hazelcastTaskService.testTaskUsingPreview(taskDto));
         }
 
         @Test
@@ -1586,7 +1663,7 @@ public class HazelcastTaskServiceTest {
             hazelcastTaskService.initSourceInitialCounter(taskDto);
             Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
             String key = String.join("_", TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, target.getId());
-            assertEquals(1, ((AtomicInteger)taskGlobalVariable.get(key)).get());
+            assertEquals(1, ((AtomicInteger) taskGlobalVariable.get(key)).get());
 
         }
     }
@@ -1595,11 +1672,11 @@ public class HazelcastTaskServiceTest {
     @DisplayName("Method sourceAndSinkIsomorphismType test")
     class sourceAndSinkIsomorphismTypeTest {
 
-		private HazelcastTaskService hazelcastTaskService;
+        private HazelcastTaskService hazelcastTaskService;
 
         @BeforeEach
         void setUp() {
-			ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+            ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
             hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
         }
 
@@ -1707,140 +1784,6 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
             TapConnectorContext.IsomorphismType isomorphismType = hazelcastTaskService.sourceAndSinkIsomorphismType(taskDto);
             assertEquals(TapConnectorContext.IsomorphismType.HETEROGENEOUS, isomorphismType);
-        }
-    }
-
-    @Nested
-    @DisplayName("Method openAutoIncrementalBatchSize test")
-    class OpenAutoIncrementalBatchSizeTest {
-        private HazelcastTaskService hazelcastTaskService;
-        private SettingService settingService;
-
-        @BeforeEach
-        void setUp() {
-            HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
-            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
-            settingService = mock(SettingService.class);
-            ReflectionTestUtils.setField(hazelcastTaskService, "settingService", settingService);
-        }
-
-        @Test
-        @DisplayName("test openAutoIncrementalBatchSize when setting is null")
-        void testOpenAutoIncrementalBatchSizeWhenSettingNull() {
-            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(null);
-
-            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
-
-            assertFalse(result);
-            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
-        }
-
-        @Test
-        @DisplayName("test openAutoIncrementalBatchSize when value is 'true'")
-        void testOpenAutoIncrementalBatchSizeWhenValueIsTrue() {
-            Setting setting = new Setting();
-            setting.setValue("true");
-            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
-
-            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
-
-            assertTrue(result);
-            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
-        }
-
-        @Test
-        @DisplayName("test openAutoIncrementalBatchSize when value is 'TRUE'")
-        void testOpenAutoIncrementalBatchSizeWhenValueIsTRUE() {
-            Setting setting = new Setting();
-            setting.setValue("TRUE");
-            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
-
-            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
-
-            assertTrue(result);
-            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
-        }
-
-        @Test
-        @DisplayName("test openAutoIncrementalBatchSize when value is 'false'")
-        void testOpenAutoIncrementalBatchSizeWhenValueIsFalse() {
-            Setting setting = new Setting();
-            setting.setValue("false");
-            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
-
-            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
-
-            assertFalse(result);
-            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
-        }
-
-        @Test
-        @DisplayName("test openAutoIncrementalBatchSize when value is null and default_value is 'true'")
-        void testOpenAutoIncrementalBatchSizeWhenValueNullAndDefaultTrue() {
-            Setting setting = new Setting();
-            setting.setValue(null);
-            setting.setDefault_value("true");
-            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
-
-            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
-
-            assertTrue(result);
-            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
-        }
-
-        @Test
-        @DisplayName("test openAutoIncrementalBatchSize when value is null and default_value is 'TRUE'")
-        void testOpenAutoIncrementalBatchSizeWhenValueNullAndDefaultTRUE() {
-            Setting setting = new Setting();
-            setting.setValue(null);
-            setting.setDefault_value("TRUE");
-            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
-
-            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
-
-            assertTrue(result);
-            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
-        }
-
-        @Test
-        @DisplayName("test openAutoIncrementalBatchSize when value is null and default_value is 'false'")
-        void testOpenAutoIncrementalBatchSizeWhenValueNullAndDefaultFalse() {
-            Setting setting = new Setting();
-            setting.setValue(null);
-            setting.setDefault_value("false");
-            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
-
-            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
-
-            assertFalse(result);
-            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
-        }
-
-        @Test
-        @DisplayName("test openAutoIncrementalBatchSize when both value and default_value are null")
-        void testOpenAutoIncrementalBatchSizeWhenBothNull() {
-            Setting setting = new Setting();
-            setting.setValue(null);
-            setting.setDefault_value(null);
-            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
-
-            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
-
-            assertFalse(result);
-            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
-        }
-
-        @Test
-        @DisplayName("test openAutoIncrementalBatchSize when value is other string")
-        void testOpenAutoIncrementalBatchSizeWhenValueIsOtherString() {
-            Setting setting = new Setting();
-            setting.setValue("enabled");
-            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
-
-            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
-
-            assertFalse(result);
-            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
         }
     }
 
@@ -2007,7 +1950,7 @@ public class HazelcastTaskServiceTest {
 
                 // 验证deleteMergeTableCache被调用，且参数包含prop2
                 verify(hazelcastTaskService).deleteMergeTableCache(any(), argThat(list ->
-                    list.size() == 1 && "prop2".equals(list.get(0).get("id"))
+                        list.size() == 1 && "prop2".equals(list.get(0).get("id"))
                 ));
             }
         }
@@ -2063,7 +2006,7 @@ public class HazelcastTaskServiceTest {
                 when(hazelcastInstance.getConfig()).thenReturn(config);
 
                 mergeMock.when(() -> io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode
-                        .getMergeCacheName("prop1", "table1"))
+                                .getMergeCacheName("prop1", "table1"))
                         .thenReturn("cache_prop1_table1");
 
                 PersistenceStorage persistenceStorage = mock(PersistenceStorage.class);
@@ -2118,7 +2061,7 @@ public class HazelcastTaskServiceTest {
                 when(hazelcastInstance.getConfig()).thenReturn(config);
 
                 mergeMock.when(() -> io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode
-                        .getMergeCacheName("prop1", "table1"))
+                                .getMergeCacheName("prop1", "table1"))
                         .thenReturn("cache_prop1_table1");
 
                 PersistenceStorage persistenceStorage = mock(PersistenceStorage.class);
@@ -2169,10 +2112,10 @@ public class HazelcastTaskServiceTest {
                 when(hazelcastInstance.getConfig()).thenReturn(config);
 
                 mergeMock.when(() -> io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode
-                        .getMergeCacheName("prop1", "table1"))
+                                .getMergeCacheName("prop1", "table1"))
                         .thenReturn("cache_prop1_table1");
                 mergeMock.when(() -> io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode
-                        .getMergeCacheName("prop2", "table2"))
+                                .getMergeCacheName("prop2", "table2"))
                         .thenReturn("cache_prop2_table2");
 
                 PersistenceStorage persistenceStorage = mock(PersistenceStorage.class);
@@ -2189,6 +2132,42 @@ public class HazelcastTaskServiceTest {
                         anyString()
                 );
             }
+        }
+    }
+
+    @Nested
+    class isOpenAutoIncrementalBatchSizeTest {
+        HazelcastTaskService service;
+        TaskDto mock;
+        @BeforeEach
+        void setUp() {
+            mock = mock(TaskDto.class);
+            service = mock(HazelcastTaskService.class);
+            when(service.isOpenAutoIncrementalBatchSize(mock)).thenCallRealMethod();
+            when(service.isOpenAutoIncrementalBatchSize(null)).thenCallRealMethod();
+        }
+
+        @Test
+        void testNull() {
+            assertFalse(service.isOpenAutoIncrementalBatchSize(null));
+        }
+
+        @Test
+        void testFalse() {
+            when(mock.getAutoIncrementalBatchSize()).thenReturn(false);
+            assertFalse(service.isOpenAutoIncrementalBatchSize(mock));
+        }
+
+        @Test
+        void testTrue() {
+            when(mock.getAutoIncrementalBatchSize()).thenReturn(true);
+            assertTrue(service.isOpenAutoIncrementalBatchSize(mock));
+        }
+
+        @Test
+        void testFalse1() {
+            when(mock.getAutoIncrementalBatchSize()).thenReturn(null);
+            assertFalse(service.isOpenAutoIncrementalBatchSize(mock));
         }
     }
 }

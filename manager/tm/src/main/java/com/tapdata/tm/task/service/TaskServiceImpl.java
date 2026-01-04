@@ -30,6 +30,7 @@ import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.function.ThrowableConsumer;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.monitor.service.BatchService;
@@ -2709,11 +2710,11 @@ public class TaskServiceImpl extends TaskService{
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputInsertTotal")));
-                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputOthersTotal")));
-                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputDdlTotal")));
-                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputUpdateTotal")));
-                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputDeleteTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_DDL_TOTAL)));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL)));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL)));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_DELETE_TOTAL)));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_OTHERS_TOTAL)));
                 }
                 LocalDate localDate = k.minusDays(1L);
                 BigInteger lastNum = inputNumMap.get(localDate);
@@ -3823,6 +3824,28 @@ public class TaskServiceImpl extends TaskService{
             taskDto.getDag().getEdges().forEach(edge -> {
                 edge.setSource(nodeMap.get(edge.getSource()));
                 edge.setTarget(nodeMap.get(edge.getTarget()));
+            });
+            taskDto.getDag().getNodes().forEach(node -> {
+                if (node instanceof MergeTableNode mergeTableNode) {
+                    List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
+                    if(CollectionUtils.isNotEmpty(mergeProperties)){
+                        for(MergeTableProperties mergeProperty : mergeProperties){
+                            MergeTablePropertiesUtil.recursiveGetLookupList(mergeProperty).forEach(mergeTableProperties -> {
+                                if(nodeMap.containsKey(mergeTableProperties.getId())){
+                                    mergeTableProperties.setId(nodeMap.get(mergeTableProperties.getId()));
+                                }
+                            });
+                        }
+                    }
+                }
+                if(node instanceof JoinProcessorNode joinProcessorNode){
+                    if(nodeMap.containsKey(joinProcessorNode.getLeftNodeId())){
+                        joinProcessorNode.setLeftNodeId(nodeMap.get(joinProcessorNode.getLeftNodeId()));
+                    }
+                    if(nodeMap.containsKey(joinProcessorNode.getRightNodeId())){
+                        joinProcessorNode.setRightNodeId(nodeMap.get(joinProcessorNode.getRightNodeId()));
+                    }
+                }
             });
         }
         // 更新连接ID映射
@@ -5545,6 +5568,22 @@ public class TaskServiceImpl extends TaskService{
         }
     }
 
+    @Override
+    public List<String> getTargetConnectionIds(String taskId) {
+        List<String> targetConnectionIds = new ArrayList<>();
+        TaskDto taskDto = findById(MongoUtils.toObjectId(taskId), Field.includes("dag"));
+        Optional.ofNullable(taskDto)
+            .map(TaskDto::getDag)
+            .map(DAG::getTargetDataParentNode)
+            .ifPresent(targetNodes -> {
+                targetNodes.forEach(node -> {
+                    if (null != node.getConnectionId()) {
+                        targetConnectionIds.add(node.getConnectionId());
+                    }
+                });
+            });
+        return targetConnectionIds;
+    }
 
     protected Boolean checkMergeTableTask(TaskDto taskDto){
         if (taskDto == null || taskDto.getDag() == null || taskDto.getDag().getNodes() == null) {
@@ -5571,6 +5610,6 @@ public class TaskServiceImpl extends TaskService{
         });
 
     }
-    
+
 
 }
