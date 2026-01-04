@@ -119,7 +119,7 @@ jobs:
       TAPDATA_ENT_CICD_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
       GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
       GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
-  
+
   Scan-Tapdata:
     runs-on: office-scan
     if: ${{ !startsWith(github.base_ref, 'release-v') && !(github.event_name == 'schedule' || inputs.tapce_run) }}
@@ -172,7 +172,7 @@ jobs:
            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           scanMetadataReportFile: tapdata/target/sonar/report-task.txt
-          timeoutSeconds: 1200
+          pollingTimeoutSec: 1200
       - name: Send SonarQube Quality Gate to Pr Comment
         if: ${{ always() && steps.sonar.outcome == 'failure' }}
         run: |
