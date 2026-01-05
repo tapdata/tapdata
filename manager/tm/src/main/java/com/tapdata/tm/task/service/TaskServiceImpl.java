@@ -4441,6 +4441,10 @@ public class TaskServiceImpl extends TaskService{
 
         //判断子任务是否存在
         TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, START_TIME, SCHEDULE_DATE);
+				// 已经运行中，直接返回
+				if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+					return id.toHexString();
+				}
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
