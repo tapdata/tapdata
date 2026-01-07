@@ -1,0 +1,63 @@
+[
+  {
+    "createIndexes": "ApiMetricsRaw",
+    "indexes": [
+      {
+        "key": {
+          "apiId": -1,
+          "processId": -1,
+          "timeGranularity": -1,
+          "timeStart": -1
+        },
+        "name": "ApiMetricsRaw_query-1",
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiMetricsRaw",
+    "indexes": [
+      {
+        "key": {
+          "callId": -1
+        },
+        "name": "ApiMetricsRaw_query_last_one",
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiMetricsRaw",
+    "indexes": [{
+      "key": {
+        "timeStart": 1
+      },
+      "expireAfterSeconds": 2592000,
+      "name": "ApiMetricsRaw_1_ttl",
+      "background": true
+    }]
+  },
+  {
+    "createIndexes": "ServerUsage",
+    "indexes": [{
+      "key": {
+        "createTime": 1
+      },
+      "expireAfterSeconds": 2592000,
+      "name": "ServerUsage_1_ttl",
+      "background": true
+    }]
+  },
+  {
+    "createIndexes": "ServerUsage",
+    "indexes": [{
+      "key": {
+        "processId": 1,
+        "workOid": 1,
+        "lastUpdateTime": 1
+      },
+      "name": "ServerUsage_upsert_index",
+      "background": true
+    }]
+  }
+]
