@@ -146,17 +146,11 @@ public class CommonUtil {
 		if (ignoreTimePrecision) {
 			int precision1 = CommonUtil.getValPrecision(instant1);
 			int precision2 = CommonUtil.getValPrecision(instant2);
-			if (precision1 != precision2) {
-				int minPrecision = Math.min(precision1, precision2);
-				Instant norm1 = CommonUtil.normalizePrecision(instant1, minPrecision, roundingMode);
-				Instant norm2 = CommonUtil.normalizePrecision(instant2, minPrecision, roundingMode);
-				if (norm1.equals(norm2)) {
-					return false;
-				}
-			} else {
-				long diffMillis = Math.abs(Duration.between(val1, val2).toMillis());
-				return diffMillis > 3;
-			}
+			int minPrecision = Math.min(precision1, precision2);
+			Instant norm1 = CommonUtil.normalizePrecision(instant1, minPrecision, roundingMode);
+			Instant norm2 = CommonUtil.normalizePrecision(instant2, minPrecision, roundingMode);
+			long diffMillis = Math.abs(Duration.between(norm1, norm2).toMillis());
+			return diffMillis > 3;
 		}
 		return !instant1.equals(instant2);
 	}
