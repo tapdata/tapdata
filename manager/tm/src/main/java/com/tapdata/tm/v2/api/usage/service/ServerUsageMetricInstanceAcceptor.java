@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.usage.service;
 
+import com.tapdata.tm.v2.api.common.service.AcceptorBase;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import org.bson.Document;
@@ -13,7 +14,7 @@ import java.util.function.Consumer;
  * @version v1.0 2025/12/26 15:10 Create
  * @description
  */
-public final class ServerUsageMetricInstanceAcceptor {
+public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
     Consumer<ServerUsageMetric> consumer;
 
     ServerUsageMetric lastBucketMin;
@@ -64,7 +65,7 @@ public final class ServerUsageMetricInstanceAcceptor {
         consumer.accept(item);
     }
 
-
+    @Override
     public void close() {
         acceptOnce(lastBucketMin);
         acceptOnce(lastBucketHour);

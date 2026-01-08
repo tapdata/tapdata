@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.tapdata.tm.v2.api.common.service.AcceptorBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayUtil;
@@ -20,7 +21,7 @@ import java.util.function.Consumer;
  * @version v1.0 2025/12/26 15:10 Create
  * @description
  */
-public final class MetricInstanceAcceptor {
+public final class MetricInstanceAcceptor implements AcceptorBase {
     public static final String UN_KNOW = "UN_KNOWN";
     Consumer<ApiMetricsRaw> consumer;
 
@@ -118,7 +119,7 @@ public final class MetricInstanceAcceptor {
         item.setP99(p99);
     }
 
-
+    @Override
     public void close() {
         acceptOnce(lastBucketMin);
         acceptOnce(lastBucketHour);

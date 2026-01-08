@@ -37,11 +37,11 @@ class ServerUsageMetricInstanceFactoryTest {
     class ConstructorTest {
         @Test
         void testConstructor() {
-            assertNotNull(factory.apiMetricsRaws);
-            assertNotNull(factory.instanceMap);
-            assertEquals(consumer, factory.consumer);
-            assertEquals(findOne, factory.findOne);
-            assertFalse(factory.needUpdateTag);
+            assertNotNull(factory.getApiMetricsRaws());
+            assertNotNull(factory.getInstanceMap());
+            assertEquals(consumer, factory.getConsumer());
+            assertEquals(findOne, factory.getFindOne());
+            assertFalse(factory.isNeedUpdateTag());
         }
     }
 
@@ -66,7 +66,7 @@ class ServerUsageMetricInstanceFactoryTest {
             factory.accept(null);
             
             assertFalse(factory.needUpdate());
-            assertTrue(factory.instanceMap.isEmpty());
+            assertTrue(factory.getInstanceMap().isEmpty());
         }
 
         @Test
@@ -80,8 +80,8 @@ class ServerUsageMetricInstanceFactoryTest {
             factory.accept(entity);
             
             assertTrue(factory.needUpdate());
-            assertEquals(1, factory.instanceMap.size());
-            assertTrue(factory.instanceMap.containsKey("server1:work1"));
+            assertEquals(1, factory.getInstanceMap().size());
+            assertTrue(factory.getInstanceMap().containsKey("server1:work1"));
         }
 
         @Test
@@ -99,7 +99,7 @@ class ServerUsageMetricInstanceFactoryTest {
             factory.accept(entity2);
             
             assertTrue(factory.needUpdate());
-            assertEquals(1, factory.instanceMap.size());
+            assertEquals(1, factory.getInstanceMap().size());
         }
 
         @Test
@@ -117,9 +117,9 @@ class ServerUsageMetricInstanceFactoryTest {
             factory.accept(entity2);
             
             assertTrue(factory.needUpdate());
-            assertEquals(2, factory.instanceMap.size());
-            assertTrue(factory.instanceMap.containsKey("server1:work1"));
-            assertTrue(factory.instanceMap.containsKey("server2:work2"));
+            assertEquals(2, factory.getInstanceMap().size());
+            assertTrue(factory.getInstanceMap().containsKey("server1:work1"));
+            assertTrue(factory.getInstanceMap().containsKey("server2:work2"));
         }
 
         @Test
@@ -151,7 +151,7 @@ class ServerUsageMetricInstanceFactoryTest {
             factory.accept(entity);
             
             assertTrue(factory.needUpdate());
-            assertEquals(1, factory.instanceMap.size());
+            assertEquals(1, factory.getInstanceMap().size());
         }
 
         @Test
@@ -169,7 +169,7 @@ class ServerUsageMetricInstanceFactoryTest {
             factory.accept(entity);
             
             assertTrue(factory.needUpdate());
-            assertEquals(1, factory.instanceMap.size());
+            assertEquals(1, factory.getInstanceMap().size());
         }
     }
 
@@ -220,13 +220,13 @@ class ServerUsageMetricInstanceFactoryTest {
         @Test
         void testFlushWithNonEmptyList() {
             // Add some items to the list
-            factory.apiMetricsRaws.add(ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0));
-            factory.apiMetricsRaws.add(ServerUsageMetric.instance(1, 120000L, "server2", "work2", 0));
+            factory.getApiMetricsRaws().add(ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0));
+            factory.getApiMetricsRaws().add(ServerUsageMetric.instance(1, 120000L, "server2", "work2", 0));
             
             factory.flush();
             
             verify(consumer, times(1)).accept(any());
-            assertTrue(factory.apiMetricsRaws.isEmpty());
+            assertTrue(factory.getApiMetricsRaws().isEmpty());
         }
     }
 
@@ -270,13 +270,13 @@ class ServerUsageMetricInstanceFactoryTest {
 
         @Test
         void testCloseWithNonEmptyApiMetricsRaws() {
-            factory.apiMetricsRaws.add(ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0));
+            factory.getApiMetricsRaws().add(ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0));
             factory.needUpdate(true);
             
             factory.close();
             
             verify(consumer, times(1)).accept(any());
-            assertTrue(factory.apiMetricsRaws.isEmpty());
+            assertTrue(factory.getApiMetricsRaws().isEmpty());
         }
     }
 }

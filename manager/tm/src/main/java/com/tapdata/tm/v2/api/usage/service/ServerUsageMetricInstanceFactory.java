@@ -1,17 +1,13 @@
 package com.tapdata.tm.v2.api.usage.service;
 
+import com.tapdata.tm.v2.api.common.service.FactoryBase;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import org.bson.Document;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.util.CollectionUtils;
 
-import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -21,27 +17,10 @@ import java.util.function.Function;
  * @version v1.0 2025/12/26 14:02 Create
  * @description
  */
-public final class ServerUsageMetricInstanceFactory implements Closeable {
-    private static final int BATCH_SIZE = 500;
-    final Consumer<List<ServerUsageMetric>> consumer;
-    final List<ServerUsageMetric> apiMetricsRaws;
-    final Map<String, ServerUsageMetricInstanceAcceptor> instanceMap;
-    final Function<Query, ServerUsageMetric> findOne;
-    boolean needUpdateTag = false;
+public final class ServerUsageMetricInstanceFactory extends FactoryBase<ServerUsageMetric, ServerUsageMetricInstanceAcceptor> {
 
     public ServerUsageMetricInstanceFactory(Consumer<List<ServerUsageMetric>> consumer, Function<Query, ServerUsageMetric> findOne) {
-        this.apiMetricsRaws = new ArrayList<>();
-        this.instanceMap = new HashMap<>();
-        this.consumer = consumer;
-        this.findOne = findOne;
-    }
-
-    public boolean needUpdate() {
-        return needUpdateTag;
-    }
-
-    public void needUpdate(boolean needUpdateTag) {
-        this.needUpdateTag = needUpdateTag;
+        super(consumer, findOne);
     }
 
     public void accept(Document entity) {
@@ -75,29 +54,9 @@ public final class ServerUsageMetricInstanceFactory implements Closeable {
         if (null != timeStart) {
             criteria.and("lastUpdateTime").is(timeStart);
         }
-        final Query query = Query.query(criteria);
-        query.with(Sort.by("lastUpdateTime").descending());
-        query.limit(1);
+        final Query query = Query.query(criteria)
+                .with(Sort.by("lastUpdateTime").descending())
+                .limit(1);
         return findOne.apply(query);
-    }
-
-
-    void flush() {
-        if (this.apiMetricsRaws.isEmpty()) {
-            return;
-        }
-        consumer.accept(apiMetricsRaws);
-        this.apiMetricsRaws.clear();
-    }
-
-    @Override
-    public void close() {
-        if (!CollectionUtils.isEmpty(instanceMap)) {
-            instanceMap.forEach((k, v) -> v.close());
-        }
-        if (!needUpdateTag) {
-            return;
-        }
-        flush();
     }
 }
