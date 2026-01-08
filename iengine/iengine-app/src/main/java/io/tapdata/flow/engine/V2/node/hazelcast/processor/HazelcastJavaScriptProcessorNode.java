@@ -225,17 +225,17 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		String op = TapEventUtil.getOp(tapEvent);
 		ProcessContext processContext = new ProcessContext(op, tableName, null, null, null, tapdataEvent.getOffset());
 
-		Long referenceTime = ((TapRecordEvent) tapEvent).getReferenceTime();
-		long eventTime = referenceTime == null ? 0 : referenceTime;
-		processContext.setEventTime(eventTime);
-		processContext.setTs(eventTime);
+		long eventOpTs = Optional.ofNullable(((TapRecordEvent) tapEvent).getReferenceTime()).orElse(0L);
+		long eventReadTs = Optional.ofNullable(tapEvent.getTime()).orElse(0L);
+		processContext.setEventTime(eventOpTs);
+		processContext.setTs(eventReadTs);
 		SyncStage syncStage = tapdataEvent.getSyncStage();
 		processContext.setType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
 		processContext.setSyncType(getProcessorBaseContext().getTaskDto().getSyncType());
 
 		ProcessContextEvent processContextEvent = processContext.getEvent();
 		if (processContextEvent == null) {
-			processContextEvent = new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime);
+			processContextEvent = new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventOpTs);
 		}
 		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
 		if (null != before) {
