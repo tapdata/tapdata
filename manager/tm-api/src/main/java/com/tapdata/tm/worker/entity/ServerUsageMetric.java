@@ -28,7 +28,7 @@ public class ServerUsageMetric extends ServerUsage {
 
 
     public static ServerUsageMetric instance(int timeGranularity, long ts, String processId, String workerId, int processType) {
-        ServerUsageMetric metric = new ServerUsageMetric();
+        final ServerUsageMetric metric = new ServerUsageMetric();
         metric.setTimeGranularity(timeGranularity);
         metric.setLastUpdateTime(ts);
         metric.setProcessId(processId);
@@ -38,9 +38,12 @@ public class ServerUsageMetric extends ServerUsage {
     }
 
     public void append(org.bson.Document usage) {
-        Double cpuUsage = Optional.ofNullable(usage.get("cpuUsage", Double.class)).orElse(0D);
-        Long heapMemoryUsage = Optional.ofNullable(usage.get("heapMemoryUsage", Long.class)).orElse(0L);
-        Long heapMemoryMax = Optional.ofNullable(usage.get("heapMemoryMax", Long.class)).orElse(0L);
+        if (null == usage) {
+            return;
+        }
+        final Double cpuUsage = Optional.ofNullable(usage.get("cpuUsage", Double.class)).orElse(0D);
+        final Long heapMemoryUsage = Optional.ofNullable(usage.get("heapMemoryUsage", Long.class)).orElse(0L);
+        final Long heapMemoryMax = Optional.ofNullable(usage.get("heapMemoryMax", Long.class)).orElse(0L);
         setCpuUsage((cpuUsage + Optional.ofNullable(getCpuUsage()).orElse(0D)) / 2);
         setHeapMemoryUsage((heapMemoryUsage + Optional.ofNullable(getHeapMemoryUsage()).orElse(0L)) / 2);
         setHeapMemoryMax(Math.max(Optional.ofNullable(getHeapMemoryMax()).orElse(heapMemoryMax), heapMemoryMax));

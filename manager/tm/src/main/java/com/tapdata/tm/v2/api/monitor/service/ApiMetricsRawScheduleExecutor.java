@@ -39,7 +39,10 @@ import java.util.function.Function;
 public class ApiMetricsRawScheduleExecutor {
     public static final String OBJECT_ID = "_id";
     MongoTemplate mongoTemplate;
-    MongoTemplate mongoOperations;
+
+    MetricInstanceFactory create() {
+        return new MetricInstanceFactory(this::saveApiMetricsRaw, this::findMetricStart);
+    }
 
     public void aggregateApiCall() {
         final String collectionName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
@@ -47,7 +50,7 @@ public class ApiMetricsRawScheduleExecutor {
             return;
         }
         ObjectId lastCallId = lastOne();
-        try (MetricInstanceFactory acceptor = new MetricInstanceFactory(this::saveApiMetricsRaw, this::findMetricStart)) {
+        try (MetricInstanceFactory acceptor = create()) {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
             final Criteria criteria = Criteria.where("deleted").ne(true)
                     .and("supplement").ne(true);
@@ -80,26 +83,23 @@ public class ApiMetricsRawScheduleExecutor {
     }
 
 
-    public void saveApiMetricsRaw(List<ApiMetricsRaw> apiMetricsRawList) {
+    void saveApiMetricsRaw(List<ApiMetricsRaw> apiMetricsRawList) {
         if (CollectionUtils.isEmpty(apiMetricsRawList)) {
             return;
         }
         bulkUpsert(apiMetricsRawList);
     }
 
-    public void bulkUpsert(List<ApiMetricsRaw> entities) {
+    void bulkUpsert(List<ApiMetricsRaw> entities) {
         bulkUpsert(entities, this::buildDefaultQuery, this::buildDefaultUpdate);
     }
 
 
-    public void bulkUpsert(List<ApiMetricsRaw> entities,
+    void bulkUpsert(List<ApiMetricsRaw> entities,
                            Function<ApiMetricsRaw, Query> queryBuilder,
                            Function<ApiMetricsRaw, Update> updateBuilder) {
         try {
-            if (entities == null || entities.isEmpty()) {
-                return;
-            }
-            BulkOperations bulkOps = mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class);
+            BulkOperations bulkOps = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class);
             for (ApiMetricsRaw entity : entities) {
                 Query query = queryBuilder.apply(entity);
                 Update update = updateBuilder.apply(entity);
@@ -111,7 +111,7 @@ public class ApiMetricsRawScheduleExecutor {
         }
     }
 
-    private Query buildDefaultQuery(ApiMetricsRaw entity) {
+    protected Query buildDefaultQuery(ApiMetricsRaw entity) {
         Criteria criteria = Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).is(entity.getTimeStart())
                 .and(WorkerCallServiceImpl.Tag.TIME_GRANULARITY).is(entity.getTimeGranularity())
                 .and(WorkerCallServiceImpl.Tag.PROCESS_ID).is(entity.getProcessId())
@@ -119,7 +119,7 @@ public class ApiMetricsRawScheduleExecutor {
         return Query.query(criteria);
     }
 
-    private Update buildDefaultUpdate(ApiMetricsRaw entity) {
+    protected Update buildDefaultUpdate(ApiMetricsRaw entity) {
         Update update = new Update();
         update.set("reqCount", entity.getReqCount());
         update.set("errorCount", entity.getErrorCount());
