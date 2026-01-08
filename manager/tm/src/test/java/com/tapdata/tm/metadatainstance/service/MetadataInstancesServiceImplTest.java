@@ -265,7 +265,7 @@ public class MetadataInstancesServiceImplTest {
 				long time = new Date().getTime();
 				String connectionId = new ObjectId().toHexString();
 				DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
-				when(dataSourceService.findById(any(ObjectId.class), eq(userDetail))).thenReturn(dataSourceConnectionDto);
+				when(dataSourceService.findById(any(ObjectId.class))).thenReturn(dataSourceConnectionDto);
 				String qualifiedName = "test-qualified-name";
 				metaDataBuilderUtilsMockedStatic.when(() -> MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), dataSourceConnectionDto, null)).thenReturn(qualifiedName);
 				MetadataInstancesDto databaseMetaDto = new MetadataInstancesDto();

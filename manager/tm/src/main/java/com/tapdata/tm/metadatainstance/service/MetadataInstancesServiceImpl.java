@@ -2589,7 +2589,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
     @Override
     public Long findDatabaseMetadataInstanceLastUpdate(String connectionId, UserDetail user) {
-        DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(connectionId), user);
+        DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(connectionId));
         if (connectionDto == null) {
             throw new BizException("connection is null");
         }
