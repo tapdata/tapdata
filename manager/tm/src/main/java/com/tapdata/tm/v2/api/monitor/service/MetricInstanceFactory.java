@@ -1,17 +1,13 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.tapdata.tm.v2.api.common.service.FactoryBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import org.bson.Document;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.util.CollectionUtils;
 
-import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -22,29 +18,11 @@ import java.util.function.Function;
  * @version v1.0 2025/12/26 14:02 Create
  * @description
  */
-public final class MetricInstanceFactory implements Closeable {
-    private static final int BATCH_SIZE = 500;
-    final Consumer<List<ApiMetricsRaw>> consumer;
-    final List<ApiMetricsRaw> apiMetricsRaws;
-    final Map<String, MetricInstanceAcceptor> instanceMap;
-    final Function<Query, ApiMetricsRaw> findOne;
-    boolean needUpdateTag = false;
-
+public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, MetricInstanceAcceptor> {
     static final List<String> IGNORE_PATH = List.of("/openapi-readOnly.json");
 
     public MetricInstanceFactory(Consumer<List<ApiMetricsRaw>> consumer, Function<Query, ApiMetricsRaw> findOne) {
-        this.apiMetricsRaws = new ArrayList<>();
-        this.instanceMap = new HashMap<>();
-        this.consumer = consumer;
-        this.findOne = findOne;
-    }
-
-    public boolean needUpdate() {
-        return needUpdateTag;
-    }
-
-    public void needUpdate(boolean needUpdateTag) {
-        this.needUpdateTag = needUpdateTag;
+        super(consumer, findOne);
     }
 
     public void accept(Document entity) {
@@ -89,25 +67,5 @@ public final class MetricInstanceFactory implements Closeable {
         query.with(Sort.by("_id").descending());
         query.limit(1);
         return findOne.apply(query);
-    }
-
-
-    void flush() {
-        if (this.apiMetricsRaws.isEmpty()) {
-            return;
-        }
-        consumer.accept(apiMetricsRaws);
-        this.apiMetricsRaws.clear();
-    }
-
-    @Override
-    public void close() {
-        if (!CollectionUtils.isEmpty(instanceMap)) {
-            instanceMap.forEach((k, v) -> v.close());
-        }
-        if (!needUpdateTag) {
-            return;
-        }
-        flush();
     }
 }

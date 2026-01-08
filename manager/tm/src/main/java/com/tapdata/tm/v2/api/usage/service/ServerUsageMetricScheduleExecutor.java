@@ -39,6 +39,7 @@ import java.util.function.Function;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ServerUsageMetricScheduleExecutor {
+    public static final String LAST_UPDATE_TIME = "lastUpdateTime";
     MongoTemplate mongoTemplate;
     MongoTemplate mongoOperations;
 
@@ -52,12 +53,12 @@ public class ServerUsageMetricScheduleExecutor {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
             final Criteria criteria = Criteria.where("deleted").ne(true);
             if (Objects.nonNull(lastUpdateTime)) {
-                criteria.and("lastUpdateTime").gt(lastUpdateTime);
+                criteria.and(LAST_UPDATE_TIME).gt(lastUpdateTime);
             }
             final Document queryObject = Query.query(criteria).getQueryObject();
             final FindIterable<Document> iterable =
                     collection.find(queryObject, Document.class)
-                            .sort(Sorts.ascending("lastUpdateTime"))
+                            .sort(Sorts.ascending(LAST_UPDATE_TIME))
                             .batchSize(1000);
             try (final MongoCursor<Document> cursor = iterable.iterator()) {
                 while (cursor.hasNext()) {
@@ -70,7 +71,7 @@ public class ServerUsageMetricScheduleExecutor {
 
     Long lastOne() {
         Query query = Query.query(Criteria.where("timeGranularity").is(2));
-        query.with(Sort.by(Sort.Order.desc("lastUpdateTime"))).limit(1);
+        query.with(Sort.by(Sort.Order.desc(LAST_UPDATE_TIME))).limit(1);
         ServerUsageMetric lastOne = mongoTemplate.findOne(query, ServerUsageMetric.class);
         if (null != lastOne) {
             return lastOne.getLastUpdateTime();
@@ -111,7 +112,7 @@ public class ServerUsageMetricScheduleExecutor {
     }
 
     private Query buildDefaultQuery(ServerUsageMetric entity) {
-        Criteria criteria = Criteria.where("lastUpdateTime").is(entity.getLastUpdateTime())
+        Criteria criteria = Criteria.where(LAST_UPDATE_TIME).is(entity.getLastUpdateTime())
                 .and(WorkerCallServiceImpl.Tag.TIME_GRANULARITY).is(entity.getTimeGranularity())
                 .and(WorkerCallServiceImpl.Tag.PROCESS_ID).is(entity.getProcessId())
                 .and("workOid").is(entity.getWorkOid());
