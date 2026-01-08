@@ -536,7 +536,44 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		textEncryptionRule(apiDefinitionVo);
 		String clusterId = Optional.ofNullable(settingsService.getByKey("cluster")).map(Settings::getId).orElse("");
 		apiDefinitionVo.setClusterId(clusterId);
+		apiDefinitionVo.setApiInfo(withUnPublishApi(apis));
 		return apiDefinitionVo;
+	}
+
+	public List<ApiDefinitionVo.ApiInfo> withUnPublishApi(List<ModulesDto> publishApis) {
+		List<ApiDefinitionVo.ApiInfo> apiInfo = new ArrayList<>();
+		append(apiInfo, publishApis, ModuleStatusEnum.ACTIVE);
+		List<ModulesDto> apis = (List<ModulesDto>) findAllActiveApi(ModuleStatusEnum.PENDING);
+		append(apiInfo, apis, ModuleStatusEnum.PENDING);
+		return apiInfo;
+	}
+
+	public void append(List<ApiDefinitionVo.ApiInfo> apiInfo, List<ModulesDto> apis, ModuleStatusEnum status) {
+		if (CollectionUtils.isEmpty(apis)) {
+			return;
+		}
+		for (ModulesDto api : apis) {
+			String hexString = api.getId().toHexString();
+			ApiDefinitionVo.ApiInfo item = new ApiDefinitionVo.ApiInfo();
+			item.setApiId(hexString);
+			item.setName(api.getName());
+			StringJoiner joiner = new StringJoiner("/");
+			if (StringUtils.isNotBlank(api.getApiVersion())) {
+				joiner.add(api.getApiVersion());
+			}
+			if (StringUtils.isNotBlank(api.getPrefix())) {
+				joiner.add(api.getPrefix());
+			}
+			if (StringUtils.isNotBlank(api.getBasePath())) {
+				joiner.add(api.getBasePath());
+			}
+			item.setUrl(joiner.toString());
+			item.setPublish(status == ModuleStatusEnum.ACTIVE);
+			item.setPathSetting(new HashMap<>());
+			api.withPathSettingIfNeed();
+			api.getPathSetting().forEach(p -> item.getPathSetting().put(p.getMethod(), p.getPath()));
+			apiInfo.add(item);
+		}
 	}
 
 	public List<ApiServerWorkerInfo> getApiWorkerInfo(String processId, Integer workerCount) 	{

@@ -47,7 +47,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             return;
         }
         long requestCost = Optional.ofNullable(entity.get("latency", Long.class)).orElse(0L);
-        boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(entity.get("code", String.class));
+        boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(entity.get("code", String.class), entity.get("httpStatus", String.class));
         long reqBytes = Optional.ofNullable(entity.get("req_bytes", Long.class)).orElse(0L);
         long reqTimeOSec = Optional.ofNullable(entity.get("reqTime", Long.class)).orElse(0L) / 1000L;
         long bucketSec = (reqTimeOSec / 5) * 5;

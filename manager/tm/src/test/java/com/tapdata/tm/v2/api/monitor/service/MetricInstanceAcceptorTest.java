@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayUtil;
@@ -187,30 +188,32 @@ class MetricInstanceAcceptorTest {
         @Test
         void testAcceptWithSuccessfulRequest() {
             try (MockedStatic<ApiMetricsDelayInfoUtil> delayInfoUtil = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                delayInfoUtil.when(() -> ApiMetricsDelayInfoUtil.checkByCode(anyString()))
+                delayInfoUtil.when(() -> ApiMetricsDelayInfoUtil.checkByCode(anyString(), anyString()))
                         .thenReturn(true);
                 
                 Document document = createValidDocument();
                 document.append("code", "200");
+                document.append("httpStatus", ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode());
                 
                 acceptor.accept(document);
                 
-                delayInfoUtil.verify(() -> ApiMetricsDelayInfoUtil.checkByCode("200"));
+                delayInfoUtil.verify(() -> ApiMetricsDelayInfoUtil.checkByCode("200", ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode()));
             }
         }
 
         @Test
         void testAcceptWithFailedRequest() {
             try (MockedStatic<ApiMetricsDelayInfoUtil> delayInfoUtil = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                delayInfoUtil.when(() -> ApiMetricsDelayInfoUtil.checkByCode(anyString()))
+                delayInfoUtil.when(() -> ApiMetricsDelayInfoUtil.checkByCode(anyString(), anyString()))
                         .thenReturn(false);
                 
                 Document document = createValidDocument();
-                document.append("code", "500");
+                document.append("code", "404");
+                document.append("httpStatus", ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode());
                 
                 acceptor.accept(document);
                 
-                delayInfoUtil.verify(() -> ApiMetricsDelayInfoUtil.checkByCode("500"));
+                delayInfoUtil.verify(() -> ApiMetricsDelayInfoUtil.checkByCode("404", ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode()));
             }
         }
 
@@ -419,7 +422,7 @@ class MetricInstanceAcceptorTest {
             try (MockedStatic<ApiMetricsDelayInfoUtil> delayInfoUtil = mockStatic(ApiMetricsDelayInfoUtil.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
                 
-                delayInfoUtil.when(() -> ApiMetricsDelayInfoUtil.checkByCode("200"))
+                delayInfoUtil.when(() -> ApiMetricsDelayInfoUtil.checkByCode("200", ApiCallEntity.HttpStatusType.API_NOT_EXIST_404.getCode()))
                         .thenReturn(true);
                 
                 List<Map<Long, Integer>> mockDelay = Arrays.asList(

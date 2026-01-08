@@ -59,5 +59,29 @@
       "name": "ServerUsage_upsert_index",
       "background": true
     }]
+  },
+  {
+    "createIndexes": "ServerUsageMetric",
+    "indexes": [{
+      "key": {
+        "createTime": 1
+      },
+      "expireAfterSeconds": 2592000,
+      "name": "ServerUsage_1_ttl",
+      "background": true
+    }]
+  },
+  {
+    "createIndexes": "ServerUsageMetric",
+    "indexes": [{
+      "key": {
+        "processId": 1,
+        "workOid": 1,
+        "lastUpdateTime": 1,
+        "timeGranularity": 1
+      },
+      "name": "ServerUsage_upsert_index",
+      "background": true
+    }]
   }
 ]
