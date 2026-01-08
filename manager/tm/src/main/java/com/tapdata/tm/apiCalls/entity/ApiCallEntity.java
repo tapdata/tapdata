@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.base.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -122,4 +123,22 @@ public class ApiCallEntity extends BaseEntity {
      * query Of http request cost time(ms)
      * */
     private Long requestCost;
+
+    /**
+     * @see HttpStatusType
+     * */
+    private String httpStatus;
+
+    @Getter
+    public enum HttpStatusType {
+        API_NOT_EXIST_404("API_NOT_EXIST_404"),
+        PUBLISH_FAILED_404("PUBLISH_FAILED_404"),
+        API_NOT_PUBLISH_404("API_NOT_PUBLISH_404")
+        ;
+        final String code;
+
+        HttpStatusType(String code) {
+            this.code = code;
+        }
+    }
 }

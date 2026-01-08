@@ -617,6 +617,7 @@ public class ApiMetricsRawQuery {
         result.setTotalBytes(totalBytes);
         result.setTotalDelayMs(totalDelayMs);
         result.setApiCount(apiCount);
+        result.setTotalRequestCount(totalRequestCount);
         result.setTotalRps(totalDelayMs > 0L ? totalBytes * 1000.0D / totalDelayMs : 0D);
         result.setResponseTimeAvg(totalRequestCount > 0L ? totalDelayMs * 1.0D / totalRequestCount : 0D);
         return result;

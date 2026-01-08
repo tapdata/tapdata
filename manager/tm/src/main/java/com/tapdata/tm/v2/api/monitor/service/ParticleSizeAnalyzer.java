@@ -40,9 +40,9 @@ public class ParticleSizeAnalyzer {
         long range = end - start;
         long s = start;
         long e = end;
-        if (range < 60L * 60L) {
+        if (range <= 60L * 60L) {
             query.setGranularity(0);
-        } else if (range < 60L * 60L * 24L) {
+        } else if (range <= 60L * 60L * 24L) {
             query.setGranularity(1);
             s = (start / 60L * 60L);
             e = (end / 60L * 60L);
@@ -53,7 +53,7 @@ public class ParticleSizeAnalyzer {
         }
         query.setStartAt(s);
         query.setEndAt(e);
-        return Criteria.where("timeGranularity").is(query.getGranularity() == 0 ? 1 : 0).andOperator(
+        return Criteria.where("timeGranularity").is(query.getGranularity() == 0 ? 1 : query.getGranularity()).andOperator(
                 Criteria.where("timeStart").gte(s),
                 Criteria.where("timeStart").lte(e)
         );

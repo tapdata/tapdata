@@ -14,6 +14,8 @@ import lombok.EqualsAndHashCode;
 public class ApiTopOnHomepage extends ValueBase {
     long apiCount;
 
+    long totalRequestCount;
+
     long totalBytes;
 
     long totalDelayMs;
