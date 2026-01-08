@@ -34,8 +34,8 @@ public final class ApiMetricsDelayUtil {
         for (Object o : delay) {
             if (o instanceof Map<?, ?> iMap) {
                 iMap.forEach((k, v) -> each(k, v, result));
-            } else if (o instanceof Number) {
-                result.add(toMap((Long) o, 1));
+            } else if (o instanceof Number iNumber) {
+                result.add(toMap(iNumber.longValue(), 1));
             }
         }
         return result;
@@ -74,6 +74,9 @@ public final class ApiMetricsDelayUtil {
 
     @SafeVarargs
     public static List<Map<Long, Integer>> merge(List<Map<Long, Integer>>... delayList) {
+        if (null == delayList) {
+            return new ArrayList<>();
+        }
         Map<Long, Integer> merged = new HashMap<>();
         for (List<Map<Long, Integer>> list : delayList) {
             if (null == list) {
