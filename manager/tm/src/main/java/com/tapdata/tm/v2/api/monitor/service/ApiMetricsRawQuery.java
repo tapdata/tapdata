@@ -128,6 +128,8 @@ public class ApiMetricsRawQuery {
 
     protected long errorCount(List<ApiMetricsRaw> apiMetricsRaws, Function<ApiMetricsRaw, String> groupBy) {
         return apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(groupBy.apply(e)))
                 .collect(Collectors.groupingBy(
                         groupBy,
                         Collectors.collectingAndThen(
@@ -242,56 +244,46 @@ public class ApiMetricsRawQuery {
 
     protected ServerChart.Usage mapUsage(List<? extends ServerUsage> infos, long startAt, long endAt, int granularity) {
         final ServerChart.Usage usage = ServerChart.Usage.create();
-        if (infos.isEmpty()) {
-            return usage;
-        }
-
-        // Sort by time
-        infos.sort(Comparator.comparingLong(ServerUsage::getLastUpdateTime));
-
         // Calculate step based on granularity
         long step = switch (granularity) {
             case 1 -> 60L;           // 1 minute
             case 2 -> 60L * 60L;    // 1 hour
             default -> 5L;          // 5 seconds (default)
         };
-
+        if (infos.isEmpty()) {
+            return usage;
+        }
+        // Sort by time
+        infos.sort(Comparator.comparingLong(ServerUsage::getLastUpdateTime));
         // Fill gaps before first data point
         long currentTime = startAt;
         long firstDataTime = infos.get(0).getLastUpdateTime() / 1000L;
-
         while (currentTime < firstDataTime) {
             usage.addEmpty(currentTime, granularity != 0);
             currentTime += step;
         }
-
         // Process each data point
         long lastProcessedTime = currentTime;
         for (ServerUsage info : infos) {
             long ts = info.getLastUpdateTime() / 1000L;
-
             // Fill any gaps between data points
             while (lastProcessedTime < ts) {
                 usage.addEmpty(lastProcessedTime, granularity != 0);
                 lastProcessedTime += step;
             }
-
             // Add the actual data point if not already added
             if (lastProcessedTime == ts) {
                 usage.add(info);
                 lastProcessedTime += step;
             }
         }
-
         // Fill gaps after last data point until endAt
         long lastDataTime = infos.get(infos.size() - 1).getLastUpdateTime() / 1000L;
         long fillTime = lastDataTime + step;
-
         while (fillTime < endAt) {
             usage.addEmpty(fillTime, granularity != 0);
             fillTime += step;
         }
-
         return usage;
     }
 
@@ -481,7 +473,7 @@ public class ApiMetricsRawQuery {
         List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
         apiDtoList.forEach(apiDto -> {
             String apiId = apiDto.getId().toHexString();
-            TopApiInServer item = Optional.ofNullable(apiInfoMap.get(apiId)).orElse(new TopApiInServer());
+            TopApiInServer item = apiInfoMap.computeIfAbsent(apiId, k -> new TopApiInServer());
             item.setApiId(apiId);
             item.setApiName(apiDto.getName());
         });
@@ -636,7 +628,12 @@ public class ApiMetricsRawQuery {
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return new ArrayList<>();
         }
-        List<String> apiIds = apiMetricsRaws.stream().map(ApiMetricsRaw::getApiId).distinct().toList();
+        List<String> apiIds = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .map(ApiMetricsRaw::getApiId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
         if (apiIds.isEmpty()) {
             return new ArrayList<>();
         }
@@ -653,7 +650,6 @@ public class ApiMetricsRawQuery {
             item.setApiName(e.getName());
             return item;
         }, (e1, e2) -> e2));
-
         Map<String, ApiItem> collect = apiMetricsRaws.stream().collect(
                 Collectors.groupingBy(ApiMetricsRaw::getApiId,
                         Collectors.collectingAndThen(
@@ -661,14 +657,32 @@ public class ApiMetricsRawQuery {
                                 rows -> {
                                     ApiMetricsRaw apiMetricsRaw = rows.get(0);
                                     ApiItem item = Optional.ofNullable(apiMap.get(apiMetricsRaw.getApiId())).orElse(new ApiItem());
-                                    item.setRequestCount(rows.stream().mapToLong(ApiMetricsRaw::getReqCount).sum());
-                                    item.setTotalRps(rows.stream().mapToDouble(ApiMetricsRaw::getRps).sum());
-                                    item.setErrorRate(rows.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum() * 1.0D / item.getRequestCount());
-                                    item.setRequestCostAvg(rows.stream().map(ApiMetricsRaw::getDelay).map(ApiMetricsDelayUtil::fixDelayAsMap).mapToLong(ApiMetricsDelayUtil::sum).sum() * 1.0D / item.getRequestCount());
+                                    long sumRequestCount = rows.stream()
+                                            .filter(Objects::nonNull)
+                                            .mapToLong(ApiMetricsRaw::getReqCount)
+                                            .sum();
+                                    item.setRequestCount(sumRequestCount);
+                                    double sumRps = rows.stream()
+                                            .filter(Objects::nonNull)
+                                            .mapToDouble(ApiMetricsRaw::getRps)
+                                            .sum();
+                                    item.setTotalRps(sumRps);
+                                    long sumErrorCount = rows.stream()
+                                            .filter(Objects::nonNull)
+                                            .mapToLong(ApiMetricsRaw::getErrorCount)
+                                            .sum();
+                                    item.setErrorRate(sumErrorCount * 1.0D / item.getRequestCount());
+                                    long sumDelay = rows.stream()
+                                            .filter(Objects::nonNull)
+                                            .map(ApiMetricsRaw::getDelay)
+                                            .map(ApiMetricsDelayUtil::fixDelayAsMap)
+                                            .mapToLong(ApiMetricsDelayUtil::sum)
+                                            .sum();
+                                    item.setRequestCostAvg(sumDelay * 1.0D / item.getRequestCount());
                                     final List<Map<Long, Integer>> merged = mergeDelay(rows);
-                                    item.setP95(ApiMetricsDelayUtil.p95(merged, item.getRequestCount()));
                                     item.setP99(ApiMetricsDelayUtil.p99(merged, item.getRequestCount()));
                                     ApiMetricsDelayUtil.readMaxAndMin(merged, item::setMaxDelay, item::setMinDelay);
+                                    item.setP95(ApiMetricsDelayUtil.p95(merged, item.getRequestCount()));
                                     item.setQueryFrom(param.getStartAt());
                                     item.setQueryEnd(param.getEndAt());
                                     item.setGranularity(param.getGranularity());
@@ -744,7 +758,11 @@ public class ApiMetricsRawQuery {
         if (apiMetricsRaws.isEmpty()) {
             return new ArrayList<>();
         }
-        List<String> serverIds = apiMetricsRaws.stream().map(ApiMetricsRaw::getProcessId).distinct().toList();
+        List<String> serverIds = apiMetricsRaws.stream()
+                .map(ApiMetricsRaw::getProcessId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
         if (serverIds.isEmpty()) {
             return new ArrayList<>();
         }
@@ -799,14 +817,14 @@ public class ApiMetricsRawQuery {
                 Double p2 = Optional.ofNullable(e2.getErrorRate()).orElse(0D);
                 return p1.compareTo(p2);
             };
-            case "p95" -> (e1, e2) -> {
-                Long p1 = Optional.ofNullable(e1.getP95()).orElse(0L);
-                Long p2 = Optional.ofNullable(e2.getP95()).orElse(0L);
-                return p1.compareTo(p2);
-            };
             case "p99" -> (e1, e2) -> {
                 Long p1 = Optional.ofNullable(e1.getP99()).orElse(0L);
                 Long p2 = Optional.ofNullable(e2.getP99()).orElse(0L);
+                return p1.compareTo(p2);
+            };
+            case "p95" -> (e1, e2) -> {
+                Long p1 = Optional.ofNullable(e1.getP95()).orElse(0L);
+                Long p2 = Optional.ofNullable(e2.getP95()).orElse(0L);
                 return p1.compareTo(p2);
             };
             default -> (e1, e2) -> {

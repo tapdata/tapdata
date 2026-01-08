@@ -52,7 +52,7 @@ public final class MetricInstanceFactory implements Closeable {
             return;
         }
         final String reqPath = entity.get("req_path", String.class);
-        if (IGNORE_PATH.contains(reqPath)) {
+        if (null != reqPath && IGNORE_PATH.contains(reqPath)) {
             return;
         }
         if (!needUpdate()) {

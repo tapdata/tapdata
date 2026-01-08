@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -120,11 +121,20 @@ public class ServerUsageMetricScheduleExecutor {
     private Update buildDefaultUpdate(ServerUsageMetric entity) {
         Update update = new Update();
         update.set("processType", entity.getProcessType());
-        update.set("maxCpuUsage", BigDecimal.valueOf(entity.getMaxCpuUsage()).setScale(4, RoundingMode.HALF_DOWN).doubleValue());
-        update.set("minCpuUsage", BigDecimal.valueOf(entity.getMinCpuUsage()).setScale(4, RoundingMode.HALF_DOWN).doubleValue());
+        Optional.ofNullable(entity.getMaxCpuUsage())
+                .map(BigDecimal::valueOf)
+                .map(v -> v.setScale(4, RoundingMode.HALF_DOWN).doubleValue())
+                .ifPresent(v -> update.set("maxCpuUsage", v));
+        Optional.ofNullable(entity.getMinCpuUsage())
+                .map(BigDecimal::valueOf)
+                .map(v -> v.setScale(4, RoundingMode.HALF_DOWN).doubleValue())
+                .ifPresent(v -> update.set("minCpuUsage", v));
+        Optional.ofNullable(entity.getCpuUsage())
+                .map(BigDecimal::valueOf)
+                .map(v -> v.setScale(4, RoundingMode.HALF_DOWN).doubleValue())
+                .ifPresent(v -> update.set("cpuUsage", v));
         update.set("maxHeapMemoryUsage", entity.getMaxHeapMemoryUsage());
         update.set("minHeapMemoryUsage", entity.getMinHeapMemoryUsage());
-        update.set("cpuUsage", BigDecimal.valueOf(entity.getCpuUsage()).setScale(4, RoundingMode.HALF_DOWN).doubleValue());
         update.set("heapMemoryUsage", entity.getHeapMemoryUsage());
         update.set("heapMemoryMax", entity.getHeapMemoryMax());
         update.currentDate("updatedAt");
