@@ -81,6 +81,7 @@ public class ApiMetricsRawQuery {
     public static final String API_SERVER = "api-server";
     public static final String REQUEST_COUNT = "requestCount";
     public static final String ERROR_RATE = "errorRate";
+    public static final String SERVER_ID_EMPTY = "server.id.empty";
     ApiMetricsRawService service;
     UsageRepository usageRepository;
     WorkerRepository workerRepository;
@@ -321,7 +322,7 @@ public class ApiMetricsRawQuery {
     public ServerOverviewDetail serverOverviewDetail(ServerDetail param) {
         String serverId = param.getServerId();
         if (StringUtils.isBlank(serverId)) {
-            throw new BizException("server.id.empty");
+            throw new BizException(SERVER_ID_EMPTY);
         }
         ServerOverviewDetail result = new ServerOverviewDetail();
         Worker worker = findServerById(serverId);
@@ -352,7 +353,7 @@ public class ApiMetricsRawQuery {
     public ServerChart serverChart(ServerChartParam param) {
         String serverId = param.getServerId();
         if (StringUtils.isBlank(serverId)) {
-            throw new BizException("server.id.empty");
+            throw new BizException(SERVER_ID_EMPTY);
         }
         ServerChart result = new ServerChart();
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
@@ -432,7 +433,7 @@ public class ApiMetricsRawQuery {
     public List<TopApiInServer> topApiInServer(TopApiInServerParam param) {
         String serverId = param.getServerId();
         if (StringUtils.isBlank(serverId)) {
-            throw new BizException("server.id.empty");
+            throw new BizException(SERVER_ID_EMPTY);
         }
         Criteria criteria = ParticleSizeAnalyzer.of(param);
         criteria.and(PROCESS_ID).is(serverId);
@@ -512,7 +513,7 @@ public class ApiMetricsRawQuery {
     public TopWorkerInServer topWorkerInServer(TopWorkerInServerParam param) {
         String serverId = param.getServerId();
         if (StringUtils.isBlank(serverId)) {
-            throw new BizException("server.id.empty");
+            throw new BizException(SERVER_ID_EMPTY);
         }
         TopWorkerInServer result = new TopWorkerInServer();
         Worker worker = findServerById(serverId);
