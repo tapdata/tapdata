@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiCalls.vo;
 
+import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.vo.BaseVo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -65,4 +66,9 @@ public class ApiCallDetailVo extends BaseVo {
      * query Of http request cost time(ms)
      * */
     private Long requestCost;
+
+    /**
+     * @see ApiCallEntity.HttpStatusType
+     * */
+    private String httpStatus;
 }
