@@ -83,5 +83,40 @@
       "name": "ServerUsage_upsert_index",
       "background": true
     }]
+  },
+  {
+    "delete": "Settings_Alarm",
+    "deletes": [
+      {
+        "q": {
+          "key": "API_SERVER_WORKER_DELAY_P50_WARN"
+        },
+        "limit": 1
+      },
+      {
+        "q": {
+          "key": "API_SERVER_WORKER_DELAY_P95_WARN"
+        },
+        "limit": 1
+      },
+      {
+        "q": {
+          "key": "API_SERVER_WORKER_DELAY_P99_WARN"
+        },
+        "limit": 1
+      },
+      {
+        "q": {
+          "key": "API_SERVER_WORKER_ERROR_RATE_WARN"
+        },
+        "limit": 1
+      },
+      {
+        "q": {
+          "key": "API_SERVER_WORKER_ERROR_RATE_ALTER"
+        },
+        "limit": 1
+      }
+    ]
   }
 ]
