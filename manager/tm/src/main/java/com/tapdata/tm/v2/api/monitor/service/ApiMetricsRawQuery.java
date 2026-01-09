@@ -580,7 +580,7 @@ public class ApiMetricsRawQuery {
                 )
         ));
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).is(serverId)
-                .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER.getType());
+                .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER_WORKER.getType());
         List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
         Map<String, ServerChart.Usage> usageMap = allUsage.stream()
                 .collect(Collectors.groupingBy(ServerUsage::getWorkOid, Collectors.collectingAndThen(
