@@ -21,6 +21,8 @@ public class DebugVo {
 
     Integer count;
 
+    Total total;
+
     @JsonProperty("api_monit_info")
     Map<String, Object> apiMonitInfo;
 
@@ -43,5 +45,13 @@ public class DebugVo {
         error.getError().put("name", "BadRequestError");
         error.getError().put("message", msg);
         return error;
+    }
+
+    /**
+     * old version api should use this entity to return count
+     * */
+    @Data
+    public static class Total {
+        private Integer count;
     }
 }
