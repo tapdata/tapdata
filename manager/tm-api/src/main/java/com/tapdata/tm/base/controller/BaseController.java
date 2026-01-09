@@ -66,10 +66,22 @@ public class BaseController {
 		}});
 	}};
 
+	private static final Map<String, Set<String>> authWhitoutListMap = new HashMap<String, Set<String>>() {{
+		put("GET", new HashSet<String>() {{
+			add("/api/clusterStates/findAccessNodeInfo");
+		}});
+	}};
+
 	private static boolean isFreeAuth(String uri, String method) {
 		Set<String> uriSet = authWhiteListMap.get(method.trim().toUpperCase());
+		Set<String> uriSetWithout = authWhitoutListMap.get(method.trim().toUpperCase());
 		if (uriSet == null) {
 			return false;
+		}
+		for (String pattern : uriSetWithout) {
+			if (pathMatcher.match(pattern, uri)) {
+				return false;
+			}
 		}
 		for (String pattern : uriSet) {
 			if (pathMatcher.match(pattern, uri)) {
