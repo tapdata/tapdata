@@ -75,14 +75,7 @@ public class AspectUtils {
 			} else {
 				return interceptResult;
 			}
-		} else {
-			try {
-				consumer.accept(null);
-			} catch (Throwable e) {
-				throw new RuntimeException(e);
-			}
 		}
-
 		return null;
 	}
 
@@ -110,8 +103,6 @@ public class AspectUtils {
 			} else {
 				return interceptResult;
 			}
-		} else {
-			consumer.accept(null);
 		}
 		return null;
 	}
