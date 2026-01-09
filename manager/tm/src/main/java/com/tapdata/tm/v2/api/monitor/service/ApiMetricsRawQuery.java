@@ -332,7 +332,9 @@ public class ApiMetricsRawQuery {
                 .map(ApiServerStatus::getMetricValues)
                 .ifPresent(u -> {
                     result.setCpuUsage(u.getCpuUsage());
-                    result.setMemoryUsage(u.getHeapMemoryUsage());
+                    Optional.ofNullable(u.getHeapMemoryUsageMax()).ifPresent(max -> {
+                        result.setMemoryUsage(max > 0L ? 100.0D * u.getHeapMemoryUsage() / max : 0D);
+                    });
                     if (u.getLastUpdateTime() instanceof Number iNum) {
                         result.setUsagePingTime(iNum.longValue());
                     }
@@ -342,7 +344,7 @@ public class ApiMetricsRawQuery {
         final List<ApiMetricsRaw> apiMetricsRaws = ParticleSizeAnalyzer.apiMetricsRaws(service.find(query), param);
         result.setRequestCount(0L);
         long errorCount = errorCountGetter(apiMetricsRaws, e -> result.setRequestCount(result.getRequestCount() + e));
-        result.setErrorRate(1.0D * errorCount / result.getRequestCount());
+        result.setErrorRate(result.getRequestCount() > 0L ? 1.0D * errorCount / result.getRequestCount() : 0D);
         final List<Map<Long, Integer>> merge = mergeDelay(apiMetricsRaws);
         result.setP95(ApiMetricsDelayUtil.p95(merge, result.getRequestCount()));
         result.setP99(ApiMetricsDelayUtil.p99(merge, result.getRequestCount().intValue()));
