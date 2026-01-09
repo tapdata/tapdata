@@ -1,6 +1,11 @@
 package com.tapdata.tm.worker.dto;
 
+import com.tapdata.tm.worker.entity.ServerUsage;
 import lombok.Data;
+import org.bson.types.ObjectId;
+
+import java.util.Date;
+import java.util.Optional;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -15,6 +20,8 @@ public class MetricInfo {
      * */
     Long heapMemoryUsage;
 
+    Long heapMemoryUsageMax;
+
     /**
      * unit %, such as 0.1 means 10%
      * */
@@ -24,4 +31,45 @@ public class MetricInfo {
      * timestamp, unit ms
      * */
     Object lastUpdateTime;
+
+    public static ServerUsage toUsage(MetricInfo info, String processId, String workerId, ServerUsage.ProcessType type) {
+        ServerUsage serverUsage = new ServerUsage();
+        serverUsage.setProcessType(type.getType());
+        serverUsage.setProcessId(processId);
+        serverUsage.setWorkOid(workerId);
+        serverUsage.setCpuUsage(Optional.ofNullable(info).map(MetricInfo::getCpuUsage).orElse(null));
+        serverUsage.setHeapMemoryUsage(Optional.ofNullable(info).map(MetricInfo::getHeapMemoryUsage).orElse(null));
+        serverUsage.setHeapMemoryMax(Optional.ofNullable(info).map(MetricInfo::getHeapMemoryUsageMax).orElse(null));
+        Object lastUpdateTime = Optional.ofNullable(info).map(MetricInfo::getLastUpdateTime).orElse(null);
+        if (lastUpdateTime instanceof Number iTime) {
+            serverUsage.setLastUpdateTime(iTime.longValue());
+        } else if (lastUpdateTime instanceof Date iTime) {
+            serverUsage.setLastUpdateTime(iTime.getTime());
+        } else if (lastUpdateTime instanceof String iTime) {
+            try {
+                serverUsage.setLastUpdateTime(Long.parseLong(iTime));
+            } catch (NumberFormatException e) {
+                //ignore
+            }
+        }
+        Optional.ofNullable(serverUsage.getLastUpdateTime()).ifPresent(time -> {
+            if (time % 3600000L == 0) {
+                serverUsage.setType(2);
+                return;
+            }
+            if (time % 60000L  == 0) {
+                serverUsage.setType(1);
+                return;
+            }
+            if (time % 5000L == 0L) {
+                serverUsage.setType(0);
+                return;
+            }
+            serverUsage.setType(null);
+        });
+        serverUsage.setCreateAt(new Date());
+        serverUsage.setLastUpdAt(new Date());
+        serverUsage.setId(new ObjectId());
+        return serverUsage;
+    }
 }
