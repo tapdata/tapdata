@@ -32,12 +32,16 @@ import com.tapdata.tm.commons.function.ThrowableConsumer;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.lineage.analyzer.AnalyzerService;
+import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
+import com.tapdata.tm.lineage.entity.LineageType;
 import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.userLog.constant.Operation;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -378,6 +382,7 @@ public class TaskServiceImpl extends TaskService{
     private ShareCdcTableMappingService shareCdcTableMappingService;
     private ILicenseService iLicenseService;
     private MetadataInstancesCompareService metadataInstancesCompareService;
+    private AnalyzerService analyzerService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -5078,6 +5083,7 @@ public class TaskServiceImpl extends TaskService{
             throw new BizException(ILLEGAL_ARGUMENT, TABLE_NAME);
         }
         TableStatusInfoDto tableStatusInfoDto = new TableStatusInfoDto();
+        tableStatusInfoDto.setUpstreamTableStatus(new ArrayList<>());
         Criteria criteria = new Criteria();
         // tableName 不为空根据表查询。否则根据连接查询
         criteria.and(DAG_NODES_CONNECTION_ID).is(connectionId).and(IS_DELETED).ne(true);
@@ -5115,10 +5121,68 @@ public class TaskServiceImpl extends TaskService{
             tableStatusInfoDto.setStatus(tableStatus);
             return tableStatusInfoDto;
         }
+        List<LinkedList<LineageTask>> lineageTasks = new ArrayList<>();
+        try{
+            Graph<Node, Edge> graph = analyzerService.analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+            graph.getSources().forEach(source -> {
+                dfsEdge(graph, source, new LinkedList<>(), lineageTasks);
+            });
+        }catch (Exception e){
+            log.warn("getTaskStatsByTableNameOrConnectionId error", e);
+        }
+
         if (StringUtils.isNotEmpty(taskSuccessStatus)) {
             if(judgeTargetInspect(connectionId, tableName, userDetail)){
-                tableStatus=  TableStatusEnum.STATUS_NORMAL.getValue();
+                tableStatus = TableStatusEnum.STATUS_NORMAL.getValue();
                 measurementServiceV2.queryTableMeasurement(taskId,tableStatusInfoDto);
+                long totalMaxDelay = 0L;
+                Map<String,Long> taskDelayMap =  new HashMap<>();
+                List<String> maxDelayTaskIds = new ArrayList<>();
+                for(LinkedList<LineageTask> linkLineageTask : lineageTasks){
+                    long linkDelay = 0L;
+                    List<String> linkDelayTaskIds = new ArrayList<>();
+                    for (LineageTask lineageTask : linkLineageTask) {
+                        TableStatusInfoDto upstreamTableStatusInfoDto = new TableStatusInfoDto();
+                        upstreamTableStatusInfoDto.setTaskId(lineageTask.getId());
+                        upstreamTableStatusInfoDto.setTaskName(lineageTask.getName());
+                        upstreamTableStatusInfoDto.setSyncType(lineageTask.getSyncType());
+
+                        if(TaskDto.STATUS_RUNNING.equals(lineageTask.getStatus())){
+                            upstreamTableStatusInfoDto.setStatus(TableStatusEnum.STATUS_NORMAL.getValue());
+                            Long cdcDelayTime;
+                            if(taskDelayMap.containsKey(lineageTask.getId())){
+                                cdcDelayTime = taskDelayMap.get(lineageTask.getId());
+                            }else{
+                                measurementServiceV2.queryTableMeasurement(lineageTask.getId(), upstreamTableStatusInfoDto);
+                                taskDelayMap.put(lineageTask.getId(),upstreamTableStatusInfoDto.getCdcDelayTime());
+                                cdcDelayTime = upstreamTableStatusInfoDto.getCdcDelayTime();
+                            }
+                            if(null != cdcDelayTime){
+                                linkDelay = linkDelay + cdcDelayTime;
+                                linkDelayTaskIds.add(lineageTask.getId());
+                            }
+                        } else if(StringUtils.equalsAny(lineageTask.getStatus(), TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START, TaskDto.STATUS_WAIT_RUN,
+                                TaskDto.STATUS_SCHEDULING)) {
+                            upstreamTableStatusInfoDto.setStatus(TableStatusEnum.STATUS_DRAFT.getValue());
+                        } else {
+                            upstreamTableStatusInfoDto.setStatus(TableStatusEnum.STATUS_ERROR.getValue());
+                        }
+                        if(null != upstreamTableStatusInfoDto.getCdcDelayTime()){
+                            tableStatusInfoDto.getUpstreamTableStatus().add(upstreamTableStatusInfoDto);
+                        }
+                    }
+                    if(linkDelay > totalMaxDelay){
+                        totalMaxDelay = linkDelay;
+                        maxDelayTaskIds = linkDelayTaskIds;
+                    }
+                }
+                tableStatusInfoDto.setCdcDelayTime(totalMaxDelay);
+                List<String> finalMaxDelayTaskIds = maxDelayTaskIds;
+                tableStatusInfoDto.getUpstreamTableStatus().forEach(upstreamTableStatusInfoDto -> {
+                    if(finalMaxDelayTaskIds.contains(upstreamTableStatusInfoDto.getTaskId())){
+                        upstreamTableStatusInfoDto.setOnDelayPath(true);
+                    }
+                });
             }else {
                 tableStatus = TableStatusEnum.STATUS_ERROR.getValue();
             }
@@ -5130,6 +5194,28 @@ public class TaskServiceImpl extends TaskService{
         return tableStatusInfoDto;
     }
 
+    public void dfsEdge(
+            Graph<Node, Edge> graph,
+            String node,
+            LinkedList<LineageTask> edgePath,
+            List<LinkedList<LineageTask>> result
+    ) {
+        Collection< io.github.openlg.graphlib.Edge> outEdges = graph.outEdges(node);
+        if (outEdges == null || outEdges.isEmpty()) {
+            result.add(new LinkedList<>(edgePath));
+            return;
+        }
+        for (io.github.openlg.graphlib.Edge edge : outEdges) {
+            Edge finalEdge = graph.getEdge(edge);
+            if (MapUtils.isNotEmpty(finalEdge.getAttrs()) && finalEdge.getAttrs().containsKey("tasks")) {
+                Map<String,LineageTask> tasks = (Map<String, LineageTask>) finalEdge.getAttrs().get("tasks");
+                List<LineageTask> lineageTaskList = tasks.values().stream().toList();
+                edgePath.addLast(lineageTaskList.get(0));
+            }
+            dfsEdge(graph, edge.getTarget(), edgePath, result);
+            edgePath.removeLast();
+        }
+    }
 
     public boolean judgeTargetInspect(String connectionId, String tableName, UserDetail userDetail) {
         Criteria criteriaInspect = new Criteria();
