@@ -18,7 +18,7 @@ public class ServerOverviewDetail extends ValueBase {
 
     private Double cpuUsage;
 
-    private Long memoryUsage;
+    private Double memoryUsage;
 
     private Long usagePingTime;
 

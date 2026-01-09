@@ -66,6 +66,10 @@ public enum AlarmKeyEnum {
     API_SERVER_WORKER_MEMORY_USAGE_WARN(Constant.TYPE_API_SERVER, "任一Worker CPU使用 >= ${rate1}% 时邮件告警", 170),
     API_SERVER_WORKER_MEMORY_USAGE_ALTER(Constant.TYPE_API_SERVER, "任一Worker CPU使用 >= ${rate2}% 时系统通知", 180),
 
+    API_SERVER_P95_WARN(Constant.TYPE_API_SERVER, "API Server每分钟请求延迟P95 >= ${rate}s 并持续${min}分钟时邮件告警", 190),
+    API_SERVER_P99_WARN(Constant.TYPE_API_SERVER, "API Server每分钟请求延迟P99 >= ${rate}s 并持续${min}分钟时邮件告警", 200),
+    API_SERVER_ERROR_RATE_WARN(Constant.TYPE_API_SERVER, "API Server每分钟错误率 >= ${rate}s 并持续${min}分钟时邮件告警", 210),
+
     ;
 
 
