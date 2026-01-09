@@ -594,9 +594,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 					return aspect;
 				}, aspect -> {
-					if (aspect != null) {
-						aspect.dataProcessorContext(getDataProcessorContext());
-					}
+					aspect.dataProcessorContext(getDataProcessorContext());
 				});
 			}
 		};
