@@ -1579,7 +1579,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 * @param conMap 连接映射
 	 * @param metaMap 元数据映射
 	 */
-	protected void batchImport(List<ModulesDto> modulesDtos, UserDetail user, ImportModeEnum importMode,
+	public void batchImport(List<ModulesDto> modulesDtos, UserDetail user, ImportModeEnum importMode,
 							Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap) {
 
 		for (ModulesDto modulesDto : modulesDtos) {
@@ -1591,7 +1591,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 			// 根据导入模式处理
 			switch (importMode) {
-				case REPLACE,REUSE_EXISTING:
+				case REPLACE,REUSE_EXISTING,GROUP_IMPORT:
 					handleReplaceMode(modulesDto, existingModuleByName, user, conMap);
 					break;
 				case IMPORT_AS_COPY:

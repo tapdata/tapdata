@@ -239,7 +239,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 public class TaskServiceImpl extends TaskService{
     public static final String USER_ID = "user_id";
     public static final String COLLECTION_ID = "collectionId";
-    protected static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
+    public static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
             "mqQueueString", "mqTopicString", "brokerURL", "mqUsername", "mqPassword", "nameSrvAddr", "ftpHost", "ftpUsername", "ftpPassword",
             "rawLogServerHost", "databaseName", "username", "user", "password", "sslPass");
     protected static final String PROCESSOR_THREAD_NUM="processorThreadNum";
@@ -3736,6 +3736,9 @@ public class TaskServiceImpl extends TaskService{
                 case REPLACE,REUSE_EXISTING:
                     handleReplaceMode(taskDto, existingTaskByName, user, tagList, conMap,nodeMap,taskMap);
                     break;
+                case GROUP_IMPORT:
+                    handleGroupImportMode(taskDto, existingTaskByName, user, tagList, conMap, nodeMap, taskMap);
+                    break;
                 case IMPORT_AS_COPY:
                     handleImportAsCopyMode(taskDto, user, tagList, conMap,nodeMap,taskMap);
                     break;
@@ -3757,6 +3760,23 @@ public class TaskServiceImpl extends TaskService{
             }
         }
     }
+
+    protected void handleGroupImportMode(TaskDto taskDto, TaskDto existingTask, UserDetail user, List<Tag> tagList,
+                                      Map<String, DataSourceConnectionDto> conMap, Map<String, String> nodeMap, Map<String, String> taskMap) {
+        if (existingTask != null) {
+            try {
+                pause(existingTask.getId(), user, false);
+            } catch (Exception e) {
+                log.warn("stop task exception, task id = {}, e = {}", existingTask.getId(), e);
+            }
+            String backupName = existingTask.getName() + "_backup_" + System.currentTimeMillis();
+            rename(existingTask.getId().toHexString(), backupName, user);
+        }
+
+        handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+    }
+
+
 
     /**
      * 处理替换模式
@@ -3888,9 +3908,26 @@ public class TaskServiceImpl extends TaskService{
                         DataSourceConnectionDto dataSourceCon = conMap.get(dataParentNode.getConnectionId());
                         dataParentNode.setConnectionId(dataSourceCon.getId().toString());
                     }
+                }else if(node instanceof MergeTableNode mergeTableNode){
+                    mergeTableNode.setExternalStorageId(getExternalStorageId(mergeTableNode.getExternalStorageId()));
+                }else if(node instanceof JoinProcessorNode joinProcessorNode){
+                    joinProcessorNode.setExternalStorageId(getExternalStorageId(joinProcessorNode.getExternalStorageId()));
+                }else if(node instanceof CacheNode cacheNode){
+                    cacheNode.setExternalStorageId(getExternalStorageId(cacheNode.getExternalStorageId()));
                 }
             });
         }
+    }
+
+    protected String getExternalStorageId(String externalStorageId) {
+        long count = externalStorageService.count(Query.query(Criteria.where("_id").is(externalStorageId)));
+        if(count == 0){
+            Query defaultQuery = new Query(Criteria.where("defaultStorage").is(true));
+            defaultQuery.fields().include("_id");
+            ExternalStorageDto externalStorageDtos = externalStorageService.findOne(defaultQuery);
+            return externalStorageDtos.getId().toHexString();
+        }
+        return externalStorageId;
     }
 
     protected boolean checkConnectionIdDuplicate(TaskDto taskDto, Map<String, DataSourceConnectionDto> conMap) {

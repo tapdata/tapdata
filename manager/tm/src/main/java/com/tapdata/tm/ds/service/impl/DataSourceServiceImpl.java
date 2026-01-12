@@ -1862,7 +1862,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             DataSourceConnectionDto resultConnection = null;
 
             switch (importMode) {
-                case REPLACE:
+                case REPLACE, GROUP_IMPORT:
                     if (existingConnectionByName != null) {
                         // 替换模式：保留现有ID，使用导入数据覆盖
                         ObjectId existingId = existingConnectionByName.getId();
