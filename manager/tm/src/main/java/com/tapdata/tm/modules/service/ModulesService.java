@@ -16,6 +16,8 @@ import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.ApiCallService;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
@@ -149,6 +151,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private ApplicationConfig config;
 	private TextEncryptionRuleService textEncryptionRuleService;
 	private WorkerService workerService;
+	private SettingsService settingsService;
 
 	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
@@ -531,6 +534,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiDefinitionVo.setApis(apis);
 		}
 		textEncryptionRule(apiDefinitionVo);
+		String clusterId = Optional.ofNullable(settingsService.getByKey("cluster")).map(Settings::getId).orElse("");
+		apiDefinitionVo.setClusterId(clusterId);
 		apiDefinitionVo.setApiInfo(withUnPublishApi(apis));
 		return apiDefinitionVo;
 	}
