@@ -2,6 +2,7 @@ package com.tapdata.tm.apiCalls.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.config.CappedCollection;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -15,6 +16,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("ApiCall")
+@CappedCollection(maxLength = 1_000_000L, maxMemory = 1L << 40, capped = false)
 public class ApiCallEntity extends BaseEntity {
     @JsonProperty("req_params")
     @Field("req_params")
