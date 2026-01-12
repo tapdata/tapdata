@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -16,11 +17,13 @@ import java.util.List;
 @Data
 public class ChartAndDelayOfApi extends ValueBase {
     List<Long> ts;
+    @DecimalFormat
     List<Double> rps;
     List<Long> p95;
     List<Long> p99;
     List<Long> maxDelay;
     List<Long> minDelay;
+    @DecimalFormat
     List<Double> requestCostAvg;
 
     public static ChartAndDelayOfApi create() {

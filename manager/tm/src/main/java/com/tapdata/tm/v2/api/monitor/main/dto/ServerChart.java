@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import lombok.Data;
@@ -26,12 +27,18 @@ public class ServerChart extends ValueBase {
 
     @Data
     public static class Usage {
+        @DecimalFormat
         List<Double> cpuUsage;
+        @DecimalFormat
         List<Double> memoryUsage;
 
+        @DecimalFormat
         List<Double> maxCpuUsage;
+        @DecimalFormat
         List<Double> minCpuUsage;
+        @DecimalFormat
         List<Double> maxMemoryUsage;
+        @DecimalFormat
         List<Double> minMemoryUsage;
         List<Long> ts;
 
@@ -114,6 +121,7 @@ public class ServerChart extends ValueBase {
     @Data
     public static class Request {
         List<Long> requestCount;
+        @DecimalFormat
         List<Double> errorRate;
         List<Long> ts;
 
@@ -130,6 +138,7 @@ public class ServerChart extends ValueBase {
 
     @Data
     public static class Delay {
+        @DecimalFormat
         List<Double> avg;
         List<Long> p95;
         List<Long> p99;
@@ -155,7 +164,9 @@ public class ServerChart extends ValueBase {
     @Data
     public static class Item extends ValueBase.Item {
         Long requestCount;
+        @DecimalFormat
         Double errorRate;
+        @DecimalFormat
         Double avg;
         Long p95;
         Long p99;
