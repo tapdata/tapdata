@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -332,9 +333,7 @@ public class ApiMetricsRawQuery {
                 .map(ApiServerStatus::getMetricValues)
                 .ifPresent(u -> {
                     result.setCpuUsage(u.getCpuUsage());
-                    Optional.ofNullable(u.getHeapMemoryUsageMax()).ifPresent(max -> {
-                        result.setMemoryUsage(max > 0L ? 100.0D * u.getHeapMemoryUsage() / max : 0D);
-                    });
+                    Optional.ofNullable(u.getHeapMemoryUsageMax()).ifPresent(max -> result.setMemoryUsage(max > 0L ? 100.0D * u.getHeapMemoryUsage() / max : 0D));
                     if (u.getLastUpdateTime() instanceof Number iNum) {
                         result.setUsagePingTime(iNum.longValue());
                     }
@@ -477,8 +476,10 @@ public class ApiMetricsRawQuery {
         apiDtoList.forEach(apiDto -> {
             String apiId = apiDto.getId().toHexString();
             TopApiInServer item = apiInfoMap.computeIfAbsent(apiId, k -> new TopApiInServer());
+            String path = path(apiDto.getApiVersion(), apiDto.getBasePath(), apiDto.getPrefix());
             item.setApiId(apiId);
             item.setApiName(apiDto.getName());
+            item.setApiPath(path);
         });
         List<TopApiInServer> result = new ArrayList<>(apiInfoMap.values());
         String orderBy = param.getOrderBy();
@@ -647,10 +648,8 @@ public class ApiMetricsRawQuery {
         Map<String, ApiItem> apiMap = allApi.stream().collect(Collectors.toMap(e -> e.getId().toHexString(), e -> {
             ApiItem item = new ApiItem();
             item.setApiId(e.getId().toHexString());
-            String apiVersion = StringUtils.isBlank(e.getApiVersion()) ? "" : (PATH_SPLIT + e.getApiVersion());
-            String apiBasePath = StringUtils.isBlank(e.getBasePath()) ? "" : (PATH_SPLIT + e.getBasePath());
-            String apiPrefix = StringUtils.isBlank(e.getPrefix()) ? "" : (PATH_SPLIT + e.getPrefix());
-            item.setApiPath(apiVersion + apiPrefix + apiBasePath);
+            String path = path(e.getApiVersion(), e.getBasePath(), e.getPrefix());
+            item.setApiPath(path);
             item.setApiName(e.getName());
             return item;
         }, (e1, e2) -> e2));
@@ -733,6 +732,15 @@ public class ApiMetricsRawQuery {
         ApiDetail result = new ApiDetail();
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(criteria, param.getApiId(), param);
+        Criteria criteriaOfApi = Criteria.where("_id").is(param.getApiId());
+        Query queryApiInfo = Query.query(criteriaOfApi);
+        queryApiInfo.fields().include("name", "apiVersion", "basePath", "prefix");
+        queryApiInfo.limit(1);
+        ModulesDto allApi = modulesService.findOne(queryApiInfo);
+        Optional.ofNullable(allApi).ifPresent(api -> {
+            result.setApiName(api.getName());
+            result.setApiPath(api.getApiVersion() + PATH_SPLIT + api.getPrefix() + PATH_SPLIT + api.getBasePath());
+        });
         if (!CollectionUtils.isEmpty(apiMetricsRaws)) {
             long totalRequestCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getReqCount).sum();
             long totalErrorCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum();
@@ -899,5 +907,19 @@ public class ApiMetricsRawQuery {
             delays[i] = ApiMetricsDelayUtil.fixDelayAsMap(info.getDelay());
         }
         return ApiMetricsDelayUtil.merge(delays);
+    }
+
+    protected String path(String version, String basePath, String prefix) {
+        StringJoiner path = new StringJoiner(PATH_SPLIT);
+        if (!StringUtils.isBlank(version)) {
+            path.add(version);
+        }
+        if (StringUtils.isNotBlank(basePath)) {
+            path.add(basePath);
+        }
+        if (StringUtils.isNotBlank(prefix)) {
+            path.add(prefix);
+        }
+        return path.toString();
     }
 }

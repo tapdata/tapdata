@@ -14,6 +14,7 @@ import lombok.EqualsAndHashCode;
 public class TopApiInServer extends ValueBase {
     String apiId;
     String apiName;
+    String apiPath;
     Long requestCount;
     Double errorRate;
     Double avg;
