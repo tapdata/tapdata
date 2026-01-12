@@ -5,6 +5,9 @@ import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawScheduleExecutor;
+import com.tapdata.tm.v2.api.usage.service.ServerUsageMetricScheduleExecutor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections4.CollectionUtils;
@@ -34,6 +37,14 @@ public class ApiCallStatsScheduler {
 	private final ApiCallStatsService apiCallStatsService;
 	private final ApiCallService apiCallService;
 
+	@Resource(name = "apiMetricsRawScheduleExecutor")
+	ApiMetricsRawScheduleExecutor service;
+
+	@Resource(name = "serverUsageMetricScheduleExecutor")
+	ServerUsageMetricScheduleExecutor usageMetricScheduleExecutor;
+
+
+
 	@Autowired
 	public ApiCallStatsScheduler(ModulesService modulesService, ApiCallStatsService apiCallStatsService, ApiCallService apiCallService) {
 		this.modulesService = modulesService;
@@ -44,8 +55,8 @@ public class ApiCallStatsScheduler {
 	/**
 	 * Scheduled task to aggregate the API call data of each module and save it to ApiCallStats
 	 */
-	@Scheduled(cron = "0 0/5 * * * ?")
-	@SchedulerLock(name = "api_call_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
+//	@Scheduled(cron = "0 0/5 * * * ?")
+//	@SchedulerLock(name = "api_call_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
 	public void schedule() {
 		Thread.currentThread().setName(getClass().getSimpleName() + "-scheduler");
 		if (log.isDebugEnabled()) {
@@ -146,6 +157,27 @@ public class ApiCallStatsScheduler {
 		long cost = System.currentTimeMillis() - startMs;
 		if (apiCallStatsServiceEmpty && !modulesList.isEmpty()) {
 			log.info("Initialize Api Call Stats data for the first time completed, cost: {} ms", cost);
+		}
+	}
+
+
+	@Scheduled(cron = "0/10 * * * * ?")
+	@SchedulerLock(name = "server_usage_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
+	public void scheduleForApiServerUsage() {
+		try {
+			usageMetricScheduleExecutor.aggregateUsage();
+		} catch (Exception e) {
+			log.warn("Aggregate api server usage failed, will skip it, error: {}", e.getMessage(), e);
+		}
+	}
+
+	@Scheduled(cron = "0/5 * * * * ?")
+	@SchedulerLock(name = "api_call_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "3s")
+	public void scheduleForApiCall() {
+		try {
+			service.aggregateApiCall();
+		} catch (Exception e) {
+			log.warn("Aggregate ApiCall failed, will skip it, error: {}", e.getMessage(), e);
 		}
 	}
 }
