@@ -186,8 +186,8 @@ public class ApiServerMonitorController extends BaseController {
      * Api Overview Detail
      */
     @Operation(summary = "Api Overview Detail")
-    @GetMapping("/api/detail/{apiId}")
-    public ResponseMessage<ApiDetail> apiOverviewDetail(@PathVariable(required = true) String apiId,
+    @GetMapping("/api/detail")
+    public ResponseMessage<ApiDetail> apiOverviewDetail(@RequestParam(required = true) String apiId,
                                                         @RequestParam(required = false) Long startAt,
                                                         @RequestParam(required = false) Long endAt) {
         ApiDetailParam param = new ApiDetailParam();
@@ -201,8 +201,8 @@ public class ApiServerMonitorController extends BaseController {
      * api的各 Server 表现分布
      */
     @Operation(summary = "api的各 Server 表现分布")
-    @GetMapping("/api/server/{apiId}")
-    public ResponseMessage<List<ApiOfEachServer>> apiOfEachServer(@PathVariable(required = true) String apiId,
+    @GetMapping("/api/server")
+    public ResponseMessage<List<ApiOfEachServer>> apiOfEachServer(@RequestParam(required = true) String apiId,
                                                                   @RequestParam(required = false) Long startAt,
                                                                   @RequestParam(required = false) Long endAt) {
         ApiWithServerDetail param = new ApiWithServerDetail();
@@ -216,8 +216,8 @@ public class ApiServerMonitorController extends BaseController {
      * 吞吐量与延迟趋势
      */
     @Operation(summary = "吞吐量与延迟趋势")
-    @GetMapping("/api/chart/{apiId}")
-    public ResponseMessage<ChartAndDelayOfApi> delayOfApi(@PathVariable(required = true) String apiId,
+    @GetMapping("/api/chart")
+    public ResponseMessage<ChartAndDelayOfApi> delayOfApi(@RequestParam(required = true) String apiId,
                                                           @RequestParam(required = false) Long startAt,
                                                           @RequestParam(required = false) Long endAt) {
         ApiChart param = new ApiChart();
