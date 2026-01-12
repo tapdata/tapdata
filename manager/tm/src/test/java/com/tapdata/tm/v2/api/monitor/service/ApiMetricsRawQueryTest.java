@@ -121,6 +121,7 @@ class ApiMetricsRawQueryTest {
         when(apiMetricsRawQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.mergeDelay(anyList())).thenCallRealMethod();
+        when(apiMetricsRawQuery.path(anyString(), anyString(), anyString())).thenCallRealMethod();
     }
 
     @Nested
@@ -276,8 +277,6 @@ class ApiMetricsRawQueryTest {
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 when(service.find(any(Query.class))).thenReturn(raws);
                 when(clusterRepository.findAll(any(Query.class))).thenReturn(Collections.emptyList());
-//                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).queryCpuUsageRecords(any(Criteria.class), anyLong(), anyLong(), anyInt());
-//                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyInt())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyInt())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);

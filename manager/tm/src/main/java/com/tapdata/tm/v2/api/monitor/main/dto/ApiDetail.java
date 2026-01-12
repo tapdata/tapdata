@@ -12,6 +12,8 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ApiDetail extends ValueBase {
+    String apiPath;
+    String apiName;
     /**
      * 总调用数
      * */
