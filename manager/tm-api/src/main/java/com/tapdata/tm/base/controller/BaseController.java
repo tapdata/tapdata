@@ -14,6 +14,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MessageUtil;
 import io.tapdata.entity.simplify.TapSimplify;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.AntPathMatcher;
@@ -74,13 +75,15 @@ public class BaseController {
 
 	private static boolean isFreeAuth(String uri, String method) {
 		Set<String> uriSet = authWhiteListMap.get(method.trim().toUpperCase());
-		Set<String> uriSetWithout = authWhitoutListMap.get(method.trim().toUpperCase());
 		if (uriSet == null) {
 			return false;
 		}
-		for (String pattern : uriSetWithout) {
-			if (pathMatcher.match(pattern, uri)) {
-				return false;
+		Set<String> uriSetWithout = authWhitoutListMap.get(method.trim().toUpperCase());
+		if(CollectionUtils.isNotEmpty(uriSetWithout)) {
+			for (String pattern : uriSetWithout) {
+				if (pathMatcher.match(pattern, uri)) {
+					return false;
+				}
 			}
 		}
 		for (String pattern : uriSet) {
