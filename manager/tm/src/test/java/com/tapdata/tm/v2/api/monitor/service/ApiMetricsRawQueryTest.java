@@ -60,6 +60,7 @@ import java.util.function.LongConsumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -1064,10 +1065,15 @@ class ApiMetricsRawQueryTest {
         @Test
         void testWithApiMetricsRaws() {
             ApiDetailParam param = new ApiDetailParam();
-            param.setApiId("api1");
+            param.setApiId(new ObjectId().toHexString());
             ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
             List<ApiMetricsRaw> raws = Arrays.asList(raw);
-
+            ModulesDto apiInfo = new ModulesDto();
+            apiInfo.setName("api1");
+            apiInfo.setApiVersion("v1");
+            apiInfo.setBasePath("/api1");
+            apiInfo.setPrefix("prefix1");
+            when(modulesService.findOne(any(Query.class))).thenReturn(apiInfo);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
 
@@ -1090,14 +1096,37 @@ class ApiMetricsRawQueryTest {
         @Test
         void testEmptyApiMetricsRaws() {
             ApiDetailParam param = new ApiDetailParam();
-            param.setApiId("api1");
-
+            param.setApiId(new ObjectId().toHexString());
+            ModulesDto apiInfo = new ModulesDto();
+            apiInfo.setName("api1");
+            apiInfo.setApiVersion("");
+            apiInfo.setBasePath("");
+            apiInfo.setPrefix("");
+            when(modulesService.findOne(any(Query.class))).thenReturn(apiInfo);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
                 doReturn(Collections.emptyList()).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
 
                 ApiDetail result = apiMetricsRawQuery.apiOverviewDetail(param);
 
+                assertNotNull(result);
+            }
+        }
+
+        @Test
+        void testEmptyApiMetricsRaws0() {
+            ApiDetailParam param = new ApiDetailParam();
+            param.setApiId("");
+            ModulesDto apiInfo = new ModulesDto();
+            apiInfo.setName("api1");
+            apiInfo.setApiVersion("");
+            apiInfo.setBasePath("");
+            apiInfo.setPrefix("");
+            when(modulesService.findOne(any(Query.class))).thenReturn(apiInfo);
+            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
+                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
+                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                ApiDetail result = apiMetricsRawQuery.apiOverviewDetail(param);
                 assertNotNull(result);
             }
         }
