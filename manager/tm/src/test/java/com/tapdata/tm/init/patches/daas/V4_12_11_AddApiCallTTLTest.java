@@ -53,6 +53,7 @@ class V4_12_11_AddApiCallTTLTest {
         try (MockedStatic<SpringContextHelper> mockedHelper = mockStatic(SpringContextHelper.class)) {
             mockedHelper.when(() -> SpringContextHelper.getBean(MongoTemplate.class)).thenReturn(mongoTemplate);
             when(mongoTemplate.getCollection("ApiCall")).thenReturn(mongoCollection);
+            when(mongoTemplate.getCollection("ApiCallInWorker")).thenReturn(mongoCollection);
             when(mongoCollection.listIndexes()).thenReturn(listIndexesIterable);
             when(listIndexesIterable.into(anyList())).thenReturn(new ArrayList<>());
 
@@ -67,6 +68,7 @@ class V4_12_11_AddApiCallTTLTest {
         try (MockedStatic<SpringContextHelper> mockedHelper = mockStatic(SpringContextHelper.class)) {
             mockedHelper.when(() -> SpringContextHelper.getBean(MongoTemplate.class)).thenReturn(mongoTemplate);
             when(mongoTemplate.getCollection("ApiCall")).thenReturn(mongoCollection);
+            when(mongoTemplate.getCollection("ApiCallInWorker")).thenReturn(mongoCollection);
             when(mongoCollection.listIndexes()).thenReturn(listIndexesIterable);
             
             ArrayList<Document> existingIndexes = new ArrayList<>(Arrays.asList(
@@ -91,8 +93,10 @@ class V4_12_11_AddApiCallTTLTest {
         Long expireAfterSeconds = 2592000L;
 
         when(mongoTemplate.getCollection("ApiCall")).thenReturn(mongoCollection);
+        when(mongoCollection.listIndexes()).thenReturn(listIndexesIterable);
+        when(listIndexesIterable.into(anyList())).thenReturn(indexes);
 
-        patch.createTTLIndexIfNeed(mongoTemplate, indexes, "ApiCall_1_ttl", indexKey, expireAfterSeconds);
+        patch.createTTLIndexIfNeed(mongoTemplate, "ApiCall", "ApiCall_1_ttl", indexKey, expireAfterSeconds);
 
         verify(mongoCollection).createIndex(eq(indexKey), argThat(options -> 
             "ApiCall_1_ttl".equals(options.getName()) && 
@@ -106,8 +110,10 @@ class V4_12_11_AddApiCallTTLTest {
         Document indexKey = new Document("workOid", 1).append("reqTime", 1);
 
         when(mongoTemplate.getCollection("ApiCall")).thenReturn(mongoCollection);
+        when(mongoCollection.listIndexes()).thenReturn(listIndexesIterable);
+        when(listIndexesIterable.into(anyList())).thenReturn(indexes);
 
-        patch.createTTLIndexIfNeed(mongoTemplate, indexes, "ApiCall_query-2", indexKey, null);
+        patch.createTTLIndexIfNeed(mongoTemplate, "ApiCall", "ApiCall_query-2", indexKey, null);
 
         verify(mongoCollection).createIndex(eq(indexKey), argThat(options -> 
             "ApiCall_query-2".equals(options.getName()) && 
@@ -121,10 +127,13 @@ class V4_12_11_AddApiCallTTLTest {
             new Document("name", "ApiCall_1_ttl")
         ));
         Document indexKey = new Document("createTime", 1);
+        when(mongoTemplate.getCollection("ApiCall")).thenReturn(mongoCollection);
+        when(mongoCollection.listIndexes()).thenReturn(listIndexesIterable);
+        when(listIndexesIterable.into(anyList())).thenReturn(indexes);
 
-        patch.createTTLIndexIfNeed(mongoTemplate, indexes, "ApiCall_1_ttl", indexKey, 2592000L);
+        patch.createTTLIndexIfNeed(mongoTemplate, "ApiCall", "ApiCall_1_ttl", indexKey, 2592000L);
 
-        verify(mongoTemplate, never()).getCollection(anyString());
+        verify(mongoTemplate, times(1)).getCollection(anyString());
         verify(mongoCollection, never()).createIndex(any(Document.class), any(IndexOptions.class));
     }
 
@@ -136,9 +145,11 @@ class V4_12_11_AddApiCallTTLTest {
         when(mongoTemplate.getCollection("ApiCall")).thenReturn(mongoCollection);
         when(mongoCollection.createIndex(any(Document.class), any(IndexOptions.class)))
             .thenThrow(new RuntimeException("Index creation failed"));
+        when(mongoCollection.listIndexes()).thenReturn(listIndexesIterable);
+        when(listIndexesIterable.into(anyList())).thenReturn(indexes);
 
         assertDoesNotThrow(() -> 
-            patch.createTTLIndexIfNeed(mongoTemplate, indexes, "ApiCall_1_ttl", indexKey, 2592000L)
+            patch.createTTLIndexIfNeed(mongoTemplate, "ApiCall", "ApiCall_1_ttl", indexKey, 2592000L)
         );
 
         verify(mongoCollection).createIndex(any(Document.class), any(IndexOptions.class));
@@ -153,8 +164,10 @@ class V4_12_11_AddApiCallTTLTest {
             .append("reqTime", 1);
 
         when(mongoTemplate.getCollection("ApiCall")).thenReturn(mongoCollection);
+        when(mongoCollection.listIndexes()).thenReturn(listIndexesIterable);
+        when(listIndexesIterable.into(anyList())).thenReturn(indexes);
 
-        patch.createTTLIndexIfNeed(mongoTemplate, indexes, "ApiCall_query_supplement-3", indexKey, null);
+        patch.createTTLIndexIfNeed(mongoTemplate, "ApiCall", "ApiCall_query_supplement-3", indexKey, null);
 
         verify(mongoCollection).createIndex(eq(indexKey), argThat(options -> 
             "ApiCall_query_supplement-3".equals(options.getName()) && 
@@ -163,7 +176,10 @@ class V4_12_11_AddApiCallTTLTest {
     }
 
     @Test
-    void testCollectionNameConstant() {
-        assertEquals("ApiCall", V4_12_11_AddApiCallTTL.COLLECTION_NAME);
+    void testMongoTemplateNotExists() {
+        try (MockedStatic<SpringContextHelper> mockedHelper = mockStatic(SpringContextHelper.class)) {
+            mockedHelper.when(() -> SpringContextHelper.getBean(MongoTemplate.class)).thenReturn(null);
+            assertDoesNotThrow(patch::run);
+        }
     }
 }
