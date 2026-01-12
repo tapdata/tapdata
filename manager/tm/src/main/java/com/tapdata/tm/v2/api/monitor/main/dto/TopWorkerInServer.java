@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -14,7 +15,9 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class TopWorkerInServer extends ValueBase {
+    @DecimalFormat
     Double cpuUsageMax;
+    @DecimalFormat
     Double cpuUsageMin;
 
     List<TopWorkerInServerItem> workerList;
@@ -25,6 +28,7 @@ public class TopWorkerInServer extends ValueBase {
         String workerName;
         Long memoryMax;
         Long requestCount;
+        @DecimalFormat
         Double errorRate;
 
         ServerChart.Usage usage;

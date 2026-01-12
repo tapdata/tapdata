@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -32,10 +33,12 @@ public class ApiItem extends ValueBase {
     /**
      * 错误率
      */
+    @DecimalFormat
     double errorRate;
 
     /**
      * 吞吐量
      */
+    @DecimalFormat
     double totalRps;
 }

@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -16,7 +17,9 @@ public class TopApiInServer extends ValueBase {
     String apiName;
     String apiPath;
     Long requestCount;
+    @DecimalFormat
     Double errorRate;
+    @DecimalFormat
     Double avg;
     Long p99;
     Long maxDelay;

@@ -105,15 +105,11 @@ public final class ApiMetricsDelayUtil {
             return 0L;
         }
         long sum = 0L;
-        for (Object m : delayList) {
-            if (m instanceof Map<?, ?> iMap) {
-                for (Map.Entry<?, ?> e : iMap.entrySet()) {
-                    if (e.getKey() instanceof Number iKey && e.getValue() instanceof Number iValue) {
-                        sum += iKey.longValue() * iValue.longValue();
-                    }
-                }
-            } else if (m instanceof Number iNumber) {
-                sum += iNumber.longValue();
+        for (Map<Long, Integer> m : fixDelayAsMap(delayList)) {
+            for (Map.Entry<Long, Integer> e : m.entrySet()) {
+                Long iKey = e.getKey();
+                Integer iValue = e.getValue();
+                sum += iKey * iValue.longValue();
             }
         }
         return sum;
