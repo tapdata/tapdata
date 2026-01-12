@@ -667,11 +667,6 @@ public class ApiMetricsRawQuery {
                                             .mapToLong(ApiMetricsRaw::getReqCount)
                                             .sum();
                                     item.setRequestCount(sumRequestCount);
-                                    double sumRps = rows.stream()
-                                            .filter(Objects::nonNull)
-                                            .mapToDouble(ApiMetricsRaw::getRps)
-                                            .sum();
-                                    item.setTotalRps(sumRps);
                                     long sumErrorCount = rows.stream()
                                             .filter(Objects::nonNull)
                                             .mapToLong(ApiMetricsRaw::getErrorCount)
@@ -683,6 +678,12 @@ public class ApiMetricsRawQuery {
                                             .map(ApiMetricsDelayUtil::fixDelayAsMap)
                                             .mapToLong(ApiMetricsDelayUtil::sum)
                                             .sum();
+                                    long sumRps = rows.stream()
+                                            .filter(Objects::nonNull)
+                                            .map(ApiMetricsRaw::getBytes)
+                                            .map(ApiMetricsDelayUtil::sum)
+                                            .mapToLong(Long::longValue).sum();
+                                    item.setTotalRps(sumDelay > 0 ? 1000.0D * sumRps / sumDelay : 0D);
                                     item.setRequestCostAvg(sumDelay * 1.0D / item.getRequestCount());
                                     final List<Map<Long, Integer>> merged = mergeDelay(rows);
                                     item.setP99(ApiMetricsDelayUtil.p99(merged, item.getRequestCount()));
