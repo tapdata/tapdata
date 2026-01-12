@@ -4,6 +4,7 @@ import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
@@ -51,6 +52,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,6 +70,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doReturn;
@@ -122,7 +125,21 @@ class ApiMetricsRawQueryTest {
         when(apiMetricsRawQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.mergeDelay(anyList())).thenCallRealMethod();
-        when(apiMetricsRawQuery.path(anyString(), anyString(), anyString())).thenCallRealMethod();
+        when(apiMetricsRawQuery.publishApis()).thenCallRealMethod();
+        List<ModulesDto> modulesDtoLit = new ArrayList<>();
+        ModulesDto m = new ModulesDto();
+        m.setId(new ObjectId());
+        modulesDtoLit.add(m);
+        when(modulesService.findAllActiveApi(ModuleStatusEnum.ACTIVE)).thenReturn(modulesDtoLit);
+        when(apiMetricsRawQuery.activeWorkers(anyList())).thenCallRealMethod();
+        when(apiMetricsRawQuery.activeWorkers(anySet())).thenCallRealMethod();
+        when(apiMetricsRawQuery.activeWorkers(null)).thenCallRealMethod();
+        List<Worker> workers = new ArrayList<>();
+        Worker e = new Worker();
+        e.setProcessId("xxxxx");
+        workers.add(e);
+        when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
+
     }
 
     @Nested
@@ -496,7 +513,7 @@ class ApiMetricsRawQueryTest {
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(Collections.emptyList());
                 when(service.find(any(Query.class))).thenReturn(Collections.emptyList());
                 List<TopApiInServer> result = apiMetricsRawQuery.topApiInServer(param);
-                assertTrue(result.isEmpty());
+                assertFalse(result.isEmpty());
             }
         }
 
@@ -744,7 +761,7 @@ class ApiMetricsRawQueryTest {
 
                 List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
 
-                assertTrue(result.isEmpty());
+                assertFalse(result.isEmpty());
             }
         }
 
@@ -1181,7 +1198,7 @@ class ApiMetricsRawQueryTest {
                 doReturn(Collections.emptyList()).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
                 List<ApiOfEachServer> result = apiMetricsRawQuery.apiOfEachServer(param);
 
-                assertTrue(result.isEmpty());
+                assertFalse(result.isEmpty());
             }
         }
 
