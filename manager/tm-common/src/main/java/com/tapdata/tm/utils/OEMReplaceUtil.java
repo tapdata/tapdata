@@ -87,8 +87,7 @@ public class OEMReplaceUtil {
      * @date 2023/6/12
      * */
     public static Map<String, Object> getOEMConfigMap(String fileName){
-        try {
-            InputStream inputStream = getOEMConfigFileAsInputStream(fileName);
+        try (InputStream inputStream = getOEMConfigFileAsInputStream(fileName)) {
             if (null == inputStream) return null;
             return JSON.parseObject(inputStream, StandardCharsets.UTF_8, LinkedHashMap.class);
         }catch (IOException e){}
