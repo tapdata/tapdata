@@ -19,4 +19,15 @@ public class ApiDefinitionVo {
      * api所使用到的文本加密规则配置
      * */
     Map<String, TextEncryptionRuleDto> textEncryptionRules;
+
+    List<ApiInfo> apiInfo;
+
+    @Data
+    public static class ApiInfo {
+        String name;
+        String url;
+        boolean publish;
+        String apiId;
+        Map<String, String> pathSetting;
+    }
 }
