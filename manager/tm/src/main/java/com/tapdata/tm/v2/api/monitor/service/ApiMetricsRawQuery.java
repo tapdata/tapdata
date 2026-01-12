@@ -633,11 +633,13 @@ public class ApiMetricsRawQuery {
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return new ArrayList<>();
         }
-        List<String> apiIds = apiMetricsRaws.stream()
+        List<ObjectId> apiIds = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
                 .map(ApiMetricsRaw::getApiId)
                 .filter(StringUtils::isNotBlank)
                 .distinct()
+                .map(MongoUtils::toObjectId)
+                .filter(Objects::nonNull)
                 .toList();
         if (apiIds.isEmpty()) {
             return new ArrayList<>();
@@ -732,14 +734,19 @@ public class ApiMetricsRawQuery {
         ApiDetail result = new ApiDetail();
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(criteria, param.getApiId(), param);
-        Criteria criteriaOfApi = Criteria.where("_id").is(param.getApiId());
+        ObjectId apiId = MongoUtils.toObjectId(param.getApiId());
+        if (null == apiId) {
+            return result;
+        }
+        Criteria criteriaOfApi = Criteria.where("_id").is(apiId);
         Query queryApiInfo = Query.query(criteriaOfApi);
         queryApiInfo.fields().include("name", "apiVersion", "basePath", "prefix");
         queryApiInfo.limit(1);
         ModulesDto allApi = modulesService.findOne(queryApiInfo);
         Optional.ofNullable(allApi).ifPresent(api -> {
             result.setApiName(api.getName());
-            result.setApiPath(api.getApiVersion() + PATH_SPLIT + api.getPrefix() + PATH_SPLIT + api.getBasePath());
+            String path = path(api.getApiVersion(), api.getBasePath(), api.getPrefix());
+            result.setApiPath(path);
         });
         if (!CollectionUtils.isEmpty(apiMetricsRaws)) {
             long totalRequestCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getReqCount).sum();
@@ -911,6 +918,7 @@ public class ApiMetricsRawQuery {
 
     protected String path(String version, String basePath, String prefix) {
         StringJoiner path = new StringJoiner(PATH_SPLIT);
+        path.add("");
         if (!StringUtils.isBlank(version)) {
             path.add(version);
         }
