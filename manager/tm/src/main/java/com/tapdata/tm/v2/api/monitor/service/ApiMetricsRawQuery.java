@@ -7,6 +7,7 @@ import com.tapdata.tm.cluster.dto.Component;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
@@ -32,6 +33,7 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiPathUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ChartSortUtil;
 import com.tapdata.tm.v2.api.usage.repository.ServerUsageMetricRepository;
 import com.tapdata.tm.v2.api.usage.repository.UsageRepository;
@@ -164,7 +166,7 @@ public class ApiMetricsRawQuery {
         Map<String, Worker> serverMap = serverInfos.stream()
                 .collect(Collectors.toMap(Worker::getProcessId, e -> e, (e1, e2) -> e2));
         if (CollectionUtils.isEmpty(serverInfos)) {
-            return result;
+            return ServerItem.supplement(result, activeWorkers(null));
         }
         if (StringUtils.isNotBlank(serverMatchName)) {
             criteria.and(PROCESS_ID).in(serverMap.keySet());
@@ -226,6 +228,7 @@ public class ApiMetricsRawQuery {
             }
             result.add(collect.get(processId));
         });
+        ServerItem.supplement(result, activeWorkers(serverMap.keySet()));
         result.sort(Comparator.comparing(ServerItem::getServerName));
         return result;
     }
@@ -467,8 +470,14 @@ public class ApiMetricsRawQuery {
                 .map(MongoUtils::toObjectId)
                 .filter(Objects::nonNull)
                 .toList();
+        apiInfoMap.forEach((apiId, apiInfo) -> {
+            apiInfo.setApiId(apiId);
+            apiInfo.setApiName(apiId);
+            apiInfo.setApiPath(apiId);
+            apiInfo.setNotExistsApi(true);
+        });
         if (CollectionUtils.isEmpty(apiIds)) {
-            return new ArrayList<>();
+            return TopApiInServer.supplement(new ArrayList<>(), publishApis());
         }
         Criteria criteriaOfApi = Criteria.where("_id").in(apiIds);
         Query queryOfApi = Query.query(criteriaOfApi);
@@ -476,10 +485,11 @@ public class ApiMetricsRawQuery {
         apiDtoList.forEach(apiDto -> {
             String apiId = apiDto.getId().toHexString();
             TopApiInServer item = apiInfoMap.computeIfAbsent(apiId, k -> new TopApiInServer());
-            String path = path(apiDto.getApiVersion(), apiDto.getBasePath(), apiDto.getPrefix());
+            String path = ApiPathUtil.apiPath(apiDto.getApiVersion(), apiDto.getBasePath(), apiDto.getPrefix());
             item.setApiId(apiId);
             item.setApiName(apiDto.getName());
             item.setApiPath(path);
+            item.setNotExistsApi(false);
         });
         List<TopApiInServer> result = new ArrayList<>(apiInfoMap.values());
         String orderBy = param.getOrderBy();
@@ -509,6 +519,7 @@ public class ApiMetricsRawQuery {
                 return p1.compareTo(p2);
             };
         };
+        TopApiInServer.supplement(result, publishApis());
         result.sort(comparing.reversed());
         return result;
     }
@@ -631,7 +642,7 @@ public class ApiMetricsRawQuery {
         Query query = Query.query(criteria);
         List<ApiMetricsRaw> apiMetricsRaws = ParticleSizeAnalyzer.apiMetricsRaws(service.find(query), param);
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
-            return new ArrayList<>();
+            return ApiItem.supplement(new ArrayList<>(), publishApis());
         }
         List<ObjectId> apiIds = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
@@ -642,7 +653,7 @@ public class ApiMetricsRawQuery {
                 .filter(Objects::nonNull)
                 .toList();
         if (apiIds.isEmpty()) {
-            return new ArrayList<>();
+            return ApiItem.supplement(new ArrayList<>(), publishApis());
         }
         Criteria criteriaOfApi = Criteria.where("_id").in(apiIds);
         Query queryApiInfo = Query.query(criteriaOfApi);
@@ -650,9 +661,10 @@ public class ApiMetricsRawQuery {
         Map<String, ApiItem> apiMap = allApi.stream().collect(Collectors.toMap(e -> e.getId().toHexString(), e -> {
             ApiItem item = new ApiItem();
             item.setApiId(e.getId().toHexString());
-            String path = path(e.getApiVersion(), e.getBasePath(), e.getPrefix());
+            String path = ApiPathUtil.apiPath(e.getApiVersion(), e.getBasePath(), e.getPrefix());
             item.setApiPath(path);
             item.setApiName(e.getName());
+            item.setNotExistsApi(false);
             return item;
         }, (e1, e2) -> e2));
         Map<String, ApiItem> collect = apiMetricsRaws.stream().collect(
@@ -694,6 +706,14 @@ public class ApiMetricsRawQuery {
                                     item.setGranularity(param.getGranularity());
                                     return item;
                                 })));
+        collect.forEach((apiId, apiInfo) -> {
+            if (StringUtils.isBlank(apiInfo.getApiId())) {
+                apiInfo.setApiId(apiId);
+                apiInfo.setApiName(apiId);
+                apiInfo.setApiPath(apiId);
+                apiInfo.setNotExistsApi(true);
+            }
+        });
         List<ApiItem> result = new ArrayList<>(collect.values());
         String orderBy = param.getOrderBy();
         if (StringUtils.isBlank(orderBy)) {
@@ -727,6 +747,7 @@ public class ApiMetricsRawQuery {
             default:
                 result.sort(Comparator.comparing(ApiItem::getRequestCount));
         }
+        ApiItem.supplement(result, publishApis());
         result.sort(Comparator.comparing(ApiItem::getRequestCount));
         return result;
     }
@@ -736,19 +757,20 @@ public class ApiMetricsRawQuery {
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(criteria, param.getApiId(), param);
         ObjectId apiId = MongoUtils.toObjectId(param.getApiId());
-        if (null == apiId) {
-            return result;
+        result.setApiName(param.getApiId());
+        result.setApiPath(param.getApiId());
+        if (null != apiId) {
+            Criteria criteriaOfApi = Criteria.where("_id").is(apiId);
+            Query queryApiInfo = Query.query(criteriaOfApi);
+            queryApiInfo.fields().include("name", "apiVersion", "basePath", "prefix");
+            queryApiInfo.limit(1);
+            ModulesDto allApi = modulesService.findOne(queryApiInfo);
+            Optional.ofNullable(allApi).ifPresent(api -> {
+                result.setApiName(api.getName());
+                String path = ApiPathUtil.apiPath(api.getApiVersion(), api.getBasePath(), api.getPrefix());
+                result.setApiPath(path);
+            });
         }
-        Criteria criteriaOfApi = Criteria.where("_id").is(apiId);
-        Query queryApiInfo = Query.query(criteriaOfApi);
-        queryApiInfo.fields().include("name", "apiVersion", "basePath", "prefix");
-        queryApiInfo.limit(1);
-        ModulesDto allApi = modulesService.findOne(queryApiInfo);
-        Optional.ofNullable(allApi).ifPresent(api -> {
-            result.setApiName(api.getName());
-            String path = path(api.getApiVersion(), api.getBasePath(), api.getPrefix());
-            result.setApiPath(path);
-        });
         if (!CollectionUtils.isEmpty(apiMetricsRaws)) {
             long totalRequestCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getReqCount).sum();
             long totalErrorCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum();
@@ -776,7 +798,7 @@ public class ApiMetricsRawQuery {
         Criteria criteria = ParticleSizeAnalyzer.of(param);
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(criteria, param.getApiId(), param);
         if (apiMetricsRaws.isEmpty()) {
-            return new ArrayList<>();
+            return ApiOfEachServer.supplement(new ArrayList<>(), activeWorkers(null));
         }
         List<String> serverIds = apiMetricsRaws.stream()
                 .map(ApiMetricsRaw::getProcessId)
@@ -784,7 +806,7 @@ public class ApiMetricsRawQuery {
                 .distinct()
                 .toList();
         if (serverIds.isEmpty()) {
-            return new ArrayList<>();
+            return ApiOfEachServer.supplement(new ArrayList<>(), activeWorkers(null));
         }
         Criteria criteriaOfServer = Criteria.where(WORKER_TYPE).is(API_SERVER)
                 .and("process_id").in(serverIds);
@@ -853,6 +875,12 @@ public class ApiMetricsRawQuery {
                 return p1.compareTo(p2);
             };
         };
+        List<String> existsServerIds = serverList.stream()
+                .filter(Objects::nonNull)
+                .map(Worker::getProcessId)
+                .filter(StringUtils::isNotBlank)
+                .toList();
+        ApiOfEachServer.supplement(new ArrayList<>(), activeWorkers(existsServerIds));
         apiOfEachServers.sort(comparing.reversed());
         return apiOfEachServers;
     }
@@ -917,18 +945,26 @@ public class ApiMetricsRawQuery {
         return ApiMetricsDelayUtil.merge(delays);
     }
 
-    protected String path(String version, String basePath, String prefix) {
-        StringJoiner path = new StringJoiner(PATH_SPLIT);
-        path.add("");
-        if (!StringUtils.isBlank(version)) {
-            path.add(version);
+    protected Map<String, ModulesDto> publishApis() {
+        List<ModulesDto> allActiveApi = (List<ModulesDto>) modulesService.findAllActiveApi(ModuleStatusEnum.ACTIVE);
+        return allActiveApi.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(e.getId()))
+                .collect(Collectors.toMap(e -> e.getId().toHexString(), e -> e, (e1, e2) -> e1));
+    }
+
+    protected Map<String, Worker> activeWorkers(Collection<String> ignoreIds) {
+        Criteria criteriaOfServer = Criteria.where(WORKER_TYPE).is(API_SERVER)
+                .and("deleted").ne(true)
+                .and("isDeleted").ne(true);
+        if (!CollectionUtils.isEmpty(ignoreIds)) {
+            criteriaOfServer.and("processId").nin(ignoreIds);
         }
-        if (StringUtils.isNotBlank(basePath)) {
-            path.add(basePath);
-        }
-        if (StringUtils.isNotBlank(prefix)) {
-            path.add(prefix);
-        }
-        return path.toString();
+        Query queryOfServer = Query.query(criteriaOfServer);
+        List<Worker> serverList = workerRepository.findAll(queryOfServer);
+        return serverList.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(e.getProcessId()))
+                .collect(Collectors.toMap(Worker::getProcessId, e -> e, (e1, e2) -> e1));
     }
 }

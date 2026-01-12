@@ -1,8 +1,15 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
 import com.tapdata.tm.commons.base.DecimalFormat;
+import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.v2.api.monitor.utils.ApiPathUtil;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.apache.commons.lang3.StringUtils;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -16,6 +23,7 @@ public class TopApiInServer extends ValueBase {
     String apiId;
     String apiName;
     String apiPath;
+    boolean notExistsApi;
     Long requestCount;
     @DecimalFormat
     Double errorRate;
@@ -31,5 +39,26 @@ public class TopApiInServer extends ValueBase {
         item.setErrorRate(0.0D);
         item.setAvg(0.0D);
         return item;
+    }
+
+    public static List<TopApiInServer> supplement(List<TopApiInServer> topApiInServers, Map<String, ModulesDto> apiInfos) {
+        List<String> existsApiIds = topApiInServers.stream()
+                .filter(Objects::nonNull)
+                .map(TopApiInServer::getApiId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
+        for (String apiId : apiInfos.keySet()) {
+            if (!existsApiIds.contains(apiId)) {
+                ModulesDto apiInfo = apiInfos.get(apiId);
+                TopApiInServer item = create();
+                item.setApiId(apiId);
+                item.setApiName(apiInfos.get(apiId).getName());
+                String path = ApiPathUtil.apiPath(apiInfo.getApiVersion(), apiInfo.getBasePath(), apiInfo.getPrefix());
+                item.setApiPath(path);
+                topApiInServers.add(item);
+            }
+        }
+        return topApiInServers;
     }
 }
