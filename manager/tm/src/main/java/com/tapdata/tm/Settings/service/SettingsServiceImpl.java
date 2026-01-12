@@ -218,7 +218,7 @@ public class SettingsServiceImpl implements SettingsService {
             //    }
             //    return false;
             //}).collect(Collectors.toList());
-            settingsList = settingsList.stream().filter(settings -> !settings.getCategory().equals("License")).toList();
+            settingsList = settingsList.stream().filter(settings -> !"License".equals(settings.getCategory())).toList();
         } else {
             settingsList.stream().filter(settings -> {
                 if ("smtp.server.password".equals(settings.getKey()) || "ldap.bind.password".equals(settings.getKey()))
