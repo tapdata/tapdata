@@ -33,7 +33,6 @@ public class TmAvailableRestTemplate extends RestTemplate {
 	protected <T> T doExecute(URI url, HttpMethod method, RequestCallback requestCallback, ResponseExtractor<T> responseExtractor) throws RestClientException {
 		Assert.notNull(url, "'url' must not be null");
 		Assert.notNull(method, "'method' must not be null");
-		Assert.notNull(responseExtractor, "'responseExtractor' must not be null");
 		long start = 0;
 		try {
 			ClientHttpRequest request = createRequest(url, method);
@@ -55,7 +54,7 @@ public class TmAvailableRestTemplate extends RestTemplate {
 					logger.warn("TM available...");
 				}
 				handleResponse(url, method, response);
-				return responseExtractor.extractData(response);
+				return responseExtractor != null ? responseExtractor.extractData(response) : null;
 			}
 		} catch (IOException ex) {
 			long ttl = System.currentTimeMillis() - start;
