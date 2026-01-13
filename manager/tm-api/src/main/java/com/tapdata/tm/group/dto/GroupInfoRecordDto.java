@@ -24,4 +24,7 @@ public class GroupInfoRecordDto extends BaseDto {
     private String message;
     private String fileName;
     private List<GroupInfoRecordDetail> details;
+
+    // Progress tracking (0-100 percentage, based on resource count)
+    private Integer progress;
 }

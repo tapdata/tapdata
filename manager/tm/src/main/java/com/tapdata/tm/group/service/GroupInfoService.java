@@ -20,9 +20,11 @@ import com.tapdata.tm.group.dto.GroupInfoRecordDto;
 import com.tapdata.tm.group.dto.ResourceItem;
 import com.tapdata.tm.group.dto.ResourceType;
 import com.tapdata.tm.group.entity.GroupInfoEntity;
+import com.tapdata.tm.group.handler.ResourceHandler;
 import com.tapdata.tm.group.handler.ResourceHandlerRegistry;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.repostitory.GroupInfoRepository;
+import com.tapdata.tm.group.strategy.ImportStrategy;
 import com.tapdata.tm.group.strategy.ImportStrategyRegistry;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
@@ -33,6 +35,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -48,6 +51,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Async;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -122,7 +126,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         // 通过资源处理器加载资源名称
         Map<ResourceType, Map<String, String>> nameMapsByType = new HashMap<>();
         for (Map.Entry<ResourceType, Set<String>> entry : resourceIdsByType.entrySet()) {
-            com.tapdata.tm.group.handler.ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
+           ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
             if (handler != null && CollectionUtils.isNotEmpty(entry.getValue())) {
                 List<?> resources = handler.loadResources(new ArrayList<>(entry.getValue()), userDetail);
                 Map<String, String> nameMap = new HashMap<>();
@@ -170,7 +174,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         // 通过资源处理器加载各类资源
         Map<ResourceType, List<?>> resourcesByType = new LinkedHashMap<>();
         for (Map.Entry<ResourceType, Set<String>> entry : resourceIdsByType.entrySet()) {
-            com.tapdata.tm.group.handler.ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
+            ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
             if (handler != null) {
                 List<?> resources = handler.loadResources(new ArrayList<>(entry.getValue()), user);
                 resourcesByType.put(entry.getKey(), resources);
@@ -180,13 +184,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         // 构建导出 payload
         Map<String, List<TaskUpAndLoadDto>> payloadsByType = new LinkedHashMap<>();
         for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
-            com.tapdata.tm.group.handler.ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
+            ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
             if (handler != null) {
                 handler.handleRelatedResources(payloadsByType, entry.getValue(), user);
             }
         }
         for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
-            com.tapdata.tm.group.handler.ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
+            ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
             if (handler != null) {
                 List<TaskUpAndLoadDto> payload = handler.buildExportPayload(entry.getValue(), user);
                 payloadsByType.put(entry.getKey().name(), payload);
@@ -240,19 +244,51 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
-    public void batchImportGroup(MultipartFile file, UserDetail user, ImportModeEnum importMode) throws IOException {
+    /**
+     * Batch import groups asynchronously.
+     * Returns the record ID immediately, and the import is executed in the
+     * background.
+     *
+     * @param file       The tar file to import
+     * @param user       User details
+     * @param importMode Import mode
+     * @return Record ID for tracking import progress
+     */
+    public ObjectId batchImportGroup(MultipartFile file, UserDetail user, ImportModeEnum importMode)
+            throws IOException {
         if (importMode == null) {
             importMode = ImportModeEnum.GROUP_IMPORT;
         }
         String fileName = file.getOriginalFilename();
+        long startTime = System.currentTimeMillis();
 
-        log.info("Start importing groups, fileName={}, importMode={}, user={}", fileName, importMode,
-                user.getUsername());
-
-        // 获取导入策略
-        com.tapdata.tm.group.strategy.ImportStrategy importStrategy = importStrategyRegistry.getStrategy(importMode);
-
+        // Read file content before async execution (MultipartFile may not be available
+        // after request completes)
         Map<String, List<TaskUpAndLoadDto>> payloads = readGroupImportPayloads(file);
+
+        // Create import record with initial progress
+        GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, new ArrayList<>(), fileName);
+        recordDto.setProgress(0);
+        recordDto = groupInfoRecordService.save(recordDto, user);
+
+        ObjectId recordId = recordDto.getId();
+
+        // Execute import asynchronously
+        GroupInfoService groupInfoService = SpringContextHelper.getBean(GroupInfoService.class);
+        groupInfoService.executeImportAsync(payloads, user, importMode, fileName, recordId);
+        return recordId;
+    }
+
+    /**
+     * Execute the actual import process asynchronously.
+     */
+    @Async
+    public void executeImportAsync(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user,
+            ImportModeEnum importMode, String fileName, ObjectId recordId) {
+        log.info("Async import started, recordId={}, fileName={}", recordId, fileName);
+        // Get import strategy
+        ImportStrategy importStrategy = importStrategyRegistry.getStrategy(importMode);
+
         List<TaskUpAndLoadDto> groupPayload = payloads.getOrDefault("GroupInfo.json", Collections.emptyList());
 
         // 使用资源处理器收集各种资源
@@ -260,7 +296,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         Map<ResourceType, List<MetadataInstancesDto>> metadataByType = new LinkedHashMap<>();
 
         for (ResourceType type : ResourceType.values()) {
-            com.tapdata.tm.group.handler.ResourceHandler handler = resourceHandlerRegistry.getHandler(type);
+            ResourceHandler handler = resourceHandlerRegistry.getHandler(type);
             if (handler != null) {
                 String filename = ResourceType.getResourceName(type.name());
                 List<TaskUpAndLoadDto> payload = payloads.getOrDefault(filename, Collections.emptyList());
@@ -277,14 +313,12 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         collectGroupInfoPayload(groupPayload, groupInfos);
 
         List<GroupInfoRecordDetail> details = new ArrayList<>();
-        GroupInfoRecordDto recordDto = null;
         try {
             Map<String, String> groupDuplicateNames = renameDuplicateGroups(groupInfos, user);
             // 使用资源处理器查找重名资源
             Map<ResourceType, Map<String, String>> duplicateNamesByType = new LinkedHashMap<>();
             for (Map.Entry<ResourceType, Map<String, ?>> entry : resourceMapsByType.entrySet()) {
-                com.tapdata.tm.group.handler.ResourceHandler handler = resourceHandlerRegistry
-                        .getHandler(entry.getKey());
+                ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
                 if (handler != null) {
                     Map<String, String> duplicates = handler.findDuplicateNames(entry.getValue().values(), user);
                     duplicateNamesByType.put(entry.getKey(), duplicates);
@@ -294,15 +328,31 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             details = buildImportRecordDetails(groupInfos, resourceMapsByType, duplicateNamesByType,
                     groupDuplicateNames, importStrategy);
 
-            recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, details, fileName);
-            recordDto = groupInfoRecordService.save(recordDto, user);
+            // Calculate total resource count for progress tracking
+            int connectionCount = ((Map<?, ?>) resourceMapsByType.getOrDefault(ResourceType.CONNECTION,
+                    Collections.emptyMap())).size();
+            int taskCount = ((Map<?, ?>) resourceMapsByType.getOrDefault(ResourceType.MIGRATE_TASK,
+                    Collections.emptyMap())).size()
+                    + ((Map<?, ?>) resourceMapsByType.getOrDefault(ResourceType.SYNC_TASK, Collections.emptyMap()))
+                            .size()
+                    + ((Map<?, ?>) resourceMapsByType.getOrDefault(ResourceType.SHARE_CACHE, Collections.emptyMap()))
+                            .size();
+            int inspectCount = ((Map<?, ?>) resourceMapsByType.getOrDefault(ResourceType.INSPECT_TASK,
+                    Collections.emptyMap())).size();
+            int moduleCount = ((Map<?, ?>) resourceMapsByType.getOrDefault(ResourceType.MODULE, Collections.emptyMap()))
+                    .size();
+            int groupCount = groupInfos.size();
+            int totalResources = connectionCount + taskCount + inspectCount + moduleCount + groupCount;
+            int importedResources = 0;
 
-            // 分阶段导入资源，每个阶段单独捕获异常
+            // Update progress after initialization
+            updateImportProgress(recordId, calculateProgress(importedResources, totalResources), details, user);
+
+            // Stage 1: Import connections
             Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
             Map<String, String> taskIdMap = new HashMap<>();
             Map<String, String> nodeIdMap = new HashMap<>();
 
-            // 阶段1：导入连接资源
             log.info("Stage 1: Start importing connection resources");
             Map<String, DataSourceConnectionDto> connections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
@@ -313,8 +363,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     new HashMap<>());
             log.info("Connection resources import completed, connectionCount={}, metadataCount={}",
                     connections.size(), connectionMetadata.size());
+            importedResources += connectionCount;
+            updateImportProgress(recordId, calculateProgress(importedResources, totalResources), details, user);
 
-            // 阶段2：导入任务资源（MIGRATE_TASK、SYNC_TASK、SHARE_CACHE）
+            // Stage 2: Import tasks (MIGRATE_TASK, SYNC_TASK, SHARE_CACHE)
             log.info("Stage 2: Start importing task resources");
             List<TaskDto> allTasks = new ArrayList<>();
             Map<String, TaskDto> migrateTasks = (Map<String, TaskDto>) resourceMapsByType
@@ -340,16 +392,20 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 log.info("Task resources import completed, taskCount={}, metadataCount={}",
                         allTasks.size(), allTaskMetadata.size());
             }
+            importedResources += taskCount;
+            updateImportProgress(recordId, calculateProgress(importedResources, totalResources), details, user);
 
-            // 阶段2.1：导入校验任务
+            // Stage 3: Import inspect tasks
             Map<String, InspectDto> inspectTasks = (Map<String, InspectDto>) resourceMapsByType
                     .getOrDefault(ResourceType.INSPECT_TASK, Collections.emptyMap());
             if (MapUtils.isNotEmpty(inspectTasks)) {
-                inspectService.importTaskByGroup(new ArrayList<>(inspectTasks.values()), taskIdMap,conMap, user);
+                inspectService.importTaskByGroup(new ArrayList<>(inspectTasks.values()), taskIdMap, conMap, user);
                 log.info("Inspect tasks import completed, inspectTaskCount={}", inspectTasks.size());
             }
+            importedResources += inspectCount;
+            updateImportProgress(recordId, calculateProgress(importedResources, totalResources), details, user);
 
-            // 阶段3：导入模块资源
+            // Stage 4: Import modules
             Map<String, ModulesDto> modules = (Map<String, ModulesDto>) resourceMapsByType
                     .getOrDefault(ResourceType.MODULE, Collections.emptyMap());
             if (MapUtils.isNotEmpty(modules)) {
@@ -358,9 +414,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, conMap, null, null);
             }
+            importedResources += moduleCount;
+            updateImportProgress(recordId, calculateProgress(importedResources, totalResources), details, user);
 
-            // 阶段4：保存分组信息
-            log.info("Stage 4: Start saving group information");
+            // Stage 5: Save group information
+            log.info("Stage 5: Start saving group information");
             if (CollectionUtils.isNotEmpty(groupInfos)) {
                 groupInfos.forEach(groupInfo -> {
                     groupInfo.setId(null);
@@ -373,20 +431,21 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 save(groupInfos, user);
                 log.info("Group information saved successfully, groupCount={}", groupInfos.size());
             }
-            updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_COMPLETED, null, details, user);
-            log.info("Group import completed successfully, fileName={}, groupCount={}", fileName, groupInfos.size());
+            importedResources += groupCount;
+
+            // Update progress: complete (100%)
+            updateImportProgress(recordId, 100, details, user);
+            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, details, user);
+            log.info("Async import completed successfully, recordId={}, fileName={}, groupCount={}",
+                    recordId, fileName, groupInfos.size());
         } catch (Exception e) {
-            if (recordDto == null) {
-                recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, details, fileName);
-                recordDto = groupInfoRecordService.save(recordDto, user);
-            }
-            updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_FAILED, e.getMessage(), details, user);
-            log.error("Group import failed, fileName={}, error={}", fileName, ThrowableUtils.getStackTraceByPn(e));
-            throw new BizException(e);
+            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, e.getMessage(), details, user);
+            log.error("Async import failed, recordId={}, fileName={}, error={}",
+                    recordId, fileName, ThrowableUtils.getStackTraceByPn(e));
         }
     }
 
-    private List<GroupInfoDto> loadGroupInfosByIds(List<String> groupIds, UserDetail user) {
+    protected List<GroupInfoDto> loadGroupInfosByIds(List<String> groupIds, UserDetail user) {
         if (CollectionUtils.isEmpty(groupIds)) {
             return new ArrayList<>();
         }
@@ -395,7 +454,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return findAllDto(query, user);
     }
 
-    private List<TaskUpAndLoadDto> buildGroupInfoPayload(List<GroupInfoDto> groupInfos) {
+    protected List<TaskUpAndLoadDto> buildGroupInfoPayload(List<GroupInfoDto> groupInfos) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         if (CollectionUtils.isEmpty(groupInfos)) {
             return payload;
@@ -410,7 +469,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return payload;
     }
 
-    private Map<String, List<TaskUpAndLoadDto>> readGroupImportPayloads(MultipartFile file) throws IOException {
+    protected Map<String, List<TaskUpAndLoadDto>> readGroupImportPayloads(MultipartFile file) throws IOException {
         Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
         try (TarArchiveInputStream tais = new TarArchiveInputStream(file.getInputStream())) {
             TarArchiveEntry entry;
@@ -427,7 +486,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return payloads;
     }
 
-    private List<TaskUpAndLoadDto> parseTaskUpAndLoadList(byte[] bytes) {
+    protected List<TaskUpAndLoadDto> parseTaskUpAndLoadList(byte[] bytes) {
         if (bytes == null || bytes.length == 0) {
             return new ArrayList<>();
         }
@@ -440,7 +499,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return list == null ? new ArrayList<>() : list;
     }
 
-    private void collectGroupInfoPayload(List<TaskUpAndLoadDto> payload, List<GroupInfoDto> groupInfos) {
+    protected void collectGroupInfoPayload(List<TaskUpAndLoadDto> payload, List<GroupInfoDto> groupInfos) {
         if (CollectionUtils.isEmpty(payload)) {
             return;
         }
@@ -456,7 +515,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
-    private GroupInfoRecordDto buildRecord(String type, UserDetail user, List<GroupInfoRecordDetail> details,
+    protected GroupInfoRecordDto buildRecord(String type, UserDetail user, List<GroupInfoRecordDetail> details,
             String fileName) {
         GroupInfoRecordDto recordDto = new GroupInfoRecordDto();
         recordDto.setType(type);
@@ -472,7 +531,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return recordDto;
     }
 
-    private void updateRecordStatus(ObjectId recordId, String status, String message,
+    protected void updateRecordStatus(ObjectId recordId, String status, String message,
             List<GroupInfoRecordDetail> details, UserDetail user) {
         if (recordId == null) {
             return;
@@ -488,10 +547,43 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     }
 
     /**
+     * Update import progress in the record.
+     *
+     * @param recordId Record ID
+     * @param progress Progress percentage (0-100)
+     * @param details  Record details
+     * @param user     User details
+     */
+    protected void updateImportProgress(ObjectId recordId, int progress, List<GroupInfoRecordDetail> details, UserDetail user) {
+        if (recordId == null) {
+            return;
+        }
+        Update update = new Update().set("progress", progress);
+        if (details != null) {
+            update.set("details", details);
+        }
+        groupInfoRecordService.updateById(recordId, update, user);
+        log.debug("Import progress updated, recordId={}, progress={}%", recordId, progress);
+    }
+
+    /**
+     * Calculate progress percentage based on imported and total resources.
+     *
+     * @param imported Imported resource count
+     * @param total    Total resource count
+     * @return Progress percentage (0-100)
+     */
+    protected int calculateProgress(int imported, int total) {
+        if (total == 0) {
+            return 0;
+        }
+        return Math.min(99, (int) ((imported * 100.0) / total));
+    }
+
+    /**
      * 构建导出记录详情
      */
-    private List<GroupInfoRecordDetail> buildExportRecordDetails(List<GroupInfoDto> groupInfos,
-            Map<ResourceType, List<?>> resourcesByType) {
+    protected List<GroupInfoRecordDetail> buildExportRecordDetails(List<GroupInfoDto> groupInfos, Map<ResourceType, List<?>> resourcesByType) {
         List<GroupInfoRecordDetail> details = new ArrayList<>();
         for (GroupInfoDto groupInfo : groupInfos) {
             GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
@@ -499,14 +591,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 detail.setGroupId(groupInfo.getId().toHexString());
             }
             detail.setGroupName(groupInfo.getName());
-            fillRecordDetails(detail, groupInfo.getResourceItemList(), resourcesByType,
+            fillRecordDetailsExport(detail, groupInfo.getResourceItemList(), resourcesByType,
                     GroupInfoRecordDetail.RecordAction.EXPORTED);
             details.add(detail);
         }
         return details;
     }
 
-    private List<ResourceItem> mapResourceItems(List<ResourceItem> items, Map<String, String> idMap) {
+    protected List<ResourceItem> mapResourceItems(List<ResourceItem> items, Map<String, String> idMap) {
         if (CollectionUtils.isEmpty(items)) {
             return new ArrayList<>();
         }
@@ -521,7 +613,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 String newId = idMap.get(item.getId());
                 if (StringUtils.isNotBlank(newId)) {
                     copy.setId(newId);
-                }else {
+                } else {
                     copy.setId(item.getId());
                 }
             } else {
@@ -532,7 +624,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return mapped;
     }
 
-    private Map<String, String> renameDuplicateGroups(List<GroupInfoDto> groupInfos, UserDetail user) {
+    protected Map<String, String> renameDuplicateGroups(List<GroupInfoDto> groupInfos, UserDetail user) {
         Map<String, String> renamedGroups = new HashMap<>();
         if (CollectionUtils.isEmpty(groupInfos)) {
             return renamedGroups;
@@ -574,14 +666,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return renamedGroups;
     }
 
-    private List<DataSourceConnectionDto> loadConnections(Set<String> connectionIds) {
+    protected List<DataSourceConnectionDto> loadConnections(Set<String> connectionIds) {
         if (CollectionUtils.isEmpty(connectionIds)) {
             return new ArrayList<>();
         }
         return dataSourceService.findAllByIds(new ArrayList<>(connectionIds));
     }
 
-    private String buildGroupExportFileName(List<GroupInfoDto> groupInfos, String yyyymmdd) {
+    protected String buildGroupExportFileName(List<GroupInfoDto> groupInfos, String yyyymmdd) {
         if (CollectionUtils.size(groupInfos) == 1) {
             GroupInfoDto groupInfo = groupInfos.get(0);
             if (groupInfo != null && StringUtils.isNotBlank(groupInfo.getName())) {
@@ -591,7 +683,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return "group_batch" + "-" + yyyymmdd + ".tar";
     }
 
-    private void addContentToTar(TarArchiveOutputStream taos, Map<String, byte[]> contents) throws IOException {
+    protected void addContentToTar(TarArchiveOutputStream taos, Map<String, byte[]> contents) throws IOException {
         for (Map.Entry<String, byte[]> entry : contents.entrySet()) {
             byte[] contentBytes = entry.getValue();
             TarArchiveEntry tarEntry = new TarArchiveEntry(entry.getKey());
@@ -610,7 +702,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      * @param groupInfos 分组列表
      * @return 资源类型到 ID 集合的映射
      */
-    private Map<ResourceType, Set<String>> extractResourceIdsByType(List<GroupInfoDto> groupInfos) {
+    protected Map<ResourceType, Set<String>> extractResourceIdsByType(List<GroupInfoDto> groupInfos) {
         Map<ResourceType, Set<String>> result = new LinkedHashMap<>();
         if (CollectionUtils.isEmpty(groupInfos)) {
             return result;
@@ -631,7 +723,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     /**
      * 获取资源 ID
      */
-    private String getResourceId(Object resource) {
+    protected String getResourceId(Object resource) {
         if (resource instanceof TaskDto) {
             ObjectId id = ((TaskDto) resource).getId();
             return id == null ? null : id.toHexString();
@@ -645,7 +737,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     /**
      * 获取资源名称
      */
-    private String getResourceName(Object resource) {
+    protected String getResourceName(Object resource) {
         if (resource instanceof TaskDto) {
             return ((TaskDto) resource).getName();
         } else if (resource instanceof ModulesDto) {
@@ -657,11 +749,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     /**
      * 构建导入记录详情（新版本，使用资源处理器）
      */
-    private List<GroupInfoRecordDetail> buildImportRecordDetails(List<GroupInfoDto> groupInfos,
+    protected List<GroupInfoRecordDetail> buildImportRecordDetails(List<GroupInfoDto> groupInfos,
             Map<ResourceType, Map<String, ?>> resourceMapsByType,
             Map<ResourceType, Map<String, String>> duplicateNamesByType,
             Map<String, String> groupDuplicateNames,
-            com.tapdata.tm.group.strategy.ImportStrategy importStrategy) {
+            ImportStrategy importStrategy) {
         List<GroupInfoRecordDetail> details = new ArrayList<>();
         for (GroupInfoDto groupInfo : groupInfos) {
             GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
@@ -673,7 +765,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 detail.setMessage(
                         "duplicate group name, renamed existing to " + groupDuplicateNames.get(groupInfo.getName()));
             }
-            fillRecordDetailsNew(detail, groupInfo.getResourceItemList(), resourceMapsByType,
+            fillRecordDetailsImport(detail, groupInfo.getResourceItemList(), resourceMapsByType,
                     duplicateNamesByType, importStrategy);
             details.add(detail);
         }
@@ -681,17 +773,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     }
 
     /**
-     * 填充记录详情（新版本，使用资源处理器和导入策略）
+     * 填充记录详情
      */
-    private void fillRecordDetailsNew(GroupInfoRecordDetail detail, List<ResourceItem> items,
+    protected void fillRecordDetailsImport(GroupInfoRecordDetail detail, List<ResourceItem> items,
             Map<ResourceType, Map<String, ?>> resourceMapsByType,
             Map<ResourceType, Map<String, String>> duplicateNamesByType,
-            com.tapdata.tm.group.strategy.ImportStrategy importStrategy) {
+            ImportStrategy importStrategy) {
         if (detail == null || CollectionUtils.isEmpty(items)) {
             return;
         }
 
-        com.tapdata.tm.group.dto.GroupInfoRecordDetail.RecordAction defaultAction = importStrategy.getDefaultAction();
+       GroupInfoRecordDetail.RecordAction defaultAction = importStrategy.getDefaultAction();
 
         for (ResourceItem item : items) {
             if (item == null || StringUtils.isBlank(item.getId()) || item.getType() == null) {
@@ -701,7 +793,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             recordDetail.setResourceType(item.getType());
 
             // 通过资源处理器解析资源名称
-            com.tapdata.tm.group.handler.ResourceHandler handler = resourceHandlerRegistry.getHandler(item.getType());
+            ResourceHandler handler = resourceHandlerRegistry.getHandler(item.getType());
             String resourceName = null;
             if (handler != null) {
                 Map<String, ?> resourceMap = resourceMapsByType.get(item.getType());
@@ -728,9 +820,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     }
 
     /**
-     * 填充记录详情（导出专用版本）
+     * 填充记录详情
      */
-    private void fillRecordDetails(GroupInfoRecordDetail detail, List<ResourceItem> items,
+    protected void fillRecordDetailsExport(GroupInfoRecordDetail detail, List<ResourceItem> items,
             Map<ResourceType, List<?>> resourcesByType,
             GroupInfoRecordDetail.RecordAction successAction) {
         if (detail == null || CollectionUtils.isEmpty(items)) {
@@ -758,7 +850,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             recordDetail.setResourceType(item.getType());
 
             // 通过资源处理器解析资源名称
-            com.tapdata.tm.group.handler.ResourceHandler handler = resourceHandlerRegistry.getHandler(item.getType());
+            ResourceHandler handler = resourceHandlerRegistry.getHandler(item.getType());
             String resourceName = null;
             if (handler != null) {
                 Map<String, ?> resourceMap = resourceMapsByType.get(item.getType());

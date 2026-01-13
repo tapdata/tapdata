@@ -63,7 +63,7 @@ public class ModuleResourceHandler implements ResourceHandler {
             return payload;
         }
 
-        @SuppressWarnings("unchecked")
+        
         List<ModulesDto> modules = (List<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
@@ -79,7 +79,7 @@ public class ModuleResourceHandler implements ResourceHandler {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
+    
     public void collectPayload(List<TaskUpAndLoadDto> payload, Map<String, ?> resourceMap,
             List<MetadataInstancesDto> metadataList) {
         if (CollectionUtils.isEmpty(payload)) {
@@ -116,7 +116,7 @@ public class ModuleResourceHandler implements ResourceHandler {
             return new ArrayList<>();
         }
 
-        @SuppressWarnings("unchecked")
+        
         List<ModulesDto> modules = (List<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
@@ -135,7 +135,7 @@ public class ModuleResourceHandler implements ResourceHandler {
     public Map<String, String> findDuplicateNames(Iterable<?> resources, UserDetail user) {
         Map<String, String> duplicates = new HashMap<>();
 
-        @SuppressWarnings("unchecked")
+        
         Iterable<ModulesDto> modules = (Iterable<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
@@ -162,7 +162,6 @@ public class ModuleResourceHandler implements ResourceHandler {
             return null;
         }
 
-        @SuppressWarnings("unchecked")
         Map<String, ModulesDto> moduleMap = (Map<String, ModulesDto>) resourceMap;
 
         ModulesDto modulesDto = moduleMap.get(resourceId);

@@ -21,7 +21,8 @@ public class GroupPerformanceAspect {
      * 定义切入点：分组管理服务层的所有公共方法
      */
     @Pointcut("execution(public * com.tapdata.tm.group.service.GroupInfoService.exportGroupInfos*(..)) " +
-            "|| execution(public * com.tapdata.tm.group.service.GroupInfoService.batchImportGroup*(..))")
+            "|| execution(public * com.tapdata.tm.group.service.GroupInfoService.batchImportGroup*(..))" +
+            "|| execution(public * com.tapdata.tm.group.service.GroupInfoService.executeImportAsync*(..))")
     public void groupServiceMethods() {
     }
 

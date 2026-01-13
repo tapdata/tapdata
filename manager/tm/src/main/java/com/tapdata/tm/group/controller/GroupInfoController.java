@@ -11,6 +11,7 @@ import com.tapdata.tm.group.service.GroupInfoRecordService;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -19,7 +20,9 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/groupInfo")
@@ -35,25 +38,31 @@ public class GroupInfoController extends BaseController {
         groupInfoService.exportGroupInfos(response, id, getLoginUser());
     }
 
-    @Operation(summary = "group导入")
+    @Operation(summary = "group异步导入，返回记录ID用于查询进度")
     @PostMapping(path = "/batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseMessage<Void> batchImport(@RequestParam("file") MultipartFile file,
-                                             @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode) throws IOException {
+    public ResponseMessage<Map<String, String>> batchImport(@RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode)
+            throws IOException {
         ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
-        groupInfoService.batchImportGroup(file, getLoginUser(), importModeEnum);
-        return success();
+        ObjectId recordId = groupInfoService.batchImportGroup(file, getLoginUser(), importModeEnum);
+        Map<String, String> result = new HashMap<>();
+        result.put("recordId", recordId.toHexString());
+        return success(result);
     }
 
     @Operation(summary = "group导入导出记录列表")
     @GetMapping("/record/list")
-    public ResponseMessage<Page<GroupInfoRecordDto>> recordList(@RequestParam(value = "filter", required = false) String filterJson) {
+    public ResponseMessage<Page<GroupInfoRecordDto>> recordList(
+            @RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
         return success(groupInfoRecordService.find(filter, getLoginUser()));
     }
+
     @Operation(summary = "group列表")
     @GetMapping("/groupList")
-    public ResponseMessage<Page<GroupInfoDto>> groupList(@RequestParam(value = "filter", required = false) String filterJson){
-        Filter filter=parseFilter(filterJson);
+    public ResponseMessage<Page<GroupInfoDto>> groupList(
+            @RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
         return success(groupInfoService.groupList(filter, getLoginUser()));
     }
 
@@ -65,14 +74,15 @@ public class GroupInfoController extends BaseController {
     }
 
     /**
-     * 修改  modules
+     * 修改 modules
      *
      * @return
      */
     @Operation(summary = "修改 发布  group")
     @PatchMapping()
     public ResponseMessage update(@RequestBody GroupInfoDto groupInfoDto) {
-        return success(groupInfoService.update(Query.query(Criteria.where("_id").is(groupInfoDto.getId())), groupInfoDto));
+        return success(
+                groupInfoService.update(Query.query(Criteria.where("_id").is(groupInfoDto.getId())), groupInfoDto));
     }
 
     /**

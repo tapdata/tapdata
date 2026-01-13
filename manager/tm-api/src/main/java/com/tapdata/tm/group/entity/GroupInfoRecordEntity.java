@@ -21,4 +21,5 @@ public class GroupInfoRecordEntity extends BaseEntity {
     private String message;
     private String fileName;
     private List<GroupInfoRecordDetail> details;
+    private Integer progress;
 }
