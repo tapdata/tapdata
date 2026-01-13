@@ -127,7 +127,7 @@ public class ApiServerMonitorController extends BaseController {
                                                                 @RequestParam(required = false) Long endAt) {
         TopApiInServerParam param = new TopApiInServerParam();
         param.setServerId(serverId);
-        param.setOrderBy(orderBy);
+        param.setOrderBy(QueryBase.SortInfo.parse(orderBy));
         param.setStartAt(startAt);
         param.setEndAt(endAt);
         return success(apiMetricsRawQuery.topApiInServer(param));
@@ -176,7 +176,7 @@ public class ApiServerMonitorController extends BaseController {
                                                           @RequestParam(required = false) Long startAt,
                                                           @RequestParam(required = false) Long endAt) {
         ApiListParam param = new ApiListParam();
-        param.setOrderBy(orderBy);
+        param.setOrderBy(QueryBase.SortInfo.parse(orderBy));
         param.setStartAt(startAt);
         param.setEndAt(endAt);
         return success(apiMetricsRawQuery.apiOverviewList(param));

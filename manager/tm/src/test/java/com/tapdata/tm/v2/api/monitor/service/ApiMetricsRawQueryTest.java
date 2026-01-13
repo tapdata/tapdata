@@ -52,7 +52,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -62,7 +61,6 @@ import java.util.function.LongConsumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -126,6 +124,8 @@ class ApiMetricsRawQueryTest {
         when(apiMetricsRawQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.mergeDelay(anyList())).thenCallRealMethod();
         when(apiMetricsRawQuery.publishApis()).thenCallRealMethod();
+        when(apiMetricsRawQuery.rate(anyLong(), anyLong())).thenCallRealMethod();
+        when(apiMetricsRawQuery.extractIndex(anyString())).thenCallRealMethod();
         List<ModulesDto> modulesDtoLit = new ArrayList<>();
         ModulesDto m = new ModulesDto();
         m.setId(new ObjectId());
@@ -478,7 +478,9 @@ class ApiMetricsRawQueryTest {
             param.setStartAt(System.currentTimeMillis() - 3600000);
             param.setEndAt(System.currentTimeMillis());
             param.setGranularity(2);
-            param.setOrderBy("requestCount");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("requestCount ASC");
+            param.setOrderBy(order);
 
             ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
             List<ApiMetricsRaw> raws = Arrays.asList(raw);
@@ -528,7 +530,9 @@ class ApiMetricsRawQueryTest {
             apiMetricsRaws.add(a2);
             when(service.find(any(Query.class))).thenReturn(apiMetricsRaws);
             TopApiInServerParam param = new TopApiInServerParam();
-            param.setOrderBy("errorRate");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("errorRate DESC");
+            param.setOrderBy(order);
             param.setServerId(new ObjectId().toHexString());
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -561,7 +565,9 @@ class ApiMetricsRawQueryTest {
             apiMetricsRaws.add(a2);
             when(service.find(any(Query.class))).thenReturn(apiMetricsRaws);
             TopApiInServerParam param = new TopApiInServerParam();
-            param.setOrderBy("avg");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("avg");
+            param.setOrderBy(order);
             param.setServerId(new ObjectId().toHexString());
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -594,7 +600,9 @@ class ApiMetricsRawQueryTest {
             apiMetricsRaws.add(a2);
             when(service.find(any(Query.class))).thenReturn(apiMetricsRaws);
             TopApiInServerParam param = new TopApiInServerParam();
-            param.setOrderBy("p99");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("p99 DESC");
+            param.setOrderBy(order);
             param.setServerId(new ObjectId().toHexString());
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -627,7 +635,9 @@ class ApiMetricsRawQueryTest {
             apiMetricsRaws.add(a2);
             when(service.find(any(Query.class))).thenReturn(apiMetricsRaws);
             TopApiInServerParam param = new TopApiInServerParam();
-            param.setOrderBy("");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("");
+            param.setOrderBy(order);
             param.setServerId(new ObjectId().toHexString());
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -673,7 +683,7 @@ class ApiMetricsRawQueryTest {
             callEntity.setErrorCount(10L);
             ApiServerWorkerInfo workerInfo = new ApiServerWorkerInfo();
             workerInfo.setOid("worker1");
-            workerInfo.setName("Worker 1");
+            workerInfo.setName("Worker-1");
             Worker w = new Worker();
             when(workerRepository.findOne(any(Query.class))).thenReturn(Optional.of(w));
             Assertions.assertDoesNotThrow(() -> apiMetricsRawQuery.topWorkerInServer(param));
@@ -695,11 +705,47 @@ class ApiMetricsRawQueryTest {
 
             ApiServerWorkerInfo workerInfo = new ApiServerWorkerInfo();
             workerInfo.setOid("worker1");
-            workerInfo.setName("Worker 1");
+            workerInfo.setName("Worker-1");
             Worker w = new Worker();
             w.setProcessId("processId");
             ApiServerStatus s = new ApiServerStatus();
             s.setWorkers(Map.of("worker1", workerInfo));
+            w.setWorkerStatus(s);
+            when(workerRepository.findOne(any(Query.class))).thenReturn(Optional.of(w));
+            when(mongoTemplate.find(any(Query.class), any(Class.class), anyString())).thenReturn(callEntities);
+            List<ServerUsageMetric> usage2 = new ArrayList<>();
+            when(serverUsageMetricRepository.findAll(any(Query.class))).thenReturn(usage2);
+            Assertions.assertDoesNotThrow(() -> apiMetricsRawQuery.topWorkerInServer(param));
+        }
+
+        @Test
+        void testValidServerId1() {
+            TopWorkerInServerParam param = new TopWorkerInServerParam();
+            param.setServerId("server1");
+            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
+            param.setEndAt(System.currentTimeMillis() / 1000L);
+            param.setGranularity(2);
+
+            WorkerCallEntity callEntity = new WorkerCallEntity();
+            callEntity.setWorkOid("worker1");
+            callEntity.setReqCount(100L);
+            callEntity.setErrorCount(10L);
+            WorkerCallEntity callEntity2 = new WorkerCallEntity();
+            callEntity2.setWorkOid("worker2");
+            callEntity2.setReqCount(100L);
+            callEntity2.setErrorCount(10L);
+            List<WorkerCallEntity> callEntities = new ArrayList<>(Arrays.asList(callEntity, callEntity2));
+
+            ApiServerWorkerInfo workerInfo = new ApiServerWorkerInfo();
+            workerInfo.setOid("worker1");
+            workerInfo.setName("Worker-1");
+            ApiServerWorkerInfo workerInfo1 = new ApiServerWorkerInfo();
+            workerInfo1.setOid("worker2");
+            workerInfo1.setName("Worker-2");
+            Worker w = new Worker();
+            w.setProcessId("processId");
+            ApiServerStatus s = new ApiServerStatus();
+            s.setWorkers(Map.of("worker1", workerInfo, "worker2", workerInfo1));
             w.setWorkerStatus(s);
             when(workerRepository.findOne(any(Query.class))).thenReturn(Optional.of(w));
             when(mongoTemplate.find(any(Query.class), any(Class.class), anyString())).thenReturn(callEntities);
@@ -768,7 +814,9 @@ class ApiMetricsRawQueryTest {
         @Test
         void testWithApiMetricsRaws() {
             ApiListParam param = new ApiListParam();
-            param.setOrderBy("");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("");
+            param.setOrderBy(order);
             param.setGranularity(2);
             param.setStartAt(System.currentTimeMillis() - 3600000);
             param.setEndAt(System.currentTimeMillis());
@@ -797,7 +845,9 @@ class ApiMetricsRawQueryTest {
         @Test
         void testOrderByRequestCostAvg() {
             ApiListParam param = new ApiListParam();
-            param.setOrderBy("requestCostAvg");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("requestCostAvg DESC");
+            param.setOrderBy(order);
             param.setGranularity(2);
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -839,7 +889,9 @@ class ApiMetricsRawQueryTest {
         @Test
         void testOrderByP95() {
             ApiListParam param = new ApiListParam();
-            param.setOrderBy("p95");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("p95 DESC");
+            param.setOrderBy(order);
             param.setGranularity(2);
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -887,7 +939,9 @@ class ApiMetricsRawQueryTest {
         @Test
         void testOrderByP99() {
             ApiListParam param = new ApiListParam();
-            param.setOrderBy("p99");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("p99 DESC");
+            param.setOrderBy(order);
             param.setGranularity(2);
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -935,7 +989,9 @@ class ApiMetricsRawQueryTest {
         @Test
         void testOrderByERROR_RATE() {
             ApiListParam param = new ApiListParam();
-            param.setOrderBy("errorRate");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("errorRate DESC");
+            param.setOrderBy(order);
             param.setGranularity(2);
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -983,7 +1039,9 @@ class ApiMetricsRawQueryTest {
         @Test
         void testOrderByTotalRps() {
             ApiListParam param = new ApiListParam();
-            param.setOrderBy("totalRps");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("totalRps DESC");
+            param.setOrderBy(order);
             param.setGranularity(2);
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -1031,7 +1089,9 @@ class ApiMetricsRawQueryTest {
         @Test
         void testApiIdsEmpty() {
             ApiListParam param = new ApiListParam();
-            param.setOrderBy("totalRps");
+            QueryBase.SortInfo order = new QueryBase.SortInfo();
+            order.setOrder("totalRps DESC");
+            param.setOrderBy(order);
             param.setGranularity(2);
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -1556,6 +1616,20 @@ class ApiMetricsRawQueryTest {
                 }
                 last += 5;
             }
+        }
+    }
+
+    @Nested
+    class extractIndexTest {
+        @Test
+        void testNormal() {
+            Assertions.assertEquals(0, apiMetricsRawQuery.extractIndex("Worker-0"));
+            Assertions.assertEquals(1, apiMetricsRawQuery.extractIndex("Worker-1"));
+            Assertions.assertEquals(1, apiMetricsRawQuery.extractIndex("Worker---1"));
+            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsRawQuery.extractIndex("Worker1"));
+            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsRawQuery.extractIndex("Worker---"));
+            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsRawQuery.extractIndex(""));
+            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsRawQuery.extractIndex("Worker-ddd"));
         }
     }
 
