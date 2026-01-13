@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -77,7 +76,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ApiMetricsRawQuery {
-    static final String PATH_SPLIT = "/";
     public static final String WORKER_TYPE = "worker_type";
     public static final String PROCESS_ID = "processId";
     public static final String PROCESS_TYPE = "processType";
@@ -123,7 +121,7 @@ public class ApiMetricsRawQuery {
             result.setResponseTime(responseTime);
             result.setResponseTimeAvg(responseTime * 1.0D / totalRequestCount);
             result.setErrorCount(errorCount.get());
-            result.setTotalErrorRate(errorCount.get() * 1.0D / totalRequestCount);
+            result.setTotalErrorRate(rate(errorCount.get(), totalRequestCount));
             result.setNotHealthyApiCount(errorApi);
             result.setNotHealthyServerCount(errorServer);
         }
@@ -203,7 +201,7 @@ public class ApiMetricsRawQuery {
                             long errorCount = errorCountGetter(infos, e -> item.setRequestCount(item.getRequestCount() + e));
                             int total = item.getRequestCount().intValue();
                             if (total > 0) {
-                                item.setErrorRate(1.0D * errorCount / item.getRequestCount());
+                                item.setErrorRate(rate(errorCount, item.getRequestCount()));
                                 final List<Map<Long, Integer>> merge = mergeDelay(infos);
                                 final Long p95 = ApiMetricsDelayUtil.p95(merge, total);
                                 final Long p99 = ApiMetricsDelayUtil.p99(merge, total);
@@ -336,17 +334,18 @@ public class ApiMetricsRawQuery {
                 .map(ApiServerStatus::getMetricValues)
                 .ifPresent(u -> {
                     result.setCpuUsage(u.getCpuUsage());
-                    Optional.ofNullable(u.getHeapMemoryUsageMax()).ifPresent(max -> result.setMemoryUsage(max > 0L ? 100.0D * u.getHeapMemoryUsage() / max : 0D));
+                    Optional.ofNullable(u.getHeapMemoryUsageMax()).ifPresent(max -> result.setMemoryUsage(rate(u.getHeapMemoryUsage(), max)));
                     if (u.getLastUpdateTime() instanceof Number iNum) {
                         result.setUsagePingTime(iNum.longValue());
                     }
                 });
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
+        criteria.and("processId").is(serverId);
         final Query query = Query.query(criteria);
         final List<ApiMetricsRaw> apiMetricsRaws = ParticleSizeAnalyzer.apiMetricsRaws(service.find(query), param);
         result.setRequestCount(0L);
         long errorCount = errorCountGetter(apiMetricsRaws, e -> result.setRequestCount(result.getRequestCount() + e));
-        result.setErrorRate(result.getRequestCount() > 0L ? 1.0D * errorCount / result.getRequestCount() : 0D);
+        result.setErrorRate(rate(errorCount, result.getRequestCount()));
         final List<Map<Long, Integer>> merge = mergeDelay(apiMetricsRaws);
         result.setP95(ApiMetricsDelayUtil.p95(merge, result.getRequestCount()));
         result.setP99(ApiMetricsDelayUtil.p99(merge, result.getRequestCount().intValue()));
@@ -393,7 +392,7 @@ public class ApiMetricsRawQuery {
                                     ApiMetricsDelayUtil.readMaxAndMin(maps, item::setMaxDelay, item::setMinDelay);
                                     item.setTs(apiMetricsRaw.getTimeStart());
                                     item.setRequestCount(reqCount);
-                                    item.setErrorRate(reqCount > 0L ? (1.0D * totalErrorCount / reqCount) : 0D);
+                                    item.setErrorRate(rate(totalErrorCount, reqCount));
                                     item.setAvg(reqCount > 0L ? (1.0D * delaySum / reqCount) : 0D);
                                     item.setP95(p95);
                                     item.setP99(p99);
@@ -454,7 +453,7 @@ public class ApiMetricsRawQuery {
                             long errorCount = errorCountGetter(rows, e -> item.setRequestCount(item.getRequestCount() + e));
                             int total = item.getRequestCount().intValue();
                             if (total > 0) {
-                                item.setErrorRate(1.0D * errorCount / item.getRequestCount());
+                                item.setErrorRate(rate(errorCount, item.getRequestCount()));
                                 final List<Map<Long, Integer>> merge = mergeDelay(rows);
                                 final Long p99 = ApiMetricsDelayUtil.p99(merge, total);
                                 ApiMetricsDelayUtil.readMaxAndMin(merge, item::setMaxDelay, item::setMinDelay);
@@ -492,12 +491,11 @@ public class ApiMetricsRawQuery {
             item.setNotExistsApi(false);
         });
         List<TopApiInServer> result = new ArrayList<>(apiInfoMap.values());
-        String orderBy = param.getOrderBy();
-        if (StringUtils.isBlank(orderBy)) {
-            orderBy = REQUEST_COUNT;
+        QueryBase.SortInfo orderBy = param.getOrderBy();
+        if (StringUtils.isBlank(orderBy.getField())) {
+            orderBy.setField(REQUEST_COUNT);
         }
-        orderBy = orderBy.trim();
-        Comparator<TopApiInServer> comparing = switch (orderBy) {
+        Comparator<TopApiInServer> comparing = switch (orderBy.getField()) {
             case ERROR_RATE -> (e1, e2) -> {
                 Double p1 = Optional.ofNullable(e1.getErrorRate()).orElse(0D);
                 Double p2 = Optional.ofNullable(e2.getErrorRate()).orElse(0D);
@@ -520,7 +518,7 @@ public class ApiMetricsRawQuery {
             };
         };
         TopApiInServer.supplement(result, publishApis());
-        result.sort(comparing.reversed());
+        orderBy.order(result, comparing);
         return result;
     }
 
@@ -572,7 +570,7 @@ public class ApiMetricsRawQuery {
                         Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).gte(param.getStartAt() * 1000L),
                         Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).lte(endAt)
                 );
-        List<WorkerCallEntity> callOfWorker = mongoTemplate.find(Query.query(criteriaOfWorker), WorkerCallEntity.class, "WorkerCalls");
+        List<WorkerCallEntity> callOfWorker = mongoTemplate.find(Query.query(criteriaOfWorker), WorkerCallEntity.class, "ApiCallInWorker");
         Map<String, TopWorkerInServer.TopWorkerInServerItem> workerInfoMap = callOfWorker.stream().collect(Collectors.groupingBy(
                 WorkerCallEntity::getWorkOid,
                 Collectors.collectingAndThen(
@@ -586,7 +584,7 @@ public class ApiMetricsRawQuery {
                                 reqCount += Optional.ofNullable(info.getReqCount()).orElse(0L);
                             }
                             item.setRequestCount(reqCount);
-                            item.setErrorRate(reqCount > 0L ? (1.0D * errorCount / reqCount) : 0D);
+                            item.setErrorRate(rate(errorCount, reqCount));
                             return item;
                         }
                 )
@@ -612,8 +610,31 @@ public class ApiMetricsRawQuery {
         result.setQueryFrom(param.getStartAt());
         result.setQueryEnd(param.getEndAt());
         result.setGranularity(param.getGranularity());
-        result.getWorkerList().sort(Comparator.comparing(TopWorkerInServer.TopWorkerInServerItem::getWorkerName));
+        result.getWorkerList().sort((a, b) -> {
+            int n1 = extractIndex(a.getWorkerName());
+            int n2 = extractIndex(b.getWorkerName());
+            return Integer.compare(n1, n2);
+        });
         return result;
+    }
+
+    protected int extractIndex(String name) {
+        if (StringUtils.isBlank(name)) {
+            return Integer.MAX_VALUE;
+        }
+        int indexOf = name.lastIndexOf('-');
+        if (indexOf <= 0) {
+            return Integer.MAX_VALUE;
+        }
+        String substring = name.substring(name.lastIndexOf('-') + 1);
+        if (StringUtils.isBlank(substring)) {
+            return Integer.MAX_VALUE;
+        }
+        try {
+            return Integer.parseInt(substring);
+        } catch (NumberFormatException e) {
+            return Integer.MAX_VALUE;
+        }
     }
 
     public ApiTopOnHomepage apiTopOnHomepage(QueryBase param) {
@@ -683,7 +704,7 @@ public class ApiMetricsRawQuery {
                                             .filter(Objects::nonNull)
                                             .mapToLong(ApiMetricsRaw::getErrorCount)
                                             .sum();
-                                    item.setErrorRate(sumErrorCount * 1.0D / item.getRequestCount());
+                                    item.setErrorRate(rate(sumErrorCount, item.getRequestCount()));
                                     long sumDelay = rows.stream()
                                             .filter(Objects::nonNull)
                                             .map(ApiMetricsRaw::getDelay)
@@ -715,40 +736,38 @@ public class ApiMetricsRawQuery {
             }
         });
         List<ApiItem> result = new ArrayList<>(collect.values());
-        String orderBy = param.getOrderBy();
-        if (StringUtils.isBlank(orderBy)) {
-            orderBy = REQUEST_COUNT;
+        QueryBase.SortInfo orderBy = param.getOrderBy();
+        if (StringUtils.isBlank(orderBy.getField())) {
+            orderBy.setField(REQUEST_COUNT);
         }
-        orderBy = orderBy.trim();
-        switch (orderBy) {
+        ApiItem.supplement(result, publishApis());
+        switch (orderBy.getField()) {
             case "requestCostAvg":
-                result.sort(Comparator.comparing(ApiItem::getRequestCostAvg));
+                orderBy.order(result, Comparator.comparing(ApiItem::getRequestCostAvg));
                 break;
             case "p95":
-                result.sort((e1, e2) -> {
+                orderBy.order(result, (e1, e2) -> {
                     Long p1 = Optional.ofNullable(e1.getP95()).orElse(0L);
                     Long p2 = Optional.ofNullable(e2.getP95()).orElse(0L);
                     return p1.compareTo(p2);
                 });
                 break;
             case "p99":
-                result.sort((e1, e2) -> {
+                orderBy.order(result, (e1, e2) -> {
                     Long p1 = Optional.ofNullable(e1.getP99()).orElse(0L);
                     Long p2 = Optional.ofNullable(e2.getP99()).orElse(0L);
                     return p1.compareTo(p2);
                 });
                 break;
             case ERROR_RATE:
-                result.sort(Comparator.comparing(ApiItem::getErrorRate));
+                orderBy.order(result, Comparator.comparing(ApiItem::getErrorRate));
                 break;
             case "totalRps":
-                result.sort(Comparator.comparing(ApiItem::getTotalRps));
+                orderBy.order(result, Comparator.comparing(ApiItem::getTotalRps));
                 break;
             default:
-                result.sort(Comparator.comparing(ApiItem::getRequestCount));
+                orderBy.order(result, Comparator.comparing(ApiItem::getRequestCount));
         }
-        ApiItem.supplement(result, publishApis());
-        result.sort(Comparator.comparing(ApiItem::getRequestCount));
         return result;
     }
 
@@ -780,7 +799,7 @@ public class ApiMetricsRawQuery {
             result.setP99(ApiMetricsDelayUtil.p99(merge, totalRequestCount));
             ApiMetricsDelayUtil.readMaxAndMin(merge, result::setMaxDelay, result::setMinDelay);
             result.setRequestCount(totalRequestCount);
-            result.setErrorRate(totalRequestCount > 0L ? (totalErrorCount * 1.0D / totalRequestCount) : 0D);
+            result.setErrorRate(rate(totalErrorCount, totalRequestCount));
             result.setRequestCostAvg(totalRequestCount > 0L ? (1.0D * totalDelayMs / totalRequestCount) : 0L);
         }
         return result;
@@ -828,7 +847,7 @@ public class ApiMetricsRawQuery {
                                     String processId = first.getProcessId();
                                     ApiOfEachServer item = Optional.ofNullable(serverMap.get(processId)).orElse(new ApiOfEachServer());
                                     item.setRequestCount(rows.stream().mapToLong(ApiMetricsRaw::getReqCount).sum());
-                                    item.setErrorRate(item.getRequestCount() > 0L ? rows.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum() * 1.0D / item.getRequestCount() : 0D);
+                                    item.setErrorRate(rate(rows.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum(), item.getRequestCount()));
                                     long totalRequestCost = rows.stream().map(ApiMetricsRaw::getDelay).map(ApiMetricsDelayUtil::sum).mapToLong(Long::longValue).sum();
                                     final List<Map<Long, Integer>> merge = mergeDelay(rows);
                                     item.setP95(ApiMetricsDelayUtil.p95(merge, item.getRequestCount()));
@@ -880,7 +899,7 @@ public class ApiMetricsRawQuery {
                 .map(Worker::getProcessId)
                 .filter(StringUtils::isNotBlank)
                 .toList();
-        ApiOfEachServer.supplement(new ArrayList<>(), activeWorkers(existsServerIds));
+        ApiOfEachServer.supplement(apiOfEachServers, activeWorkers(existsServerIds));
         apiOfEachServers.sort(comparing.reversed());
         return apiOfEachServers;
     }
@@ -966,5 +985,15 @@ public class ApiMetricsRawQuery {
                 .filter(Objects::nonNull)
                 .filter(e -> Objects.nonNull(e.getProcessId()))
                 .collect(Collectors.toMap(Worker::getProcessId, e -> e, (e1, e2) -> e1));
+    }
+
+    protected Double rate(Long value, Long right) {
+        if (null == right || null == value) {
+            return null;
+        }
+        if (right <= 0L) {
+            return 0D;
+        }
+        return 100.0D * value / right;
     }
 }

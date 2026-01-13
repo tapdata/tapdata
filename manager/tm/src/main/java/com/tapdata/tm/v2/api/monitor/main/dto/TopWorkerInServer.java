@@ -27,9 +27,9 @@ public class TopWorkerInServer extends ValueBase {
         String workerId;
         String workerName;
         Long memoryMax;
-        Long requestCount;
+        Long requestCount = 0L;
         @DecimalFormat
-        Double errorRate;
+        Double errorRate = 0D;
 
         ServerChart.Usage usage;
     }

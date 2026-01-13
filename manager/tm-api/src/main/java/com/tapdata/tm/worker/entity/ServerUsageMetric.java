@@ -4,8 +4,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.util.Optional;
-
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
  * @author <a href="https://github.com/11000100111010101100111">Gavin'Xiao</a>
@@ -35,21 +33,5 @@ public class ServerUsageMetric extends ServerUsage {
         metric.setWorkOid(workerId);
         metric.setProcessType(processType);
         return metric;
-    }
-
-    public void append(org.bson.Document usage) {
-        if (null == usage) {
-            return;
-        }
-        final Double cpuUsage = Optional.ofNullable(usage.get("cpuUsage", Double.class)).orElse(0D);
-        final Long heapMemoryUsage = Optional.ofNullable(usage.get("heapMemoryUsage", Long.class)).orElse(0L);
-        final Long heapMemoryMax = Optional.ofNullable(usage.get("heapMemoryMax", Long.class)).orElse(0L);
-        setCpuUsage((cpuUsage + Optional.ofNullable(getCpuUsage()).orElse(0D)) / 2);
-        setHeapMemoryUsage((heapMemoryUsage + Optional.ofNullable(getHeapMemoryUsage()).orElse(0L)) / 2);
-        setHeapMemoryMax(Math.max(Optional.ofNullable(getHeapMemoryMax()).orElse(heapMemoryMax), heapMemoryMax));
-        setMaxCpuUsage(Math.max(Optional.ofNullable(getMaxCpuUsage()).orElse(cpuUsage), cpuUsage));
-        setMinCpuUsage(Math.min(Optional.ofNullable(getMinCpuUsage()).orElse(cpuUsage), cpuUsage));
-        setMaxHeapMemoryUsage(Math.max(Optional.ofNullable(getMaxHeapMemoryUsage()).orElse(heapMemoryUsage), heapMemoryUsage));
-        setMinHeapMemoryUsage(Math.max(Optional.ofNullable(getMinHeapMemoryUsage()).orElse(heapMemoryUsage), heapMemoryUsage));
     }
 }
