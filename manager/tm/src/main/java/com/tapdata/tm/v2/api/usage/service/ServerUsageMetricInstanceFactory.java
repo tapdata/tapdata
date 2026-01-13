@@ -52,7 +52,7 @@ public final class ServerUsageMetricInstanceFactory extends FactoryBase<ServerUs
         final Criteria criteria = Criteria.where("processId").is(serverId)
                 .and("timeGranularity").is(type);
         if (null != timeStart) {
-            criteria.and("lastUpdateTime").is(timeStart);
+            criteria.and("lastUpdateTime").gte(timeStart);
         }
         final Query query = Query.query(criteria)
                 .with(Sort.by("lastUpdateTime").descending())

@@ -60,8 +60,6 @@ public class ServerItem extends ValueBase {
         item.setTs(new ArrayList<>());
         item.setRequestCount(0L);
         item.setErrorRate(0.0D);
-        item.setP95(0L);
-        item.setP99(0L);
         return item;
     }
 

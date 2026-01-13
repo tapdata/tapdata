@@ -73,10 +73,10 @@ public class ServerChart extends ValueBase {
         }
 
         public void add(ServerUsage usage) {
-            getCpuUsage().add(BigDecimal.valueOf(usage.getCpuUsage()).setScale(2, RoundingMode.HALF_DOWN).doubleValue());
+            getCpuUsage().add(usage.getCpuUsage());
             if (null != usage.getHeapMemoryMax()) {
                 if (usage.getHeapMemoryMax() > 0L) {
-                    getMemoryUsage().add(BigDecimal.valueOf((100.0D * usage.getHeapMemoryUsage() / usage.getHeapMemoryMax())).setScale(2, RoundingMode.HALF_DOWN).doubleValue());
+                    getMemoryUsage().add(100.0D * usage.getHeapMemoryUsage() / usage.getHeapMemoryMax());
                 } else {
                     getMemoryUsage().add(0D);
                 }
@@ -86,27 +86,15 @@ public class ServerChart extends ValueBase {
             ts.add(usage.getLastUpdateTime() / 1000L);
             if (usage instanceof ServerUsageMetric metric) {
                 initStatisticsData();
-                Double valueOfMaxCpuUsage = Optional.ofNullable(metric.getMaxCpuUsage())
-                        .map(BigDecimal::valueOf)
-                        .map(v -> v.setScale(2, RoundingMode.HALF_DOWN).doubleValue())
-                        .orElse(null);
-                maxCpuUsage.add(valueOfMaxCpuUsage);
-                Double valueOfMinCpuUsage = Optional.ofNullable(metric.getMinCpuUsage())
-                        .map(BigDecimal::valueOf)
-                        .map(v -> v.setScale(2, RoundingMode.HALF_DOWN).doubleValue())
-                        .orElse(null);
-                minCpuUsage.add(valueOfMinCpuUsage);
+                maxCpuUsage.add(metric.getMaxCpuUsage());
+                minCpuUsage.add(metric.getMinCpuUsage());
                 if (null != metric.getHeapMemoryMax() && metric.getHeapMemoryMax() > 0L) {
                     Double valueOfMaxMemoryUsage = Optional.ofNullable(metric.getMaxHeapMemoryUsage())
                             .map(v -> v * 100.0 / metric.getHeapMemoryMax())
-                            .map(BigDecimal::valueOf)
-                            .map(v -> v.setScale(2, RoundingMode.HALF_DOWN).doubleValue())
                             .orElse(null);
                     maxMemoryUsage.add(valueOfMaxMemoryUsage);
                     Double valueOfMinMemoryUsage = Optional.ofNullable(metric.getMinHeapMemoryUsage())
                             .map(v -> v * 100.0 / metric.getHeapMemoryMax())
-                            .map(BigDecimal::valueOf)
-                            .map(v -> v.setScale(2, RoundingMode.HALF_DOWN).doubleValue())
                             .orElse(null);
                     minMemoryUsage.add(valueOfMinMemoryUsage);
                 } else {
