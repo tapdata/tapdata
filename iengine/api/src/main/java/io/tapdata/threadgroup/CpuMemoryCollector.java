@@ -15,15 +15,17 @@ import org.springframework.util.CollectionUtils;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,18 +46,18 @@ public final class CpuMemoryCollector {
 			200,
 			0L,
 			TimeUnit.MILLISECONDS,
-			new SynchronousQueue<>(),
-			r -> new Thread(r, "CpuMemoryCollector"));
+			new ArrayBlockingQueue<>(100),
+			new ThreadPoolExecutor.CallerRunsPolicy());
 	public static final ThreadCPUMonitor THREAD_CPU_TIME = new ThreadCPUMonitor();
 	public static final CpuMemoryCollector COLLECTOR = new CpuMemoryCollector();
 	final Map<String, String> taskWithNode = new ConcurrentHashMap<>(16);
 	final Map<String, WeakReference<TaskDto>> taskDtoMap = new ConcurrentHashMap<>(16);
 
-	final Map<String, List<WeakReference<Object>>> weakReferenceMap = new HashMap<>(16);
+	final Map<String, ConcurrentLinkedQueue<WeakReference<Object>>> weakReferenceMap = new HashMap<>(16);
 
 	final AtomicBoolean readFromLeft = new AtomicBoolean(false);
-	final Map<String, List<WeakReference<Object>>> cacheLeftWeakReferenceMap = new HashMap<>(16);
-	final Map<String, List<WeakReference<Object>>> cacheRightWeakReferenceMap = new HashMap<>(16);
+	final Map<String, ConcurrentLinkedQueue<WeakReference<Object>>> cacheLeftWeakReferenceMap = new ConcurrentHashMap<>(16);
+	final Map<String, ConcurrentLinkedQueue<WeakReference<Object>>> cacheRightWeakReferenceMap = new ConcurrentHashMap<>(16);
 
 	final Map<String, CopyOnWriteArrayList<WeakReference<ThreadFactory>>> threadGroupMap = new ConcurrentHashMap<>(16);
 
@@ -71,7 +73,6 @@ public final class CpuMemoryCollector {
 	static class Info {
 		String taskId;
 		Long lastCount = 0L;
-
 		public boolean judged(long size) {
 			if (lastCount <= 0L) {
 				lastCount = size;
@@ -90,35 +91,64 @@ public final class CpuMemoryCollector {
 
 	}
 
+	static void clean(Map<String, ConcurrentLinkedQueue<WeakReference<Object>>> map,
+					  String taskId,
+					  ConcurrentLinkedQueue<WeakReference<Object>> targetQueue) {
+		ConcurrentLinkedQueue<WeakReference<Object>> sourceQueue = map.get(taskId);
+		if (sourceQueue == null || sourceQueue.isEmpty()) {
+			return;
+		}
+		Iterator<WeakReference<Object>> iterator = sourceQueue.iterator();
+		int processed = 0;
+		while (iterator.hasNext()) {
+			WeakReference<Object> ref = iterator.next();
+			if (ref.get() != null) {
+				targetQueue.offer(ref);
+			}
+			processed++;
+			if (processed % 1000 == 0) {
+				try {
+					Thread.yield();
+				} catch (Exception e) {
+					// ignore
+				}
+			}
+		}
+		sourceQueue.clear();
+	}
+
 	public static void cleanOnce() {
+		boolean readLeft = COLLECTOR.readFromLeft.getAndSet(!COLLECTOR.readFromLeft.get());
 		List<String> taskIds = new ArrayList<>(COLLECTOR.taskDtoMap.keySet());
 		for (String taskId : taskIds) {
-			final List<WeakReference<Object>> list;
+			final ConcurrentLinkedQueue<WeakReference<Object>> list;
 			synchronized (COLLECTOR.weakReferenceMap) {
-				list = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, key -> new ArrayList<>());
+				list = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, key -> new ConcurrentLinkedQueue<>());
 				list.removeIf(e -> Objects.isNull(e.get()));
 			}
-			if (COLLECTOR.readFromLeft.get()) {
+			if (readLeft) {
 				clean(COLLECTOR.cacheLeftWeakReferenceMap, taskId, list);
-				COLLECTOR.readFromLeft.set(false);
 			} else {
 				clean(COLLECTOR.cacheRightWeakReferenceMap, taskId, list);
-				COLLECTOR.readFromLeft.set(true);
 			}
 		}
 	}
 
-	static void clean(Map<String, List<WeakReference<Object>>> map, String taskId, List<WeakReference<Object>> list) {
-		List<WeakReference<Object>> listRight = map.get(taskId);
-		if (CollectionUtils.isEmpty(listRight)) {
-			return;
-		}
-		synchronized (listRight) {
-			listRight.removeIf(e -> Objects.isNull(e.get()));
-			if (!CollectionUtils.isEmpty(listRight)) {
-				list.addAll(listRight);
-				listRight.clear();
-			}
+	public static void clean() {
+		List<String> taskIds = new ArrayList<>(COLLECTOR.taskDtoMap.keySet());
+		for (String taskId : taskIds) {
+			Optional.ofNullable(COLLECTOR.weakReferenceMap.get(taskId))
+					.ifPresent(list ->
+						list.removeIf(e -> Objects.isNull(e.get()))
+					);
+			Optional.ofNullable(COLLECTOR.cacheLeftWeakReferenceMap.get(taskId))
+					.ifPresent(list ->
+									list.removeIf(e -> Objects.isNull(e.get()))
+							);
+			Optional.ofNullable(COLLECTOR.cacheRightWeakReferenceMap.get(taskId))
+					.ifPresent(list ->
+									list.removeIf(e -> Objects.isNull(e.get()))
+							);
 		}
 	}
 
@@ -212,17 +242,15 @@ public final class CpuMemoryCollector {
 				return;
 			}
 			final WeakReference<Object> reference = new WeakReference<>(info);
-			final List<WeakReference<Object>> weakReferences = COLLECTOR.readFromLeft.get() ? COLLECTOR.cacheRightWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>()) :
-					COLLECTOR.cacheLeftWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
-			synchronized (weakReferences) {
-				weakReferences.add(reference);
-			}
+			final ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = COLLECTOR.readFromLeft.get() ? COLLECTOR.cacheRightWeakReferenceMap.computeIfAbsent(taskId, k -> new ConcurrentLinkedQueue<>()) :
+					COLLECTOR.cacheLeftWeakReferenceMap.computeIfAbsent(taskId, k -> new ConcurrentLinkedQueue<>());
+			weakReferences.add(reference);
 		} catch (Exception e) {
 			log.warn("Listening failed, node id = {}, e = {}", nodeId, e.getMessage());
 		}
 	}
 
-	void eachTaskOnce(List<WeakReference<Object>> weakReferences, Usage usage) {
+	void eachTaskOnce(ConcurrentLinkedQueue<WeakReference<Object>> weakReferences, Usage usage) {
 		weakReferences.stream()
 				.filter(Objects::nonNull)
 				.forEach(weakReference -> {
@@ -258,7 +286,7 @@ public final class CpuMemoryCollector {
 						item.taskId = taskId;
 						COLLECTOR.taskInfo.put(taskId, item);
 					}
-					List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
+					ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
 					if (CollectionUtils.isEmpty(weakReferences)) {
 						return false;
 					}
@@ -268,7 +296,7 @@ public final class CpuMemoryCollector {
 					Optional.ofNullable(COLLECTOR.taskDtoMap.get(taskId))
 							.map(WeakReference::get)
 							.ifPresent(info -> usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + GraphLayout.parseInstance(info).totalSize()));
-					final List<WeakReference<Object>> weakReferences = weakReferenceMap.get(taskId);
+					final ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = weakReferenceMap.get(taskId);
 					eachTaskOnce(weakReferences, usage);
 				});
 	}
