@@ -11,31 +11,31 @@ public class SyncGetMemorySizeHandler {
     public SyncGetMemorySizeHandler(AtomicLong memorySize){
         this.memorySize = memorySize;
     }
-    public HandlerUtil.EventTypeRecorder getEventTypeRecorderSyncTapEvent(List<? extends TapEvent> events,String nodeId) {
+    public HandlerUtil.EventTypeRecorder getEventTypeRecorderSyncTapEvent(List<? extends TapEvent> events) {
         if (null == events) events = new ArrayList<>();
-        if (null == memorySize) return HandlerUtil.countTapEvent(events,nodeId);
+        if (null == memorySize) return HandlerUtil.countTapEvent(events);
         HandlerUtil.EventTypeRecorder recorder;
         synchronized (memorySize) {
             if (memorySize.get() >= 0) {
-                recorder = HandlerUtil.countTapEvent(events, memorySize.get(),nodeId);
+                recorder = HandlerUtil.countTapEvent(events, memorySize.get());
                 memorySize.set(-1);
             } else {
-                recorder = HandlerUtil.countTapEvent(events,nodeId);
+                recorder = HandlerUtil.countTapEvent(events);
                 memorySize.set(recorder.getMemorySize());
             }
         }
         return recorder;
     }
-    public HandlerUtil.EventTypeRecorder getEventTypeRecorderSyncTapDataEvent(List<TapdataEvent> events,String nodeId) {
+    public HandlerUtil.EventTypeRecorder getEventTypeRecorderSyncTapDataEvent(List<TapdataEvent> events) {
         if (null == events) events = new ArrayList<>();
-        if (null == memorySize) return HandlerUtil.countTapdataEvent(events,nodeId);
+        if (null == memorySize) return HandlerUtil.countTapdataEvent(events);
         HandlerUtil.EventTypeRecorder recorder;
         synchronized (memorySize) {
             if (memorySize.get() >= 0) {
-                recorder = HandlerUtil.countTapDataEvent(events, memorySize.get(),nodeId);
+                recorder = HandlerUtil.countTapDataEvent(events, memorySize.get());
                 memorySize.set(-1);
             } else {
-                recorder = HandlerUtil.countTapdataEvent(events,nodeId);
+                recorder = HandlerUtil.countTapdataEvent(events);
                 memorySize.set(recorder.getMemorySize());
             }
         }
