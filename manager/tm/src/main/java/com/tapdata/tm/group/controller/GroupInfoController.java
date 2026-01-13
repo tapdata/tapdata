@@ -4,11 +4,13 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.group.dto.GroupInfoDto;
 import com.tapdata.tm.group.dto.GroupInfoRecordDto;
 import com.tapdata.tm.group.service.GroupInfoService;
 import com.tapdata.tm.group.service.GroupInfoRecordService;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
 import org.bson.types.ObjectId;
@@ -96,6 +98,14 @@ public class GroupInfoController extends BaseController {
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         groupInfoService.deleteLogicsById(id);
         return success();
+    }
+    @GetMapping("/getGroupImportStatus/{id}")
+    public ResponseMessage<GroupInfoRecordDto> getGroupImportStatusByRecordId(@PathVariable("id") String id) {
+        GroupInfoRecordDto groupInfoRecordDto = groupInfoRecordService.findById(MongoUtils.toObjectId(id), getLoginUser());
+        if(groupInfoRecordDto == null){
+            throw new BizException("GroupInfo.Not.Found");
+        }
+        return success(groupInfoRecordDto);
     }
 
 
