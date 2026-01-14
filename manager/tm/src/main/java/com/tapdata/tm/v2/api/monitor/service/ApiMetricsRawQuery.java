@@ -560,9 +560,10 @@ public class ApiMetricsRawQuery {
         }
         result.setWorkerList(new ArrayList<>());
         ParticleSizeAnalyzer.of(param);
-        Set<String> workerOid = Optional.ofNullable(worker.getWorkerStatus())
+        Set<String> workerOid = new HashSet<>(Optional.ofNullable(worker.getWorkerStatus())
                 .map(ApiServerStatus::getWorkers)
-                .map(Map::keySet).orElse(new HashSet<>());
+                .map(Map::keySet)
+                .orElse(new HashSet<>()));
         List<String> workerIds = workers.stream().
                 filter(Objects::nonNull)
                 .map(ApiServerWorkerInfo::getOid)
