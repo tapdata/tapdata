@@ -45,7 +45,7 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
             final ApiMetricsRaw lastMin = lastOne(apiId, serverId, 1, null);
             ApiMetricsRaw lastHour = null;
             if (null != lastMin) {
-                long bucketHour = (lastMin.getTimeStart() / 60) * 60;
+                long bucketHour = (lastMin.getTimeStart() / 3600L) * 3600L;
                 lastHour = lastOne(apiId, serverId, 2, bucketHour);
             }
             return new MetricInstanceAcceptor(lastMin, lastHour, this.apiMetricsRaws::add);

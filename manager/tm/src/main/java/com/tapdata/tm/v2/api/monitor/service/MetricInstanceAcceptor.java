@@ -52,7 +52,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         long reqTimeOSec = Optional.ofNullable(entity.get("reqTime", Long.class)).orElse(0L) / 1000L;
         long bucketSec = (reqTimeOSec / 5) * 5;
         long bucketMin = (bucketSec / 60) * 60;
-        long bucketHour = (bucketMin / 60) * 60;
+        long bucketHour = (bucketMin / 3600) * 3600;
         if (null != lastBucketMin && lastBucketMin.getTimeStart() != bucketMin) {
             acceptOnce(lastBucketMin);
             lastBucketMin = null;
