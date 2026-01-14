@@ -227,7 +227,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             try (OutputStream out = response.getOutputStream()) {
                 String encodedFileName = URLEncoder.encode(tarFileName, StandardCharsets.UTF_8).replace("+", "%20");
                 response.setHeader("Content-Disposition",
-                        "attachment; filename=\"" + tarFileName + "\"; filename*=UTF-8''" + encodedFileName);
+                        "attachment; filename=\"" + tarFileName + "\";");
                 response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
                 response.setContentLength(baos.size());
                 out.write(baos.toByteArray());
