@@ -50,29 +50,27 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(entity.get("code", String.class), entity.get("httpStatus", String.class));
         long reqBytes = Optional.ofNullable(entity.get("req_bytes", Long.class)).orElse(0L);
         long reqTimeOSec = Optional.ofNullable(entity.get("reqTime", Long.class)).orElse(0L) / 1000L;
-        long bucketSec = (reqTimeOSec / 5) * 5;
-        long bucketMin = (bucketSec / 60) * 60;
-        long bucketHour = (bucketMin / 3600) * 3600;
+        long bucketSec = (reqTimeOSec / 5L) * 5L;
+        long bucketMin = (reqTimeOSec / 60L) * 60L;
+        long bucketHour = (reqTimeOSec / 3600L) * 3600L;
         if (null != lastBucketMin && lastBucketMin.getTimeStart() != bucketMin) {
             acceptOnce(lastBucketMin);
             lastBucketMin = null;
         }
         if (null != lastBucketHour && lastBucketHour.getTimeStart() != bucketHour) {
             acceptOnce(lastBucketHour);
-            lastBucketMin = null;
+            lastBucketHour = null;
         }
 
-        if (null == lastBucketMin || null == lastBucketHour) {
-            if (null == lastBucketMin) {
-                Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-                ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, 0);
-                subMetrics.put(bucketSec, sub);
-                lastBucketMin = ApiMetricsRaw.instance(serverId, apiId, bucketMin, 1);
-                lastBucketMin.setSubMetrics(subMetrics);
-            }
-            if (null == lastBucketHour) {
-                lastBucketHour = ApiMetricsRaw.instance(serverId, apiId, bucketHour, 2);
-            }
+        if (null == lastBucketMin) {
+            Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
+            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, 0);
+            subMetrics.put(bucketSec, sub);
+            lastBucketMin = ApiMetricsRaw.instance(serverId, apiId, bucketMin, 1);
+            lastBucketMin.setSubMetrics(subMetrics);
+        }
+        if (null == lastBucketHour) {
+            lastBucketHour = ApiMetricsRaw.instance(serverId, apiId, bucketHour, 2);
         }
 
         if (null == lastBucketMin.getSubMetrics()) {
@@ -98,15 +96,15 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         Map<Long, ApiMetricsRaw> subMetrics = item.getSubMetrics();
         if (!CollectionUtils.isEmpty(subMetrics)) {
             subMetrics.values()
-                    .forEach(this::calcPValue);
+                    .forEach(MetricInstanceAcceptor::calcPValue);
         }
-        this.calcPValue(item);
+        MetricInstanceAcceptor.calcPValue(item);
         consumer.accept(item);
     }
 
-    void calcPValue(ApiMetricsRaw item) {
+    public static ApiMetricsRaw calcPValue(ApiMetricsRaw item) {
         if (null == item) {
-            return;
+            return item;
         }
         int total = item.getReqCount().intValue();
         List<Map<Long, Integer>> delay = ApiMetricsDelayUtil.fixDelayAsMap(item.getDelay());
@@ -117,6 +115,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         item.setP50(p50);
         item.setP95(p95);
         item.setP99(p99);
+        return item;
     }
 
     @Override

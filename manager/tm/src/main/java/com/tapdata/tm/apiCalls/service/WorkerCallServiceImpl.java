@@ -279,6 +279,10 @@ public class WorkerCallServiceImpl implements WorkerCallService {
             if (null == apiCall) {
                 continue;
             }
+            //兼容旧数据
+            if ("/openapi-readOnly.json".equals(apiCall.getReq_path())) {
+                continue;
+            }
             Map<String, WorkerCallStats> map = groupByApiAndWorker.computeIfAbsent(apiCall.getWorkOid(), k -> new HashMap<>());
             WorkerCallStats item = map.computeIfAbsent(apiCall.getAllPathId(), k -> {
                 WorkerCallStats workerCallStats = new WorkerCallStats();

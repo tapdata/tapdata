@@ -1,10 +1,9 @@
 package com.tapdata.tm.v2.api.monitor.main.param;
 
-import com.tapdata.tm.v2.api.monitor.main.dto.TopApiInServer;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -17,11 +16,14 @@ import java.util.Locale;
  */
 @Data
 public class QueryBase {
+
     Long startAt;
 
     Long endAt;
 
     int granularity;
+
+    QueryParam queryParam = new QueryParam();
 
     @Data
     public static class SortInfo {
@@ -49,6 +51,32 @@ public class QueryBase {
             } else {
                 result.sort(comparing);
             }
+        }
+    }
+
+    @Data
+    public static class QueryParam {
+        List<Point> secondPoint = new ArrayList<>();
+        List<Point> second5Point = new ArrayList<>();
+        List<Point> minutePoint = new ArrayList<>();
+        List<Point> hourPoint = new ArrayList<>();
+
+        Long start;
+        Long end;
+    }
+
+    @Data
+    public static class Point {
+        long start;
+        long end;
+        int granularity;
+
+        public static Point of(long start, long end, int granularity) {
+            Point point = new Point();
+            point.setStart(start);
+            point.setEnd(end);
+            point.setGranularity(granularity);
+            return point;
         }
     }
 }
