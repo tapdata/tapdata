@@ -59,7 +59,7 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         }
         if (null != lastBucketHour && lastBucketHour.getLastUpdateTime() != bucketHour) {
             acceptHour();
-            lastBucketMin = null;
+            lastBucketHour = null;
         }
         ServerUsage.ProcessType processType = null == workOid ? ServerUsage.ProcessType.API_SERVER : ServerUsage.ProcessType.API_SERVER_WORKER;
         if (null == lastBucketMin) {

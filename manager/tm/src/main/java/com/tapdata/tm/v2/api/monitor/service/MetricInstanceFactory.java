@@ -19,7 +19,7 @@ import java.util.function.Function;
  * @description
  */
 public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, MetricInstanceAcceptor> {
-    static final List<String> IGNORE_PATH = List.of("/openapi-readOnly.json");
+    public static final List<String> IGNORE_PATH = List.of("/openapi-readOnly.json");
 
     public MetricInstanceFactory(Consumer<List<ApiMetricsRaw>> consumer, Function<Query, ApiMetricsRaw> findOne) {
         super(consumer, findOne);
@@ -45,7 +45,7 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
             final ApiMetricsRaw lastMin = lastOne(apiId, serverId, 1, null);
             ApiMetricsRaw lastHour = null;
             if (null != lastMin) {
-                long bucketHour = (lastMin.getTimeStart() / 3600L) * 3600L;
+                long bucketHour = (lastMin.getTimeStart() / 60L) * 60L;
                 lastHour = lastOne(apiId, serverId, 2, bucketHour);
             }
             return new MetricInstanceAcceptor(lastMin, lastHour, this.apiMetricsRaws::add);

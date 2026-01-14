@@ -93,6 +93,26 @@ public class ApiMetricsRaw extends BaseEntity {
         return item;
     }
 
+    public void merge(ApiMetricsRaw raw) {
+        setReqCount(Optional.ofNullable(getReqCount()).orElse(0L) + Optional.ofNullable(raw.getReqCount()).orElse(0L));
+        setErrorCount(Optional.ofNullable(getErrorCount()).orElse(0L) + Optional.ofNullable(raw.getErrorCount()).orElse(0L));
+        List<Map<Long, Integer>> mergeBytes = ApiMetricsDelayUtil.merge(Optional.ofNullable(getBytes()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()), Optional.ofNullable(raw.getBytes()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()));
+        setBytes(mergeBytes);
+        List<Map<Long, Integer>> mergeDelay = ApiMetricsDelayUtil.merge(Optional.ofNullable(getDelay()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()), Optional.ofNullable(raw.getDelay()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()));
+        setDelay(mergeDelay);
+        switch (timeGranularity) {
+            case 1:
+                setRps(Optional.ofNullable(getReqCount()).orElse(0L) / 60D);
+                break;
+            case 2:
+                setRps(Optional.ofNullable(getReqCount()).orElse(0L) / 3600D);
+                break;
+            default:
+                setRps(Optional.ofNullable(getReqCount()).orElse(0L) / 5D);
+
+        }
+    }
+
     public void merge(boolean isOk, long reqBytes, long requestCost) {
         setReqCount(Optional.ofNullable(getReqCount()).orElse(0L) + 1L);
         setErrorCount(Optional.ofNullable(getErrorCount()).orElse(0L) + (isOk ? 0L : 1L));
