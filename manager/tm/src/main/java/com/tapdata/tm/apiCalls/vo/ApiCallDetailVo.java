@@ -19,6 +19,7 @@ public class ApiCallDetailVo extends BaseVo {
     private Long latency;
     private String reqParams;
     private Date createTime;
+    private Date reqTime;
     private String codeMsg;
     private String method;
     private Double speed;

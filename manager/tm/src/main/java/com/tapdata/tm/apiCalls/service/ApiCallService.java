@@ -17,7 +17,6 @@ import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
-import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -61,6 +60,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -239,10 +239,19 @@ public class ApiCallService {
             final int skip = filter.getSkip();
             final int size = filter.getLimit();
             org.springframework.data.domain.Sort sort;
-            if ("createTime ASC".equals(order)) {
-                sort = Sort.by(Tag.CREATE_TIME).ascending();
+            String[] split = order.split(" ");
+            Sort sortField = Sort.by(Tag.CREATE_TIME);
+            int orderType = -1;
+            if (split.length > 0) {
+                sortField = Sort.by(split[0].trim());
+            }
+            if (split.length > 1) {
+                orderType = "ASC".equals(split[1].trim().toUpperCase(Locale.ROOT)) ? 1 : -1;
+            }
+            if (orderType == 1) {
+                sort = sortField.ascending();
             } else {
-                sort = Sort.by(Tag.CREATE_TIME).descending();
+                sort = sortField.descending();
             }
             final Aggregation aggregation = newAggregation(
                     matchStage,
@@ -363,6 +372,7 @@ public class ApiCallService {
         item.setBody(e.getBody());
         item.setApiPath(e.getApiPath());
         item.setCreateTime(e.getCreateTime());
+        item.setReqTime(new Date(e.getReqTime()));
         item.setCreateAt(e.getApiCreateAt());
         item.setMethod(e.getMethod());
         return item;
