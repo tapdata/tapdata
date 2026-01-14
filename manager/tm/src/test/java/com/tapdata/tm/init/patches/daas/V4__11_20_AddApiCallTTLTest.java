@@ -3,8 +3,6 @@ package com.tapdata.tm.init.patches.daas;
 import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.IndexOptions;
-import com.tapdata.tm.init.PatchType;
-import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.utils.SpringContextHelper;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,7 +22,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class V4_12_11_AddApiCallTTLTest {
+class V4__11_20_AddApiCallTTLTest {
 
     @Mock
     private MongoTemplate mongoTemplate;
@@ -35,16 +33,16 @@ class V4_12_11_AddApiCallTTLTest {
     @Mock
     private ListIndexesIterable<Document> listIndexesIterable;
     
-    private V4_12_11_AddApiCallTTL patch;
+    private V4_11_20_AddApiCallTTL patch;
 
     @BeforeEach
     void setUp() {
-        patch = new V4_12_11_AddApiCallTTL(null, null);
+        patch = new V4_11_20_AddApiCallTTL(null, null);
     }
 
     @Test
     void testConstructor() {
-        V4_12_11_AddApiCallTTL newPatch = new V4_12_11_AddApiCallTTL(null, null);
+        V4_11_20_AddApiCallTTL newPatch = new V4_11_20_AddApiCallTTL(null, null);
         assertNotNull(newPatch);
     }
 

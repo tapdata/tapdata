@@ -95,12 +95,12 @@ import java.util.concurrent.TimeUnit;
  *   }
  * ]
  */
-@PatchAnnotation(appType = AppType.DAAS, version = "4.12-11")
-public class V4_12_11_AddApiCallTTL extends AbsPatch {
+@PatchAnnotation(appType = AppType.DAAS, version = "4.11-20")
+public class V4_11_20_AddApiCallTTL extends AbsPatch {
     public static final String CREATE_TIME = "createTime";
-    private static final Logger logger = LogManager.getLogger(V4_12_11_AddApiCallTTL.class);
+    private static final Logger logger = LogManager.getLogger(V4_11_20_AddApiCallTTL.class);
 
-    public V4_12_11_AddApiCallTTL(PatchType patchType, PatchVersion version) {
+    public V4_11_20_AddApiCallTTL(PatchType patchType, PatchVersion version) {
         super(patchType, version);
     }
 
