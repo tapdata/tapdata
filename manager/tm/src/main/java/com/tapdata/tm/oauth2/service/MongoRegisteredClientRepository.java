@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.oauth2.entity.RegisteredClientEntity;
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoOperations;
@@ -12,17 +13,23 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.settings.ConfigurationSettingNames;
+import org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
-import jakarta.annotation.PostConstruct;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -31,6 +38,61 @@ import java.util.stream.Collectors;
  */
 @Service
 public class MongoRegisteredClientRepository implements RegisteredClientRepository {
+    private static final Map<String, String> OLD_SETTING_MAP_KEY =
+            Map.of(
+                    LowerJdkToken.AUTHORIZATION_CODE_TIME_TO_LIVE, ConfigurationSettingNames.Token.AUTHORIZATION_CODE_TIME_TO_LIVE,
+                    LowerJdkToken.ACCESS_TOKEN_TIME_TO_LIVE, ConfigurationSettingNames.Token.ACCESS_TOKEN_TIME_TO_LIVE,
+                    LowerJdkToken.ACCESS_TOKEN_FORMAT, ConfigurationSettingNames.Token.ACCESS_TOKEN_FORMAT,
+                    LowerJdkToken.DEVICE_CODE_TIME_TO_LIVE, ConfigurationSettingNames.Token.DEVICE_CODE_TIME_TO_LIVE,
+                    LowerJdkToken.REUSE_REFRESH_TOKENS, ConfigurationSettingNames.Token.REUSE_REFRESH_TOKENS,
+                    LowerJdkToken.REFRESH_TOKEN_TIME_TO_LIVE, ConfigurationSettingNames.Token.REFRESH_TOKEN_TIME_TO_LIVE,
+                    LowerJdkToken.ID_TOKEN_SIGNATURE_ALGORITHM, ConfigurationSettingNames.Token.ID_TOKEN_SIGNATURE_ALGORITHM,
+                    LowerJdkToken.X509_CERTIFICATE_BOUND_ACCESS_TOKENS, ConfigurationSettingNames.Token.X509_CERTIFICATE_BOUND_ACCESS_TOKENS
+            );
+
+    public static final class LowerJdkToken {
+        private static final String TOKEN_SETTINGS_NAMESPACE = "setting.token.";
+        public static final String AUTHORIZATION_CODE_TIME_TO_LIVE;
+        public static final String ACCESS_TOKEN_TIME_TO_LIVE;
+        public static final String ACCESS_TOKEN_FORMAT;
+        public static final String DEVICE_CODE_TIME_TO_LIVE;
+        public static final String REUSE_REFRESH_TOKENS;
+        public static final String REFRESH_TOKEN_TIME_TO_LIVE;
+        public static final String ID_TOKEN_SIGNATURE_ALGORITHM;
+        public static final String X509_CERTIFICATE_BOUND_ACCESS_TOKENS;
+
+        private LowerJdkToken() {
+        }
+
+        static {
+            AUTHORIZATION_CODE_TIME_TO_LIVE = TOKEN_SETTINGS_NAMESPACE.concat("authorization-code-time-to-live");
+            ACCESS_TOKEN_TIME_TO_LIVE = TOKEN_SETTINGS_NAMESPACE.concat("access-token-time-to-live");
+            ACCESS_TOKEN_FORMAT = TOKEN_SETTINGS_NAMESPACE.concat("access-token-format");
+            DEVICE_CODE_TIME_TO_LIVE = TOKEN_SETTINGS_NAMESPACE.concat("device-code-time-to-live");
+            REUSE_REFRESH_TOKENS = TOKEN_SETTINGS_NAMESPACE.concat("reuse-refresh-tokens");
+            REFRESH_TOKEN_TIME_TO_LIVE = TOKEN_SETTINGS_NAMESPACE.concat("refresh-token-time-to-live");
+            ID_TOKEN_SIGNATURE_ALGORITHM = TOKEN_SETTINGS_NAMESPACE.concat("id-token-signature-algorithm");
+            X509_CERTIFICATE_BOUND_ACCESS_TOKENS = TOKEN_SETTINGS_NAMESPACE.concat("x509-certificate-bound-access-tokens");
+        }
+
+        public static Map<String, Object> transform(Map<String, Object> settings) {
+            new ArrayList<>(settings.keySet()).forEach(key -> {
+                        String newKey = OLD_SETTING_MAP_KEY.get(key);
+                        if (newKey == null) {
+                            return;
+                        }
+                        if (null == settings.get(newKey)) {
+                            Object val = settings.get(key);
+                            if (null != val) {
+                                settings.remove(key);
+                                settings.put(newKey, val);
+                            }
+                        }
+                    }
+            );
+            return settings;
+        }
+    }
 
     private static ObjectMapper objectMapper = new ObjectMapper();
 
@@ -114,16 +176,24 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
     private RegisteredClient mapperEntity(RegisteredClientEntity registeredClientEntity) {
         if (registeredClientEntity == null)
             return null;
+        TokenSettings.Builder tokenSettings = TokenSettings.builder()
+                .authorizationCodeTimeToLive(Duration.ofDays(14L))
+                .accessTokenTimeToLive(Duration.ofDays(14L))
+                .accessTokenFormat(OAuth2TokenFormat.SELF_CONTAINED)
+                .deviceCodeTimeToLive(Duration.ofDays(14L))
+                .reuseRefreshTokens(true)
+                .refreshTokenTimeToLive(Duration.ofDays(14L))
+                .idTokenSignatureAlgorithm(SignatureAlgorithm.RS256)
+                .x509CertificateBoundAccessTokens(false);
+        if (StringUtils.isNotBlank(registeredClientEntity.getTokenSettings())) {
+            tokenSettings.settings(stringObjectMap -> stringObjectMap.putAll(parseMap(registeredClientEntity.getTokenSettings())));
+        }
         return RegisteredClient.withId(registeredClientEntity.getId().toHexString())
                 .clientSettings(
                         StringUtils.isNotBlank(registeredClientEntity.getClientSettings()) ?
                                 ClientSettings.builder().settings(stringObjectMap -> {stringObjectMap.putAll(parseMap(registeredClientEntity.getClientSettings()));}).build() :
                                 ClientSettings.builder().build())
-                .tokenSettings(
-                        StringUtils.isNotBlank(registeredClientEntity.getTokenSettings()) ?
-                                TokenSettings.builder().settings(stringObjectMap -> {stringObjectMap.putAll(parseMap(registeredClientEntity.getTokenSettings()));}).build() :
-                                TokenSettings.builder().build()
-                )
+                .tokenSettings(tokenSettings.build())
                 .clientId(registeredClientEntity.getClientId())
                 .clientIdIssuedAt(registeredClientEntity.getClientIdIssuedAt())
                 .clientSecret(registeredClientEntity.getClientSecret())
@@ -155,7 +225,7 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
 
     public static Map<String, Object> parseMap(String data) {
         try {
-            return objectMapper.readValue(data, new TypeReference<Map<String, Object>>() {});
+            return LowerJdkToken.transform(objectMapper.readValue(data, new TypeReference<Map<String, Object>>() {}));
         } catch (Exception ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         }
