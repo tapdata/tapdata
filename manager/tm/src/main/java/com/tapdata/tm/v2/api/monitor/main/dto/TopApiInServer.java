@@ -30,6 +30,7 @@ public class TopApiInServer extends ValueBase {
     @DecimalFormat
     Double avg;
     Long p99;
+    Long p95;
     Long maxDelay;
     Long minDelay;
 
