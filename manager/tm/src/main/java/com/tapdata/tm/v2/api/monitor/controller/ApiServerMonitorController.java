@@ -32,7 +32,6 @@ import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -88,8 +87,8 @@ public class ApiServerMonitorController extends BaseController {
      * Server Overview Detail
      */
     @Operation(summary = "Server Overview Detail")
-    @GetMapping("/server/detail/{serverId}")
-    public ResponseMessage<ServerOverviewDetail> serverOverviewDetail(@PathVariable(required = true) String serverId,
+    @GetMapping("/server/detail")
+    public ResponseMessage<ServerOverviewDetail> serverOverviewDetail(@RequestParam(required = true) String serverId,
                                                                       @RequestParam(required = false) Long startAt,
                                                                       @RequestParam(required = false) Long endAt) {
         ServerDetail param = new ServerDetail();
@@ -104,8 +103,8 @@ public class ApiServerMonitorController extends BaseController {
      * Server Chart
      */
     @Operation(summary = "Server Chart")
-    @GetMapping("/server/chart/{serverId}")
-    public ResponseMessage<ServerChart> serverChart(@PathVariable(required = true) String serverId,
+    @GetMapping("/server/chart")
+    public ResponseMessage<ServerChart> serverChart(@RequestParam(required = true) String serverId,
                                                     @RequestParam(required = false) Long startAt,
                                                     @RequestParam(required = false) Long endAt) {
         ServerChartParam param = new ServerChartParam();
@@ -120,8 +119,8 @@ public class ApiServerMonitorController extends BaseController {
      * Top api in server
      */
     @Operation(summary = "Top api in server")
-    @GetMapping("/server/api/{serverId}")
-    public ResponseMessage<List<TopApiInServer>> topApiInServer(@PathVariable(required = true) String serverId,
+    @GetMapping("/server/api")
+    public ResponseMessage<List<TopApiInServer>> topApiInServer(@RequestParam(required = true) String serverId,
                                                                 @RequestParam(required = false) String orderBy,
                                                                 @RequestParam(required = false) Long startAt,
                                                                 @RequestParam(required = false) Long endAt) {
@@ -135,16 +134,16 @@ public class ApiServerMonitorController extends BaseController {
 
     /**
      * Top worker in server
-     * @param tag
-     * CPU: 仅查询cpu分布
-     * ALL: 查询cpu分布 + Worker列表, default
+     *
+     * @param tag CPU: 仅查询cpu分布
+     *            ALL: 查询cpu分布 + Worker列表, default
      */
     @Operation(summary = "Top worker in server")
-    @GetMapping("/server/worker/{serverId}")
-    public ResponseMessage<TopWorkerInServer> topWorkerInServer(@PathVariable(required = true) String serverId,
-                                                                      @RequestParam(required = false, defaultValue = "ALL") String tag,
-                                                                      @RequestParam(required = false) Long startAt,
-                                                                      @RequestParam(required = false) Long endAt) {
+    @GetMapping("/server/worker")
+    public ResponseMessage<TopWorkerInServer> topWorkerInServer(@RequestParam(required = true) String serverId,
+                                                                @RequestParam(required = false, defaultValue = "ALL") String tag,
+                                                                @RequestParam(required = false) Long startAt,
+                                                                @RequestParam(required = false) Long endAt) {
         TopWorkerInServerParam param = new TopWorkerInServerParam();
         param.setServerId(serverId);
         param.setStartAt(startAt);

@@ -57,10 +57,12 @@ import org.springframework.util.CollectionUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -456,8 +458,10 @@ public class ApiMetricsRawQuery {
                                 item.setErrorRate(rate(errorCount, item.getRequestCount()));
                                 final List<Map<Long, Integer>> merge = mergeDelay(rows);
                                 final Long p99 = ApiMetricsDelayUtil.p99(merge, total);
+                                final Long p95 = ApiMetricsDelayUtil.p95(merge, total);
                                 ApiMetricsDelayUtil.readMaxAndMin(merge, item::setMaxDelay, item::setMinDelay);
                                 item.setP99(p99);
+                                item.setP95(p95);
                                 item.setAvg(1.0D * ApiMetricsDelayUtil.sum(merge) / total);
                             }
                             return item;
@@ -499,6 +503,11 @@ public class ApiMetricsRawQuery {
             case ERROR_RATE -> (e1, e2) -> {
                 Double p1 = Optional.ofNullable(e1.getErrorRate()).orElse(0D);
                 Double p2 = Optional.ofNullable(e2.getErrorRate()).orElse(0D);
+                return p1.compareTo(p2);
+            };
+            case "p95" -> (e1, e2) -> {
+                Long p1 = Optional.ofNullable(e1.getP95()).orElse(0L);
+                Long p2 = Optional.ofNullable(e2.getP95()).orElse(0L);
                 return p1.compareTo(p2);
             };
             case "avg" -> (e1, e2) -> {
@@ -551,12 +560,16 @@ public class ApiMetricsRawQuery {
         }
         result.setWorkerList(new ArrayList<>());
         ParticleSizeAnalyzer.of(param);
+        Set<String> workerOid = Optional.ofNullable(worker.getWorkerStatus())
+                .map(ApiServerStatus::getWorkers)
+                .map(Map::keySet).orElse(new HashSet<>());
         List<String> workerIds = workers.stream().
                 filter(Objects::nonNull)
                 .map(ApiServerWorkerInfo::getOid)
                 .filter(StringUtils::isNotBlank)
                 .toList();
-        if (workerIds.isEmpty()) {
+        workerOid.addAll(workerIds);
+        if (workerOid.isEmpty()) {
             return result;
         }
         long endAt = param.getEndAt() * 1000L;

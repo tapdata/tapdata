@@ -637,6 +637,7 @@ public class WorkerServiceImpl extends WorkerService{
                         ));
         Optional.ofNullable(status.getWorkerBaseInfo()).ifPresent(workerBaseInfo ->
             workerBaseInfo.forEach((oid,  worker) -> {
+                update.set(String.format("worker_status.workers.%s.oid", oid), oid);
                 Optional.ofNullable(worker.getName()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", oid), v));
                 Optional.ofNullable(worker.getId()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.id", oid), v));
                 Optional.ofNullable(worker.getPid()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.pid", oid), v));
