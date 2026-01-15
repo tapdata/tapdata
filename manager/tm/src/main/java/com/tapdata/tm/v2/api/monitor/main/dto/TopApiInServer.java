@@ -33,11 +33,13 @@ public class TopApiInServer extends ValueBase {
     Long p95;
     Long maxDelay;
     Long minDelay;
+    long errorCount;
 
     public static TopApiInServer create() {
         TopApiInServer item = new TopApiInServer();
         item.setRequestCount(0L);
         item.setErrorRate(0.0D);
+        item.setErrorCount(0L);
         item.setAvg(0.0D);
         return item;
     }

@@ -2,7 +2,9 @@ package com.tapdata.tm.v2.api.monitor.utils;
 
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -19,7 +21,7 @@ public final class ChartSortUtil {
 
     }
 
-    public static <T extends ValueBase.Item> void fixAndSort(
+    public static <T extends ValueBase.Item> List<T> fixAndSort(
             Map<Long, T> items,
             long tsFrom, long tsEnd, int granularity,
             Function<Long, T> emptyGetter, Consumer<T> mapping) {
@@ -39,8 +41,9 @@ public final class ChartSortUtil {
             items.computeIfAbsent(tsFrom, emptyGetter);
             tsFrom += step;
         }
-        items.values().stream()
-                .sorted(Comparator.comparingLong(ValueBase.Item::getTs))
-                .forEach(mapping);
+        ArrayList<T> itemValues = new ArrayList<>(items.values());
+        itemValues.sort(Comparator.comparingLong(ValueBase.Item::getTs));
+        itemValues.forEach(mapping);
+        return itemValues;
     }
 }

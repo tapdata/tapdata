@@ -30,6 +30,7 @@ public class ApiOfEachServer extends ValueBase {
     Long minDelay;
     @DecimalFormat
     Double errorRate;
+    Long errorCount;
 
     public static List<ApiOfEachServer> supplement(List<ApiOfEachServer> apiMetricsRaws, Map<String, Worker> apiServerMap) {
         List<String> serverIds = apiMetricsRaws.stream()
@@ -43,6 +44,7 @@ public class ApiOfEachServer extends ValueBase {
                 item.setRequestCount(0L);
                 item.setRequestCostAvg(0D);
                 item.setErrorRate(0D);
+                item.setErrorCount(0L);
                 item.setServerId(serverId);
                 item.setServerName(info.getHostname());
                 apiMetricsRaws.add(item);

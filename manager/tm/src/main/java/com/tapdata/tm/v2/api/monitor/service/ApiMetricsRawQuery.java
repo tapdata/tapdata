@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
+import com.tapdata.tm.apiServer.service.metric.MetricErrorRate;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.Component;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
@@ -84,6 +85,7 @@ public class ApiMetricsRawQuery {
     public static final String REQUEST_COUNT = "requestCount";
     public static final String ERROR_RATE = "errorRate";
     public static final String SERVER_ID_EMPTY = "server.id.empty";
+    private final MetricErrorRate metricErrorRate;
     ApiMetricsRawService service;
     UsageRepository usageRepository;
     WorkerRepository workerRepository;
@@ -92,11 +94,17 @@ public class ApiMetricsRawQuery {
     MongoTemplate mongoTemplate;
     ServerUsageMetricRepository serverUsageMetricRepository;
 
+    public ApiMetricsRawQuery(MetricErrorRate metricErrorRate) {
+        this.metricErrorRate = metricErrorRate;
+    }
+
     public ServerTopOnHomepage serverTopOnHomepage(QueryBase param) {
         final ServerTopOnHomepage result = ServerTopOnHomepage.create();
         final Criteria criteria = ParticleSizeAnalyzer.of(result, param);
         final Query query = Query.query(criteria);
-        final List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {}, c -> {});
+        final List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {
+        }, c -> {
+        });
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return result;
         }
@@ -172,7 +180,9 @@ public class ApiMetricsRawQuery {
         }
 
         final Query query = Query.query(criteria);
-        final List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {}, c -> {});
+        final List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {
+        }, c -> {
+        });
 
         //find cluster state of worker
         Criteria criteriaOfCluster = Criteria.where("apiServer.serverId").in(serverMap.keySet());
@@ -199,30 +209,31 @@ public class ApiMetricsRawQuery {
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getProcessId()))
                 .collect(Collectors.groupingBy(
-                ApiMetricsRaw::getProcessId,
-                Collectors.collectingAndThen(
-                        Collectors.toList(),
-                        infos -> {
-                            final ServerItem item = ServerItem.create();
-                            long errorCount = errorCountGetter(infos, e -> item.setRequestCount(item.getRequestCount() + e));
-                            int total = item.getRequestCount().intValue();
-                            if (total > 0) {
-                                item.setErrorRate(rate(errorCount, item.getRequestCount()));
-                                final List<Map<Long, Integer>> merge = mergeDelay(infos);
-                                final Long p95 = ApiMetricsDelayUtil.p95(merge, total);
-                                final Long p99 = ApiMetricsDelayUtil.p99(merge, total);
-                                ApiMetricsDelayUtil.readMaxAndMin(merge, item::setMaxDelay, item::setMinDelay);
-                                item.setP95(p95);
-                                item.setP99(p99);
-                            }
-                            final ApiMetricsRaw first = infos.get(0);
-                            final String processId = first.getProcessId();
-                            final Worker worker = serverMap.get(processId);
-                            asServerItemInfo(processId, item, usageMap, worker, clusterStateOfWorker, param);
-                            return item;
-                        }
-                )
-        ));
+                        ApiMetricsRaw::getProcessId,
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                infos -> {
+                                    final ServerItem item = ServerItem.create();
+                                    long errorCount = errorCountGetter(infos, e -> item.setRequestCount(item.getRequestCount() + e));
+                                    int total = item.getRequestCount().intValue();
+                                    if (total > 0) {
+                                        item.setErrorRate(rate(errorCount, item.getRequestCount()));
+                                        item.setErrorCount(errorCount);
+                                        final List<Map<Long, Integer>> merge = mergeDelay(infos);
+                                        final Long p95 = ApiMetricsDelayUtil.p95(merge, total);
+                                        final Long p99 = ApiMetricsDelayUtil.p99(merge, total);
+                                        ApiMetricsDelayUtil.readMaxAndMin(merge, item::setMaxDelay, item::setMinDelay);
+                                        item.setP95(p95);
+                                        item.setP99(p99);
+                                    }
+                                    final ApiMetricsRaw first = infos.get(0);
+                                    final String processId = first.getProcessId();
+                                    final Worker worker = serverMap.get(processId);
+                                    asServerItemInfo(processId, item, usageMap, worker, clusterStateOfWorker, param);
+                                    return item;
+                                }
+                        )
+                ));
         serverMap.forEach((processId, worker) -> {
             if (!collect.containsKey(processId)) {
                 final ServerItem item = ServerItem.create();
@@ -383,49 +394,74 @@ public class ApiMetricsRawQuery {
         Map<Long, ServerChart.Item> collect = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> Objects.nonNull(e.getTimeStart())).collect(
-                Collectors.groupingBy(
-                        ApiMetricsRaw::getTimeStart,
-                        Collectors.collectingAndThen(
-                                Collectors.toList(),
-                                rows -> {
-                                    ServerChart.Item item = new ServerChart.Item();
-                                    ApiMetricsRaw apiMetricsRaw = rows.get(0);
-                                    long totalErrorCount = rows.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum();
-                                    long reqCount = rows.stream().mapToLong(ApiMetricsRaw::getReqCount).sum();
-
-                                    List<Map<Long, Integer>> maps = mergeDelay(rows);
-                                    long delaySum = ApiMetricsDelayUtil.sum(maps);
-                                    Long p95 = ApiMetricsDelayUtil.p95(maps, reqCount);
-                                    Long p99 = ApiMetricsDelayUtil.p99(maps, reqCount);
-                                    ApiMetricsDelayUtil.readMaxAndMin(maps, item::setMaxDelay, item::setMinDelay);
-                                    item.setTs(apiMetricsRaw.getTimeStart());
-                                    item.setRequestCount(reqCount);
-                                    item.setErrorRate(rate(totalErrorCount, reqCount));
-                                    item.setAvg(reqCount > 0L ? (1.0D * delaySum / reqCount) : 0D);
-                                    item.setP95(p95);
-                                    item.setP99(p99);
-                                    return item;
-                                }
+                        Collectors.groupingBy(
+                                ApiMetricsRaw::getTimeStart,
+                                Collectors.collectingAndThen(
+                                        Collectors.toList(),
+                                        rows -> {
+                                            ServerChart.Item item = new ServerChart.Item();
+                                            ApiMetricsRaw apiMetricsRaw = rows.get(0);
+                                            long totalErrorCount = rows.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum();
+                                            long reqCount = rows.stream().mapToLong(ApiMetricsRaw::getReqCount).sum();
+                                            List<Map<Long, Integer>> maps = mergeDelay(rows);
+                                            item.setDelay(maps);
+                                            item.setTs(apiMetricsRaw.getTimeStart());
+                                            item.setRequestCount(reqCount);
+                                            item.setErrorCount(totalErrorCount);
+                                            return item;
+                                        }
+                                )
                         )
-                )
-        );
+                );
 
-        // fix time and sort by time
-        ChartSortUtil.fixAndSort(collect,
+        //fix time and sort by time
+        //5秒点位最多攒5分钟
+        //分钟点位最多攒1小时
+        //其他不赞批，直接用
+        int maxDepth = switch (param.getGranularity()) {
+            case 0, 1 -> 60;
+            default -> 1;
+        };
+        List<List<Map<Long, Integer>>> delays = new ArrayList<>();
+        List<Long> errorCount = new ArrayList<>();
+        List<ServerChart.Item> items = ChartSortUtil.fixAndSort(collect,
                 param.getStartAt(), param.getEndAt(), param.getGranularity(),
                 ServerChart.Item::create,
                 item -> {
-                    result.getRequest().getRequestCount().add(item.getRequestCount());
-                    result.getRequest().getErrorRate().add(item.getErrorRate());
-                    result.getRequest().getTs().add(item.getTs());
-                    result.getDelay().getTs().add(item.getTs());
-                    result.getDelay().getAvg().add(item.getAvg());
-                    result.getDelay().getP95().add(item.getP95());
-                    result.getDelay().getP99().add(item.getP99());
-                    result.getDelay().getMaxDelay().add(item.getMaxDelay());
-                    result.getDelay().getMinDelay().add(item.getMinDelay());
+                    List<Map<Long, Integer>> delay = item.getDelay();
+                    delays.add(delay);
+                    errorCount.add(item.getErrorCount());
+                    if (delays.size() > maxDepth) {
+                        delays.remove(0);
+                        errorCount.remove(0);
+                    }
+                    List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.merge(delays);
+                    Long reqTotalDelay = ApiMetricsDelayUtil.sum(merged);
+                    Long reqCount = ApiMetricsDelayUtil.sum(merged, (iKey, iCount) -> iCount.longValue());
+                    ApiMetricsDelayUtil.readMaxAndMin(merged, item::setMaxDelay, item::setMinDelay);
+                    long totalErrorCount = errorCount.stream().filter(Objects::nonNull).mapToLong(Long::longValue).sum();
+                    Double errorRate = rate(totalErrorCount, reqCount);
+                    item.setRequestCount(reqCount);
+                    item.setErrorRate(errorRate);
+                    item.setErrorCount(totalErrorCount);
+                    item.setAvg(reqCount > 0L ? (1.0D * reqTotalDelay / reqCount) : 0D);
+                    if (delays.size() == maxDepth) {
+                        item.setP95(ApiMetricsDelayUtil.p95(merged, reqCount));
+                        item.setP99(ApiMetricsDelayUtil.p99(merged, reqCount));
+                    }
                 }
         );
+        for (ServerChart.Item item : items) {
+            result.getRequest().getTs().add(item.getTs());
+            result.getDelay().getTs().add(item.getTs());
+            result.getRequest().getRequestCount().add(item.getRequestCount());
+            result.getDelay().getAvg().add(item.getAvg());
+            result.getRequest().getErrorRate().add(item.getErrorRate());
+            result.getDelay().getMaxDelay().add(item.getMaxDelay());
+            result.getDelay().getMinDelay().add(item.getMinDelay());
+            result.getDelay().getP95().add(item.getP95());
+            result.getDelay().getP99().add(item.getP99());
+        }
         return result;
     }
 
@@ -454,28 +490,29 @@ public class ApiMetricsRawQuery {
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getApiId()))
                 .collect(
-                Collectors.groupingBy(
-                        ApiMetricsRaw::getApiId,
-                        Collectors.collectingAndThen(Collectors.toList(), rows -> {
-                            TopApiInServer item = TopApiInServer.create();
-                            item.setQueryFrom(param.getStartAt());
-                            item.setQueryEnd(param.getEndAt());
-                            item.setGranularity(param.getGranularity());
-                            long errorCount = errorCountGetter(rows, e -> item.setRequestCount(item.getRequestCount() + e));
-                            int total = item.getRequestCount().intValue();
-                            if (total > 0) {
-                                item.setErrorRate(rate(errorCount, item.getRequestCount()));
-                                final List<Map<Long, Integer>> merge = mergeDelay(rows);
-                                final Long p99 = ApiMetricsDelayUtil.p99(merge, total);
-                                final Long p95 = ApiMetricsDelayUtil.p95(merge, total);
-                                ApiMetricsDelayUtil.readMaxAndMin(merge, item::setMaxDelay, item::setMinDelay);
-                                item.setP99(p99);
-                                item.setP95(p95);
-                                item.setAvg(1.0D * ApiMetricsDelayUtil.sum(merge) / total);
-                            }
-                            return item;
-                        })
-                ));
+                        Collectors.groupingBy(
+                                ApiMetricsRaw::getApiId,
+                                Collectors.collectingAndThen(Collectors.toList(), rows -> {
+                                    TopApiInServer item = TopApiInServer.create();
+                                    item.setQueryFrom(param.getStartAt());
+                                    item.setQueryEnd(param.getEndAt());
+                                    item.setGranularity(param.getGranularity());
+                                    long errorCount = errorCountGetter(rows, e -> item.setRequestCount(item.getRequestCount() + e));
+                                    int total = item.getRequestCount().intValue();
+                                    if (total > 0) {
+                                        item.setErrorRate(rate(errorCount, item.getRequestCount()));
+                                        item.setErrorCount(errorCount);
+                                        final List<Map<Long, Integer>> merge = mergeDelay(rows);
+                                        final Long p99 = ApiMetricsDelayUtil.p99(merge, total);
+                                        final Long p95 = ApiMetricsDelayUtil.p95(merge, total);
+                                        ApiMetricsDelayUtil.readMaxAndMin(merge, item::setMaxDelay, item::setMinDelay);
+                                        item.setP99(p99);
+                                        item.setP95(p95);
+                                        item.setAvg(1.0D * ApiMetricsDelayUtil.sum(merge) / total);
+                                    }
+                                    return item;
+                                })
+                        ));
         List<ObjectId> apiIds = apiMetricsRaws.stream()
                 .map(ApiMetricsRaw::getApiId)
                 .distinct()
@@ -512,6 +549,11 @@ public class ApiMetricsRawQuery {
             case ERROR_RATE -> (e1, e2) -> {
                 Double p1 = Optional.ofNullable(e1.getErrorRate()).orElse(0D);
                 Double p2 = Optional.ofNullable(e2.getErrorRate()).orElse(0D);
+                return p1.compareTo(p2);
+            };
+            case "errorCount" -> (e1, e2) -> {
+                Long p1 = e1.getErrorCount();
+                Long p2 = e2.getErrorCount();
                 return p1.compareTo(p2);
             };
             case "p95" -> (e1, e2) -> {
@@ -587,23 +629,23 @@ public class ApiMetricsRawQuery {
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getWorkOid()))
                 .collect(Collectors.groupingBy(
-                WorkerCallEntity::getWorkOid,
-                Collectors.collectingAndThen(
-                        Collectors.toList(),
-                        infos -> {
-                            TopWorkerInServer.TopWorkerInServerItem item = new TopWorkerInServer.TopWorkerInServerItem();
-                            long errorCount = 0L;
-                            long reqCount = 0L;
-                            for (WorkerCallEntity info : infos) {
-                                errorCount += Optional.ofNullable(info.getErrorCount()).orElse(0L);
-                                reqCount += Optional.ofNullable(info.getReqCount()).orElse(0L);
-                            }
-                            item.setRequestCount(reqCount);
-                            item.setErrorRate(rate(errorCount, reqCount));
-                            return item;
-                        }
-                )
-        ));
+                        WorkerCallEntity::getWorkOid,
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                infos -> {
+                                    TopWorkerInServer.TopWorkerInServerItem item = new TopWorkerInServer.TopWorkerInServerItem();
+                                    long errorCount = 0L;
+                                    long reqCount = 0L;
+                                    for (WorkerCallEntity info : infos) {
+                                        errorCount += Optional.ofNullable(info.getErrorCount()).orElse(0L);
+                                        reqCount += Optional.ofNullable(info.getReqCount()).orElse(0L);
+                                    }
+                                    item.setRequestCount(reqCount);
+                                    item.setErrorRate(rate(errorCount, reqCount));
+                                    return item;
+                                }
+                        )
+                ));
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).is(serverId)
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER_WORKER.getType());
         List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
@@ -658,7 +700,9 @@ public class ApiMetricsRawQuery {
         ApiTopOnHomepage result = new ApiTopOnHomepage();
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
         Query query = Query.query(criteria);
-        List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {}, c -> {});
+        List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {
+        }, c -> {
+        });
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return result;
         }
@@ -678,7 +722,9 @@ public class ApiMetricsRawQuery {
     public List<ApiItem> apiOverviewList(ApiListParam param) {
         Criteria criteria = ParticleSizeAnalyzer.of(param);
         Query query = Query.query(criteria);
-        List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {}, c -> {});
+        List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {
+        }, c -> {
+        });
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return ApiItem.supplement(new ArrayList<>(), publishApis());
         }
@@ -709,44 +755,45 @@ public class ApiMetricsRawQuery {
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getApiId()))
                 .collect(
-                Collectors.groupingBy(ApiMetricsRaw::getApiId,
-                        Collectors.collectingAndThen(
-                                Collectors.toList(),
-                                rows -> {
-                                    ApiMetricsRaw apiMetricsRaw = rows.get(0);
-                                    ApiItem item = Optional.ofNullable(apiMap.get(apiMetricsRaw.getApiId())).orElse(new ApiItem());
-                                    long sumRequestCount = rows.stream()
-                                            .filter(Objects::nonNull)
-                                            .mapToLong(ApiMetricsRaw::getReqCount)
-                                            .sum();
-                                    item.setRequestCount(sumRequestCount);
-                                    long sumErrorCount = rows.stream()
-                                            .filter(Objects::nonNull)
-                                            .mapToLong(ApiMetricsRaw::getErrorCount)
-                                            .sum();
-                                    item.setErrorRate(rate(sumErrorCount, item.getRequestCount()));
-                                    long sumDelay = rows.stream()
-                                            .filter(Objects::nonNull)
-                                            .map(ApiMetricsRaw::getDelay)
-                                            .map(ApiMetricsDelayUtil::fixDelayAsMap)
-                                            .mapToLong(ApiMetricsDelayUtil::sum)
-                                            .sum();
-                                    long sumRps = rows.stream()
-                                            .filter(Objects::nonNull)
-                                            .map(ApiMetricsRaw::getBytes)
-                                            .map(ApiMetricsDelayUtil::sum)
-                                            .mapToLong(Long::longValue).sum();
-                                    item.setTotalRps(sumDelay > 0 ? 1000.0D * sumRps / sumDelay : 0D);
-                                    item.setRequestCostAvg(sumDelay * 1.0D / item.getRequestCount());
-                                    final List<Map<Long, Integer>> merged = mergeDelay(rows);
-                                    item.setP99(ApiMetricsDelayUtil.p99(merged, item.getRequestCount()));
-                                    ApiMetricsDelayUtil.readMaxAndMin(merged, item::setMaxDelay, item::setMinDelay);
-                                    item.setP95(ApiMetricsDelayUtil.p95(merged, item.getRequestCount()));
-                                    item.setQueryFrom(param.getStartAt());
-                                    item.setQueryEnd(param.getEndAt());
-                                    item.setGranularity(param.getGranularity());
-                                    return item;
-                                })));
+                        Collectors.groupingBy(ApiMetricsRaw::getApiId,
+                                Collectors.collectingAndThen(
+                                        Collectors.toList(),
+                                        rows -> {
+                                            ApiMetricsRaw apiMetricsRaw = rows.get(0);
+                                            ApiItem item = Optional.ofNullable(apiMap.get(apiMetricsRaw.getApiId())).orElse(new ApiItem());
+                                            long sumRequestCount = rows.stream()
+                                                    .filter(Objects::nonNull)
+                                                    .mapToLong(ApiMetricsRaw::getReqCount)
+                                                    .sum();
+                                            item.setRequestCount(sumRequestCount);
+                                            long sumErrorCount = rows.stream()
+                                                    .filter(Objects::nonNull)
+                                                    .mapToLong(ApiMetricsRaw::getErrorCount)
+                                                    .sum();
+                                            item.setErrorRate(rate(sumErrorCount, item.getRequestCount()));
+                                            item.setErrorCount(sumErrorCount);
+                                            long sumDelay = rows.stream()
+                                                    .filter(Objects::nonNull)
+                                                    .map(ApiMetricsRaw::getDelay)
+                                                    .map(ApiMetricsDelayUtil::fixDelayAsMap)
+                                                    .mapToLong(ApiMetricsDelayUtil::sum)
+                                                    .sum();
+                                            long sumRps = rows.stream()
+                                                    .filter(Objects::nonNull)
+                                                    .map(ApiMetricsRaw::getBytes)
+                                                    .map(ApiMetricsDelayUtil::sum)
+                                                    .mapToLong(Long::longValue).sum();
+                                            item.setTotalRps(sumDelay > 0 ? 1000.0D * sumRps / sumDelay : 0D);
+                                            item.setRequestCostAvg(sumDelay * 1.0D / item.getRequestCount());
+                                            final List<Map<Long, Integer>> merged = mergeDelay(rows);
+                                            item.setP99(ApiMetricsDelayUtil.p99(merged, item.getRequestCount()));
+                                            ApiMetricsDelayUtil.readMaxAndMin(merged, item::setMaxDelay, item::setMinDelay);
+                                            item.setP95(ApiMetricsDelayUtil.p95(merged, item.getRequestCount()));
+                                            item.setQueryFrom(param.getStartAt());
+                                            item.setQueryEnd(param.getEndAt());
+                                            item.setGranularity(param.getGranularity());
+                                            return item;
+                                        })));
         collect.forEach((apiId, apiInfo) -> {
             if (StringUtils.isBlank(apiInfo.getApiId())) {
                 apiInfo.setApiId(apiId);
@@ -781,6 +828,9 @@ public class ApiMetricsRawQuery {
                 break;
             case ERROR_RATE:
                 orderBy.order(result, Comparator.comparing(ApiItem::getErrorRate));
+                break;
+            case "errorCount":
+                orderBy.order(result, Comparator.comparing(ApiItem::getErrorCount));
                 break;
             case "totalRps":
                 orderBy.order(result, Comparator.comparing(ApiItem::getTotalRps));
@@ -861,29 +911,31 @@ public class ApiMetricsRawQuery {
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getProcessId()))
                 .collect(
-                Collectors.groupingBy(
-                        ApiMetricsRaw::getProcessId,
-                        Collectors.collectingAndThen(
-                                Collectors.toList(),
-                                rows -> {
-                                    ApiMetricsRaw first = rows.get(0);
-                                    String processId = first.getProcessId();
-                                    ApiOfEachServer item = Optional.ofNullable(serverMap.get(processId)).orElse(new ApiOfEachServer());
-                                    item.setRequestCount(rows.stream().mapToLong(ApiMetricsRaw::getReqCount).sum());
-                                    item.setErrorRate(rate(rows.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum(), item.getRequestCount()));
-                                    long totalRequestCost = rows.stream().map(ApiMetricsRaw::getDelay).map(ApiMetricsDelayUtil::sum).mapToLong(Long::longValue).sum();
-                                    final List<Map<Long, Integer>> merge = mergeDelay(rows);
-                                    item.setP95(ApiMetricsDelayUtil.p95(merge, item.getRequestCount()));
-                                    item.setP99(ApiMetricsDelayUtil.p99(merge, item.getRequestCount()));
-                                    ApiMetricsDelayUtil.readMaxAndMin(merge, item::setMaxDelay, item::setMinDelay);
-                                    item.setRequestCostAvg(item.getRequestCount() > 0L ? 1.0D * totalRequestCost / item.getRequestCount() : 0D);
-                                    item.setQueryFrom(param.getStartAt());
-                                    item.setQueryEnd(param.getEndAt());
-                                    item.setGranularity(param.getGranularity());
-                                    return item;
-                                }
-                        ))
-        );
+                        Collectors.groupingBy(
+                                ApiMetricsRaw::getProcessId,
+                                Collectors.collectingAndThen(
+                                        Collectors.toList(),
+                                        rows -> {
+                                            ApiMetricsRaw first = rows.get(0);
+                                            String processId = first.getProcessId();
+                                            ApiOfEachServer item = Optional.ofNullable(serverMap.get(processId)).orElse(new ApiOfEachServer());
+                                            item.setRequestCount(rows.stream().mapToLong(ApiMetricsRaw::getReqCount).sum());
+                                            long errorCount = rows.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum();
+                                            item.setErrorRate(rate(errorCount, item.getRequestCount()));
+                                            item.setErrorCount(errorCount);
+                                            long totalRequestCost = rows.stream().map(ApiMetricsRaw::getDelay).map(ApiMetricsDelayUtil::sum).mapToLong(Long::longValue).sum();
+                                            final List<Map<Long, Integer>> merge = mergeDelay(rows);
+                                            item.setP95(ApiMetricsDelayUtil.p95(merge, item.getRequestCount()));
+                                            item.setP99(ApiMetricsDelayUtil.p99(merge, item.getRequestCount()));
+                                            ApiMetricsDelayUtil.readMaxAndMin(merge, item::setMaxDelay, item::setMinDelay);
+                                            item.setRequestCostAvg(item.getRequestCount() > 0L ? 1.0D * totalRequestCost / item.getRequestCount() : 0D);
+                                            item.setQueryFrom(param.getStartAt());
+                                            item.setQueryEnd(param.getEndAt());
+                                            item.setGranularity(param.getGranularity());
+                                            return item;
+                                        }
+                                ))
+                );
         List<ApiOfEachServer> apiOfEachServers = new ArrayList<>(collect.values());
         String orderBy = param.getOrderBy();
         if (StringUtils.isBlank(orderBy)) {
@@ -899,6 +951,11 @@ public class ApiMetricsRawQuery {
             case ERROR_RATE -> (e1, e2) -> {
                 Double p1 = Optional.ofNullable(e1.getErrorRate()).orElse(0D);
                 Double p2 = Optional.ofNullable(e2.getErrorRate()).orElse(0D);
+                return p1.compareTo(p2);
+            };
+            case "errorCount" -> (e1, e2) -> {
+                Long p1 = Optional.ofNullable(e1.getErrorCount()).orElse(0L);
+                Long p2 = Optional.ofNullable(e2.getErrorCount()).orElse(0L);
                 return p1.compareTo(p2);
             };
             case "p99" -> (e1, e2) -> {
@@ -938,42 +995,69 @@ public class ApiMetricsRawQuery {
                 .filter(Objects::nonNull)
                 .filter(e -> Objects.nonNull(e.getTimeStart()))
                 .collect(
-                Collectors.groupingBy(
-                        ApiMetricsRaw::getTimeStart,
-                        Collectors.collectingAndThen(
-                                Collectors.toList(),
-                                rows -> {
-                                    ApiMetricsRaw apiMetricsRaw = rows.get(0);
-                                    long timeStart = apiMetricsRaw.getTimeStart();
-                                    ChartAndDelayOfApi.Item item = new ChartAndDelayOfApi.Item();
-                                    long totalBytes = rows.stream().map(ApiMetricsRaw::getBytes).map(ApiMetricsDelayUtil::fixDelayAsMap).mapToLong(ApiMetricsDelayUtil::sum).sum();
-                                    long totalDelayMs = rows.stream().map(ApiMetricsRaw::getDelay).map(ApiMetricsDelayUtil::fixDelayAsMap).mapToLong(ApiMetricsDelayUtil::sum).sum();
-                                    long reqCount = rows.stream().mapToLong(ApiMetricsRaw::getReqCount).sum();
-                                    List<Map<Long, Integer>> merged = mergeDelay(rows);
-                                    item.setTs(timeStart);
-                                    item.setRps(totalDelayMs > 0L ? (totalBytes * 1000.0D / totalDelayMs) : 0D);
-                                    item.setP95(ApiMetricsDelayUtil.p95(merged, reqCount));
-                                    item.setP99(ApiMetricsDelayUtil.p99(merged, reqCount));
-                                    ApiMetricsDelayUtil.readMaxAndMin(merged, item::setMaxDelay, item::setMinDelay);
-                                    item.setRequestCostAvg(reqCount > 0L ? (1.0D * totalDelayMs / reqCount) : 0D);
-                                    return item;
-                                }
+                        Collectors.groupingBy(
+                                ApiMetricsRaw::getTimeStart,
+                                Collectors.collectingAndThen(
+                                        Collectors.toList(),
+                                        rows -> {
+                                            ApiMetricsRaw apiMetricsRaw = rows.get(0);
+                                            long timeStart = apiMetricsRaw.getTimeStart();
+                                            ChartAndDelayOfApi.Item item = new ChartAndDelayOfApi.Item();
+                                            long totalBytes = rows.stream().map(ApiMetricsRaw::getBytes).map(ApiMetricsDelayUtil::fixDelayAsMap).mapToLong(ApiMetricsDelayUtil::sum).sum();
+                                            List<Map<Long, Integer>> merged = mergeDelay(rows);
+                                            item.setDelay(merged);
+                                            item.setTs(timeStart);
+                                            item.setTotalBytes(totalBytes);
+                                            return item;
+                                        }
+                                )
                         )
-                )
-        );
+                );
         //fix time and sort by time
-        ChartSortUtil.fixAndSort(collect,
+        //5秒点位最多攒5分钟
+        //分钟点位最多攒1小时
+        //其他不赞批，直接用
+        int maxDepth = switch (param.getGranularity()) {
+            case 0, 1 -> 60;
+            default -> 1;
+        };
+        List<List<Map<Long, Integer>>> delays = new ArrayList<>();
+        List<Long> bytes = new ArrayList<>();
+        List<ChartAndDelayOfApi.Item> items = ChartSortUtil.fixAndSort(collect,
                 param.getStartAt(), param.getEndAt(), param.getGranularity(),
                 ChartAndDelayOfApi.Item::create,
                 item -> {
-                    result.getTs().add(item.getTs());
-                    result.getRps().add(item.getRps());
-                    result.getP95().add(item.getP95());
-                    result.getP99().add(item.getP99());
-                    result.getMaxDelay().add(item.getMaxDelay());
-                    result.getMinDelay().add(item.getMinDelay());
-                    result.getRequestCostAvg().add(item.getRequestCostAvg());
+                    delays.add(item.getDelay());
+                    bytes.add(item.getTotalBytes());
+                    int size = delays.size();
+                    if (size > maxDepth) {
+                        delays.remove(0);
+                        bytes.remove(0);
+                    }
+                    List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.merge(delays);
+                    Long totalDelayMs = ApiMetricsDelayUtil.sum(merged);
+                    Long reqCount = ApiMetricsDelayUtil.sum(merged, (iKey, iCount) -> iCount.longValue());
+
+                    ApiMetricsDelayUtil.readMaxAndMin(merged, item::setMaxDelay, item::setMinDelay);
+                    long totalBytes = bytes.stream().filter(Objects::nonNull).mapToLong(Long::longValue).sum();
+
+                    item.setRequestCostAvg(reqCount > 0L ? (1.0D * totalDelayMs / reqCount) : 0D);
+                    item.setRps(totalDelayMs > 0L ? (totalBytes * 1000.0D / totalDelayMs) : 0D);
+
+                    if (delays.size() >= maxDepth) {
+                        item.setP95(ApiMetricsDelayUtil.p95(merged, reqCount));
+                        item.setP99(ApiMetricsDelayUtil.p99(merged, reqCount));
+                    }
                 });
+        for (ChartAndDelayOfApi.Item item : items) {
+            result.getTs().add(item.getTs());
+            result.getMaxDelay().add(item.getMaxDelay());
+            result.getMinDelay().add(item.getMinDelay());
+            result.getRps().add(item.getRps());
+            result.getRequestCostAvg().add(item.getRequestCostAvg());
+            result.getP95().add(item.getP95());
+            result.getP99().add(item.getP99());
+        }
         return result;
     }
 
