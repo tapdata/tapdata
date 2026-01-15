@@ -23,6 +23,8 @@ import org.springframework.security.oauth2.server.authorization.settings.OAuth2T
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -176,6 +178,10 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
     private RegisteredClient mapperEntity(RegisteredClientEntity registeredClientEntity) {
         if (registeredClientEntity == null)
             return null;
+        String isDebug = Optional.ofNullable((ServletRequestAttributes) RequestContextHolder.getRequestAttributes())
+                .map(ServletRequestAttributes::getRequest)
+                .map(e -> e.getHeader("debug"))
+                .orElse("false");
         TokenSettings.Builder tokenSettings = TokenSettings.builder()
                 .authorizationCodeTimeToLive(Duration.ofDays(14L))
                 .accessTokenTimeToLive(Duration.ofDays(14L))
@@ -187,6 +193,9 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
                 .x509CertificateBoundAccessTokens(false);
         if (StringUtils.isNotBlank(registeredClientEntity.getTokenSettings())) {
             tokenSettings.settings(stringObjectMap -> stringObjectMap.putAll(parseMap(registeredClientEntity.getTokenSettings())));
+        }
+        if ("true".equalsIgnoreCase(isDebug)) {
+            tokenSettings.accessTokenTimeToLive(Duration.ofMinutes(5L));
         }
         return RegisteredClient.withId(registeredClientEntity.getId().toHexString())
                 .clientSettings(
