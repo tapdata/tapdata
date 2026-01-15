@@ -14,7 +14,6 @@
             "default_value": "false",
             "documentation": "Task CPU and Memory Metrics Statistics",
             "hot_reloading": false,
-            "key": "cpu_mem_collector",
             "key_label": "Task CPU and Memory Metrics Statistics",
             "last_update": 0,
             "scope": "global",
@@ -25,8 +24,7 @@
               "true",
               "false"
             ]
-          },
-          "upsert": true
+          }
         }
       }
     ]
