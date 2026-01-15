@@ -130,7 +130,11 @@ public class ParticleSizeAnalyzer {
                             .stream()
                             .filter(e -> e.getTimeStart() >= query.getStartAt() && e.getTimeStart() < query.getEndAt())
                             .sorted(Comparator.comparing(ApiMetricsRaw::getTimeStart))
-                            .forEach(sub::add);
+                            .forEach(e -> {
+                                e.setApiId(raw.getApiId());
+                                e.setProcessId(raw.getProcessId());
+                                sub.add(e);
+                            });
                 }
             }
             return sub;

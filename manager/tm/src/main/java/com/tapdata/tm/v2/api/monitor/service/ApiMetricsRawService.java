@@ -20,6 +20,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -240,28 +241,21 @@ public class ApiMetricsRawService {
             default:
                 //do nothing
         }
-        ApiMetricsRaw left = null;
-        ApiMetricsRaw right = null;
+        Map<String, ApiMetricsRaw> left = new HashMap<>();
+        Map<String, ApiMetricsRaw> right = new HashMap<>();
         for (ApiMetricsRaw apiMetricsRaw : supplement) {
+            String serverId = apiMetricsRaw.getProcessId();
+            String apiId = apiMetricsRaw.getApiId();
+            String key = String.format("%s_%s", serverId, apiId);
             Long timeStart = apiMetricsRaw.getTimeStart();
             if (null == timeStart) {
                 continue;
             }
             if (timeStart >= param.getQueryParam().getStart() && timeStart < param.getStartAt()) {
-                if (null == left) {
-                    left = new ApiMetricsRaw();
-                    left.setTimeStart(param.getQueryParam().getStart());
-                    left.setTimeGranularity(param.getGranularity());
-                }
-                left.merge(apiMetricsRaw);
+                merge(apiMetricsRaw, left, key, apiId, serverId, param);
             }
             if (timeStart >= param.getStartAt() && timeStart < param.getQueryParam().getEnd()) {
-                if (null == left) {
-                    right = new ApiMetricsRaw();
-                    right.setTimeStart(param.getStartAt());
-                    right.setTimeGranularity(param.getGranularity());
-                }
-                right.merge(apiMetricsRaw);
+                merge(apiMetricsRaw, right, key, apiId, serverId, param);
             }
         }
         long step = switch (param.getGranularity()) {
@@ -269,15 +263,32 @@ public class ApiMetricsRawService {
             case 2 -> 3600L;
             default -> 5L;
         };
-        Optional.ofNullable(left)
-                .map(e -> {e.setTimeStart(e.getTimeStart() / step * step); return e;})
+        if (!left.isEmpty()) {
+            left.forEach((key, item) -> Optional.ofNullable(item)
+                    .map(i -> {i.setTimeStart(i.getTimeStart() / step * step); return i;})
+                    .map(MetricInstanceAcceptor::calcPValue)
+                    .ifPresent(i -> result.add(0, i)));
+        }
+        if (right.isEmpty()) {
+           return result;
+        }
+        right.forEach((key, item) -> Optional.ofNullable(item)
+                .map(i -> {i.setTimeStart(i.getTimeStart() / step * step); return i;})
                 .map(MetricInstanceAcceptor::calcPValue)
-                .ifPresent(e -> result.add(0, e));
-        Optional.ofNullable(right)
-                .map(e -> {e.setTimeStart(e.getTimeStart() / step * step); return e;})
-                .map(MetricInstanceAcceptor::calcPValue)
-                .ifPresent(result::add);
+                .ifPresent(i -> result.add(0, i)));
         return result;
     }
 
+    void merge(ApiMetricsRaw apiMetricsRaw, Map<String, ApiMetricsRaw> map, String key, String apiId, String serverId, QueryBase param) {
+        ApiMetricsRaw itemRaw = map.computeIfAbsent(key, k -> {
+            ApiMetricsRaw item = new ApiMetricsRaw();
+            item.setId(new ObjectId());
+            item.setApiId(apiId);
+            item.setProcessId(serverId);
+            item.setTimeStart(param.getQueryParam().getStart());
+            item.setTimeGranularity(param.getGranularity());
+            return item;
+        });
+        itemRaw.merge(apiMetricsRaw);
+    }
 }

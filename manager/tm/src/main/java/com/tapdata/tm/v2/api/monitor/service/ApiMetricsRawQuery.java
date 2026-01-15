@@ -189,11 +189,16 @@ public class ApiMetricsRawQuery {
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER.getType());
         List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
         Map<String, ServerChart.Usage> usageMap = allUsage.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> StringUtils.isNotBlank(e.getProcessId()))
                 .collect(Collectors.groupingBy(ServerUsage::getProcessId, Collectors.collectingAndThen(
                         Collectors.toList(),
                         items -> this.mapUsage(items, param.getStartAt(), param.getEndAt(), param.getGranularity())
                 )));
-        final Map<String, ServerItem> collect = apiMetricsRaws.stream().collect(Collectors.groupingBy(
+        final Map<String, ServerItem> collect = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> StringUtils.isNotBlank(e.getProcessId()))
+                .collect(Collectors.groupingBy(
                 ApiMetricsRaw::getProcessId,
                 Collectors.collectingAndThen(
                         Collectors.toList(),
@@ -375,7 +380,9 @@ public class ApiMetricsRawQuery {
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> criteria.and(PROCESS_ID).is(serverId), c -> c.and("api_gateway_uuid").is(serverId));
         result.setRequest(ServerChart.Request.create());
         result.setDelay(ServerChart.Delay.create());
-        Map<Long, ServerChart.Item> collect = apiMetricsRaws.stream().collect(
+        Map<Long, ServerChart.Item> collect = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(e.getTimeStart())).collect(
                 Collectors.groupingBy(
                         ApiMetricsRaw::getTimeStart,
                         Collectors.collectingAndThen(
@@ -443,7 +450,10 @@ public class ApiMetricsRawQuery {
         criteria.and(PROCESS_ID).is(serverId);
         Query query = Query.query(criteria);
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> c.and(PROCESS_ID).is(serverId), c -> c.and("api_gateway_uuid").is(serverId));
-        Map<String, TopApiInServer> apiInfoMap = apiMetricsRaws.stream().collect(
+        Map<String, TopApiInServer> apiInfoMap = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> StringUtils.isNotBlank(e.getApiId()))
+                .collect(
                 Collectors.groupingBy(
                         ApiMetricsRaw::getApiId,
                         Collectors.collectingAndThen(Collectors.toList(), rows -> {
@@ -573,7 +583,10 @@ public class ApiMetricsRawQuery {
             return result;
         }
         List<WorkerCallEntity> callOfWorker = service.supplementWorkerCall(param);
-        Map<String, TopWorkerInServer.TopWorkerInServerItem> workerInfoMap = callOfWorker.stream().collect(Collectors.groupingBy(
+        Map<String, TopWorkerInServer.TopWorkerInServerItem> workerInfoMap = callOfWorker.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> StringUtils.isNotBlank(e.getWorkOid()))
+                .collect(Collectors.groupingBy(
                 WorkerCallEntity::getWorkOid,
                 Collectors.collectingAndThen(
                         Collectors.toList(),
@@ -595,6 +608,8 @@ public class ApiMetricsRawQuery {
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER_WORKER.getType());
         List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
         Map<String, ServerChart.Usage> usageMap = allUsage.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> StringUtils.isNotBlank(e.getWorkOid()))
                 .collect(Collectors.groupingBy(ServerUsage::getWorkOid, Collectors.collectingAndThen(
                         Collectors.toList(),
                         items -> this.mapUsage(items, param.getStartAt(), param.getEndAt(), param.getGranularity())
@@ -690,7 +705,10 @@ public class ApiMetricsRawQuery {
             item.setNotExistsApi(false);
             return item;
         }, (e1, e2) -> e2));
-        Map<String, ApiItem> collect = apiMetricsRaws.stream().collect(
+        Map<String, ApiItem> collect = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> StringUtils.isNotBlank(e.getApiId()))
+                .collect(
                 Collectors.groupingBy(ApiMetricsRaw::getApiId,
                         Collectors.collectingAndThen(
                                 Collectors.toList(),
@@ -839,7 +857,10 @@ public class ApiMetricsRawQuery {
             item.setServerName(e.getHostname());
             return item;
         }, (e1, e2) -> e2));
-        Map<String, ApiOfEachServer> collect = apiMetricsRaws.stream().collect(
+        Map<String, ApiOfEachServer> collect = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> StringUtils.isNotBlank(e.getProcessId()))
+                .collect(
                 Collectors.groupingBy(
                         ApiMetricsRaw::getProcessId,
                         Collectors.collectingAndThen(
@@ -913,7 +934,10 @@ public class ApiMetricsRawQuery {
         if (apiMetricsRaws.isEmpty()) {
             return result;
         }
-        Map<Long, ChartAndDelayOfApi.Item> collect = apiMetricsRaws.stream().collect(
+        Map<Long, ChartAndDelayOfApi.Item> collect = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(e.getTimeStart()))
+                .collect(
                 Collectors.groupingBy(
                         ApiMetricsRaw::getTimeStart,
                         Collectors.collectingAndThen(
