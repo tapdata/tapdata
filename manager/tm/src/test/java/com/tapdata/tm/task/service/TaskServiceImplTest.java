@@ -6755,7 +6755,7 @@ class TaskServiceImplTest {
 
             doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
             doReturn(true).when(taskService).checkMergeTableTask(taskDto);
-            when(externalStorageService.findById(any())).thenReturn(externalStorageDto);
+            when(externalStorageService.findNotCheckById(any())).thenReturn(externalStorageDto);
 
             // Mock callEngineRpc返回
             DataMap dataMap = new DataMap();
@@ -6831,7 +6831,7 @@ class TaskServiceImplTest {
 
             doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
             doReturn(true).when(taskService).checkMergeTableTask(taskDto);
-            when(externalStorageService.findById(any())).thenReturn(externalStorageDto);
+            when(externalStorageService.findNotCheckById(any())).thenReturn(externalStorageDto);
 
             // Mock callEngineRpc返回
             DataMap dataMap = new DataMap();
@@ -6904,7 +6904,7 @@ class TaskServiceImplTest {
 
             doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
             doReturn(true).when(taskService).checkMergeTableTask(taskDto);
-            when(externalStorageService.findById(any())).thenReturn(externalStorageDto);
+            when(externalStorageService.findNotCheckById(any())).thenReturn(externalStorageDto);
 
             // Mock callEngineRpc返回
             DataMap dataMap = new DataMap();
