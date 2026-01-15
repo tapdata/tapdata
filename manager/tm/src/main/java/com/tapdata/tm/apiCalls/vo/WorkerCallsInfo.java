@@ -24,6 +24,8 @@ public class WorkerCallsInfo {
 
     private String code;
 
+    private String httpStatus;
+
     private Long reqTime;
 
     private Long resTime;

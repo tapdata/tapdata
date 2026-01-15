@@ -638,6 +638,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiWorkerInfos.add(item);
 		}
 		Optional.ofNullable(one).ifPresent(info -> reUpdateWorkerInfo(info, apiWorkerInfos));
+		apiWorkerInfos.stream()
+				.filter(e -> org.apache.commons.lang3.StringUtils.isBlank(e.getOid()))
+				.forEach(w -> w.setOid(new ObjectId().toHexString()));
 		return apiWorkerInfos;
 	}
 

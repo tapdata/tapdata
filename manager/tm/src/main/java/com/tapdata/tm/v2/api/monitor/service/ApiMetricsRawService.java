@@ -48,26 +48,34 @@ public class ApiMetricsRawService {
         String serverId = param.getServerId();
         long endAt = param.getEndAt() * 1000L;
         if (endAt % 60000L != 0L) {
-            endAt = (endAt + 60000L) / 60000L * 60000L;
+            endAt = endAt/ 60000L * 60000L;
         }
-        Criteria criteriaOfWorker = Criteria.where(WorkerCallServiceImpl.Tag.TIME_GRANULARITY).is(1)
-                .and(WorkerCallServiceImpl.Tag.DELETE).ne(true)
-                .and(WorkerCallServiceImpl.Tag.PROCESS_ID).is(serverId)
-                .andOperator(
-                        Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).gte(param.getStartAt() * 1000L),
-                        Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).lt(endAt)
-                );
-        List<WorkerCallEntity> callOfWorker = mongoTemplate.find(Query.query(criteriaOfWorker), WorkerCallEntity.class, "ApiCallInWorker");
+        long startAt = param.getStartAt() * 1000L;
+        if (startAt % 60000L != 0L) {
+            startAt = (startAt + 5999L) / 60000L * 60000L;
+        }
+        List<WorkerCallEntity> callOfWorker = new ArrayList<>();
+        if (startAt < endAt) {
+            Criteria criteriaOfWorker = Criteria.where(WorkerCallServiceImpl.Tag.TIME_GRANULARITY).is(1)
+                    .and(WorkerCallServiceImpl.Tag.DELETE).ne(true)
+                    .and(WorkerCallServiceImpl.Tag.PROCESS_ID).is(serverId)
+                    .andOperator(
+                            Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).gte(startAt),
+                            Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).lt(endAt)
+                    );
+            List<WorkerCallEntity> callOfMinute = mongoTemplate.find(Query.query(criteriaOfWorker), WorkerCallEntity.class, "ApiCallInWorker");
+            if (!callOfMinute.isEmpty()) {
+                callOfWorker.addAll(callOfMinute);
+            }
+        }
         List<QueryBase.Point> secondPoint = new ArrayList<>();
-        Long s = param.getStartAt();
-        Long e = param.getEndAt();
         Long start = param.getQueryParam().getStart();
         Long end = param.getQueryParam().getStart();
-        if (s < start) {
-            secondPoint.add(QueryBase.Point.of(s, start, -1));
+        if (start < startAt) {
+            secondPoint.add(QueryBase.Point.of(start, startAt, -1));
         }
-        if (end > e) {
-            secondPoint.add(QueryBase.Point.of(e, end, -1));
+        if (end > endAt) {
+            secondPoint.add(QueryBase.Point.of(endAt, end, -1));
         }
         if (!secondPoint.isEmpty()) {
             Criteria criteriaOfSec = Criteria.where("delete").ne(true)
@@ -90,17 +98,21 @@ public class ApiMetricsRawService {
                         .filter(Objects::nonNull)
                         .filter(callItem -> StringUtils.isNotBlank(callItem.getWorkOid()))
                         .collect(Collectors.groupingBy(ApiCallEntity::getWorkOid));
+                long finalEndAt = endAt;
+                long finalStartAt = startAt;
+                long oStart = start * 1000L;
+                long oEnd = end * 1000L;
                 collect.forEach((oId, callItems) -> {
-                    WorkerCallEntity left = one(serverId, oId, start);
-                    WorkerCallEntity right = one(serverId, oId, e);
+                    WorkerCallEntity left = one(serverId, oId, oStart);
+                    WorkerCallEntity right = one(serverId, oId, finalEndAt);
                     for (ApiCallEntity call : callItems) {
                         Long reqTime = call.getReqTime();
                         if (null == reqTime) {
                             continue;
                         }
-                        if (reqTime >= s && reqTime < start) {
+                        if (reqTime >= oStart && reqTime < finalStartAt) {
                             merge(left, call);
-                        } else if (reqTime >= e && reqTime < end) {
+                        } else if (reqTime >= finalEndAt && reqTime < oEnd) {
                             merge(right, call);
                         }
                     }
