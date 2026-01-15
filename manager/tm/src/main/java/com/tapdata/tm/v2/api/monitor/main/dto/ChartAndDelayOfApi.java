@@ -6,12 +6,17 @@ import lombok.EqualsAndHashCode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
  * @author <a href="https://github.com/11000100111010101100111">Gavin'Xiao</a>
  * @version v1.0 2025/12/31 09:11 Create
  * @description
+ *
+ * 5S 攒五分钟
+ * 1minute 攒1小时
+ * 1hour 直接用点位
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -47,6 +52,9 @@ public class ChartAndDelayOfApi extends ValueBase {
         Long maxDelay;
         Long minDelay;
         Double requestCostAvg;
+
+        Long totalBytes;
+        List<Map<Long, Integer>> delay = new ArrayList<>();
 
         public static Item create(long ts) {
             Item item = new Item();

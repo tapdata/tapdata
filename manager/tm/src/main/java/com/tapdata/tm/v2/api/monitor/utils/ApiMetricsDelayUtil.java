@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 
 /**
@@ -72,6 +74,14 @@ public final class ApiMetricsDelayUtil {
         }
     }
 
+    public static List<Map<Long, Integer>> merge(List<List<Map<Long, Integer>>> delayList) {
+        List<Map<Long, Integer>>[] delayListArr = new ArrayList[delayList.size()];
+        for (int i = 0; i < delayList.size(); i++) {
+            delayListArr[i] = delayList.get(i);
+        }
+        return merge(delayListArr);
+    }
+
     @SafeVarargs
     public static List<Map<Long, Integer>> merge(List<Map<Long, Integer>>... delayList) {
         if (null == delayList) {
@@ -101,6 +111,10 @@ public final class ApiMetricsDelayUtil {
     }
 
     public static Long sum(List<?> delayList) {
+        return sum(delayList, (iKey, iValue) -> iKey * iValue.longValue());
+    }
+
+    public static Long sum(List<?> delayList, BiFunction<Long, Integer, Long> filter) {
         if (CollectionUtils.isEmpty(delayList)) {
             return 0L;
         }
@@ -109,7 +123,7 @@ public final class ApiMetricsDelayUtil {
             for (Map.Entry<Long, Integer> e : m.entrySet()) {
                 Long iKey = e.getKey();
                 Integer iValue = e.getValue();
-                sum += iKey * iValue.longValue();
+                sum += filter.apply(iKey, iValue);
             }
         }
         return sum;

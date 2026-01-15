@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -160,6 +161,8 @@ public class ServerChart extends ValueBase {
         Long p99;
         Long maxDelay;
         Long minDelay;
+        List<Map<Long, Integer>> delay = new ArrayList<>();
+        Long errorCount;
 
         public static Item create(long ts) {
             Item item = new Item();

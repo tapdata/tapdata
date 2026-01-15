@@ -44,6 +44,8 @@ public class ApiItem extends ValueBase {
     @DecimalFormat
     double errorRate;
 
+    long errorCount;
+
     /**
      * 吞吐量
      */
