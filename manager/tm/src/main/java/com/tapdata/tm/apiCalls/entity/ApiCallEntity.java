@@ -15,7 +15,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("ApiCall")
-@CappedCollection(maxLength = 1_000_000L, maxMemory = 1L << 40)
+@CappedCollection(maxLength = 1_000_000L, maxMemory = 1L << 40, capped = false)
 public class ApiCallEntity extends BaseEntity {
     @JsonProperty("req_params")
     @Field("req_params")
