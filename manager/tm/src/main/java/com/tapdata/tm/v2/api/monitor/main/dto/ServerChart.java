@@ -163,10 +163,14 @@ public class ServerChart extends ValueBase {
         Long minDelay;
         List<Map<Long, Integer>> delay = new ArrayList<>();
         Long errorCount;
+        boolean tag;
 
         public static Item create(long ts) {
             Item item = new Item();
             item.setTs(ts);
+            item.setRequestCount(0L);
+            item.setErrorCount(0L);
+            item.setTag(true);
             return item;
         }
     }
