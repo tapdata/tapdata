@@ -52,6 +52,7 @@ public class ChartAndDelayOfApi extends ValueBase {
         Long maxDelay;
         Long minDelay;
         Double requestCostAvg;
+        boolean tag;
 
         Long totalBytes;
         List<Map<Long, Integer>> delay = new ArrayList<>();
@@ -59,6 +60,8 @@ public class ChartAndDelayOfApi extends ValueBase {
         public static Item create(long ts) {
             Item item = new Item();
             item.setTs(ts);
+            item.setTotalBytes(0L);
+            item.setTag(true);
             return item;
         }
     }

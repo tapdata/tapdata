@@ -453,12 +453,21 @@ public class ApiMetricsRawQuery {
         );
         for (ServerChart.Item item : items) {
             result.getRequest().getTs().add(item.getTs());
-            result.getDelay().getTs().add(item.getTs());
-            result.getRequest().getRequestCount().add(item.getRequestCount());
-            result.getDelay().getAvg().add(item.getAvg());
-            result.getRequest().getErrorRate().add(item.getErrorRate());
-            result.getDelay().getMaxDelay().add(item.getMaxDelay());
-            result.getDelay().getMinDelay().add(item.getMinDelay());
+            if (!item.isTag()) {
+                result.getDelay().getTs().add(item.getTs());
+                result.getRequest().getRequestCount().add(item.getRequestCount());
+                result.getDelay().getAvg().add(item.getAvg());
+                result.getRequest().getErrorRate().add(item.getErrorRate());
+                result.getDelay().getMaxDelay().add(item.getMaxDelay());
+                result.getDelay().getMinDelay().add(item.getMinDelay());
+            } else {
+                result.getDelay().getTs().add(0L);
+                result.getRequest().getRequestCount().add(0L);
+                result.getDelay().getAvg().add(0D);
+                result.getRequest().getErrorRate().add(0D);
+                result.getDelay().getMaxDelay().add(null);
+                result.getDelay().getMinDelay().add(null);
+            }
             result.getDelay().getP95().add(item.getP95());
             result.getDelay().getP99().add(item.getP99());
         }
@@ -1051,10 +1060,17 @@ public class ApiMetricsRawQuery {
                 });
         for (ChartAndDelayOfApi.Item item : items) {
             result.getTs().add(item.getTs());
-            result.getMaxDelay().add(item.getMaxDelay());
-            result.getMinDelay().add(item.getMinDelay());
-            result.getRps().add(item.getRps());
-            result.getRequestCostAvg().add(item.getRequestCostAvg());
+            if (!item.isTag()) {
+                result.getMaxDelay().add(item.getMaxDelay());
+                result.getMinDelay().add(item.getMinDelay());
+                result.getRps().add(item.getRps());
+                result.getRequestCostAvg().add(item.getRequestCostAvg());
+            } else {
+                result.getMaxDelay().add(null);
+                result.getMinDelay().add(null);
+                result.getRps().add(0D);
+                result.getRequestCostAvg().add(0D);
+            }
             result.getP95().add(item.getP95());
             result.getP99().add(item.getP99());
         }
