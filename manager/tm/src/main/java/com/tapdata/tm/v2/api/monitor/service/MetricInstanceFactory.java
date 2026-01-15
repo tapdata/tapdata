@@ -19,7 +19,7 @@ import java.util.function.Function;
  * @description
  */
 public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, MetricInstanceAcceptor> {
-    public static final List<String> IGNORE_PATH = List.of("/openapi-readOnly.json");
+    public static final List<String> IGNORE_PATH = List.of("/sitemap.xml","/openapi-readOnly.json","/robots.txt","/favicon.ico","//v4.loopback.io/favicon.ico");
 
     public MetricInstanceFactory(Consumer<List<ApiMetricsRaw>> consumer, Function<Query, ApiMetricsRaw> findOne) {
         super(consumer, findOne);
