@@ -266,7 +266,7 @@ public class TaskResourceHandler implements ResourceHandler {
         }
         if (CollectionUtils.isNotEmpty(shareCacheNames)) {
             List<TaskDto> shareCacheTasks = taskService.findAllDto(
-                    Query.query(Criteria.where("dag.nodes.cacheName").in(shareCacheNames).and("is_deleted").is(false)),
+                    Query.query(Criteria.where("name").in(shareCacheNames).and("is_deleted").ne(true)),
                     user);
             List<TaskUpAndLoadDto> payload = buildExportPayload(shareCacheTasks, user);
             payloadsByType.computeIfAbsent(ResourceType.SHARE_CACHE.name(), k -> new ArrayList<>()).addAll(payload);

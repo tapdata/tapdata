@@ -2203,13 +2203,12 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                             if (oldMeta != null) {
                                 metadataInstancesDto.setId(oldMeta.getId());
                             }else{
-                                metadataInstancesDto.setId(new ObjectId());
+                                metadataInstancesDto.setId(null);
                             }
                             metadataInstancesDto.setSource(sourceDto);
                             MetadataInstancesDto newMeta = null;
                             metadataInstancesDto.setListtags(null);
                             newMeta = importEntity(metadataInstancesDto, user);
-                            metaMap.put(newMeta.getId().toHexString(), metadataInstancesDto);
                         }
                     }
                 });

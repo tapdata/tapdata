@@ -1862,7 +1862,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             DataSourceConnectionDto resultConnection = null;
 
             switch (importMode) {
-                case REPLACE, GROUP_IMPORT:
+                case REPLACE:
                     if (existingConnectionByName != null) {
                         // 替换模式：保留现有ID，使用导入数据覆盖
                         ObjectId existingId = existingConnectionByName.getId();
@@ -1884,7 +1884,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
                     break;
-                case REUSE_EXISTING:
+                case REUSE_EXISTING,GROUP_IMPORT:
                     if (existingConnectionByName != null) {
                         resultConnection = existingConnectionByName;
                     } else {
