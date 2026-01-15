@@ -14,6 +14,7 @@ import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -233,7 +234,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         criteria.andOperator(idCriteria);
         criteria.and("supplement").ne(true);
         Query callQuery = Query.query(criteria);
-        callQuery.fields().include(Tag.ALL_PATH_ID, Tag.WORK_OID, "codeMsg");
+        callQuery.fields().include(Tag.ALL_PATH_ID, Tag.WORK_OID, "codeMsg", "httpStatus", "code");
         List<ApiCallEntity> apiCalls = mongoOperations.find(callQuery, ApiCallEntity.class, MongoUtils.getCollectionName(ApiCallEntity.class));
         Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = groupCallResult(processId, apiCalls);
         List<WorkerCallStats> mappedResults = new ArrayList<>();
@@ -294,7 +295,8 @@ public class WorkerCallServiceImpl implements WorkerCallService {
                 return workerCallStats;
             });
             item.setTotalCount(1 + item.getTotalCount());
-            item.setNotOkCount(("ok".equalsIgnoreCase(apiCall.getCodeMsg()) ? 0 : 1) + item.getNotOkCount());
+            boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(apiCall.getCode(), apiCall.getHttpStatus());
+            item.setNotOkCount((isOk ? 0 : 1) + item.getNotOkCount());
         }
         return groupByApiAndWorker;
     }
