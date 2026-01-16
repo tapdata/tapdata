@@ -30,7 +30,7 @@ public class ApiDetail extends ValueBase {
      * 平均耗时
      * */
     @DecimalFormat
-    long requestCostAvg;
+    double requestCostAvg;
 
     Long p95;
     Long p99;
