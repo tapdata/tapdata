@@ -16,6 +16,7 @@ import java.util.Locale;
  */
 @Data
 public class QueryBase {
+    Long qStart;
 
     Long startAt;
 
