@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.chart;
 
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
@@ -86,28 +87,28 @@ public class ChartViewService {
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    BigInteger inputInsertTotal = NumberUtil.parseDataTotal(vs.get("inputInsertTotal"));
-                    BigInteger inputOthersTotal = NumberUtil.parseDataTotal(vs.get("inputOthersTotal"));
-                    BigInteger inputDdlTotal = NumberUtil.parseDataTotal(vs.get("inputDdlTotal"));
-                    BigInteger inputUpdateTotal = NumberUtil.parseDataTotal(vs.get("inputUpdateTotal"));
-                    BigInteger inputDeleteTotal = NumberUtil.parseDataTotal(vs.get("inputDeleteTotal"));
+                    BigInteger inputDdlTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_DDL_TOTAL));
+                    BigInteger inputInsertTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_INSERT_TOTAL));
+                    BigInteger inputUpdateTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL));
+                    BigInteger inputDeleteTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_DELETE_TOTAL));
+                    BigInteger inputOthersTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_INPUT_OTHERS_TOTAL));
 
-                    BigInteger outputInsertTotal = NumberUtil.parseDataTotal(vs.get("outputInsertTotal"));
-                    BigInteger outputOthersTotal = NumberUtil.parseDataTotal(vs.get("outputOthersTotal"));
-                    BigInteger outputDdlTotal = NumberUtil.parseDataTotal(vs.get("outputDdlTotal"));
-                    BigInteger outputUpdateTotal = NumberUtil.parseDataTotal(vs.get("outputUpdateTotal"));
-                    BigInteger outputDeleteTotal = NumberUtil.parseDataTotal(vs.get("outputDeleteTotal"));
-                    output = output.add(outputInsertTotal);
-                    output = output.add(outputOthersTotal);
+                    BigInteger outputDdlTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_OUTPUT_DDL_TOTAL));
+                    BigInteger outputInsertTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL));
+                    BigInteger outputUpdateTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL));
+                    BigInteger outputDeleteTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL));
+                    BigInteger outputOthersTotal = NumberUtil.parseDataTotal(vs.get(MetricCons.SS.VS.F_OUTPUT_OTHERS_TOTAL));
                     output = output.add(outputDdlTotal);
+                    output = output.add(outputInsertTotal);
                     output = output.add(outputUpdateTotal);
                     output = output.add(outputDeleteTotal);
+                    output = output.add(outputOthersTotal);
 
-                    input = input.add(inputInsertTotal);
-                    input = input.add(inputOthersTotal);
                     input = input.add(inputDdlTotal);
+                    input = input.add(inputInsertTotal);
                     input = input.add(inputUpdateTotal);
                     input = input.add(inputDeleteTotal);
+                    input = input.add(inputOthersTotal);
 
                     insert = insert.add(inputInsertTotal);
                     update = update.add(inputUpdateTotal);

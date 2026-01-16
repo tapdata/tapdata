@@ -10,6 +10,7 @@ import java.util.Map;
 
 @Data
 public class ApiDefinitionVo {
+    String clusterId;
     List apis;
     List<ConnectionVo> connections;
 

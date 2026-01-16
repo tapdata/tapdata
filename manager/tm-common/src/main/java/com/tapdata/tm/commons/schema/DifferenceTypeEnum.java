@@ -75,6 +75,16 @@ public enum DifferenceTypeEnum {
                 fields.add(differenceField.getSourceField());
             }
         }
+    },
+    PrimaryKeyInconsistency{
+        @Override
+        public void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField) {
+
+        }
+        @Override
+        public void recoverField(Field field, List<Field> fields, DifferenceField differenceField) {
+
+        }
     };
 
     public abstract void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField);

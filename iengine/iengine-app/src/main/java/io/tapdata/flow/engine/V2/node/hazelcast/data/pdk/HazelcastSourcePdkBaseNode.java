@@ -38,12 +38,9 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
+import com.tapdata.tm.skiperrortable.SkipErrorTableStatusEnum;
 import io.tapdata.Runnable.LoadSchemaRunner;
-import io.tapdata.aspect.BatchSizeAspect;
-import io.tapdata.aspect.SourceCDCDelayAspect;
-import io.tapdata.aspect.SourceDynamicTableAspect;
-import io.tapdata.aspect.StreamReadFuncAspect;
-import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -94,6 +91,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.Dynamic
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -495,6 +493,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules, obsLogger)
                     .dynamicTableTest(this::checkDDLFilterPredicate);
         }
+    }
+
+    protected void initSkipErrorTable() {
+        Optional.ofNullable(getNode())
+            .map(Node::getTaskId)
+            .map(ISkipErrorTable::get)
+            .ifPresent(ins -> ins.initTables(vo -> {
+                if (SkipErrorTableStatusEnum.RECOVERING == vo.getStatus()) {
+                    String tableName = vo.getSourceTable();
+                    BatchOffsetUtil.updateBatchOffset(syncProgress, tableName, null, TableBatchReadStatus.RUNNING.name());
+                }
+            }));
     }
 
     protected void initTableMonitor() throws Exception {

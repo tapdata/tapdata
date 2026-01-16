@@ -1,5 +1,6 @@
 package io.tapdata.observable.metric.handler;
 
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
@@ -24,18 +25,18 @@ public abstract class AbstractHandler {
     protected SpeedSampler outputSizeSpeed;
     private Double outputSizeQpsMax;
     private Double outputSizeQpsAvg;
-    protected int qpsType = Constants.QPS_TYPE_MEMORY;//memory(内存) / count(数量)
+    protected int qpsType = MetricCons.QpsType.MEMORY.code();
 
     AbstractHandler(TaskDto task) {
         this.task = task;
     }
 
     Map<String, String> tags() {
-        return new HashMap<String, String>() {{
-            put("type", type());
-            put("taskId", task.getId().toHexString());
-            put("taskRecordId", task.getTaskRecordId());
-        }};
+        Map<String, String> hashMap = new HashMap<>();
+        hashMap.put(MetricCons.Tags.F_TYPE, type());
+        hashMap.put(MetricCons.Tags.F_TASK_ID, task.getId().toHexString());
+        hashMap.put(MetricCons.Tags.F_TASK_RECORD_ID, task.getTaskRecordId());
+        return hashMap;
     }
 
     public void init() {
@@ -62,17 +63,21 @@ public abstract class AbstractHandler {
     abstract String type();
     abstract List<String> samples();
     void doInit(Map<String, Number> values){
-        inputSizeSpeed = collector.getSpeedSampler(Constants.INPUT_SIZE_QPS);
-        outputSizeSpeed = collector.getSpeedSampler(Constants.OUTPUT_SIZE_QPS);
-        collector.addSampler(Constants.QPS_TYPE, () -> qpsType);
-        collector.addSampler(Constants.INPUT_SIZE_QPS, () -> inputSizeSpeed.value());
-        collector.addSampler(Constants.OUTPUT_SIZE_QPS, () -> outputSizeSpeed.value());
-        collector.addSampler(Constants.OUTPUT_SIZE_QPS_MAX, () -> {
-            Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> outputSizeQpsMax = speed.getMaxValue());
+        inputSizeSpeed = collector.getSpeedSampler(MetricCons.SS.VS.F_INPUT_SIZE_QPS);
+        outputSizeSpeed = collector.getSpeedSampler(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS);
+        collector.addSampler(MetricCons.SS.VS.F_QPS_TYPE, () -> qpsType);
+        collector.addSampler(MetricCons.SS.VS.F_INPUT_SIZE_QPS, () -> inputSizeSpeed.value());
+        collector.addSampler(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS, () -> outputSizeSpeed.value());
+        collector.addSampler(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS_MAX, () -> {
+            outputSizeQpsMax = Optional.ofNullable(outputSizeSpeed)
+                .map(SpeedSampler::getMaxValue)
+                .orElse(outputSizeQpsMax);
             return outputSizeQpsMax;
         });
-        collector.addSampler(Constants.OUTPUT_SIZE_QPS_AVG, () -> {
-            Optional.ofNullable(outputSizeSpeed).ifPresent(speed ->  outputSizeQpsAvg = speed.getAvgValue());
+        collector.addSampler(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS_AVG, () -> {
+            outputSizeQpsAvg = Optional.ofNullable(outputSizeSpeed)
+                .map(SpeedSampler::getAvgValue)
+                .orElse(outputSizeQpsAvg);
             return outputSizeQpsAvg;
         });
     }

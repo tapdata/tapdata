@@ -205,6 +205,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private Boolean dataSaving;
 
+    private Boolean fileLog;
+
     /**
      * 是否启用同步指标收集，启用时任务停止打印同步指标
      */
@@ -414,6 +416,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
             Disable,
             SkipTable,
             SkipData,
+            SkipTableForMigrateSnapshot,
             ;
         }
 

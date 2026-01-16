@@ -1,6 +1,6 @@
 package io.tapdata.observable.metric.handler;
 
-import com.google.common.util.concurrent.AtomicDouble;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.aspect.CpuMemUsageAspect;
@@ -19,7 +19,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -29,22 +28,7 @@ import java.util.stream.Stream;
  */
 public class TaskSampleHandler extends AbstractHandler {
     private static final String TAG = TaskSampleHandler.class.getSimpleName();
-    static final String SAMPLE_TYPE_TASK                      = "task";
-
-    static final String TABLE_TOTAL                           = "tableTotal";
-    static final String CREATE_TABLE_TOTAL                    = "createTableTotal";
-    static final String SNAPSHOT_TABLE_TOTAL                  = "snapshotTableTotal";
-    static final String SNAPSHOT_ROW_TOTAL                    = "snapshotRowTotal";
-    static final String SNAPSHOT_INSERT_ROW_TOTAL             = "snapshotInsertRowTotal";
-    static final String SNAPSHOT_START_AT                     = "snapshotStartAt";
-    static final String SNAPSHOT_DONE_AT                      = "snapshotDoneAt";
-    static final String SNAPSHOT_DONE_COST                    = "snapshotDoneCost";
-    static final String CURR_SNAPSHOT_TABLE                   = "currentSnapshotTable";
-    static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL         = "currentSnapshotTableRowTotal";
-    static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL  = "currentSnapshotTableInsertRowTotal";
-    static final String OUTPUT_QPS_MAX                        = "outputQpsMax";
-    static final String OUTPUT_QPS_AVG                        = "outputQpsAvg";
-
+    static final String SAMPLE_TYPE_TASK = MetricCons.SampleType.TASK.code();
 
     CounterSampler inputInsertCounter;
     CounterSampler inputUpdateCounter;
@@ -108,43 +92,43 @@ public class TaskSampleHandler extends AbstractHandler {
     @Override
     List<String> samples() {
         return Arrays.asList(
-                Constants.INPUT_DDL_TOTAL,
-                Constants.INPUT_INSERT_TOTAL,
-                Constants.INPUT_UPDATE_TOTAL,
-                Constants.INPUT_DELETE_TOTAL,
-                Constants.INPUT_OTHERS_TOTAL,
-                Constants.OUTPUT_DDL_TOTAL,
-                Constants.OUTPUT_INSERT_TOTAL,
-                Constants.OUTPUT_UPDATE_TOTAL,
-                Constants.OUTPUT_DELETE_TOTAL,
-                Constants.OUTPUT_OTHERS_TOTAL,
-                Constants.INPUT_QPS,
-                Constants.OUTPUT_QPS,
-                Constants.TIME_COST_AVG,
-                Constants.REPLICATE_LAG,
-                Constants.CURR_EVENT_TS,
-                CREATE_TABLE_TOTAL,
-                SNAPSHOT_TABLE_TOTAL,
-                SNAPSHOT_ROW_TOTAL,
-                SNAPSHOT_INSERT_ROW_TOTAL,
-                SNAPSHOT_START_AT,
-                SNAPSHOT_DONE_AT,
-                SNAPSHOT_DONE_COST,
-                CURR_SNAPSHOT_TABLE,
-                CURR_SNAPSHOT_TABLE_ROW_TOTAL,
-                CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL,
-                OUTPUT_QPS_MAX,
-                OUTPUT_QPS_AVG,
-                TABLE_TOTAL,
-                Constants.INPUT_SIZE_QPS,
-                Constants.OUTPUT_SIZE_QPS,
-                Constants.QPS_TYPE,
-                Constants.OUTPUT_SIZE_QPS_MAX,
-                Constants.OUTPUT_SIZE_QPS_AVG,
-                Constants.CPU_USAGE,
-                Constants.MEMORY_USAGE
+            MetricCons.SS.VS.F_INPUT_DDL_TOTAL,
+            MetricCons.SS.VS.F_INPUT_INSERT_TOTAL,
+            MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL,
+            MetricCons.SS.VS.F_INPUT_DELETE_TOTAL,
+            MetricCons.SS.VS.F_INPUT_OTHERS_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_DDL_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_OTHERS_TOTAL,
+            MetricCons.SS.VS.F_INPUT_QPS,
+            MetricCons.SS.VS.F_OUTPUT_QPS,
+            MetricCons.SS.VS.F_TIME_COST_AVG,
+            MetricCons.SS.VS.F_REPLICATE_LAG,
+            MetricCons.SS.VS.F_CURR_EVENT_TS,
+            MetricCons.SS.VS.F_CREATE_TABLE_TOTAL,
+            MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL,
+            MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL,
+            MetricCons.SS.VS.F_SNAPSHOT_INSERT_ROW_TOTAL,
+            MetricCons.SS.VS.F_SNAPSHOT_START_AT,
+            MetricCons.SS.VS.F_SNAPSHOT_DONE_AT,
+            MetricCons.SS.VS.F_SNAPSHOT_DONE_COST,
+            MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE,
+            MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE_ROW_TOTAL,
+            MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL,
+            MetricCons.SS.VS.F_OUTPUT_QPS_MAX,
+            MetricCons.SS.VS.F_OUTPUT_QPS_AVG,
+            MetricCons.SS.VS.F_TABLE_TOTAL,
+            MetricCons.SS.VS.F_INPUT_SIZE_QPS,
+            MetricCons.SS.VS.F_OUTPUT_SIZE_QPS,
+            MetricCons.SS.VS.F_QPS_TYPE,
+            MetricCons.SS.VS.F_OUTPUT_SIZE_QPS_MAX,
+            MetricCons.SS.VS.F_OUTPUT_SIZE_QPS_AVG,
+            MetricCons.SS.VS.F_CPU_USAGE,
+            MetricCons.SS.VS.F_MEMORY_USAGE
         );
-	}
+    }
 
     private void initPrometheusReporter() {
         try {
@@ -164,9 +148,9 @@ public class TaskSampleHandler extends AbstractHandler {
         // init Prometheus metrics reporter
         initPrometheusReporter();
 
-        collector.addSampler(TABLE_TOTAL, () -> {
+        collector.addSampler(MetricCons.SS.VS.F_TABLE_TOTAL, () -> {
             if (taskTables.isEmpty() && snapshotTableTotal.value().longValue() > 0) {
-                return Math.max(snapshotTableTotal.value().longValue(), values.get(TABLE_TOTAL).longValue());
+                return Math.max(snapshotTableTotal.value().longValue(), values.get(MetricCons.SS.VS.F_TABLE_TOTAL).longValue());
             }
             if (Objects.nonNull(snapshotTableTotal.value())) {
                 return Math.max(snapshotTableTotal.value().longValue(), taskTables.size());
@@ -175,23 +159,23 @@ public class TaskSampleHandler extends AbstractHandler {
             }
         });
 
-        inputDdlCounter = getCounterSampler(values, Constants.INPUT_DDL_TOTAL);
-        inputInsertCounter = getCounterSampler(values, Constants.INPUT_INSERT_TOTAL);
-        inputUpdateCounter = getCounterSampler(values, Constants.INPUT_UPDATE_TOTAL);
-        inputDeleteCounter = getCounterSampler(values, Constants.INPUT_DELETE_TOTAL);
-        inputOthersCounter = getCounterSampler(values, Constants.INPUT_OTHERS_TOTAL);
+        inputDdlCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_DDL_TOTAL);
+        inputInsertCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_INSERT_TOTAL);
+        inputUpdateCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL);
+        inputDeleteCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_DELETE_TOTAL);
+        inputOthersCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_OTHERS_TOTAL);
 
-        outputDdlCounter = getCounterSampler(values, Constants.OUTPUT_DDL_TOTAL);
-        outputInsertCounter = getCounterSampler(values,Constants.OUTPUT_INSERT_TOTAL);
-        outputUpdateCounter = getCounterSampler(values,Constants.OUTPUT_UPDATE_TOTAL);
-        outputDeleteCounter = getCounterSampler(values,Constants.OUTPUT_DELETE_TOTAL);
-        outputOthersCounter = getCounterSampler(values,Constants.OUTPUT_OTHERS_TOTAL);
+        outputDdlCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_DDL_TOTAL);
+        outputInsertCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL);
+        outputUpdateCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL);
+        outputDeleteCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL);
+        outputOthersCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_OTHERS_TOTAL);
 
-        inputSpeed = collector.getSpeedSampler(Constants.INPUT_QPS);
-        outputSpeed = collector.getSpeedSampler(Constants.OUTPUT_QPS);
-        timeCostAverage = collector.getAverageSampler(Constants.TIME_COST_AVG);
+        inputSpeed = collector.getSpeedSampler(MetricCons.SS.VS.F_INPUT_QPS);
+        outputSpeed = collector.getSpeedSampler(MetricCons.SS.VS.F_OUTPUT_QPS);
+        timeCostAverage = collector.getAverageSampler(MetricCons.SS.VS.F_TIME_COST_AVG);
 
-        collector.addSampler(Constants.CURR_EVENT_TS, () -> {
+        collector.addSampler(MetricCons.SS.VS.F_CURR_EVENT_TS, () -> {
             AtomicReference<Long> currentEventTimestampRef = new AtomicReference<>();
             Stream.concat(sourceNodeHandlers.values().stream(), targetNodeHandlers.values().stream()).forEach(h -> {
                 Optional.ofNullable(h.getCurrentEventTimestamp()).ifPresent(sampler -> {
@@ -205,7 +189,7 @@ public class TaskSampleHandler extends AbstractHandler {
             });
             return currentEventTimestampRef.get();
         });
-        collector.addSampler(Constants.REPLICATE_LAG, new SamplerPrometheus() {
+        collector.addSampler(MetricCons.SS.VS.F_REPLICATE_LAG, new SamplerPrometheus() {
             @Override
             public Number value() {
                 AtomicReference<Long> replicateLagRef = new AtomicReference<>(null);
@@ -234,23 +218,23 @@ public class TaskSampleHandler extends AbstractHandler {
             }
         });
 
-        createTableTotal = getCounterSampler(values, CREATE_TABLE_TOTAL);
-        snapshotTableTotal = getCounterSampler(values, SNAPSHOT_TABLE_TOTAL);
-        snapshotRowTotal = getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
-        snapshotInsertRowTotal = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
+        createTableTotal = getCounterSampler(values, MetricCons.SS.VS.F_CREATE_TABLE_TOTAL);
+        snapshotTableTotal = getCounterSampler(values, MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL);
+        snapshotRowTotal = getCounterSampler(values, MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL);
+        snapshotInsertRowTotal = getCounterSampler(values, MetricCons.SS.VS.F_SNAPSHOT_INSERT_ROW_TOTAL);
 
-        Number retrieveSnapshotStartAt = values.getOrDefault(SNAPSHOT_START_AT, null);
+        Number retrieveSnapshotStartAt = values.getOrDefault(MetricCons.SS.VS.F_SNAPSHOT_START_AT, null);
         if (retrieveSnapshotStartAt != null) {
             snapshotStartAt = retrieveSnapshotStartAt.longValue();
         }
-        collector.addSampler(SNAPSHOT_START_AT, () -> snapshotStartAt);
+        collector.addSampler(MetricCons.SS.VS.F_SNAPSHOT_START_AT, () -> snapshotStartAt);
 
-        Number retrieveSnapshotDoneAt = values.getOrDefault(SNAPSHOT_DONE_AT, null);
+        Number retrieveSnapshotDoneAt = values.getOrDefault(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, null);
         if (retrieveSnapshotDoneAt != null) {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
 
-        collector.addSampler(SNAPSHOT_DONE_AT, () -> {
+        collector.addSampler(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, () -> {
             if (Objects.isNull(snapshotDoneAt)) {
                 long allSourceSize = sourceNodeHandlers.values().size();
                 long completeSize = sourceNodeHandlers.values().stream()
@@ -268,40 +252,40 @@ public class TaskSampleHandler extends AbstractHandler {
             return snapshotDoneAt;
         });
 
-        collector.addSampler(SNAPSHOT_DONE_COST, () -> {
+        collector.addSampler(MetricCons.SS.VS.F_SNAPSHOT_DONE_COST, () -> {
             if (Objects.nonNull(snapshotDoneAt) && Objects.nonNull(snapshotStartAt)) {
                 snapshotDoneCost = snapshotDoneAt - snapshotStartAt;
             }
             return snapshotDoneCost;
         });
 
-        collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
+        collector.addSampler(MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
             if (null != currentSnapshotTable) {
                 currentSnapshotTableRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
             }
             return currentSnapshotTableRowTotal;
         });
-        collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
+        collector.addSampler(MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
             if (Objects.nonNull(snapshotTableTotal.value()) && CollectionUtils.isNotEmpty(taskTables) &&
             snapshotTableTotal.value().intValue() == taskTables.size() && Objects.nonNull(currentSnapshotTable)) {
                 currentSnapshotTableInsertRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
             }
             return currentSnapshotTableInsertRowTotal;
         });
-        collector.addSampler(OUTPUT_QPS_MAX, () -> {
+        collector.addSampler(MetricCons.SS.VS.F_OUTPUT_QPS_MAX, () -> {
             Optional.ofNullable(outputSpeed).ifPresent(speed -> {
                 outputQpsMax = speed.getMaxValue();
             });
             return outputQpsMax;
         });
-        collector.addSampler(OUTPUT_QPS_AVG, () -> {
+        collector.addSampler(MetricCons.SS.VS.F_OUTPUT_QPS_AVG, () -> {
             Optional.ofNullable(outputSpeed).ifPresent(speed -> {
                 outputQpsAvg = speed.getAvgValue();
             });
             return outputQpsAvg;
         });
-        collector.addSampler(Constants.CPU_USAGE, () -> taskCpuUsage.get());
-        collector.addSampler(Constants.MEMORY_USAGE, this::getTaskMem);
+        collector.addSampler(MetricCons.SS.VS.F_CPU_USAGE, () -> taskCpuUsage.get());
+        collector.addSampler(MetricCons.SS.VS.F_MEMORY_USAGE, this::getTaskMem);
     }
 
     protected Long getTaskMem() {
@@ -438,8 +422,6 @@ public class TaskSampleHandler extends AbstractHandler {
         if (null == tables || tables.isEmpty()) {
             return;
         }
-
-
 
         taskTables.addAll(tables);
         inputDdlCounter.inc(tables.size());

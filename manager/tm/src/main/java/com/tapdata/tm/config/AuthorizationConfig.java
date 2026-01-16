@@ -4,14 +4,18 @@ import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
+import com.tapdata.tm.config.security.JsonToFormUrlEncodedFilter;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.role.entity.RoleEntity;
 import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.bson.types.ObjectId;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -26,10 +30,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 
-import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
@@ -41,6 +45,7 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 
+import javax.annotation.Resource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.KeyFactory;
@@ -62,6 +67,10 @@ import java.util.stream.Collectors;
 @Configuration
 @Slf4j
 public class AuthorizationConfig {
+
+    @Resource(name = "settingsServiceImpl")
+    private SettingsService settingsService;
+
     /**
      * 个性化 JWT token
      */
@@ -91,10 +100,10 @@ public class AuthorizationConfig {
                 expireDate = expireDateInstant.toEpochMilli();
             }
 
-            context.getClaims().claim("clientId", registeredClient.getClientId())
+            useClusterId(context.getClaims().claim("clientId", registeredClient.getClientId())
                     .claim("createdAt", createAt)
                     .claim("roles", roles)
-                    .claim("expiredate", expireDate);
+                    .claim("expiredate", expireDate));
 
             // authorization code 方式认证时，可以拿到用户信息, client impl
             if (oAuth2ClientAuthenticationToken instanceof UsernamePasswordAuthenticationToken) {
@@ -103,6 +112,23 @@ public class AuthorizationConfig {
                         .claim("email", userDetail.getEmail());
             }
         };
+    }
+
+    protected void useClusterId(JwtClaimsSet.Builder claim) {
+        if (null == claim) {
+            return;
+        }
+        String clusterId;
+        Settings cluster = settingsService.getByKey("cluster");
+        if (null == cluster) {
+            clusterId = "";
+        } else {
+            clusterId = cluster.getId();
+            if (null == clusterId) {
+                clusterId = "";
+            }
+        }
+        claim.claim("cluster", clusterId);
     }
 
     /**
@@ -247,6 +273,16 @@ public class AuthorizationConfig {
             }
         });
     }*/
+
+
+    @Bean
+    public FilterRegistrationBean<JsonToFormUrlEncodedFilter> jsonToFormFilter() {
+        FilterRegistrationBean<JsonToFormUrlEncodedFilter> bean =
+                new FilterRegistrationBean<>();
+        bean.setFilter(new JsonToFormUrlEncodedFilter());
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return bean;
+    }
 
 
 
