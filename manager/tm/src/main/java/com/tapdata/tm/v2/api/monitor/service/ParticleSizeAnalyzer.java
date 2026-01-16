@@ -61,10 +61,10 @@ public class ParticleSizeAnalyzer {
         int qg = 1;
         if (query.getGranularity() == 0) {
             s = (start + 4L) / 5L * 5L;
-            qStart = (qStart + 4L) / 5L * 5L;
+            qs = s / 60L * 60L;
+            qStart = s - 5 * 60L;
             e = end / 5L * 5L;
-            qs = (qStart / 60L * 60L);
-            qe = (end / 60L * 60L);
+            qe = e / 60L * 60L;
         } else if (query.getGranularity() == 1) {
             query.setGranularity(1);
             s = (start + 59L) / 60L * 60L;
@@ -82,7 +82,9 @@ public class ParticleSizeAnalyzer {
         query.getQueryParam().setEnd(end);
         query.setStartAt(s);
         query.setEndAt(e);
-        points(qStart, end, query);
+        if (query.getGranularity() != 0) {
+            points(qStart, end, query);
+        }
         return Criteria.where("timeGranularity").is(qg).andOperator(
                 Criteria.where("timeStart").gte(qs),
                 Criteria.where("timeStart").lt(qe)
