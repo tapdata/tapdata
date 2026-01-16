@@ -60,8 +60,8 @@ public class ApiCallMinuteStatsScheduler {
 	/**
 	 * Scheduled task to aggregate the API call data of each module and save it to ApiCallMinuteStats
 	 */
-//	@Scheduled(cron = "0 0/1 * * * ?")
-//	@SchedulerLock(name = "api_call_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
+	@Scheduled(cron = "0 0/1 * * * ?")
+	@SchedulerLock(name = "api_call_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
 	public void schedule() {
 		Thread.currentThread().setName(getClass().getSimpleName() + "-scheduler");
 		if (log.isDebugEnabled()) {

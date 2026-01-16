@@ -28,7 +28,6 @@ import static com.tapdata.manager.common.utils.ReflectionUtils.getAllFieldType;
  * @description
  */
 public class MongoUtils {
-    static Logger log = LoggerFactory.getLogger(MongoUtils.class);
     private MongoUtils() {}
 
     private static final Logger logger = LoggerFactory.getLogger(MongoUtils.class);
@@ -40,15 +39,6 @@ public class MongoUtils {
             return EntityUtils.documentAnnotationValue(entityClass);
         } catch (Exception e) {
             throw new BizException("Get Collection name by entity class failed, class: " + entityClass.getName(), e);
-        }
-    }
-
-    public static <T extends BaseEntity> String getCollectionNameIgnore(Class<T> entityClass) {
-        try {
-            return EntityUtils.documentAnnotationValue(entityClass);
-        } catch (Exception e) {
-            log.warn("Get Collection name by entity class failed, collection not exists: {}", entityClass.getName());
-            return null;
         }
     }
 

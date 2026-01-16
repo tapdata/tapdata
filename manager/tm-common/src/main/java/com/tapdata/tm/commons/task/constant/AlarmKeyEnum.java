@@ -30,27 +30,11 @@ public enum AlarmKeyEnum {
 	INSPECT_VALUE_ERROR(Constant.TYPE_EVENT),
     TASK_RETRY_WARN(Constant.TYPE_METRIC),
 
-    /**
-     * @deprecated since 4.13.0
-     * */
     API_SERVER_WORKER_DELAY_P50_WARN(Constant.TYPE_API_SERVER, "任一Worker每分钟请求延迟 P50 >= ${delay}ms 并持续${min}分钟时邮件告警", 0),
-    /**
-     * @deprecated since 4.13.0
-     * */
     API_SERVER_WORKER_DELAY_P95_WARN(Constant.TYPE_API_SERVER, "任一Worker每分钟请求延迟 P95 >= ${delay}ms 并持续${min}分钟时系统通知", 10),
-    /**
-     * @deprecated since 4.13.0
-     * */
     API_SERVER_WORKER_DELAY_P99_WARN(Constant.TYPE_API_SERVER, "任一Worker每分钟请求延迟 P99 >= ${delay}ms 并持续${min}分钟时系统通知", 20),
-    /**
-     * @deprecated since 4.13.0
-     * */
     API_SERVER_WORKER_ERROR_RATE_WARN(Constant.TYPE_API_SERVER, "任一Worker每分钟请求错误率 >= ${rate}% 并持续${min}分钟时邮件告警", 30),
-    /**
-     * @deprecated since 4.13.0
-     * */
     API_SERVER_WORKER_ERROR_RATE_ALTER(Constant.TYPE_API_SERVER, "任一Worker每分钟请求错误率 >= ${rate}% 并持续${min}分钟时系统通知", 40),
-
     API_SERVER_API_DELAY_AVG_WARN(Constant.TYPE_API_SERVER, "任一API响应时间 >= ${rate}s 并持续${min}分钟时邮件告警", 50),
     API_SERVER_API_DELAY_P95_ALTER(Constant.TYPE_API_SERVER, "任一API每分钟请求延迟P95 >= ${delay}ms 并持续${min}分钟时系统通知", 60),
     API_SERVER_API_DELAY_P99_ALTER(Constant.TYPE_API_SERVER, "任一API每分钟请求延迟P99 >= ${delay}ms 并持续${min}分钟时系统通知", 70),
@@ -65,10 +49,6 @@ public enum AlarmKeyEnum {
     API_SERVER_WORKER_CPU_USAGE_ALTER(Constant.TYPE_API_SERVER, "任一Worker CPU使用 >= ${rate2}% 时系统通知", 160),
     API_SERVER_WORKER_MEMORY_USAGE_WARN(Constant.TYPE_API_SERVER, "任一Worker CPU使用 >= ${rate1}% 时邮件告警", 170),
     API_SERVER_WORKER_MEMORY_USAGE_ALTER(Constant.TYPE_API_SERVER, "任一Worker CPU使用 >= ${rate2}% 时系统通知", 180),
-
-    API_SERVER_P95_WARN(Constant.TYPE_API_SERVER, "API Server每分钟请求延迟P95 >= ${rate}s 并持续${min}分钟时邮件告警", 190),
-    API_SERVER_P99_WARN(Constant.TYPE_API_SERVER, "API Server每分钟请求延迟P99 >= ${rate}s 并持续${min}分钟时邮件告警", 200),
-    API_SERVER_ERROR_RATE_WARN(Constant.TYPE_API_SERVER, "API Server每分钟错误率 >= ${rate}s 并持续${min}分钟时邮件告警", 210),
 
     ;
 

@@ -660,12 +660,10 @@ class ModulesServiceTest {
 			modulesService = spy(modulesService);
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
-			modulesDto.setId(new ObjectId());
 			modulesDto.setConnection(new ObjectId());
 			apis.add(modulesDto);
 			doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
-			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
 			List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
 			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
 			Map<String, Object> config = new HashMap<>();
@@ -733,12 +731,10 @@ class ModulesServiceTest {
 			modulesService = spy(modulesService);
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
-			modulesDto.setId(new ObjectId());
 			modulesDto.setConnection(new ObjectId());
 			apis.add(modulesDto);
 			doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
-			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
 			List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
 			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
 			Map<String, Object> config = new HashMap<>();
