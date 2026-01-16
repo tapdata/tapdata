@@ -217,6 +217,7 @@ public class ApiMetricsRawService {
                     for (QueryBase.Point point : second5Point) {
                         of5Sec.setStartAt(point.getStart());
                         of5Sec.setEndAt(point.getEnd());
+                        of5Sec.setQStart(point.getStart());
                         List<ApiMetricsRaw> raws = ParticleSizeAnalyzer.apiMetricsRaws(metricsRawList, of5Sec);
                         supplement.addAll(raws);
                     }
