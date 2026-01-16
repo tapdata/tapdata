@@ -15,7 +15,7 @@ import java.util.Optional;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ServerTopOnHomepage extends ValueBase {
+public class ServerTopOnHomepage extends DataValueBase {
 
     Long totalRequestCount;
 
@@ -25,17 +25,6 @@ public class ServerTopOnHomepage extends ValueBase {
     Double totalErrorRate;
 
     Long responseTime;
-
-    @DecimalFormat
-    Double responseTimeAvg;
-
-    Long p95;
-
-    Long p99;
-
-    Long maxDelay;
-
-    Long minDelay;
 
     Long notHealthyApiCount;
 

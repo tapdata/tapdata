@@ -1,7 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.main.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.bson.types.ObjectId;
@@ -62,6 +62,13 @@ public class ApiMetricsRaw extends BaseEntity {
     private List<?> delay;
 
     /**
+     * 为了节省空间, 此字段内容如下：[100, {102:2},{89:5}]
+     * 数组元素为纯数子：表示某次请求的延时
+     * 数组元素为对象：表示某次请求的延时以及出现的次数
+     */
+    private List<?> dbCost;
+
+    /**
      * timeGranularity = 0 时，聚合了1分钟的数据，5S一个数据点，每分钟12条
      */
     private Map<Long, ApiMetricsRaw> subMetrics;
@@ -100,24 +107,21 @@ public class ApiMetricsRaw extends BaseEntity {
         setBytes(mergeBytes);
         List<Map<Long, Integer>> mergeDelay = ApiMetricsDelayUtil.merge(Optional.ofNullable(getDelay()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()), Optional.ofNullable(raw.getDelay()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()));
         setDelay(mergeDelay);
-        switch (timeGranularity) {
-            case 1:
-                setRps(Optional.ofNullable(getReqCount()).orElse(0L) / 60D);
-                break;
-            case 2:
-                setRps(Optional.ofNullable(getReqCount()).orElse(0L) / 3600D);
-                break;
-            default:
-                setRps(Optional.ofNullable(getReqCount()).orElse(0L) / 5D);
-
-        }
+        List<Map<Long, Integer>> mergeDbCost = ApiMetricsDelayUtil.merge(Optional.ofNullable(getDbCost()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()), Optional.ofNullable(raw.getDbCost()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()));
+        setDbCost(mergeDbCost);
+        calcRps();
     }
 
-    public void merge(boolean isOk, long reqBytes, long requestCost) {
+    public void merge(boolean isOk, long reqBytes, long requestCost, long dbCost) {
         setReqCount(Optional.ofNullable(getReqCount()).orElse(0L) + 1L);
         setErrorCount(Optional.ofNullable(getErrorCount()).orElse(0L) + (isOk ? 0L : 1L));
         setBytes(ApiMetricsDelayUtil.addDelay(Optional.ofNullable(getBytes()).orElse(new ArrayList<>()), reqBytes));
         setDelay(ApiMetricsDelayUtil.addDelay(Optional.ofNullable(getDelay()).orElse(new ArrayList<>()), requestCost));
+        setDbCost(ApiMetricsDelayUtil.addDelay(Optional.ofNullable(getDbCost()).orElse(new ArrayList<>()), dbCost));
+        calcRps();
+    }
+
+    void calcRps() {
         switch (timeGranularity) {
             case 1:
                 setRps(Optional.ofNullable(getReqCount()).orElse(0L) / 60D);
@@ -127,7 +131,6 @@ public class ApiMetricsRaw extends BaseEntity {
                 break;
             default:
                 setRps(Optional.ofNullable(getReqCount()).orElse(0L) / 5D);
-
         }
     }
 }

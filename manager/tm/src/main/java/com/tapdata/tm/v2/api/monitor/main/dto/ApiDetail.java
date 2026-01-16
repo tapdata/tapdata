@@ -12,28 +12,19 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ApiDetail extends ValueBase {
+public class ApiDetail extends DataValueBase {
     String apiPath;
     String apiName;
     /**
      * 总调用数
-     * */
+     */
     long requestCount;
 
     /**
      * 全局错误率
-     * */
+     */
     @DecimalFormat
     double errorRate;
 
-    /**
-     * 平均耗时
-     * */
-    @DecimalFormat
-    double requestCostAvg;
-
-    Long p95;
-    Long p99;
-    Long maxDelay;
-    Long minDelay;
+    long errorCount;
 }

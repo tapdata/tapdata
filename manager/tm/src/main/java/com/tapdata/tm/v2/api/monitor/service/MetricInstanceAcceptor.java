@@ -3,7 +3,7 @@ package com.tapdata.tm.v2.api.monitor.service;
 import com.tapdata.tm.v2.api.common.service.AcceptorBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -47,6 +47,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             return;
         }
         long requestCost = Optional.ofNullable(entity.get("latency", Long.class)).orElse(0L);
+        long dbCost = Optional.ofNullable(entity.get("dataQueryTotalTime", Long.class)).orElse(0L);
         boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(entity.get("code", String.class), entity.get("httpStatus", String.class));
         long reqBytes = Optional.ofNullable(entity.get("req_bytes", Long.class)).orElse(0L);
         long reqTimeOSec = Optional.ofNullable(entity.get("reqTime", Long.class)).orElse(0L) / 1000L;
@@ -81,12 +82,12 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         }
         Map<Long, ApiMetricsRaw> subMetrics = lastBucketMin.getSubMetrics();
         ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, 0));
-        sub.merge(isOk, reqBytes, requestCost);
+        sub.merge(isOk, reqBytes, requestCost, dbCost);
         final ObjectId callId = entity.get("_id", ObjectId.class);
         lastBucketMin.setCallId(callId);
         lastBucketHour.setCallId(callId);
-        lastBucketMin.merge(isOk, reqBytes, requestCost);
-        lastBucketHour.merge(isOk, reqBytes, requestCost);
+        lastBucketMin.merge(isOk, reqBytes, requestCost, dbCost);
+        lastBucketHour.merge(isOk, reqBytes, requestCost, dbCost);
     }
 
     void acceptOnce(ApiMetricsRaw item) {

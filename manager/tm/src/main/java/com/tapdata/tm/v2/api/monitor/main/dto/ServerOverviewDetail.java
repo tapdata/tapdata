@@ -12,7 +12,7 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ServerOverviewDetail extends ValueBase {
+public class ServerOverviewDetail extends DataValueBase {
     private String serverName;
 
     private String serverId;
@@ -28,16 +28,7 @@ public class ServerOverviewDetail extends ValueBase {
     private Long requestCount;
 
     @DecimalFormat
-    double responseTimeAvg;
+    private double errorRate;
 
-    @DecimalFormat
-    private Double errorRate;
-
-    private Long p95;
-
-    private Long p99;
-
-    private Long maxDelay;
-
-    private Long minDelay;
+    private long errorCount;
 }

@@ -1,10 +1,8 @@
 package com.tapdata.tm.v2.api.monitor.utils;
 
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.BeforeEach;
-import org.mockito.MockedStatic;
-import org.slf4j.Logger;
 
 import java.util.*;
 import java.util.function.LongConsumer;

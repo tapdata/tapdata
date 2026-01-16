@@ -1,4 +1,4 @@
-package com.tapdata.tm.v2.api.monitor.utils;
+package com.tapdata.tm.utils;
 
 import org.slf4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.LongConsumer;
 
 /**
@@ -155,8 +154,8 @@ public final class ApiMetricsDelayUtil {
         for (Map<Long, Integer> item : delayList) {
             delays.addAll(item.keySet());
         }
-        delays.stream().mapToLong(Long::longValue).max().ifPresent(max);
-        delays.stream().mapToLong(Long::longValue).min().ifPresent(min);
+        Optional.ofNullable(max).ifPresent(c -> delays.stream().mapToLong(Long::longValue).max().ifPresent(c));
+        Optional.ofNullable(min).ifPresent(c -> delays.stream().mapToLong(Long::longValue).min().ifPresent(c));
     }
 
     static Long p(List<Map<Long, Integer>> delayList, long total, double p) {

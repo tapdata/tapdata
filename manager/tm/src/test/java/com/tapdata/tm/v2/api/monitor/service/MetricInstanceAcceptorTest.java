@@ -3,7 +3,7 @@ package com.tapdata.tm.v2.api.monitor.service;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;

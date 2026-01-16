@@ -24,6 +24,8 @@ public class QueryBase {
 
     int granularity;
 
+    SortInfo sortInfo;
+
     QueryParam queryParam = new QueryParam();
 
     @Data

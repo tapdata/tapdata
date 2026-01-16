@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
 import com.tapdata.tm.commons.base.DecimalFormat;
+import com.tapdata.tm.commons.base.SortField;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.v2.api.monitor.utils.ApiPathUtil;
 import lombok.Data;
@@ -19,20 +20,17 @@ import java.util.Objects;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class TopApiInServer extends ValueBase {
+public class TopApiInServer extends DataValueBase {
     String apiId;
     String apiName;
     String apiPath;
     boolean notExistsApi;
+    @SortField(name = {"requestCount", "rc"}, normal = true)
     Long requestCount;
     @DecimalFormat
+    @SortField(name = {"errorRate", "er"})
     Double errorRate;
-    @DecimalFormat
-    Double avg;
-    Long p99;
-    Long p95;
-    Long maxDelay;
-    Long minDelay;
+    @SortField(name = {"errorCount"})
     long errorCount;
 
     public static TopApiInServer create() {
@@ -40,7 +38,7 @@ public class TopApiInServer extends ValueBase {
         item.setRequestCount(0L);
         item.setErrorRate(0.0D);
         item.setErrorCount(0L);
-        item.setAvg(0.0D);
+        item.setResponseTimeAvg(0.0D);
         return item;
     }
 
