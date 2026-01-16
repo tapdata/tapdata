@@ -61,7 +61,7 @@ public class ParticleSizeAnalyzer {
         int qg = 1;
         if (query.getGranularity() == 0) {
             s = (start + 4L) / 5L * 5L;
-            qs = s / 60L * 60L;
+            qs = s / 60L * 60L - 5 * 60L;
             qStart = s - 5 * 60L;
             e = end / 5L * 5L;
             qe = e / 60L * 60L;
@@ -144,7 +144,7 @@ public class ParticleSizeAnalyzer {
                 if (!CollectionUtils.isEmpty(subMetrics)) {
                     subMetrics.values()
                             .stream()
-                            .filter(e -> e.getTimeStart() >= query.getStartAt() && e.getTimeStart() < query.getEndAt())
+                            .filter(e -> e.getTimeStart() >= query.getQStart() && e.getTimeStart() < query.getEndAt())
                             .sorted(Comparator.comparing(ApiMetricsRaw::getTimeStart))
                             .forEach(e -> {
                                 e.setApiId(raw.getApiId());
