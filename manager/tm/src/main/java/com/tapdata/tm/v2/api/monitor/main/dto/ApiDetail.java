@@ -18,19 +18,19 @@ public class ApiDetail extends ValueBase {
     /**
      * 总调用数
      * */
-    Long requestCount;
+    long requestCount;
 
     /**
      * 全局错误率
      * */
     @DecimalFormat
-    Double errorRate;
+    double errorRate;
 
     /**
      * 平均耗时
      * */
     @DecimalFormat
-    Double requestCostAvg;
+    long requestCostAvg;
 
     Long p95;
     Long p99;
