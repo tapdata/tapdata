@@ -28,6 +28,9 @@ public class ServerOverviewDetail extends ValueBase {
     private Long requestCount;
 
     @DecimalFormat
+    double responseTimeAvg;
+
+    @DecimalFormat
     private Double errorRate;
 
     private Long p95;

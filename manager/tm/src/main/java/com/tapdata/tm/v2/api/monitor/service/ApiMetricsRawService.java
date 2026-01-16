@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -160,7 +161,11 @@ public class ApiMetricsRawService {
         return one;
     }
 
-    public List<ApiMetricsRaw> supplementMetricsRaw(List<ApiMetricsRaw> apiMetricsRaws, QueryBase param, Consumer<Criteria> criteriaConsumer, Consumer<Criteria> apiCallCriteriaConsumer) {
+    public List<ApiMetricsRaw> supplementMetricsRaw(List<ApiMetricsRaw> apiMetricsRaws, QueryBase param, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
+        return supplementMetricsRaw(apiMetricsRaws, param, true, criteriaConsumer, apiCallCriteria);
+    }
+
+    public List<ApiMetricsRaw> supplementMetricsRaw(List<ApiMetricsRaw> apiMetricsRaws, QueryBase param, boolean filterByTime, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
         List<ApiMetricsRaw> result = ParticleSizeAnalyzer.apiMetricsRaws(apiMetricsRaws, param);
         List<ApiMetricsRaw> supplement = new ArrayList<>();
         int granularity = param.getGranularity();
@@ -168,20 +173,21 @@ public class ApiMetricsRawService {
             case 0:
                 List<QueryBase.Point> secondPoint = param.getQueryParam().getSecondPoint();
                 if (!secondPoint.isEmpty()) {
-                    Criteria criteriaOfSec = Criteria.where("delete").ne(true)
-                            .and("req_path").nin(MetricInstanceFactory.IGNORE_PATH);
-                    apiCallCriteriaConsumer.accept(criteriaOfSec);
+                    List<Criteria> andCriteria = new ArrayList<>();
+                    andCriteria.add(Criteria.where("delete").ne(true)
+                            .and("req_path").nin(MetricInstanceFactory.IGNORE_PATH));
+                    Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
                     List<Criteria> or = new ArrayList<>();
                     for (QueryBase.Point point : secondPoint) {
-                        Criteria andCriteria = new Criteria();
+                        Criteria aubAndCriteria = new Criteria();
                         List<Criteria> and = new ArrayList<>();
                         and.add(Criteria.where("reqTime").gte(point.getStart() * 1000L));
                         and.add(Criteria.where("reqTime").lt(point.getEnd() * 1000L));
-                        andCriteria.andOperator(and);
-                        or.add(andCriteria);
+                        aubAndCriteria.andOperator(and);
+                        or.add(aubAndCriteria);
                     }
-                    criteriaOfSec.orOperator(or);
-                    Query query = Query.query(criteriaOfSec);
+                    andCriteria.add(new Criteria().orOperator(or));
+                    Query query = Query.query(new Criteria().andOperator(andCriteria));
                     String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
                     if (StringUtils.isNotBlank(callName)) {
                         List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);
@@ -254,7 +260,7 @@ public class ApiMetricsRawService {
             if (timeStart >= param.getQueryParam().getStart() && timeStart < param.getStartAt()) {
                 merge(apiMetricsRaw, left, key, apiId, serverId, param);
             }
-            if (timeStart >= param.getStartAt() && timeStart < param.getQueryParam().getEnd()) {
+            if (timeStart >= param.getEndAt() && timeStart < param.getQueryParam().getEnd()) {
                 merge(apiMetricsRaw, right, key, apiId, serverId, param);
             }
         }
@@ -276,7 +282,10 @@ public class ApiMetricsRawService {
                 .map(i -> {i.setTimeStart(i.getTimeStart() / step * step); return i;})
                 .map(MetricInstanceAcceptor::calcPValue)
                 .ifPresent(i -> result.add(0, i)));
-        return result;
+        return result.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> !filterByTime || e.getTimeStart() >= param.getStartAt() && e.getTimeStart() < param.getEndAt())
+                .toList();
     }
 
     void merge(ApiMetricsRaw apiMetricsRaw, Map<String, ApiMetricsRaw> map, String key, String apiId, String serverId, QueryBase param) {
