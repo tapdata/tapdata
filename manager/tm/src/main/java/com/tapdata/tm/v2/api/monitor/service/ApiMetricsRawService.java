@@ -3,13 +3,13 @@ package com.tapdata.tm.v2.api.monitor.service;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
-import com.tapdata.tm.apiServer.utils.PercentileCalculator;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
 import com.tapdata.tm.v2.api.monitor.repository.ApiMetricsRepository;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -58,13 +57,10 @@ public class ApiMetricsRawService {
         }
         List<WorkerCallEntity> callOfWorker = new ArrayList<>();
         if (startAt < endAt) {
-            Criteria criteriaOfWorker = Criteria.where(WorkerCallServiceImpl.Tag.TIME_GRANULARITY).is(1)
+            Criteria criteriaOfWorker = Criteria.where(WorkerCallServiceImpl.Tag.PROCESS_ID).is(serverId)
+                    .and(WorkerCallServiceImpl.Tag.TIME_GRANULARITY).is(1)
                     .and(WorkerCallServiceImpl.Tag.DELETE).ne(true)
-                    .and(WorkerCallServiceImpl.Tag.PROCESS_ID).is(serverId)
-                    .andOperator(
-                            Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).gte(startAt),
-                            Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).lt(endAt)
-                    );
+                    .and(WorkerCallServiceImpl.Tag.TIME_START).gte(startAt).lt(endAt);
             List<WorkerCallEntity> callOfMinute = mongoTemplate.find(Query.query(criteriaOfWorker), WorkerCallEntity.class, "ApiCallInWorker");
             if (!callOfMinute.isEmpty()) {
                 callOfWorker.addAll(callOfMinute);
@@ -80,16 +76,11 @@ public class ApiMetricsRawService {
             secondPoint.add(QueryBase.Point.of(endAt, end, -1));
         }
         if (!secondPoint.isEmpty()) {
-            Criteria criteriaOfSec = Criteria.where("delete").ne(true)
-                    .and("req_path").nin(MetricInstanceFactory.IGNORE_PATH);
+            Criteria criteriaOfSec = Criteria.where("api_gateway_uuid").is(serverId)
+                    .and("delete").ne(true) ;
             List<Criteria> or = new ArrayList<>();
             for (QueryBase.Point point : secondPoint) {
-                Criteria andCriteria = new Criteria();
-                List<Criteria> and = new ArrayList<>();
-                and.add(Criteria.where("reqTime").gte(point.getStart() * 1000L));
-                and.add(Criteria.where("reqTime").lt(point.getEnd() * 1000L));
-                andCriteria.andOperator(and);
-                or.add(andCriteria);
+                or.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
             }
             criteriaOfSec.orOperator(or);
             Query query = Query.query(criteriaOfSec);
@@ -99,6 +90,8 @@ public class ApiMetricsRawService {
                 Map<String, List<ApiCallEntity>> collect = calls.stream()
                         .filter(Objects::nonNull)
                         .filter(callItem -> StringUtils.isNotBlank(callItem.getWorkOid()))
+                        .filter(e -> StringUtils.isNotBlank(e.getReq_path()))
+                        .filter(e -> MetricInstanceFactory.IGNORE_PATH.contains(e.getReq_path()))
                         .collect(Collectors.groupingBy(ApiCallEntity::getWorkOid));
                 long finalEndAt = endAt;
                 long finalStartAt = startAt;
@@ -129,9 +122,11 @@ public class ApiMetricsRawService {
     }
 
     void end(WorkerCallEntity one) {
-        Long p50L = PercentileCalculator.calculatePercentile(one.getDelays(), 0.5d);
-        Long p95L = PercentileCalculator.calculatePercentile(one.getDelays(), 0.95d);
-        Long p99L = PercentileCalculator.calculatePercentile(one.getDelays(), 0.99d);
+        List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.fixDelayAsMap(one.getDelays());
+        Long total = ApiMetricsDelayUtil.sum(merged, (k, v) -> v.longValue());
+        Long p50L = ApiMetricsDelayUtil.p50(merged, total);
+        Long p95L = ApiMetricsDelayUtil.p95(merged, total);
+        Long p99L = ApiMetricsDelayUtil.p99(merged, total);
         one.setP50(p50L);
         one.setP95(p95L);
         one.setP99(p99L);
@@ -140,7 +135,9 @@ public class ApiMetricsRawService {
     void merge(WorkerCallEntity one, ApiCallEntity entity) {
         one.setReqCount(one.getReqCount() + 1L);
         one.setRps(one.getReqCount() / 60D);
-        one.getDelays().add(entity.getLatency());
+        List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.fixDelayAsMap(one.getDelays());
+        merged = ApiMetricsDelayUtil.addDelay(merged, entity.getLatency());
+        one.setDelays(merged);
         boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(entity.getCode(), entity.getHttpStatus());
         one.setErrorCount(one.getErrorCount() + (isOk ? 0L : 1L));
         one.setErrorRate(1D * one.getErrorCount() / one.getReqCount());
@@ -159,6 +156,10 @@ public class ApiMetricsRawService {
         one.setTimeGranularity(1);
         one.setId(new ObjectId());
         return one;
+    }
+
+    public List<ApiMetricsRaw> supplementMetricsRaw(List<ApiMetricsRaw> apiMetricsRaws, QueryBase param) {
+        return supplementMetricsRaw(apiMetricsRaws, param, true, null, null);
     }
 
     public List<ApiMetricsRaw> supplementMetricsRaw(List<ApiMetricsRaw> apiMetricsRaws, QueryBase param, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
@@ -199,7 +200,7 @@ public class ApiMetricsRawService {
                 if (!second5Point.isEmpty()) {
                     Criteria criteriaOfSec5 = Criteria.where("delete").ne(true)
                             .and("timeGranularity").is(1);
-                    criteriaConsumer.accept(criteriaOfSec5);
+                    Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfSec5));
                     List<Criteria> or = new ArrayList<>();
                     for (QueryBase.Point point : second5Point) {
                         Criteria andCriteria = new Criteria();
@@ -227,7 +228,7 @@ public class ApiMetricsRawService {
                 if (!minutePoint.isEmpty()) {
                     Criteria criteriaOfMin = Criteria.where("delete").ne(true)
                             .and("timeGranularity").is(2);
-                    criteriaConsumer.accept(criteriaOfMin);
+                    Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfMin));
                     List<Criteria> or = new ArrayList<>();
                     for (QueryBase.Point point : minutePoint) {
                         Criteria andCriteria = new Criteria();

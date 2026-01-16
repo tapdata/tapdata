@@ -19,7 +19,7 @@ import java.util.Objects;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ServerItem extends ValueBase {
+public class ServerItem extends DataValueBase {
     String serverStatus;
 
     String serverPingStatus;
@@ -44,14 +44,6 @@ public class ServerItem extends ValueBase {
     Double errorRate;
 
     long errorCount;
-
-    Long p95;
-
-    Long p99;
-
-    Long maxDelay;
-
-    Long minDelay;
 
     boolean deleted;
 

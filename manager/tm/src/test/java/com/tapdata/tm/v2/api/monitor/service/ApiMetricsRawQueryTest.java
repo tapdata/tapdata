@@ -1,13 +1,11 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
-import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
-import com.tapdata.tm.utils.HttpUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiItem;
@@ -30,7 +28,7 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.v2.api.usage.repository.ServerUsageMetricRepository;
 import com.tapdata.tm.v2.api.usage.repository.UsageRepository;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
@@ -54,7 +52,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -125,7 +122,6 @@ class ApiMetricsRawQueryTest {
         when(apiMetricsRawQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.mergeDelay(anyList())).thenCallRealMethod();
         when(apiMetricsRawQuery.publishApis()).thenCallRealMethod();
-        when(apiMetricsRawQuery.rate(anyLong(), anyLong())).thenCallRealMethod();
         when(apiMetricsRawQuery.extractIndex(anyString())).thenCallRealMethod();
         List<ModulesDto> modulesDtoLit = new ArrayList<>();
         ModulesDto m = new ModulesDto();
@@ -481,7 +477,7 @@ class ApiMetricsRawQueryTest {
             param.setGranularity(2);
             QueryBase.SortInfo order = new QueryBase.SortInfo();
             order.setOrder("requestCount ASC");
-            param.setOrderBy(order);
+            param.setSortInfo(order);
 
             ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
             List<ApiMetricsRaw> raws = Arrays.asList(raw);
@@ -533,7 +529,7 @@ class ApiMetricsRawQueryTest {
             TopApiInServerParam param = new TopApiInServerParam();
             QueryBase.SortInfo order = new QueryBase.SortInfo();
             order.setOrder("errorRate DESC");
-            param.setOrderBy(order);
+            param.setSortInfo(order);
             param.setServerId(new ObjectId().toHexString());
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -568,7 +564,7 @@ class ApiMetricsRawQueryTest {
             TopApiInServerParam param = new TopApiInServerParam();
             QueryBase.SortInfo order = new QueryBase.SortInfo();
             order.setOrder("avg");
-            param.setOrderBy(order);
+            param.setSortInfo(order);
             param.setServerId(new ObjectId().toHexString());
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -603,7 +599,7 @@ class ApiMetricsRawQueryTest {
             TopApiInServerParam param = new TopApiInServerParam();
             QueryBase.SortInfo order = new QueryBase.SortInfo();
             order.setOrder("p99 DESC");
-            param.setOrderBy(order);
+            param.setSortInfo(order);
             param.setServerId(new ObjectId().toHexString());
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
@@ -638,7 +634,7 @@ class ApiMetricsRawQueryTest {
             TopApiInServerParam param = new TopApiInServerParam();
             QueryBase.SortInfo order = new QueryBase.SortInfo();
             order.setOrder("");
-            param.setOrderBy(order);
+            param.setSortInfo(order);
             param.setServerId(new ObjectId().toHexString());
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);

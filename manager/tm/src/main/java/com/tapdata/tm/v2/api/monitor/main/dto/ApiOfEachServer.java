@@ -1,14 +1,17 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
 import com.tapdata.tm.commons.base.DecimalFormat;
+import com.tapdata.tm.commons.base.SortField;
 import com.tapdata.tm.worker.entity.Worker;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -18,18 +21,19 @@ import java.util.Objects;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ApiOfEachServer extends ValueBase {
+public class ApiOfEachServer extends DataValueBase {
     String serverId;
+
     String serverName;
+
+    @SortField(name = {"requestCount", "rc"}, normal = true)
     Long requestCount;
-    @DecimalFormat
-    Double requestCostAvg;
-    Long p95;
-    Long p99;
-    Long maxDelay;
-    Long minDelay;
+
+    @SortField(name = {"errorRate"})
     @DecimalFormat
     Double errorRate;
+
+    @SortField(name = {"errorCount"})
     Long errorCount;
 
     public static List<ApiOfEachServer> supplement(List<ApiOfEachServer> apiMetricsRaws, Map<String, Worker> apiServerMap) {
@@ -42,7 +46,7 @@ public class ApiOfEachServer extends ValueBase {
             if (!serverIds.contains(serverId)) {
                 ApiOfEachServer item = new ApiOfEachServer();
                 item.setRequestCount(0L);
-                item.setRequestCostAvg(0D);
+                item.setResponseTimeAvg(0D);
                 item.setErrorRate(0D);
                 item.setErrorCount(0L);
                 item.setServerId(serverId);

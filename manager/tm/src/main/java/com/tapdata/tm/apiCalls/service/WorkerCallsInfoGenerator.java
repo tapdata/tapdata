@@ -2,8 +2,8 @@ package com.tapdata.tm.apiCalls.service;
 
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.apiServer.enums.TimeGranularityType;
-import com.tapdata.tm.apiServer.utils.PercentileCalculator;
 import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
@@ -73,9 +73,9 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         final long key = (reqTime / 60000L) * 60000L;
         final Map<String, WorkerCallEntity> itemMap = calls.computeIfAbsent(key, k -> new HashMap<>());
         final WorkerCallEntity item = itemMap.computeIfAbsent(apiId, k -> new WorkerCallEntity());
-        List<Long> delays = Optional.ofNullable(item.getDelays()).orElse(new ArrayList<>());
-        delays.add(latency);
+        List<Map<Long, Integer>> delays = ApiMetricsDelayUtil.fixDelayAsMap(item.getDelays());
         item.setDelays(delays);
+        delays = ApiMetricsDelayUtil.addDelay(delays, latency);
         item.setErrorCount(Optional.ofNullable(item.getErrorCount()).orElse(0L));
         if (!(code >= 200 && code < 300)) {
             item.setErrorCount(item.getErrorCount() + 1);
@@ -92,9 +92,12 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         long total = Optional.ofNullable(item.getReqCount()).orElse(0L);
         long error = Optional.ofNullable(item.getErrorCount()).orElse(0L);
         item.setErrorRate(total == 0L || error == 0d ? 0d : (1.0d * error / total));
-        item.setP50(PercentileCalculator.calculatePercentile(delays, 0.5));
-        item.setP95(PercentileCalculator.calculatePercentile(delays, 0.95));
-        item.setP99(PercentileCalculator.calculatePercentile(delays, 0.99));
+        Long p50 = ApiMetricsDelayUtil.p50(delays, total);
+        Long p95 = ApiMetricsDelayUtil.p95(delays, total);
+        Long p99 = ApiMetricsDelayUtil.p99(delays, total);
+        item.setP50(p50);
+        item.setP95(p95);
+        item.setP99(p99);
         this.last.put(apiId, item);
         this.lastKey = key;
     }

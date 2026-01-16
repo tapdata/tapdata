@@ -5,6 +5,7 @@ import com.tapdata.tm.base.entity.Entity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
+import oshi.hardware.platform.mac.MacPowerSource;
 
 import java.util.List;
 
@@ -44,7 +45,7 @@ public class WorkerCallEntity extends BaseEntity {
     /**
      * 当前时间粒度下的延迟列表, 单位ms
      * */
-    private List<Long> delays;
+    private List<?> delays;
     /**
      * 当前时间粒度下P50 = 中位数，50%的请求延迟低于这个值, 单位ms
      * */

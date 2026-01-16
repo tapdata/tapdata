@@ -12,7 +12,7 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ApiTopOnHomepage extends ValueBase {
+public class ApiTopOnHomepage extends DataValueBase {
     long apiCount;
 
     long totalRequestCount;
@@ -23,7 +23,4 @@ public class ApiTopOnHomepage extends ValueBase {
 
     @DecimalFormat
     double totalRps;
-
-    @DecimalFormat
-    double responseTimeAvg;
 }

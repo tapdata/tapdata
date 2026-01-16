@@ -13,5 +13,4 @@ import lombok.EqualsAndHashCode;
 @Data
 public class TopApiInServerParam extends QueryBase {
     String serverId;
-    QueryBase.SortInfo orderBy;
 }

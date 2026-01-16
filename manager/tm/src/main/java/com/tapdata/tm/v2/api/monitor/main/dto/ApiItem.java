@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
 import com.tapdata.tm.commons.base.DecimalFormat;
+import com.tapdata.tm.commons.base.SortField;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.v2.api.monitor.utils.ApiPathUtil;
 import lombok.Data;
@@ -19,7 +20,7 @@ import java.util.Objects;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ApiItem extends ValueBase {
+public class ApiItem extends DataValueBase {
     String apiId;
     String apiPath;
     String apiName;
@@ -27,28 +28,23 @@ public class ApiItem extends ValueBase {
     /**
      * 总调用数
      */
+    @SortField(name = {"requestCount", "rc"}, normal = true)
     long requestCount;
-
-    /**
-     * 平均耗时
-     */
-    double requestCostAvg;
-    Long p95;
-    Long p99;
-    Long maxDelay;
-    Long minDelay;
 
     /**
      * 错误率
      */
     @DecimalFormat
+    @SortField(name = {"errorRate"})
     double errorRate;
 
+    @SortField(name = {"errorCount"})
     long errorCount;
 
     /**
      * 吞吐量
      */
+    @SortField(name = {"totalRps"})
     @DecimalFormat
     double totalRps;
 
