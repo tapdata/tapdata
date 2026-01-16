@@ -1654,43 +1654,43 @@ class ApiMetricsRawQueryTest {
         worker.setHostname(hostname);
         return worker;
     }
-
-    @Test
-    void call() {
-        String token
-= "eyJraWQiOiIxMTBmOGU3Mi1lZDUwLTQ3MzEtOTk5OC04YjBmMmI3NmVmMWEiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxNzY4NTM0MTQ3MzI4LCJhdWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjcmVhdGVkQXQiOjE3Njg1MzM4NDczMjgsIm5iZiI6MTc2ODUzMzg0NywiZXhwIjoxNzY4NTM0MTQ3LCJpYXQiOjE3Njg1MzM4NDcsImp0aSI6IjA0MGQwOTlkLTYxNzYtNDUyYy04ODBmLTAwYjU4OTNiZTBlMyJ9.SsLDpB1eepJEjnddUfiMdpF14vfrvfmYnw1mmWwPNy9azR1ibtWna4u3kbG34OoqulwaDj3vgXe1sTlSs9F3Q1Re2dcZvMmyp0QDonsBiL6q1g3g37t53TsD3xTG0bhInmMxRhpoLj9bS9WPmlTNz7RARAfrWh9tgDJvg21i6u22hgL7gmy8vsggaTtzs0tKp7EjV7M03g3bIOAXlm8atvq-YDyxy8Gv8n79ZII-QpYCWS1AS4aswKZik1iLDpPz7KzeyTXdVVaSaN9CzX2KGKzIyp5PVGxBbd5GXeT5KRxA7ThlzKpfI9Fqk4OxKlUu9dvGOfe_zuG6R9vpY0cEhA";
-        String uri = "http://127.0.0.1:3080/api/%s?access_token=%s";
-        List<String> api = List.of("v1/tjq7duqpvs7", "v1/aslw80no7ze", "v1/tnuihy78hd1", "v1/c2hhm58iqvf");
-        for (int i = 0; i < 10000; i++) {
-            for (String s : api) {
-                try {
-                    String string = HttpUtils.sendGetData(String.format(uri, s, token), new HashMap<>());
-                    Map map = JSON.parseObject(string, Map.class);
-                    if (map.get("error") instanceof Map<?,?> iMap && iMap.get("status") instanceof Number iNum && iNum.intValue() == 401) {
-                        token = token();
-                    }
-                    try {
-                        Thread.sleep(500);
-                    } catch (Exception e) {}
-                } catch (Exception e) {
-                    token = token();
-                    if (null == token) {
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    String token() {
-        try {
-            Map<String, String> h = new HashMap<>();
-            h.put("Content-Type", "application/x-www-form-urlencoded");
-            String json = HttpUtils.sendGetData("http:127.0.0.1:3000/oauth/token?grant_type=client_credentials&client_id=5c0e750b7a5cd42464a5099d&client_secret={noop}eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", h);
-            Map map = JSON.parseObject(json, Map.class);
-            return (String) map.get("access_token");
-        } catch (Exception e) {
-            return null;
-        }
-    }
+//
+//    @Test
+//    void call() {
+//        String token
+//= "eyJraWQiOiIxMTBmOGU3Mi1lZDUwLTQ3MzEtOTk5OC04YjBmMmI3NmVmMWEiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxNzY4NTM0MTQ3MzI4LCJhdWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjcmVhdGVkQXQiOjE3Njg1MzM4NDczMjgsIm5iZiI6MTc2ODUzMzg0NywiZXhwIjoxNzY4NTM0MTQ3LCJpYXQiOjE3Njg1MzM4NDcsImp0aSI6IjA0MGQwOTlkLTYxNzYtNDUyYy04ODBmLTAwYjU4OTNiZTBlMyJ9.SsLDpB1eepJEjnddUfiMdpF14vfrvfmYnw1mmWwPNy9azR1ibtWna4u3kbG34OoqulwaDj3vgXe1sTlSs9F3Q1Re2dcZvMmyp0QDonsBiL6q1g3g37t53TsD3xTG0bhInmMxRhpoLj9bS9WPmlTNz7RARAfrWh9tgDJvg21i6u22hgL7gmy8vsggaTtzs0tKp7EjV7M03g3bIOAXlm8atvq-YDyxy8Gv8n79ZII-QpYCWS1AS4aswKZik1iLDpPz7KzeyTXdVVaSaN9CzX2KGKzIyp5PVGxBbd5GXeT5KRxA7ThlzKpfI9Fqk4OxKlUu9dvGOfe_zuG6R9vpY0cEhA";
+//        String uri = "http://127.0.0.1:3080/api/%s?access_token=%s";
+//        List<String> api = List.of("v1/tjq7duqpvs7", "v1/aslw80no7ze", "v1/tnuihy78hd1", "v1/c2hhm58iqvf");
+//        for (int i = 0; i < 10000; i++) {
+//            for (String s : api) {
+//                try {
+//                    String string = HttpUtils.sendGetData(String.format(uri, s, token), new HashMap<>());
+//                    Map map = JSON.parseObject(string, Map.class);
+//                    if (map.get("error") instanceof Map<?,?> iMap && iMap.get("status") instanceof Number iNum && iNum.intValue() == 401) {
+//                        token = token();
+//                    }
+//                    try {
+//                        Thread.sleep(500);
+//                    } catch (Exception e) {}
+//                } catch (Exception e) {
+//                    token = token();
+//                    if (null == token) {
+//                        return;
+//                    }
+//                }
+//            }
+//        }
+//    }
+//
+//    String token() {
+//        try {
+//            Map<String, String> h = new HashMap<>();
+//            h.put("Content-Type", "application/x-www-form-urlencoded");
+//            String json = HttpUtils.sendGetData("http:127.0.0.1:3000/oauth/token?grant_type=client_credentials&client_id=5c0e750b7a5cd42464a5099d&client_secret={noop}eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", h);
+//            Map map = JSON.parseObject(json, Map.class);
+//            return (String) map.get("access_token");
+//        } catch (Exception e) {
+//            return null;
+//        }
+//    }
 }
