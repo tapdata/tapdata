@@ -37,7 +37,7 @@ public final class ServerUsageMetricInstanceFactory extends FactoryBase<ServerUs
             final ServerUsageMetric lastMin = lastOne(serverId, 1, null);
             ServerUsageMetric lastHour = null;
             if (null != lastMin) {
-                long bucketHour = (lastMin.getLastUpdateTime() / 60L) * 60L;
+                long bucketHour = (lastMin.getLastUpdateTime() / 3600L) * 3600L;
                 lastHour = lastOne(serverId, 2, bucketHour);
             }
             return new ServerUsageMetricInstanceAcceptor(lastMin, lastHour, this.apiMetricsRaws::add);
