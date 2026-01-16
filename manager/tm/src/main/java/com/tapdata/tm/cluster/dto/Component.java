@@ -17,9 +17,6 @@ public class Component {
     @Schema(description = "进程状态")
     private String status;
     private String processID;
-
-    private String serverId;
-
     @Schema(description = "服务状态")
     private String serviceStatus;
 
