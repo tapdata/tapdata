@@ -96,47 +96,47 @@ class ApiMetricsDelayUtilTest {
     class EachTest {
         @Test
         void testEachWithNumberKeyAndNumberValue() {
-            List<Map<Long, Integer>> result = new ArrayList<>();
-            
+            Map<Long, Integer> result = new HashMap<>();
+
             ApiMetricsDelayUtil.each(100L, 5, result);
             
             assertEquals(1, result.size());
-            assertEquals(5, result.get(0).get(100L));
+            assertEquals(5, result.get(100L));
         }
 
         @Test
         void testEachWithStringKeyAndNumberValue() {
-            List<Map<Long, Integer>> result = new ArrayList<>();
+            Map<Long, Integer> result = new HashMap<>();
             
             ApiMetricsDelayUtil.each("100", 5, result);
             
             assertEquals(1, result.size());
-            assertEquals(5, result.get(0).get(100L));
+            assertEquals(5, result.get(100L));
         }
 
         @Test
         void testEachWithStringKeyAndStringValue() {
-            List<Map<Long, Integer>> result = new ArrayList<>();
+            Map<Long, Integer> result = new HashMap<>();
             
             ApiMetricsDelayUtil.each("100", "5", result);
             
             assertEquals(1, result.size());
-            assertEquals(5, result.get(0).get(100L));
+            assertEquals(5, result.get(100L));
         }
 
         @Test
         void testEachWithNumberKeyAndStringValue() {
-            List<Map<Long, Integer>> result = new ArrayList<>();
+            Map<Long, Integer> result = new HashMap<>();
             
             ApiMetricsDelayUtil.each(100L, "5", result);
             
             assertEquals(1, result.size());
-            assertEquals(5, result.get(0).get(100L));
+            assertEquals(5, result.get(100L));
         }
 
         @Test
         void testEachWithInvalidStringKey() {
-            List<Map<Long, Integer>> result = new ArrayList<>();
+            Map<Long, Integer> result = new HashMap<>();
             
             // This should log a warning but not add to result
             ApiMetricsDelayUtil.each("invalid", 5, result);
@@ -146,7 +146,7 @@ class ApiMetricsDelayUtilTest {
 
         @Test
         void testEachWithInvalidStringValue() {
-            List<Map<Long, Integer>> result = new ArrayList<>();
+            Map<Long, Integer> result = new HashMap<>();
             
             // This should log a warning but not add to result
             ApiMetricsDelayUtil.each("100", "invalid", result);
@@ -156,7 +156,7 @@ class ApiMetricsDelayUtilTest {
 
         @Test
         void testEachWithInvalidStringKeyAndValue() {
-            List<Map<Long, Integer>> result = new ArrayList<>();
+            Map<Long, Integer> result = new HashMap<>();
             
             // This should log a warning but not add to result
             ApiMetricsDelayUtil.each("invalid", "invalid", result);
@@ -166,7 +166,7 @@ class ApiMetricsDelayUtilTest {
 
         @Test
         void testEachWithNumberKeyAndInvalidStringValue() {
-            List<Map<Long, Integer>> result = new ArrayList<>();
+            Map<Long, Integer> result = new HashMap<>();
             
             // This should log a warning but not add to result
             ApiMetricsDelayUtil.each(100L, "invalid", result);
@@ -176,7 +176,7 @@ class ApiMetricsDelayUtilTest {
 
         @Test
         void testEachWithUnsupportedTypes() {
-            List<Map<Long, Integer>> result = new ArrayList<>();
+            Map<Long, Integer> result = new HashMap<>();
             
             // This should log a warning but not add to result
             ApiMetricsDelayUtil.each(new Object(), new Object(), result);
@@ -713,7 +713,7 @@ class ApiMetricsDelayUtilTest {
         @Test
         void testLoggingInEachMethod() {
             // Test that logging occurs for invalid inputs
-            List<Map<Long, Integer>> result = new ArrayList<>();
+            Map<Long, Integer> result = new HashMap<>();
             
             // This should trigger logging
             ApiMetricsDelayUtil.each("invalid", 5, result);

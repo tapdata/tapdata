@@ -31,40 +31,47 @@ public final class ApiMetricsDelayUtil {
         if (CollectionUtils.isEmpty(delay)) {
             delay = new ArrayList<>();
         }
+        Map<Long, Integer> values = new HashMap<>();
         List<Map<Long, Integer>> result = new ArrayList<>();
         for (Object o : delay) {
             if (o instanceof Map<?, ?> iMap) {
-                iMap.forEach((k, v) -> each(k, v, result));
+                iMap.forEach((k, v) -> each(k, v, values));
             } else if (o instanceof Number iNumber) {
-                result.add(toMap(iNumber.longValue(), 1));
+                values.computeIfAbsent(iNumber.longValue(), k -> 1);
             }
         }
+        if (values.isEmpty()) {
+            return result;
+        }
+        values.forEach((k, v) -> result.add(toMap(k, v)));
         return result;
     }
 
-    static void each(Object k, Object v, List<Map<Long, Integer>> result) {
-        Map<Long, Integer> yMap = new HashMap<>();
+    static void put(Number iKey, Number iValue, Map<Long, Integer> values) {
+        long realKey = iKey.longValue();
+        int oldCount = Optional.ofNullable(values.get(realKey)).orElse(0);
+        oldCount += iValue.intValue();
+        values.put(realKey, oldCount);
+    }
+
+    public static void each(Object k, Object v, Map<Long, Integer> result) {
         if (k instanceof Number iKey && v instanceof Number iValue) {
-            yMap.put(iKey.longValue(), iValue.intValue());
-            result.add(yMap);
+            put(iKey, iValue, result);
         } else if (k instanceof String iKey && v instanceof Number iValue) {
             try {
-                yMap.put(Long.parseLong(iKey), iValue.intValue());
-                result.add(yMap);
+                put(Long.parseLong(iKey), iValue, result);
             } catch (NumberFormatException e) {
                 log.warn(e.getMessage());
             }
         } else if (k instanceof String iKey && v instanceof String iValue) {
             try {
-                yMap.put(Long.parseLong(iKey), Integer.parseInt(iValue));
-                result.add(yMap);
+                put(Long.parseLong(iKey), Integer.parseInt(iValue), result);
             } catch (NumberFormatException e) {
                 log.warn(e.getMessage());
             }
         } else if (k instanceof Number iKey && v instanceof String iValue) {
             try {
-                yMap.put(iKey.longValue(), Integer.parseInt(iValue));
-                result.add(yMap);
+                put(iKey, Integer.parseInt(iValue), result);
             } catch (NumberFormatException e) {
                 log.warn(e.getMessage());
             }

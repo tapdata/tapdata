@@ -6,8 +6,6 @@ import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +23,26 @@ public class ServerChart extends ValueBase {
     private Usage usage;
     private Request request;
     private Delay delay;
+    private DBCost dBCost;
+
+    public void add(ServerChart.Item item) {
+        getRequest().getTs().add(item.getTs());
+        getDelay().getTs().add(item.getTs());
+        getDBCost().getTs().add(item.getTs());
+        if (!item.isTag()) {
+            getRequest().add(item);
+            getDelay().add(item);
+            getDBCost().add(item);
+        } else {
+            getRequest().addEmpty();
+            getDelay().addEmpty();
+            getDBCost().addEmpty();
+        }
+        getDelay().getP95().add(item.getP95());
+        getDelay().getP99().add(item.getP99());
+        getDBCost().getDbCostP95().add(item.getDbCostP95());
+        getDBCost().getDbCostP99().add(item.getDbCostP99());
+    }
 
     @Data
     public static class Usage {
@@ -114,6 +132,16 @@ public class ServerChart extends ValueBase {
         List<Double> errorRate;
         List<Long> ts;
 
+        public void add(ServerChart.Item item) {
+            getRequestCount().add(item.getRequestCount());
+            getErrorRate().add(item.getErrorRate());
+        }
+
+        public void addEmpty() {
+            getRequestCount().add(0L);
+            getErrorRate().add(0D);
+        }
+
         public Request() {
             this.requestCount = new ArrayList<>();
             this.errorRate = new ArrayList<>();
@@ -144,8 +172,56 @@ public class ServerChart extends ValueBase {
             this.ts = new ArrayList<>();
         }
 
+        public void add(ServerChart.Item item) {
+            getAvg().add(item.getAvg());
+            getMaxDelay().add(item.getMaxDelay());
+            getMinDelay().add(item.getMinDelay());
+        }
+
+        public void addEmpty() {
+            getAvg().add(0D);
+            getMaxDelay().add(null);
+            getMinDelay().add(null);
+        }
+
         public static Delay create() {
             return new Delay();
+        }
+    }
+
+    @Data
+    public static class DBCost {
+        @DecimalFormat
+        List<Double> dbCostAvg;
+        List<Long> dbCostP95;
+        List<Long> dbCostP99;
+        List<Long> dbCostMax;
+        List<Long> dbCostMin;
+        List<Long> ts;
+
+        public void add(ServerChart.Item item) {
+            getDbCostAvg().add(item.getDbCostAvg());
+            getDbCostMin().add(item.getDbCostMin());
+            getDbCostMax().add(item.getDbCostMax());
+        }
+
+        public void addEmpty() {
+            getDbCostAvg().add(0D);
+            getDbCostMin().add(null);
+            getDbCostMax().add(null);
+        }
+
+        public DBCost() {
+            this.dbCostAvg = new ArrayList<>();
+            this.dbCostP95 = new ArrayList<>();
+            this.dbCostP99 = new ArrayList<>();
+            this.dbCostMax = new ArrayList<>();
+            this.dbCostMin = new ArrayList<>();
+            this.ts = new ArrayList<>();
+        }
+
+        public static DBCost create() {
+            return new DBCost();
         }
     }
 
@@ -153,15 +229,21 @@ public class ServerChart extends ValueBase {
     @Data
     public static class Item extends ValueBase.Item {
         Long requestCount;
-        @DecimalFormat
         Double errorRate;
-        @DecimalFormat
         Double avg;
         Long p95;
         Long p99;
         Long maxDelay;
         Long minDelay;
+
+        double dbCostAvg;
+        Long dbCostMax;
+        Long dbCostMin;
+        Long dbCostP95;
+        Long dbCostP99;
+
         List<Map<Long, Integer>> delay = new ArrayList<>();
+        List<Map<Long, Integer>> dbCost = new ArrayList<>();
         Long errorCount;
         boolean tag;
 

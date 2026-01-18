@@ -1,11 +1,13 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.utils.HttpUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiItem;
@@ -29,6 +31,7 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.v2.api.usage.repository.ServerUsageMetricRepository;
 import com.tapdata.tm.v2.api.usage.repository.UsageRepository;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
@@ -52,6 +55,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -120,7 +124,6 @@ class ApiMetricsRawQueryTest {
         when(apiMetricsRawQuery.findRowByApiId(any(Criteria.class), anyString(), any(QueryBase.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.mergeDelay(anyList())).thenCallRealMethod();
         when(apiMetricsRawQuery.publishApis()).thenCallRealMethod();
         when(apiMetricsRawQuery.extractIndex(anyString())).thenCallRealMethod();
         List<ModulesDto> modulesDtoLit = new ArrayList<>();
@@ -170,19 +173,21 @@ class ApiMetricsRawQueryTest {
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
 
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> {
-                    return null;
-                });
+                try (MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                    amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
+                    delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
+                    delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
+                    delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
+                    delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> {
+                        return null;
+                    });
 
-                ServerTopOnHomepage result = apiMetricsRawQuery.serverTopOnHomepage(param);
+                    ServerTopOnHomepage result = apiMetricsRawQuery.serverTopOnHomepage(param);
 
-                assertNotNull(result);
-                assertEquals(300L, result.getTotalRequestCount());
-                assertEquals(30L, result.getErrorCount());
+                    assertNotNull(result);
+                    assertEquals(300L, result.getTotalRequestCount());
+                    assertEquals(30L, result.getErrorCount());
+                }
             }
         }
 
@@ -363,13 +368,14 @@ class ApiMetricsRawQueryTest {
             List<ApiMetricsRaw> raws = Arrays.asList(raw);
 
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
 
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 doReturn(worker).when(apiMetricsRawQuery).findServerById(anyString());
                 when(service.find(any(Query.class))).thenReturn(raws);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyInt())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
@@ -483,14 +489,15 @@ class ApiMetricsRawQueryTest {
             List<ApiMetricsRaw> raws = Arrays.asList(raw);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class)) {
+                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
 
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
                 mongoUtils.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
                 when(modulesService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyInt())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
@@ -822,7 +829,9 @@ class ApiMetricsRawQueryTest {
 
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class)) {
+                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
@@ -833,7 +842,6 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
                 assertNotNull(result);
             }
@@ -866,7 +874,9 @@ class ApiMetricsRawQueryTest {
             when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class)) {
+                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
@@ -877,7 +887,6 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
                 assertNotNull(result);
             }
@@ -916,7 +925,9 @@ class ApiMetricsRawQueryTest {
             when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class)) {
+                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
@@ -927,7 +938,6 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
                 assertNotNull(result);
             }
@@ -966,7 +976,9 @@ class ApiMetricsRawQueryTest {
             when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class)) {
+                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
@@ -977,7 +989,6 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
                 assertNotNull(result);
             }
@@ -1016,7 +1027,9 @@ class ApiMetricsRawQueryTest {
             when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class)) {
+                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
@@ -1027,7 +1040,6 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
                 assertNotNull(result);
             }
@@ -1066,7 +1078,9 @@ class ApiMetricsRawQueryTest {
             when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class)) {
+                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
@@ -1077,7 +1091,6 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
                 assertNotNull(result);
             }
@@ -1116,7 +1129,9 @@ class ApiMetricsRawQueryTest {
             when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class)) {
+                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
@@ -1127,7 +1142,6 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
                 assertNotNull(result);
             }
@@ -1149,11 +1163,12 @@ class ApiMetricsRawQueryTest {
             apiInfo.setPrefix("prefix1");
             when(modulesService.findOne(any(Query.class))).thenReturn(apiInfo);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
 
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
                 doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
@@ -1274,12 +1289,13 @@ class ApiMetricsRawQueryTest {
             List<Worker> workers = Arrays.asList(worker);
             when(service.find(any(Query.class))).thenReturn(raws);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
@@ -1307,12 +1323,13 @@ class ApiMetricsRawQueryTest {
             List<Worker> workers = Arrays.asList(worker, worker1);
             when(service.find(any(Query.class))).thenReturn(raws);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
@@ -1339,12 +1356,13 @@ class ApiMetricsRawQueryTest {
             List<Worker> workers = Arrays.asList(worker);
             when(service.find(any(Query.class))).thenReturn(raws);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
@@ -1372,12 +1390,13 @@ class ApiMetricsRawQueryTest {
             List<Worker> workers = Arrays.asList(worker);
 
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
@@ -1404,12 +1423,13 @@ class ApiMetricsRawQueryTest {
             List<Worker> workers = Arrays.asList(worker);
             when(service.find(any(Query.class))).thenReturn(raws);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
@@ -1435,12 +1455,13 @@ class ApiMetricsRawQueryTest {
             List<Worker> workers = Arrays.asList(worker);
             when(service.find(any(Query.class))).thenReturn(raws);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
@@ -1466,12 +1487,13 @@ class ApiMetricsRawQueryTest {
             List<Worker> workers = Arrays.asList(worker);
             when(service.find(any(Query.class))).thenReturn(raws);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
                 doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
@@ -1513,11 +1535,12 @@ class ApiMetricsRawQueryTest {
             List<ApiMetricsRaw> raws = Arrays.asList(raw);
 
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
+                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
+                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
 
                 analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
                 doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).mergeDelay(any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
@@ -1650,43 +1673,42 @@ class ApiMetricsRawQueryTest {
         worker.setHostname(hostname);
         return worker;
     }
-//
-//    @Test
-//    void call() {
-//        String token
-//= "eyJraWQiOiIxMTBmOGU3Mi1lZDUwLTQ3MzEtOTk5OC04YjBmMmI3NmVmMWEiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxNzY4NTM0MTQ3MzI4LCJhdWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjcmVhdGVkQXQiOjE3Njg1MzM4NDczMjgsIm5iZiI6MTc2ODUzMzg0NywiZXhwIjoxNzY4NTM0MTQ3LCJpYXQiOjE3Njg1MzM4NDcsImp0aSI6IjA0MGQwOTlkLTYxNzYtNDUyYy04ODBmLTAwYjU4OTNiZTBlMyJ9.SsLDpB1eepJEjnddUfiMdpF14vfrvfmYnw1mmWwPNy9azR1ibtWna4u3kbG34OoqulwaDj3vgXe1sTlSs9F3Q1Re2dcZvMmyp0QDonsBiL6q1g3g37t53TsD3xTG0bhInmMxRhpoLj9bS9WPmlTNz7RARAfrWh9tgDJvg21i6u22hgL7gmy8vsggaTtzs0tKp7EjV7M03g3bIOAXlm8atvq-YDyxy8Gv8n79ZII-QpYCWS1AS4aswKZik1iLDpPz7KzeyTXdVVaSaN9CzX2KGKzIyp5PVGxBbd5GXeT5KRxA7ThlzKpfI9Fqk4OxKlUu9dvGOfe_zuG6R9vpY0cEhA";
-//        String uri = "http://127.0.0.1:3080/api/%s?access_token=%s";
-//        List<String> api = List.of("v1/tjq7duqpvs7", "v1/aslw80no7ze", "v1/tnuihy78hd1", "v1/c2hhm58iqvf");
-//        for (int i = 0; i < 10000; i++) {
-//            for (String s : api) {
-//                try {
-//                    String string = HttpUtils.sendGetData(String.format(uri, s, token), new HashMap<>());
-//                    Map map = JSON.parseObject(string, Map.class);
-//                    if (map.get("error") instanceof Map<?,?> iMap && iMap.get("status") instanceof Number iNum && iNum.intValue() == 401) {
-//                        token = token();
-//                    }
-//                    try {
-//                        Thread.sleep(500);
-//                    } catch (Exception e) {}
-//                } catch (Exception e) {
-//                    token = token();
-//                    if (null == token) {
-//                        return;
-//                    }
-//                }
-//            }
-//        }
-//    }
-//
-//    String token() {
-//        try {
-//            Map<String, String> h = new HashMap<>();
-//            h.put("Content-Type", "application/x-www-form-urlencoded");
-//            String json = HttpUtils.sendGetData("http:127.0.0.1:3000/oauth/token?grant_type=client_credentials&client_id=5c0e750b7a5cd42464a5099d&client_secret={noop}eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", h);
-//            Map map = JSON.parseObject(json, Map.class);
-//            return (String) map.get("access_token");
-//        } catch (Exception e) {
-//            return null;
-//        }
-//    }
+
+    //@Test
+    void call() {
+        String token = "eyJraWQiOiI5NGJhMDRkNC0wYWZjLTRmNzgtYjAyMi1kZTAwNGQ1ZTlmNmIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxMTUzNDMyMzcwODgxOTgsImF1ZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsImNyZWF0ZWRBdCI6MTc2ODcwOTA4ODE5OCwibmJmIjoxNzY4NzA5MDg4LCJleHAiOjExNTM0MzIzNzA4OCwiaWF0IjoxNzY4NzA5MDg4LCJqdGkiOiJkMjUzNWJhMS01NDQ0LTRiZjItYjRkNS0yNjk1YWFmNGVjNWIifQ.U7Jg-FQ9zdae-dinCuy86383raAN150sl77MDClJysaamET_ozXXPIK0EM9bAyOnQswYEeVlbx1h9usuB9r4V3ANRPjhdEocW1TUeQHQjXGaC0htwWVpw7yjXiMz0UPc56aNVBNeCLo9xVKK4-YntjuU5TBvh4oM_m-DTVwTkXUnz4P8CBIixW1FaRAiR6gvKu6k3o20qVRvBj9U9HX2z_wPSLpY2GHGJwpQ3A-SMCtFPqW5Sy5ULkQ5TiEHA6PEZ-8FGI67SOrlqOjPm_WKMU3kAtNCD51X2SVIMO9466H5kW1qHVk_pmVE67eIMJI3l05L4-Ar0OeGPCf79FHuJg";
+        String uri = "http://127.0.0.1:3080/api/%s?access_token=%s";
+        List<String> api = List.of("v1/tjq7duqpvs7", "v1/aslw80no7ze", "v1/tnuihy78hd1", "v1/c2hhm58iqvf");
+        for (int i = 0; i < 1314520; i++) {
+            for (String s : api) {
+                try {
+                    String string = HttpUtils.sendGetData(String.format(uri, s, token), new HashMap<>());
+                    Map map = JSON.parseObject(string, Map.class);
+                    if (map.get("error") instanceof Map<?,?> iMap && iMap.get("status") instanceof Number iNum && iNum.intValue() == 401) {
+                        token = token();
+                    }
+                    try {
+                        Thread.sleep(100);
+                    } catch (Exception e) {}
+                } catch (Exception e) {
+                    token = token();
+                    if (null == token) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    String token() {
+        try {
+            Map<String, String> h = new HashMap<>();
+            h.put("Content-Type", "application/x-www-form-urlencoded");
+            String json = HttpUtils.sendGetData("http:127.0.0.1:3000/oauth/token?grant_type=client_credentials&client_id=5c0e750b7a5cd42464a5099d&client_secret={noop}eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", h);
+            Map map = JSON.parseObject(json, Map.class);
+            return (String) map.get("access_token");
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

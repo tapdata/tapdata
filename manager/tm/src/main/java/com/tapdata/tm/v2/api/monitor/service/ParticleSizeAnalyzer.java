@@ -45,9 +45,9 @@ public class ParticleSizeAnalyzer {
         long range = end - start;
 
         long qStart = start;
-        if (range <= 60L * 60L) {
+        if (range < 60L * 60L) {
             query.setGranularity(0);
-        } else if (range <= 60L * 60L * 24L) {
+        } else if (range < 60L * 60L * 24L) {
             query.setGranularity(1);
         } else {
             query.setGranularity(2);
