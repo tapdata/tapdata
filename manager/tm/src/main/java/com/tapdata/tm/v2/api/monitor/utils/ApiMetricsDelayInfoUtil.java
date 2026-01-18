@@ -2,16 +2,16 @@ package com.tapdata.tm.v2.api.monitor.utils;
 
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
-import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import lombok.Getter;
 import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.DoubleConsumer;
-import java.util.function.LongConsumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -46,15 +46,7 @@ public final class ApiMetricsDelayInfoUtil {
         if (CollectionUtils.isEmpty(items)) {
             return;
         }
-        final List<Map<Long, Integer>>[] delays = new List[items.size()];
-        for (int i = 0; i < items.size(); i++) {
-            final T info = items.get(i);
-            if (null == info) {
-                continue;
-            }
-            delays[i] = ApiMetricsDelayUtil.fixDelayAsMap(itemGetter.apply(info));
-        }
-        final List<Map<Long, Integer>> merge = ApiMetricsDelayUtil.merge(delays);
+        final List<Map<Long, Integer>> merge = mergeItems(items, itemGetter);
         final long sum = ApiMetricsDelayUtil.sum(merge);
         final long total = ApiMetricsDelayUtil.sum(merge, (k, v) -> v.longValue());
         final Long p95 = ApiMetricsDelayUtil.p95(merge, total);
@@ -64,6 +56,21 @@ public final class ApiMetricsDelayInfoUtil {
         Optional.ofNullable(setter.getP95Setter()).ifPresent(s -> Optional.ofNullable(p95).ifPresent(s::accept));
         Optional.ofNullable(setter.getP99Setter()).ifPresent(s -> Optional.ofNullable(p99).ifPresent(s::accept));
         Optional.ofNullable(setter.getAvgSetter()).ifPresent(s -> s.accept(total > 0L ? (1.0D * sum / total) : 0D));
+    }
+
+    public static <T> List<Map<Long, Integer>> mergeItems(List<T> items, Function<T, List<?>> itemGetter) {
+        if (CollectionUtils.isEmpty(items)) {
+            return new ArrayList<>();
+        }
+        final List<Map<Long, Integer>>[] delays = new List[items.size()];
+        for (int i = 0; i < items.size(); i++) {
+            final T info = items.get(i);
+            if (null == info) {
+                continue;
+            }
+            delays[i] = ApiMetricsDelayUtil.fixDelayAsMap(itemGetter.apply(info));
+        }
+        return ApiMetricsDelayUtil.merge(delays);
     }
 
     public static Double rate(Long value, Long right) {
@@ -76,6 +83,14 @@ public final class ApiMetricsDelayInfoUtil {
         return 100.0D * value / right;
     }
 
+    public static long stepByGranularity(int granularity) {
+        return switch (granularity) {
+            case 1 -> 60L;
+            case 2 -> 3600L;
+            default -> 5L;
+        };
+    }
+
     @Getter
     public static class Setter {
         LongConsumer valueSetter;
@@ -84,9 +99,11 @@ public final class ApiMetricsDelayInfoUtil {
         LongConsumer p95Setter;
         LongConsumer p99Setter;
         DoubleConsumer avgSetter;
+
         private Setter(LongConsumer valueSetter) {
             this.valueSetter = valueSetter;
         }
+
         public static Setter of(LongConsumer valueSetter) {
             return new Setter(valueSetter);
         }

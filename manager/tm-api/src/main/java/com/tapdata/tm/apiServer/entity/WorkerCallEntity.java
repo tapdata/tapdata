@@ -1,11 +1,9 @@
 package com.tapdata.tm.apiServer.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
-import com.tapdata.tm.base.entity.Entity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
-import oshi.hardware.platform.mac.MacPowerSource;
 
 import java.util.List;
 
