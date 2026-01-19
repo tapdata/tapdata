@@ -1,9 +1,12 @@
 package com.tapdata.tm.apiCalls.service;
 
+import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.apiServer.enums.TimeGranularityType;
-import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.v2.api.monitor.service.MetricInstanceFactory;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
@@ -23,7 +26,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
     final Acceptor acceptor;
     private Map<Long, Map<String, WorkerCallEntity>> calls;
     public static final int BATCH_ACCEPT = 100;
-    private final Map<String, WorkerCallEntity> last;
+    private Map<String, WorkerCallEntity> last;
     private Long lastKey;
     private final int batchSize;
 
@@ -53,11 +56,39 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         }
     }
 
+    void append(Document info) {
+        String reqPath = info.getString("req_path");
+        if (MetricInstanceFactory.IGNORE_PATH.contains(reqPath)) {
+            return;
+        }
+        WorkerCallsInfo item = new WorkerCallsInfo();
+        item.setWorkOid(info.getString("workOid"));
+        item.setApiGatewayUuid(info.getString("api_gateway_uuid"));
+        item.setApiId(info.getString("allPathId"));
+        item.setLatency(info.getLong("latency"));
+        item.setCode(info.getString("code"));
+        item.setHttpStatus(info.getString("httpStatus"));
+        item.setReqTime(info.getLong("reqTime"));
+        item.setResTime(info.getLong("resTime"));
+        item.setReqPath(reqPath);
+        try {
+            this.map(item);
+        } finally {
+            if (calls != null && !calls.isEmpty() && batchSize >= calls.size()) {
+                calls.remove(lastKey);
+                accept();
+                calls.put(lastKey, last);
+            }
+        }
+    }
+
     public void append(List<WorkerCallsInfo> infos) {
         if (null == infos || infos.isEmpty()) {
             return;
         }
-        infos.stream().filter(Objects::nonNull).forEach(this::append);
+        infos.stream().filter(Objects::nonNull)
+                .filter(e -> !MetricInstanceFactory.IGNORE_PATH.contains(e.getReqPath()))
+                .forEach(this::append);
     }
 
     void map(WorkerCallsInfo info) {
@@ -69,15 +100,20 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         if (latency < 0L) {
             latency = 0L;
         }
-        final int code = Integer.parseInt(info.getCode());
         final long key = (reqTime / 60000L) * 60000L;
         final Map<String, WorkerCallEntity> itemMap = calls.computeIfAbsent(key, k -> new HashMap<>());
         final WorkerCallEntity item = itemMap.computeIfAbsent(apiId, k -> new WorkerCallEntity());
+        if (null == this.lastKey || this.lastKey != key) {
+            this.last = itemMap;
+            this.lastKey = key;
+        } else {
+            this.last.put(apiId, item);
+        }
         List<Map<Long, Integer>> delays = ApiMetricsDelayUtil.fixDelayAsMap(item.getDelays());
         item.setDelays(delays);
         delays = ApiMetricsDelayUtil.addDelay(delays, latency);
         item.setErrorCount(Optional.ofNullable(item.getErrorCount()).orElse(0L));
-        if (!(code >= 200 && code < 300)) {
+        if (!ApiMetricsDelayInfoUtil.checkByCode(info.getCode(), info.getHttpStatus())) {
             item.setErrorCount(item.getErrorCount() + 1);
         }
         item.setReqCount(Optional.ofNullable(item.getReqCount()).orElse(0L) + 1);
@@ -87,7 +123,6 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setWorkOid(workOid);
         item.setTimeStart(key);
         item.setTimeGranularity(TimeGranularityType.MINUTE.getCode());
-        item.setDelete(false);
         item.setRps(item.getReqCount() / 60.0d);
         long total = Optional.ofNullable(item.getReqCount()).orElse(0L);
         long error = Optional.ofNullable(item.getErrorCount()).orElse(0L);
@@ -98,8 +133,6 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setP50(p50);
         item.setP95(p95);
         item.setP99(p99);
-        this.last.put(apiId, item);
-        this.lastKey = key;
     }
 
     void accept() {

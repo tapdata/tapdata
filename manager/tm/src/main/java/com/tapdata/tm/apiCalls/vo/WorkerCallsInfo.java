@@ -29,4 +29,7 @@ public class WorkerCallsInfo {
     private Long reqTime;
 
     private Long resTime;
+
+    @Field("req_path")
+    private String reqPath;
 }

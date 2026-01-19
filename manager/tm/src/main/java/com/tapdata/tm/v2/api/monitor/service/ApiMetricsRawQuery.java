@@ -200,12 +200,12 @@ public class ApiMetricsRawQuery {
                                 Collectors.toList(),
                                 infos -> {
                                     final ServerItem item = ServerItem.create();
-                                    int total = item.getRequestCount().intValue();
                                     long errorCount = errorCountGetter(infos, e -> item.setRequestCount(item.getRequestCount() + e));
-                                    if (total > 0) {
+                                    long total = item.getRequestCount();
+                                    if (total > 0L) {
                                         item.setErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount, item.getRequestCount()));
                                         item.setErrorCount(errorCount);
-                                        baseDataCalculate(item, apiMetricsRaws, null);
+                                        baseDataCalculate(item, infos, null);
                                     }
                                     final ApiMetricsRaw first = infos.get(0);
                                     final String processId = first.getProcessId();
@@ -491,7 +491,7 @@ public class ApiMetricsRawQuery {
                                     if (total > 0) {
                                         item.setErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount, item.getRequestCount()));
                                         item.setErrorCount(errorCount);
-                                        baseDataCalculate(item, apiMetricsRaws, null);
+                                        baseDataCalculate(item, rows, null);
                                     }
                                     return item;
                                 })
@@ -671,8 +671,7 @@ public class ApiMetricsRawQuery {
     public List<ApiItem> apiOverviewList(ApiListParam param) {
         Criteria criteria = ParticleSizeAnalyzer.of(param);
         Query query = Query.query(criteria);
-        List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {
-        }, null);
+        List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, null, null);
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return ApiItem.supplement(new ArrayList<>(), publishApis());
         }
@@ -725,7 +724,7 @@ public class ApiMetricsRawQuery {
                                                     .map(ApiMetricsRaw::getBytes)
                                                     .map(ApiMetricsDelayUtil::sum)
                                                     .mapToLong(Long::longValue).sum();
-                                            baseDataCalculate(item, apiMetricsRaws, sumDelay -> item.setTotalRps(sumDelay > 0 ? 1000.0D * sumRps / sumDelay : 0D));
+                                            baseDataCalculate(item, rows, sumDelay -> item.setTotalRps(sumDelay > 0 ? 1000.0D * sumRps / sumDelay : 0D));
                                             item.setQueryFrom(param.getStartAt());
                                             item.setQueryEnd(param.getEndAt());
                                             item.setGranularity(param.getGranularity());
@@ -827,7 +826,7 @@ public class ApiMetricsRawQuery {
                                             long errorCount = rows.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum();
                                             item.setErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount, item.getRequestCount()));
                                             item.setErrorCount(errorCount);
-                                            baseDataCalculate(item, apiMetricsRaws, null);
+                                            baseDataCalculate(item, rows, null);
                                             item.setQueryFrom(param.getStartAt());
                                             item.setQueryEnd(param.getEndAt());
                                             item.setGranularity(param.getGranularity());
