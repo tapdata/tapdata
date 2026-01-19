@@ -65,11 +65,6 @@ public class ParticleSizeAnalyzer {
             qe = (e + 59L) / 60L * 60L;
         } else if (query.getGranularity() == 1) {
             query.setGranularity(1);
-
-            s = (start + 59L) / 60L * 60L;
-            qStart = qs = ((qStart + 59L) / 60L * 60L);
-            e = qe = ((end + 59L) / 60L * 60L);
-
             s = (start + 59L) / 60L * 60L;
             qs = s / 60L * 60L - 60 * 60L;
             qStart = s - 60 * 60L;
@@ -190,7 +185,7 @@ public class ParticleSizeAnalyzer {
             row.setTimeGranularity(-1);
             row.setTimeStart(Optional.ofNullable(apiCallEntity.getReqTime()).map(t -> t / 1000L).orElse(null));
             row.setReqCount(1L);
-            row.setErrorCount(ApiMetricsDelayInfoUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()) ? 0L: 1L);
+            row.setErrorCount(ApiMetricsDelayInfoUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()) ? 0L : 1L);
             row.setRps(1D / 60D);
             row.setBytes(new ArrayList<>(List.of(apiCallEntity.getReqBytes())));
             row.setDelay(new ArrayList<>(List.of(apiCallEntity.getLatency())));
