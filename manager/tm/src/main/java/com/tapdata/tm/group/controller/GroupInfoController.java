@@ -35,9 +35,11 @@ public class GroupInfoController extends BaseController {
     private GroupInfoRecordService groupInfoRecordService;
 
     @Operation(summary = "group导出")
-    @GetMapping("/batch/load")
-    public void batchLoadTasks(@RequestParam("id") List<String> id, HttpServletResponse response) {
-        groupInfoService.exportGroupInfos(response, id, getLoginUser());
+    @PostMapping("/batch/load")
+    public void batchLoadTasks(@RequestParam("id") List<String> id,
+            @RequestBody(required = false) Map<String, List<String>> groupResetTask,
+            HttpServletResponse response) {
+        groupInfoService.exportGroupInfos(response, id, getLoginUser(), groupResetTask);
     }
 
     @Operation(summary = "group异步导入，返回记录ID用于查询进度")

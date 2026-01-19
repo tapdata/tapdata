@@ -941,11 +941,11 @@ class TaskServiceImplTest {
             // Setup
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(existingTask);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
@@ -958,11 +958,11 @@ class TaskServiceImplTest {
             importMode = ImportModeEnum.IMPORT_AS_COPY;
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(eq(taskDto), eq(user), any(), eq(conMap), eq(nodeMap), eq(taskMap));
@@ -975,11 +975,11 @@ class TaskServiceImplTest {
             importMode = ImportModeEnum.CANCEL_IMPORT;
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(existingTask);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
             assertThrows(BizException.class, () -> {
-                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             });
         }
 
@@ -993,11 +993,11 @@ class TaskServiceImplTest {
             when(taskService.findOne(nameQuery)).thenReturn(null);
             when(taskService.checkConnectionIdDuplicate(taskDto, conMap)).thenReturn(true);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
             assertThrows(BizException.class, () -> {
-                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             });
         }
     }
@@ -1666,10 +1666,10 @@ class TaskServiceImplTest {
         @DisplayName("test batchImport with empty task list")
         void testBatchImportWithEmptyTaskList() {
             // Setup
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should complete without errors
             verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
@@ -1684,10 +1684,10 @@ class TaskServiceImplTest {
             when(taskDto.getName()).thenReturn(null);
             taskDtos.add(taskDto);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should skip processing this task
             verify(taskService, never()).findOne(any(Query.class));
@@ -1701,10 +1701,10 @@ class TaskServiceImplTest {
             when(taskDto.getName()).thenReturn("");
             taskDtos.add(taskDto);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should skip processing this task
             verify(taskService, never()).findOne(any(Query.class));
@@ -1722,11 +1722,11 @@ class TaskServiceImplTest {
             nameQuery.fields().include("_id", "user_id", "name");
             when(taskService.findOne(nameQuery)).thenReturn(null);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap, Collections.emptyList());
             doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleReplaceMode(eq(taskDto), eq(null), eq(user), eq(new ArrayList<>()), eq(conMap), eq(nodeMap), eq(taskMap));
@@ -1744,11 +1744,11 @@ class TaskServiceImplTest {
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
             when(taskService.checkConnectionIdDuplicate(taskDto, conMap)).thenReturn(false);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
@@ -1775,12 +1775,12 @@ class TaskServiceImplTest {
                     taskService.handleImportAsCopyMode(taskDto, user, new ArrayList<>(), conMap, nodeMap, taskMap);
                 }
                 return null;
-            }).when(taskService).batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap);
+            }).when(taskService).batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(eq(taskDto), eq(user), any(), eq(conMap), eq(nodeMap), eq(taskMap));

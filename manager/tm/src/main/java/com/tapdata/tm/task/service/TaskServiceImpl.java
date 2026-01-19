@@ -3579,7 +3579,8 @@ public class TaskServiceImpl extends TaskService{
                 .withUser(user);
         ParseRelMig<TaskDto> redirect = (ParseRelMig<TaskDto>)ParseRelMig.redirect(param);
         List<TaskDto> tpTasks = redirect.parse();
-        batchImport(tpTasks, user, importMode, tags, new HashMap<>(), new HashMap<>(),new HashMap<>());
+        batchImport(tpTasks, user, importMode, tags, new HashMap<>(), new HashMap<>(), new HashMap<>(),
+                Collections.emptyList());
         checkJsProcessorTestRun(user, tpTasks);
     }
 
@@ -3687,7 +3688,7 @@ public class TaskServiceImpl extends TaskService{
         try {
             Map<String, String> taskMap = new HashMap<>();
             Map<String, String> nodeMap = new HashMap<>();
-            batchImport(tasks, user, importMode, tags, conMap,taskMap,nodeMap);
+            batchImport(tasks, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             metadataInstancesService.batchImport(metadataInstancess, user, conMap,taskMap,nodeMap);
         } catch (Exception e) {
             if (e instanceof BizException) {
@@ -3707,7 +3708,8 @@ public class TaskServiceImpl extends TaskService{
      * @param conMap 连接映射
      */
     public void batchImport(List<TaskDto> taskDtos, UserDetail user, ImportModeEnum importMode, List<String> tags,
-                           Map<String, DataSourceConnectionDto> conMap,Map<String, String> taskMap,Map<String, String> nodeMap) {
+                           Map<String, DataSourceConnectionDto> conMap, Map<String, String> taskMap,
+                           Map<String, String> nodeMap, List<String> resetTaskList) {
 
         List<Tag> tagList = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(tags)) {
@@ -3723,18 +3725,30 @@ public class TaskServiceImpl extends TaskService{
         for (TaskDto taskDto : taskDtos) {
             // 基于名称查找现有任务
             Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
-            nameQuery.fields().include("_id", USER_ID, "name");
+            nameQuery.fields().include("_id", USER_ID, "name", "attrs","status","syncStatus","isEdit","taskRecordId");
             TaskDto existingTaskByName = findOne(nameQuery, user);
 
             taskDto.setListtags(null);
-            taskDto.setStatus(TaskDto.STATUS_EDIT);
-            taskDto.setSyncStatus(SyncStatus.NORMAL);
             taskDto.setTaskRecordId(new ObjectId().toHexString());
 
-            Map<String, Object> attrs = taskDto.getAttrs();
-            if (attrs != null) {
-                attrs.remove(EDGE_MILESTONES);
-                attrs.remove(SYNC_PROGRESS);
+            boolean enableStatusPreserve = importMode == ImportModeEnum.GROUP_IMPORT && resetTaskList != null;
+            boolean shouldReset = enableStatusPreserve
+                    && taskDto.getId() != null
+                    && resetTaskList.contains(taskDto.getId().toHexString());
+            if (enableStatusPreserve && !shouldReset && existingTaskByName != null) {
+                taskDto.setStatus(existingTaskByName.getStatus());
+                taskDto.setSyncStatus(existingTaskByName.getSyncStatus());
+                taskDto.setIsEdit(existingTaskByName.getIsEdit());
+                taskDto.setTaskRecordId(existingTaskByName.getTaskRecordId());
+                taskDto.setAttrs(existingTaskByName.getAttrs());
+            } else {
+                taskDto.setStatus(TaskDto.STATUS_EDIT);
+                taskDto.setSyncStatus(SyncStatus.NORMAL);
+                Map<String, Object> attrs = taskDto.getAttrs();
+                if (attrs != null) {
+                    attrs.remove(EDGE_MILESTONES);
+                    attrs.remove(SYNC_PROGRESS);
+                }
             }
             // 根据导入模式处理
             switch (importMode) {
@@ -3774,11 +3788,11 @@ public class TaskServiceImpl extends TaskService{
             } catch (Exception e) {
                 log.warn("stop task exception, task id = {}, e = {}", existingTask.getId(), e);
             }
-            String backupName = existingTask.getName() + "_backup_" + System.currentTimeMillis();
-            rename(existingTask.getId().toHexString(), backupName, user);
+//            String backupName = existingTask.getName() + "_backup_" + System.currentTimeMillis();
+//            rename(existingTask.getId().toHexString(), backupName, user);
         }
 
-        handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+        handleReplaceMode(taskDto, existingTask, user, tagList, conMap,nodeMap,taskMap);
     }
 
 
@@ -3811,11 +3825,11 @@ public class TaskServiceImpl extends TaskService{
                 }
             }
 
-            repository.getMongoOperations().updateFirst(
-                new Query(Criteria.where("_id").is(taskDto.getId())),
-                Update.update(STATUS, TaskDto.STATUS_EDIT),
-                TaskEntity.class
-            );
+//            repository.getMongoOperations().updateFirst(
+//                new Query(Criteria.where("_id").is(taskDto.getId())),
+//                Update.update(STATUS, TaskDto.STATUS_EDIT),
+//                TaskEntity.class
+//            );
             confirmById(taskDto, user, true, true);
         } else {
             // 不存在同名任务，直接导入
@@ -3870,6 +3884,26 @@ public class TaskServiceImpl extends TaskService{
                     if(nodeMap.containsKey(joinProcessorNode.getRightNodeId())){
                         joinProcessorNode.setRightNodeId(nodeMap.get(joinProcessorNode.getRightNodeId()));
                     }
+                }
+            });
+            Optional.ofNullable(taskDto.getAttrs()).ifPresent(attrs -> {
+                if(attrs.containsKey("syncProgress") && attrs.get("syncProgress") instanceof Map){
+                    Map<String, Object> sp = (Map<String, Object>) attrs.get("syncProgress");
+                    Map<String, Object> newSp = new LinkedHashMap<>();
+                    List<String> toRemove = new ArrayList<>();
+                    for (Map.Entry<String, Object> entry : sp.entrySet()) {
+                        String key = entry.getKey();
+                        List<String> nodeIds = JsonUtil.parseJson(key, List.class);
+                        String newKey = JsonUtil.toJsonUseJackson(
+                                nodeIds.stream().map(nodeMap::get).collect(Collectors.toList())
+                        );
+                        if (!newKey.equals(key)) {
+                            newSp.put(newKey, entry.getValue());
+                            toRemove.add(key);
+                        }
+                    }
+                    toRemove.forEach(sp::remove);
+                    sp.putAll(newSp);
                 }
             });
         }

@@ -157,16 +157,19 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return groupInfoDtoPage;
     }
 
-    public void exportGroupInfo(HttpServletResponse response, String groupId, UserDetail user) {
-        exportGroupInfos(response, Collections.singletonList(groupId), user);
+    public void exportGroupInfo(HttpServletResponse response, String groupId, UserDetail user,
+            Map<String, List<String>> groupResetTask) {
+        exportGroupInfos(response, Collections.singletonList(groupId), user, groupResetTask);
     }
 
-    public void exportGroupInfos(HttpServletResponse response, List<String> groupIds, UserDetail user) {
+    public void exportGroupInfos(HttpServletResponse response, List<String> groupIds, UserDetail user,
+            Map<String, List<String>> groupResetTask) {
         List<GroupInfoDto> groupInfos = loadGroupInfosByIds(groupIds, user);
 
         if (CollectionUtils.isEmpty(groupInfos)) {
             throw new BizException("GroupInfo.Not.Found");
         }
+        applyResetTaskList(groupInfos, groupResetTask);
 
         // 按资源类型提取资源 ID
         Map<ResourceType, Set<String>> resourceIdsByType = extractResourceIdsByType(groupInfos);
@@ -259,8 +262,6 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             importMode = ImportModeEnum.GROUP_IMPORT;
         }
         String fileName = file.getOriginalFilename();
-        long startTime = System.currentTimeMillis();
-
         // Read file content before async execution (MultipartFile may not be available
         // after request completes)
         Map<String, List<TaskUpAndLoadDto>> payloads = readGroupImportPayloads(file);
@@ -378,8 +379,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             allTasks.addAll(syncTasks.values());
             allTasks.addAll(shareCacheTasks.values());
             if (CollectionUtils.isNotEmpty(allTasks)) {
+                List<String> resetTaskList = collectResetTaskList(groupInfos);
                 taskService.batchImport(allTasks, user, importMode, new ArrayList<>(), conMap, taskIdMap,
-                        nodeIdMap);
+                        nodeIdMap, resetTaskList);
                 List<MetadataInstancesDto> allTaskMetadata = new ArrayList<>();
                 allTaskMetadata
                         .addAll(metadataByType.getOrDefault(ResourceType.MIGRATE_TASK, Collections.emptyList()));
@@ -451,6 +453,35 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         List<ObjectId> ids = groupIds.stream().filter(Objects::nonNull).map(ObjectId::new).collect(Collectors.toList());
         Query query = new Query(Criteria.where("_id").in(ids).and("is_deleted").ne(true));
         return findAllDto(query, user);
+    }
+
+    protected void applyResetTaskList(List<GroupInfoDto> groupInfos, Map<String, List<String>> groupResetTask) {
+        if (CollectionUtils.isEmpty(groupInfos) || MapUtils.isEmpty(groupResetTask)) {
+            return;
+        }
+        for (GroupInfoDto groupInfo : groupInfos) {
+            if (groupInfo == null || groupInfo.getId() == null) {
+                continue;
+            }
+            List<String> resetTaskList = groupResetTask.get(groupInfo.getId().toHexString());
+            if (CollectionUtils.isNotEmpty(resetTaskList)) {
+                groupInfo.setResetTaskList(resetTaskList);
+            }
+        }
+    }
+
+    protected List<String> collectResetTaskList(List<GroupInfoDto> groupInfos) {
+        if (CollectionUtils.isEmpty(groupInfos)) {
+            return new ArrayList<>();
+        }
+        Set<String> resetTaskIds = new LinkedHashSet<>();
+        for (GroupInfoDto groupInfo : groupInfos) {
+            if (groupInfo == null || CollectionUtils.isEmpty(groupInfo.getResetTaskList())) {
+                continue;
+            }
+            resetTaskIds.addAll(groupInfo.getResetTaskList());
+        }
+        return new ArrayList<>(resetTaskIds);
     }
 
     protected List<TaskUpAndLoadDto> buildGroupInfoPayload(List<GroupInfoDto> groupInfos) {

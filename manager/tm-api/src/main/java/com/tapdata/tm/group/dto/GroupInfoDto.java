@@ -13,4 +13,5 @@ public class GroupInfoDto extends BaseDto {
     private String name;
     private String description;
     private List<ResourceItem> resourceItemList = new ArrayList<>();
+    private List<String> resetTaskList = new ArrayList<>();
 }

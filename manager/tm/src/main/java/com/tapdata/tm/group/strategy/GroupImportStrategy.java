@@ -25,13 +25,7 @@ public class GroupImportStrategy implements ImportStrategy {
 
     @Override
     public RecordAction handleDuplicate(ResourceType resourceType) {
-        if (resourceType == ResourceType.MODULE) {
-            // 模块重复时跳过
-            return RecordAction.REPLACED;
-        } else {
-            // 任务重复时仍然导入（会重命名现有的）
-            return RecordAction.IMPORTED;
-        }
+        return RecordAction.REPLACED;
     }
 
     @Override
@@ -39,7 +33,7 @@ public class GroupImportStrategy implements ImportStrategy {
         if (resourceType == ResourceType.MODULE) {
             return "duplicate module, replaced existing";
         } else {
-            return "duplicate task, existing renamed and imported new";
+            return "duplicate task, replaced existing";
         }
     }
 

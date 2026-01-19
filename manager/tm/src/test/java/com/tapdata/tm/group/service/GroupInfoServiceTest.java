@@ -329,7 +329,7 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user);
+            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
         }
 
@@ -368,7 +368,7 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user);
+            groupInfoService.exportGroupInfos(response, groupIds, user ,new HashMap<>());
 
             verify(groupInfoRecordService).save(any(GroupInfoRecordDto.class), any());
         }
@@ -404,7 +404,7 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user);
+            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
             verify(groupInfoRecordService).save(any(GroupInfoRecordDto.class), any());
         }
@@ -440,7 +440,7 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user);
+            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
             verify(response).setContentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE);
             verify(response).setHeader(eq("Content-Disposition"), argThat(value ->
@@ -479,7 +479,7 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user);
+            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
             verify(groupInfoService).updateRecordStatus(eq(savedRecord.getId()),
                 eq(GroupInfoRecordDto.STATUS_COMPLETED), isNull(), any(), eq(user));
@@ -506,7 +506,7 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user);
+            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
             verify(groupInfoService).updateRecordStatus(eq(savedRecord.getId()),
                 eq(GroupInfoRecordDto.STATUS_FAILED), eq("Output stream error"), any(), eq(user));
@@ -546,7 +546,7 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user);
+            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
         }
 
         @Test
@@ -580,7 +580,7 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user);
+            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
             // Verify content was written (tar file should have some content)
             assertTrue(outputStream.size() > 0);
@@ -623,7 +623,7 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user);
+            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
             verify(groupInfoService).updateRecordStatus(eq(savedRecord.getId()),
                 eq(GroupInfoRecordDto.STATUS_COMPLETED), isNull(), any(), eq(user));
