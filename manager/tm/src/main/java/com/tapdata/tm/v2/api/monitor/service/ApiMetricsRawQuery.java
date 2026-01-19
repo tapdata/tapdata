@@ -339,13 +339,13 @@ public class ApiMetricsRawQuery {
         final List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> c.and("processId").is(serverId), Criteria.where("api_gateway_uuid").is(serverId));
         result.setRequestCount(0L);
         long errorCount = errorCountGetter(apiMetricsRaws, e -> result.setRequestCount(result.getRequestCount() + e));
+        result.setErrorCount(errorCount);
         result.setErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount, result.getRequestCount()));
         baseDataCalculate(result, apiMetricsRaws, null);
         return result;
     }
 
     public ServerChart serverChart(ServerChartParam param) {
-        //@todo
         String serverId = param.getServerId();
         if (StringUtils.isBlank(serverId)) {
             throw new BizException(SERVER_ID_EMPTY);
@@ -430,7 +430,7 @@ public class ApiMetricsRawQuery {
 
 
                     List<Map<Long, Integer>> mergedDBCost = ApiMetricsDelayUtil.merge(dbCosts);
-                    Long dbCostTotal = ApiMetricsDelayUtil.sum(dbCosts);
+                    Long dbCostTotal = ApiMetricsDelayUtil.sum(mergedDBCost);
                     ApiMetricsDelayUtil.readMaxAndMin(mergedDBCost, item::setDbCostMax, item::setDbCostMin);
                     if (reqCount > 0L) {
                         item.setAvg(1.0D * reqTotalDelay / reqCount);
@@ -441,7 +441,7 @@ public class ApiMetricsRawQuery {
                         item.setP95(ApiMetricsDelayUtil.p95(mergedDelay, reqCount));
                         item.setP99(ApiMetricsDelayUtil.p99(mergedDelay, reqCount));
                         item.setDbCostP95(ApiMetricsDelayUtil.p95(mergedDBCost, reqCount));
-                        item.setDbCostP95(ApiMetricsDelayUtil.p99(mergedDBCost, reqCount));
+                        item.setDbCostP99(ApiMetricsDelayUtil.p99(mergedDBCost, reqCount));
                     }
                 }
         );
@@ -644,7 +644,6 @@ public class ApiMetricsRawQuery {
     }
 
     public ApiTopOnHomepage apiTopOnHomepage(QueryBase param) {
-        //@todo db cost
         ApiTopOnHomepage result = new ApiTopOnHomepage();
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
         Query query = Query.query(criteria);
@@ -657,10 +656,13 @@ public class ApiMetricsRawQuery {
         long totalRequestCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getReqCount).sum();
         long totalBytes = apiMetricsRaws.stream().map(ApiMetricsRaw::getBytes).map(ApiMetricsDelayUtil::fixDelayAsMap).mapToLong(ApiMetricsDelayUtil::sum).sum();
         long totalDelayMs = apiMetricsRaws.stream().map(ApiMetricsRaw::getDelay).map(ApiMetricsDelayUtil::fixDelayAsMap).mapToLong(ApiMetricsDelayUtil::sum).sum();
+        long errorCount =  apiMetricsRaws.stream().map(ApiMetricsRaw::getErrorCount).filter(Objects::nonNull).mapToLong(Long::longValue).sum();
         result.setTotalBytes(totalBytes);
         result.setTotalDelayMs(totalDelayMs);
         result.setApiCount(apiCount);
         result.setTotalRequestCount(totalRequestCount);
+        result.setErrorCount(errorCount);
+        result.setErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount, totalRequestCount));
         result.setTotalRps(totalDelayMs > 0L ? totalBytes * 1000.0D / totalDelayMs : 0D);
         result.setResponseTimeAvg(totalRequestCount > 0L ? totalDelayMs * 1.0D / totalRequestCount : 0D);
         return result;
@@ -767,6 +769,7 @@ public class ApiMetricsRawQuery {
             long totalErrorCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum();
             result.setRequestCount(totalRequestCount);
             result.setErrorRate(ApiMetricsDelayInfoUtil.rate(totalErrorCount, totalRequestCount));
+            result.setErrorCount(totalErrorCount);
             baseDataCalculate(result, apiMetricsRaws, null);
         }
         return result;

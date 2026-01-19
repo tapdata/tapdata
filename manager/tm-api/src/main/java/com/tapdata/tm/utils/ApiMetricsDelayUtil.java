@@ -161,8 +161,8 @@ public final class ApiMetricsDelayUtil {
         for (Map<Long, Integer> item : delayList) {
             delays.addAll(item.keySet());
         }
-        Optional.ofNullable(max).ifPresent(c -> delays.stream().mapToLong(Long::longValue).max().ifPresent(c));
-        Optional.ofNullable(min).ifPresent(c -> delays.stream().mapToLong(Long::longValue).min().ifPresent(c));
+        Optional.ofNullable(max).ifPresent(c -> delays.stream().filter(e -> e > 0L).mapToLong(Long::longValue).max().ifPresent(c));
+        Optional.ofNullable(min).ifPresent(c -> delays.stream().filter(e -> e > 0L).mapToLong(Long::longValue).min().ifPresent(c));
     }
 
     static Long p(List<Map<Long, Integer>> delayList, long total, double p) {

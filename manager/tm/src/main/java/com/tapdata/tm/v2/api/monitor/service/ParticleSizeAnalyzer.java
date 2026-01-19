@@ -65,9 +65,16 @@ public class ParticleSizeAnalyzer {
             qe = (e + 59L) / 60L * 60L;
         } else if (query.getGranularity() == 1) {
             query.setGranularity(1);
+
             s = (start + 59L) / 60L * 60L;
             qStart = qs = ((qStart + 59L) / 60L * 60L);
             e = qe = ((end + 59L) / 60L * 60L);
+
+            s = (start + 59L) / 60L * 60L;
+            qs = s / 60L * 60L - 60 * 60L;
+            qStart = s - 60 * 60L;
+            e = end / 60L * 60L;
+            qe = (e + 59L) / 60L * 60L;
         } else {
             query.setGranularity(2);
             s = (start + 3599L) / 3600L * 3600L;

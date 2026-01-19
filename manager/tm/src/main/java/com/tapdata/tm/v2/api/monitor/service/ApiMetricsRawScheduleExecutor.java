@@ -126,6 +126,7 @@ public class ApiMetricsRawScheduleExecutor {
         update.set("rps", entity.getRps());
         update.set("bytes", entity.getBytes());
         update.set("delay", entity.getDelay());
+        update.set("dbCost", entity.getDbCost());
         update.set("subMetrics", entity.getSubMetrics());
         update.set("p50", entity.getP50());
         update.set("p95", entity.getP95());
