@@ -20,6 +20,7 @@ import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -288,13 +289,12 @@ public class ApiMetricsRawService {
                     .map(MetricInstanceAcceptor::calcPValue)
                     .ifPresent(i -> result.add(0, i)));
         }
-        if (right.isEmpty()) {
-           return result;
+        if (!CollectionUtils.isEmpty(right)) {
+            right.forEach((key, item) -> Optional.ofNullable(item)
+                    .map(i -> {i.setTimeStart(i.getTimeStart() / step * step); return i;})
+                    .map(MetricInstanceAcceptor::calcPValue)
+                    .ifPresent(i -> result.add(0, i)));
         }
-        right.forEach((key, item) -> Optional.ofNullable(item)
-                .map(i -> {i.setTimeStart(i.getTimeStart() / step * step); return i;})
-                .map(MetricInstanceAcceptor::calcPValue)
-                .ifPresent(i -> result.add(0, i)));
         return result.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> !filterByTime || e.getTimeStart() >= param.getStartAt() && e.getTimeStart() < param.getEndAt())
