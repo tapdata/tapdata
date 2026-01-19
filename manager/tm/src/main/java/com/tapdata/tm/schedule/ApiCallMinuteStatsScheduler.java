@@ -144,7 +144,7 @@ public class ApiCallMinuteStatsScheduler {
 		}
 	}
 
-	@Scheduled(cron = "0/30 * * * * ?")
+	@Scheduled(cron = "0/5 * * * * ?")
 	@SchedulerLock(name = "api_call_worker_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
 	public void scheduleWorkerCall() {
 		try {

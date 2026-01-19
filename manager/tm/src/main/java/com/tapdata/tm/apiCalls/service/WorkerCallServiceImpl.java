@@ -1,5 +1,9 @@
 package com.tapdata.tm.apiCalls.service;
 
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.Sorts;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.entity.WorkerCallStats;
 import com.tapdata.tm.apiCalls.vo.ApiCountMetricVo;
@@ -24,6 +28,7 @@ import io.tapdata.pdk.core.async.AsyncUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -64,6 +69,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
     private WorkerService workerService;
     MongoTemplate mongoOperations;
     private ApiWorkerServer apiWorkerServer;
+    MongoTemplate mongoTemplate;
 
     public ApiCallMetricVo find(String processId, Long from, Long to, Integer type, Integer granularity) {
         if (StringUtils.isBlank(processId)) {
@@ -311,27 +317,20 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         final Criteria serverCriteria = Criteria.where("worker_type").is("api-server");
         final Query serverQuery = Query.query(serverCriteria);
         final List<WorkerDto> apiServers = workerService.findAll(serverQuery);
-        final CompletableFuture<Void> supplyAsync = CompletableFuture.runAsync(() -> {
-        }, ASYNC_EXECUTOR);
-        final List<CompletableFuture<Void>> futures = new ArrayList<>();
-        try {
-            apiServers.forEach(server -> {
-                if (null == server) {
-                    return;
-                }
-                Optional.ofNullable(server.getWorkerStatus())
-                        .map(ApiServerStatus::getWorkers)
-                        .map(Map::values)
-                        .orElse(new ArrayList<>())
-                        .forEach(info -> {
-                            if (info.getOid() != null) {
-                                futures.add(supplyAsync.thenRunAsync(() -> metricWorker(info.getOid()), ASYNC_EXECUTOR));
-                            }
-                        });
-            });
-        } finally {
-           closeFeatures(futures);
-        }
+        apiServers.forEach(server -> {
+            if (null == server) {
+                return;
+            }
+            Optional.ofNullable(server.getWorkerStatus())
+                    .map(ApiServerStatus::getWorkers)
+                    .map(Map::values)
+                    .orElse(new ArrayList<>())
+                    .forEach(info -> {
+                        if (info.getOid() != null) {
+                            metricWorker(info.getOid());
+                        }
+                    });
+        });
     }
 
     void closeFeatures(List<CompletableFuture<Void>> futures) {
@@ -407,31 +406,28 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         query.with(Sort.by(Sort.Order.desc(Tag.TIME_START)));
         WorkerCallEntity lastOne = mongoOperations.findOne(query, WorkerCallEntity.class);
         Long queryFrom = null;
-        Long queryTo = System.currentTimeMillis();
         if (null != lastOne) {
             queryFrom = lastOne.getTimeStart();
         }
         final WorkerCallsInfoGenerator.Acceptor acceptor = this::bulkUpsert;
-        List<WorkerCallsInfo> calls = null;
-        long skip = 0;
-        long size = 1000;
-        Criteria criteriaCall = Criteria.where(Tag.WORK_OID).is(workerOid)
-                .and(Tag.ALL_PATH_ID).ne(null);
+        Criteria criteriaCall = Criteria.where(Tag.WORK_OID).is(workerOid);
         List<Criteria> timeCriteria = new ArrayList<>();
         timeCriteria.add(Criteria.where(Tag.REQ_TIME).ne(null));
-        timeCriteria.add(Criteria.where(Tag.REQ_TIME).lte(queryTo));
         Optional.ofNullable(queryFrom).ifPresent(time -> timeCriteria.add(Criteria.where(Tag.REQ_TIME).gte(time)));
         criteriaCall.andOperator(timeCriteria);
-        try (WorkerCallsInfoGenerator generator = new WorkerCallsInfoGenerator(acceptor)) {
-            do {
-                Query queryCall = Query.query(criteriaCall);
-                queryCall.skip(skip);
-                calls = mongoOperations.find(queryCall, WorkerCallsInfo.class, "ApiCall");
-                if (!calls.isEmpty()) {
-                    generator.append(calls);
-                    skip += size;
-                }
-            } while (!calls.isEmpty());
+        final MongoCollection<Document> collection = mongoTemplate.getCollection("ApiCall");
+        final Query queryCall = Query.query(criteriaCall);
+        final Document queryObject = queryCall.getQueryObject();
+        final FindIterable<Document> iterable =
+                collection.find(queryObject, Document.class)
+                        .sort(Sorts.ascending(Tag.REQ_TIME))
+                        .batchSize(1000);
+        try (final MongoCursor<Document> cursor = iterable.iterator();
+             WorkerCallsInfoGenerator generator = new WorkerCallsInfoGenerator(acceptor)) {
+            while (cursor.hasNext()) {
+                final Document entity = cursor.next();
+                generator.append(entity);
+            }
         }
     }
 

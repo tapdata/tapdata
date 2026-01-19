@@ -71,7 +71,7 @@ public class ApiMetricsRawService {
         }
         List<QueryBase.Point> secondPoint = new ArrayList<>();
         long start = param.getQueryParam().getStart() * 1000L;
-        long end = param.getQueryParam().getStart() * 1000L;
+        long end = param.getQueryParam().getEnd() * 1000L;
         if (start < startAt) {
             secondPoint.add(QueryBase.Point.of(start, startAt, -1));
         }
@@ -94,7 +94,7 @@ public class ApiMetricsRawService {
                         .filter(Objects::nonNull)
                         .filter(callItem -> StringUtils.isNotBlank(callItem.getWorkOid()))
                         .filter(e -> StringUtils.isNotBlank(e.getReq_path()))
-                        .filter(e -> MetricInstanceFactory.IGNORE_PATH.contains(e.getReq_path()))
+                        .filter(e -> !MetricInstanceFactory.IGNORE_PATH.contains(e.getReq_path()))
                         .collect(Collectors.groupingBy(ApiCallEntity::getWorkOid));
                 long finalEndAt = endAt;
                 long finalStartAt = startAt;

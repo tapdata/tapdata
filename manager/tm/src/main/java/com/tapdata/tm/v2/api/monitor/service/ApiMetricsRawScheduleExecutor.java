@@ -61,7 +61,7 @@ public class ApiMetricsRawScheduleExecutor {
             final Document queryObject = query.getQueryObject();
             final FindIterable<Document> iterable =
                     collection.find(queryObject, Document.class)
-                            .sort(Sorts.ascending(OBJECT_ID))
+                            .sort(Sorts.ascending("reqTime"))
                             .batchSize(1000);
             try (final MongoCursor<Document> cursor = iterable.iterator()) {
                 while (cursor.hasNext()) {

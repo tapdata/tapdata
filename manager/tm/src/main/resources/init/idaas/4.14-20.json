@@ -65,5 +65,29 @@
       "name": "ApiCall_1_ttl",
       "background": true
     }]
+  },
+  {
+    "createIndexes": "ApiCall",
+    "indexes": [{
+      "key": {
+        "api_gateway_uuid": 1,
+        "reqTime": 1,
+        "delete": 1
+      },
+      "name": "delete_1_api_gateway_uuid_1_reqTime_1",
+      "background": true
+    }]
+  },
+  {
+    "createIndexes": "ApiCallInWorker",
+    "indexes": [{
+      "key": {
+        "processId": 1,
+        "timeStart": 1,
+        "timeGranularity": 1
+      },
+      "name": "processId_1_timeStart_1_timeGranularity_1",
+      "background": true
+    }]
   }
 ]
