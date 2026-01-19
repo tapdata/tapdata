@@ -52,16 +52,17 @@ public class MetricInfo {
                 //ignore
             }
         }
-        Optional.ofNullable(serverUsage.getLastUpdateTime()).ifPresent(time -> {
-            if (time % 3600000L == 0) {
+        Optional.ofNullable(serverUsage.getLastUpdateTime()).ifPresent(t -> {
+            long time = t / 1000L;
+            if (time % 3600L == 0) {
                 serverUsage.setType(2);
                 return;
             }
-            if (time % 60000L  == 0) {
+            if (time % 60L  == 0) {
                 serverUsage.setType(1);
                 return;
             }
-            if (time % 5000L == 0L) {
+            if (time % 5L == 0L) {
                 serverUsage.setType(0);
                 return;
             }

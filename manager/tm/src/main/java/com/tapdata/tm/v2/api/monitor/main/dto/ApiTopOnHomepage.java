@@ -23,4 +23,9 @@ public class ApiTopOnHomepage extends DataValueBase {
 
     @DecimalFormat
     double totalRps;
+
+    long errorCount;
+
+    @DecimalFormat
+    double errorRate;
 }
