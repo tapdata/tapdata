@@ -4,12 +4,17 @@ import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import lombok.Getter;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.util.CollectionUtils;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -18,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -29,6 +35,139 @@ public class ParticleSizeAnalyzer {
     private ParticleSizeAnalyzer() {
 
     }
+
+    public static void fixTime(ValueBase valueBase, QueryBase query) {
+        fixTime(query);
+        valueBase.setQueryFrom(query.getStartAt());
+        valueBase.setQueryEnd(query.getEndAt());
+    }
+
+    public static void fixTime(QueryBase query) {
+        checkQueryTime(query);
+        Long startAt = query.getStartAt();
+        Long endAt = query.getEndAt();
+        long range = endAt - startAt;
+
+        long queryStartAt = startAt;
+        long queryEndAt = endAt;
+        if (range < 60L * 60L) {
+            query.setGranularity(0);
+            queryStartAt -= 5 * 60L;
+        } else if (range < 60L * 60L * 24L) {
+            query.setGranularity(1);
+            queryStartAt -= 60L * 60L;
+        } else {
+            query.setGranularity(2);
+        }
+        query.setQueryStart(queryStartAt);
+        query.setQueryEnd(queryEndAt);
+        switch (query.getGranularity()) {
+            case 0:
+                query.setFixStart(startAt / 5L * 5L);
+                query.setFixEnd((endAt + 4L) / 5L * 5L);
+                break;
+            case 1:
+                query.setFixStart(startAt / 60L * 60L);
+                query.setFixEnd((endAt + 59L) / 60L * 60L);
+            default:
+                query.setFixStart(startAt / 3600L * 3600L);
+                query.setFixEnd((endAt + 3599L) / 3600L * 3600L);
+        }
+        List<TimeRange> split = split(startAt, endAt);
+        Map<TimeGranularity, List<TimeRange>> collect = split.stream().collect(
+                Collectors.groupingBy(TimeRange::getUnit)
+        );
+        query.setQueryRange(collect);
+    }
+
+    public static List<TimeRange> split(long startAt, long endAt) {
+        List<TimeRange> result = new ArrayList<>();
+        long cursor = startAt;
+        TimeGranularity lastUnit = null;
+        Long last = null;
+        while (cursor <= endAt) {
+            TimeGranularity unit = chooseBestUnit(cursor);
+            TimeGranularity nextUnit = chooseNextUnit(cursor, unit, endAt);
+            if (null == nextUnit) {
+                if (last != null) {
+                    TimeRange current = new TimeRange(last, cursor, lastUnit);
+                    result.add(current);
+                }
+                break;
+            }
+            if (lastUnit == null) {
+                lastUnit = unit;
+                last = cursor;
+            }
+            if (lastUnit != unit) {
+                TimeRange current = new TimeRange(last, cursor, lastUnit);
+                lastUnit = unit;
+                result.add(current);
+                last = cursor;
+            } else if (unit != nextUnit) {
+                TimeRange current = new TimeRange(last, cursor, lastUnit);
+                lastUnit = nextUnit;
+                result.add(current);
+                last = cursor;
+            } else if (cursor + nextUnit.getSeconds() >= endAt) {
+                TimeRange current = new TimeRange(last, cursor, unit);
+                result.add(current);
+            }
+            cursor += nextUnit.getSeconds();
+        }
+        return result;
+    }
+
+    private static TimeGranularity chooseBestUnit(long t) {
+        Instant instant = Instant.ofEpochSecond(t);
+        LocalDateTime localDateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+        if (localDateTime.getSecond() == 0 && localDateTime.getMinute() == 0 && localDateTime.getHour() == 0) {
+            return TimeGranularity.DAY;
+        }
+        if (localDateTime.getSecond() == 0 && localDateTime.getMinute() == 0) {
+            return TimeGranularity.HOUR;
+        }
+        if (localDateTime.getSecond() == 0) {
+            return TimeGranularity.MINUTE;
+        }
+        if (localDateTime.getSecond() % 5 == 0) {
+            return TimeGranularity.SECOND_FIVE;
+        }
+        return TimeGranularity.SECOND;
+    }
+
+    private static TimeGranularity chooseNextUnit(long t, TimeGranularity unit, long endAt) {
+        long current = t;
+        TimeGranularity lower = unit;
+        if (t > endAt) {
+            return null;
+        }
+        do {
+            current = t + lower.getSeconds();
+            if (current <= endAt || lower.getLowerOne() == null) {
+                return lower;
+            }
+            lower = lower.getLowerOne();
+        } while (true);
+    }
+
+    private static boolean isAligned(long t, TimeGranularity unit) {
+        return t % unit.getSeconds() == 0;
+    }
+
+    @Getter
+    public static class TimeRange {
+        long start;
+        long end;
+        TimeGranularity unit;
+
+        TimeRange(long start, long end, TimeGranularity unit) {
+            this.start = start;
+            this.end = end;
+            this.unit = unit;
+        }
+    }
+
 
     public static Criteria of(ValueBase valueBase, QueryBase query) {
         Criteria criteria = of(query);
@@ -82,6 +221,7 @@ public class ParticleSizeAnalyzer {
         query.getQueryParam().setEnd(end);
         query.setStartAt(s);
         query.setEndAt(e);
+        query.setBatchStart(qs);
         if (query.getGranularity() != 0) {
             points(qStart, end, query);
         }
@@ -104,7 +244,6 @@ public class ParticleSizeAnalyzer {
         letf = ofPoint(letf, endOrigin, 1, 0, e -> query.getQueryParam().getSecond5Point().add(e));
         ofPoint(letf, endOrigin, 1, -1, e -> query.getQueryParam().getSecondPoint().add(e));
     }
-
     static long ofPoint(long left, long right, int direction, int granularity, Consumer<QueryBase.Point> consumer) {
         long step = switch (granularity) {
             case -1 -> 1L;
@@ -193,6 +332,13 @@ public class ParticleSizeAnalyzer {
             row.setCallId(apiCallEntity.getId());
             row.setId(new ObjectId());
             consumer.accept(row);
+        }
+    }
+
+    public static void main(String[] args) {
+        List<TimeRange> split = split(1768037400L, 1768815187L);
+        for (TimeRange timeRange : split) {
+            System.out.println(timeRange.start + " ~ " + timeRange.end);
         }
     }
 }

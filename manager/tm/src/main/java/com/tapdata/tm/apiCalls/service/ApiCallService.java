@@ -6,11 +6,11 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
-import com.tapdata.tm.apiServer.service.check.RealTimeOfApiResponseSizeAlter;
-import com.tapdata.tm.apiServer.utils.PercentileCalculator;
 import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
 import com.tapdata.tm.apiCalls.vo.ApiPercentile;
+import com.tapdata.tm.apiServer.service.check.RealTimeOfApiResponseSizeAlter;
+import com.tapdata.tm.apiServer.utils.PercentileCalculator;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
@@ -25,13 +25,15 @@ import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.Param;
-import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.module.entity.Path;
+import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.system.api.utils.TextEncryptionUtil;
 import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.v2.api.monitor.main.dto.ServerChart;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -153,25 +155,62 @@ public class ApiCallService {
             criteria.and("user_info").exists(true)
                     .and(String.format("user_info.%s", Tag.CLIENT_ID)).is(clientId);
         }
+        analyseRangeNumber(Tag.DB_COST, Tag.DATA_QUERY_TOTAL_TIME, where, criteria);
+        analyseRangeNumber(Tag.LATENCY, Tag.LATENCY, where, criteria);
         Optional.ofNullable(code)
                 .map(value -> String.valueOf(value).trim())
                 .ifPresent(value -> {
-                    if (Objects.equals("", value)) {
-                        criteria.and("code").ne("200");
+                    if (Objects.equals("200", value)) {
+                        criteria.orOperator(
+                                Criteria.where("code").is("200"),
+                                Criteria.where("code").is("404").and("httpStatus").is(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode())
+                        );
                     } else {
-                        criteria.and("code").is(value);
+                        criteria.and("code").nin("200", "404")
+                                .and("httpStatus").ne(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode());
                     }
                 });
         Optional.ofNullable(where.get(Tag.START))
                 .map(value -> (Double) where.remove(Tag.START))
-                .map(value -> new Date(value.longValue()))
-                .ifPresent(value -> startTimeCriteria.and(Tag.CREATE_TIME).gte(value));
+                .map(Double::longValue)
+                .ifPresent(value -> startTimeCriteria.and(Tag.REQ_TIME).gte(value));
         Optional.ofNullable(where.get("end"))
                 .map(value -> (Double) where.remove("end"))
-                .map(value -> new Date(value.longValue()))
-                .ifPresent(value -> endTimeCriteria.and(Tag.CREATE_TIME).lte(value));
+                .map(Double::longValue)
+                .ifPresent(value -> endTimeCriteria.and(Tag.REQ_TIME).lte(value));
         criteria.andOperator(startTimeCriteria, endTimeCriteria);
         return criteria;
+    }
+
+    void analyseRangeNumber(String key, String fieldName, Where where, Criteria baseCriteria) {
+        final Object queryObj = where.get(key);
+        if (queryObj instanceof Number iCost) {
+            baseCriteria.and(fieldName).is(iCost.longValue());
+        } else if (queryObj instanceof Map<?,?> range) {
+            if (org.springframework.util.CollectionUtils.isEmpty(range)) {
+                return;
+            }
+            Object gtVal = Optional.ofNullable(((Map<String, Object>) range).get("gt"))
+                    .orElse(((Map<String, Object>) range).get("$gt"));
+            Object gteVal = Optional.ofNullable(((Map<String, Object>) range).get("gte"))
+                    .orElse(((Map<String, Object>) range).get("$gte"));
+            if (gteVal instanceof Number gVal) {
+                baseCriteria.and(fieldName).gte(gVal);
+            } else if (gtVal instanceof Number gVal) {
+                baseCriteria.and(fieldName).gt(gVal);
+            } else {
+                baseCriteria.and(fieldName);
+            }
+            Object ltVal = Optional.ofNullable(((Map<String, Object>) range).get("lt"))
+                    .orElse(((Map<String, Object>) range).get("$lt"));
+            Object lteVal = Optional.ofNullable(((Map<String, Object>) range).get("lte"))
+                    .orElse(((Map<String, Object>) range).get("$lte"));
+            if (lteVal instanceof Number lVal) {
+                baseCriteria.lte(lVal);
+            } else if (ltVal instanceof Number lVal) {
+                baseCriteria.lt(lVal);
+            }
+        }
     }
 
     protected void startFilterApiNameOrId(Filter filter, Criteria criteria) {
@@ -243,7 +282,13 @@ public class ApiCallService {
             Sort sortField = Sort.by(Tag.CREATE_TIME);
             int orderType = -1;
             if (split.length > 0) {
-                sortField = Sort.by(split[0].trim());
+                String sortFieldName = split[0].trim();
+                if (Tag.DB_COST.equalsIgnoreCase(sortFieldName)) {
+                    sortFieldName = Tag.DATA_QUERY_TOTAL_TIME;
+                } else if (Tag.CREATE_TIME.equalsIgnoreCase(sortFieldName)) {
+                    sortFieldName = Tag.REQ_TIME;
+                }
+                sortField = Sort.by(sortFieldName);
             }
             if (split.length > 1) {
                 orderType = "ASC".equals(split[1].trim().toUpperCase(Locale.ROOT)) ? 1 : -1;
@@ -264,7 +309,8 @@ public class ApiCallService {
                             .and("user_id").as("userId")
                             .and("createUser").as("createUser")
                             .and(Tag.LATENCY).as(Tag.LATENCY)
-                            .and("reqTime").as("reqTime")
+                            .and(Tag.DATA_QUERY_TOTAL_TIME).as(Tag.DB_COST)
+                            .and(Tag.REQ_TIME).as(Tag.REQ_TIME)
                             .and("resTime").as("resTime")
                             .and("api_meta").as("apiMeta")
                             .and("user_info").as("userInfo")
@@ -284,6 +330,7 @@ public class ApiCallService {
                             .and("body").as("body")
                             .and(Tag.ALL_PATH_ID).as("apiId")
                             .and("req_path").as("apiPath")
+                            .and("httpStatus").as("httpStatus")
             );
             Set<String> moduleIds = new HashSet<>();
             AggregationResults<ApiCallDataVo> apiCall = mongoOperations.aggregate(aggregation, Tag.API_CALL, ApiCallDataVo.class);
@@ -358,6 +405,7 @@ public class ApiCallService {
         item.setName(e.getApiName());
         item.setCode(e.getCode());
         item.setLatency(e.getLatency());
+        item.setDbCost(e.getDbCost());
         item.setSpeed(1.0D * Optional.ofNullable(e.getSpeed()).orElse(0L));
         item.setCodeMsg(e.getCodeMsg());
         item.setDataQueryEndTime(e.getDataQueryEndTime());
@@ -375,6 +423,7 @@ public class ApiCallService {
         item.setReqTime(new Date(e.getReqTime()));
         item.setCreateAt(e.getApiCreateAt());
         item.setMethod(e.getMethod());
+        item.setFailed(ApiMetricsDelayInfoUtil.checkByCode(e.getCode(), e.getHttpStatus()));
         return item;
     }
 
@@ -824,5 +873,8 @@ public class ApiCallService {
         public static final String NAME = "name";
         public static final String ID = "id";
         public static final String DELETE = "delete";
+        public static final String DATA_QUERY_TOTAL_TIME = "dataQueryTotalTime";
+        public static final String DB_COST = "dbCost";
+        public static final String REQ_TIME = "reqTime";
     }
 }

@@ -17,6 +17,7 @@ public class ApiCallDetailVo extends BaseVo {
     private  String code;
     private Long visitTotalCount;
     private Long latency;
+    private Long dbCost;
     private String reqParams;
     private Date createTime;
     private Date reqTime;
@@ -29,6 +30,7 @@ public class ApiCallDetailVo extends BaseVo {
     private String query;
     private String body;
     private Map<String, Object> reqHeaders;
+    private boolean failed;
 
     /**The unique identifier of the worker corresponding to the current request*/
     private String workOid;

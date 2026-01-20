@@ -13,4 +13,6 @@ public @interface SortField {
     String[] name();
 
     boolean normal() default false;
+
+    String[] originField();
 }

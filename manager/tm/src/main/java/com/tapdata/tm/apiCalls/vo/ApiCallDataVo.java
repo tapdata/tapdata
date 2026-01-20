@@ -34,7 +34,7 @@ public class ApiCallDataVo {
     private String lastUpdBy;
     private String createUser;
 
-
+    private Long dbCost;
     private Long latency;
     private Long reqTime;
     private Long resTime;

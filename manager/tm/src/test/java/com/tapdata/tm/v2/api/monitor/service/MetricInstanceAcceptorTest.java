@@ -2,6 +2,7 @@ package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import org.bson.Document;
@@ -32,12 +33,14 @@ class MetricInstanceAcceptorTest {
     private MetricInstanceAcceptor acceptor;
     private ApiMetricsRaw lastBucketMin;
     private ApiMetricsRaw lastBucketHour;
+    private ApiMetricsRaw lastBucketDay;
 
     @BeforeEach
     void setUp() {
         lastBucketMin = createApiMetricsRaw("server1", "api1", 60000L, 1);
         lastBucketHour = createApiMetricsRaw("server1", "api1", 3600000L, 2);
-        acceptor = new MetricInstanceAcceptor(lastBucketMin, lastBucketHour, consumer);
+        lastBucketDay = createApiMetricsRaw("server1", "api1", 86400000L, 3);
+        acceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, lastBucketMin, lastBucketHour, lastBucketDay, consumer);
     }
 
     @Nested
@@ -100,7 +103,7 @@ class MetricInstanceAcceptorTest {
         void testAcceptWithDifferentBucketMin() {
             // Create acceptor with different bucket time
             ApiMetricsRaw differentBucketMin = createApiMetricsRaw("server1", "api1", 120000L, 1);
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(differentBucketMin, lastBucketHour, consumer);
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, differentBucketMin, lastBucketHour, lastBucketDay, consumer);
             
             Document document = createValidDocument();
             document.append("reqTime", 60000L * 1000L); // Different bucket time
@@ -114,7 +117,7 @@ class MetricInstanceAcceptorTest {
         void testAcceptWithDifferentBucketHour() {
             // Create acceptor with different bucket hour
             ApiMetricsRaw differentBucketHour = createApiMetricsRaw("server1", "api1", 7200000L, 2);
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(lastBucketMin, differentBucketHour, consumer);
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, lastBucketMin, differentBucketHour, lastBucketDay, consumer);
             
             Document document = createValidDocument();
             document.append("reqTime", 3600000L * 1000L); // Different bucket hour
@@ -126,7 +129,7 @@ class MetricInstanceAcceptorTest {
 
         @Test
         void testAcceptWithNullLastBuckets() {
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(null, null, consumer);
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, null, null, consumer);
             
             Document document = createValidDocument();
             
@@ -137,7 +140,7 @@ class MetricInstanceAcceptorTest {
 
         @Test
         void testAcceptWithNullLastBucketMin() {
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(null, lastBucketHour, consumer);
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, lastBucketHour, lastBucketDay, consumer);
             
             Document document = createValidDocument();
             
@@ -148,7 +151,7 @@ class MetricInstanceAcceptorTest {
 
         @Test
         void testAcceptWithNullLastBucketHour() {
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(lastBucketMin, null, consumer);
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, lastBucketMin, null, lastBucketDay, consumer);
             
             Document document = createValidDocument();
             
@@ -394,7 +397,7 @@ class MetricInstanceAcceptorTest {
 
         @Test
         void testCloseWithNullBuckets() {
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(null, null, consumer);
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, null, null, consumer);
             MetricInstanceAcceptor spyAcceptor = spy(testAcceptor);
             doNothing().when(spyAcceptor).acceptOnce(any());
             
@@ -437,7 +440,7 @@ class MetricInstanceAcceptorTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyInt()))
                         .thenReturn(400L);
                 
-                MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(null, null, consumer);
+                MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, null, null, consumer);
                 
                 Document document = createValidDocument();
                 document.append("code", "200");
@@ -461,7 +464,7 @@ class MetricInstanceAcceptorTest {
             // bucketMin = (125 / 60) * 60 = 120
             // bucketHour = (120 / 60) * 60 = 120
             
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(null, null, consumer);
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, null, null, consumer);
             
             testAcceptor.accept(document);
             

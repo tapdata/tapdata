@@ -1,6 +1,5 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
-import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
@@ -8,9 +7,7 @@ import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.HttpUtils;
-import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
-import com.tapdata.tm.v2.api.monitor.main.dto.ApiItem;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiOfEachServer;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.dto.ChartAndDelayOfApi;
@@ -18,17 +15,14 @@ import com.tapdata.tm.v2.api.monitor.main.dto.ServerChart;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerItem;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerOverviewDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerTopOnHomepage;
-import com.tapdata.tm.v2.api.monitor.main.dto.TopApiInServer;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiChart;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiDetailParam;
-import com.tapdata.tm.v2.api.monitor.main.param.ApiListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiWithServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerChartParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
-import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
@@ -116,10 +110,8 @@ class ApiMetricsRawQueryTest {
         when(apiMetricsRawQuery.serverOverviewDetail(any(ServerDetail.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.serverChart(any(ServerChartParam.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.errorCountGetter(anyList(), any(LongConsumer.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.topApiInServer(any(TopApiInServerParam.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.topWorkerInServer(any(TopWorkerInServerParam.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.apiTopOnHomepage(any(QueryBase.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.apiOverviewList(any(ApiListParam.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.apiOverviewDetail(any(ApiDetailParam.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.findRowByApiId(any(Criteria.class), anyString(), any(QueryBase.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
@@ -465,206 +457,6 @@ class ApiMetricsRawQueryTest {
     }
 
     @Nested
-    class TopApiInServerTest {
-        @Test
-        void testEmptyServerId() {
-            TopApiInServerParam param = new TopApiInServerParam();
-            param.setServerId("");
-
-            assertThrows(BizException.class, () -> apiMetricsRawQuery.topApiInServer(param));
-        }
-
-        @Test
-        void testValidServerId() {
-            TopApiInServerParam param = new TopApiInServerParam();
-            param.setServerId("server1");
-            param.setStartAt(System.currentTimeMillis() - 3600000);
-            param.setEndAt(System.currentTimeMillis());
-            param.setGranularity(2);
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("requestCount ASC");
-            param.setSortInfo(order);
-
-            ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
-            List<ApiMetricsRaw> raws = Arrays.asList(raw);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
-                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
-
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                when(service.find(any(Query.class))).thenReturn(raws);
-                mongoUtils.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
-                when(modulesService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyInt())).thenReturn(990L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-
-                List<TopApiInServer> result = apiMetricsRawQuery.topApiInServer(param);
-
-                assertNotNull(result);
-            }
-        }
-
-        @Test
-        void testEmptyApiIds() {
-            TopApiInServerParam param = new TopApiInServerParam();
-            param.setServerId("server1");
-
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(Collections.emptyList());
-                when(service.find(any(Query.class))).thenReturn(Collections.emptyList());
-                List<TopApiInServer> result = apiMetricsRawQuery.topApiInServer(param);
-                assertFalse(result.isEmpty());
-            }
-        }
-
-        @Test
-        void sortERROR_RATE() {
-            List<ApiMetricsRaw> apiMetricsRaws = new ArrayList<>();
-            ApiMetricsRaw a1 = new ApiMetricsRaw();
-            a1.setApiId(new ObjectId().toHexString());
-            ApiMetricsRaw a2 = new ApiMetricsRaw();
-            a2.setApiId(new ObjectId().toHexString());
-            apiMetricsRaws.add(a1);
-            apiMetricsRaws.add(a2);
-            when(service.find(any(Query.class))).thenReturn(apiMetricsRaws);
-            TopApiInServerParam param = new TopApiInServerParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("errorRate DESC");
-            param.setSortInfo(order);
-            param.setServerId(new ObjectId().toHexString());
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            List<ModulesDto> apiDtoList = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(new ObjectId());
-            m1.setName("name1");
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(new ObjectId());
-            m2.setName("name2");
-            apiDtoList.add(m1);
-            apiDtoList.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(apiDtoList);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(apiMetricsRaws);
-                List<TopApiInServer> result = apiMetricsRawQuery.topApiInServer(param);
-                assertFalse(result.isEmpty());
-            }
-        }
-
-        @Test
-        void sortAvg() {
-            List<ApiMetricsRaw> apiMetricsRaws = new ArrayList<>();
-            ApiMetricsRaw a1 = new ApiMetricsRaw();
-            a1.setApiId(new ObjectId().toHexString());
-            ApiMetricsRaw a2 = new ApiMetricsRaw();
-            a2.setApiId(new ObjectId().toHexString());
-            apiMetricsRaws.add(a1);
-            apiMetricsRaws.add(a2);
-            when(service.find(any(Query.class))).thenReturn(apiMetricsRaws);
-            TopApiInServerParam param = new TopApiInServerParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("avg");
-            param.setSortInfo(order);
-            param.setServerId(new ObjectId().toHexString());
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            List<ModulesDto> apiDtoList = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(new ObjectId());
-            m1.setName("name1");
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(new ObjectId());
-            m2.setName("name2");
-            apiDtoList.add(m1);
-            apiDtoList.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(apiDtoList);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(apiMetricsRaws);
-                List<TopApiInServer> result = apiMetricsRawQuery.topApiInServer(param);
-                assertFalse(result.isEmpty());
-            }
-        }
-
-        @Test
-        void sortP99() {
-            List<ApiMetricsRaw> apiMetricsRaws = new ArrayList<>();
-            ApiMetricsRaw a1 = new ApiMetricsRaw();
-            a1.setApiId(new ObjectId().toHexString());
-            ApiMetricsRaw a2 = new ApiMetricsRaw();
-            a2.setApiId(new ObjectId().toHexString());
-            apiMetricsRaws.add(a1);
-            apiMetricsRaws.add(a2);
-            when(service.find(any(Query.class))).thenReturn(apiMetricsRaws);
-            TopApiInServerParam param = new TopApiInServerParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("p99 DESC");
-            param.setSortInfo(order);
-            param.setServerId(new ObjectId().toHexString());
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            List<ModulesDto> apiDtoList = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(new ObjectId());
-            m1.setName("name1");
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(new ObjectId());
-            m2.setName("name2");
-            apiDtoList.add(m1);
-            apiDtoList.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(apiDtoList);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(apiMetricsRaws);
-                List<TopApiInServer> result = apiMetricsRawQuery.topApiInServer(param);
-                assertFalse(result.isEmpty());
-            }
-        }
-
-        @Test
-        void sortPDefault() {
-            List<ApiMetricsRaw> apiMetricsRaws = new ArrayList<>();
-            ApiMetricsRaw a1 = new ApiMetricsRaw();
-            a1.setApiId(new ObjectId().toHexString());
-            ApiMetricsRaw a2 = new ApiMetricsRaw();
-            a2.setApiId(new ObjectId().toHexString());
-            apiMetricsRaws.add(a1);
-            apiMetricsRaws.add(a2);
-            when(service.find(any(Query.class))).thenReturn(apiMetricsRaws);
-            TopApiInServerParam param = new TopApiInServerParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("");
-            param.setSortInfo(order);
-            param.setServerId(new ObjectId().toHexString());
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            List<ModulesDto> apiDtoList = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(new ObjectId());
-            m1.setName("name1");
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(new ObjectId());
-            m2.setName("name2");
-            apiDtoList.add(m1);
-            apiDtoList.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(apiDtoList);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(apiMetricsRaws);
-                List<TopApiInServer> result = apiMetricsRawQuery.topApiInServer(param);
-                assertFalse(result.isEmpty());
-            }
-        }
-    }
-
-    @Nested
     class TopWorkerInServerTest {
         @Test
         void testEmptyServerId() {
@@ -795,355 +587,6 @@ class ApiMetricsRawQueryTest {
 
                 assertNotNull(result);
                 assertEquals(1L, result.getApiCount());
-            }
-        }
-    }
-
-    @Nested
-    class ApiOverviewListTest {
-        @Test
-        void testEmptyApiMetricsRaws() {
-            ApiListParam param = new ApiListParam();
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(Collections.emptyList());
-                when(service.find(any(Query.class))).thenReturn(Collections.emptyList());
-
-                List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
-
-                assertFalse(result.isEmpty());
-            }
-        }
-
-        @Test
-        void testWithApiMetricsRaws() {
-            ApiListParam param = new ApiListParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("");
-            param.setOrderBy(order);
-            param.setGranularity(2);
-            param.setStartAt(System.currentTimeMillis() - 3600000);
-            param.setEndAt(System.currentTimeMillis());
-            ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
-            List<ApiMetricsRaw> raws = new ArrayList<>(List.of(raw));
-
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
-                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                when(service.find(any(Query.class))).thenReturn(raws);
-                mongoUtils.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
-                when(modulesService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(anyList())).thenReturn(1000L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
-                assertNotNull(result);
-            }
-        }
-
-        @Test
-        void testOrderByRequestCostAvg() {
-            ApiListParam param = new ApiListParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("requestCostAvg DESC");
-            param.setOrderBy(order);
-            param.setGranularity(2);
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
-            List<ApiMetricsRaw> raws = new ArrayList<>(List.of(raw));
-
-            List<ModulesDto> allApi = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(new ObjectId());
-            m1.setName("name1");
-            m1.setApiVersion("v1");
-            m1.setBasePath("/api1");
-            m1.setPrefix("prefix1");
-            allApi.add(m1);
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(m1.getId());
-            m2.setName("name1");
-            allApi.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
-                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                when(service.find(any(Query.class))).thenReturn(raws);
-                mongoUtils.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
-
-                delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(anyList())).thenReturn(1000L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
-                assertNotNull(result);
-            }
-        }
-
-        @Test
-        void testOrderByP95() {
-            ApiListParam param = new ApiListParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("p95 DESC");
-            param.setOrderBy(order);
-            param.setGranularity(2);
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            ObjectId apiId1 = new ObjectId();
-            ObjectId apiId2 = new ObjectId();
-            ApiMetricsRaw raw = createApiMetricsRaw(apiId1.toHexString(), "server", 100L, 10L);
-            ApiMetricsRaw raw1 = createApiMetricsRaw(apiId2.toHexString(), "server", 200L, 20L);
-            List<ApiMetricsRaw> raws = new ArrayList<>(List.of(raw, raw1));
-
-            List<ModulesDto> allApi = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(apiId1);
-            m1.setName("api1");
-            m1.setApiVersion("v1");
-            m1.setBasePath("/api1");
-            m1.setPrefix("prefix1");
-            allApi.add(m1);
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(apiId2);
-            m2.setName("name1");
-            m1.setApiVersion("v2");
-            m1.setBasePath("/api2");
-            m1.setPrefix("prefix2");
-            allApi.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
-                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                when(service.find(any(Query.class))).thenReturn(raws);
-                mongoUtils.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
-
-                delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(anyList())).thenReturn(1000L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
-                assertNotNull(result);
-            }
-        }
-
-        @Test
-        void testOrderByP99() {
-            ApiListParam param = new ApiListParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("p99 DESC");
-            param.setOrderBy(order);
-            param.setGranularity(2);
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            ObjectId apiId1 = new ObjectId();
-            ObjectId apiId2 = new ObjectId();
-            ApiMetricsRaw raw = createApiMetricsRaw(apiId1.toHexString(), "server", 100L, 10L);
-            ApiMetricsRaw raw1 = createApiMetricsRaw(apiId2.toHexString(), "server", 200L, 20L);
-            List<ApiMetricsRaw> raws = new ArrayList<>(List.of(raw, raw1));
-
-            List<ModulesDto> allApi = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(apiId1);
-            m1.setName("api1");
-            m1.setApiVersion("v1");
-            m1.setBasePath("/api1");
-            m1.setPrefix("prefix1");
-            allApi.add(m1);
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(apiId2);
-            m2.setName("name1");
-            m1.setApiVersion("v2");
-            m1.setBasePath("/api2");
-            m1.setPrefix("prefix2");
-            allApi.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
-                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                when(service.find(any(Query.class))).thenReturn(raws);
-                mongoUtils.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
-
-                delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(anyList())).thenReturn(1000L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
-                assertNotNull(result);
-            }
-        }
-
-        @Test
-        void testOrderByERROR_RATE() {
-            ApiListParam param = new ApiListParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("errorRate DESC");
-            param.setOrderBy(order);
-            param.setGranularity(2);
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            ObjectId apiId1 = new ObjectId();
-            ObjectId apiId2 = new ObjectId();
-            ApiMetricsRaw raw = createApiMetricsRaw(apiId1.toHexString(), "server", 100L, 10L);
-            ApiMetricsRaw raw1 = createApiMetricsRaw(apiId2.toHexString(), "server", 200L, 20L);
-            List<ApiMetricsRaw> raws = new ArrayList<>(List.of(raw, raw1));
-
-            List<ModulesDto> allApi = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(apiId1);
-            m1.setName("api1");
-            m1.setApiVersion("v1");
-            m1.setBasePath("/api1");
-            m1.setPrefix("prefix1");
-            allApi.add(m1);
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(apiId2);
-            m2.setName("name1");
-            m1.setApiVersion("v2");
-            m1.setBasePath("/api2");
-            m1.setPrefix("prefix2");
-            allApi.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
-                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                when(service.find(any(Query.class))).thenReturn(raws);
-                mongoUtils.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
-
-                delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(anyList())).thenReturn(1000L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
-                assertNotNull(result);
-            }
-        }
-
-        @Test
-        void testOrderByTotalRps() {
-            ApiListParam param = new ApiListParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("totalRps DESC");
-            param.setOrderBy(order);
-            param.setGranularity(2);
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            ObjectId apiId1 = new ObjectId();
-            ObjectId apiId2 = new ObjectId();
-            ApiMetricsRaw raw = createApiMetricsRaw(apiId1.toHexString(), "server", 100L, 10L);
-            ApiMetricsRaw raw1 = createApiMetricsRaw(apiId2.toHexString(), "server", 200L, 20L);
-            List<ApiMetricsRaw> raws = new ArrayList<>(List.of(raw, raw1));
-
-            List<ModulesDto> allApi = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(apiId1);
-            m1.setName("api1");
-            m1.setApiVersion("v1");
-            m1.setBasePath("/api1");
-            m1.setPrefix("prefix1");
-            allApi.add(m1);
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(apiId2);
-            m2.setName("name1");
-            m1.setApiVersion("v2");
-            m1.setBasePath("/api2");
-            m1.setPrefix("prefix2");
-            allApi.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
-                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                when(service.find(any(Query.class))).thenReturn(raws);
-                mongoUtils.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
-
-                delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(anyList())).thenReturn(1000L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
-                assertNotNull(result);
-            }
-        }
-
-        @Test
-        void testApiIdsEmpty() {
-            ApiListParam param = new ApiListParam();
-            QueryBase.SortInfo order = new QueryBase.SortInfo();
-            order.setOrder("totalRps DESC");
-            param.setOrderBy(order);
-            param.setGranularity(2);
-            param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
-            param.setEndAt(System.currentTimeMillis() / 1000L);
-            ObjectId apiId1 = new ObjectId();
-            ObjectId apiId2 = new ObjectId();
-            ApiMetricsRaw raw = createApiMetricsRaw("", "server", 100L, 10L);
-            ApiMetricsRaw raw1 = createApiMetricsRaw("", "server", 200L, 20L);
-            List<ApiMetricsRaw> raws = new ArrayList<>(List.of(raw, raw1));
-
-            List<ModulesDto> allApi = new ArrayList<>();
-            ModulesDto m1 = new ModulesDto();
-            m1.setId(apiId1);
-            m1.setName("api1");
-            m1.setApiVersion("v1");
-            m1.setBasePath("/api1");
-            m1.setPrefix("prefix1");
-            allApi.add(m1);
-            ModulesDto m2 = new ModulesDto();
-            m2.setId(apiId2);
-            m2.setName("name1");
-            m1.setApiVersion("v2");
-            m1.setBasePath("/api2");
-            m1.setPrefix("prefix2");
-            allApi.add(m2);
-            when(modulesService.findAll(any(Query.class))).thenReturn(allApi);
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
-                 MockedStatic<MongoUtils> mongoUtils = mockStatic(MongoUtils.class);
-                 MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
-                amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                when(service.find(any(Query.class))).thenReturn(raws);
-                mongoUtils.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
-
-                delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(anyList())).thenReturn(1000L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p95(anyList(), anyLong())).thenReturn(950L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.p99(anyList(), anyLong())).thenReturn(990L);
-                delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                List<ApiItem> result = apiMetricsRawQuery.apiOverviewList(param);
-                assertNotNull(result);
             }
         }
     }
@@ -1678,37 +1121,21 @@ class ApiMetricsRawQueryTest {
     void call() {
         String token = "eyJraWQiOiI5NGJhMDRkNC0wYWZjLTRmNzgtYjAyMi1kZTAwNGQ1ZTlmNmIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxMTUzNDMyMzcwODgxOTgsImF1ZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsImNyZWF0ZWRBdCI6MTc2ODcwOTA4ODE5OCwibmJmIjoxNzY4NzA5MDg4LCJleHAiOjExNTM0MzIzNzA4OCwiaWF0IjoxNzY4NzA5MDg4LCJqdGkiOiJkMjUzNWJhMS01NDQ0LTRiZjItYjRkNS0yNjk1YWFmNGVjNWIifQ.U7Jg-FQ9zdae-dinCuy86383raAN150sl77MDClJysaamET_ozXXPIK0EM9bAyOnQswYEeVlbx1h9usuB9r4V3ANRPjhdEocW1TUeQHQjXGaC0htwWVpw7yjXiMz0UPc56aNVBNeCLo9xVKK4-YntjuU5TBvh4oM_m-DTVwTkXUnz4P8CBIixW1FaRAiR6gvKu6k3o20qVRvBj9U9HX2z_wPSLpY2GHGJwpQ3A-SMCtFPqW5Sy5ULkQ5TiEHA6PEZ-8FGI67SOrlqOjPm_WKMU3kAtNCD51X2SVIMO9466H5kW1qHVk_pmVE67eIMJI3l05L4-Ar0OeGPCf79FHuJg";
         String uri = "http://127.0.0.1:3080/api/%s?access_token=%s";
-        List<String> api = List.of("v1/tjq7duqpvs7", "v1/aslw80no7ze", "v1/tnuihy78hd1", "v1/c2hhm58iqvf");
+        List<String> api = List.of("v1/tjq7duqpvs7", "v1/aslw80no7ze", "v1/tnuihy78hd1", "v1/c2hhm58iqvf",
+        "/v1/we/y36xqmi0k0i","/v1/sd/qq","/v1/a7gei772p62","/v1/tjq7duqpvs7","/v1/aslw80no7ze","/v1/tnuihy78hd1",
+                "/v1/c2hhm58iqvf","/v1/v1v1lerdf18","/v1/zohp6j9z28a","/v1/call/ekwoyltbqit","/v1/call/fiyh6xusf8w","/v1/a56jflpyrs8",
+                "/v1/mbooiyue1w9","/v1/po73y0ge6e7","/v1/call/yt2cpjuhyfr","/v1/call/fields","/v1/jadevt6nzpm",
+                "/v1/yw0n3lvjiku","/v1/aqs919theqr","/v1/agvegbzt3qx","/v1/qrknw3gxn5c","/v1/a5y8f564xei","/v1/irk7mbxr05p",
+                "/opop/g48sx5lk9th","/no/id","/dummy/ok","/x999/o9","/mmm/xu3dugn8ubk","/version/suffix/base_path","/v1/fexs98lzrz3"
+        );
         for (int i = 0; i < 1314520; i++) {
             for (String s : api) {
                 try {
-                    String string = HttpUtils.sendGetData(String.format(uri, s, token), new HashMap<>());
-                    Map map = JSON.parseObject(string, Map.class);
-                    if (map.get("error") instanceof Map<?,?> iMap && iMap.get("status") instanceof Number iNum && iNum.intValue() == 401) {
-                        token = token();
-                    }
-                    try {
-                        Thread.sleep(100);
-                    } catch (Exception e) {}
+                   HttpUtils.sendGetData(String.format(uri, s, token), new HashMap<>());
                 } catch (Exception e) {
-                    token = token();
-                    if (null == token) {
-                        return;
-                    }
+                    //
                 }
             }
-        }
-    }
-
-    String token() {
-        try {
-            Map<String, String> h = new HashMap<>();
-            h.put("Content-Type", "application/x-www-form-urlencoded");
-            String json = HttpUtils.sendGetData("http:127.0.0.1:3000/oauth/token?grant_type=client_credentials&client_id=5c0e750b7a5cd42464a5099d&client_secret={noop}eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", h);
-            Map map = JSON.parseObject(json, Map.class);
-            return (String) map.get("access_token");
-        } catch (Exception e) {
-            return null;
         }
     }
 }

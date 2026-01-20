@@ -62,87 +62,87 @@ public class ApiCallMinuteStatsScheduler {
 	 */
 //	@Scheduled(cron = "0 0/1 * * * ?")
 //	@SchedulerLock(name = "api_call_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
-	public void schedule() {
-		Thread.currentThread().setName(getClass().getSimpleName() + "-scheduler");
-		if (log.isDebugEnabled()) {
-			log.debug("Start to aggregate ApiCallMinuteStats...");
-		}
-
-		// Get all Modules, excluding deleted ones
-		Query modulesQuery = new Query(Criteria.where("is_deleted").ne(true));
-		modulesQuery.fields().include("id", "user_id");
-		List<ModulesDto> modulesList = modulesService.findAll(modulesQuery);
-		if (log.isDebugEnabled()) {
-			log.debug("Found all modules size: {}, include fields: {}", modulesList.size(), modulesQuery.getFieldsObject().toJson());
-		}
-
-		// Traverse all Modules, perform pre-aggregation, and save to ApiCallMinuteStats
-		int traverseStep = 0;
-		// Because the expiration time defined by the ttl index is 2 hours, only the data for the last 2 hours can be counted.
-		Instant startInstant = Instant.now().minus(2, ChronoUnit.HOURS);
-		for (ModulesDto modulesDto : modulesList) {
-			long loopStartMs = System.currentTimeMillis();
-			ObjectId moduleOid = modulesDto.getId();
-			if (null == moduleOid) {
-				continue;
-			}
-			String moduleId = moduleOid.toString();
-			traverseStep++;
-			// Get the historical ApiCallMinuteStats record based on moduleId, and get the lastApiCallId from it as this offset
-			Query apiCallStatsQuery = Query.query(Criteria.where("moduleId").is(moduleId)).with(Sort.by("_id").descending()).limit(1);
-			ApiCallMinuteStatsDto lastApiCallMinuteStatsDto = apiCallMinuteStatsService.findOne(apiCallStatsQuery);
-			String lastApiCallId = null;
-			if (null != lastApiCallMinuteStatsDto) {
-				lastApiCallId = StringUtils.isBlank(lastApiCallMinuteStatsDto.getLastApiCallId()) ? null : lastApiCallMinuteStatsDto.getLastApiCallId();
-			}
-			if (log.isDebugEnabled()) {
-				log.debug(" {} - Found exists ApiCallStatsDto based on filter: {}, lastApiCallId: {}, exists ApiCallStatsDto: {}", traverseStep, apiCallStatsQuery.getQueryObject().toJson(), lastApiCallId, lastApiCallMinuteStatsDto);
-			}
-
-			// Aggregate the ApiCall data of the current module, and wrap new ApiCallMinuteStats
-			List<ApiCallMinuteStatsDto> apiCallMinuteStatsDtoList;
-			try {
-				apiCallMinuteStatsDtoList = apiCallService.aggregateMinuteByAllPathId(moduleId, lastApiCallId, Date.from(startInstant));
-			} catch (Exception e) {
-				log.error("Aggregate ApiCallStatsDto failed, moduleId: {}, will skip it, error: {}", moduleId, e.getMessage(), e);
-				continue;
-			}
-
-			// Merge the new ApiCallMinuteStats with the historical ApiCallMinuteStats
-			try {
-				apiCallMinuteStatsService.merge(apiCallMinuteStatsDtoList);
-			} catch (Exception e) {
-				log.error("Merge ApiCallStatsDto failed, will skip it, error: {}", e.getMessage(), e);
-				continue;
-			}
-
-			// Save the merged ApiCallMinuteStats
-			apiCallMinuteStatsDtoList.forEach(dto -> {
-				dto.setUserId(modulesDto.getUserId());
-				dto.setLastUpdAt(new Date());
-				if (null == dto.getId()) {
-					dto.setId(new ObjectId());
-					dto.setCreateAt(new Date());
-				}
-			});
-			try {
-				apiCallMinuteStatsService.bulkWrite(apiCallMinuteStatsDtoList, ApiCallMinuteStatsEntity.class, entity -> {
-					Criteria criteria = Criteria.where("id").is(entity.getId());
-					return Query.query(criteria);
-				});
-				long loopCost = System.currentTimeMillis() - loopStartMs;
-				if (log.isDebugEnabled()) {
-					StringBuilder sb = new StringBuilder();
-					for (ApiCallMinuteStatsDto callMinuteStatsDto : apiCallMinuteStatsDtoList) {
-						sb.append(callMinuteStatsDto.toString()).append(System.lineSeparator());
-					}
-					log.info("Bulk write Api Call Minute Stats data completed, moduleId: {}, cost: {} ms, progress: {}/{}, data: {}", moduleId, loopCost, traverseStep, modulesList.size(), sb);
-				}
-			} catch (Exception e) {
-				log.error("BulkWrite ApiCallMinuteStatsDto failed, will skip it, error: {}", e.getMessage(), e);
-			}
-		}
-	}
+//	public void schedule() {
+//		Thread.currentThread().setName(getClass().getSimpleName() + "-scheduler");
+//		if (log.isDebugEnabled()) {
+//			log.debug("Start to aggregate ApiCallMinuteStats...");
+//		}
+//
+//		// Get all Modules, excluding deleted ones
+//		Query modulesQuery = new Query(Criteria.where("is_deleted").ne(true));
+//		modulesQuery.fields().include("id", "user_id");
+//		List<ModulesDto> modulesList = modulesService.findAll(modulesQuery);
+//		if (log.isDebugEnabled()) {
+//			log.debug("Found all modules size: {}, include fields: {}", modulesList.size(), modulesQuery.getFieldsObject().toJson());
+//		}
+//
+//		// Traverse all Modules, perform pre-aggregation, and save to ApiCallMinuteStats
+//		int traverseStep = 0;
+//		// Because the expiration time defined by the ttl index is 2 hours, only the data for the last 2 hours can be counted.
+//		Instant startInstant = Instant.now().minus(2, ChronoUnit.HOURS);
+//		for (ModulesDto modulesDto : modulesList) {
+//			long loopStartMs = System.currentTimeMillis();
+//			ObjectId moduleOid = modulesDto.getId();
+//			if (null == moduleOid) {
+//				continue;
+//			}
+//			String moduleId = moduleOid.toString();
+//			traverseStep++;
+//			// Get the historical ApiCallMinuteStats record based on moduleId, and get the lastApiCallId from it as this offset
+//			Query apiCallStatsQuery = Query.query(Criteria.where("moduleId").is(moduleId)).with(Sort.by("_id").descending()).limit(1);
+//			ApiCallMinuteStatsDto lastApiCallMinuteStatsDto = apiCallMinuteStatsService.findOne(apiCallStatsQuery);
+//			String lastApiCallId = null;
+//			if (null != lastApiCallMinuteStatsDto) {
+//				lastApiCallId = StringUtils.isBlank(lastApiCallMinuteStatsDto.getLastApiCallId()) ? null : lastApiCallMinuteStatsDto.getLastApiCallId();
+//			}
+//			if (log.isDebugEnabled()) {
+//				log.debug(" {} - Found exists ApiCallStatsDto based on filter: {}, lastApiCallId: {}, exists ApiCallStatsDto: {}", traverseStep, apiCallStatsQuery.getQueryObject().toJson(), lastApiCallId, lastApiCallMinuteStatsDto);
+//			}
+//
+//			// Aggregate the ApiCall data of the current module, and wrap new ApiCallMinuteStats
+//			List<ApiCallMinuteStatsDto> apiCallMinuteStatsDtoList;
+//			try {
+//				apiCallMinuteStatsDtoList = apiCallService.aggregateMinuteByAllPathId(moduleId, lastApiCallId, Date.from(startInstant));
+//			} catch (Exception e) {
+//				log.error("Aggregate ApiCallStatsDto failed, moduleId: {}, will skip it, error: {}", moduleId, e.getMessage(), e);
+//				continue;
+//			}
+//
+//			// Merge the new ApiCallMinuteStats with the historical ApiCallMinuteStats
+//			try {
+//				apiCallMinuteStatsService.merge(apiCallMinuteStatsDtoList);
+//			} catch (Exception e) {
+//				log.error("Merge ApiCallStatsDto failed, will skip it, error: {}", e.getMessage(), e);
+//				continue;
+//			}
+//
+//			// Save the merged ApiCallMinuteStats
+//			apiCallMinuteStatsDtoList.forEach(dto -> {
+//				dto.setUserId(modulesDto.getUserId());
+//				dto.setLastUpdAt(new Date());
+//				if (null == dto.getId()) {
+//					dto.setId(new ObjectId());
+//					dto.setCreateAt(new Date());
+//				}
+//			});
+//			try {
+//				apiCallMinuteStatsService.bulkWrite(apiCallMinuteStatsDtoList, ApiCallMinuteStatsEntity.class, entity -> {
+//					Criteria criteria = Criteria.where("id").is(entity.getId());
+//					return Query.query(criteria);
+//				});
+//				long loopCost = System.currentTimeMillis() - loopStartMs;
+//				if (log.isDebugEnabled()) {
+//					StringBuilder sb = new StringBuilder();
+//					for (ApiCallMinuteStatsDto callMinuteStatsDto : apiCallMinuteStatsDtoList) {
+//						sb.append(callMinuteStatsDto.toString()).append(System.lineSeparator());
+//					}
+//					log.info("Bulk write Api Call Minute Stats data completed, moduleId: {}, cost: {} ms, progress: {}/{}, data: {}", moduleId, loopCost, traverseStep, modulesList.size(), sb);
+//				}
+//			} catch (Exception e) {
+//				log.error("BulkWrite ApiCallMinuteStatsDto failed, will skip it, error: {}", e.getMessage(), e);
+//			}
+//		}
+//	}
 
 	@Scheduled(cron = "0/5 * * * * ?")
 	@SchedulerLock(name = "api_call_worker_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")

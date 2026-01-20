@@ -115,7 +115,8 @@ public class ApiMetricsRawScheduleExecutor {
         Criteria criteria = Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).is(entity.getTimeStart())
                 .and(WorkerCallServiceImpl.Tag.TIME_GRANULARITY).is(entity.getTimeGranularity())
                 .and(WorkerCallServiceImpl.Tag.PROCESS_ID).is(entity.getProcessId())
-                .and(WorkerCallServiceImpl.Tag.API_ID).is(entity.getApiId());
+                .and(WorkerCallServiceImpl.Tag.API_ID).is(entity.getApiId())
+                .and("metricType").is(entity.getMetricType());
         return Query.query(criteria);
     }
 

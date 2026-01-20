@@ -2,6 +2,8 @@ package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.v2.api.common.service.FactoryBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import org.bson.Document;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -40,26 +42,56 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         final String apiId = Optional.ofNullable(allPathId)
                 .orElse(Optional.ofNullable(reqPath).orElse(MetricInstanceAcceptor.UN_KNOW));
         final String serverId = entity.get("api_gateway_uuid", String.class);
-        final String key = String.format("%s:%s", apiId, serverId);
-        final MetricInstanceAcceptor acceptor = instanceMap.computeIfAbsent(key, k -> {
-            final ApiMetricsRaw lastMin = lastOne(apiId, serverId, 1, null);
-            ApiMetricsRaw lastHour = null;
-            if (null != lastMin) {
-                long bucketHour = (lastMin.getTimeStart() / 3600L) * 3600;
-                lastHour = lastOne(apiId, serverId, 2, bucketHour);
-            }
-            return new MetricInstanceAcceptor(lastMin, lastHour, this.apiMetricsRaws::add);
-        });
-        acceptor.accept(entity);
+        final String keyOfApiServer = String.format("%s:%s_0", apiId, serverId);
+        final String keyOfApi = String.format("%s:*_1", apiId);
+        final String keyOfServer = String.format("*:%s_2", serverId);
+        final String keyOfAll = "*:*_3";
+        final MetricInstanceAcceptor acceptorOfApiServer = create(keyOfApiServer, MetricTypes.API_SERVER, apiId, serverId);
+        final MetricInstanceAcceptor acceptorOfApi = create(keyOfApi, MetricTypes.API, apiId, null);
+        final MetricInstanceAcceptor acceptorOfServer = create(keyOfServer, MetricTypes.SERER, null, serverId);
+        final MetricInstanceAcceptor acceptorOfAll = create(keyOfAll, MetricTypes.ALL, null, null);
+        acceptorOfApiServer.accept(entity);
+        acceptorOfApi.accept(entity);
+        acceptorOfServer.accept(entity);
+        acceptorOfAll.accept(entity);
         if (apiMetricsRaws.size() >= BATCH_SIZE) {
             flush();
         }
     }
 
-    ApiMetricsRaw lastOne(String apiId, String serverId, int type, Long timeStart) {
-        final Criteria criteria = Criteria.where("apiId").is(apiId)
-                .and("processId").is(serverId)
-                .and("timeGranularity").is(type);
+    MetricInstanceAcceptor create(String key, MetricTypes metricType, String apiId, String serverId) {
+        return instanceMap.computeIfAbsent(key, k -> {
+            final ApiMetricsRaw lastMin = lastOne(apiId, serverId, metricType, TimeGranularity.MINUTE, null);
+            ApiMetricsRaw lastHour = null;
+            ApiMetricsRaw lastDay = null;
+            if (null != lastMin) {
+                long bucketHour = (lastMin.getTimeStart() / 3600L) * 3600L;
+                lastHour = lastOne(apiId, serverId, metricType,TimeGranularity.HOUR, bucketHour);
+                long bucketDay = (lastMin.getTimeStart() / 86400L) * 86400L;
+                lastDay = lastOne(apiId, serverId, metricType,TimeGranularity.DAY, bucketDay);
+            }
+            return new MetricInstanceAcceptor(metricType, lastMin, lastHour, lastDay, this.apiMetricsRaws::add);
+        });
+    }
+
+
+    ApiMetricsRaw lastOne(String apiId, String serverId, MetricTypes metricType, TimeGranularity timeGranularity, Long timeStart) {
+        final Criteria criteria = Criteria.where("metricType").is(metricType.getType())
+                .and("timeGranularity").is(timeGranularity.getType());
+        switch (metricType) {
+            case API_SERVER:
+                criteria.and("apiId").is(apiId)
+                        .and("processId").is(serverId);
+                break;
+            case API:
+                criteria.and("apiId").is(apiId);
+                break;
+            case SERER:
+                criteria.and("processId").is(serverId);
+                break;
+            default:
+                //do nothing
+        }
         if (null != timeStart) {
             criteria.and("timeStart").is(timeStart);
         }

@@ -87,6 +87,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
             return;
         }
         infos.stream().filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(e.getReqPath()))
                 .filter(e -> !MetricInstanceFactory.IGNORE_PATH.contains(e.getReqPath()))
                 .forEach(this::append);
     }
