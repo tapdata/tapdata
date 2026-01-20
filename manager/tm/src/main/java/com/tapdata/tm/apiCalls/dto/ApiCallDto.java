@@ -1,7 +1,6 @@
 package com.tapdata.tm.apiCalls.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -118,9 +117,4 @@ public class ApiCallDto extends BaseDto {
      * query Of http request cost time(ms)
      * */
     private Long requestCost;
-
-    /**
-     * @see ApiCallEntity.HttpStatusType
-     * */
-    private String httpStatus;
 }

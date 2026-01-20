@@ -42,6 +42,4 @@ public class ApiServerStatus {
     Map<String, ApiServerWorkerInfo> workers;
 
     MetricInfo metricValues;
-
-    private Boolean updateCpuMem;
 }

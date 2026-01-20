@@ -2,9 +2,9 @@ package com.tapdata.tm.apiCalls.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.config.CappedCollection;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -15,6 +15,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("ApiCall")
+@CappedCollection(maxLength = 1_000_000L, maxMemory = 1L << 40, capped = false)
 public class ApiCallEntity extends BaseEntity {
     @JsonProperty("req_params")
     @Field("req_params")
@@ -86,12 +87,6 @@ public class ApiCallEntity extends BaseEntity {
     private Boolean supplement;
 
     /**
-     * Has the current API request completed indicator statistics
-     * Use secondary condition filtering during scheduled indicator statistics
-     * */
-    private Boolean metricComplete;
-
-    /**
      * api请求的数据库访问开始时间
      * */
     private Long dataQueryFromTime;
@@ -123,22 +118,4 @@ public class ApiCallEntity extends BaseEntity {
      * query Of http request cost time(ms)
      * */
     private Long requestCost;
-
-    /**
-     * @see HttpStatusType
-     * */
-    private String httpStatus;
-
-    @Getter
-    public enum HttpStatusType {
-        API_NOT_EXIST_404("API_NOT_EXIST_404"),
-        PUBLISH_FAILED_404("PUBLISH_FAILED_404"),
-        API_NOT_PUBLISH_404("API_NOT_PUBLISH_404")
-        ;
-        final String code;
-
-        HttpStatusType(String code) {
-            this.code = code;
-        }
-    }
 }

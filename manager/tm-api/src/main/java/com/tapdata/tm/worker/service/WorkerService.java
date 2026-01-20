@@ -12,7 +12,6 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
-import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
@@ -68,8 +67,6 @@ public abstract class WorkerService extends BaseService<WorkerDto, Worker, Objec
     public abstract Page<ApiWorkerStatusVo> findApiWorkerStatus(UserDetail userDetail);
 
     public abstract void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail);
-
-    public abstract void appendUsage(List<ServerUsage> usages);
 
     public abstract void updateAll(Query query, Update update);
 

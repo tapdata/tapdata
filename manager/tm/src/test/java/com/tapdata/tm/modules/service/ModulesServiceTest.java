@@ -5,6 +5,8 @@ import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.ApiCallService;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
@@ -73,6 +75,7 @@ class ModulesServiceTest {
 	DataSourceDefinitionService dataSourceDefinitionService;
 	ApplicationConfig config;
 	WorkerService workerService;
+	SettingsService settingsService;
 
 	@BeforeEach
 	void init() {
@@ -84,11 +87,13 @@ class ModulesServiceTest {
 		dataSourceService = mock(DataSourceService.class);
 		dataSourceDefinitionService = mock(DataSourceDefinitionService.class);workerService = mock(WorkerService.class);
 		workerService = mock(WorkerService.class);
+		settingsService = mock(SettingsService.class);
 		ReflectionTestUtils.setField(modulesService, "dataSourceService", dataSourceService);
 		ReflectionTestUtils.setField(modulesService, "dataSourceDefinitionService", dataSourceDefinitionService);
 		ReflectionTestUtils.setField(modulesService, "config", config);
 		ReflectionTestUtils.setField(modulesService, "textEncryptionRuleService", textEncryptionRuleService);
 		ReflectionTestUtils.setField(modulesService, "workerService", workerService);
+		ReflectionTestUtils.setField(modulesService, "settingsService", settingsService);
 	}
 
 	@Nested
@@ -649,15 +654,16 @@ class ModulesServiceTest {
 
 		@Test
 		void testApiDefinitionNormal() {
+			Settings settings = mock(Settings.class);
+			when(settings.getId()).thenReturn("cluster");
+			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
-			modulesDto.setId(new ObjectId());
 			modulesDto.setConnection(new ObjectId());
 			apis.add(modulesDto);
 			doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
-			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
 			List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
 			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
 			Map<String, Object> config = new HashMap<>();
@@ -719,15 +725,16 @@ class ModulesServiceTest {
 
 		@Test
 		void testApiDefinitionSimple() {
+			Settings settings = mock(Settings.class);
+			when(settings.getId()).thenReturn("cluster");
+			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
-			modulesDto.setId(new ObjectId());
 			modulesDto.setConnection(new ObjectId());
 			apis.add(modulesDto);
 			doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
-			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
 			List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
 			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
 			Map<String, Object> config = new HashMap<>();

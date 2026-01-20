@@ -31,28 +31,4 @@ class MongoUtilsTest {
             Assertions.assertThrows(BizException.class, () -> MongoUtils.getCollectionName(Mock2Entity.class));
         }
     }
-
-    @Nested
-    class getCollectionNameIgnoreTest {
-        @Document("MockEntity")
-        static class MockEntity extends BaseEntity {
-            private String name;
-            private String age;
-        }
-
-        static class Mock2Entity extends BaseEntity {
-            private String name;
-            private String age;
-        }
-
-        @Test
-        void testNormal() {
-            Assertions.assertEquals("MockEntity", MongoUtils.getCollectionNameIgnore(MockEntity.class));
-        }
-
-        @Test
-        void testException() {
-            Assertions.assertNull(MongoUtils.getCollectionNameIgnore(Mock2Entity.class));
-        }
-    }
 }
