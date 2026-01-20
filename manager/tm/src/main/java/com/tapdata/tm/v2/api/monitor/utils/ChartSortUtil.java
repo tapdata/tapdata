@@ -8,7 +8,9 @@ import org.springframework.util.CollectionUtils;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -57,11 +59,11 @@ public final class ChartSortUtil {
         if (CollectionUtils.isEmpty(obj)) {
             return;
         }
-        Field[] declaredFields = tClass.getDeclaredFields();
+        Map<String, Field> declaredFields = getAllFieldMap(tClass);
         Field sortField = Optional.ofNullable(sortInfo)
                 .map(e -> StringUtils.isNotBlank(e.getField()) ? e.getField() : null)
-                .map(e -> findField(declaredFields, e))
-                .orElse(findDefaultField(declaredFields));
+                .map(declaredFields::get)
+                .orElse(findDefaultField(declaredFields.values()));
         if (null == sortField) {
             return;
         }
@@ -84,7 +86,7 @@ public final class ChartSortUtil {
         }
     }
 
-    static Field findDefaultField(Field[] declaredFields) {
+    static Field findDefaultField(Collection<Field> declaredFields) {
         for (Field declaredField : declaredFields) {
             SortField annotation = declaredField.getAnnotation(SortField.class);
             if (null == annotation) {
@@ -97,22 +99,16 @@ public final class ChartSortUtil {
         return null;
     }
 
-    static Field findField(Field[] declaredFields, String name) {
-        for (Field declaredField : declaredFields) {
-            SortField annotation = declaredField.getAnnotation(SortField.class);
-            if (null == annotation) {
-                continue;
+    public static Map<String, Field> getAllFieldMap(Class<?> clazz) {
+        Map<String, Field> fieldMap = new HashMap<>();
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            for (Field f : current.getDeclaredFields()) {
+                f.setAccessible(true);
+                fieldMap.putIfAbsent(f.getName(), f);
             }
-            String[] names = annotation.name();
-            if (null == names || names.length == 0 && StringUtils.equalsIgnoreCase(name, declaredField.getName())) {
-                return declaredField;
-            }
-            for (String aila : names) {
-                if (StringUtils.equalsIgnoreCase(name, aila)) {
-                    return declaredField;
-                }
-            }
+            current = current.getSuperclass();
         }
-        return null;
+        return fieldMap;
     }
 }

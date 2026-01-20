@@ -39,7 +39,7 @@ public class QueryBase {
             }
             String[] fields = orderBy.split(" ");
             SortInfo sortInfo = new SortInfo();
-            if (fields.length > 1 && StringUtils.isNotBlank(fields[0])) {
+            if (fields.length > 0 && StringUtils.isNotBlank(fields[0])) {
                 sortInfo.field = fields[0];
             }
             if (fields.length > 1 && !StringUtils.isBlank(fields[1])) {
