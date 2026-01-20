@@ -14,17 +14,21 @@ public class GroupInfoRecordDetail {
 
     @Data
     public static class RecordDetail {
+        private String resourceId;
         private String resourceName;
         private ResourceType resourceType;
         private RecordAction action;
         private String message;
+        private Boolean reset;
     }
 
     public enum RecordAction {
         EXPORTED,
         IMPORTED,
         SKIPPED,
+        NO_UPDATE,
         REPLACED,
-        ERRORED
+        ERRORED,
+        IMPORTING
     }
 }

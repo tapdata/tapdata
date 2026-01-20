@@ -942,13 +942,13 @@ class TaskServiceImplTest {
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(existingTask);
 
             doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
-            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
 
             // Execute
             taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
-            verify(taskService, times(1)).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            verify(taskService, times(1)).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
@@ -1042,18 +1042,20 @@ class TaskServiceImplTest {
             when(taskDto.getDag()).thenReturn(dag);
             when(taskDto.getId()).thenReturn(new ObjectId());
             when(dag.validate()).thenReturn(new HashMap<>());
+            when(taskDto.getStatus()).thenReturn("wait_start");
 
-            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
             doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
-            doReturn(taskDto).when(taskService).confirmById(taskDto, user, true, true);
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(updateResult.getModifiedCount()).thenReturn(1L);
+            doReturn(updateResult).when(taskService).updateById(any(), any(), any(Boolean.class));
 
             // Execute
-            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
 
             // Verify
             verify(taskDto, times(1)).setId(existingId);
             verify(taskService, times(1)).updateConnectionIds(taskDto, conMap);
-            verify(taskService, times(1)).confirmById(taskDto, user, true, true);
         }
 
         @Test
@@ -1068,12 +1070,12 @@ class TaskServiceImplTest {
             validationErrors.put("error", Arrays.asList(new Message()));
             when(dag.validate()).thenReturn(validationErrors);
 
-            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
             doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
             doReturn(taskDto).when(taskService).updateById(taskDto, user);
 
             // Execute
-            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
 
             // Verify
             verify(taskService, times(1)).updateById(taskDto, user);
@@ -1084,11 +1086,11 @@ class TaskServiceImplTest {
         @DisplayName("test handleReplaceMode without existing task")
         void testHandleReplaceModeWithoutExistingTask() {
             // Setup
-            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap);
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
             doNothing().when(taskService).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
 
             // Execute
-            taskService.handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap);
+            taskService.handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
@@ -1672,7 +1674,7 @@ class TaskServiceImplTest {
             taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should complete without errors
-            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
             verify(taskService, never()).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
         }
 
@@ -1723,13 +1725,13 @@ class TaskServiceImplTest {
             when(taskService.findOne(nameQuery)).thenReturn(null);
 
             doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap, Collections.emptyList());
-            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
 
             // Execute
             taskService.batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
-            verify(taskService, times(1)).handleReplaceMode(eq(taskDto), eq(null), eq(user), eq(new ArrayList<>()), eq(conMap), eq(nodeMap), eq(taskMap));
+            verify(taskService, times(1)).handleReplaceMode(eq(taskDto), eq(null), eq(user), eq(new ArrayList<>()), eq(conMap), eq(nodeMap), eq(taskMap),any());
         }
 
         @Test

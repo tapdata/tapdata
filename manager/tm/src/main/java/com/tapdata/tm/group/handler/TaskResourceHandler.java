@@ -119,6 +119,18 @@ public class TaskResourceHandler implements ResourceHandler {
             taskDto.setSyncStatus(SyncStatus.NORMAL);
             taskDto.setStatuses(new ArrayList<>());
             taskDto.setAttrs(new HashMap<>());
+            taskDto.setScheduledTime(null);
+            taskDto.setSchedulingTime(null);
+            taskDto.setRunningTime(null);
+            taskDto.setErrorTime(null);
+            taskDto.setPingTime(null);
+            taskDto.setMetricInfo(null);
+            taskDto.setLdpNewTables(null);
+            taskDto.setStopTime(null);
+            taskDto.setStartTime(null);
+            taskDto.setStopedDate(null);
+            taskDto.setStoppingTime(null);
+            taskDto.setSnapshotDoneAt(null);
 
             payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_TASK, JsonUtil.toJsonUseJackson(taskDto)));
 

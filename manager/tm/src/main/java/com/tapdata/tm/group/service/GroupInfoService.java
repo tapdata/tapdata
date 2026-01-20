@@ -2,6 +2,7 @@ package com.tapdata.tm.group.service;
 
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -24,8 +25,11 @@ import com.tapdata.tm.group.handler.ResourceHandler;
 import com.tapdata.tm.group.handler.ResourceHandlerRegistry;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.repostitory.GroupInfoRepository;
-import com.tapdata.tm.group.strategy.ImportStrategy;
-import com.tapdata.tm.group.strategy.ImportStrategyRegistry;
+import com.tapdata.tm.group.service.transfer.GroupExportRequest;
+import com.tapdata.tm.group.service.transfer.GroupImportRequest;
+import com.tapdata.tm.group.service.transfer.GroupTransferStrategy;
+import com.tapdata.tm.group.service.transfer.GroupTransferStrategyRegistry;
+import com.tapdata.tm.group.service.transfer.GroupTransferType;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.module.dto.ModulesDto;
@@ -34,33 +38,25 @@ import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
-import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Async;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.web.multipart.MultipartFile;
+import org.bson.Document;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.io.OutputStream;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -71,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.mongodb.core.query.Update;
 
@@ -98,20 +95,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     @Autowired
     private ResourceHandlerRegistry resourceHandlerRegistry;
     @Autowired
-    private ImportStrategyRegistry importStrategyRegistry;
-    @Autowired
     private InspectService inspectService;
+    @Autowired
+    private GroupTransferStrategyRegistry transferStrategyRegistry;
 
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
-        if (dto != null && StringUtils.isNotBlank(dto.getName())) {
-            Query query = new Query(Criteria.where("name").is(dto.getName()).and("is_deleted").ne(true));
-            query.fields().include("_id", "name");
-            GroupInfoDto existing = findOne(query, userDetail);
-            if (existing != null) {
-                throw new BizException("GroupInfo.Name.Existed");
-            }
-        }
+
     }
 
     public Page<GroupInfoDto> groupList(Filter filter, UserDetail userDetail) {
@@ -157,13 +147,32 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return groupInfoDtoPage;
     }
 
-    public void exportGroupInfo(HttpServletResponse response, String groupId, UserDetail user,
-            Map<String, List<String>> groupResetTask) {
-        exportGroupInfos(response, Collections.singletonList(groupId), user, groupResetTask);
+    public void removeResourceReferences(List<String> resourceIds, UserDetail userDetail) {
+        if (CollectionUtils.isEmpty(resourceIds)) {
+            return;
+        }
+        List<ObjectId> cleanedIds = resourceIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .map(MongoUtils::toObjectId)
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(cleanedIds)) {
+            return;
+        }
+        try {
+            Query query = new Query();
+            Criteria resourceCriteria = Criteria.where("resourceItemList._id").in(cleanedIds);
+            query.addCriteria(resourceCriteria);;
+            Update update = new Update()
+                    .pull("resourceItemList", new Document("_id", new Document("$in", cleanedIds)));
+            update(query, update, userDetail);
+        } catch (Exception e) {
+            log.warn("Failed to remove group resource references, ids={}", cleanedIds, e);
+        }
     }
 
     public void exportGroupInfos(HttpServletResponse response, List<String> groupIds, UserDetail user,
-            Map<String, List<String>> groupResetTask) {
+                                         Map<String, List<String>> groupResetTask) {
         List<GroupInfoDto> groupInfos = loadGroupInfosByIds(groupIds, user);
 
         if (CollectionUtils.isEmpty(groupInfos)) {
@@ -212,32 +221,24 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
 
         String yyyymmdd = DateUtil.today().replaceAll("-", "");
-        String tarFileName = buildGroupExportFileName(groupInfos, yyyymmdd);
+        String name = buildGroupExportFileName(groupInfos, yyyymmdd);
 
         log.info("Start exporting groups, groupCount={}, user={}", groupInfos.size(), user.getUsername());
 
         // 构建导出记录
         GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_EXPORT, user,
-                buildExportRecordDetails(groupInfos, resourcesByType), tarFileName);
+                buildExportRecordDetails(groupInfos, resourcesByType), name);
         recordDto = groupInfoRecordService.save(recordDto, user);
 
         try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try (TarArchiveOutputStream taos = new TarArchiveOutputStream(baos)) {
-                addContentToTar(taos, contents);
-                taos.finish();
+            GroupTransferStrategy strategy = transferStrategyRegistry.getStrategy(GroupTransferType.FILE);;
+            if (strategy == null) {
+                throw new BizException("GroupInfo.TransferStrategy.NotFound");
             }
-            try (OutputStream out = response.getOutputStream()) {
-                response.setHeader("Content-Disposition",
-                        "attachment; filename=\"" + tarFileName + "\"");
-                response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
-                response.setContentLength(baos.size());
-                out.write(baos.toByteArray());
-                out.flush();
-            }
+            strategy.exportGroups(new GroupExportRequest(response,contents,name));
             updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_COMPLETED, null,
                     recordDto.getDetails(), user);
-            log.info("Group export completed successfully, groupCount={}, fileName={}", groupInfos.size(), tarFileName);
+            log.info("Group export completed successfully, groupCount={}, fileName={}", groupInfos.size(), name);
         } catch (Exception e) {
             updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_FAILED, e.getMessage(),
                     recordDto.getDetails(), user);
@@ -256,18 +257,21 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      * @param importMode Import mode
      * @return Record ID for tracking import progress
      */
-    public ObjectId batchImportGroup(MultipartFile file, UserDetail user, ImportModeEnum importMode)
+    public ObjectId batchImportGroup(Object resource, UserDetail user, ImportModeEnum importMode)
             throws IOException {
+        GroupTransferStrategy strategy = transferStrategyRegistry.getStrategy(GroupTransferType.FILE);;
+        if (strategy == null) {
+            throw new BizException("GroupInfo.TransferStrategy.NotFound");
+        }
+        return strategy.importGroups(new GroupImportRequest(resource, user, importMode));
+    }
+
+    public ObjectId batchImportGroupInternal(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user, ImportModeEnum importMode,String name){
         if (importMode == null) {
             importMode = ImportModeEnum.GROUP_IMPORT;
         }
-        String fileName = file.getOriginalFilename();
-        // Read file content before async execution (MultipartFile may not be available
-        // after request completes)
-        Map<String, List<TaskUpAndLoadDto>> payloads = readGroupImportPayloads(file);
-
         // Create import record with initial progress
-        GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, new ArrayList<>(), fileName);
+        GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, new ArrayList<>(), name);
         recordDto.setProgress(0);
         recordDto = groupInfoRecordService.save(recordDto, user);
 
@@ -275,7 +279,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
         // Execute import asynchronously
         GroupInfoService groupInfoService = SpringContextHelper.getBean(GroupInfoService.class);
-        groupInfoService.executeImportAsync(payloads, user, importMode, fileName, recordId);
+        groupInfoService.executeImportAsync(payloads, user, importMode, name, recordId);
         return recordId;
     }
 
@@ -286,8 +290,6 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     public void executeImportAsync(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user,
             ImportModeEnum importMode, String fileName, ObjectId recordId) {
         log.info("Async import started, recordId={}, fileName={}", recordId, fileName);
-        // Get import strategy
-        ImportStrategy importStrategy = importStrategyRegistry.getStrategy(importMode);
 
         List<TaskUpAndLoadDto> groupPayload = payloads.getOrDefault("GroupInfo.json", Collections.emptyList());
 
@@ -314,20 +316,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
         List<GroupInfoRecordDetail> details = new ArrayList<>();
         try {
-            Map<String, String> groupDuplicateNames = renameDuplicateGroups(groupInfos, user);
-            // 使用资源处理器查找重名资源
-            Map<ResourceType, Map<String, String>> duplicateNamesByType = new LinkedHashMap<>();
-            for (Map.Entry<ResourceType, Map<String, ?>> entry : resourceMapsByType.entrySet()) {
-                ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
-                if (handler != null) {
-                    Map<String, String> duplicates = handler.findDuplicateNames(entry.getValue().values(), user);
-                    duplicateNamesByType.put(entry.getKey(), duplicates);
-                }
-            }
-
-            details = buildImportRecordDetails(groupInfos, resourceMapsByType, duplicateNamesByType,
-                    groupDuplicateNames, importStrategy);
-
+            details = buildImportRecordDetails(groupInfos, resourceMapsByType);
             // Calculate total resource count for progress tracking
             int connectionCount = ((Map<?, ?>) resourceMapsByType.getOrDefault(ResourceType.CONNECTION,
                     Collections.emptyMap())).size();
@@ -378,9 +367,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             allTasks.addAll(migrateTasks.values());
             allTasks.addAll(syncTasks.values());
             allTasks.addAll(shareCacheTasks.values());
+            Map<String,Object> taskImportResult;
+            Map<String,Object> moduleImportResult;
             if (CollectionUtils.isNotEmpty(allTasks)) {
                 List<String> resetTaskList = collectResetTaskList(groupInfos);
-                taskService.batchImport(allTasks, user, importMode, new ArrayList<>(), conMap, taskIdMap,
+                taskImportResult = taskService.batchImport(allTasks, user, importMode, new ArrayList<>(), conMap, taskIdMap,
                         nodeIdMap, resetTaskList);
                 List<MetadataInstancesDto> allTaskMetadata = new ArrayList<>();
                 allTaskMetadata
@@ -392,6 +383,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 metadataInstancesService.batchImport(allTaskMetadata, user, conMap, taskIdMap, nodeIdMap);
                 log.info("Task resources import completed, taskCount={}, metadataCount={}",
                         allTasks.size(), allTaskMetadata.size());
+            } else {
+                taskImportResult = null;
             }
             importedResources += taskCount;
             updateImportProgress(recordId, calculateProgress(importedResources, totalResources), details, user);
@@ -410,10 +403,12 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Map<String, ModulesDto> modules = (Map<String, ModulesDto>) resourceMapsByType
                     .getOrDefault(ResourceType.MODULE, Collections.emptyMap());
             if (MapUtils.isNotEmpty(modules)) {
-                modulesService.batchImport(new ArrayList<>(modules.values()), user, importMode, conMap, null);
+                moduleImportResult = modulesService.batchImport(new ArrayList<>(modules.values()), user, importMode, conMap, null);
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, conMap, null, null);
+            } else {
+                moduleImportResult = null;
             }
             importedResources += moduleCount;
             updateImportProgress(recordId, calculateProgress(importedResources, totalResources), details, user);
@@ -421,26 +416,26 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             // Stage 5: Save group information
             log.info("Stage 5: Start saving group information");
             if (CollectionUtils.isNotEmpty(groupInfos)) {
+                List<GroupInfoRecordDetail> finalDetails = details;
                 groupInfos.forEach(groupInfo -> {
-                    groupInfo.setId(null);
+                    GroupInfoRecordDetail groupInfoRecordDetail = finalDetails.stream()
+                            .filter(d -> d.getGroupId().equals(groupInfo.getId().toHexString()))
+                            .findFirst().orElse(null);
                     groupInfo.setCreateUser(null);
                     groupInfo.setCustomId(null);
                     groupInfo.setLastUpdBy(null);
                     groupInfo.setUserId(null);
-                    groupInfo.setResourceItemList(mapResourceItems(groupInfo.getResourceItemList(), taskIdMap));
+                    groupInfo.setResourceItemList(mapResourceItems(groupInfo.getResourceItemList(), taskIdMap,groupInfoRecordDetail,moduleImportResult,taskImportResult));
+                    groupInfo.setId(null);
+                    upsertByWhere(Where.where("name", groupInfo.getName()), groupInfo, user);
                 });
-                save(groupInfos, user);
-                log.info("Group information saved successfully, groupCount={}", groupInfos.size());
             }
             importedResources += groupCount;
-
-            // Update progress: complete (100%)
-            updateImportProgress(recordId, 100, details, user);
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, details, user);
             log.info("Async import completed successfully, recordId={}, fileName={}, groupCount={}",
                     recordId, fileName, groupInfos.size());
         } catch (Exception e) {
-            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, e.getMessage(), details, user);
+            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, ExceptionUtils.getStackTrace(e), details, user);
             log.error("Async import failed, recordId={}, fileName={}, error={}",
                     recordId, fileName, ThrowableUtils.getStackTraceByPn(e));
         }
@@ -499,36 +494,6 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return payload;
     }
 
-    protected Map<String, List<TaskUpAndLoadDto>> readGroupImportPayloads(MultipartFile file) throws IOException {
-        Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
-        try (TarArchiveInputStream tais = new TarArchiveInputStream(file.getInputStream())) {
-            TarArchiveEntry entry;
-            while ((entry = tais.getNextTarEntry()) != null) {
-                if (entry.isDirectory()) {
-                    continue;
-                }
-                ByteArrayOutputStream entryBuffer = new ByteArrayOutputStream();
-                IOUtils.copy(tais, entryBuffer);
-                List<TaskUpAndLoadDto> list = parseTaskUpAndLoadList(entryBuffer.toByteArray());
-                payloads.put(entry.getName(), list);
-            }
-        }
-        return payloads;
-    }
-
-    protected List<TaskUpAndLoadDto> parseTaskUpAndLoadList(byte[] bytes) {
-        if (bytes == null || bytes.length == 0) {
-            return new ArrayList<>();
-        }
-        String json = new String(bytes, StandardCharsets.UTF_8);
-        if (StringUtils.isBlank(json)) {
-            return new ArrayList<>();
-        }
-        List<TaskUpAndLoadDto> list = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<TaskUpAndLoadDto>>() {
-        });
-        return list == null ? new ArrayList<>() : list;
-    }
-
     protected void collectGroupInfoPayload(List<TaskUpAndLoadDto> payload, List<GroupInfoDto> groupInfos) {
         if (CollectionUtils.isEmpty(payload)) {
             return;
@@ -573,6 +538,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         if (details != null) {
             update.set("details", details);
         }
+        update.set("progress", 100);
         groupInfoRecordService.updateById(recordId, update, user);
     }
 
@@ -621,18 +587,31 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 detail.setGroupId(groupInfo.getId().toHexString());
             }
             detail.setGroupName(groupInfo.getName());
-            fillRecordDetailsExport(detail, groupInfo.getResourceItemList(), resourcesByType,
-                    GroupInfoRecordDetail.RecordAction.EXPORTED);
+            Map<ResourceType, Map<String, ?>> resourceMapsByType = new HashMap<>();
+            for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
+                Map<String, Object> resourceMap = new HashMap<>();
+                for (Object resource : entry.getValue()) {
+                    String id = getResourceId(resource);
+                    if (id != null) {
+                        resourceMap.put(id, resource);
+                    }
+                }
+                resourceMapsByType.put(entry.getKey(), resourceMap);
+            }
+            fillRecordDetails(detail, groupInfo, resourceMapsByType, GroupInfoRecordDetail.RecordAction.EXPORTED);
             details.add(detail);
         }
         return details;
     }
 
-    protected List<ResourceItem> mapResourceItems(List<ResourceItem> items, Map<String, String> idMap) {
+    protected List<ResourceItem> mapResourceItems(List<ResourceItem> items, Map<String, String> idMap,GroupInfoRecordDetail groupInfoRecordDetail,Map<String, Object> moduleImportResult,Map<String, Object> taskImportResult) {
         if (CollectionUtils.isEmpty(items)) {
             return new ArrayList<>();
         }
         List<ResourceItem> mapped = new ArrayList<>();
+        Map<String, GroupInfoRecordDetail.RecordDetail> recordDetailMap = groupInfoRecordDetail.getRecordDetails().stream()
+                .collect(Collectors.toMap(GroupInfoRecordDetail.RecordDetail::getResourceId, Function.identity(),
+                        (oldVal, newVal) -> newVal));
         for (ResourceItem item : items) {
             if (item == null || StringUtils.isBlank(item.getId()) || item.getType() == null) {
                 continue;
@@ -648,10 +627,41 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 }
             } else {
                 copy.setId(item.getId());
+
             }
+            updateRecordAction(item.getId(), copy.getId(), item.getType() == ResourceType.MODULE ? moduleImportResult : taskImportResult, recordDetailMap);
             mapped.add(copy);
         }
         return mapped;
+    }
+
+    protected void updateRecordAction(String resourceId,String newId,Map<String, Object> importResult,Map<String, GroupInfoRecordDetail.RecordDetail> recordDetailMap){
+        if(MapUtils.isNotEmpty(importResult) && importResult.containsKey(newId)) {
+            if(importResult.get(newId) instanceof Long count){
+                if(count > 0) {
+                    recordDetailMap.computeIfPresent(resourceId, (k, v) -> {
+                        v.setAction(GroupInfoRecordDetail.RecordAction.REPLACED);
+                        return v;
+                    });
+                }else {
+                    recordDetailMap.computeIfPresent(resourceId, (k, v) -> {
+                        v.setAction(GroupInfoRecordDetail.RecordAction.NO_UPDATE);
+                        return v;
+                    });
+                }
+            }else if(importResult.get(newId) instanceof String message){
+                recordDetailMap.computeIfPresent(resourceId, (k, v) -> {
+                    v.setAction(GroupInfoRecordDetail.RecordAction.ERRORED);
+                    v.setMessage(message);
+                    return v;
+                });
+            }
+        }else{
+            recordDetailMap.computeIfPresent(resourceId, (k, v) -> {
+                v.setAction(GroupInfoRecordDetail.RecordAction.IMPORTED);
+                return v;
+            });
+        }
     }
 
     protected Map<String, String> renameDuplicateGroups(List<GroupInfoDto> groupInfos, UserDetail user) {
@@ -660,7 +670,6 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             return renamedGroups;
         }
 
-        // 性能优化：批量查询所有可能重名的分组（从 O(n) 次查询 → O(1) 次查询）
         List<String> allNames = groupInfos.stream()
                 .filter(g -> g != null && StringUtils.isNotBlank(g.getName()))
                 .map(GroupInfoDto::getName)
@@ -707,23 +716,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         if (CollectionUtils.size(groupInfos) == 1) {
             GroupInfoDto groupInfo = groupInfos.get(0);
             if (groupInfo != null && StringUtils.isNotBlank(groupInfo.getName())) {
-                return groupInfo.getName() + "-" + yyyymmdd + ".tar";
+                return groupInfo.getName() + "-" + yyyymmdd;
             }
         }
-        return "group_batch" + "-" + yyyymmdd + ".tar";
-    }
-
-    protected void addContentToTar(TarArchiveOutputStream taos, Map<String, byte[]> contents) throws IOException {
-        for (Map.Entry<String, byte[]> entry : contents.entrySet()) {
-            byte[] contentBytes = entry.getValue();
-            TarArchiveEntry tarEntry = new TarArchiveEntry(entry.getKey());
-            tarEntry.setSize(contentBytes.length);
-            taos.putArchiveEntry(tarEntry);
-            try (ByteArrayInputStream bais = new ByteArrayInputStream(contentBytes)) {
-                IOUtils.copy(bais, taos);
-            }
-            taos.closeArchiveEntry();
-        }
+        return "group_batch" + "-" + yyyymmdd;
     }
 
     /**
@@ -779,11 +775,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     /**
      * 构建导入记录详情（新版本，使用资源处理器）
      */
-    protected List<GroupInfoRecordDetail> buildImportRecordDetails(List<GroupInfoDto> groupInfos,
-            Map<ResourceType, Map<String, ?>> resourceMapsByType,
-            Map<ResourceType, Map<String, String>> duplicateNamesByType,
-            Map<String, String> groupDuplicateNames,
-            ImportStrategy importStrategy) {
+    protected List<GroupInfoRecordDetail> buildImportRecordDetails(List<GroupInfoDto> groupInfos, Map<ResourceType, Map<String, ?>> resourceMapsByType){
         List<GroupInfoRecordDetail> details = new ArrayList<>();
         for (GroupInfoDto groupInfo : groupInfos) {
             GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
@@ -791,85 +783,23 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 detail.setGroupId(groupInfo.getId().toHexString());
             }
             detail.setGroupName(groupInfo.getName());
-            if (groupDuplicateNames.containsKey(groupInfo.getName())) {
-                detail.setMessage(
-                        "duplicate group name, renamed existing to " + groupDuplicateNames.get(groupInfo.getName()));
-            }
-            fillRecordDetailsImport(detail, groupInfo.getResourceItemList(), resourceMapsByType,
-                    duplicateNamesByType, importStrategy);
+            fillRecordDetails(detail, groupInfo, resourceMapsByType, GroupInfoRecordDetail.RecordAction.IMPORTING);
             details.add(detail);
         }
         return details;
     }
 
-    /**
-     * 填充记录详情
-     */
-    protected void fillRecordDetailsImport(GroupInfoRecordDetail detail, List<ResourceItem> items,
-            Map<ResourceType, Map<String, ?>> resourceMapsByType,
-            Map<ResourceType, Map<String, String>> duplicateNamesByType,
-            ImportStrategy importStrategy) {
-        if (detail == null || CollectionUtils.isEmpty(items)) {
-            return;
-        }
-
-       GroupInfoRecordDetail.RecordAction defaultAction = importStrategy.getDefaultAction();
-
-        for (ResourceItem item : items) {
-            if (item == null || StringUtils.isBlank(item.getId()) || item.getType() == null) {
-                continue;
-            }
-            GroupInfoRecordDetail.RecordDetail recordDetail = new GroupInfoRecordDetail.RecordDetail();
-            recordDetail.setResourceType(item.getType());
-
-            // 通过资源处理器解析资源名称
-            ResourceHandler handler = resourceHandlerRegistry.getHandler(item.getType());
-            String resourceName = null;
-            if (handler != null) {
-                Map<String, ?> resourceMap = resourceMapsByType.get(item.getType());
-                if (resourceMap != null) {
-                    resourceName = handler.resolveResourceName(item.getId(), resourceMap);
-                }
-            }
-            recordDetail.setResourceName(resourceName);
-
-            // 根据策略和重复情况设置 Action
-            Map<String, String> duplicateNames = duplicateNamesByType.get(item.getType());
-            if (resourceName == null) {
-                recordDetail.setAction(GroupInfoRecordDetail.RecordAction.ERRORED);
-                recordDetail.setMessage("resource not found");
-            } else if (duplicateNames != null && duplicateNames.containsKey(resourceName)) {
-                // 使用策略处理重复资源
-                recordDetail.setAction(importStrategy.handleDuplicate(item.getType()));
-                recordDetail.setMessage(importStrategy.getDuplicateMessage(item.getType()));
-            } else {
-                recordDetail.setAction(defaultAction);
-            }
-            detail.getRecordDetails().add(recordDetail);
-        }
-    }
 
     /**
      * 填充记录详情
      */
-    protected void fillRecordDetailsExport(GroupInfoRecordDetail detail, List<ResourceItem> items,
-            Map<ResourceType, List<?>> resourcesByType,
-            GroupInfoRecordDetail.RecordAction successAction) {
+    protected void fillRecordDetails(GroupInfoRecordDetail detail, GroupInfoDto groupInfo,
+                                     Map<ResourceType, Map<String, ?>> resourceMapsByType,
+                                     GroupInfoRecordDetail.RecordAction successAction) {
+        List<ResourceItem> items = groupInfo.getResourceItemList();
+        List<String> resetTaskList = groupInfo.getResetTaskList();
         if (detail == null || CollectionUtils.isEmpty(items)) {
             return;
-        }
-
-        // 将资源列表转换为 Map 以便查找
-        Map<ResourceType, Map<String, ?>> resourceMapsByType = new HashMap<>();
-        for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
-            Map<String, Object> resourceMap = new HashMap<>();
-            for (Object resource : entry.getValue()) {
-                String id = getResourceId(resource);
-                if (id != null) {
-                    resourceMap.put(id, resource);
-                }
-            }
-            resourceMapsByType.put(entry.getKey(), resourceMap);
         }
 
         for (ResourceItem item : items) {
@@ -878,7 +808,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             GroupInfoRecordDetail.RecordDetail recordDetail = new GroupInfoRecordDetail.RecordDetail();
             recordDetail.setResourceType(item.getType());
-
+            recordDetail.setResourceId(item.getId());
+            if(resetTaskList != null && resetTaskList.contains(item.getId())) {
+                recordDetail.setReset(true);
+            }
             // 通过资源处理器解析资源名称
             ResourceHandler handler = resourceHandlerRegistry.getHandler(item.getType());
             String resourceName = null;

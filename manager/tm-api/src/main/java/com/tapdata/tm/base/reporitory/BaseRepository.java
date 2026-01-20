@@ -279,6 +279,27 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
         return entity;
     }
 
+    public UpdateResult saveGetUpdateResult(Entity entity, UserDetail userDetail) {
+        Assert.notNull(entity, "Entity must not be null!");
+        if (entityInformation.isNew(entity)) {
+            applyUserDetail(entity, userDetail);
+            beforeCreateEntity(entity, userDetail);
+            mongoOperations.insert(entity, entityInformation.getCollectionName());
+            return null;
+        }
+        beforeUpdateEntity(entity, userDetail);
+        entity.setLastUpdAt(null);
+
+        //return mongoOperations.save(entity, entityInformation.getCollectionName());
+        // mongoOperations.updateFirst()
+        Query query = getIdQuery(entity.getId());
+        applyUserDetail(query, userDetail);
+
+        Update update = buildUpdateSet(entity, userDetail);
+
+        return mongoOperations.updateFirst(query, update, entityInformation.getJavaType());
+    }
+
     public Update buildUpdateSet(Entity entity) {
         return buildUpdateSet(entity, null);
     }

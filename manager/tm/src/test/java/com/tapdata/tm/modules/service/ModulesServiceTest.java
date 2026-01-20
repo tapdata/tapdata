@@ -1384,13 +1384,13 @@ class ModulesServiceTest {
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
 
             doReturn(existingModule).when(modulesService).findExistingModuleByName("test_module", user);
-            doNothing().when(modulesService).handleReplaceMode(moduleDto, existingModule, user, conMap);
+            doNothing().when(modulesService).handleReplaceMode(moduleDto, existingModule, user, conMap,new HashMap<>());
 
             // Execute
             modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
 
             // Verify
-            verify(modulesService, times(1)).handleReplaceMode(moduleDto, existingModule, user, conMap);
+            verify(modulesService, times(1)).handleReplaceMode(moduleDto, existingModule, user, conMap,new HashMap<>());
             assertEquals(false, moduleDto.getIsDeleted());
             assertEquals(ModuleStatusEnum.PENDING.getValue(), moduleDto.getStatus());
         }
@@ -1402,13 +1402,13 @@ class ModulesServiceTest {
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
 
             doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
-            doNothing().when(modulesService).handleReplaceMode(moduleDto, null, user, conMap);
+            doNothing().when(modulesService).handleReplaceMode(moduleDto, null, user, conMap,new HashMap<>());
 
             // Execute
             modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
 
             // Verify
-            verify(modulesService, times(1)).handleReplaceMode(moduleDto, null, user, conMap);
+            verify(modulesService, times(1)).handleReplaceMode(moduleDto, null, user, conMap,new HashMap<>());
         }
 
         @Test
@@ -1438,7 +1438,7 @@ class ModulesServiceTest {
             modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
 
             // Verify - should return early without calling any handle methods
-            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any());
+            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any(),any());
             verify(modulesService, never()).handleImportAsCopyMode(any(), any(), any());
         }
 
@@ -1455,7 +1455,7 @@ class ModulesServiceTest {
             modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
 
             // Verify - should return early without calling handle methods
-            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any());
+            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any(),any());
             verify(modulesService, never()).handleImportAsCopyMode(any(), any(), any());
         }
 
@@ -1517,7 +1517,7 @@ class ModulesServiceTest {
             doReturn(1L).when(modulesService).updateByWhere(any(Query.class), eq(moduleDto), eq(user));
 
             // Execute
-            modulesService.handleReplaceMode(moduleDto, existingModule, user, conMap);
+            modulesService.handleReplaceMode(moduleDto, existingModule, user, conMap,new HashMap<>());
 
             // Verify
             assertEquals(existingModule.getId(), moduleDto.getId());
@@ -1535,7 +1535,7 @@ class ModulesServiceTest {
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
 
             // Execute
-            modulesService.handleReplaceMode(moduleDto, null, user, conMap);
+            modulesService.handleReplaceMode(moduleDto, null, user, conMap,new HashMap<>());
 
             // Verify
             assertEquals(new ObjectId("662877df9179877be8b37075"), moduleDto.getId()); // ID should remain unchanged
@@ -1556,7 +1556,7 @@ class ModulesServiceTest {
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
 
             // Execute
-            modulesService.handleReplaceMode(moduleDto, null, user, conMap);
+            modulesService.handleReplaceMode(moduleDto, null, user, conMap,new HashMap<>());
 
             // Verify
             assertNotEquals(new ObjectId("662877df9179877be8b37075"), moduleDto.getId()); // ID should be changed

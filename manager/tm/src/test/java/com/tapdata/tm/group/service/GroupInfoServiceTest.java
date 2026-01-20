@@ -18,9 +18,9 @@ import com.tapdata.tm.group.handler.ResourceHandler;
 import com.tapdata.tm.group.handler.ResourceHandlerRegistry;
 import com.tapdata.tm.group.handler.TaskResourceHandler;
 import com.tapdata.tm.group.repostitory.GroupInfoRepository;
-import com.tapdata.tm.group.strategy.GroupImportStrategy;
-import com.tapdata.tm.group.strategy.ImportStrategy;
-import com.tapdata.tm.group.strategy.ImportStrategyRegistry;
+import com.tapdata.tm.group.service.transfer.GroupTransferStrategy;
+import com.tapdata.tm.group.service.transfer.GroupTransferStrategyRegistry;
+import com.tapdata.tm.group.service.transfer.GroupTransferType;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
@@ -78,9 +78,6 @@ public class GroupInfoServiceTest {
     private ResourceHandlerRegistry resourceHandlerRegistry;
 
     @Mock
-    private ImportStrategyRegistry importStrategyRegistry;
-
-    @Mock
     private com.tapdata.tm.task.service.TaskService taskService;
 
     @Mock
@@ -95,6 +92,12 @@ public class GroupInfoServiceTest {
     @Mock
     private com.tapdata.tm.inspect.service.InspectService inspectService;
 
+    @Mock
+    private GroupTransferStrategyRegistry transferStrategyRegistry;
+
+    @Mock
+    private GroupTransferStrategy groupTransferStrategy;
+
     private GroupInfoService groupInfoService;
 
     private UserDetail user;
@@ -103,12 +106,15 @@ public class GroupInfoServiceTest {
         groupInfoService = spy(new GroupInfoService(groupInfoRepository));
         ReflectionTestUtils.setField(groupInfoService, "groupInfoRecordService", groupInfoRecordService);
         ReflectionTestUtils.setField(groupInfoService, "resourceHandlerRegistry", resourceHandlerRegistry);
-        ReflectionTestUtils.setField(groupInfoService, "importStrategyRegistry", importStrategyRegistry);
         ReflectionTestUtils.setField(groupInfoService, "taskService", taskService);
         ReflectionTestUtils.setField(groupInfoService, "modulesService", modulesService);
         ReflectionTestUtils.setField(groupInfoService, "dataSourceService", dataSourceService);
         ReflectionTestUtils.setField(groupInfoService, "metadataInstancesService", metadataInstancesService);
         ReflectionTestUtils.setField(groupInfoService, "inspectService", inspectService);
+        ReflectionTestUtils.setField(groupInfoService, "transferStrategyRegistry", transferStrategyRegistry);
+
+        // Setup default mock for transfer strategy (lenient because not all tests use it)
+        lenient().when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
 
         user = new UserDetail("userId123", "customerId", "testuser", "password", "customerType",
                 "accessCode", false, false, false, false,
@@ -119,10 +125,6 @@ public class GroupInfoServiceTest {
         ReflectionTestUtils.setField(resourceHandlerRegistry, "handlers", Arrays.asList(mock(TaskResourceHandler.class), mock(ModuleResourceHandler.class)));
         resourceHandlerRegistry.init();
         ReflectionTestUtils.setField(groupInfoService, "resourceHandlerRegistry", resourceHandlerRegistry);
-        ImportStrategyRegistry importStrategyRegistry = spy(ImportStrategyRegistry.class);
-        ReflectionTestUtils.setField(importStrategyRegistry, "strategies", Arrays.asList(spy(GroupImportStrategy.class)));
-        importStrategyRegistry.init();
-        ReflectionTestUtils.setField(groupInfoService, "importStrategyRegistry", importStrategyRegistry);
     }
 
     @Nested
@@ -251,32 +253,6 @@ public class GroupInfoServiceTest {
     }
 
     @Nested
-    @DisplayName("mapResourceItems Tests")
-    class MapResourceItemsTests {
-
-        @Test
-        @DisplayName("Should return empty list when items is null")
-        void testMapResourceItemsNull() {
-            List<ResourceItem> result = (List<ResourceItem>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "mapResourceItems",
-                    (Object) null, Collections.emptyMap());
-
-            assertNotNull(result);
-            assertTrue(result.isEmpty());
-        }
-
-        @Test
-        @DisplayName("Should return empty list when items is empty")
-        void testMapResourceItemsEmpty() {
-            List<ResourceItem> result = (List<ResourceItem>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "mapResourceItems",
-                    Collections.emptyList(), Collections.emptyMap());
-
-            assertNotNull(result);
-            assertTrue(result.isEmpty());
-        }
-    }
-    @Nested
     @DisplayName("exportGroupInfos Tests")
     class ExportGroupInfosTests {
 
@@ -299,17 +275,6 @@ public class GroupInfoServiceTest {
         @DisplayName("Should load resources using resource handlers")
         void testExportGroupInfosLoadsResources() throws Exception {
             HttpServletResponse response = mock(HttpServletResponse.class);
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
-                @Override
-                public boolean isReady() { return true; }
-                @Override
-                public void setWriteListener(WriteListener writeListener) {}
-                @Override
-                public void write(int b) throws java.io.IOException { outputStream.write(b); }
-                @Override
-                public void write(byte[] b) throws java.io.IOException { outputStream.write(b); }
-            });
 
             List<String> groupIds = Arrays.asList(new ObjectId().toHexString());
 
@@ -331,27 +296,13 @@ public class GroupInfoServiceTest {
 
             groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
+            verify(groupTransferStrategy).exportGroups(any());
         }
 
         @Test
         @DisplayName("Should build export payload using resource handlers")
         void testExportGroupInfosBuildsPayload() throws Exception {
             HttpServletResponse response = mock(HttpServletResponse.class);
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
-                @Override
-                public boolean isReady() { return true; }
-
-                @Override
-                public void setWriteListener(WriteListener writeListener) {
-
-                }
-
-                @Override
-                public void write(int b) throws java.io.IOException { outputStream.write(b); }
-                @Override
-                public void write(byte[] b) throws java.io.IOException { outputStream.write(b); }
-            });
 
             List<String> groupIds = Arrays.asList(new ObjectId().toHexString());
 
@@ -377,17 +328,6 @@ public class GroupInfoServiceTest {
         @DisplayName("Should save export record with TYPE_EXPORT")
         void testExportGroupInfosSavesRecord() throws Exception {
             HttpServletResponse response = mock(HttpServletResponse.class);
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
-                @Override
-                public boolean isReady() { return true; }
-                @Override
-                public void setWriteListener(WriteListener writeListener) {}
-                @Override
-                public void write(int b) throws java.io.IOException { outputStream.write(b); }
-                @Override
-                public void write(byte[] b) throws java.io.IOException { outputStream.write(b); }
-            });
 
             List<String> groupIds = Arrays.asList(new ObjectId().toHexString());
 
@@ -410,20 +350,9 @@ public class GroupInfoServiceTest {
         }
 
         @Test
-        @DisplayName("Should set response headers correctly")
+        @DisplayName("Should delegate to transfer strategy for export")
         void testExportGroupInfosSetsResponseHeaders() throws Exception {
             HttpServletResponse response = mock(HttpServletResponse.class);
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
-                @Override
-                public boolean isReady() { return true; }
-                @Override
-                public void setWriteListener(WriteListener writeListener) {}
-                @Override
-                public void write(int b) throws java.io.IOException { outputStream.write(b); }
-                @Override
-                public void write(byte[] b) throws java.io.IOException { outputStream.write(b); }
-            });
 
             List<String> groupIds = Arrays.asList(new ObjectId().toHexString());
 
@@ -442,27 +371,14 @@ public class GroupInfoServiceTest {
 
             groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
-            verify(response).setContentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE);
-            verify(response).setHeader(eq("Content-Disposition"), argThat(value ->
-                value.contains("attachment") && value.contains("filename")
-            ));
+            // Verify that the transfer strategy is called for export
+            verify(groupTransferStrategy).exportGroups(any());
         }
 
         @Test
         @DisplayName("Should update record status to COMPLETED on success")
         void testExportGroupInfosStatusCompleted() throws Exception {
             HttpServletResponse response = mock(HttpServletResponse.class);
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
-                @Override
-                public boolean isReady() { return true; }
-                @Override
-                public void setWriteListener(WriteListener writeListener) {}
-                @Override
-                public void write(int b) throws java.io.IOException { outputStream.write(b); }
-                @Override
-                public void write(byte[] b) throws java.io.IOException { outputStream.write(b); }
-            });
 
             List<String> groupIds = Arrays.asList(new ObjectId().toHexString());
 
@@ -486,10 +402,9 @@ public class GroupInfoServiceTest {
         }
 
         @Test
-        @DisplayName("Should update record status to FAILED on exception")
+        @DisplayName("Should update record status to FAILED on strategy exception")
         void testExportGroupInfosStatusFailedOnException() throws Exception {
             HttpServletResponse response = mock(HttpServletResponse.class);
-            when(response.getOutputStream()).thenThrow(new java.io.IOException("Output stream error"));
 
             List<String> groupIds = Arrays.asList(new ObjectId().toHexString());
 
@@ -504,29 +419,21 @@ public class GroupInfoServiceTest {
             savedRecord.setId(new ObjectId());
             when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class))).thenReturn(savedRecord);
 
+            // Make the strategy throw an exception
+            doThrow(new RuntimeException("Export error")).when(groupTransferStrategy).exportGroups(any());
+
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
             groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
             verify(groupInfoService).updateRecordStatus(eq(savedRecord.getId()),
-                eq(GroupInfoRecordDto.STATUS_FAILED), eq("Output stream error"), any(), eq(user));
+                eq(GroupInfoRecordDto.STATUS_FAILED), eq("Export error"), any(), eq(user));
         }
 
         @Test
         @DisplayName("Should handle related resources through handlers")
         void testExportGroupInfosHandlesRelatedResources() throws Exception {
             HttpServletResponse response = mock(HttpServletResponse.class);
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
-                @Override
-                public boolean isReady() { return true; }
-                @Override
-                public void setWriteListener(WriteListener writeListener) {}
-                @Override
-                public void write(int b) throws java.io.IOException { outputStream.write(b); }
-                @Override
-                public void write(byte[] b) throws java.io.IOException { outputStream.write(b); }
-            });
 
             List<String> groupIds = Arrays.asList(new ObjectId().toHexString());
 
@@ -547,23 +454,14 @@ public class GroupInfoServiceTest {
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
             groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
+
+            verify(groupTransferStrategy).exportGroups(any());
         }
 
         @Test
-        @DisplayName("Should write tar content to response output stream")
+        @DisplayName("Should delegate export to transfer strategy")
         void testExportGroupInfosWritesTarContent() throws Exception {
             HttpServletResponse response = mock(HttpServletResponse.class);
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
-                @Override
-                public boolean isReady() { return true; }
-                @Override
-                public void setWriteListener(WriteListener writeListener) {}
-                @Override
-                public void write(int b) throws java.io.IOException { outputStream.write(b); }
-                @Override
-                public void write(byte[] b) throws java.io.IOException { outputStream.write(b); }
-            });
 
             List<String> groupIds = Arrays.asList(new ObjectId().toHexString());
 
@@ -582,26 +480,14 @@ public class GroupInfoServiceTest {
 
             groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
 
-            // Verify content was written (tar file should have some content)
-            assertTrue(outputStream.size() > 0);
-            verify(response).setContentLength(anyInt());
+            // Verify that the transfer strategy is called for export
+            verify(groupTransferStrategy).exportGroups(any());
         }
 
         @Test
         @DisplayName("Should export multiple groups")
         void testExportGroupInfosMultipleGroups() throws Exception {
             HttpServletResponse response = mock(HttpServletResponse.class);
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
-                @Override
-                public boolean isReady() { return true; }
-                @Override
-                public void setWriteListener(WriteListener writeListener) {}
-                @Override
-                public void write(int b) throws java.io.IOException { outputStream.write(b); }
-                @Override
-                public void write(byte[] b) throws java.io.IOException { outputStream.write(b); }
-            });
 
             List<String> groupIds = Arrays.asList(new ObjectId().toHexString(), new ObjectId().toHexString());
 
@@ -663,116 +549,75 @@ public class GroupInfoServiceTest {
         void testBatchImportGroupCreatesRecord() throws Exception {
             org.springframework.web.multipart.MultipartFile file = mock(
                     org.springframework.web.multipart.MultipartFile.class);
-            when(file.getOriginalFilename()).thenReturn("test-import.tar");
-            when(file.getInputStream()).thenReturn(new java.io.ByteArrayInputStream(new byte[0]));
 
             ObjectId expectedRecordId = new ObjectId();
-            GroupInfoRecordDto savedRecord = new GroupInfoRecordDto();
-            savedRecord.setId(expectedRecordId);
-            savedRecord.setType(GroupInfoRecordDto.TYPE_IMPORT);
-            savedRecord.setStatus(GroupInfoRecordDto.STATUS_IMPORTING);
-            savedRecord.setProgress(0);
 
-            when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class)))
-                    .thenReturn(savedRecord);
+            when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
+            when(groupTransferStrategy.importGroups(any())).thenReturn(expectedRecordId);
 
-            doNothing().when(groupInfoService).executeImportAsync(any(), any(), any(), any(), any());
-
-            try(MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
-                helperMockedStatic.when(()->SpringContextHelper.getBean(GroupInfoService.class)).thenReturn(groupInfoService);
-                ObjectId result = groupInfoService.batchImportGroup(file, user, null);
-                assertNotNull(result);
-                assertEquals(expectedRecordId, result);
-                verify(groupInfoRecordService).save(any(GroupInfoRecordDto.class), eq(user));
-            }
+            ObjectId result = groupInfoService.batchImportGroup(file, user, null);
+            assertNotNull(result);
+            assertEquals(expectedRecordId, result);
+            verify(transferStrategyRegistry).getStrategy(GroupTransferType.FILE);
+            verify(groupTransferStrategy).importGroups(any());
         }
 
         @Test
-        @DisplayName("Should use default import mode when null")
+        @DisplayName("Should delegate to strategy with correct import mode")
         void testBatchImportGroupDefaultImportMode() throws Exception {
             org.springframework.web.multipart.MultipartFile file = mock(
                     org.springframework.web.multipart.MultipartFile.class);
-            when(file.getOriginalFilename()).thenReturn("test-import.tar");
-            when(file.getInputStream()).thenReturn(new java.io.ByteArrayInputStream(new byte[0]));
 
             ObjectId expectedRecordId = new ObjectId();
-            GroupInfoRecordDto savedRecord = new GroupInfoRecordDto();
-            savedRecord.setId(expectedRecordId);
 
-            when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class)))
-                    .thenReturn(savedRecord);
+            when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
+            when(groupTransferStrategy.importGroups(any())).thenReturn(expectedRecordId);
 
-            doNothing().when(groupInfoService).executeImportAsync(any(), any(), any(), any(), any());
-            try(MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
-                helperMockedStatic.when(() -> SpringContextHelper.getBean(GroupInfoService.class)).thenReturn(groupInfoService);
-                groupInfoService.batchImportGroup(file, user, null);
-                // Verify executeImportAsync is called (import mode defaults to GROUP_IMPORT internally)
-                verify(groupInfoService).executeImportAsync(any(), eq(user), any(), eq("test-import.tar"), eq(expectedRecordId));
-            }
+            groupInfoService.batchImportGroup(file, user, null);
+
+            verify(groupTransferStrategy).importGroups(any());
         }
 
         @Test
-        @DisplayName("Should call executeImportAsync with correct parameters")
+        @DisplayName("Should delegate to strategy with REPLACE import mode")
         void testBatchImportGroupCallsExecuteImportAsync() throws Exception {
             org.springframework.web.multipart.MultipartFile file = mock(
                     org.springframework.web.multipart.MultipartFile.class);
-            String fileName = "group-export.tar";
-            when(file.getOriginalFilename()).thenReturn(fileName);
-            when(file.getInputStream()).thenReturn(new java.io.ByteArrayInputStream(new byte[0]));
 
             ObjectId expectedRecordId = new ObjectId();
-            GroupInfoRecordDto savedRecord = new GroupInfoRecordDto();
-            savedRecord.setId(expectedRecordId);
 
-            when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class)))
-                    .thenReturn(savedRecord);
+            when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
+            when(groupTransferStrategy.importGroups(any())).thenReturn(expectedRecordId);
 
-            doNothing().when(groupInfoService).executeImportAsync(any(), any(), any(), any(), any());
+            groupInfoService.batchImportGroup(file, user, com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE);
 
-            try(MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
-                helperMockedStatic.when(() -> SpringContextHelper.getBean(GroupInfoService.class)).thenReturn(groupInfoService);
-                groupInfoService.batchImportGroup(file, user, com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE);
-
-                verify(groupInfoService).executeImportAsync(
-                        any(Map.class),
-                        eq(user),
-                        eq(com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE),
-                        eq(fileName),
-                        eq(expectedRecordId)
-                );
-            }
+            verify(groupTransferStrategy).importGroups(any());
         }
 
         @Test
-        @DisplayName("Should set progress to 0 in initial record")
+        @DisplayName("Should return record ID from strategy")
         void testBatchImportGroupInitialProgressIsZero() throws Exception {
             org.springframework.web.multipart.MultipartFile file = mock(
                     org.springframework.web.multipart.MultipartFile.class);
-            when(file.getOriginalFilename()).thenReturn("test.tar");
-            when(file.getInputStream()).thenReturn(new java.io.ByteArrayInputStream(new byte[0]));
 
             ObjectId expectedRecordId = new ObjectId();
-            GroupInfoRecordDto savedRecord = new GroupInfoRecordDto();
-            savedRecord.setId(expectedRecordId);
 
-            when(groupInfoRecordService.save(any(GroupInfoRecordDto.class) , any(UserDetail.class))).thenReturn(savedRecord);
+            when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
+            when(groupTransferStrategy.importGroups(any())).thenReturn(expectedRecordId);
 
-            doNothing().when(groupInfoService).executeImportAsync(any(), any(), any(), any(), any());
+            ObjectId result = groupInfoService.batchImportGroup(file, user, null);
 
-            try(MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
-                helperMockedStatic.when(() -> SpringContextHelper.getBean(GroupInfoService.class)).thenReturn(groupInfoService);
-                groupInfoService.batchImportGroup(file, user, null);
-                verify(groupInfoRecordService).save(any(GroupInfoRecordDto.class), eq(user));
-            }
+            assertEquals(expectedRecordId, result);
         }
 
         @Test
-        @DisplayName("Should throw IOException when file read fails")
+        @DisplayName("Should throw IOException when strategy throws IOException")
         void testBatchImportGroupIOException() throws Exception {
             org.springframework.web.multipart.MultipartFile file = mock(
                     org.springframework.web.multipart.MultipartFile.class);
-            when(file.getOriginalFilename()).thenReturn("test.tar");
-            when(file.getInputStream()).thenThrow(new java.io.IOException("File read error"));
+
+            when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
+            when(groupTransferStrategy.importGroups(any())).thenThrow(new java.io.IOException("File read error"));
 
             assertThrows(java.io.IOException.class, () -> {
                 groupInfoService.batchImportGroup(file, user, null);
@@ -780,91 +625,45 @@ public class GroupInfoServiceTest {
         }
 
         @Test
-        @DisplayName("Should set correct filename from MultipartFile")
+        @DisplayName("Should pass file to strategy")
         void testBatchImportGroupUsesOriginalFilename() throws Exception {
             org.springframework.web.multipart.MultipartFile file = mock(
                     org.springframework.web.multipart.MultipartFile.class);
-            String originalFilename = "my-groups-export-2026.tar";
-            when(file.getOriginalFilename()).thenReturn(originalFilename);
-            when(file.getInputStream()).thenReturn(new java.io.ByteArrayInputStream(new byte[0]));
 
             ObjectId expectedRecordId = new ObjectId();
-            GroupInfoRecordDto savedRecord = new GroupInfoRecordDto();
-            savedRecord.setId(expectedRecordId);
 
-            when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class))).thenReturn(savedRecord);
+            when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
+            when(groupTransferStrategy.importGroups(any())).thenReturn(expectedRecordId);
 
-            doNothing().when(groupInfoService).executeImportAsync(any(), any(), any(), any(), any());
+            groupInfoService.batchImportGroup(file, user, null);
 
-            try(MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
-                helperMockedStatic.when(() -> SpringContextHelper.getBean(GroupInfoService.class)).thenReturn(groupInfoService);
-                groupInfoService.batchImportGroup(file, user, null);
-
-                verify(groupInfoRecordService).save(any(GroupInfoRecordDto.class), eq(user));
-            }
+            verify(groupTransferStrategy).importGroups(any());
         }
 
         @Test
-        @DisplayName("Should set operator from user in record")
+        @DisplayName("Should pass user to strategy")
         void testBatchImportGroupSetsOperator() throws Exception {
             org.springframework.web.multipart.MultipartFile file = mock(
                     org.springframework.web.multipart.MultipartFile.class);
-            when(file.getOriginalFilename()).thenReturn("test.tar");
-            when(file.getInputStream()).thenReturn(new java.io.ByteArrayInputStream(new byte[0]));
 
             ObjectId expectedRecordId = new ObjectId();
-            GroupInfoRecordDto savedRecord = new GroupInfoRecordDto();
-            savedRecord.setId(expectedRecordId);
 
-            when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class))).thenReturn(savedRecord);
+            when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
+            when(groupTransferStrategy.importGroups(any())).thenReturn(expectedRecordId);
 
-            doNothing().when(groupInfoService).executeImportAsync(any(), any(), any(), any(), any());
+            groupInfoService.batchImportGroup(file, user, null);
 
-            try(MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
-                helperMockedStatic.when(() -> SpringContextHelper.getBean(GroupInfoService.class)).thenReturn(groupInfoService);
-                groupInfoService.batchImportGroup(file, user, null);
-                verify(groupInfoRecordService).save(any(GroupInfoRecordDto.class), eq(user));
-            }
+            verify(groupTransferStrategy).importGroups(any());
         }
     }
 
-    @Nested
-    @DisplayName("readGroupImportPayloads Tests")
-    class ReadGroupImportPayloadsTests {
-
-        @Test
-        @DisplayName("Should return empty map for empty tar file")
-        void testReadGroupImportPayloadsEmptyTar() throws Exception {
-            org.springframework.web.multipart.MultipartFile file = mock(
-                    org.springframework.web.multipart.MultipartFile.class);
-            when(file.getInputStream()).thenReturn(new java.io.ByteArrayInputStream(new byte[0]));
-
-            Map<String, List<TaskUpAndLoadDto>> result = (Map<String, List<TaskUpAndLoadDto>>)
-                    ReflectionTestUtils.invokeMethod(groupInfoService, "readGroupImportPayloads", file);
-
-            assertNotNull(result);
-            assertTrue(result.isEmpty());
-        }
-
-        @Test
-        @DisplayName("Should throw IOException when input stream fails")
-        void testReadGroupImportPayloadsIOException() throws Exception {
-            org.springframework.web.multipart.MultipartFile file = mock(
-                    org.springframework.web.multipart.MultipartFile.class);
-            when(file.getInputStream()).thenThrow(new java.io.IOException("Stream error"));
-
-            assertThrows(UndeclaredThrowableException.class, () -> {
-                ReflectionTestUtils.invokeMethod(groupInfoService, "readGroupImportPayloads", file);
-            });
-        }
-    }
 
     @Nested
     @DisplayName("executeImportAsync Tests")
     class ExecuteImportAsyncTests {
 
         @Test
-        @DisplayName("Should update progress to 100 on successful completion")
+        @DisplayName("Should update record status to COMPLETED on successful completion")
         void testExecuteImportAsyncUpdatesProgressTo100() {
             Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
             payloads.put("GroupInfo.json", new ArrayList<>());
@@ -875,7 +674,9 @@ public class GroupInfoServiceTest {
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
-            verify(groupInfoService).updateImportProgress(eq(recordId), eq(100), any(), eq(user));
+            // Verify that updateRecordStatus is called with STATUS_COMPLETED at the end
+            verify(groupInfoService).updateRecordStatus(eq(recordId), eq(GroupInfoRecordDto.STATUS_COMPLETED),
+                    isNull(), any(), eq(user));
         }
 
         @Test
@@ -906,8 +707,9 @@ public class GroupInfoServiceTest {
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
+            // The actual implementation uses ExceptionUtils.getStackTrace(e) which includes the full stack trace
             verify(groupInfoService).updateRecordStatus(eq(recordId), eq(GroupInfoRecordDto.STATUS_FAILED),
-                    eq("Import error"), any(), eq(user));
+                    argThat(msg -> msg != null && msg.contains("Import error")), any(), eq(user));
         }
 
         @Test
@@ -928,7 +730,7 @@ public class GroupInfoServiceTest {
         }
 
         @Test
-        @DisplayName("Should save group infos in stage 5")
+        @DisplayName("Should save group infos in stage 5 using upsertByWhere")
         void testExecuteImportAsyncSavesGroupInfos() {
             Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
 
@@ -946,14 +748,15 @@ public class GroupInfoServiceTest {
             ObjectId recordId = new ObjectId();
 
             when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
-            doReturn(new ArrayList<>()).when(groupInfoService).save(anyList(), any(UserDetail.class));
+            doReturn(new GroupInfoDto()).when(groupInfoService).upsertByWhere(any(), any(), any(UserDetail.class));
 
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
-            verify(groupInfoService).save(anyList(), eq(user));
+            // Verify upsertByWhere is called for each group info
+            verify(groupInfoService).upsertByWhere(any(), any(), eq(user));
         }
 
         @Test
@@ -977,14 +780,15 @@ public class GroupInfoServiceTest {
             payloads.put("GroupInfo.json", Arrays.asList(groupPayload));
             ObjectId recordId = new ObjectId();
             when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
-            doReturn(new ArrayList<>()).when(groupInfoService).save(anyList(), any(UserDetail.class));
+            doReturn(new GroupInfoDto()).when(groupInfoService).upsertByWhere(any(), any(), any(UserDetail.class));
 
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
-            verify(groupInfoService).save(anyList(), eq(user));
+            // Verify upsertByWhere is called for each group info
+            verify(groupInfoService).upsertByWhere(any(), any(), eq(user));
         }
 
         @Test
@@ -1047,73 +851,19 @@ public class GroupInfoServiceTest {
             payloads.put("GroupInfo.json", Arrays.asList(groupPayload));
             ObjectId recordId = new ObjectId();
 
-
-
             when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
-            doReturn(new ArrayList<>()).when(groupInfoService).save(anyList(), any(UserDetail.class));
+            doReturn(new GroupInfoDto()).when(groupInfoService).upsertByWhere(any(), any(), any(UserDetail.class));
 
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
-            verify(groupInfoService).save(anyList(), eq(user));
+            // Verify upsertByWhere is called for each group info
+            verify(groupInfoService).upsertByWhere(any(), any(), eq(user));
         }
     }
 
-    @Nested
-    @DisplayName("beforeSave Tests")
-    class BeforeSaveTests {
-
-        @Test
-        @DisplayName("Should throw exception when group name already exists")
-        void testBeforeSaveNameExists() {
-            GroupInfoDto dto = new GroupInfoDto();
-            dto.setName("Existing Group");
-
-            GroupInfoDto existingDto = new GroupInfoDto();
-            existingDto.setId(new ObjectId());
-            existingDto.setName("Existing Group");
-
-            doReturn(existingDto).when(groupInfoService).findOne(any(Query.class), any(UserDetail.class));
-
-            assertThrows(BizException.class, () -> {
-                ReflectionTestUtils.invokeMethod(groupInfoService, "beforeSave", dto, user);
-            });
-        }
-
-        @Test
-        @DisplayName("Should not throw exception when group name is new")
-        void testBeforeSaveNameNotExists() {
-            GroupInfoDto dto = new GroupInfoDto();
-            dto.setName("New Group");
-
-            doReturn(null).when(groupInfoService).findOne(any(Query.class), any(UserDetail.class));
-
-            assertDoesNotThrow(() -> {
-                ReflectionTestUtils.invokeMethod(groupInfoService, "beforeSave", dto, user);
-            });
-        }
-
-        @Test
-        @DisplayName("Should not throw exception when dto is null")
-        void testBeforeSaveDtoNull() {
-            assertDoesNotThrow(() -> {
-                ReflectionTestUtils.invokeMethod(groupInfoService, "beforeSave", (GroupInfoDto) null, user);
-            });
-        }
-
-        @Test
-        @DisplayName("Should not throw exception when name is blank")
-        void testBeforeSaveNameBlank() {
-            GroupInfoDto dto = new GroupInfoDto();
-            dto.setName("");
-
-            assertDoesNotThrow(() -> {
-                ReflectionTestUtils.invokeMethod(groupInfoService, "beforeSave", dto, user);
-            });
-        }
-    }
 
     @Nested
     @DisplayName("extractResourceIdsByType Tests")
@@ -1235,52 +985,6 @@ public class GroupInfoServiceTest {
         }
     }
 
-    @Nested
-    @DisplayName("parseTaskUpAndLoadList Tests")
-    class ParseTaskUpAndLoadListTests {
-
-        @Test
-        @DisplayName("Should return empty list when bytes is null")
-        void testParseTaskUpAndLoadListNull() {
-            List<TaskUpAndLoadDto> result = (List<TaskUpAndLoadDto>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "parseTaskUpAndLoadList", (byte[]) null);
-
-            assertNotNull(result);
-            assertTrue(result.isEmpty());
-        }
-
-        @Test
-        @DisplayName("Should return empty list when bytes is empty")
-        void testParseTaskUpAndLoadListEmpty() {
-            List<TaskUpAndLoadDto> result = (List<TaskUpAndLoadDto>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "parseTaskUpAndLoadList", new byte[0]);
-
-            assertNotNull(result);
-            assertTrue(result.isEmpty());
-        }
-
-        @Test
-        @DisplayName("Should return empty list when json is blank")
-        void testParseTaskUpAndLoadListBlankJson() {
-            List<TaskUpAndLoadDto> result = (List<TaskUpAndLoadDto>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "parseTaskUpAndLoadList", "   ".getBytes(StandardCharsets.UTF_8));
-
-            assertNotNull(result);
-            assertTrue(result.isEmpty());
-        }
-
-        @Test
-        @DisplayName("Should parse valid json correctly")
-        void testParseTaskUpAndLoadListValidJson() {
-            String json = "[{\"collectionName\":\"GroupInfo\",\"json\":\"{}\"}]";
-            List<TaskUpAndLoadDto> result = (List<TaskUpAndLoadDto>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "parseTaskUpAndLoadList", json.getBytes(StandardCharsets.UTF_8));
-
-            assertNotNull(result);
-            assertEquals(1, result.size());
-            assertEquals("GroupInfo", result.get(0).getCollectionName());
-        }
-    }
 
     @Nested
     @DisplayName("collectGroupInfoPayload Tests")
@@ -1348,7 +1052,7 @@ public class GroupInfoServiceTest {
                     groupInfoService, "buildGroupExportFileName",
                     Arrays.asList(group1, group2), "20260112");
 
-            assertEquals("group_batch-20260112.tar", result);
+            assertEquals("group_batch-20260112", result);
         }
 
         @Test
@@ -1361,7 +1065,7 @@ public class GroupInfoServiceTest {
                     groupInfoService, "buildGroupExportFileName",
                     Arrays.asList(group), "20260112");
 
-            assertEquals("MyGroup-20260112.tar", result);
+            assertEquals("MyGroup-20260112", result);
         }
 
         @Test
@@ -1374,7 +1078,7 @@ public class GroupInfoServiceTest {
                     groupInfoService, "buildGroupExportFileName",
                     Arrays.asList(group), "20260112");
 
-            assertEquals("group_batch-20260112.tar", result);
+            assertEquals("group_batch-20260112", result);
         }
     }
 
@@ -1465,102 +1169,6 @@ public class GroupInfoServiceTest {
                     groupInfoService, "getResourceName", "unknown");
 
             assertNull(result);
-        }
-    }
-
-    @Nested
-    @DisplayName("mapResourceItems Tests - Extended")
-    class MapResourceItemsExtendedTests {
-
-        @Test
-        @DisplayName("Should map MIGRATE_TASK items with id mapping")
-        void testMapResourceItemsMigrateTask() {
-            ResourceItem item = new ResourceItem();
-            item.setId("oldId");
-            item.setType(ResourceType.MIGRATE_TASK);
-
-            Map<String, String> idMap = new HashMap<>();
-            idMap.put("oldId", "newId");
-
-            List<ResourceItem> result = (List<ResourceItem>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "mapResourceItems",
-                    Arrays.asList(item), idMap);
-
-            assertNotNull(result);
-            assertEquals(1, result.size());
-            assertEquals("newId", result.get(0).getId());
-            assertEquals(ResourceType.MIGRATE_TASK, result.get(0).getType());
-        }
-
-        @Test
-        @DisplayName("Should map SYNC_TASK items with id mapping")
-        void testMapResourceItemsSyncTask() {
-            ResourceItem item = new ResourceItem();
-            item.setId("oldId");
-            item.setType(ResourceType.SYNC_TASK);
-
-            Map<String, String> idMap = new HashMap<>();
-            idMap.put("oldId", "newId");
-
-            List<ResourceItem> result = (List<ResourceItem>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "mapResourceItems",
-                    Arrays.asList(item), idMap);
-
-            assertNotNull(result);
-            assertEquals(1, result.size());
-            assertEquals("newId", result.get(0).getId());
-        }
-
-        @Test
-        @DisplayName("Should keep original id for non-task types")
-        void testMapResourceItemsNonTaskType() {
-            ResourceItem item = new ResourceItem();
-            item.setId("moduleId");
-            item.setType(ResourceType.MODULE);
-
-            Map<String, String> idMap = new HashMap<>();
-            idMap.put("moduleId", "newModuleId");
-
-            List<ResourceItem> result = (List<ResourceItem>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "mapResourceItems",
-                    Arrays.asList(item), idMap);
-
-            assertNotNull(result);
-            assertEquals(1, result.size());
-            assertEquals("moduleId", result.get(0).getId());
-        }
-
-        @Test
-        @DisplayName("Should keep original id when mapping not found")
-        void testMapResourceItemsMappingNotFound() {
-            ResourceItem item = new ResourceItem();
-            item.setId("oldId");
-            item.setType(ResourceType.SYNC_TASK);
-
-            Map<String, String> idMap = new HashMap<>();
-
-            List<ResourceItem> result = (List<ResourceItem>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "mapResourceItems",
-                    Arrays.asList(item), idMap);
-
-            assertNotNull(result);
-            assertEquals(1, result.size());
-            assertEquals("oldId", result.get(0).getId());
-        }
-
-        @Test
-        @DisplayName("Should skip items with null type")
-        void testMapResourceItemsNullType() {
-            ResourceItem item = new ResourceItem();
-            item.setId("id");
-            item.setType(null);
-
-            List<ResourceItem> result = (List<ResourceItem>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "mapResourceItems",
-                    Arrays.asList(item), Collections.emptyMap());
-
-            assertNotNull(result);
-            assertTrue(result.isEmpty());
         }
     }
 
@@ -1751,51 +1359,4 @@ public class GroupInfoServiceTest {
         }
     }
 
-    @Nested
-    @DisplayName("fillRecordDetailsNew Tests")
-    class FillRecordDetailsNewTests {
-
-        @Test
-        @DisplayName("Should not fill when detail is null")
-        void testFillRecordDetailsNewNullDetail() {
-            assertDoesNotThrow(() -> {
-                ReflectionTestUtils.invokeMethod(groupInfoService, "fillRecordDetailsImport",
-                        null, Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(), mock(ImportStrategy.class));
-            });
-        }
-
-        @Test
-        @DisplayName("Should not fill when items is empty")
-        void testFillRecordDetailsNewEmptyItems() {
-            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
-
-            ReflectionTestUtils.invokeMethod(groupInfoService, "fillRecordDetailsImport",
-                    detail, Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(), mock(ImportStrategy.class));
-
-            assertTrue(detail.getRecordDetails().isEmpty());
-        }
-
-        @Test
-        @DisplayName("Should set ERRORED action when resource not found")
-        void testFillRecordDetailsNewResourceNotFound() {
-            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
-
-            ResourceItem item = new ResourceItem();
-            item.setId("task1");
-            item.setType(ResourceType.SYNC_TASK);
-
-            Map<ResourceType, Map<String, ?>> resourceMapsByType = new LinkedHashMap<>();
-            resourceMapsByType.put(ResourceType.SYNC_TASK, new HashMap<>());
-
-            ImportStrategy importStrategy = mock(ImportStrategy.class);
-            when(importStrategy.getDefaultAction()).thenReturn(GroupInfoRecordDetail.RecordAction.IMPORTED);
-
-            ReflectionTestUtils.invokeMethod(groupInfoService, "fillRecordDetailsImport",
-                    detail, Arrays.asList(item), resourceMapsByType, Collections.emptyMap(), importStrategy);
-
-            assertEquals(1, detail.getRecordDetails().size());
-            assertEquals(GroupInfoRecordDetail.RecordAction.ERRORED, detail.getRecordDetails().get(0).getAction());
-            assertEquals("resource not found", detail.getRecordDetails().get(0).getMessage());
-        }
-    }
 }
