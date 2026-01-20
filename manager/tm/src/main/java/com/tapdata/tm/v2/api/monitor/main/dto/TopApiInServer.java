@@ -11,6 +11,7 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -25,12 +26,12 @@ public class TopApiInServer extends DataValueBase {
     String apiName;
     String apiPath;
     boolean notExistsApi;
-    @SortField(name = {"requestCount", "rc"}, normal = true)
+    @SortField(name = {"requestCount", "rc"}, normal = true, originField = {"reqCount"})
     Long requestCount;
     @DecimalFormat
-    @SortField(name = {"errorRate", "er"})
+    @SortField(name = {"errorRate", "er"}, originField = {"reqCount", "errorCount"})
     Double errorRate;
-    @SortField(name = {"errorCount"})
+    @SortField(name = {"errorCount"}, originField = {"reqCount", "errorCount"})
     long errorCount;
 
     public static TopApiInServer create() {
@@ -42,7 +43,7 @@ public class TopApiInServer extends DataValueBase {
         return item;
     }
 
-    public static List<TopApiInServer> supplement(List<TopApiInServer> topApiInServers, Map<String, ModulesDto> apiInfos) {
+    public static <T extends TopApiInServer>List<T> supplement(List<T> topApiInServers, Map<String, ModulesDto> apiInfos, Function<ModulesDto, T> instance) {
         List<String> existsApiIds = topApiInServers.stream()
                 .filter(Objects::nonNull)
                 .map(TopApiInServer::getApiId)
@@ -52,7 +53,7 @@ public class TopApiInServer extends DataValueBase {
         for (String apiId : apiInfos.keySet()) {
             if (!existsApiIds.contains(apiId)) {
                 ModulesDto apiInfo = apiInfos.get(apiId);
-                TopApiInServer item = create();
+                T item = instance.apply(apiInfo);
                 item.setApiId(apiId);
                 item.setApiName(apiInfos.get(apiId).getName());
                 String path = ApiPathUtil.apiPath(apiInfo.getApiVersion(), apiInfo.getBasePath(), apiInfo.getPrefix());

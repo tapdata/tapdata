@@ -2,6 +2,8 @@ package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.v2.api.common.service.AcceptorBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import org.apache.commons.lang3.StringUtils;
@@ -27,11 +29,20 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
 
     ApiMetricsRaw lastBucketMin;
     ApiMetricsRaw lastBucketHour;
+    ApiMetricsRaw lastBucketDay;
 
-    public MetricInstanceAcceptor(ApiMetricsRaw lastBucketMin, ApiMetricsRaw lastBucketHour, Consumer<ApiMetricsRaw> consumer) {
+    MetricTypes metricType;
+
+    public MetricInstanceAcceptor(MetricTypes metricType,
+                                  ApiMetricsRaw lastBucketMin,
+                                  ApiMetricsRaw lastBucketHour,
+                                  ApiMetricsRaw lastBucketDay,
+                                  Consumer<ApiMetricsRaw> consumer) {
         this.lastBucketMin = lastBucketMin;
         this.lastBucketHour = lastBucketHour;
+        this.lastBucketDay = lastBucketDay;
         this.consumer = consumer;
+        this.metricType = metricType;
     }
 
     public void accept(Document entity) {
@@ -54,6 +65,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         long bucketSec = (reqTimeOSec / 5L) * 5L;
         long bucketMin = (reqTimeOSec / 60L) * 60L;
         long bucketHour = (reqTimeOSec / 3600L) * 3600L;
+        long bucketDay = (reqTimeOSec / 86400L) * 86400L;
         if (null != lastBucketMin && lastBucketMin.getTimeStart() != bucketMin) {
             acceptOnce(lastBucketMin);
             lastBucketMin = null;
@@ -62,32 +74,41 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             acceptOnce(lastBucketHour);
             lastBucketHour = null;
         }
+        if (null != lastBucketDay && lastBucketDay.getTimeStart() != bucketDay) {
+            acceptOnce(lastBucketDay);
+            lastBucketDay = null;
+        }
 
         if (null == lastBucketMin) {
             Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, 0);
+            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
             subMetrics.put(bucketSec, sub);
-            lastBucketMin = ApiMetricsRaw.instance(serverId, apiId, bucketMin, 1);
+            lastBucketMin = ApiMetricsRaw.instance(serverId, apiId, bucketMin, TimeGranularity.MINUTE, metricType);
             lastBucketMin.setSubMetrics(subMetrics);
         }
         if (null == lastBucketHour) {
-            lastBucketHour = ApiMetricsRaw.instance(serverId, apiId, bucketHour, 2);
+            lastBucketHour = ApiMetricsRaw.instance(serverId, apiId, bucketHour, TimeGranularity.HOUR, metricType);
+        }
+        if (null == lastBucketDay) {
+            lastBucketDay = ApiMetricsRaw.instance(serverId, apiId, bucketDay, TimeGranularity.DAY, metricType);
         }
 
         if (null == lastBucketMin.getSubMetrics()) {
             Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, 0);
+            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
             subMetrics.put(bucketSec, sub);
             lastBucketMin.setSubMetrics(subMetrics);
         }
         Map<Long, ApiMetricsRaw> subMetrics = lastBucketMin.getSubMetrics();
-        ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, 0));
+        ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
         sub.merge(isOk, reqBytes, requestCost, dbCost);
         final ObjectId callId = entity.get("_id", ObjectId.class);
         lastBucketMin.setCallId(callId);
         lastBucketHour.setCallId(callId);
+        lastBucketDay.setCallId(callId);
         lastBucketMin.merge(isOk, reqBytes, requestCost, dbCost);
         lastBucketHour.merge(isOk, reqBytes, requestCost, dbCost);
+        lastBucketDay.merge(isOk, reqBytes, requestCost, dbCost);
     }
 
     void acceptOnce(ApiMetricsRaw item) {
@@ -123,5 +144,6 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
     public void close() {
         acceptOnce(lastBucketMin);
         acceptOnce(lastBucketHour);
+        acceptOnce(lastBucketDay);
     }
 }

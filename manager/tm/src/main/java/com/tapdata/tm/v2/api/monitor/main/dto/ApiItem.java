@@ -20,53 +20,21 @@ import java.util.Objects;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ApiItem extends DataValueBase {
-    String apiId;
-    String apiPath;
-    String apiName;
-    boolean notExistsApi;
-    /**
-     * 总调用数
-     */
-    @SortField(name = {"requestCount", "rc"}, normal = true)
-    long requestCount;
-
-    /**
-     * 错误率
-     */
-    @DecimalFormat
-    @SortField(name = {"errorRate"})
-    double errorRate;
-
-    @SortField(name = {"errorCount"})
-    long errorCount;
+public class ApiItem extends TopApiInServer {
 
     /**
      * 吞吐量
      */
-    @SortField(name = {"totalRps"})
+    @SortField(name = {"totalRps"}, originField = {"bytes", "reqCount"})
     @DecimalFormat
     double totalRps;
 
-
-    public static List<ApiItem> supplement(List<ApiItem> topApiInServers, Map<String, ModulesDto> apiInfos) {
-        List<String> existsApiIds = topApiInServers.stream()
-                .filter(Objects::nonNull)
-                .map(ApiItem::getApiId)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .toList();
-        for (String apiId : apiInfos.keySet()) {
-            if (!existsApiIds.contains(apiId)) {
-                ApiItem item = new ApiItem();
-                item.setApiId(apiId);
-                ModulesDto apiInfo = apiInfos.get(apiId);
-                item.setApiName(apiInfos.get(apiId).getName());
-                String path = ApiPathUtil.apiPath(apiInfo.getApiVersion(), apiInfo.getBasePath(), apiInfo.getPrefix());
-                item.setApiPath(path);
-                topApiInServers.add(item);
-            }
-        }
-        return topApiInServers;
+    public static ApiItem create() {
+        ApiItem item = new ApiItem();
+        item.setRequestCount(0L);
+        item.setErrorRate(0.0D);
+        item.setErrorCount(0L);
+        item.setResponseTimeAvg(0.0D);
+        return item;
     }
 }

@@ -59,11 +59,7 @@ public final class ChartSortUtil {
         if (CollectionUtils.isEmpty(obj)) {
             return;
         }
-        Map<String, Field> declaredFields = getAllFieldMap(tClass);
-        Field sortField = Optional.ofNullable(sortInfo)
-                .map(e -> StringUtils.isNotBlank(e.getField()) ? e.getField() : null)
-                .map(declaredFields::get)
-                .orElse(findDefaultField(declaredFields.values()));
+        Field sortField = getSortFieldName(sortInfo, tClass);
         if (null == sortField) {
             return;
         }
@@ -73,6 +69,14 @@ public final class ChartSortUtil {
             comparing = comparing.reversed();
         }
         obj.sort(comparing);
+    }
+
+    public static <T> Field getSortFieldName(QueryBase.SortInfo sortInfo, Class<T> tClass) {
+        Map<String, Field> declaredFields = getAllFieldMap(tClass);
+        return Optional.ofNullable(sortInfo)
+                .map(e -> StringUtils.isNotBlank(e.getField()) ? e.getField() : null)
+                .map(declaredFields::get)
+                .orElse(findDefaultField(declaredFields.values()));
     }
 
     static <T> Double get(T obj, Field sortField) {

@@ -26,14 +26,14 @@ public class ApiOfEachServer extends DataValueBase {
 
     String serverName;
 
-    @SortField(name = {"requestCount", "rc"}, normal = true)
+    @SortField(name = {"requestCount", "rc"}, normal = true, originField = {"reqCount"})
     Long requestCount;
 
-    @SortField(name = {"errorRate"})
+    @SortField(name = {"errorRate"}, originField = {"reqCount", "errorCount"})
     @DecimalFormat
     Double errorRate;
 
-    @SortField(name = {"errorCount"})
+    @SortField(name = {"errorCount"}, originField = {"reqCount", "errorCount"})
     Long errorCount;
 
     public static List<ApiOfEachServer> supplement(List<ApiOfEachServer> apiMetricsRaws, Map<String, Worker> apiServerMap) {

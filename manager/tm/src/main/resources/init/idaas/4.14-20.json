@@ -79,6 +79,21 @@
     }]
   },
   {
+    "createIndexes": "ApiCall",
+    "indexes": [{
+      "key": {
+        "allPathId": 1,
+        "reqTime": 1,
+        "dataQueryTotalTime": 1,
+        "code": 1,
+        "httpStatus": 1,
+        "delete": 1
+      },
+      "name": "apiId_reqTime_dbCost_code_status_delete",
+      "background": true
+    }]
+  },
+  {
     "createIndexes": "ApiCallInWorker",
     "indexes": [{
       "key": {

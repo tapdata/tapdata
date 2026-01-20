@@ -18,37 +18,37 @@ public class DataValueBase extends ValueBase {
      * 平均耗时
      * */
     @DecimalFormat
-    @SortField(name = {"responseTimeAvg", "rta"})
+    @SortField(name = {"responseTimeAvg", "rta"}, originField = {"delay"})
     Double responseTimeAvg;
 
-    @SortField(name = {"p95"})
+    @SortField(name = {"p95"}, originField = {"delay"})
     Long p95;
 
-    @SortField(name = {"p99"})
+    @SortField(name = {"p99"}, originField = {"delay"})
     Long p99;
 
-    @SortField(name = {"maxDelay"})
+    @SortField(name = {"maxDelay"}, originField = {"delay"})
     Long maxDelay;
 
-    @SortField(name = {"minDelay"})
+    @SortField(name = {"minDelay"}, originField = {"delay"})
     Long minDelay;
 
-    @SortField(name = {"dbCostTotal"})
+    @SortField(name = {"dbCostTotal"}, originField = {"dbCost"})
     long dbCostTotal;
 
     @DecimalFormat
-    @SortField(name = {"dbCostAvg"})
+    @SortField(name = {"dbCostAvg"}, originField = {"dbCost"})
     double dbCostAvg;
 
-    @SortField(name = {"dbCostMax"})
+    @SortField(name = {"dbCostMax"}, originField = {"dbCost"})
     Long dbCostMax;
 
-    @SortField(name = {"dbCostMin"})
+    @SortField(name = {"dbCostMin"}, originField = {"dbCost"})
     Long dbCostMin;
 
-    @SortField(name = {"dbCostP95"})
+    @SortField(name = {"dbCostP95"}, originField = {"dbCost"})
     Long dbCostP95;
 
-    @SortField(name = {"dbCostP99"})
+    @SortField(name = {"dbCostP99"}, originField = {"dbCost"})
     Long dbCostP99;
 }

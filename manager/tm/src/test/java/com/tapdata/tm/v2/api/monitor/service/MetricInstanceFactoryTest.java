@@ -1,6 +1,8 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -256,7 +258,7 @@ class MetricInstanceFactoryTest {
             ApiMetricsRaw expected = createApiMetricsRaw("server1", "api1", 60000L, 1);
             when(findOne.apply(any(Query.class))).thenReturn(expected);
 
-            ApiMetricsRaw result = factory.lastOne("api1", "server1", 1, null);
+            ApiMetricsRaw result = factory.lastOne("api1", "server1", MetricTypes.API_SERVER, TimeGranularity.MINUTE, null);
 
             assertEquals(expected, result);
             verify(findOne).apply(argThat(query -> {
@@ -273,7 +275,7 @@ class MetricInstanceFactoryTest {
             ApiMetricsRaw expected = createApiMetricsRaw("server1", "api1", 60000L, 1);
             when(findOne.apply(any(Query.class))).thenReturn(expected);
 
-            ApiMetricsRaw result = factory.lastOne("api1", "server1", 1, 60000L);
+            ApiMetricsRaw result = factory.lastOne("api1", "server1", MetricTypes.API_SERVER, TimeGranularity.MINUTE, 60000L);
 
             assertEquals(expected, result);
             verify(findOne).apply(argThat(query -> {
@@ -289,7 +291,7 @@ class MetricInstanceFactoryTest {
         void testLastOneReturnsNull() {
             when(findOne.apply(any(Query.class))).thenReturn(null);
 
-            ApiMetricsRaw result = factory.lastOne("api1", "server1", 1, null);
+            ApiMetricsRaw result = factory.lastOne("api1", "server1", MetricTypes.API_SERVER, TimeGranularity.MINUTE, null);
 
             assertNull(result);
             verify(findOne).apply(any(Query.class));
@@ -299,7 +301,7 @@ class MetricInstanceFactoryTest {
         void testLastOneQueryConfiguration() {
             when(findOne.apply(any(Query.class))).thenReturn(null);
 
-            factory.lastOne("api1", "server1", 2, 3600000L);
+            factory.lastOne("api1", "server1", MetricTypes.API_SERVER, TimeGranularity.HOUR, 3600000L);
 
             verify(findOne).apply(argThat(query -> {
                 // Verify sort and limit are set correctly

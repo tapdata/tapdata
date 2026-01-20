@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.Component;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
@@ -24,6 +25,7 @@ import com.tapdata.tm.v2.api.monitor.main.dto.TopApiInServer;
 import com.tapdata.tm.v2.api.monitor.main.dto.TopWorkerInServer;
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiChart;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiDetailParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiListParam;
@@ -98,6 +100,7 @@ public class ApiMetricsRawQuery {
     public ServerTopOnHomepage serverTopOnHomepage(QueryBase param) {
         final ServerTopOnHomepage result = ServerTopOnHomepage.create();
         final Criteria criteria = ParticleSizeAnalyzer.of(result, param);
+        criteria.and("metricType").is(MetricTypes.ALL.getType());
         final Query query = Query.query(criteria);
         final List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param);
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
@@ -146,6 +149,7 @@ public class ApiMetricsRawQuery {
     public List<ServerItem> serverOverviewList(ServerListParam param) {
         List<ServerItem> result = new ArrayList<>();
         Criteria criteria = ParticleSizeAnalyzer.of(param);
+        criteria.and("metricType").is(MetricTypes.SERER.getType());
         String serverMatchName = param.getServerName();
         //find all server
         Criteria criteriaOfWorker = Criteria.where(WORKER_TYPE).is(API_SERVER)
@@ -335,6 +339,7 @@ public class ApiMetricsRawQuery {
                 });
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
         criteria.and("processId").is(serverId);
+        criteria.and("metricType").is(MetricTypes.SERER.getType());
         final Query query = Query.query(criteria);
         final List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> c.and("processId").is(serverId), Criteria.where("api_gateway_uuid").is(serverId));
         result.setRequestCount(0L);
@@ -353,6 +358,7 @@ public class ApiMetricsRawQuery {
         ServerChart result = new ServerChart();
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
         criteria.and(PROCESS_ID).is(serverId);
+        criteria.and("metricType").is(MetricTypes.SERER.getType());
 
         //cpu&mem usage
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).is(serverId)
@@ -454,7 +460,7 @@ public class ApiMetricsRawQuery {
         return result;
     }
 
-    protected long errorCountGetter(List<ApiMetricsRaw> rows, LongConsumer acceptReqCount) {
+    public long errorCountGetter(List<ApiMetricsRaw> rows, LongConsumer acceptReqCount) {
         long errorCount = 0L;
         for (final ApiMetricsRaw info : rows) {
             if (null == info) {
@@ -466,13 +472,14 @@ public class ApiMetricsRawQuery {
         return errorCount;
     }
 
-    public List<TopApiInServer> topApiInServer(TopApiInServerParam param) {
+    public Page<TopApiInServer> topApiInServer(TopApiInServerParam param) {
         String serverId = param.getServerId();
         if (StringUtils.isBlank(serverId)) {
             throw new BizException(SERVER_ID_EMPTY);
         }
         Criteria criteria = ParticleSizeAnalyzer.of(param);
         criteria.and(PROCESS_ID).is(serverId);
+        criteria.and("metricType").is(MetricTypes.API_SERVER.getType());
         Query query = Query.query(criteria);
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> c.and(PROCESS_ID).is(serverId), Criteria.where("api_gateway_uuid").is(serverId));
         Map<String, TopApiInServer> apiInfoMap = apiMetricsRaws.stream()
@@ -509,7 +516,8 @@ public class ApiMetricsRawQuery {
             apiInfo.setNotExistsApi(true);
         });
         if (CollectionUtils.isEmpty(apiIds)) {
-            return TopApiInServer.supplement(new ArrayList<>(), publishApis());
+            List<TopApiInServer> api = TopApiInServer.supplement(new ArrayList<>(), publishApis(), e -> new TopApiInServer());
+            return Page.page(api.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), api.size());
         }
         Criteria criteriaOfApi = Criteria.where("_id").in(apiIds);
         Query queryOfApi = Query.query(criteriaOfApi);
@@ -524,9 +532,9 @@ public class ApiMetricsRawQuery {
             item.setNotExistsApi(false);
         });
         List<TopApiInServer> result = new ArrayList<>(apiInfoMap.values());
-        TopApiInServer.supplement(result, publishApis());
+        TopApiInServer.supplement(result, publishApis(), e -> new TopApiInServer());
         ChartSortUtil.sort(result, param.getSortInfo(), TopApiInServer.class);
-        return result;
+        return Page.page(result.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), result.size());
     }
 
     public TopWorkerInServer topWorkerInServer(TopWorkerInServerParam param) {
@@ -647,6 +655,7 @@ public class ApiMetricsRawQuery {
         ApiTopOnHomepage result = new ApiTopOnHomepage();
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
         Query query = Query.query(criteria);
+        criteria.and("metricType").is(MetricTypes.ALL.getType());
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, c -> {
         }, null);
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
@@ -656,7 +665,7 @@ public class ApiMetricsRawQuery {
         long totalRequestCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getReqCount).sum();
         long totalBytes = apiMetricsRaws.stream().map(ApiMetricsRaw::getBytes).map(ApiMetricsDelayUtil::fixDelayAsMap).mapToLong(ApiMetricsDelayUtil::sum).sum();
         long totalDelayMs = apiMetricsRaws.stream().map(ApiMetricsRaw::getDelay).map(ApiMetricsDelayUtil::fixDelayAsMap).mapToLong(ApiMetricsDelayUtil::sum).sum();
-        long errorCount =  apiMetricsRaws.stream().map(ApiMetricsRaw::getErrorCount).filter(Objects::nonNull).mapToLong(Long::longValue).sum();
+        long errorCount = apiMetricsRaws.stream().map(ApiMetricsRaw::getErrorCount).filter(Objects::nonNull).mapToLong(Long::longValue).sum();
         result.setTotalBytes(totalBytes);
         result.setTotalDelayMs(totalDelayMs);
         result.setApiCount(apiCount);
@@ -668,12 +677,17 @@ public class ApiMetricsRawQuery {
         return result;
     }
 
-    public List<ApiItem> apiOverviewList(ApiListParam param) {
+    public Page<ApiItem> apiOverviewList(ApiListParam param) {
         Criteria criteria = ParticleSizeAnalyzer.of(param);
         Query query = Query.query(criteria);
+        criteria.and("metricType").is(MetricTypes.API.getType());
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(service.find(query), param, null, null);
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
-            return ApiItem.supplement(new ArrayList<>(), publishApis());
+            List<ApiItem> topApiInServers = ApiItem.supplement(new ArrayList<>(), publishApis(), e -> new ApiItem());
+            return Page.page(topApiInServers.stream()
+                    .skip(param.getSkip())
+                    .limit(param.getLimit())
+                    .toList(), topApiInServers.size());
         }
         List<ObjectId> apiIds = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
@@ -684,7 +698,11 @@ public class ApiMetricsRawQuery {
                 .filter(Objects::nonNull)
                 .toList();
         if (apiIds.isEmpty()) {
-            return ApiItem.supplement(new ArrayList<>(), publishApis());
+            List<ApiItem> api = ApiItem.supplement(new ArrayList<>(), publishApis(), e -> new ApiItem());
+            return Page.page(api.stream()
+                    .skip(param.getSkip())
+                    .limit(param.getLimit())
+                    .toList(), api.size());
         }
         Criteria criteriaOfApi = Criteria.where("_id").in(apiIds);
         Query queryApiInfo = Query.query(criteriaOfApi);
@@ -739,14 +757,15 @@ public class ApiMetricsRawQuery {
             }
         });
         List<ApiItem> result = new ArrayList<>(collect.values());
-        ApiItem.supplement(result, publishApis());
+        ApiItem.supplement(result, publishApis(), e -> new ApiItem());
         ChartSortUtil.sort(result, param.getSortInfo(), ApiItem.class);
-        return result;
+        return Page.page(result.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), result.size());
     }
 
     public ApiDetail apiOverviewDetail(ApiDetailParam param) {
         ApiDetail result = new ApiDetail();
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
+        criteria.and("metricType").is(MetricTypes.API.getType());
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(criteria, param.getApiId(), param);
         ObjectId apiId = MongoUtils.toObjectId(param.getApiId());
         result.setApiName(param.getApiId());
@@ -788,6 +807,7 @@ public class ApiMetricsRawQuery {
 
     public List<ApiOfEachServer> apiOfEachServer(ApiWithServerDetail param) {
         Criteria criteria = ParticleSizeAnalyzer.of(param);
+        criteria.and("metricType").is(MetricTypes.API_SERVER.getType());
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(criteria, param.getApiId(), param);
         if (apiMetricsRaws.isEmpty()) {
             return ApiOfEachServer.supplement(new ArrayList<>(), activeWorkers(null));
@@ -848,6 +868,7 @@ public class ApiMetricsRawQuery {
     public ChartAndDelayOfApi delayOfApi(ApiChart param) {
         ChartAndDelayOfApi result = ChartAndDelayOfApi.create();
         Criteria criteria = ParticleSizeAnalyzer.of(result, param);
+        criteria.and("metricType").is(MetricTypes.API.getType());
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(criteria, param.getApiId(), param, false);
         if (apiMetricsRaws.isEmpty()) {
             return result;
@@ -955,7 +976,7 @@ public class ApiMetricsRawQuery {
                 .collect(Collectors.toMap(Worker::getProcessId, e -> e, (e1, e2) -> e1));
     }
 
-    <T extends ValueBase> void baseDataCalculate(T item, List<ApiMetricsRaw> apiMetricsRaws, LongConsumer valueSetter) {
+    public <T extends ValueBase> void baseDataCalculate(T item, List<ApiMetricsRaw> apiMetricsRaws, LongConsumer valueSetter) {
         if (item instanceof DataValueBase result) {
             ApiMetricsDelayInfoUtil.Setter delaySetter = ApiMetricsDelayInfoUtil.Setter.of(valueSetter)
                     .avg(result::setResponseTimeAvg)

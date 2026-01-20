@@ -1,5 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.main.param;
 
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.v2.api.monitor.service.ParticleSizeAnalyzer;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 
@@ -7,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -16,17 +19,36 @@ import java.util.Locale;
  */
 @Data
 public class QueryBase {
-    Long qStart;
-
+    /**
+     * 前端传参
+     */
     Long startAt;
-
     Long endAt;
 
+    /**
+     * 筛选范围区间
+     */
+    long queryStart;
+    long queryEnd;
+
+    /**
+     * 返回结果点位区间
+     */
+    long fixStart;
+    long fixEnd;
+
+
+    Long qStart;
+
     int granularity;
+
+    long batchStart;
 
     SortInfo sortInfo;
 
     QueryParam queryParam = new QueryParam();
+
+    Map<TimeGranularity, List<ParticleSizeAnalyzer.TimeRange>> queryRange;
 
     @Data
     public static class SortInfo {

@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiItem;
@@ -23,6 +24,7 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
+import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawMergeService;
 import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawQuery;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -54,6 +56,8 @@ public class ApiServerMonitorController extends BaseController {
 
     @Resource(name = "apiMetricsRawQuery")
     ApiMetricsRawQuery apiMetricsRawQuery;
+    @Resource(name = "apiMetricsRawMergeService")
+    ApiMetricsRawMergeService apiMetricsRawMergeService;
 
     /**
      * Server Top column on the homepage
@@ -120,16 +124,20 @@ public class ApiServerMonitorController extends BaseController {
      */
     @Operation(summary = "Top api in server")
     @GetMapping("/server/api")
-    public ResponseMessage<List<TopApiInServer>> topApiInServer(@RequestParam(required = true) String serverId,
+    public ResponseMessage<Page<TopApiInServer>> topApiInServer(@RequestParam(required = true) String serverId,
                                                                 @RequestParam(required = false) String orderBy,
                                                                 @RequestParam(required = false) Long startAt,
-                                                                @RequestParam(required = false) Long endAt) {
+                                                                @RequestParam(required = false) Long endAt,
+                                                                @RequestParam(required = false, defaultValue = "0") Integer skip,
+                                                                @RequestParam(required = false, defaultValue = "10") Integer limit) {
         TopApiInServerParam param = new TopApiInServerParam();
         param.setServerId(serverId);
         param.setSortInfo(QueryBase.SortInfo.parse(orderBy));
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.topApiInServer(param));
+        param.setSkip(skip);
+        param.setLimit(limit);
+        return success(apiMetricsRawMergeService.topApiInServer(param));
     }
 
     /**
@@ -171,15 +179,19 @@ public class ApiServerMonitorController extends BaseController {
      */
     @Operation(summary = "Api Overview List")
     @GetMapping("/api/list")
-    public ResponseMessage<List<ApiItem>> apiOverviewList(@RequestParam(required = false) String orderBy,
+    public ResponseMessage<Page<ApiItem>> apiOverviewList(@RequestParam(required = false) String orderBy,
                                                           @RequestParam(required = false) Long startAt,
-                                                          @RequestParam(required = false) Long endAt) {
+                                                          @RequestParam(required = false) Long endAt,
+                                                          @RequestParam(required = false, defaultValue = "0") Integer skip,
+                                                          @RequestParam(required = false, defaultValue = "10") Integer limit) {
         ApiListParam param = new ApiListParam();
         param.setOrderBy(QueryBase.SortInfo.parse(orderBy));
         param.setStartAt(startAt);
         param.setSortInfo(QueryBase.SortInfo.parse(orderBy));
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.apiOverviewList(param));
+        param.setSkip(skip);
+        param.setLimit(limit);
+        return success(apiMetricsRawMergeService.apiOverviewList(param));
     }
 
     /**
