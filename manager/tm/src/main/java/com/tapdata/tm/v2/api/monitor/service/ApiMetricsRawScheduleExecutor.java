@@ -49,14 +49,15 @@ public class ApiMetricsRawScheduleExecutor {
         if (StringUtils.isBlank(collectionName)) {
             return;
         }
-        ObjectId lastCallId = lastOne();
+        ApiMetricsRaw lastOne = lastOne();
         try (MetricInstanceFactory acceptor = create()) {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
             final Criteria criteria = Criteria.where("deleted").ne(true)
                     .and("supplement").ne(true);
-            if (Objects.nonNull(lastCallId)) {
-                criteria.and(OBJECT_ID).gt(lastCallId);
+            if (Objects.nonNull(lastOne) && Objects.nonNull(lastOne.getLastCallId())) {
+                criteria.and(OBJECT_ID).gt(lastOne.getLastCallId());
             }
+            criteria.and("reqTime").lt(System.currentTimeMillis() - 60000L);
             final Query query = Query.query(criteria);
             query.fields().include(OBJECT_ID, "allPathId", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path");
             final Document queryObject = query.getQueryObject();
@@ -73,12 +74,12 @@ public class ApiMetricsRawScheduleExecutor {
         }
     }
 
-    ObjectId lastOne() {
+    ApiMetricsRaw lastOne() {
         Query query = Query.query(Criteria.where("timeGranularity").is(1));
         query.with(Sort.by(Sort.Order.desc("timeStart"))).limit(1);
         ApiMetricsRaw lastOne = mongoTemplate.findOne(query, ApiMetricsRaw.class);
         if (null != lastOne) {
-            return lastOne.getLastCallId();
+            return lastOne;
         }
         return null;
     }

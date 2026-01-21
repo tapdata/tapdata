@@ -322,6 +322,7 @@ public class ParticleSizeAnalyzer {
     }
 
     public static void checkQueryTime(QueryBase query) {
+        long now = System.currentTimeMillis();
         if (Objects.nonNull(query.getStartAt()) && Objects.nonNull(query.getEndAt())) {
             long range = query.getEndAt() - query.getStartAt();
             if (range > 31L * 24L * 60L * 60L) {
@@ -330,11 +331,19 @@ public class ParticleSizeAnalyzer {
         }
         Long end = query.getEndAt();
         if (null == end) {
-            end = System.currentTimeMillis() / 1000L;
+            end = now / 1000L;
             query.setEndAt(end);
         }
         Long start = query.getStartAt();
         if (null == start) {
+            start = end - 5L * 60L;
+            query.setStartAt(start);
+        }
+        if (end > now) {
+            end = now / 1000L;
+            query.setEndAt(end);
+        }
+        if (start >= end) {
             start = end - 5L * 60L;
             query.setStartAt(start);
         }
