@@ -46,6 +46,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
     ApiMetricsRaw lastBucketMin;
     ApiMetricsRaw lastBucketHour;
     ApiMetricsRaw lastBucketDay;
+    ObjectId lastCallId;
 
     MetricTypes metricType;
     Function<Long, BucketInfo> bucketInfoGetter;
@@ -56,6 +57,9 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         this.bucketInfoGetter = bucketInfoGetter;
         BucketInfo apply = bucketInfoGetter.apply(null);
         this.lastBucketMin = apply.getLastBucketMin();
+        if (this.lastBucketMin != null) {
+            this.lastCallId = this.lastBucketMin.getLastCallId();
+        }
         this.lastBucketHour = apply.getLastBucketHour();
         this.lastBucketDay = apply.getLastBucketDay();
         this.consumer = consumer;
@@ -85,11 +89,15 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         long bucketHour = TimeGranularity.HOUR.fixTime(reqTimeOSec);
         long bucketDay = TimeGranularity.DAY.fixTime(reqTimeOSec);
         ObjectId callId = entity.get("_id", ObjectId.class);
+        if (this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0) {
+            System.out.println("Too old api call data");
+            return;
+        }
 
         BucketInfo lessBucket = null;
         if (null != lastBucketMin && lastBucketMin.getTimeStart() != bucketMin) {
             if (bucketMin < lastBucketMin.getTimeStart()) {
-                System.out.println("Less minute time: " + bucketMin);
+//                System.out.println("Less minute time: " + bucketMin);
                 lessBucket = this.bucketInfoGetter.apply(bucketMin);
                 if (null == lessBucket.getLastBucketMin()) {
                     Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();

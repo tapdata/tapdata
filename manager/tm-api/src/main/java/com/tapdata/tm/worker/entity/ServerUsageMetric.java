@@ -13,7 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("ServerUsageMetric")
-public class ServerUsageMetric extends ServerUsage {
+public class ServerUsageMetric extends UsageBase {
     int timeGranularity;
 
     private Double maxCpuUsage;

@@ -36,6 +36,7 @@ import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.entity.ServerUsage;
+import com.tapdata.tm.worker.entity.UsageBase;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import lombok.Setter;
@@ -185,11 +186,11 @@ public class ApiMetricsRawQuery {
         //find all server's usage info
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).in(serverMap.keySet())
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER.getType());
-        List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
+        List<? extends UsageBase> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
         Map<String, ServerChart.Usage> usageMap = allUsage.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getProcessId()))
-                .collect(Collectors.groupingBy(ServerUsage::getProcessId, Collectors.collectingAndThen(
+                .collect(Collectors.groupingBy(UsageBase::getProcessId, Collectors.collectingAndThen(
                         Collectors.toList(),
                         items -> this.mapUsage(items, param.getFixStart(), param.getEndAt(), param.getGranularity())
                 )));
@@ -231,11 +232,8 @@ public class ApiMetricsRawQuery {
         return result;
     }
 
-    protected <T extends ServerUsage> List<T> queryCpuUsageRecords(Criteria criteriaBase, long queryStart, long queryEnd, int type) {
-        criteriaBase.andOperator(
-                Criteria.where("lastUpdateTime").gte(queryStart * 1000L),
-                Criteria.where("lastUpdateTime").lt(queryEnd * 1000L)
-        );
+    protected <T extends UsageBase> List<T> queryCpuUsageRecords(Criteria criteriaBase, long queryStart, long queryEnd, int type) {
+        criteriaBase.and("lastUpdateTime").gte(queryStart * 1000L).lt(queryEnd * 1000L);
         if (type == 0) {
             criteriaBase.and("type").in(List.of(0, 1, 2));
             Query queryOfUsage = Query.query(criteriaBase);
@@ -245,7 +243,7 @@ public class ApiMetricsRawQuery {
         return (List<T>) serverUsageMetricRepository.findAll(query);
     }
 
-    protected ServerChart.Usage mapUsage(List<? extends ServerUsage> infos, long startAt, long endAt, int granularity) {
+    protected ServerChart.Usage mapUsage(List<? extends UsageBase> infos, long startAt, long endAt, int granularity) {
         final ServerChart.Usage usage = ServerChart.Usage.create();
         // Calculate step based on granularity
         long step = ApiMetricsDelayInfoUtil.stepByGranularity(granularity);
@@ -253,7 +251,7 @@ public class ApiMetricsRawQuery {
             return usage;
         }
         // Sort by time
-        infos.sort(Comparator.comparingLong(ServerUsage::getLastUpdateTime));
+        infos.sort(Comparator.comparingLong(UsageBase::getLastUpdateTime));
         // Fill gaps before first data point
         endAt = endAt / 5L * 5L;
         long currentTime = startAt / 5L * 5L;
@@ -264,7 +262,7 @@ public class ApiMetricsRawQuery {
         }
         // Process each data point
         long lastProcessedTime = currentTime;
-        for (ServerUsage info : infos) {
+        for (UsageBase info : infos) {
             long ts = info.getLastUpdateTime() / 1000L;
             // Fill any gaps between data points
             while (lastProcessedTime < ts) {
@@ -363,7 +361,7 @@ public class ApiMetricsRawQuery {
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).is(serverId)
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER.getType());
         List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
-        ServerChart.Usage usage = this.mapUsage(allUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
+        ServerChart.Usage usage = this.mapUsage(allUsage, param.getQStart(), param.getEndAt(), param.getGranularity());
         result.setUsage(usage);
 
         //request chart & avg delay & p95 & p99
@@ -544,11 +542,11 @@ public class ApiMetricsRawQuery {
                 ));
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).is(serverId)
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER_WORKER.getType());
-        List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
+        List<? extends UsageBase> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
         Map<String, ServerChart.Usage> usageMap = allUsage.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getWorkOid()))
-                .collect(Collectors.groupingBy(ServerUsage::getWorkOid, Collectors.collectingAndThen(
+                .collect(Collectors.groupingBy(UsageBase::getWorkOid, Collectors.collectingAndThen(
                         Collectors.toList(),
                         items -> this.mapUsage(items, param.getFixStart(), param.getEndAt(), param.getGranularity())
                 )));

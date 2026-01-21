@@ -408,6 +408,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         List<Criteria> timeCriteria = new ArrayList<>();
         timeCriteria.add(Criteria.where(Tag.REQ_TIME).ne(null));
         Optional.ofNullable(queryFrom).ifPresent(time -> timeCriteria.add(Criteria.where(Tag.REQ_TIME).gte(time)));
+        timeCriteria.add(Criteria.where(Tag.REQ_TIME).lt(System.currentTimeMillis() - 60000L));
         criteriaCall.andOperator(timeCriteria);
         final MongoCollection<Document> collection = mongoTemplate.getCollection("ApiCall");
         final Query queryCall = Query.query(criteriaCall);

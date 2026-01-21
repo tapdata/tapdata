@@ -1,13 +1,12 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
 import com.tapdata.tm.commons.base.DecimalFormat;
-import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
+import com.tapdata.tm.worker.entity.UsageBase;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -92,7 +91,7 @@ public class ServerChart extends ValueBase {
             if (minMemoryUsage == null) minMemoryUsage = new ArrayList<>();
         }
 
-        public void add(ServerUsage usage) {
+        public void add(UsageBase usage) {
             getCpuUsage().add(usage.getCpuUsage());
             if (null != usage.getHeapMemoryMax()) {
                 if (usage.getHeapMemoryMax() > 0L) {
