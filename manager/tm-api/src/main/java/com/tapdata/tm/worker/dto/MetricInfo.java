@@ -36,7 +36,7 @@ public class MetricInfo {
         ServerUsage serverUsage = new ServerUsage();
         serverUsage.setProcessType(type.getType());
         serverUsage.setProcessId(processId);
-        serverUsage.setWorkOid(workerId);
+        serverUsage.setWorkOid(Optional.ofNullable(workerId).orElse(""));
         serverUsage.setCpuUsage(Optional.ofNullable(info).map(MetricInfo::getCpuUsage).orElse(null));
         serverUsage.setHeapMemoryUsage(Optional.ofNullable(info).map(MetricInfo::getHeapMemoryUsage).orElse(null));
         serverUsage.setHeapMemoryMax(Optional.ofNullable(info).map(MetricInfo::getHeapMemoryUsageMax).orElse(null));

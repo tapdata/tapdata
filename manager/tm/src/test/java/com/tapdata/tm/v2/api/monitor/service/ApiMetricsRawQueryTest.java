@@ -109,14 +109,11 @@ class ApiMetricsRawQueryTest {
         when(apiMetricsRawQuery.findServerById(anyString())).thenCallRealMethod();
         when(apiMetricsRawQuery.serverOverviewDetail(any(ServerDetail.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.serverChart(any(ServerChartParam.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.errorCountGetter(anyList(), any(LongConsumer.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.topWorkerInServer(any(TopWorkerInServerParam.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.apiTopOnHomepage(any(QueryBase.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.apiOverviewDetail(any(ApiDetailParam.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.findRowByApiId(any(Criteria.class), anyString(), any(QueryBase.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
         when(apiMetricsRawQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.publishApis()).thenCallRealMethod();
         when(apiMetricsRawQuery.extractIndex(anyString())).thenCallRealMethod();
         List<ModulesDto> modulesDtoLit = new ArrayList<>();
         ModulesDto m = new ModulesDto();
@@ -426,37 +423,6 @@ class ApiMetricsRawQueryTest {
     }
 
     @Nested
-    class ErrorCountGetterTest {
-        @Test
-        void testErrorCountGetter() {
-            ApiMetricsRaw raw1 = createApiMetricsRaw("api1", "server1", 100L, 10L);
-            ApiMetricsRaw raw2 = createApiMetricsRaw("api2", "server1", 200L, 20L);
-            List<ApiMetricsRaw> raws = Arrays.asList(raw1, raw2);
-
-            List<Long> requestCounts = new ArrayList<>();
-            long errorCount = apiMetricsRawQuery.errorCountGetter(raws, requestCounts::add);
-
-            assertEquals(30L, errorCount);
-            assertEquals(2, requestCounts.size());
-            assertTrue(requestCounts.contains(100L));
-            assertTrue(requestCounts.contains(200L));
-        }
-
-        @Test
-        void testErrorCountGetterWithNull() {
-            ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", null, null);
-            List<ApiMetricsRaw> raws = Arrays.asList(null, raw);
-
-            List<Long> requestCounts = new ArrayList<>();
-            long errorCount = apiMetricsRawQuery.errorCountGetter(raws, requestCounts::add);
-
-            assertEquals(0L, errorCount);
-            assertEquals(1, requestCounts.size());
-            assertTrue(requestCounts.contains(0L));
-        }
-    }
-
-    @Nested
     class TopWorkerInServerTest {
         @Test
         void testEmptyServerId() {
@@ -548,46 +514,6 @@ class ApiMetricsRawQueryTest {
             List<ServerUsageMetric> usage2 = new ArrayList<>();
             when(serverUsageMetricRepository.findAll(any(Query.class))).thenReturn(usage2);
             Assertions.assertDoesNotThrow(() -> apiMetricsRawQuery.topWorkerInServer(param));
-        }
-    }
-
-    @Nested
-    class ApiTopOnHomepageTest {
-        @Test
-        void testEmptyApiMetricsRaws() {
-            QueryBase param = new QueryBase();
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(Collections.emptyList());
-                when(service.find(any(Query.class))).thenReturn(Collections.emptyList());
-
-                ApiTopOnHomepage result = apiMetricsRawQuery.apiTopOnHomepage(param);
-
-                assertNotNull(result);
-                assertEquals(0L, result.getApiCount());
-            }
-        }
-
-        @Test
-        void testWithApiMetricsRaws() {
-            QueryBase param = new QueryBase();
-            ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
-            List<ApiMetricsRaw> raws = Arrays.asList(raw);
-
-            try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
-                 MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
-
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
-                analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                when(service.find(any(Query.class))).thenReturn(raws);
-                delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
-                delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
-
-                ApiTopOnHomepage result = apiMetricsRawQuery.apiTopOnHomepage(param);
-
-                assertNotNull(result);
-                assertEquals(1L, result.getApiCount());
-            }
         }
     }
 

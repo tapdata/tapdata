@@ -3,12 +3,15 @@ package com.tapdata.tm.v2.api.monitor.service;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 import org.springframework.data.mongodb.core.query.Criteria;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -260,6 +263,51 @@ class ParticleSizeAnalyzerTest {
             assertNotNull(query.getStartAt());
             assertNotNull(query.getEndAt());
             assertEquals(5L * 60L, query.getEndAt() - query.getStartAt());
+        }
+    }
+
+    @Nested
+    class SpiltTimeTest {
+        @Test
+        void split() {
+            List<ParticleSizeAnalyzer.TimeRange> split = ParticleSizeAnalyzer.split(1768960357L, 1768963897L);
+            Assertions.assertEquals(5, split.size());
+            Map<TimeGranularity, List<ParticleSizeAnalyzer.TimeRange>> collect = split.stream().collect(Collectors.groupingBy(ParticleSizeAnalyzer.TimeRange::getUnit));
+            Assertions.assertNull(collect.get(TimeGranularity.HOUR));
+            Assertions.assertNotNull(collect.get(TimeGranularity.MINUTE));
+            Assertions.assertNotNull(collect.get(TimeGranularity.SECOND_FIVE));
+            Assertions.assertNotNull(collect.get(TimeGranularity.SECOND));
+            Assertions.assertEquals(1, collect.get(TimeGranularity.MINUTE).size());
+            List<ParticleSizeAnalyzer.TimeRange> timeRanges = collect.get(TimeGranularity.MINUTE);
+            ParticleSizeAnalyzer.TimeRange timeRangeMinute = timeRanges.get(0);
+            Assertions.assertNotNull(timeRangeMinute);
+            Assertions.assertEquals( 1768960380L, timeRangeMinute.getStart());
+            Assertions.assertEquals( 1768963860L, timeRangeMinute.getEnd());
+
+            Assertions.assertEquals(2, collect.get(TimeGranularity.SECOND_FIVE).size());
+            List<ParticleSizeAnalyzer.TimeRange> timeRanges5Sec = collect.get(TimeGranularity.SECOND_FIVE);
+            ParticleSizeAnalyzer.TimeRange timeRange5Sec1 = timeRanges5Sec.get(0);
+            Assertions.assertNotNull(timeRange5Sec1);
+            Assertions.assertEquals( 1768960360L, timeRange5Sec1.getStart());
+            Assertions.assertEquals( 1768960380L, timeRange5Sec1.getEnd());
+
+            ParticleSizeAnalyzer.TimeRange timeRange5Sec2 = timeRanges5Sec.get(1);
+            Assertions.assertNotNull(timeRange5Sec2);
+            Assertions.assertEquals( 1768963860L, timeRange5Sec2.getStart());
+            Assertions.assertEquals( 1768963895L, timeRange5Sec2.getEnd());
+
+            Assertions.assertEquals(2, collect.get(TimeGranularity.SECOND).size());
+            List<ParticleSizeAnalyzer.TimeRange> timeRangesSec = collect.get(TimeGranularity.SECOND);
+            ParticleSizeAnalyzer.TimeRange timeRangeSec1 = timeRangesSec.get(0);
+            Assertions.assertNotNull(timeRangeSec1);
+            Assertions.assertEquals( 1768960357L, timeRangeSec1.getStart());
+            Assertions.assertEquals( 1768960360L, timeRangeSec1.getEnd());
+
+            ParticleSizeAnalyzer.TimeRange timeRangeSec2 = timeRangesSec.get(1);
+            Assertions.assertNotNull(timeRangeSec2);
+            Assertions.assertEquals( 1768963895L, timeRangeSec2.getStart());
+            Assertions.assertEquals( 1768963897L, timeRangeSec2.getEnd());
+
         }
     }
 }

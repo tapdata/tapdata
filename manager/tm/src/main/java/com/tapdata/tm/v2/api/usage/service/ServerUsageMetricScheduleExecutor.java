@@ -51,7 +51,7 @@ public class ServerUsageMetricScheduleExecutor {
         Long lastUpdateTime = lastOne();
         try (ServerUsageMetricInstanceFactory acceptor = new ServerUsageMetricInstanceFactory(this::saveApiMetricsRaw, this::findMetricStart)) {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
-            final Criteria criteria = Criteria.where("deleted").ne(true);
+            final Criteria criteria = new Criteria();
             if (Objects.nonNull(lastUpdateTime)) {
                 criteria.and(LAST_UPDATE_TIME).gt(lastUpdateTime);
             }

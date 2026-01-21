@@ -157,17 +157,20 @@ public class ApiCallService {
         }
         analyseRangeNumber(Tag.DB_COST, Tag.DATA_QUERY_TOTAL_TIME, where, criteria);
         analyseRangeNumber(Tag.LATENCY, Tag.LATENCY, where, criteria);
+        Criteria subCriteria = new Criteria();
         Optional.ofNullable(code)
                 .map(value -> String.valueOf(value).trim())
                 .ifPresent(value -> {
                     if (Objects.equals("200", value)) {
-                        criteria.orOperator(
+                        subCriteria.orOperator(
                                 Criteria.where("code").is("200"),
-                                Criteria.where("code").is("404").and("httpStatus").is(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode())
+                                Criteria.where("code").is("404").and("httpStatus").ne(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode())
                         );
                     } else {
-                        criteria.and("code").nin("200", "404")
-                                .and("httpStatus").ne(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode());
+                        subCriteria.andOperator(
+                                Criteria.where("code").ne("200"),
+                                Criteria.where("code").is("404").and("httpStatus").is(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode())
+                        );
                     }
                 });
         Optional.ofNullable(where.get(Tag.START))
@@ -178,7 +181,7 @@ public class ApiCallService {
                 .map(value -> (Double) where.remove("end"))
                 .map(Double::longValue)
                 .ifPresent(value -> endTimeCriteria.and(Tag.REQ_TIME).lte(value));
-        criteria.andOperator(startTimeCriteria, endTimeCriteria);
+        criteria.andOperator(startTimeCriteria, endTimeCriteria, subCriteria);
         return criteria;
     }
 

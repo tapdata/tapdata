@@ -305,12 +305,11 @@ public class SupplementApiCallServer {
                                 });
                             }));
                     List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.fixDelayAsMap(entity.getDelays());
-                    Long total = ApiMetricsDelayUtil.sum(merged, (iKey, iVal) -> iVal.longValue());
-                    Long p50 = ApiMetricsDelayUtil.p50(merged, total);
-                    Long p95 = ApiMetricsDelayUtil.p95(merged, total);
-                    Long p99 = ApiMetricsDelayUtil.p99(merged, total);
+                    long reqCount = ApiMetricsDelayUtil.sum(merged).getCount();
+                    Long p50 = ApiMetricsDelayUtil.p50(merged, reqCount);
+                    Long p95 = ApiMetricsDelayUtil.p95(merged, reqCount);
+                    Long p99 = ApiMetricsDelayUtil.p99(merged, reqCount);
                     long errorCount = Optional.ofNullable(entity.getErrorCount()).orElse(0L);
-                    long reqCount = Optional.ofNullable(entity.getReqCount()).orElse(0L);
                     Double errorRate = reqCount <= 0 ? 0 : (0.1d * errorCount / reqCount);
                     entity.setReqCount(reqCount);
                     Double rps = reqCount > 0L ? reqCount * 1.0D / 60D : 0D;

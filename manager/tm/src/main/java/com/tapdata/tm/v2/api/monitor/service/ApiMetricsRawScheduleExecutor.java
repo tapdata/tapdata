@@ -58,11 +58,12 @@ public class ApiMetricsRawScheduleExecutor {
                 criteria.and(OBJECT_ID).gt(lastCallId);
             }
             final Query query = Query.query(criteria);
+            query.fields().include(OBJECT_ID, "allPathId", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path");
             final Document queryObject = query.getQueryObject();
             final FindIterable<Document> iterable =
                     collection.find(queryObject, Document.class)
                             .sort(Sorts.ascending("reqTime"))
-                            .batchSize(1000);
+                            .batchSize(2000);
             try (final MongoCursor<Document> cursor = iterable.iterator()) {
                 while (cursor.hasNext()) {
                     final Document entity = cursor.next();
@@ -73,11 +74,11 @@ public class ApiMetricsRawScheduleExecutor {
     }
 
     ObjectId lastOne() {
-        Query query = Query.query(Criteria.where("timeGranularity").is(2));
-        query.with(Sort.by(Sort.Order.desc("callId"))).limit(1);
+        Query query = Query.query(Criteria.where("timeGranularity").is(1));
+        query.with(Sort.by(Sort.Order.desc("timeStart"))).limit(1);
         ApiMetricsRaw lastOne = mongoTemplate.findOne(query, ApiMetricsRaw.class);
         if (null != lastOne) {
-            return lastOne.getCallId();
+            return lastOne.getLastCallId();
         }
         return null;
     }
@@ -132,7 +133,7 @@ public class ApiMetricsRawScheduleExecutor {
         update.set("p50", entity.getP50());
         update.set("p95", entity.getP95());
         update.set("p99", entity.getP99());
-        update.set("callId", entity.getCallId());
+        update.set("lastCallId", entity.getLastCallId());
         update.currentDate("updatedAt");
         return update;
     }

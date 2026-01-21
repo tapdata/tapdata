@@ -305,14 +305,14 @@ class ApiMetricsDelayUtilTest {
     class SumTest {
         @Test
         void testSumWithEmptyList() {
-            Long result = ApiMetricsDelayUtil.sum(Collections.emptyList());
+            Long result = ApiMetricsDelayUtil.sum(Collections.emptyList()).getTotal();
             
             assertEquals(0L, result);
         }
 
         @Test
         void testSumWithNullList() {
-            Long result = ApiMetricsDelayUtil.sum(null);
+            Long result = ApiMetricsDelayUtil.sum(null).getTotal();
             
             assertEquals(0L, result);
         }
@@ -328,7 +328,7 @@ class ApiMetricsDelayUtilTest {
             
             List<Object> input = Arrays.asList(map1, map2);
             
-            Long result = ApiMetricsDelayUtil.sum(input);
+            Long result = ApiMetricsDelayUtil.sum(ApiMetricsDelayUtil.fixDelayAsMap(input)).getTotal();
             
             assertEquals(1200L, result); // 500 + 600 + 100
         }
@@ -337,7 +337,7 @@ class ApiMetricsDelayUtilTest {
         void testSumWithNumberEntries() {
             List<Object> input = Arrays.asList(100L, 200, 50.5);
             
-            Long result = ApiMetricsDelayUtil.sum(input);
+            Long result = ApiMetricsDelayUtil.sum(ApiMetricsDelayUtil.fixDelayAsMap(input)).getTotal();
             
             assertEquals(350L, result); // 100 + 200 + 50
         }
@@ -349,7 +349,7 @@ class ApiMetricsDelayUtilTest {
             
             List<Object> input = Arrays.asList(map1, 150L, "not a number");
             
-            Long result = ApiMetricsDelayUtil.sum(input);
+            Long result = ApiMetricsDelayUtil.sum(ApiMetricsDelayUtil.fixDelayAsMap(input)).getTotal();
             
             assertEquals(350L, result); // 200 + 150, string ignored
         }
@@ -364,7 +364,7 @@ class ApiMetricsDelayUtilTest {
             
             List<Object> input = Arrays.asList(map1);
             
-            Long result = ApiMetricsDelayUtil.sum(input);
+            Long result = ApiMetricsDelayUtil.sum(ApiMetricsDelayUtil.fixDelayAsMap(input)).getTotal();
             
             assertEquals(200L, result); // Only valid entry counted
         }

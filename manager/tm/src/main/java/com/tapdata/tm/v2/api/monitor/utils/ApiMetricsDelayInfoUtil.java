@@ -47,15 +47,16 @@ public final class ApiMetricsDelayInfoUtil {
             return;
         }
         final List<Map<Long, Integer>> merge = mergeItems(items, itemGetter);
-        final long sum = ApiMetricsDelayUtil.sum(merge);
-        final long total = ApiMetricsDelayUtil.sum(merge, (k, v) -> v.longValue());
-        final Long p95 = ApiMetricsDelayUtil.p95(merge, total);
-        final Long p99 = ApiMetricsDelayUtil.p99(merge, total);
+        ApiMetricsDelayUtil.Sum sumOf = ApiMetricsDelayUtil.sum(merge);
+        final long sum = sumOf.getTotal();
+        final long reqCount = sumOf.getCount();
+        final Long p95 = ApiMetricsDelayUtil.p95(merge, reqCount);
+        final Long p99 = ApiMetricsDelayUtil.p99(merge, reqCount);
         ApiMetricsDelayUtil.readMaxAndMin(merge, setter.getMaxSetter(), setter.getMinSetter());
         Optional.ofNullable(setter.getValueSetter()).ifPresent(s -> s.accept(sum));
         Optional.ofNullable(setter.getP95Setter()).ifPresent(s -> Optional.ofNullable(p95).ifPresent(s::accept));
         Optional.ofNullable(setter.getP99Setter()).ifPresent(s -> Optional.ofNullable(p99).ifPresent(s::accept));
-        Optional.ofNullable(setter.getAvgSetter()).ifPresent(s -> s.accept(total > 0L ? (1.0D * sum / total) : 0D));
+        Optional.ofNullable(setter.getAvgSetter()).ifPresent(s -> s.accept(reqCount > 0L ? (1.0D * sum / reqCount) : 0D));
     }
 
     public static <T> List<Map<Long, Integer>> mergeItems(List<T> items, Function<T, List<?>> itemGetter) {

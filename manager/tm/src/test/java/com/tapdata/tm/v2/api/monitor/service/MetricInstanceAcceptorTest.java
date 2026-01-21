@@ -17,7 +17,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,7 +30,7 @@ import static org.mockito.Mockito.*;
 class MetricInstanceAcceptorTest {
 
     @Mock
-    private Consumer<ApiMetricsRaw> consumer;
+    private BiFunction<Boolean, ApiMetricsRaw, Void> consumer;
 
     private MetricInstanceAcceptor acceptor;
     private ApiMetricsRaw lastBucketMin;
@@ -40,7 +42,10 @@ class MetricInstanceAcceptorTest {
         lastBucketMin = createApiMetricsRaw("server1", "api1", 60000L, 1);
         lastBucketHour = createApiMetricsRaw("server1", "api1", 3600000L, 2);
         lastBucketDay = createApiMetricsRaw("server1", "api1", 86400000L, 3);
-        acceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, lastBucketMin, lastBucketHour, lastBucketDay, consumer);
+        Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
+            return new MetricInstanceAcceptor.BucketInfo(lastBucketMin, lastBucketHour, lastBucketDay);
+        };
+        acceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
     }
 
     @Nested
@@ -49,14 +54,14 @@ class MetricInstanceAcceptorTest {
         @Test
         void testAcceptNull() {
             acceptor.accept(null);
-            verify(consumer, never()).accept(any());
+            verify(consumer, never()).apply(anyBoolean(), any());
         }
 
         @Test
         void testAcceptEmptyDocument() {
             Document document = new Document();
             acceptor.accept(document);
-            verify(consumer, times(2)).accept(any());
+            verify(consumer, times(2)).apply(anyBoolean(), any());
         }
 
         @Test
@@ -67,7 +72,7 @@ class MetricInstanceAcceptorTest {
                     .append("api_gateway_uuid", "server1");
             
             acceptor.accept(document);
-            verify(consumer, never()).accept(any());
+            verify(consumer, never()).apply(anyBoolean(), any());
         }
 
         @Test
@@ -76,7 +81,7 @@ class MetricInstanceAcceptorTest {
             document.append("allPathId", "/api/test");
             
             acceptor.accept(document);
-            verify(consumer, times(2)).accept(any());
+            verify(consumer, times(2)).apply(anyBoolean(), any());
         }
 
         @Test
@@ -86,7 +91,7 @@ class MetricInstanceAcceptorTest {
             document.append("req_path", "/api/test");
             
             acceptor.accept(document);
-            verify(consumer, times(2)).accept(any());
+            verify(consumer, times(2)).apply(anyBoolean(), any());
         }
 
         @Test
@@ -96,68 +101,83 @@ class MetricInstanceAcceptorTest {
             document.remove("req_path");
             
             acceptor.accept(document);
-            verify(consumer, times(2)).accept(any());
+            verify(consumer, times(2)).apply(anyBoolean(), any());
         }
 
         @Test
         void testAcceptWithDifferentBucketMin() {
             // Create acceptor with different bucket time
             ApiMetricsRaw differentBucketMin = createApiMetricsRaw("server1", "api1", 120000L, 1);
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, differentBucketMin, lastBucketHour, lastBucketDay, consumer);
+            Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
+                return new MetricInstanceAcceptor.BucketInfo(differentBucketMin, lastBucketHour, lastBucketDay);
+            };
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             
             Document document = createValidDocument();
             document.append("reqTime", 60000L * 1000L); // Different bucket time
             
             testAcceptor.accept(document);
             
-            verify(consumer, times(2)).accept(any(ApiMetricsRaw.class));
+            verify(consumer, times(2)).apply(anyBoolean(), any(ApiMetricsRaw.class));
         }
 
         @Test
         void testAcceptWithDifferentBucketHour() {
             // Create acceptor with different bucket hour
             ApiMetricsRaw differentBucketHour = createApiMetricsRaw("server1", "api1", 7200000L, 2);
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, lastBucketMin, differentBucketHour, lastBucketDay, consumer);
+            Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
+                return new MetricInstanceAcceptor.BucketInfo(lastBucketMin, differentBucketHour, lastBucketDay);
+            };
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             
             Document document = createValidDocument();
             document.append("reqTime", 3600000L * 1000L); // Different bucket hour
             
             testAcceptor.accept(document);
             
-            verify(consumer, times(2)).accept(any(ApiMetricsRaw.class));
+            verify(consumer, times(2)).apply(anyBoolean(), any(ApiMetricsRaw.class));
         }
 
         @Test
         void testAcceptWithNullLastBuckets() {
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, null, null, consumer);
+            Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
+                return new MetricInstanceAcceptor.BucketInfo(null, null, null);
+            };
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             
             Document document = createValidDocument();
             
             testAcceptor.accept(document);
             
-            verify(consumer, never()).accept(any());
+            verify(consumer, never()).apply(anyBoolean(), any());
         }
 
         @Test
         void testAcceptWithNullLastBucketMin() {
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, lastBucketHour, lastBucketDay, consumer);
+            Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
+                return new MetricInstanceAcceptor.BucketInfo(null, lastBucketHour, lastBucketDay);
+            };
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             
             Document document = createValidDocument();
             
             testAcceptor.accept(document);
             
-            verify(consumer, times(1)).accept(any());
+            verify(consumer, times(1)).apply(anyBoolean(), any());
         }
 
         @Test
         void testAcceptWithNullLastBucketHour() {
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, lastBucketMin, null, lastBucketDay, consumer);
+            Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
+                return new MetricInstanceAcceptor.BucketInfo(lastBucketMin, null, lastBucketDay);
+            };
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             
             Document document = createValidDocument();
             
             testAcceptor.accept(document);
             
-            verify(consumer, times(1)).accept(any());
+            verify(consumer, times(1)).apply(anyBoolean(), any());
         }
 
         @Test
@@ -231,7 +251,7 @@ class MetricInstanceAcceptorTest {
             acceptor.accept(document);
             
             // Should handle null values gracefully
-            verify(consumer, times(2)).accept(any());
+            verify(consumer, times(2)).apply(anyBoolean(), any());
         }
     }
 
@@ -247,7 +267,7 @@ class MetricInstanceAcceptorTest {
             spyAcceptor.acceptOnce(item);
             
             verify(spyAcceptor, times(1)).calcPValue(item);
-            verify(consumer, times(1)).accept(item);
+            verify(consumer, times(1)).apply(false, item);
         }
 
         @Test
@@ -267,7 +287,7 @@ class MetricInstanceAcceptorTest {
             
             // Should call calcPValue for each sub metric plus the main item
             verify(spyAcceptor, times(3)).calcPValue(any());
-            verify(consumer, times(1)).accept(item);
+            verify(consumer, times(1)).apply(false, item);
         }
 
         @Test
@@ -282,7 +302,7 @@ class MetricInstanceAcceptorTest {
             
             // Should only call calcPValue for the main item
             verify(spyAcceptor, times(1)).calcPValue(item);
-            verify(consumer, times(1)).accept(item);
+            verify(consumer, times(1)).apply(false, item);
         }
 
         @Test
@@ -297,7 +317,7 @@ class MetricInstanceAcceptorTest {
             
             // Should only call calcPValue for the main item
             verify(spyAcceptor, times(1)).calcPValue(item);
-            verify(consumer, times(1)).accept(item);
+            verify(consumer, times(1)).apply(false, item);
         }
     }
 
@@ -397,7 +417,10 @@ class MetricInstanceAcceptorTest {
 
         @Test
         void testCloseWithNullBuckets() {
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, null, null, consumer);
+            Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
+                return new MetricInstanceAcceptor.BucketInfo(null, null, null);
+            };
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             MetricInstanceAcceptor spyAcceptor = spy(testAcceptor);
             doNothing().when(spyAcceptor).acceptOnce(any());
             
@@ -439,8 +462,11 @@ class MetricInstanceAcceptorTest {
                         .thenReturn(300L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyInt()))
                         .thenReturn(400L);
-                
-                MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, null, null, consumer);
+
+                Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
+                    return new MetricInstanceAcceptor.BucketInfo(null, null, null);
+                };
+                MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
                 
                 Document document = createValidDocument();
                 document.append("code", "200");
@@ -449,7 +475,7 @@ class MetricInstanceAcceptorTest {
                 testAcceptor.accept(document);
                 testAcceptor.close();
                 
-                verify(consumer, times(2)).accept(any(ApiMetricsRaw.class));
+                verify(consumer, times(2)).apply(false, any(ApiMetricsRaw.class));
             }
         }
 
@@ -463,13 +489,15 @@ class MetricInstanceAcceptorTest {
             // bucketSec = (125 / 5) * 5 = 125
             // bucketMin = (125 / 60) * 60 = 120
             // bucketHour = (120 / 60) * 60 = 120
-            
-            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, null, null, null, consumer);
+            Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
+                return new MetricInstanceAcceptor.BucketInfo(null, null, null);
+            };
+            MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             
             testAcceptor.accept(document);
             
             // Verify the bucket calculations are correct
-            verify(consumer, never()).accept(any());
+            verify(consumer, never()).apply(anyBoolean(), any());
         }
     }
 
@@ -496,7 +524,7 @@ class MetricInstanceAcceptorTest {
         raw.setBytes(new ArrayList<>());
         raw.setDelay(new ArrayList<>());
         raw.setSubMetrics(new HashMap<>());
-        raw.setCallId(new ObjectId());
+        raw.setLastCallId(new ObjectId());
         return raw;
     }
 }

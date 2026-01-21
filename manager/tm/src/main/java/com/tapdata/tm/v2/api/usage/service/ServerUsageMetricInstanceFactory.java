@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.usage.service;
 
 import com.tapdata.tm.v2.api.common.service.FactoryBase;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import org.bson.Document;
 import org.springframework.data.domain.Sort;
@@ -37,7 +38,7 @@ public final class ServerUsageMetricInstanceFactory extends FactoryBase<ServerUs
             final ServerUsageMetric lastMin = lastOne(serverId, 1, null);
             ServerUsageMetric lastHour = null;
             if (null != lastMin) {
-                long bucketHour = (lastMin.getLastUpdateTime() / 3600L) * 3600L;
+                long bucketHour = TimeGranularity.HOUR.fixTime(lastMin.getLastUpdateTime());
                 lastHour = lastOne(serverId, 2, bucketHour);
             }
             return new ServerUsageMetricInstanceAcceptor(lastMin, lastHour, this.apiMetricsRaws::add);

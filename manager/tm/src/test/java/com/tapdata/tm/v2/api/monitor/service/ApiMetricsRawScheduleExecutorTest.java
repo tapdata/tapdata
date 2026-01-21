@@ -3,9 +3,6 @@ package com.tapdata.tm.v2.api.monitor.service;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
-import com.mongodb.client.model.Sorts;
-import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
-import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -14,15 +11,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.MockedConstruction;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -160,7 +150,7 @@ class ApiMetricsRawScheduleExecutorTest {
         raw.setP50(150L);
         raw.setP95(300L);
         raw.setP99(400L);
-        raw.setCallId(new ObjectId());
+        raw.setLastCallId(new ObjectId());
         return raw;
     }
 }

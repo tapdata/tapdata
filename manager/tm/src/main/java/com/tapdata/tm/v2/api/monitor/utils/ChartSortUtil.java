@@ -84,9 +84,9 @@ public final class ChartSortUtil {
             if (sortField.get(obj) instanceof Number iNum) {
                 return iNum.doubleValue();
             }
-            return 0D;
+            return -1D;
         } catch (Exception e) {
-            return 0D;
+            return -1D;
         }
     }
 
