@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -246,6 +247,10 @@ public class ServerChart extends ValueBase {
         List<Map<Long, Integer>> dbCost = new ArrayList<>();
         Long errorCount;
         boolean tag;
+
+
+        List<List<Map<Long, Integer>>> delays;
+        List<List<Map<Long, Integer>>> dbCosts;
 
         public static Item create(long ts) {
             Item item = new Item();

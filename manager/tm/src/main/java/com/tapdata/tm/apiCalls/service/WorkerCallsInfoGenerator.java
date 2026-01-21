@@ -10,6 +10,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -128,12 +129,9 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         long total = Optional.ofNullable(item.getReqCount()).orElse(0L);
         long error = Optional.ofNullable(item.getErrorCount()).orElse(0L);
         item.setErrorRate(total == 0L || error == 0d ? 0d : (1.0d * error / total));
-        Long p50 = ApiMetricsDelayUtil.p50(delays, total);
-        Long p95 = ApiMetricsDelayUtil.p95(delays, total);
-        Long p99 = ApiMetricsDelayUtil.p99(delays, total);
-        item.setP50(p50);
-        item.setP95(p95);
-        item.setP99(p99);
+        item.setP50(ApiMetricsDelayUtil.p50(delays, total));
+        item.setP95(ApiMetricsDelayUtil.p95(delays, total));
+        item.setP99(ApiMetricsDelayUtil.p99(delays, total));
     }
 
     void accept() {

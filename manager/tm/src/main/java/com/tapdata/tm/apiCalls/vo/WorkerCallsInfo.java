@@ -3,6 +3,8 @@ package com.tapdata.tm.apiCalls.vo;
 import lombok.Data;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import java.util.Date;
+
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
  * @author <a href="https://github.com/11000100111010101100111">Gavin'Xiao</a>
@@ -32,4 +34,6 @@ public class WorkerCallsInfo {
 
     @Field("req_path")
     private String reqPath;
+
+    private Date lastCreateTime;
 }

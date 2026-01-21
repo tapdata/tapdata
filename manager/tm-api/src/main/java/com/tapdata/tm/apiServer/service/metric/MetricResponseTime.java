@@ -40,8 +40,8 @@ public class MetricResponseTime implements Metric<ApiCallMetricVo.MetricResponse
             }
         });
         List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.merge(delayList);
-        BiFunction<Long, Integer, Long> f = (k, v) -> v.longValue();
-        Long total = ApiMetricsDelayUtil.sum(merged, f);
+        ApiMetricsDelayUtil.Sum sum = ApiMetricsDelayUtil.sum(merged);
+        long total = sum.getTotal();
         Long p95 = ApiMetricsDelayUtil.p95(merged, total);
         Long p50 = ApiMetricsDelayUtil.p50(merged, total);
         Long p99 = ApiMetricsDelayUtil.p99(merged, total);

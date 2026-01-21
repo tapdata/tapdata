@@ -21,7 +21,7 @@ import java.util.function.Function;
  * @description
  */
 public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, MetricInstanceAcceptor> {
-    public static final List<String> IGNORE_PATH = List.of("/sitemap.xml","/openapi-readOnly.json","/robots.txt","/favicon.ico","//v4.loopback.io/favicon.ico");
+    public static final List<String> IGNORE_PATH = List.of("/sitemap.xml", "/openapi-readOnly.json", "/robots.txt", "/favicon.ico", "//v4.loopback.io/favicon.ico");
 
     public MetricInstanceFactory(Consumer<List<ApiMetricsRaw>> consumer, Function<Query, ApiMetricsRaw> findOne) {
         super(consumer, findOne);
@@ -60,18 +60,26 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
     }
 
     MetricInstanceAcceptor create(String key, MetricTypes metricType, String apiId, String serverId) {
-        return instanceMap.computeIfAbsent(key, k -> {
-            final ApiMetricsRaw lastMin = lastOne(apiId, serverId, metricType, TimeGranularity.MINUTE, null);
-            ApiMetricsRaw lastHour = null;
-            ApiMetricsRaw lastDay = null;
-            if (null != lastMin) {
-                long bucketHour = (lastMin.getTimeStart() / 3600L) * 3600L;
-                lastHour = lastOne(apiId, serverId, metricType,TimeGranularity.HOUR, bucketHour);
-                long bucketDay = (lastMin.getTimeStart() / 86400L) * 86400L;
-                lastDay = lastOne(apiId, serverId, metricType,TimeGranularity.DAY, bucketDay);
-            }
-            return new MetricInstanceAcceptor(metricType, lastMin, lastHour, lastDay, this.apiMetricsRaws::add);
-        });
+        return instanceMap.computeIfAbsent(key, k -> new MetricInstanceAcceptor(metricType, ts -> {
+                    final ApiMetricsRaw lastMin = lastOne(apiId, serverId, metricType, TimeGranularity.MINUTE, ts);
+                    ApiMetricsRaw lastHour = null;
+                    ApiMetricsRaw lastDay = null;
+                    if (null != lastMin) {
+                        long bucketHour = TimeGranularity.HOUR.fixTime(lastMin.getTimeStart());
+                        lastHour = lastOne(apiId, serverId, metricType, TimeGranularity.HOUR, bucketHour);
+                        long bucketDay = TimeGranularity.DAY.fixTime(lastMin.getTimeStart());
+                        lastDay = lastOne(apiId, serverId, metricType, TimeGranularity.DAY, bucketDay);
+                    }
+                    return new MetricInstanceAcceptor.BucketInfo(lastMin, lastHour, lastDay);
+                }, (quickUpload, info) -> {
+                    if (!quickUpload) {
+                        this.apiMetricsRaws.add(info);
+                    } else {
+                        this.consumer.accept(List.of(info));
+                    }
+                    return null;
+                })
+        );
     }
 
 
@@ -96,7 +104,7 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
             criteria.and("timeStart").is(timeStart);
         }
         final Query query = Query.query(criteria);
-        query.with(Sort.by("_id").descending());
+        query.with(Sort.by("timeStart").descending());
         query.limit(1);
         return findOne.apply(query);
     }

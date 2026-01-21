@@ -10,6 +10,7 @@ import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +100,7 @@ public class ApiMetricsRaw extends BaseEntity {
 
     private Long minDelay;
 
-    private ObjectId callId;
+    private ObjectId lastCallId;
 
     public static ApiMetricsRaw instance(String serverId, String apiId, Long bucketMin, TimeGranularity type, MetricTypes metricType) {
         ApiMetricsRaw item = new ApiMetricsRaw();

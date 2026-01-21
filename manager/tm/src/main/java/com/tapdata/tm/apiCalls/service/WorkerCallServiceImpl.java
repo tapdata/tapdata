@@ -7,7 +7,6 @@ import com.mongodb.client.model.Sorts;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.entity.WorkerCallStats;
 import com.tapdata.tm.apiCalls.vo.ApiCountMetricVo;
-import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.apiServer.enums.TimeGranularityType;
 import com.tapdata.tm.apiServer.service.WorkerCallService;
@@ -24,7 +23,6 @@ import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.ApiWorkerServer;
 import com.tapdata.tm.worker.service.WorkerService;
-import io.tapdata.pdk.core.async.AsyncUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -49,7 +47,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -63,9 +60,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class WorkerCallServiceImpl implements WorkerCallService {
-    private static final ExecutorService ASYNC_EXECUTOR = AsyncUtils.createThreadPoolExecutor(
-            WorkerCallServiceImpl.class.getSimpleName() + "-worker-call-service-async-executor", 20, WorkerCallServiceImpl.class.getSimpleName()
-    );
     private WorkerService workerService;
     MongoTemplate mongoOperations;
     private ApiWorkerServer apiWorkerServer;
@@ -417,9 +411,11 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         criteriaCall.andOperator(timeCriteria);
         final MongoCollection<Document> collection = mongoTemplate.getCollection("ApiCall");
         final Query queryCall = Query.query(criteriaCall);
+        queryCall.fields().include("allPathId", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path");
         final Document queryObject = queryCall.getQueryObject();
         final FindIterable<Document> iterable =
                 collection.find(queryObject, Document.class)
+                        .projection(queryCall.getFieldsObject())
                         .sort(Sorts.ascending(Tag.REQ_TIME))
                         .batchSize(1000);
         try (final MongoCursor<Document> cursor = iterable.iterator();

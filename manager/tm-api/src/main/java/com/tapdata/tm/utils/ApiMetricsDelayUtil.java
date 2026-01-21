@@ -1,16 +1,16 @@
 package com.tapdata.tm.utils;
 
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 
@@ -80,17 +80,14 @@ public final class ApiMetricsDelayUtil {
         }
     }
 
-    public static List<Map<Long, Integer>> merge(List<List<Map<Long, Integer>>> delayList) {
-        List<Map<Long, Integer>>[] delayListArr = new ArrayList[delayList.size()];
-        for (int i = 0; i < delayList.size(); i++) {
-            delayListArr[i] = delayList.get(i);
-        }
-        return merge(delayListArr);
-    }
-
     @SafeVarargs
     public static List<Map<Long, Integer>> merge(List<Map<Long, Integer>>... delayList) {
-        if (null == delayList) {
+        List<List<Map<Long, Integer>>> delayLists = new ArrayList<>(Arrays.asList(delayList));
+        return merge(delayLists);
+    }
+
+    public static List<Map<Long, Integer>> merge(List<List<Map<Long, Integer>>> delayList) {
+        if (CollectionUtils.isEmpty(delayList)) {
             return new ArrayList<>();
         }
         Map<Long, Integer> merged = new HashMap<>();
@@ -116,21 +113,36 @@ public final class ApiMetricsDelayUtil {
                 .toList());
     }
 
-    public static Long sum(List<?> delayList) {
-        return sum(delayList, (iKey, iValue) -> iKey * iValue.longValue());
+    @Getter
+    public static class Sum {
+        long count;
+        long total;
     }
 
-    public static Long sum(List<?> delayList, BiFunction<Long, Integer, Long> filter) {
+    public static Sum sum(List<Map<Long, Integer>> delayList) {
+        Sum sumOf = new Sum();
         if (CollectionUtils.isEmpty(delayList)) {
-            return 0L;
+            return sumOf;
         }
         long sum = 0L;
-        for (Map<Long, Integer> m : fixDelayAsMap(delayList)) {
+        long count = 0L;
+        for (Map<Long, Integer> m : delayList) {
             for (Map.Entry<Long, Integer> e : m.entrySet()) {
                 Long iKey = e.getKey();
                 Integer iValue = e.getValue();
-                sum += filter.apply(iKey, iValue);
+                sum += iKey * iValue.longValue();
+                count += iValue.longValue();
             }
+        }
+        sumOf.count = count;
+        sumOf.total = sum;
+        return sumOf;
+    }
+
+    public static Long sumValue(List<Long> items) {
+        long sum = 0L;
+        for (Long item : items) {
+            sum += item;
         }
         return sum;
     }
@@ -157,12 +169,23 @@ public final class ApiMetricsDelayUtil {
     }
 
     public static void readMaxAndMin(List<Map<Long, Integer>> delayList, LongConsumer max, LongConsumer min) {
-        Set<Long> delays = new HashSet<>();
+        Long minValue = null;
+        Long maxValue = null;
         for (Map<Long, Integer> item : delayList) {
-            delays.addAll(item.keySet());
+            for (Long reqDelay : item.keySet()) {
+                if (null == reqDelay) continue;
+                if (null == minValue) minValue = reqDelay;
+                else minValue = Math.min(reqDelay, minValue);
+                if (null == maxValue) maxValue = reqDelay;
+                else maxValue = Math.max(reqDelay, maxValue);
+            }
         }
-        Optional.ofNullable(max).ifPresent(c -> delays.stream().filter(e -> e > 0L).mapToLong(Long::longValue).max().ifPresent(c));
-        Optional.ofNullable(min).ifPresent(c -> delays.stream().filter(e -> e > 0L).mapToLong(Long::longValue).min().ifPresent(c));
+        if (null != min) {
+            min.accept(Optional.ofNullable(minValue).orElse(0L));
+        }
+        if (null != max) {
+            max.accept(Optional.ofNullable(maxValue).orElse(0L));
+        }
     }
 
     static Long p(List<Map<Long, Integer>> delayList, long total, double p) {

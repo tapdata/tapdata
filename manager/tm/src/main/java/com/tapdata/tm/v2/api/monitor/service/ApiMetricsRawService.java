@@ -70,8 +70,8 @@ public class ApiMetricsRawService {
             }
         }
         List<QueryBase.Point> secondPoint = new ArrayList<>();
-        long start = param.getQueryParam().getStart() * 1000L;
-        long end = param.getQueryParam().getEnd() * 1000L;
+        long start = param.getStartAt() * 1000L;
+        long end = param.getEndAt() * 1000L;
         if (start < startAt) {
             secondPoint.add(QueryBase.Point.of(start, startAt, -1));
         }
@@ -124,10 +124,10 @@ public class ApiMetricsRawService {
 
     void end(WorkerCallEntity one) {
         List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.fixDelayAsMap(one.getDelays());
-        Long total = ApiMetricsDelayUtil.sum(merged, (k, v) -> v.longValue());
-        Long p50L = ApiMetricsDelayUtil.p50(merged, total);
-        Long p95L = ApiMetricsDelayUtil.p95(merged, total);
-        Long p99L = ApiMetricsDelayUtil.p99(merged, total);
+        long reqCount = ApiMetricsDelayUtil.sum(merged).getCount();
+        Long p50L = ApiMetricsDelayUtil.p50(merged, reqCount);
+        Long p95L = ApiMetricsDelayUtil.p95(merged, reqCount);
+        Long p99L = ApiMetricsDelayUtil.p99(merged, reqCount);
         one.setP50(p50L);
         one.setP95(p95L);
         one.setP99(p99L);
@@ -145,7 +145,7 @@ public class ApiMetricsRawService {
     }
 
     WorkerCallEntity one(String serverId, String oId, Long time) {
-        WorkerCallEntity one = new WorkerCallEntity() ;
+        WorkerCallEntity one = new WorkerCallEntity();
         one.setProcessId(serverId);
         one.setWorkOid(oId);
         one.setReqCount(0L);
@@ -157,10 +157,6 @@ public class ApiMetricsRawService {
         one.setTimeGranularity(1);
         one.setId(new ObjectId());
         return one;
-    }
-
-    public List<ApiMetricsRaw> supplementMetricsRaw(List<ApiMetricsRaw> apiMetricsRaws, QueryBase param) {
-        return supplementMetricsRaw(apiMetricsRaws, param, true, null, null);
     }
 
     public List<ApiMetricsRaw> supplementMetricsRaw(List<ApiMetricsRaw> apiMetricsRaws, QueryBase param, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
@@ -187,6 +183,7 @@ public class ApiMetricsRawService {
         }
         andCriteria.add(new Criteria().orOperator(or));
         Query query = Query.query(new Criteria().andOperator(andCriteria));
+        query.fields().include("api_gateway_uuid", "allPathId", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id");
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
         if (StringUtils.isNotBlank(callName)) {
             List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);
@@ -210,6 +207,7 @@ public class ApiMetricsRawService {
             }
             criteriaOfSec5.orOperator(or);
             Query query = Query.query(criteriaOfSec5);
+            query.fields().include("apiId", "processId", "timeGranularity", "timeStart", "subMetrics");
             QueryBase of5Sec = new QueryBase();
             of5Sec.setGranularity(0);
             List<ApiMetricsRaw> metricsRawList = find(query);
@@ -239,6 +237,7 @@ public class ApiMetricsRawService {
             }
             criteriaOfMin.orOperator(or);
             Query query = Query.query(criteriaOfMin);
+            query.fields().include("apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "bytes", "delay", "dbCost");
             List<ApiMetricsRaw> raws = find(query);
             if (!raws.isEmpty()) {
                 supplement.addAll(raws);

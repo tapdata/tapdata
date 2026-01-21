@@ -36,13 +36,13 @@ public class ParticleSizeAnalyzer {
 
     }
 
-    public static void fixTime(ValueBase valueBase, QueryBase query) {
-        fixTime(query);
+    public static void fixTime(ValueBase valueBase, QueryBase query, boolean expandInterval) {
+        fixTime(query, expandInterval);
         valueBase.setQueryFrom(query.getStartAt());
         valueBase.setQueryEnd(query.getEndAt());
     }
 
-    public static void fixTime(QueryBase query) {
+    public static void fixTime(QueryBase query, boolean expandInterval) {
         checkQueryTime(query);
         Long startAt = query.getStartAt();
         Long endAt = query.getEndAt();
@@ -52,10 +52,14 @@ public class ParticleSizeAnalyzer {
         long queryEndAt = endAt;
         if (range < 60L * 60L) {
             query.setGranularity(0);
-            queryStartAt -= 5 * 60L;
+            if (expandInterval) {
+                queryStartAt -= 5 * 60L;
+            }
         } else if (range < 60L * 60L * 24L) {
             query.setGranularity(1);
-            queryStartAt -= 60L * 60L;
+            if (expandInterval) {
+                queryStartAt -= 60L * 60L;
+            }
         } else {
             query.setGranularity(2);
         }
@@ -64,16 +68,16 @@ public class ParticleSizeAnalyzer {
         switch (query.getGranularity()) {
             case 0:
                 query.setFixStart(startAt / 5L * 5L);
-                query.setFixEnd((endAt + 4L) / 5L * 5L);
+                query.setFixEnd(endAt / 5L * 5L);
                 break;
             case 1:
                 query.setFixStart(startAt / 60L * 60L);
-                query.setFixEnd((endAt + 59L) / 60L * 60L);
+                query.setFixEnd(endAt / 60L * 60L);
             default:
                 query.setFixStart(startAt / 3600L * 3600L);
-                query.setFixEnd((endAt + 3599L) / 3600L * 3600L);
+                query.setFixEnd(endAt / 3600L * 3600L);
         }
-        List<TimeRange> split = split(startAt, endAt);
+        List<TimeRange> split = split(queryStartAt, queryEndAt);
         Map<TimeGranularity, List<TimeRange>> collect = split.stream().collect(
                 Collectors.groupingBy(TimeRange::getUnit)
         );
@@ -82,38 +86,60 @@ public class ParticleSizeAnalyzer {
 
     public static List<TimeRange> split(long startAt, long endAt) {
         List<TimeRange> result = new ArrayList<>();
+        if (startAt >= endAt) {
+            return result;
+        }
+        // 根据时间范围确定最大允许的粒度
+        long range = endAt - startAt;
+        TimeGranularity maxAllowedUnit;
+        if (range >= 86400L) {
+            maxAllowedUnit = TimeGranularity.DAY;
+        } else if (range >= 3600L) {
+            maxAllowedUnit = TimeGranularity.HOUR;
+        } else if (range >= 60L) {
+            maxAllowedUnit = TimeGranularity.MINUTE;
+        } else if (range >= 5L) {
+            maxAllowedUnit = TimeGranularity.SECOND_FIVE;
+        } else {
+            maxAllowedUnit = TimeGranularity.SECOND;
+        }
         long cursor = startAt;
         TimeGranularity lastUnit = null;
-        Long last = null;
-        while (cursor <= endAt) {
+        long last = startAt;
+        while (cursor < endAt) {
             TimeGranularity unit = chooseBestUnit(cursor);
+            // 限制粒度不超过最大允许值
+            while (unit.getType() > maxAllowedUnit.getType()) {
+                unit = unit.getLowerOne();
+            }
             TimeGranularity nextUnit = chooseNextUnit(cursor, unit, endAt);
             if (null == nextUnit) {
-                if (last != null) {
-                    TimeRange current = new TimeRange(last, cursor, lastUnit);
-                    result.add(current);
-                }
                 break;
             }
             if (lastUnit == null) {
                 lastUnit = unit;
-                last = cursor;
             }
-            if (lastUnit != unit) {
+            long nextCursor = cursor + nextUnit.getSeconds();
+            // 情况1: 粒度升级（从小粒度到大粒度）
+            if (lastUnit != unit && unit.getType() > lastUnit.getType()) {
                 TimeRange current = new TimeRange(last, cursor, lastUnit);
+                result.add(current);
                 lastUnit = unit;
-                result.add(current);
                 last = cursor;
-            } else if (unit != nextUnit) {
-                TimeRange current = new TimeRange(last, cursor, lastUnit);
-                lastUnit = nextUnit;
-                result.add(current);
-                last = cursor;
-            } else if (cursor + nextUnit.getSeconds() >= endAt) {
-                TimeRange current = new TimeRange(last, cursor, unit);
-                result.add(current);
             }
-            cursor += nextUnit.getSeconds();
+            // 情况2: 粒度降级（从大粒度到小粒度）
+            else if (unit != nextUnit && nextUnit.getType() < lastUnit.getType()) {
+                TimeRange current = new TimeRange(last, cursor, lastUnit);
+                result.add(current);
+                lastUnit = nextUnit;
+                last = cursor;
+            }
+            cursor = nextCursor;
+        }
+        // 处理最后一个区间
+        if (last < endAt && lastUnit != null) {
+            TimeRange current = new TimeRange(last, cursor, lastUnit);
+            result.add(current);
         }
         return result;
     }
@@ -137,22 +163,20 @@ public class ParticleSizeAnalyzer {
     }
 
     private static TimeGranularity chooseNextUnit(long t, TimeGranularity unit, long endAt) {
-        long current = t;
-        TimeGranularity lower = unit;
         if (t > endAt) {
             return null;
         }
-        do {
-            current = t + lower.getSeconds();
-            if (current <= endAt || lower.getLowerOne() == null) {
-                return lower;
+        TimeGranularity candidate = unit;
+        while (candidate != null) {
+            long nextTime = t + candidate.getSeconds();
+            // 如果这个粒度不会超过终点，或者已经是最小粒度，就使用它
+            if (nextTime <= endAt || candidate.getLowerOne() == null) {
+                return candidate;
             }
-            lower = lower.getLowerOne();
-        } while (true);
-    }
-
-    private static boolean isAligned(long t, TimeGranularity unit) {
-        return t % unit.getSeconds() == 0;
+            // 否则尝试更小的粒度
+            candidate = candidate.getLowerOne();
+        }
+        return null;
     }
 
     @Getter
@@ -329,14 +353,14 @@ public class ParticleSizeAnalyzer {
             row.setBytes(new ArrayList<>(List.of(apiCallEntity.getReqBytes())));
             row.setDelay(new ArrayList<>(List.of(apiCallEntity.getLatency())));
             row.setSubMetrics(new HashMap<>());
-            row.setCallId(apiCallEntity.getId());
+            row.setLastCallId(apiCallEntity.getId());
             row.setId(new ObjectId());
             consumer.accept(row);
         }
     }
 
     public static void main(String[] args) {
-        List<TimeRange> split = split(1768037400L, 1768815187L);
+        List<TimeRange> split = split(1768960357L, 1768963897L);
         for (TimeRange timeRange : split) {
             System.out.println(timeRange.start + " ~ " + timeRange.end);
         }

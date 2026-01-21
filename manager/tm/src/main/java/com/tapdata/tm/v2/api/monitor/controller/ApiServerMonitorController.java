@@ -162,19 +162,6 @@ public class ApiServerMonitorController extends BaseController {
 
 
     /**
-     * Api Top column on the homepage
-     */
-    @Operation(summary = "Api Top column on the homepage")
-    @GetMapping("/api")
-    public ResponseMessage<ApiTopOnHomepage> apiTopOnHomepage(@RequestParam(required = false) Long startAt,
-                                                              @RequestParam(required = false) Long endAt) {
-        QueryBase param = new QueryBase();
-        param.setStartAt(startAt);
-        param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.apiTopOnHomepage(param));
-    }
-
-    /**
      * Api Overview List
      */
     @Operation(summary = "Api Overview List")

@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.usage.service;
 
 import com.tapdata.tm.v2.api.common.service.AcceptorBase;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import org.bson.Document;
@@ -51,8 +52,8 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         Object workOidObj = entity.get("workOid");
         String workOid = workOidObj != null ? workOidObj.toString() : null;
         long lastUpdateTime = Optional.ofNullable(entity.get("lastUpdateTime", Long.class)).orElse(0L) / 1000L;
-        long bucketMin = (lastUpdateTime / 60) * 60 * 1000L;
-        long bucketHour = (lastUpdateTime / 3600) * 3600 * 1000L;
+        long bucketMin = TimeGranularity.MINUTE.fixTime(lastUpdateTime) * 1000L;
+        long bucketHour = TimeGranularity.HOUR.fixTime(lastUpdateTime) * 1000L;
         if (null != lastBucketMin && lastBucketMin.getLastUpdateTime() != bucketMin) {
             acceptMin();
             lastBucketMin = null;

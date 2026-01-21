@@ -15,6 +15,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -499,7 +500,7 @@ class MetricInstanceFactoryTest {
         raw.setBytes(new ArrayList<>());
         raw.setDelay(new ArrayList<>());
         raw.setSubMetrics(new HashMap<>());
-        raw.setCallId(new ObjectId());
+        raw.setLastCallId(new ObjectId());
         return raw;
     }
 }

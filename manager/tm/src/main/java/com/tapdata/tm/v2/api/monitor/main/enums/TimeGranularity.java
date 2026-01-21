@@ -19,4 +19,8 @@ public enum TimeGranularity {
         this.seconds = seconds;
         this.lowerOne = lowerOne;
     }
+
+    public long fixTime(long ts) {
+        return ts / seconds * seconds;
+    }
 }
