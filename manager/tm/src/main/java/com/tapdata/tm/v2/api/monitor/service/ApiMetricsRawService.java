@@ -80,7 +80,6 @@ public class ApiMetricsRawService {
         }
         if (!secondPoint.isEmpty()) {
             Criteria criteriaOfSec = Criteria.where("api_gateway_uuid").is(serverId)
-                    .and("req_path").nin(MetricInstanceFactory.IGNORE_PATH)
                     .and("delete").ne(true) ;
             List<Criteria> or = new ArrayList<>();
             for (QueryBase.Point point : secondPoint) {
@@ -170,8 +169,7 @@ public class ApiMetricsRawService {
             return;
         }
         List<Criteria> andCriteria = new ArrayList<>();
-        andCriteria.add(Criteria.where("delete").ne(true)
-                .and("req_path").nin(MetricInstanceFactory.IGNORE_PATH));
+        andCriteria.add(Criteria.where("delete").is(false));
         Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
         List<Criteria> or = new ArrayList<>();
         for (QueryBase.Point point : secondPoint) {
@@ -184,7 +182,7 @@ public class ApiMetricsRawService {
         }
         andCriteria.add(new Criteria().orOperator(or));
         Query query = Query.query(new Criteria().andOperator(andCriteria));
-        query.fields().include("api_gateway_uuid", "allPathId", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id");
+        query.fields().include("api_gateway_uuid", "allPathId", "req_path", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id");
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
         if (StringUtils.isNotBlank(callName)) {
             List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);

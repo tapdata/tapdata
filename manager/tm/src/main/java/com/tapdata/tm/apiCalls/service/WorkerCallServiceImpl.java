@@ -394,7 +394,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
     void metricWorker(String workerOid) {
         Criteria criteria = Criteria.where(Tag.WORK_OID).is(workerOid)
                 .and(Tag.TIME_GRANULARITY).is(TimeGranularityType.MINUTE.getCode())
-                .and(Tag.DELETE).ne(true);
+                .and(Tag.DELETE).is(false);
         Query query = Query.query(criteria);
         query.limit(1);
         query.with(Sort.by(Sort.Order.desc(Tag.TIME_START)));
@@ -406,7 +406,6 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         final WorkerCallsInfoGenerator.Acceptor acceptor = this::bulkUpsert;
         Criteria criteriaCall = Criteria.where(Tag.WORK_OID).is(workerOid);
         List<Criteria> timeCriteria = new ArrayList<>();
-        timeCriteria.add(Criteria.where(Tag.REQ_TIME).ne(null));
         Optional.ofNullable(queryFrom).ifPresent(time -> timeCriteria.add(Criteria.where(Tag.REQ_TIME).gte(time)));
         timeCriteria.add(Criteria.where(Tag.REQ_TIME).lt(System.currentTimeMillis() - 60000L));
         criteriaCall.andOperator(timeCriteria);

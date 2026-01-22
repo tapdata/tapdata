@@ -7,6 +7,7 @@ import lombok.EqualsAndHashCode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -99,12 +100,22 @@ public class ChartAndDelayOfApi extends ValueBase {
         List<Map<Long, Integer>> delay = new ArrayList<>();
         List<Map<Long, Integer>> dbCost = new ArrayList<>();
 
+        List<List<Map<Long, Integer>>> delays;
+        List<Long> bytes;
+        List<List<Map<Long, Integer>>> dbCosts;
+
         public static Item create(long ts) {
             Item item = new Item();
             item.setTs(ts);
             item.setTotalBytes(0L);
             item.setTag(true);
             return item;
+        }
+
+        public void point(List<List<Map<Long, Integer>>> delays, List<Long> bytes, List<List<Map<Long, Integer>>> dbCosts) {
+            Optional.ofNullable(delays).map(e -> new ArrayList(e)).ifPresent(this::setDelays);
+            Optional.ofNullable(bytes).map(e -> new ArrayList(e)).ifPresent(this::setBytes);
+            Optional.ofNullable(dbCosts).map(e -> new ArrayList(e)).ifPresent(this::setDbCosts);
         }
     }
 }

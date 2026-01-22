@@ -129,6 +129,8 @@ public class ApiCallEntity extends BaseEntity {
      * */
     private String httpStatus;
 
+    private boolean delete;
+
     @Getter
     public enum HttpStatusType {
         API_NOT_EXIST_404("API_NOT_EXIST_404"),

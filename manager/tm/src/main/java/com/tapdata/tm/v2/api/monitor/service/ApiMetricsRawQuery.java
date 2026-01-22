@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -95,7 +96,7 @@ public class ApiMetricsRawQuery {
         ParticleSizeAnalyzer.fixTime(result, param, false);
         List<ApiMetricsRaw> apiMetricsRaws = metricsRawMergeService.merge(
                 param,
-                c -> c.and("metricType").is(MetricTypes.ALL.getType()),
+                c -> c.and("metricType").is(MetricTypes.API_SERVER.getType()),
                 null);
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return result;
@@ -125,19 +126,10 @@ public class ApiMetricsRawQuery {
         return apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> Objects.nonNull(groupBy.apply(e)))
-                .collect(Collectors.groupingBy(
-                        groupBy,
-                        Collectors.collectingAndThen(
-                                Collectors.toList(),
-                                e -> {
-                                    final ApiMetricsRaw errorOne = e.stream()
-                                            .filter(i -> i.getErrorCount() > 0)
-                                            .findFirst()
-                                            .orElse(null);
-                                    return null == errorOne ? 0 : 1;
-                                }
-                        )
-                )).values().stream().filter(e -> e > 0).count();
+                .filter(e -> null != e.getReqCount() && e.getReqCount() > 0L)
+                .map(groupBy)
+                .distinct()
+                .count();
     }
 
     public List<ServerItem> serverOverviewList(ServerListParam param) {
@@ -232,13 +224,38 @@ public class ApiMetricsRawQuery {
         return result;
     }
 
+    void fixUsage(List<Long> ts, List<Double> cpu, List<Double> mem) {
+        int i = 0;
+        int size = ts.size();
+        while (i < size && cpu.get(i) == null && mem.get(i) == null) {
+            i++;
+        }
+        if (i > 0) {
+            ts.subList(0, i).clear();
+            cpu.subList(0, i).clear();
+            mem.subList(0, i).clear();
+        }
+    }
+
     protected <T extends UsageBase> List<T> queryCpuUsageRecords(Criteria criteriaBase, long queryStart, long queryEnd, int type) {
-        criteriaBase.and("lastUpdateTime").gte(queryStart * 1000L).lt(queryEnd * 1000L);
+        long start = queryStart * 1000L;
+        long end = queryEnd * 1000L;
         if (type == 0) {
+            //往前推一个5秒点，防止数据上报不及时导致前端显示0
+            long now = System.currentTimeMillis() / 5000L * 5000L - 5000L;
+            if (end > now) {
+                end = now;
+            }
+            criteriaBase.and("lastUpdateTime").gte(start).lt(end);
             criteriaBase.and("type").in(List.of(0, 1, 2));
             Query queryOfUsage = Query.query(criteriaBase);
             return (List<T>) usageRepository.findAll(queryOfUsage);
+        } else if (type == 1) {
+            start = start / 60000L * 60000L;
+        } else {
+            start = start / 3600000L * 3600000L;
         }
+        criteriaBase.and("lastUpdateTime").gte(start).lt(end);
         Query query = Query.query(criteriaBase);
         return (List<T>) serverUsageMetricRepository.findAll(query);
     }
@@ -257,7 +274,7 @@ public class ApiMetricsRawQuery {
         long currentTime = startAt / 5L * 5L;
         long firstDataTime = infos.get(0).getLastUpdateTime() / 1000L;
         while (currentTime < firstDataTime) {
-            usage.addEmpty(currentTime, granularity != 0);
+            //usage.addEmpty(currentTime, granularity != 0);
             currentTime += step;
         }
         // Process each data point
@@ -279,9 +296,10 @@ public class ApiMetricsRawQuery {
         long lastDataTime = infos.get(infos.size() - 1).getLastUpdateTime() / 1000L;
         long fillTime = lastDataTime + step;
         while (fillTime < endAt) {
-            usage.addEmpty(fillTime, granularity != 0);
+            //usage.addEmpty(fillTime, granularity != 0);
             fillTime += step;
         }
+        //fixUsage(usage.getTs(), usage.getCpuUsage(), usage.getMemoryUsage());
         return usage;
     }
 
@@ -762,30 +780,12 @@ public class ApiMetricsRawQuery {
                         bytes.remove(0);
                         dbCosts.remove(0);
                     }
-                    List<Map<Long, Integer>> mergeDdCosts = ApiMetricsDelayUtil.merge(dbCosts);
-                    long totalDbCost = ApiMetricsDelayUtil.sum(mergeDdCosts).getTotal();
-                    ApiMetricsDelayUtil.readMaxAndMin(mergeDdCosts, item::setDbCostMax, item::setDbCostMin);
-                    List<Map<Long, Integer>> mergedDelays = ApiMetricsDelayUtil.merge(delays);
-                    ApiMetricsDelayUtil.Sum sumOfDelay = ApiMetricsDelayUtil.sum(mergedDelays);
-                    long totalDelayMs = sumOfDelay.getTotal();
-                    long reqCount = sumOfDelay.getCount();
-                    if (reqCount > 0L) {
-                        item.setRequestCostAvg(1.0D * totalDelayMs / reqCount);
-                        item.setDbCostAvg(1.0D * totalDbCost / reqCount);
-                    } else {
-                        item.setRequestCostAvg(0D);
-                        item.setDbCostAvg(0D);
-                    }
-                    ApiMetricsDelayUtil.readMaxAndMin(mergedDelays, item::setMaxDelay, item::setMinDelay);
-                    long totalBytes = bytes.stream().filter(Objects::nonNull).mapToLong(Long::longValue).sum();
-                    item.setRps(totalDelayMs > 0L ? (totalBytes * 1000.0D / totalDelayMs) : 0D);
                     if (delays.size() >= maxDepth) {
-                        item.setP95(ApiMetricsDelayUtil.p95(mergedDelays, reqCount));
-                        item.setP99(ApiMetricsDelayUtil.p99(mergedDelays, reqCount));
-                        item.setDbCostP95(ApiMetricsDelayUtil.p95(mergeDdCosts, reqCount));
-                        item.setDbCostP99(ApiMetricsDelayUtil.p99(mergeDdCosts, reqCount));
+                        item.point(delays, bytes, dbCosts);
                     }
-                });
+                }
+                );
+        items.parallelStream().forEach(this::mapping);
         for (ChartAndDelayOfApi.Item item : items) {
             if (item.getTs() < param.getStartAt() || item.getTs() >= param.getEndAt()) {
                 continue;
@@ -793,6 +793,34 @@ public class ApiMetricsRawQuery {
             result.add(item);
         }
         return result;
+    }
+
+    public void mapping(ChartAndDelayOfApi.Item item) {
+        ApiMetricsDelayUtil.Sum sumOfDelay = ApiMetricsDelayUtil.sum(item.getDelay());
+        long totalDelayMs = sumOfDelay.getTotal();
+        long reqCount = sumOfDelay.getCount();
+        long totalDbCost = ApiMetricsDelayUtil.sum(item.getDbCost()).getTotal();
+        ApiMetricsDelayUtil.readMaxAndMin(item.getDbCost(), item::setDbCostMax, item::setDbCostMin);
+        if (reqCount > 0L) {
+            item.setRequestCostAvg(1.0D * totalDelayMs / reqCount);
+            item.setDbCostAvg(1.0D * totalDbCost / reqCount);
+        } else {
+            item.setRequestCostAvg(0D);
+            item.setDbCostAvg(0D);
+        }
+        ApiMetricsDelayUtil.readMaxAndMin(item.getDelay(), item::setMaxDelay, item::setMinDelay);
+        long totalBytes = Optional.ofNullable(item.getTotalBytes()).orElse(0L);
+        item.setRps(totalDelayMs > 0L ? (totalBytes * 1000.0D / totalDelayMs) : 0D);
+        if (null != item.getDelays()) {
+            List<Map<Long, Integer>> mergedDelays = ApiMetricsDelayUtil.merge(item.getDelays());
+            item.setP95(ApiMetricsDelayUtil.p95(mergedDelays, reqCount));
+            item.setP99(ApiMetricsDelayUtil.p99(mergedDelays, reqCount));
+        }
+        if (null != item.getDbCosts()) {
+            List<Map<Long, Integer>> mergeDdCosts = ApiMetricsDelayUtil.merge(item.getDbCosts());
+            item.setDbCostP95(ApiMetricsDelayUtil.p95(mergeDdCosts, reqCount));
+            item.setDbCostP99(ApiMetricsDelayUtil.p99(mergeDdCosts, reqCount));
+        }
     }
 
     protected Map<String, Worker> activeWorkers(Collection<String> ignoreIds) {
