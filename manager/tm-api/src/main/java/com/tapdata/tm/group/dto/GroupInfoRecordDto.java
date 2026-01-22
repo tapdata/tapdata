@@ -27,4 +27,9 @@ public class GroupInfoRecordDto extends BaseDto {
 
     // Progress tracking (0-100 percentage, based on resource count)
     private Integer progress;
+
+    // Git operation steps (only used for Git export operations)
+    private List<GitOperationStep> gitOperationSteps;
+
+	private String groupTransferType;
 }

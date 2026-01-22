@@ -1,5 +1,6 @@
 package com.tapdata.tm.group.service;
 
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -15,21 +16,21 @@ import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.group.dto.GroupInfoDto;
-import com.tapdata.tm.group.dto.GroupInfoRecordDetail;
-import com.tapdata.tm.group.dto.GroupInfoRecordDto;
-import com.tapdata.tm.group.dto.ResourceItem;
-import com.tapdata.tm.group.dto.ResourceType;
+import com.tapdata.tm.group.dto.*;
 import com.tapdata.tm.group.entity.GroupInfoEntity;
 import com.tapdata.tm.group.handler.ResourceHandler;
 import com.tapdata.tm.group.handler.ResourceHandlerRegistry;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.repostitory.GroupInfoRepository;
+import com.tapdata.tm.group.service.git.GitBaseService;
+import com.tapdata.tm.group.service.git.GitService;
+import com.tapdata.tm.group.service.git.GitServiceRouter;
 import com.tapdata.tm.group.service.transfer.GroupExportRequest;
 import com.tapdata.tm.group.service.transfer.GroupImportRequest;
 import com.tapdata.tm.group.service.transfer.GroupTransferStrategy;
 import com.tapdata.tm.group.service.transfer.GroupTransferStrategyRegistry;
 import com.tapdata.tm.group.service.transfer.GroupTransferType;
+import com.tapdata.tm.group.vo.ExportGroupRequest;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.module.dto.ModulesDto;
@@ -38,6 +39,7 @@ import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.Setter;
@@ -80,31 +82,46 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         super(repository, GroupInfoDto.class, GroupInfoEntity.class);
     }
 
-    @Autowired
     private TaskService taskService;
-    @Autowired
     private ModulesService modulesService;
-    @Autowired
     private DataSourceService dataSourceService;
-    @Autowired
     private MetadataInstancesService metadataInstancesService;
-    @Autowired
     private DataSourceDefinitionService dataSourceDefinitionService;
-    @Autowired
     private GroupInfoRecordService groupInfoRecordService;
-    @Autowired
     private ResourceHandlerRegistry resourceHandlerRegistry;
-    @Autowired
     private InspectService inspectService;
-    @Autowired
     private GroupTransferStrategyRegistry transferStrategyRegistry;
+	private GitServiceRouter gitServiceRouter;
 
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
+		checkGitInfoAndHandleUrl(dto);
+	}
 
-    }
+	private static void checkGitInfoAndHandleUrl(GroupInfoDto dto) {
+		GroupGitInfoDto gitInfo = dto.getGitInfo();
+		if (null != gitInfo) {
+			String repoUrl = gitInfo.getRepoUrl();
+			// check repo url format
+			// 1. not blank
+			// 2. start with https://
+			if (StringUtils.isBlank(repoUrl) || !repoUrl.startsWith("https://")) {
+				throw new BizException("Group.GitInfo.RepoUrl.FormatError");
+			}
+			// Add .git as prefix if not exists
+			if (!repoUrl.endsWith(".git")) {
+				gitInfo.setRepoUrl(repoUrl + ".git");
+			}
+		}
+	}
 
-    public Page<GroupInfoDto> groupList(Filter filter, UserDetail userDetail) {
+	@Override
+	public UpdateResult update(Query query, GroupInfoDto dto) {
+		checkGitInfoAndHandleUrl(dto);
+		return super.update(query, dto);
+	}
+
+	public Page<GroupInfoDto> groupList(Filter filter, UserDetail userDetail) {
         Map<String, Object> where = filter.getWhere();
         Map<String, Object> notDeleteMap = new HashMap<>();
         notDeleteMap.put("$ne", true);
@@ -171,13 +188,22 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
-    public void exportGroupInfos(HttpServletResponse response, List<String> groupIds, UserDetail user,
-                                         Map<String, List<String>> groupResetTask) {
+    public void exportGroupInfos(HttpServletResponse response, ExportGroupRequest exportGroupRequest, UserDetail user) {
+		List<String> groupIds = exportGroupRequest.getGroupIds();
+		Map<String, List<String>> groupResetTask = exportGroupRequest.getGroupResetTask();
+
         List<GroupInfoDto> groupInfos = loadGroupInfosByIds(groupIds, user);
 
         if (CollectionUtils.isEmpty(groupInfos)) {
             throw new BizException("GroupInfo.Not.Found");
         }
+
+		// Check if any group is currently being exported via Git
+		GroupTransferType groupTransferType = exportGroupRequest.getGroupTransferType();
+		if (groupTransferType == GroupTransferType.GIT) {
+			checkExportingGroups(groupIds, user);
+		}
+
         applyResetTaskList(groupInfos, groupResetTask);
 
         // 按资源类型提取资源 ID
@@ -226,33 +252,79 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         log.info("Start exporting groups, groupCount={}, user={}", groupInfos.size(), user.getUsername());
 
         // 构建导出记录
-        GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_EXPORT, user,
-                buildExportRecordDetails(groupInfos, resourcesByType), name);
+		GroupInfoRecordDto recordDto = buildExportRecord(GroupInfoRecordDto.TYPE_EXPORT, user,
+				buildExportRecordDetails(groupInfos, resourcesByType), name, exportGroupRequest, groupInfos.get(0));
         recordDto = groupInfoRecordService.save(recordDto, user);
 
-        try {
-            GroupTransferStrategy strategy = transferStrategyRegistry.getStrategy(GroupTransferType.FILE);;
-            if (strategy == null) {
-                throw new BizException("GroupInfo.TransferStrategy.NotFound");
-            }
-            strategy.exportGroups(new GroupExportRequest(response,contents,name));
-            updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_COMPLETED, null,
-                    recordDto.getDetails(), user);
-            log.info("Group export completed successfully, groupCount={}, fileName={}", groupInfos.size(), name);
-        } catch (Exception e) {
-            updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_FAILED, e.getMessage(),
-                    recordDto.getDetails(), user);
-            log.error("Group export failed, groupCount={}, error={}", groupInfos.size(),
-                    ThrowableUtils.getStackTraceByPn(e));
-        }
-    }
+		doExport(response, exportGroupRequest, user, contents, name, groupInfos, recordDto);
+	}
 
-    /**
+	private void doExport(HttpServletResponse response, ExportGroupRequest exportGroupRequest, UserDetail user, Map<String, byte[]> contents, String name, List<GroupInfoDto> groupInfos, GroupInfoRecordDto recordDto) {
+		GroupTransferType groupTransferType = exportGroupRequest.getGroupTransferType();
+		if (groupTransferType.isAsync()) {
+			// Execute asynchronously
+			GroupInfoService groupInfoService = SpringContextHelper.getBean(GroupInfoService.class);
+			groupInfoService.executeExportAsync(response, exportGroupRequest, user, contents, name, groupInfos, recordDto);
+		} else {
+			// Execute synchronously
+			performExport(response, exportGroupRequest, user, contents, name, groupInfos, recordDto, false);
+		}
+	}
+
+	/**
+	 * Execute the actual export process asynchronously.
+	 */
+	@Async
+	public void executeExportAsync(HttpServletResponse response, ExportGroupRequest exportGroupRequest, UserDetail user, Map<String, byte[]> contents, String name, List<GroupInfoDto> groupInfos, GroupInfoRecordDto recordDto) {
+		log.info("Async export started, recordId={}, fileName={}", recordDto.getId(), name);
+		performExport(response, exportGroupRequest, user, contents, name, groupInfos, recordDto, true);
+	}
+
+	/**
+	 * Perform the actual export operation.
+	 *
+	 * @param isAsync Whether this is an async execution (affects logging)
+	 */
+	private void performExport(HttpServletResponse response, ExportGroupRequest exportGroupRequest, UserDetail user, Map<String, byte[]> contents, String name, List<GroupInfoDto> groupInfos, GroupInfoRecordDto recordDto, boolean isAsync) {
+		GroupTransferType groupTransferType = exportGroupRequest.getGroupTransferType();
+		try {
+			GroupTransferStrategy strategy = transferStrategyRegistry.getStrategy(groupTransferType);
+			if (strategy == null) {
+				throw new BizException("GroupInfo.TransferStrategy.NotFound");
+			}
+			strategy.exportGroups(new GroupExportRequest(response, contents, name, groupInfos.get(0), exportGroupRequest.getGitTag(), recordDto));
+			updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_COMPLETED, null,
+					recordDto.getDetails(), user);
+			if (groupTransferType.equals(GroupTransferType.GIT)) {
+				updateGitOperationStep(recordDto, user);
+			}
+			if (isAsync) {
+				log.info("Async export completed successfully, recordId={}, fileName={}, groupCount={}", recordDto.getId(), name, groupInfos.size());
+			} else {
+				log.info("Group export completed successfully, groupCount={}, fileName={}", groupInfos.size(), name);
+			}
+		} catch (Exception e) {
+			updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_FAILED, e.getMessage(),
+					recordDto.getDetails(), user);
+			if (groupTransferType.equals(GroupTransferType.GIT)) {
+				updateGitOperationStep(recordDto, user);
+			}
+			if (isAsync) {
+				log.error("Async export failed, recordId={}, fileName={}, groupCount={}, error={}", recordDto.getId(), name, groupInfos.size(),
+						ThrowableUtils.getStackTraceByPn(e));
+			} else {
+				log.error("Group export failed, groupCount={}, error={}", groupInfos.size(),
+						ThrowableUtils.getStackTraceByPn(e));
+			}
+		}
+	}
+
+	/**
      * Batch import groups asynchronously.
      * Returns the record ID immediately, and the import is executed in the
      * background.
      *
-     * @param file       The tar file to import
+     * @param resource   The tar file to import
      * @param user       User details
      * @param importMode Import mode
      * @return Record ID for tracking import progress
@@ -450,6 +522,40 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return findAllDto(query, user);
     }
 
+	/**
+	 * Check if any group is currently being exported via Git
+	 * @param groupIds List of group IDs to check
+	 * @param user Current user
+	 * @throws BizException if any group is currently being exported
+	 */
+	protected void checkExportingGroups(List<String> groupIds, UserDetail user) {
+		if (CollectionUtils.isEmpty(groupIds)) {
+			return;
+		}
+
+		// Query for records with status=exporting, type=export, groupTransferType=GIT
+		// and details.groupId in groupIds
+		Query query = new Query();
+		query.addCriteria(Criteria.where("type").is(GroupInfoRecordDto.TYPE_EXPORT)
+				.and("status").is(GroupInfoRecordDto.STATUS_EXPORTING)
+				.and("groupTransferType").is(GroupTransferType.GIT.name())
+				.and("details.groupId").in(groupIds));
+
+		List<GroupInfoRecordDto> exportingRecords = groupInfoRecordService.findAllDto(query, user);
+
+		if (CollectionUtils.isNotEmpty(exportingRecords)) {
+			// Extract group IDs that are currently being exported
+			Set<String> exportingGroupNames = exportingRecords.stream()
+					.flatMap(record -> record.getDetails().stream())
+					.map(GroupInfoRecordDetail::getGroupName)
+					.collect(Collectors.toSet());
+
+			if (!exportingGroupNames.isEmpty()) {
+				throw new BizException("GroupInfo.Export.InProgress", String.join(", ", exportingGroupNames));
+			}
+		}
+	}
+
     protected void applyResetTaskList(List<GroupInfoDto> groupInfos, Map<String, List<String>> groupResetTask) {
         if (CollectionUtils.isEmpty(groupInfos) || MapUtils.isEmpty(groupResetTask)) {
             return;
@@ -485,11 +591,24 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             return payload;
         }
         for (GroupInfoDto groupInfo : groupInfos) {
-            groupInfo.setCreateUser(null);
-            groupInfo.setCustomId(null);
-            groupInfo.setLastUpdBy(null);
-            groupInfo.setUserId(null);
-            payload.add(new TaskUpAndLoadDto("GroupInfo", JsonUtil.toJsonUseJackson(groupInfo)));
+            // Create a deep copy to avoid modifying the original object
+            // This is important because the original object is still needed for Git operations
+            GroupInfoDto groupInfoCopy = BeanUtil.deepClone(groupInfo, GroupInfoDto.class);
+
+            if (groupInfoCopy != null) {
+                groupInfoCopy.setCreateUser(null);
+                groupInfoCopy.setCustomId(null);
+                groupInfoCopy.setLastUpdBy(null);
+                groupInfoCopy.setUserId(null);
+
+                // Remove sensitive token information from gitInfo before export
+                // to prevent GitHub Push Protection from blocking the push
+                if (groupInfoCopy.getGitInfo() != null) {
+                    groupInfoCopy.getGitInfo().setToken(null);
+                }
+
+                payload.add(new TaskUpAndLoadDto("GroupInfo", JsonUtil.toJsonUseJackson(groupInfoCopy)));
+            }
         }
         return payload;
     }
@@ -509,6 +628,23 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
         }
     }
+
+	protected GroupInfoRecordDto buildExportRecord(String type, UserDetail user, List<GroupInfoRecordDetail> details,
+											 String fileName, ExportGroupRequest exportGroupRequest, GroupInfoDto groupInfoDto) {
+		GroupTransferType groupTransferType = exportGroupRequest.getGroupTransferType();
+		GroupInfoRecordDto recordDto = new GroupInfoRecordDto();
+		recordDto.setType(type);
+		recordDto.setGroupTransferType(groupTransferType.name());
+		switch (groupTransferType) {
+			case FILE -> recordDto.setFileName(fileName);
+			case GIT -> recordDto.setFileName(groupInfoDto.getGitInfo().getRepoUrl());
+		}
+		recordDto.setStatus(GroupInfoRecordDto.STATUS_EXPORTING);
+		recordDto.setOperator(user == null ? null : user.getUsername());
+		recordDto.setOperationTime(new Date());
+		recordDto.setDetails(details);
+		return recordDto;
+	}
 
     protected GroupInfoRecordDto buildRecord(String type, UserDetail user, List<GroupInfoRecordDetail> details,
             String fileName) {
@@ -541,6 +677,22 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         update.set("progress", 100);
         groupInfoRecordService.updateById(recordId, update, user);
     }
+
+	protected void updateGitOperationStep(GroupInfoRecordDto recordDto, UserDetail user) {
+		if (recordDto == null) {
+			return;
+		}
+		ObjectId id = recordDto.getId();
+		if (null == id) {
+			return;
+		}
+		List<GitOperationStep> gitOperationSteps = recordDto.getGitOperationSteps();
+		if (CollectionUtils.isEmpty(gitOperationSteps)) {
+			return;
+		}
+		Update update = new Update().set("gitOperationSteps", gitOperationSteps);
+		groupInfoRecordService.updateById(id, update, user);
+	}
 
     /**
      * Update import progress in the record.
@@ -724,7 +876,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     /**
      * 按资源类型提取资源 ID
-     * 
+     *
      * @param groupInfos 分组列表
      * @return 资源类型到 ID 集合的映射
      */
@@ -833,4 +985,20 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
+	public String lastestTagName(String groupId) {
+		GroupInfoDto groupInfoDto = findById(new ObjectId(groupId));
+		if (null == groupInfoDto) {
+			throw new IllegalArgumentException(String.format("Group not exists: %s", groupId));
+		}
+		GroupGitInfoDto gitInfo = groupInfoDto.getGitInfo();
+		if (null == gitInfo) {
+			throw new IllegalArgumentException("The project does not have a git repository set up");
+		}
+		GitService gitService = gitServiceRouter.route(gitInfo);
+		if (gitService instanceof GitBaseService) {
+			return ((GitBaseService) gitService).lastestTagName(gitInfo);
+		} else {
+			throw new UnsupportedOperationException(gitInfo.toString());
+		}
+	}
 }

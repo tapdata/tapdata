@@ -662,7 +662,17 @@
 			<artifactId>mcp-tap-server</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-		<!---->
+
+        <dependency>
+            <groupId>org.kohsuke</groupId>
+            <artifactId>github-api</artifactId>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+        </dependency>
 	</dependencies>
 
 	<build>

@@ -23,12 +23,18 @@ public class GroupInfoRecordDetail {
     }
 
     public enum RecordAction {
+        // Resource import/export actions
         EXPORTED,
         IMPORTED,
         SKIPPED,
         NO_UPDATE,
         REPLACED,
         ERRORED,
-        IMPORTING
+        IMPORTING,
+
+        // Git operation actions
+        GIT_STEP_STARTED,      // Git operation step started
+        GIT_STEP_SUCCESS,      // Git operation step completed successfully
+        GIT_STEP_FAILED        // Git operation step failed
     }
 }

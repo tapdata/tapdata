@@ -21,6 +21,7 @@ import com.tapdata.tm.group.repostitory.GroupInfoRepository;
 import com.tapdata.tm.group.service.transfer.GroupTransferStrategy;
 import com.tapdata.tm.group.service.transfer.GroupTransferStrategyRegistry;
 import com.tapdata.tm.group.service.transfer.GroupTransferType;
+import com.tapdata.tm.group.vo.ExportGroupRequest;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
@@ -294,7 +295,11 @@ public class GroupInfoServiceTest {
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
 
-            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
+			ExportGroupRequest exportGroupRequest = new ExportGroupRequest();
+			exportGroupRequest.setGroupIds(groupIds);
+			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
+			exportGroupRequest.setGroupResetTask(new HashMap<>());
+			groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
 
             verify(groupTransferStrategy).exportGroups(any());
         }
@@ -318,8 +323,11 @@ public class GroupInfoServiceTest {
             when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class))).thenReturn(savedRecord);
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
-
-            groupInfoService.exportGroupInfos(response, groupIds, user ,new HashMap<>());
+			ExportGroupRequest exportGroupRequest = new ExportGroupRequest();
+			exportGroupRequest.setGroupIds(groupIds);
+			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
+			exportGroupRequest.setGroupResetTask(new HashMap<>());
+			groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
 
             verify(groupInfoRecordService).save(any(GroupInfoRecordDto.class), any());
         }
@@ -343,8 +351,11 @@ public class GroupInfoServiceTest {
             when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any())).thenReturn(savedRecord);
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
-
-            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
+			ExportGroupRequest exportGroupRequest = new ExportGroupRequest();
+			exportGroupRequest.setGroupIds(groupIds);
+			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
+			exportGroupRequest.setGroupResetTask(new HashMap<>());
+            groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
 
             verify(groupInfoRecordService).save(any(GroupInfoRecordDto.class), any());
         }
@@ -368,8 +379,11 @@ public class GroupInfoServiceTest {
             when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class))).thenReturn(savedRecord);
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
-
-            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
+			ExportGroupRequest exportGroupRequest = new ExportGroupRequest();
+			exportGroupRequest.setGroupIds(groupIds);
+			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
+			exportGroupRequest.setGroupResetTask(new HashMap<>());
+            groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
 
             // Verify that the transfer strategy is called for export
             verify(groupTransferStrategy).exportGroups(any());
@@ -394,8 +408,11 @@ public class GroupInfoServiceTest {
             when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class))).thenReturn(savedRecord);
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
-
-            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
+			ExportGroupRequest exportGroupRequest = new ExportGroupRequest();
+			exportGroupRequest.setGroupIds(groupIds);
+			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
+			exportGroupRequest.setGroupResetTask(new HashMap<>());
+            groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
 
             verify(groupInfoService).updateRecordStatus(eq(savedRecord.getId()),
                 eq(GroupInfoRecordDto.STATUS_COMPLETED), isNull(), any(), eq(user));
@@ -423,8 +440,11 @@ public class GroupInfoServiceTest {
             doThrow(new RuntimeException("Export error")).when(groupTransferStrategy).exportGroups(any());
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
-
-            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
+			ExportGroupRequest exportGroupRequest = new ExportGroupRequest();
+			exportGroupRequest.setGroupIds(groupIds);
+			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
+			exportGroupRequest.setGroupResetTask(new HashMap<>());
+            groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
 
             verify(groupInfoService).updateRecordStatus(eq(savedRecord.getId()),
                 eq(GroupInfoRecordDto.STATUS_FAILED), eq("Export error"), any(), eq(user));
@@ -452,8 +472,11 @@ public class GroupInfoServiceTest {
             when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class))).thenReturn(savedRecord);
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
-
-            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
+			ExportGroupRequest exportGroupRequest = new ExportGroupRequest();
+			exportGroupRequest.setGroupIds(groupIds);
+			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
+			exportGroupRequest.setGroupResetTask(new HashMap<>());
+            groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
 
             verify(groupTransferStrategy).exportGroups(any());
         }
@@ -477,8 +500,11 @@ public class GroupInfoServiceTest {
             when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class))).thenReturn(savedRecord);
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
-
-            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
+			ExportGroupRequest exportGroupRequest = new ExportGroupRequest();
+			exportGroupRequest.setGroupIds(groupIds);
+			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
+			exportGroupRequest.setGroupResetTask(new HashMap<>());
+            groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
 
             // Verify that the transfer strategy is called for export
             verify(groupTransferStrategy).exportGroups(any());
@@ -508,8 +534,11 @@ public class GroupInfoServiceTest {
             when(groupInfoRecordService.save(any(GroupInfoRecordDto.class), any(UserDetail.class))).thenReturn(savedRecord);
 
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
-
-            groupInfoService.exportGroupInfos(response, groupIds, user,new HashMap<>());
+			ExportGroupRequest exportGroupRequest = new ExportGroupRequest();
+			exportGroupRequest.setGroupIds(groupIds);
+			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
+			exportGroupRequest.setGroupResetTask(new HashMap<>());
+            groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
 
             verify(groupInfoService).updateRecordStatus(eq(savedRecord.getId()),
                 eq(GroupInfoRecordDto.STATUS_COMPLETED), isNull(), any(), eq(user));

@@ -9,5 +9,7 @@ public interface GroupTransferStrategy {
 
     void exportGroups(GroupExportRequest request);
 
-    ObjectId importGroups(GroupImportRequest request) throws IOException;
+	default ObjectId importGroups(GroupImportRequest request) throws IOException {
+		throw new UnsupportedOperationException();
+	}
 }

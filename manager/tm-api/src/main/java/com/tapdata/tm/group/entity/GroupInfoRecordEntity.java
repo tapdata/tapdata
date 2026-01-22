@@ -1,6 +1,7 @@
 package com.tapdata.tm.group.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.group.dto.GitOperationStep;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -22,4 +23,6 @@ public class GroupInfoRecordEntity extends BaseEntity {
     private String fileName;
     private List<GroupInfoRecordDetail> details;
     private Integer progress;
+    private List<GitOperationStep> gitOperationSteps;
+	private String groupTransferType;
 }

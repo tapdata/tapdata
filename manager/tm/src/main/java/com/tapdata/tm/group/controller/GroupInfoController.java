@@ -10,6 +10,7 @@ import com.tapdata.tm.group.dto.GroupInfoRecordDto;
 import com.tapdata.tm.group.service.GroupInfoService;
 import com.tapdata.tm.group.service.GroupInfoRecordService;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+import com.tapdata.tm.group.vo.ExportGroupRequest;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,7 +24,6 @@ import org.springframework.http.MediaType;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -36,11 +36,17 @@ public class GroupInfoController extends BaseController {
 
     @Operation(summary = "group导出")
     @PostMapping("/batch/load")
-    public void batchLoadTasks(@RequestParam("id") List<String> id,
-            @RequestBody(required = false) Map<String, List<String>> groupResetTask,
+    public void batchLoadTasks(@RequestBody ExportGroupRequest exportRequest,
             HttpServletResponse response) {
-        groupInfoService.exportGroupInfos(response, id, getLoginUser(), groupResetTask);
+		groupInfoService.exportGroupInfos(response, exportRequest, getLoginUser());
     }
+
+	@Operation(summary = "group导出")
+	@PostMapping("/batch/load/git")
+	public ResponseMessage<Map<String, String>> batchLoadTasksGit(@RequestBody ExportGroupRequest exportRequest) {
+		groupInfoService.exportGroupInfos(null, exportRequest, getLoginUser());
+		return success();
+	}
 
     @Operation(summary = "group异步导入，返回记录ID用于查询进度")
     @PostMapping(path = "/batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -110,9 +116,9 @@ public class GroupInfoController extends BaseController {
         return success(groupInfoRecordDto);
     }
 
-
-
-
-
-
+	@Operation(summary = "获取最新的tag")
+	@GetMapping("/lastestGitTag/{id}")
+	public String lastestGitTag(@PathVariable String id) {
+		return groupInfoService.lastestTagName(id);
+	}
 }
