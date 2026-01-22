@@ -56,7 +56,7 @@ public class ApiMetricsRawService {
         }
         long startAt = param.getStartAt() * 1000L;
         if (startAt % 60000L != 0L) {
-            startAt = (startAt + 5999L) / 60000L * 60000L;
+            startAt = (startAt + 59999L) / 60000L * 60000L;
         }
         List<WorkerCallEntity> callOfWorker = new ArrayList<>();
         if (startAt < endAt) {
@@ -72,7 +72,7 @@ public class ApiMetricsRawService {
         List<QueryBase.Point> secondPoint = new ArrayList<>();
         long start = param.getStartAt() * 1000L;
         long end = param.getEndAt() * 1000L;
-        if (start < startAt) {
+        if (startAt > start) {
             secondPoint.add(QueryBase.Point.of(start, startAt, -1));
         }
         if (end > endAt) {
@@ -80,6 +80,7 @@ public class ApiMetricsRawService {
         }
         if (!secondPoint.isEmpty()) {
             Criteria criteriaOfSec = Criteria.where("api_gateway_uuid").is(serverId)
+                    .and("req_path").nin(MetricInstanceFactory.IGNORE_PATH)
                     .and("delete").ne(true) ;
             List<Criteria> or = new ArrayList<>();
             for (QueryBase.Point point : secondPoint) {
