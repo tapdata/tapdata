@@ -351,6 +351,10 @@ public class ParticleSizeAnalyzer {
 
     public static void parseToMetric(List<ApiCallEntity> entity, Consumer<ApiMetricsRaw> consumer) {
         for (ApiCallEntity apiCallEntity : entity) {
+            String reqPath = Optional.ofNullable(apiCallEntity.getReq_path()).orElse("");
+            if (MetricInstanceFactory.IGNORE_PATH.contains(reqPath)) {
+                continue;
+            }
             ApiMetricsRaw row = new ApiMetricsRaw();
             row.setProcessId(apiCallEntity.getApi_gateway_uuid());
             row.setApiId(apiCallEntity.getAllPathId());

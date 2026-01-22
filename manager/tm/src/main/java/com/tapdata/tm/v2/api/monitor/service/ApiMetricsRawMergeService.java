@@ -198,8 +198,7 @@ public class ApiMetricsRawMergeService {
             switch (timeGranularity) {
                 case SECOND:
                     List<Criteria> andCriteria = new ArrayList<>();
-                    andCriteria.add(Criteria.where("delete").ne(true)
-                            .and("req_path").nin(MetricInstanceFactory.IGNORE_PATH));
+                    andCriteria.add(Criteria.where("delete").is(false));
                     Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
                     List<Criteria> orSec = new ArrayList<>();
                     for (ParticleSizeAnalyzer.TimeRange point : ranges) {
@@ -207,7 +206,7 @@ public class ApiMetricsRawMergeService {
                     }
                     andCriteria.add(new Criteria().orOperator(orSec));
                     Query query = Query.query(new Criteria().andOperator(andCriteria));
-                    query.fields().include("api_gateway_uuid", "allPathId", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id");
+                    query.fields().include("api_gateway_uuid", "allPathId", "req_path", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id");
                     String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
                     if (StringUtils.isNotBlank(callName)) {
                         List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);

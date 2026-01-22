@@ -90,7 +90,6 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         long bucketDay = TimeGranularity.DAY.fixTime(reqTimeOSec);
         ObjectId callId = entity.get("_id", ObjectId.class);
         if (this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0) {
-            System.out.println("Too old api call data");
             return;
         }
 
