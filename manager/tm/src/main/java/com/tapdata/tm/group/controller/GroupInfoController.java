@@ -118,7 +118,7 @@ public class GroupInfoController extends BaseController {
 
 	@Operation(summary = "获取最新的tag")
 	@GetMapping("/lastestGitTag/{id}")
-	public String lastestGitTag(@PathVariable String id) {
-		return groupInfoService.lastestTagName(id);
+	public ResponseMessage<String> lastestGitTag(@PathVariable String id) {
+		return success(groupInfoService.lastestTagName(id));
 	}
 }
