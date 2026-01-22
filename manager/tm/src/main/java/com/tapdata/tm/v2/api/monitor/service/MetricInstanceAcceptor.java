@@ -96,7 +96,6 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         BucketInfo lessBucket = null;
         if (null != lastBucketMin && lastBucketMin.getTimeStart() != bucketMin) {
             if (bucketMin < lastBucketMin.getTimeStart()) {
-//                System.out.println("Less minute time: " + bucketMin);
                 lessBucket = this.bucketInfoGetter.apply(bucketMin);
                 if (null == lessBucket.getLastBucketMin()) {
                     Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();

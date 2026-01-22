@@ -96,7 +96,7 @@ public class ApiMetricsRawQuery {
         ParticleSizeAnalyzer.fixTime(result, param, false);
         List<ApiMetricsRaw> apiMetricsRaws = metricsRawMergeService.merge(
                 param,
-                c -> c.and("metricType").is(MetricTypes.API_SERVER.getType()),
+                c -> c.and("metricType").is(MetricTypes.API.getType()),
                 null);
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return result;
