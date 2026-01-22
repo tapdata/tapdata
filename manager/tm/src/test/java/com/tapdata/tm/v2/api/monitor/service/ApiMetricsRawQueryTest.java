@@ -33,12 +33,14 @@ import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
+import com.tapdata.tm.worker.entity.UsageBase;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -53,6 +55,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 
@@ -966,20 +969,20 @@ class ApiMetricsRawQueryTest {
         }
         @Test
         void testMissingPreviousPart() {
-            List<? extends ServerUsage> infos = new ArrayList<>();
+            List<? extends UsageBase> infos = new ArrayList<>();
             //2025-12-09 00:00:10
-            ServerUsage instance1 = ServerUsageMetric.instance(1765209610000L, "processId", "workOid", 0);
+            ServerUsageMetric instance1 = ServerUsageMetric.instance(0, 1765209610000L, "processId", "workOid", 0);
             instance1.setCpuUsage(1.0D);
             instance1.setHeapMemoryUsage(100L);
             instance1.setHeapMemoryMax(100L);
 
             //2025-12-09 00:00:35
-            ServerUsage instance2 = ServerUsageMetric.instance(1765209635000L, "processId", "workOid", 0);
+            ServerUsageMetric instance2 = ServerUsageMetric.instance(0,1765209635000L, "processId", "workOid", 0);
             instance2.setCpuUsage(2.0D);
             instance2.setHeapMemoryUsage(200L);
             instance2.setHeapMemoryMax(400L);
-            ((List<ServerUsage>) infos).add(instance1);
-            ((List<ServerUsage>) infos).add(instance2);
+            ((List<UsageBase>) infos).add(instance1);
+            ((List<UsageBase>) infos).add(instance2);
             long startAt = 1765209600L; //2025-12-09 00:00:00
             long endAt   = 1765209660L; //2025-12-09 00:01:00
             int granularity = 0;
@@ -1054,13 +1057,29 @@ class ApiMetricsRawQueryTest {
                 "/v1/yw0n3lvjiku","/v1/aqs919theqr","/v1/agvegbzt3qx","/v1/qrknw3gxn5c","/v1/a5y8f564xei","/v1/irk7mbxr05p",
                 "/opop/g48sx5lk9th","/no/id","/dummy/ok","/x999/o9","/mmm/xu3dugn8ubk","/version/suffix/base_path","/v1/fexs98lzrz3"
         );
+
         for (int i = 0; i < 1314520; i++) {
+            List<CompletableFuture<Void>> fs = new ArrayList<>(api.size());
             for (String s : api) {
-                try {
-                   HttpUtils.sendGetData(String.format(uri, s, token), new HashMap<>());
-                } catch (Exception e) {
-                    //
-                }
+                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                    try {
+                        HttpUtils.sendGetData(String.format(uri, s, token), new HashMap<>());
+                    } catch (Exception e) {
+                        //
+                    }
+                });
+                fs.add(future);
+            }
+            try {
+                fs.forEach(e -> {
+                    try {
+                        e.get();
+                    } catch (Exception ex) {
+                        //
+                    }
+                });
+            } catch (Exception e) {
+
             }
         }
     }
