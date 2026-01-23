@@ -104,5 +104,18 @@
       "name": "processId_1_timeStart_1_timeGranularity_1",
       "background": true
     }]
+  },
+  {
+    "createIndexes": "ApiCallInWorker",
+    "indexes": [
+      {
+        "key": {
+          "ttlKey": 1
+        },
+        "expireAfterSeconds": 2592000,
+        "name": "ApiCallInWorker_ttl_ttlKey-1",
+        "background": true
+      }
+    ]
   }
 ]

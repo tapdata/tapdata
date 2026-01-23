@@ -4,6 +4,8 @@ import com.tapdata.tm.base.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.Date;
+
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
  * @author <a href="https://github.com/11000100111010101100111">Gavin'Xiao</a>
@@ -47,4 +49,6 @@ public class UsageBase extends BaseEntity {
     protected Long heapMemoryUsage;
 
     protected Long lastUpdateTime;
+
+    protected Date ttlKey;
 }

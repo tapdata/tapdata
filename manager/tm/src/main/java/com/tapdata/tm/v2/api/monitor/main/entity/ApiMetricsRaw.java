@@ -102,6 +102,8 @@ public class ApiMetricsRaw extends BaseEntity {
 
     private ObjectId lastCallId;
 
+    private Date ttlKey;
+
     public static ApiMetricsRaw instance(String serverId, String apiId, Long bucketMin, TimeGranularity type, MetricTypes metricType) {
         ApiMetricsRaw item = new ApiMetricsRaw();
         item.setId(new ObjectId());

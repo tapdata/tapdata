@@ -31,7 +31,7 @@
     "createIndexes": "ApiMetricsRaw",
     "indexes": [{
       "key": {
-        "timeStart": 1
+        "ttlKey": 1
       },
       "expireAfterSeconds": 2592000,
       "name": "ApiMetricsRaw_1_ttl",
@@ -42,7 +42,7 @@
     "createIndexes": "ServerUsage",
     "indexes": [{
       "key": {
-        "createTime": 1
+        "ttlKey": 1
       },
       "expireAfterSeconds": 2592000,
       "name": "ServerUsage_1_ttl",
@@ -65,7 +65,7 @@
     "createIndexes": "ServerUsageMetric",
     "indexes": [{
       "key": {
-        "createTime": 1
+        "ttlKey": 1
       },
       "expireAfterSeconds": 2592000,
       "name": "ServerUsage_1_ttl",

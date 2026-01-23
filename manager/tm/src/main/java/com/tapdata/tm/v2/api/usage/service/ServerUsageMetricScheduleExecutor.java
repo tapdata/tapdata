@@ -6,6 +6,7 @@ import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.Sorts;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import lombok.Setter;
@@ -24,6 +25,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -101,6 +103,7 @@ public class ServerUsageMetricScheduleExecutor {
             }
             BulkOperations bulkOps = mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, ServerUsageMetric.class);
             for (ServerUsageMetric entity : entities) {
+                entity.setTtlKey(new Date(entity.getLastUpdateTime()));
                 Query query = queryBuilder.apply(entity);
                 Update update = updateBuilder.apply(entity);
                 bulkOps.upsert(query, update);
@@ -138,6 +141,7 @@ public class ServerUsageMetricScheduleExecutor {
         update.set("minHeapMemoryUsage", entity.getMinHeapMemoryUsage());
         update.set("heapMemoryUsage", entity.getHeapMemoryUsage());
         update.set("heapMemoryMax", entity.getHeapMemoryMax());
+        update.set("ttlKey", entity.getTtlKey());
         update.currentDate("updatedAt");
         return update;
     }

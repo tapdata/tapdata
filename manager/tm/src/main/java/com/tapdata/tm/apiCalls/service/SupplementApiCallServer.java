@@ -280,6 +280,7 @@ public class SupplementApiCallServer {
                     .and(WorkerCallServiceImpl.Tag.API_ID).is(entity.getApiId())
                     .and(WorkerCallServiceImpl.Tag.WORK_OID).is(entity.getWorkOid());
             or.add(criteria);
+            entity.setTtlKey(new Date(entity.getTimeStart()));
         }
         Query query = Query.query(new Criteria().orOperator(or));
         List<WorkerCallEntity> entities = mongoOperations.find(query, WorkerCallEntity.class);
