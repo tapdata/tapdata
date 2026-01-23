@@ -3,15 +3,19 @@ package com.tapdata.tm.group.handler;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.dto.ResourceType;
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
+import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -37,6 +41,9 @@ public class ModuleResourceHandler implements ResourceHandler {
 
     @Autowired
     private DataSourceService dataSourceService;
+
+    @Autowired
+    private MetadataDefinitionService metadataDefinitionService;
 
     @Override
     public ResourceType getResourceType() {
@@ -72,7 +79,6 @@ public class ModuleResourceHandler implements ResourceHandler {
             modulesDto.setCustomId(null);
             modulesDto.setLastUpdBy(null);
             modulesDto.setUserId(null);
-            modulesDto.setListtags(null);
             payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_MODULES, JsonUtil.toJsonUseJackson(modulesDto)));
         }
         return payload;
@@ -166,5 +172,29 @@ public class ModuleResourceHandler implements ResourceHandler {
 
         ModulesDto modulesDto = moduleMap.get(resourceId);
         return modulesDto == null ? null : modulesDto.getName();
+    }
+
+    @Override
+    public void handleRelatedResources(Map<String, List<TaskUpAndLoadDto>> payloadsByType, List<?> resources,
+            UserDetail user,Set<ObjectId> tagIds) {
+        ResourceHandler.super.handleRelatedResources(payloadsByType, resources, user,tagIds);
+
+        List<ModulesDto> modules = (List<ModulesDto>) resources;
+        for (ModulesDto modulesDto : modules) {
+            if (CollectionUtils.isNotEmpty(modulesDto.getListtags())) {
+                tagIds.addAll(modulesDto.getListtags().stream()
+                        .map(tag -> MongoUtils.toObjectId(tag.getId()))
+                        .toList());
+            }
+        }
+        if (CollectionUtils.isNotEmpty(tagIds)) {
+            List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAndParent(null, tagIds.stream().toList());
+            if (CollectionUtils.isNotEmpty(allDto)) {
+                List<TaskUpAndLoadDto> payload = new ArrayList<>(allDto.stream()
+                        .map(t -> new TaskUpAndLoadDto(GroupConstants.METADATA_DEFINITION, JsonUtil.toJsonUseJackson(t)))
+                        .toList());
+                payloadsByType.computeIfAbsent(ResourceType.METADATA_DEFINITION.name(), k -> new ArrayList<>()).addAll(payload);
+            }
+        }
     }
 }

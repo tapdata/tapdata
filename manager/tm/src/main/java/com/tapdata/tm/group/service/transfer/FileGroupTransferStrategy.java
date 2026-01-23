@@ -94,11 +94,34 @@ public class FileGroupTransferStrategy implements GroupTransferStrategy {
                 }
                 ByteArrayOutputStream entryBuffer = new ByteArrayOutputStream();
                 IOUtils.copy(tais, entryBuffer);
-                List<TaskUpAndLoadDto> list = parseTaskUpAndLoadList(entryBuffer.toByteArray());
-                payloads.put(entry.getName(), list);
+                byte[] bytes = entryBuffer.toByteArray();
+                String entryName = entry.getName();
+
+                // 判断是否为Excel文件
+                if (isExcelFile(entryName)) {
+                    // Excel文件作为二进制数据存储
+                    List<TaskUpAndLoadDto> list = new ArrayList<>();
+                    list.add(new TaskUpAndLoadDto(entryName, bytes));
+                    payloads.put(entryName, list);
+                } else if(entryName.endsWith(".json")) {
+                    // JSON文件按原逻辑解析
+                    List<TaskUpAndLoadDto> list = parseTaskUpAndLoadList(bytes);
+                    payloads.put(entryName, list);
+                }
             }
         }
         return payloads;
+    }
+
+    /**
+     * 判断是否为Excel文件
+     */
+    protected boolean isExcelFile(String fileName) {
+        if (StringUtils.isBlank(fileName)) {
+            return false;
+        }
+        String lowerName = fileName.toLowerCase();
+        return lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
     }
 
     protected List<TaskUpAndLoadDto> parseTaskUpAndLoadList(byte[] bytes) {

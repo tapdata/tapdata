@@ -2,20 +2,26 @@ package com.tapdata.tm.group.handler;
 
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.dto.ResourceType;
 import com.tapdata.tm.group.service.GroupInfoService;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.constant.SyncStatus;
 import com.tapdata.tm.task.entity.TaskEntity;
@@ -54,6 +60,12 @@ public class TaskResourceHandler implements ResourceHandler {
 
     @Autowired
     private InspectService inspectService;
+
+    @Autowired
+    private ExternalStorageService externalStorageService;
+
+    @Autowired
+    private MetadataDefinitionService metadataDefinitionService;
 
     private final ResourceType resourceType;
 
@@ -106,6 +118,7 @@ public class TaskResourceHandler implements ResourceHandler {
         }
 
         List<TaskDto> tasks = (List<TaskDto>) resources;
+        Map<String,String> externalStorageMap = new HashMap<>();
 
         for (TaskDto taskDto : tasks) {
             // 清理敏感和非必要字段
@@ -114,7 +127,6 @@ public class TaskResourceHandler implements ResourceHandler {
             taskDto.setLastUpdBy(null);
             taskDto.setUserId(null);
             taskDto.setAgentId(null);
-            taskDto.setListtags(null);
             taskDto.setStatus(TaskDto.STATUS_EDIT);
             taskDto.setSyncStatus(SyncStatus.NORMAL);
             taskDto.setStatuses(new ArrayList<>());
@@ -131,17 +143,27 @@ public class TaskResourceHandler implements ResourceHandler {
             taskDto.setStopedDate(null);
             taskDto.setStoppingTime(null);
             taskDto.setSnapshotDoneAt(null);
-
-            payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_TASK, JsonUtil.toJsonUseJackson(taskDto)));
-
             // 导出任务关联的元数据
             DAG dag = taskDto.getDag();
             if (dag == null || CollectionUtils.isEmpty(dag.getNodes())) {
                 continue;
             }
+            dag.getNodes().forEach(node -> {
+                if(StringUtils.isNotBlank(node.getExternalStorageId())){
+                    if(externalStorageMap.containsKey(node.getExternalStorageId())){
+                        node.setExternalStorageName(externalStorageMap.get(node.getExternalStorageId()));
+                    }else{
+                        ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(node.getExternalStorageId()), Field.includes("name"));
+                        if(null != externalStorageDto){
+                            node.setExternalStorageName(externalStorageDto.getName());
+                            externalStorageMap.put(node.getExternalStorageId(), externalStorageDto.getName());
+                        }
+                    }
+                }
+            });
 
-            // TODO 性能优化：考虑批量查询所有节点的元数据，避免循环查询
-            // 需要在 MetadataInstancesService 中添加 batchFindByNodeIds 方法
+            payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_TASK, JsonUtil.toJsonUseJackson(taskDto)));
+
             int metadataCount = 0;
             try {
                 for (Node<?> node : dag.getNodes()) {
@@ -265,11 +287,17 @@ public class TaskResourceHandler implements ResourceHandler {
 
     @Override
     public void handleRelatedResources(Map<String, List<TaskUpAndLoadDto>> payloadsByType, List<?> resources,
-            UserDetail user) {
-        ResourceHandler.super.handleRelatedResources(payloadsByType, resources, user);
+            UserDetail user,Set<ObjectId> tagIds) {
+        ResourceHandler.super.handleRelatedResources(payloadsByType, resources, user,tagIds);
         List<TaskDto> tasks = (List<TaskDto>) resources;
         Set<String> shareCacheNames = new HashSet<>();
         for (TaskDto taskDto : tasks) {
+            if(CollectionUtils.isNotEmpty(taskDto.getListtags())){
+                tagIds.addAll(taskDto.getListtags().stream().map(tag -> MongoUtils.toObjectId(tag.getId())).toList());
+            }
+            if (null == taskDto.getAttrs()) {
+                continue;
+            }
             Map<String, List<String>> usedShareCache = (Map<String, List<String>>) taskDto.getAttrs()
                     .get("usedShareCache");
             if (MapUtils.isNotEmpty(usedShareCache)) {
@@ -287,10 +315,23 @@ public class TaskResourceHandler implements ResourceHandler {
         List<InspectDto> inspectDtoList = inspectService
                 .findByTaskIdList(tasks.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList()));
         if (CollectionUtils.isNotEmpty(inspectDtoList)) {
+            inspectDtoList.forEach(inspectDto -> {
+                if(CollectionUtils.isNotEmpty(inspectDto.getListtags())){
+                    tagIds.addAll(inspectDto.getListtags().stream().map(tag -> MongoUtils.toObjectId(tag.getId())).toList());
+                }
+            });
             List<TaskUpAndLoadDto> payload = new ArrayList<>(inspectDtoList.stream()
                     .map(t -> new TaskUpAndLoadDto(GroupConstants.COLLECTION_INSPECT, JsonUtil.toJsonUseJackson(t)))
                     .toList());
             payloadsByType.computeIfAbsent(ResourceType.INSPECT_TASK.name(), k -> new ArrayList<>()).addAll(payload);
+        }
+
+        List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAndParent(null, tagIds.stream().toList());
+        if (CollectionUtils.isNotEmpty(allDto)) {
+            List<TaskUpAndLoadDto> payload = new ArrayList<>(allDto.stream()
+                    .map(t -> new TaskUpAndLoadDto(GroupConstants.METADATA_DEFINITION, JsonUtil.toJsonUseJackson(t)))
+                    .toList());
+            payloadsByType.computeIfAbsent(ResourceType.METADATA_DEFINITION.name(), k -> new ArrayList<>()).addAll(payload);
         }
 
     }

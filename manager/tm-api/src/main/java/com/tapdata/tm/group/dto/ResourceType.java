@@ -11,7 +11,8 @@ public enum ResourceType {
     SYNC_TASK,
     MODULE,
     SHARE_CACHE,
-    INSPECT_TASK;
+    INSPECT_TASK,
+    METADATA_DEFINITION;
 
     public static String getResourceName(String resourceType) {
         return switch (resourceType) {
@@ -21,8 +22,16 @@ public enum ResourceType {
             case "CONNECTION" -> "Connection.json";
             case "SHARE_CACHE" -> "ShareCache.json";
             case "INSPECT_TASK" -> "InspectTask.json";
+            case "METADATA_DEFINITION" -> "MetadataDefinition.json";
             default -> null;
         };
+    }
+
+    public static Boolean hasTags(ResourceType resourceType){
+       if(resourceType.equals(ResourceType.SHARE_CACHE) || resourceType.equals(ResourceType.METADATA_DEFINITION)){
+           return false;
+       };
+       return true;
     }
 
 

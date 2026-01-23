@@ -29,6 +29,11 @@ public final class GroupConstants {
     public static final String COLLECTION_CONNECTION = "Connections";
 
     /**
+     * 连接Excel文件名称
+     */
+    public static final String COLLECTION_CONNECTION_EXCEL = "Connections.xlsx";
+
+    /**
      * 模块集合名称
      */
     public static final String COLLECTION_MODULES = "Modules";
@@ -42,6 +47,11 @@ public final class GroupConstants {
      * 校验任务集合名称
      */
     public static final String COLLECTION_INSPECT = "Inspect";
+
+    /**
+     * 标签集合名称
+     */
+    public static final String METADATA_DEFINITION = "MetadataDefinition";
 
     // ==================== 敏感字段列表 ====================
 

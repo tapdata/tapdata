@@ -1852,8 +1852,6 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
             String connId = connectionDto.getId().toString();
-            connectionDto.setListtags(null);
-
             // 基于名称查找现有连接
             Query nameQuery = new Query(Criteria.where("name").is(connectionDto.getName()).and("is_deleted").ne(true));
             nameQuery.fields().include("_id", "name");
@@ -1942,7 +1940,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
 
         agentGroupService.importAgentInfo(connectionDto);
-        return importEntity(connectionDto, user);
+        DataSourceConnectionDto result = importEntity(connectionDto, user);
+        sendTestConnection(result, true, true, user);
+        return result;
     }
 
     public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {

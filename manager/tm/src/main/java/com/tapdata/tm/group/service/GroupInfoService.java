@@ -40,6 +40,10 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.utils.BeanUtil;
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.utils.ExcelUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.Setter;
@@ -59,16 +63,7 @@ import org.bson.Document;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.mongodb.core.query.Update;
@@ -92,6 +87,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     private InspectService inspectService;
     private GroupTransferStrategyRegistry transferStrategyRegistry;
 	private GitServiceRouter gitServiceRouter;
+    private MetadataDefinitionService metadataDefinitionService;
 
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
@@ -224,7 +220,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
             ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
             if (handler != null) {
-                handler.handleRelatedResources(payloadsByType, entry.getValue(), user);
+                handler.handleRelatedResources(payloadsByType, entry.getValue(), user,new HashSet<>());
             }
         }
         for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
@@ -240,10 +236,40 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         Map<String, byte[]> contents = new LinkedHashMap<>();
         contents.put("GroupInfo.json", Objects.requireNonNull(JsonUtil.toJsonUseJackson(groupInfoPayload))
                 .getBytes(StandardCharsets.UTF_8));
+
+        // 统一生成连接Excel文件
+        List<TaskUpAndLoadDto> connectionPayloads = payloadsByType.get(ResourceType.CONNECTION.name());
+        if (connectionPayloads != null && !connectionPayloads.isEmpty()) {
+            try {
+                byte[] excelData = ExcelUtil.buildConnectionExcel(connectionPayloads);
+                if (excelData != null && excelData.length > 0) {
+                    contents.put(GroupConstants.COLLECTION_CONNECTION_EXCEL, excelData);
+                }
+            } catch (Exception e) {
+                log.error("Failed to build connection excel", e);
+            }
+            // 过滤掉连接数据，只保留元数据
+            List<TaskUpAndLoadDto> metadataPayloads = connectionPayloads.stream()
+                    .filter(dto -> GroupConstants.COLLECTION_METADATA_INSTANCES.equals(dto.getCollectionName()))
+                    .collect(Collectors.toList());
+            if (!metadataPayloads.isEmpty()) {
+                contents.put(ResourceType.getResourceName(ResourceType.CONNECTION.name()),
+                        Objects.requireNonNull(JsonUtil.toJsonUseJackson(metadataPayloads))
+                                .getBytes(StandardCharsets.UTF_8));
+            }
+        }
+
+        // 处理其他类型的payload
         for (Map.Entry<String, List<TaskUpAndLoadDto>> entry : payloadsByType.entrySet()) {
-            contents.put(ResourceType.getResourceName(entry.getKey()),
-                    Objects.requireNonNull(JsonUtil.toJsonUseJackson(entry.getValue()))
-                            .getBytes(StandardCharsets.UTF_8));
+            if (ResourceType.CONNECTION.name().equals(entry.getKey())) {
+                continue; // 连接已单独处理
+            }
+            List<TaskUpAndLoadDto> payloadList = entry.getValue();
+            if (!payloadList.isEmpty()) {
+                contents.put(ResourceType.getResourceName(entry.getKey()),
+                        Objects.requireNonNull(JsonUtil.toJsonUseJackson(payloadList))
+                                .getBytes(StandardCharsets.UTF_8));
+            }
         }
 
         String yyyymmdd = DateUtil.today().replaceAll("-", "");
@@ -413,7 +439,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
             Map<String, String> taskIdMap = new HashMap<>();
             Map<String, String> nodeIdMap = new HashMap<>();
-
+            Map<String, String> tagMap = new HashMap<>();
+            Map<String,MetadataDefinitionDto> metadataDefinitionDtoMap = (Map<String,MetadataDefinitionDto>) resourceMapsByType
+                    .getOrDefault(ResourceType.METADATA_DEFINITION,Collections.emptyMap());
+            tagMap = metadataDefinitionService.batchImport(new ArrayList<>(metadataDefinitionDtoMap.values()), user);
+            checkTags(resourceMapsByType,tagMap);
             log.info("Stage 1: Start importing connection resources");
             Map<String, DataSourceConnectionDto> connections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
@@ -1001,4 +1031,25 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 			throw new UnsupportedOperationException(gitInfo.toString());
 		}
 	}
+    protected void checkTags(Map<ResourceType, Map<String, ?>> resourceMapsByType,Map<String,String> tagMap){
+        for (Map.Entry<ResourceType, Map<String, ?>> entry : resourceMapsByType.entrySet()) {
+            if(ResourceType.hasTags(entry.getKey())){
+                entry.getValue().values().forEach(object -> {
+                    if (object instanceof TaskDto taskDto && CollectionUtils.isNotEmpty(taskDto.getListtags())){
+                        taskDto.getListtags().stream().filter(tag -> tagMap.containsKey(tag.getId())).forEach(tag -> tag.setId(tagMap.get(tag.getId())));
+                    }else if(object instanceof ModulesDto modulesDto && CollectionUtils.isNotEmpty(modulesDto.getListtags())){
+                        modulesDto.getListtags().stream().filter(tag -> tagMap.containsKey(tag.getId())).forEach(tag -> tag.setId(tagMap.get(tag.getId())));
+                    }else if (object instanceof DataSourceConnectionDto dataSourceConnectionDto && CollectionUtils.isNotEmpty(dataSourceConnectionDto.getListtags())){
+                        dataSourceConnectionDto.getListtags().stream().filter(tag -> tagMap.containsKey(tag.get("id"))).forEach(tag -> tag.put("id",tagMap.get(tag.get("id"))));
+                    }else if(object instanceof InspectDto inspectDto && CollectionUtils.isNotEmpty(inspectDto.getListtags())){
+                        inspectDto.getListtags().stream().filter(tag -> tagMap.containsKey(tag.getId())).forEach(tag -> tag.setId(tagMap.get(tag.getId())));
+                    }
+                });
+            }
+        }
+
+
+
+    }
+
 }

@@ -39,6 +39,7 @@ import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareS
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.userLog.constant.Operation;
 import io.github.openlg.graphlib.Graph;
@@ -3735,59 +3736,21 @@ public class TaskServiceImpl extends TaskService{
                 tagList = allDto.stream().map(m -> new Tag(m.getId().toHexString(), m.getValue())).collect(Collectors.toList());
             }
         }
+        Map<String,String> externalStorageMap = new HashMap<>();
         for (TaskDto taskDto : taskDtos) {
            try{
                // 基于名称查找现有任务
                Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
-               nameQuery.fields().include("_id", USER_ID, "name", "attrs","status","syncStatus","isEdit","taskRecordId");
+               nameQuery.fields().include("_id", USER_ID, "name");
                TaskDto existingTaskByName = findOne(nameQuery, user);
 
-               taskDto.setListtags(null);
                taskDto.setTaskRecordId(new ObjectId().toHexString());
 
-               boolean enableStatusPreserve = importMode == ImportModeEnum.GROUP_IMPORT && resetTaskList != null;
-               boolean shouldReset = enableStatusPreserve
-                       && taskDto.getId() != null
-                       && resetTaskList.contains(taskDto.getId().toHexString());
-               if (importMode == ImportModeEnum.GROUP_IMPORT && TaskDto.STATUS_RUNNING.equals(existingTaskByName.getStatus())) {
-                   try {
-                       pause(existingTaskByName.getId(), user, false);
-                   } catch (Exception e) {
-                       log.warn("stop task exception, task id = {}, e = {}", existingTaskByName.getId(), e);
-                   }
-                   long timeoutInMillis = 60 * 1000;
-                   long startTime = System.currentTimeMillis();
-                   while (!TaskDto.STATUS_STOP.equals(existingTaskByName.getStatus())) {
-                       if (System.currentTimeMillis() - startTime > timeoutInMillis) {
-                           log.error("Task stop timeout after {} ms, task id = {}", timeoutInMillis, existingTaskByName.getId());
-                           pause(existingTaskByName.getId(), user, true);
-                           break;
-                       }
-                       try {
-                           Thread.sleep(1000);
-                       } catch (InterruptedException e) {
-                           log.warn("stop task exception, task id = {}", existingTaskByName.getId());
-                           Thread.currentThread().interrupt();
-                           break;
-                       }
-                       existingTaskByName = findOne(nameQuery, user);
-                   }
+               if(checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap)){
+                   importResult.put(taskDto.getId().toHexString(),0L);
+                   continue;
                }
-               if (enableStatusPreserve && !shouldReset) {
-                   taskDto.setStatus(existingTaskByName.getStatus());
-                   taskDto.setSyncStatus(existingTaskByName.getSyncStatus());
-                   taskDto.setIsEdit(existingTaskByName.getIsEdit());
-                   taskDto.setTaskRecordId(existingTaskByName.getTaskRecordId());
-                   taskDto.setAttrs(existingTaskByName.getAttrs());
-               } else {
-                   taskDto.setStatus(TaskDto.STATUS_EDIT);
-                   taskDto.setSyncStatus(SyncStatus.NORMAL);
-                   Map<String, Object> attrs = taskDto.getAttrs();
-                   if (attrs != null) {
-                       attrs.remove(EDGE_MILESTONES);
-                       attrs.remove(SYNC_PROGRESS);
-                   }
-               }
+
                // 根据导入模式处理
                switch (importMode) {
                    case REPLACE,REUSE_EXISTING,GROUP_IMPORT:
@@ -3819,6 +3782,105 @@ public class TaskServiceImpl extends TaskService{
            }
         }
         return importResult;
+    }
+
+    /**
+     * 校验任务配置是否一致
+     * 如果配置一致则返回 true，不需要停止任务
+     * 如果配置不一致则需要停止任务，返回 false
+     *
+     * @param taskDto       导入的任务
+     * @param user          用户信息
+     * @param importMode    导入模式
+     * @param resetTaskList 需要重置的任务列表
+     * @return true 表示配置一致，false 表示配置不一致
+     */
+    protected boolean checkTaskConfig(TaskDto taskDto, UserDetail user, ImportModeEnum importMode, List<String> resetTaskList,Map<String,String> externalStorageMap){
+        boolean enableStatusPreserve = importMode == ImportModeEnum.GROUP_IMPORT && resetTaskList != null;
+        boolean shouldReset = enableStatusPreserve
+                && taskDto.getId() != null
+                && resetTaskList.contains(taskDto.getId().toHexString());
+
+        // 查询现有任务，包含所有配置字段用于对比
+        Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
+        nameQuery.fields().exclude("user_id","create_user","pingTime","taskRecordId","last_updated");
+        TaskDto existingTaskByName = findOne(nameQuery, user);
+        // 使用工具类比较任务配置是否一致
+        DAG dag = taskDto.getDag();
+        if (dag != null && CollectionUtils.isNotEmpty(dag.getNodes())) {
+            dag.setOwnerId(null);
+            dag.getNodes().forEach(node -> {
+                if(StringUtils.isNotBlank(node.getExternalStorageId())){
+                    if(externalStorageMap.containsKey(node.getExternalStorageId())){
+                        node.setExternalStorageId(externalStorageMap.get(node.getExternalStorageId()));
+                    }else{
+                        String externalStorageId = getExternalStorageId(node.getExternalStorageId(), node.getExternalStorageName());
+                        node.setExternalStorageId(externalStorageId);
+                        externalStorageMap.put(node.getExternalStorageId(), externalStorageId);
+                    }
+                    node.setExternalStorageName(null);
+                }
+            });
+        }
+        if (existingTaskByName == null) {
+            return false;
+        }
+
+        boolean configEqual = TaskConfigCompareUtil.isConfigEqual(taskDto, existingTaskByName);
+
+        if (configEqual && !shouldReset) {
+            // 配置一致，保留现有任务状态，不需要停止任务
+            log.info("Task config is equal, no need to stop task. Task name: {}", taskDto.getName());
+            return true;
+        }
+
+        if (importMode == ImportModeEnum.GROUP_IMPORT && TaskDto.STATUS_RUNNING.equals(existingTaskByName.getStatus())) {
+            try {
+                pause(existingTaskByName.getId(), user, false);
+            } catch (Exception e) {
+                log.warn("stop task exception, task id = {}, e = {}", existingTaskByName.getId(), e);
+            }
+            long timeoutInMillis = 60 * 1000;
+            long startTime = System.currentTimeMillis();
+            while (!TaskDto.STATUS_STOP.equals(existingTaskByName.getStatus())) {
+                if (System.currentTimeMillis() - startTime > timeoutInMillis) {
+                    log.error("Task stop timeout after {} ms, task id = {}", timeoutInMillis, existingTaskByName.getId());
+                    pause(existingTaskByName.getId(), user, true);
+                    break;
+                }
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    log.warn("stop task exception, task id = {}", existingTaskByName.getId());
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                existingTaskByName = findOne(nameQuery, user);
+            }
+        }
+
+        if(!configEqual){
+            log.info("Task config is not equal, need to stop task. Task name: {}, different fields: {}",
+                    taskDto.getName(), TaskConfigCompareUtil.getDifferentFields(taskDto, existingTaskByName));
+        }
+
+        if (enableStatusPreserve && !shouldReset) {
+            taskDto.setStatus(existingTaskByName.getStatus());
+            taskDto.setSyncStatus(existingTaskByName.getSyncStatus());
+            taskDto.setIsEdit(existingTaskByName.getIsEdit());
+            taskDto.setTaskRecordId(existingTaskByName.getTaskRecordId());
+            taskDto.setAttrs(existingTaskByName.getAttrs());
+            taskDto.setListtags(existingTaskByName.getListtags());
+        } else {
+            taskDto.setStatus(TaskDto.STATUS_EDIT);
+            taskDto.setSyncStatus(SyncStatus.NORMAL);
+            Map<String, Object> attrs = taskDto.getAttrs();
+            if (attrs != null) {
+                attrs.remove(EDGE_MILESTONES);
+                attrs.remove(SYNC_PROGRESS);
+            }
+        }
+        return false;
     }
 
     /**
@@ -3978,19 +4040,20 @@ public class TaskServiceImpl extends TaskService{
                         DataSourceConnectionDto dataSourceCon = conMap.get(dataParentNode.getConnectionId());
                         dataParentNode.setConnectionId(dataSourceCon.getId().toString());
                     }
-                }else if(node instanceof MergeTableNode mergeTableNode){
-                    mergeTableNode.setExternalStorageId(getExternalStorageId(mergeTableNode.getExternalStorageId()));
-                }else if(node instanceof JoinProcessorNode joinProcessorNode){
-                    joinProcessorNode.setExternalStorageId(getExternalStorageId(joinProcessorNode.getExternalStorageId()));
-                }else if(node instanceof CacheNode cacheNode){
-                    cacheNode.setExternalStorageId(getExternalStorageId(cacheNode.getExternalStorageId()));
                 }
             });
         }
     }
 
-    protected String getExternalStorageId(String externalStorageId) {
+    protected String getExternalStorageId(String externalStorageId,String externalStorageName) {
         long count = externalStorageService.count(Query.query(Criteria.where("_id").is(externalStorageId)));
+        if(count == 0 && StringUtils.isNotBlank(externalStorageName)){
+            count = externalStorageService.count(Query.query(Criteria.where("name").is(externalStorageName)));
+            if(count > 0){
+                ExternalStorageDto externalStorageDto = externalStorageService.findOne(Query.query(Criteria.where("name").is(externalStorageName)));
+                return externalStorageDto.getId().toHexString();
+            }
+        }
         if(count == 0){
             Query defaultQuery = new Query(Criteria.where("defaultStorage").is(true));
             defaultQuery.fields().include("_id");
