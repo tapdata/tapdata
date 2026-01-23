@@ -111,10 +111,11 @@ public class ApiMetricsRawQuery {
         }
         final Long totalRequestCount = result.getTotalRequestCount();
         if (totalRequestCount > 0L) {
-            final long errorServer = errorCount(apiMetricsRaws, ApiMetricsRaw::getProcessId);
-            final long errorApi = errorCount(apiMetricsRaws, ApiMetricsRaw::getApiId);
-            result.setErrorCount(errorCount.get());
-            result.setTotalErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount.get(), totalRequestCount));
+            long errorNum = errorCount.get();
+            final long errorServer = errorNum <= 0L ? 0L : errorCount(apiMetricsRaws, ApiMetricsRaw::getProcessId);
+            final long errorApi = errorNum <= 0L ? 0L : errorCount(apiMetricsRaws, ApiMetricsRaw::getApiId);
+            result.setErrorCount(errorNum);
+            result.setTotalErrorRate(ApiMetricsDelayInfoUtil.rate(errorNum, totalRequestCount));
             result.setNotHealthyApiCount(errorApi);
             result.setNotHealthyServerCount(errorServer);
             metricsRawMergeService.baseDataCalculate(result, apiMetricsRaws, result::setResponseTime);
@@ -126,7 +127,7 @@ public class ApiMetricsRawQuery {
         return apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> Objects.nonNull(groupBy.apply(e)))
-                .filter(e -> null != e.getReqCount() && e.getReqCount() > 0L)
+                .filter(e -> null != e.getErrorCount() && e.getErrorCount() > 0L)
                 .map(groupBy)
                 .distinct()
                 .count();
