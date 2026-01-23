@@ -41,6 +41,7 @@ import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.dto.WorkSchedule;
@@ -668,6 +669,7 @@ public class WorkerServiceImpl extends WorkerService{
         try {
             BulkOperations bulkOps = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ServerUsage.class);
             for (ServerUsage entity : entities) {
+                entity.setTtlKey(new Date(entity.getLastUpdateTime()));
                 Query query = queryBuilder.apply(entity);
                 Update update = updateBuilder.apply(entity);
                 bulkOps.upsert(query, update);
@@ -695,6 +697,7 @@ public class WorkerServiceImpl extends WorkerService{
         update.set("processType", entity.getProcessType());
         update.set("processId", entity.getProcessId());
         update.set("workOid", entity.getWorkOid());
+        update.set("ttlKey", entity.getTtlKey());
         update.currentDate("updatedAt");
         return update;
     }

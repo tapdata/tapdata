@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -80,6 +81,8 @@ public class WorkerCallEntity extends BaseEntity {
      * @see com.tapdata.tm.apiServer.enums.TimeGranularityType
      * */
     private int timeGranularity;
+
+    private Date ttlKey;
 
     private Boolean delete;
 }

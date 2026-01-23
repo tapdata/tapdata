@@ -225,19 +225,6 @@ public class ApiMetricsRawQuery {
         return result;
     }
 
-    void fixUsage(List<Long> ts, List<Double> cpu, List<Double> mem) {
-        int i = 0;
-        int size = ts.size();
-        while (i < size && cpu.get(i) == null && mem.get(i) == null) {
-            i++;
-        }
-        if (i > 0) {
-            ts.subList(0, i).clear();
-            cpu.subList(0, i).clear();
-            mem.subList(0, i).clear();
-        }
-    }
-
     protected <T extends UsageBase> List<T> queryCpuUsageRecords(Criteria criteriaBase, long queryStart, long queryEnd, int type) {
         long start = queryStart * 1000L;
         long end = queryEnd * 1000L;

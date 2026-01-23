@@ -8,6 +8,7 @@ import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -23,6 +24,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -103,6 +105,7 @@ public class ApiMetricsRawScheduleExecutor {
         try {
             BulkOperations bulkOps = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class);
             for (ApiMetricsRaw entity : entities) {
+                entity.setTtlKey(new Date(entity.getTimeStart() * 1000L));
                 Query query = queryBuilder.apply(entity);
                 Update update = updateBuilder.apply(entity);
                 bulkOps.upsert(query, update);
@@ -136,6 +139,7 @@ public class ApiMetricsRawScheduleExecutor {
         update.set("p99", entity.getP99());
         update.set("lastCallId", entity.getLastCallId());
         update.currentDate("updatedAt");
+        update.set("ttlKey", entity.getTtlKey());
         return update;
     }
 
