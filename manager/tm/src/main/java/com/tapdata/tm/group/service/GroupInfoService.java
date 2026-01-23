@@ -39,10 +39,10 @@ import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
-import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.utils.ExcelUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -88,6 +88,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     private GroupTransferStrategyRegistry transferStrategyRegistry;
 	private GitServiceRouter gitServiceRouter;
     private MetadataDefinitionService metadataDefinitionService;
+    private BatchUpChecker batchUpChecker;
 
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
@@ -232,6 +233,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
         List<TaskUpAndLoadDto> groupInfoPayload = buildGroupInfoPayload(groupInfos);
 
+        // 构建导出记录
+        String yyyymmdd = DateUtil.today().replaceAll("-", "");
+        String name = buildGroupExportFileName(groupInfos, yyyymmdd);
+        GroupInfoRecordDto recordDto = buildExportRecord(GroupInfoRecordDto.TYPE_EXPORT, user,
+                buildExportRecordDetails(groupInfos, resourcesByType), name, exportGroupRequest, groupInfos.get(0));
+        recordDto = groupInfoRecordService.save(recordDto, user);
+
         // 构建导出文件内容
         Map<String, byte[]> contents = new LinkedHashMap<>();
         contents.put("GroupInfo.json", Objects.requireNonNull(JsonUtil.toJsonUseJackson(groupInfoPayload))
@@ -241,12 +249,25 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         List<TaskUpAndLoadDto> connectionPayloads = payloadsByType.get(ResourceType.CONNECTION.name());
         if (connectionPayloads != null && !connectionPayloads.isEmpty()) {
             try {
-                byte[] excelData = ExcelUtil.buildConnectionExcel(connectionPayloads);
+                List<DataSourceConnectionDto> connectionDtos = new ArrayList<>();
+                for (TaskUpAndLoadDto dto : connectionPayloads) {
+                    if (GroupConstants.COLLECTION_CONNECTION.equals(dto.getCollectionName())
+                            && org.apache.commons.lang3.StringUtils.isNotBlank(dto.getJson())) {
+                        DataSourceConnectionDto conn = JsonUtil.parseJsonUseJackson(dto.getJson(), DataSourceConnectionDto.class);
+                        if (conn != null) {
+                            connectionDtos.add(conn);
+                        }
+                    }
+                }
+                batchUpChecker.checkDataSourceConnection(connectionDtos,user,true);
+                byte[] excelData = ExcelUtil.exportConnectionsToExcel(connectionDtos,user);
                 if (excelData != null && excelData.length > 0) {
                     contents.put(GroupConstants.COLLECTION_CONNECTION_EXCEL, excelData);
                 }
             } catch (Exception e) {
-                log.error("Failed to build connection excel", e);
+                updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_FAILED, e.getMessage(),
+                        null, user);
+                throw new BizException(e);
             }
             // 过滤掉连接数据，只保留元数据
             List<TaskUpAndLoadDto> metadataPayloads = connectionPayloads.stream()
@@ -272,15 +293,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
         }
 
-        String yyyymmdd = DateUtil.today().replaceAll("-", "");
-        String name = buildGroupExportFileName(groupInfos, yyyymmdd);
-
         log.info("Start exporting groups, groupCount={}, user={}", groupInfos.size(), user.getUsername());
-
-        // 构建导出记录
-		GroupInfoRecordDto recordDto = buildExportRecord(GroupInfoRecordDto.TYPE_EXPORT, user,
-				buildExportRecordDetails(groupInfos, resourcesByType), name, exportGroupRequest, groupInfos.get(0));
-        recordDto = groupInfoRecordService.save(recordDto, user);
 
 		doExport(response, exportGroupRequest, user, contents, name, groupInfos, recordDto);
 	}
@@ -405,13 +418,19 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 handler.collectPayload(payload, resourceMap, metadata);
                 resourceMapsByType.put(type, resourceMap);
                 metadataByType.put(type, metadata);
-                handler.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType);
+                handler.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType,user);
             }
         }
 
         List<GroupInfoDto> groupInfos = new ArrayList<>();
         collectGroupInfoPayload(groupPayload, groupInfos);
-
+        Map<String, DataSourceConnectionDto> connections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
+                .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
+        try{
+            batchUpChecker.checkDataSourceConnection(connections.values().stream().toList(), user,true);
+        } catch (Exception e) {
+            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, ExceptionUtils.getMessage(e), null, user);
+        }
         List<GroupInfoRecordDetail> details = new ArrayList<>();
         try {
             details = buildImportRecordDetails(groupInfos, resourceMapsByType);
@@ -445,8 +464,6 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             tagMap = metadataDefinitionService.batchImport(new ArrayList<>(metadataDefinitionDtoMap.values()), user);
             checkTags(resourceMapsByType,tagMap);
             log.info("Stage 1: Start importing connection resources");
-            Map<String, DataSourceConnectionDto> connections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
-                    .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
             List<MetadataInstancesDto> connectionMetadata = metadataByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyList());
             conMap = dataSourceService.batchImport(new ArrayList<>(connections.values()), user, importMode);
@@ -701,9 +718,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         if (message != null) {
             update.set("message", message);
         }
-        if (details != null) {
-            update.set("details", details);
-        }
+        update.set("details", details);
         update.set("progress", 100);
         groupInfoRecordService.updateById(recordId, update, user);
     }

@@ -7,6 +7,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import io.tapdata.pdk.core.constants.DataSourceQCType;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +19,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 /**
  * @author Gavin'Xiao
  * @github https://github.com/11000100111010101100111
@@ -38,6 +42,10 @@ public class BatchUpChecker {
     DataSourceService dataSourceService;
 
     public void checkDataSourceConnection(List<DataSourceConnectionDto> connections, UserDetail user) {
+        checkDataSourceConnection(connections,user,false);
+    }
+
+    public void checkDataSourceConnection(List<DataSourceConnectionDto> connections, UserDetail user,Boolean groupImport) {
         if (CollectionUtils.isEmpty(connections)) {
             log.warn("An task importing not any connections");
             return;
@@ -63,6 +71,15 @@ public class BatchUpChecker {
                     .collect(Collectors.toList());
             DataSourceDefinitionDto upperOne = sortList.get(0);
             String pdkId = upperOne.getPdkId();
+            if(groupImport){
+                for(DataSourceDefinitionDto dataSourceDefinitionDto : sortList){
+                    Set<String> targets = Stream.of("File","SaaS","schema-free").collect(Collectors.toSet());
+                    if(!dataSourceDefinitionDto.getQcType().equals(DataSourceQCType.GA) || dataSourceDefinitionDto.getTags().stream().anyMatch(targets::contains)){
+                        if(dataSourceDefinitionDto.getType().equals("MongoDB"))continue;
+                        throw new BizException("Group.Connection.No.Supported");
+                    }
+                }
+            }
 
             String upperPdkAPIVersion = upperOne.getPdkAPIVersion();
             if (definitionPdkAPIVersion.equals(upperPdkAPIVersion)) {

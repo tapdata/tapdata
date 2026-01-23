@@ -339,8 +339,8 @@ public class TaskResourceHandler implements ResourceHandler {
     @Override
     public void collectPayloadRelatedResources(Map<String, List<TaskUpAndLoadDto>> payloads,
             Map<ResourceType, Map<String, ?>> resourceMap,
-            Map<ResourceType, List<MetadataInstancesDto>> metadataList) {
-        ResourceHandler.super.collectPayloadRelatedResources(payloads, resourceMap, metadataList);
+            Map<ResourceType, List<MetadataInstancesDto>> metadataList,UserDetail user) {
+        ResourceHandler.super.collectPayloadRelatedResources(payloads, resourceMap, metadataList,user);
         String shareCacheFilename = ResourceType.getResourceName(ResourceType.SHARE_CACHE.name());
         List<TaskUpAndLoadDto> sharCachePayload = payloads.getOrDefault(shareCacheFilename, Collections.emptyList());
         collectPayload(sharCachePayload, resourceMap.computeIfAbsent(ResourceType.SHARE_CACHE, k -> new HashMap<>()),

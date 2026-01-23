@@ -155,7 +155,7 @@ public interface ResourceHandler {
 
     default void collectPayloadRelatedResources(Map<String, List<TaskUpAndLoadDto>> payloads,
             Map<ResourceType, Map<String, ?>> resourceMap,
-            Map<ResourceType, List<MetadataInstancesDto>> metadataList) {
+            Map<ResourceType, List<MetadataInstancesDto>> metadataList,UserDetail user) {
         if (MapUtils.isEmpty(payloads)) {
             return;
         }
@@ -170,7 +170,7 @@ public interface ResourceHandler {
             byte[] binaryData = taskUpAndLoadDto.getBinaryData();
             if (binaryData != null && binaryData.length > 0) {
                 try (java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(binaryData)) {
-                    List<DataSourceConnectionDto> importedConnections = ExcelUtil.importConnectionsFromExcel(bais);
+                    List<DataSourceConnectionDto> importedConnections = ExcelUtil.importConnectionsFromExcel(bais,user);
                     for (DataSourceConnectionDto connectionDto : importedConnections) {
                         if (connectionDto != null) {
                             String key = connectionDto.getId() == null ? connectionDto.getName()

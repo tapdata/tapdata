@@ -1941,7 +1941,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         agentGroupService.importAgentInfo(connectionDto);
         DataSourceConnectionDto result = importEntity(connectionDto, user);
-        sendTestConnection(result, true, true, user);
+        sendTestConnection(connectionDto, true, true, user);
         return result;
     }
 
