@@ -30,6 +30,7 @@ public class TopWorkerInServer extends ValueBase {
         Long requestCount = 0L;
         @DecimalFormat
         Double errorRate = 0D;
+        Long errorCount = 0L;
 
         ServerChart.Usage usage;
     }

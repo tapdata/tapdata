@@ -85,6 +85,8 @@ public class ModulesDto extends BaseDto {
     private Long responseTime;
 
     private Long reqBytes;
+
+    @org.springframework.data.mongodb.core.mapping.Field("is_deleted")
     private Boolean isDeleted;
 
     @NotBlank

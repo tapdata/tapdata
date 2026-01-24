@@ -72,6 +72,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setReqTime(info.getLong("reqTime"));
         item.setResTime(info.getLong("resTime"));
         item.setReqPath(reqPath);
+        item.setLastApiCallId(info.getObjectId("_id"));
         try {
             this.map(item);
         } finally {
@@ -132,6 +133,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setP50(ApiMetricsDelayUtil.p50(delays, total));
         item.setP95(ApiMetricsDelayUtil.p95(delays, total));
         item.setP99(ApiMetricsDelayUtil.p99(delays, total));
+        item.setLastApiCallId(info.getLastApiCallId());
     }
 
     void accept() {

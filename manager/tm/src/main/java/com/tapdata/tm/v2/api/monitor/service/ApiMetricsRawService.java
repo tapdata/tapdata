@@ -4,7 +4,9 @@ import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
 import com.tapdata.tm.v2.api.monitor.repository.ApiMetricsRepository;
@@ -14,9 +16,7 @@ import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -43,6 +43,10 @@ public class ApiMetricsRawService {
     private ApiMetricsRepository repository;
     private MongoTemplate mongoTemplate;
 
+    public long count(Query query) {
+        return repository.count(query);
+    }
+
 
     public List<ApiMetricsRaw> find(Query query) {
         return repository.findAll(query);
@@ -52,7 +56,7 @@ public class ApiMetricsRawService {
         String serverId = param.getServerId();
         long endAt = param.getEndAt() * 1000L;
         if (endAt % 60000L != 0L) {
-            endAt = endAt/ 60000L * 60000L;
+            endAt = endAt / 60000L * 60000L;
         }
         long startAt = param.getStartAt() * 1000L;
         if (startAt % 60000L != 0L) {
@@ -69,20 +73,20 @@ public class ApiMetricsRawService {
                 callOfWorker.addAll(callOfMinute);
             }
         }
-        List<QueryBase.Point> secondPoint = new ArrayList<>();
+        List<TimeRange> secondPoint = new ArrayList<>();
         long start = param.getStartAt() * 1000L;
         long end = param.getEndAt() * 1000L;
         if (startAt > start) {
-            secondPoint.add(QueryBase.Point.of(start, startAt, -1));
+            secondPoint.add(new TimeRange(start, startAt, TimeGranularity.SECOND));
         }
         if (end > endAt) {
-            secondPoint.add(QueryBase.Point.of(endAt, end, -1));
+            secondPoint.add(new TimeRange(endAt, end, TimeGranularity.SECOND));
         }
         if (!secondPoint.isEmpty()) {
             Criteria criteriaOfSec = Criteria.where("api_gateway_uuid").is(serverId)
-                    .and("delete").ne(true) ;
+                    .and("delete").ne(true);
             List<Criteria> or = new ArrayList<>();
-            for (QueryBase.Point point : secondPoint) {
+            for (TimeRange point : secondPoint) {
                 or.add(Criteria.where("reqTime").gte(point.getStart()).lt(point.getEnd()));
             }
             criteriaOfSec.orOperator(or);
@@ -159,20 +163,16 @@ public class ApiMetricsRawService {
         return one;
     }
 
-    public List<ApiMetricsRaw> supplementMetricsRaw(List<ApiMetricsRaw> apiMetricsRaws, QueryBase param, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
-        return supplementMetricsRaw(apiMetricsRaws, param, true, criteriaConsumer, apiCallCriteria);
+    public List<ApiMetricsRaw> supplementMetricsRaw(QueryBase param, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
+        return supplementMetricsRaw(param, true, criteriaConsumer, apiCallCriteria);
     }
 
-    protected void supplementSeconds(QueryBase param, Criteria apiCallCriteria, List<ApiMetricsRaw> supplement) {
-        List<QueryBase.Point> secondPoint = param.getQueryParam().getSecondPoint();
-        if (secondPoint.isEmpty()) {
-            return;
-        }
+    protected void supplementSeconds(Criteria apiCallCriteria, List<ApiMetricsRaw> supplement, List<TimeRange> ranges) {
         List<Criteria> andCriteria = new ArrayList<>();
         andCriteria.add(Criteria.where("delete").is(false));
         Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
         List<Criteria> or = new ArrayList<>();
-        for (QueryBase.Point point : secondPoint) {
+        for (TimeRange point : ranges) {
             Criteria aubAndCriteria = new Criteria();
             List<Criteria> and = new ArrayList<>();
             and.add(Criteria.where("reqTime").gte(point.getStart() * 1000L));
@@ -190,79 +190,136 @@ public class ApiMetricsRawService {
         }
     }
 
-    protected void supplementMinutes(QueryBase param, Consumer<Criteria> criteriaConsumer, List<ApiMetricsRaw> supplement) {
-        List<QueryBase.Point> second5Point = param.getQueryParam().getSecond5Point();
-        if (!second5Point.isEmpty()) {
-            Criteria criteriaOfSec5 = Criteria.where("timeGranularity").is(1);
-            Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfSec5));
-            List<Criteria> or = new ArrayList<>();
-            for (QueryBase.Point point : second5Point) {
-                Criteria andCriteria = new Criteria();
-                List<Criteria> and = new ArrayList<>();
-                and.add(Criteria.where("timeStart").gte(point.getStart()));
-                and.add(Criteria.where("timeStart").lt(point.getEnd()));
-                andCriteria.andOperator(and);
-                or.add(andCriteria);
-            }
-            criteriaOfSec5.orOperator(or);
-            Query query = Query.query(criteriaOfSec5);
-            query.fields().include("apiId", "processId", "timeGranularity", "timeStart", "subMetrics");
-            QueryBase of5Sec = new QueryBase();
-            of5Sec.setGranularity(0);
-            List<ApiMetricsRaw> metricsRawList = find(query);
-            for (QueryBase.Point point : second5Point) {
-                of5Sec.setStartAt(point.getStart());
-                of5Sec.setEndAt(point.getEnd());
-                of5Sec.setQStart(point.getStart());
-                List<ApiMetricsRaw> raws = ParticleSizeAnalyzer.apiMetricsRaws(metricsRawList, of5Sec);
-                supplement.addAll(raws);
-            }
+    protected void supplementFiveSecond(Consumer<Criteria> criteriaConsumer, List<ApiMetricsRaw> supplement, List<TimeRange> ranges) {
+        Criteria criteriaOfSec5 = Criteria.where("timeGranularity").is(1);
+        Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfSec5));
+        List<Criteria> or = new ArrayList<>();
+        for (TimeRange point : ranges) {
+            Criteria andCriteria = new Criteria();
+            List<Criteria> and = new ArrayList<>();
+            and.add(Criteria.where("timeStart").gte(point.getStart()));
+            and.add(Criteria.where("timeStart").lt(point.getEnd()));
+            andCriteria.andOperator(and);
+            or.add(andCriteria);
+        }
+        criteriaOfSec5.orOperator(or);
+        Query query = Query.query(criteriaOfSec5);
+        query.fields().include("apiId", "processId", "timeGranularity", "timeStart", "subMetrics");
+        List<ApiMetricsRaw> metricsRawList = find(query);
+        for (TimeRange point : ranges) {
+            List<ApiMetricsRaw> raws = ParticleSizeAnalyzer.secondFiveMetricsRaws(
+                    metricsRawList,
+                    e -> e.getTimeStart() >= point.getStart() && e.getTimeStart() < point.getEnd());
+            supplement.addAll(raws);
         }
     }
 
-    protected void supplementHours(QueryBase param, Consumer<Criteria> criteriaConsumer, List<ApiMetricsRaw> supplement) {
-        List<QueryBase.Point> minutePoint = param.getQueryParam().getMinutePoint();
-        if (!minutePoint.isEmpty()) {
-            Criteria criteriaOfMin = Criteria.where("timeGranularity").is(2);
-            Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfMin));
-            List<Criteria> or = new ArrayList<>();
-            for (QueryBase.Point point : minutePoint) {
-                Criteria andCriteria = new Criteria();
-                List<Criteria> and = new ArrayList<>();
-                and.add(Criteria.where("timeStart").gte((point.getStart() / 60L * 60L)));
-                and.add(Criteria.where("timeStart").lt(point.getEnd() / 60L * 60L));
-                andCriteria.andOperator(and);
-                or.add(andCriteria);
-            }
-            criteriaOfMin.orOperator(or);
-            Query query = Query.query(criteriaOfMin);
-            query.fields().include("apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "bytes", "delay", "dbCost");
-            List<ApiMetricsRaw> raws = find(query);
-            if (!raws.isEmpty()) {
-                supplement.addAll(raws);
-            }
+    protected void supplementMinute(Consumer<Criteria> criteriaConsumer, List<ApiMetricsRaw> supplement, List<TimeRange> ranges) {
+        Criteria criteriaOfMin = Criteria.where("timeGranularity").is(2);
+        Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfMin));
+        List<Criteria> or = new ArrayList<>();
+        for (TimeRange point : ranges) {
+            Criteria andCriteria = new Criteria();
+            List<Criteria> and = new ArrayList<>();
+            and.add(Criteria.where("timeStart").gte((point.getStart() / 60L * 60L)));
+            and.add(Criteria.where("timeStart").lt(point.getEnd() / 60L * 60L));
+            andCriteria.andOperator(and);
+            or.add(andCriteria);
+        }
+        criteriaOfMin.orOperator(or);
+        Query query = Query.query(criteriaOfMin);
+        query.fields().include("apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "bytes", "delay", "dbCost");
+        List<ApiMetricsRaw> raws = find(query);
+        if (!raws.isEmpty()) {
+            supplement.addAll(raws);
         }
     }
 
-    public List<ApiMetricsRaw> supplementMetricsRaw(List<ApiMetricsRaw> apiMetricsRaws, QueryBase param, boolean filterByTime, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
-        List<ApiMetricsRaw> result = ParticleSizeAnalyzer.apiMetricsRaws(apiMetricsRaws, param);
+    protected void supplementSeconds(List<ApiMetricsRaw> supplement, List<TimeRange> ranges, Criteria apiCallCriteria) {
+        List<Criteria> andCriteria = new ArrayList<>();
+        andCriteria.add(Criteria.where("delete").is(false));
+        Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
+        List<Criteria> orSec = new ArrayList<>();
+        for (TimeRange point : ranges) {
+            orSec.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+        }
+        andCriteria.add(new Criteria().orOperator(orSec));
+        Query query = Query.query(new Criteria().andOperator(andCriteria));
+        query.fields().include("api_gateway_uuid", "allPathId", "req_path", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id", "workOid");
+        String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
+        if (StringUtils.isNotBlank(callName)) {
+            List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);
+            ParticleSizeAnalyzer.parseToMetric(calls, supplement::add);
+        }
+    }
+
+    public List<ApiMetricsRaw> supplementMetricsRaw(QueryBase param, boolean filterByTime, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
+        TimeGranularity granularity = param.getGranularity();
+        Map<TimeGranularity, List<TimeRange>> queryRange = param.getQueryRange();
+        List<TimeRange> currentRanges = queryRange.get(granularity);
+        List<ApiMetricsRaw> result = new ArrayList<>();
+        if (!CollectionUtils.isEmpty(currentRanges)) {
+            TimeGranularity queryTimeGranularity = granularity == TimeGranularity.SECOND_FIVE ? TimeGranularity.MINUTE : granularity;
+            Criteria criteria = Criteria.where("timeGranularity").is(queryTimeGranularity.getType());
+            criteriaConsumer.accept(criteria);
+            List<Criteria> orTimeRange = new ArrayList<>();
+            for (TimeRange range : currentRanges) {
+                Criteria subRange;
+                if (granularity == TimeGranularity.SECOND_FIVE) {
+                    subRange = Criteria.where("timeStart")
+                            .gte(TimeGranularity.MINUTE.fixTime(range.getStart()))
+                            .lt(TimeGranularity.MINUTE.fixTime(range.getEnd() + TimeGranularity.MINUTE.getSeconds() - 1L));
+                } else {
+                    subRange = Criteria.where("timeStart").gte(range.getStart()).lt(range.getEnd());
+                }
+                orTimeRange.add(subRange);
+            }
+            criteria.andOperator(orTimeRange);
+            Query query = new Query(criteria);
+            List<ApiMetricsRaw> apiMetricsRaws = find(query);
+            if (granularity == TimeGranularity.SECOND_FIVE) {
+                for (TimeRange range : currentRanges) {
+                    List<ApiMetricsRaw> raws = ParticleSizeAnalyzer.secondFiveMetricsRaws(
+                            apiMetricsRaws,
+                            e -> e.getTimeStart() >= range.getStart() && e.getTimeStart() < range.getEnd()
+                    );
+                    if (!CollectionUtils.isEmpty(raws)) {
+                        result.addAll(raws);
+                    }
+                }
+            } else if (!apiMetricsRaws.isEmpty()) {
+                result.addAll(apiMetricsRaws);
+            }
+        }
+
         List<ApiMetricsRaw> supplement = new ArrayList<>();
-        int granularity = param.getGranularity();
         /**
          * 小时级，补充边界上不足1秒，不足一分钟，不足一小时的数据
          * 分钟级，补充边界上不足1秒，不足一分钟的数据
          * 5秒级，补充边界上不足1秒的数据
          * */
-        switch (granularity) {
-            case 2:
-                supplementHours(param, criteriaConsumer, supplement);
-            case 1:
-                supplementMinutes(param, criteriaConsumer, supplement);
-            case 0:
-                supplementSeconds(param, apiCallCriteria, supplement);
-            default:
-                //do nothing
-        }
+        param.getQueryRange()
+                .forEach((type, ranges) -> {
+                    if (CollectionUtils.isEmpty(ranges)) {
+                        return;
+                    }
+                    if (type == param.getGranularity()) {
+                        return;
+                    }
+                    switch (granularity) {
+                        case MINUTE:
+                            supplementMinute(criteriaConsumer, supplement, ranges);
+                            break;
+                        case SECOND_FIVE:
+                            supplementFiveSecond(criteriaConsumer, supplement, ranges);
+                            break;
+                        case SECOND:
+                            supplementSeconds(apiCallCriteria, supplement, ranges);
+                            break;
+                        default:
+                            //do nothing
+                    }
+                });
         Map<String, ApiMetricsRaw> left = new HashMap<>();
         Map<String, ApiMetricsRaw> right = new HashMap<>();
         for (ApiMetricsRaw apiMetricsRaw : supplement) {
@@ -273,29 +330,36 @@ public class ApiMetricsRawService {
             if (null == timeStart) {
                 continue;
             }
-            if (timeStart >= param.getQueryParam().getStart() && timeStart < param.getStartAt()) {
+            if (timeStart >= param.getStartAt() && timeStart < param.getFixStart()) {
                 merge(apiMetricsRaw, left, key, apiId, serverId, param);
             }
-            if (timeStart >= param.getEndAt() && timeStart < param.getQueryParam().getEnd()) {
+            if (timeStart >= param.getFixEnd() && timeStart < param.getEndAt()) {
                 merge(apiMetricsRaw, right, key, apiId, serverId, param);
             }
         }
         long step = ApiMetricsDelayInfoUtil.stepByGranularity(param.getGranularity());
         if (!left.isEmpty()) {
             left.forEach((key, item) -> Optional.ofNullable(item)
-                    .map(i -> {i.setTimeStart(i.getTimeStart() / step * step); return i;})
+                    .map(i -> {
+                        i.setTimeStart(i.getTimeStart() / step * step);
+                        return i;
+                    })
                     .map(MetricInstanceAcceptor::calcPValue)
                     .ifPresent(i -> result.add(0, i)));
         }
         if (!CollectionUtils.isEmpty(right)) {
             right.forEach((key, item) -> Optional.ofNullable(item)
-                    .map(i -> {i.setTimeStart(i.getTimeStart() / step * step); return i;})
+                    .map(i -> {
+                        i.setTimeStart(i.getTimeStart() / step * step);
+                        return i;
+                    })
                     .map(MetricInstanceAcceptor::calcPValue)
                     .ifPresent(i -> result.add(0, i)));
         }
         return result.stream()
                 .filter(Objects::nonNull)
-                .filter(e -> !filterByTime || e.getTimeStart() >= param.getStartAt() && e.getTimeStart() < param.getEndAt())
+                .filter(e -> Objects.nonNull(e.getReqCount()) && e.getReqCount() > 0L)
+                .filter(e -> !filterByTime || (e.getTimeStart() >= param.getStartAt() && e.getTimeStart() < param.getEndAt()))
                 .toList();
     }
 
@@ -305,8 +369,8 @@ public class ApiMetricsRawService {
             item.setId(new ObjectId());
             item.setApiId(apiId);
             item.setProcessId(serverId);
-            item.setTimeStart(param.getQueryParam().getStart());
-            item.setTimeGranularity(param.getGranularity());
+            item.setTimeStart(param.getStartAt());
+            item.setTimeGranularity(param.getGranularity().getType());
             return item;
         });
         itemRaw.merge(apiMetricsRaw);

@@ -28,6 +28,11 @@ public class MetricInfo {
     Double cpuUsage;
 
     /**
+     * only server main process usage
+     * */
+    Double selfCpuUsage;
+
+    /**
      * timestamp, unit ms
      * */
     Object lastUpdateTime;
@@ -40,6 +45,7 @@ public class MetricInfo {
         serverUsage.setCpuUsage(Optional.ofNullable(info).map(MetricInfo::getCpuUsage).orElse(null));
         serverUsage.setHeapMemoryUsage(Optional.ofNullable(info).map(MetricInfo::getHeapMemoryUsage).orElse(null));
         serverUsage.setHeapMemoryMax(Optional.ofNullable(info).map(MetricInfo::getHeapMemoryUsageMax).orElse(null));
+        serverUsage.setSelfCpuUsage(Optional.ofNullable(info).map(MetricInfo::getSelfCpuUsage).orElse(null));
         Object lastUpdateTime = Optional.ofNullable(info).map(MetricInfo::getLastUpdateTime).orElse(null);
         if (lastUpdateTime instanceof Number iTime) {
             serverUsage.setLastUpdateTime(iTime.longValue());

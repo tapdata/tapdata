@@ -17,6 +17,8 @@ import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawScheduleExecutor;
+import com.tapdata.tm.v2.api.monitor.service.MetricInstanceFactory;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
@@ -39,6 +41,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +67,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
     MongoTemplate mongoOperations;
     private ApiWorkerServer apiWorkerServer;
     MongoTemplate mongoTemplate;
+    ApiMetricsRawScheduleExecutor executor;
 
     public ApiCallMetricVo find(String processId, Long from, Long to, Integer type, Integer granularity) {
         if (StringUtils.isBlank(processId)) {
@@ -357,6 +361,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
             }
             BulkOperations bulkOps = mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, WorkerCallEntity.class);
             for (WorkerCallEntity entity : entities) {
+                entity.setTtlKey(new Date(entity.getTimeStart()));
                 Query query = queryBuilder.apply(entity);
                 Update update = updateBuilder.apply(entity);
                 bulkOps.upsert(query, update);
@@ -388,6 +393,8 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         update.set("errorCount", entity.getErrorCount());
         update.set("errorRate", entity.getErrorRate());
         update.currentDate("updatedAt");
+        update.set("lastApiCallId", entity.getLastApiCallId());
+        update.set("ttlKey", entity.getTtlKey());
         return update;
     }
 
@@ -397,7 +404,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
                 .and(Tag.DELETE).is(false);
         Query query = Query.query(criteria);
         query.limit(1);
-        query.with(Sort.by(Sort.Order.desc(Tag.TIME_START)));
+        query.with(Sort.by(Sort.Order.desc("lastApiCallId")));
         WorkerCallEntity lastOne = mongoOperations.findOne(query, WorkerCallEntity.class);
         Long queryFrom = null;
         if (null != lastOne) {
@@ -407,11 +414,11 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         Criteria criteriaCall = Criteria.where(Tag.WORK_OID).is(workerOid);
         List<Criteria> timeCriteria = new ArrayList<>();
         Optional.ofNullable(queryFrom).ifPresent(time -> timeCriteria.add(Criteria.where(Tag.REQ_TIME).gte(time)));
-        timeCriteria.add(Criteria.where(Tag.REQ_TIME).lt(System.currentTimeMillis() - 60000L));
+        timeCriteria.add(Criteria.where(Tag.REQ_TIME).lt(System.currentTimeMillis()));
         criteriaCall.andOperator(timeCriteria);
         final MongoCollection<Document> collection = mongoTemplate.getCollection("ApiCall");
         final Query queryCall = Query.query(criteriaCall);
-        queryCall.fields().include("allPathId", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path");
+        queryCall.fields().include("_id", "allPathId", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path");
         final Document queryObject = queryCall.getQueryObject();
         final FindIterable<Document> iterable =
                 collection.find(queryObject, Document.class)

@@ -2,6 +2,7 @@ package com.tapdata.tm.v2.api.monitor.utils;
 
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import lombok.Getter;
 import org.springframework.util.CollectionUtils;
 
@@ -84,10 +85,10 @@ public final class ApiMetricsDelayInfoUtil {
         return 100.0D * value / right;
     }
 
-    public static long stepByGranularity(int granularity) {
+    public static long stepByGranularity(TimeGranularity granularity) {
         return switch (granularity) {
-            case 1 -> 60L;
-            case 2 -> 3600L;
+            case MINUTE -> 60L;
+            case HOUR -> 3600L;
             default -> 5L;
         };
     }
@@ -133,5 +134,18 @@ public final class ApiMetricsDelayInfoUtil {
             this.avgSetter = avgSetter;
             return this;
         }
+    }
+
+   public static long sum(Long left, Long right) {
+        if (null == left && null == right) {
+            return 0L;
+        }
+        if (null == left) {
+            return right;
+        }
+        if (null == right) {
+            return left;
+        }
+        return left + right;
     }
 }

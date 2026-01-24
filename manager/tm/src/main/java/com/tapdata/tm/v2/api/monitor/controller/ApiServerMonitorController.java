@@ -6,7 +6,6 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiItem;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiOfEachServer;
-import com.tapdata.tm.v2.api.monitor.main.dto.ApiTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.dto.ChartAndDelayOfApi;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerChart;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerItem;
@@ -24,8 +23,8 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
+import com.tapdata.tm.v2.api.monitor.service.ApiMetricsChartQuery;
 import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawMergeService;
-import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawQuery;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -54,8 +53,8 @@ import java.util.List;
 @ApiResponses(value = {@ApiResponse(description = "successful operation", responseCode = "200")})
 public class ApiServerMonitorController extends BaseController {
 
-    @Resource(name = "apiMetricsRawQuery")
-    ApiMetricsRawQuery apiMetricsRawQuery;
+    @Resource(name = "apiMetricsChartQuery")
+    ApiMetricsChartQuery apiMetricsChartQuery;
     @Resource(name = "apiMetricsRawMergeService")
     ApiMetricsRawMergeService apiMetricsRawMergeService;
 
@@ -65,11 +64,15 @@ public class ApiServerMonitorController extends BaseController {
     @Operation(summary = "Server Top column on the homepage")
     @GetMapping("/server")
     public ResponseMessage<ServerTopOnHomepage> serverTopOnHomepage(@RequestParam(required = false, name = "startAt") Long startAt,
-                                                                    @RequestParam(required = false, name = "endAt") Long endAt) {
+                                                                    @RequestParam(required = false, name = "endAt") Long endAt,
+                                                                    @RequestParam(required = false, name = "type") String type,
+                                                                    @RequestParam(required = false, name = "step") Long step) {
         QueryBase param = new QueryBase();
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.serverTopOnHomepage(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.serverTopOnHomepage(param));
     }
 
     /**
@@ -79,12 +82,16 @@ public class ApiServerMonitorController extends BaseController {
     @GetMapping("/server/list")
     public ResponseMessage<List<ServerItem>> serverOverviewList(@RequestParam(required = false) String serverName,
                                                                 @RequestParam(required = false) Long startAt,
-                                                                @RequestParam(required = false) Long endAt) {
+                                                                @RequestParam(required = false) Long endAt,
+                                                                @RequestParam(required = false, name = "type") String type,
+                                                                @RequestParam(required = false, name = "step") Long step) {
         ServerListParam param = new ServerListParam();
         param.setServerName(serverName);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.serverOverviewList(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.serverOverviewList(param));
     }
 
     /**
@@ -94,12 +101,16 @@ public class ApiServerMonitorController extends BaseController {
     @GetMapping("/server/detail")
     public ResponseMessage<ServerOverviewDetail> serverOverviewDetail(@RequestParam(required = true) String serverId,
                                                                       @RequestParam(required = false) Long startAt,
-                                                                      @RequestParam(required = false) Long endAt) {
+                                                                      @RequestParam(required = false) Long endAt,
+                                                                      @RequestParam(required = false, name = "type") String type,
+                                                                      @RequestParam(required = false, name = "step") Long step) {
         ServerDetail param = new ServerDetail();
         param.setServerId(serverId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.serverOverviewDetail(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.serverOverviewDetail(param));
     }
 
 
@@ -110,12 +121,16 @@ public class ApiServerMonitorController extends BaseController {
     @GetMapping("/server/chart")
     public ResponseMessage<ServerChart> serverChart(@RequestParam(required = true) String serverId,
                                                     @RequestParam(required = false) Long startAt,
-                                                    @RequestParam(required = false) Long endAt) {
+                                                    @RequestParam(required = false) Long endAt,
+                                                    @RequestParam(required = false, name = "type") String type,
+                                                    @RequestParam(required = false, name = "step") Long step) {
         ServerChartParam param = new ServerChartParam();
         param.setServerId(serverId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.serverChart(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.serverChart(param));
     }
 
 
@@ -128,6 +143,8 @@ public class ApiServerMonitorController extends BaseController {
                                                                 @RequestParam(required = false) String orderBy,
                                                                 @RequestParam(required = false) Long startAt,
                                                                 @RequestParam(required = false) Long endAt,
+                                                                @RequestParam(required = false, name = "type") String type,
+                                                                @RequestParam(required = false, name = "step") Long step,
                                                                 @RequestParam(required = false, defaultValue = "0") Integer skip,
                                                                 @RequestParam(required = false, defaultValue = "10") Integer limit) {
         TopApiInServerParam param = new TopApiInServerParam();
@@ -137,6 +154,8 @@ public class ApiServerMonitorController extends BaseController {
         param.setEndAt(endAt);
         param.setSkip(skip);
         param.setLimit(limit);
+        param.setType(type);
+        param.setStep(step);
         return success(apiMetricsRawMergeService.topApiInServer(param));
     }
 
@@ -151,13 +170,17 @@ public class ApiServerMonitorController extends BaseController {
     public ResponseMessage<TopWorkerInServer> topWorkerInServer(@RequestParam(required = true) String serverId,
                                                                 @RequestParam(required = false, defaultValue = "ALL") String tag,
                                                                 @RequestParam(required = false) Long startAt,
-                                                                @RequestParam(required = false) Long endAt) {
+                                                                @RequestParam(required = false) Long endAt,
+                                                                @RequestParam(required = false, name = "type") String type,
+                                                                @RequestParam(required = false, name = "step") Long step) {
         TopWorkerInServerParam param = new TopWorkerInServerParam();
         param.setServerId(serverId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
         param.setTag(tag);
-        return success(apiMetricsRawQuery.topWorkerInServer(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.topWorkerInServer(param));
     }
 
 
@@ -169,6 +192,8 @@ public class ApiServerMonitorController extends BaseController {
     public ResponseMessage<Page<ApiItem>> apiOverviewList(@RequestParam(required = false) String orderBy,
                                                           @RequestParam(required = false) Long startAt,
                                                           @RequestParam(required = false) Long endAt,
+                                                          @RequestParam(required = false, name = "type") String type,
+                                                          @RequestParam(required = false, name = "step") Long step,
                                                           @RequestParam(required = false, defaultValue = "0") Integer skip,
                                                           @RequestParam(required = false, defaultValue = "10") Integer limit) {
         ApiListParam param = new ApiListParam();
@@ -178,6 +203,8 @@ public class ApiServerMonitorController extends BaseController {
         param.setEndAt(endAt);
         param.setSkip(skip);
         param.setLimit(limit);
+        param.setType(type);
+        param.setStep(step);
         return success(apiMetricsRawMergeService.apiOverviewList(param));
     }
 
@@ -188,12 +215,16 @@ public class ApiServerMonitorController extends BaseController {
     @GetMapping("/api/detail")
     public ResponseMessage<ApiDetail> apiOverviewDetail(@RequestParam(required = true) String apiId,
                                                         @RequestParam(required = false) Long startAt,
-                                                        @RequestParam(required = false) Long endAt) {
+                                                        @RequestParam(required = false) Long endAt,
+                                                        @RequestParam(required = false, name = "type") String type,
+                                                        @RequestParam(required = false, name = "step") Long step) {
         ApiDetailParam param = new ApiDetailParam();
         param.setApiId(apiId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.apiOverviewDetail(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.apiOverviewDetail(param));
     }
 
     /**
@@ -203,12 +234,16 @@ public class ApiServerMonitorController extends BaseController {
     @GetMapping("/api/server")
     public ResponseMessage<List<ApiOfEachServer>> apiOfEachServer(@RequestParam(required = true) String apiId,
                                                                   @RequestParam(required = false) Long startAt,
-                                                                  @RequestParam(required = false) Long endAt) {
+                                                                  @RequestParam(required = false) Long endAt,
+                                                                  @RequestParam(required = false, name = "type") String type,
+                                                                  @RequestParam(required = false, name = "step") Long step) {
         ApiWithServerDetail param = new ApiWithServerDetail();
         param.setApiId(apiId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.apiOfEachServer(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.apiOfEachServer(param));
     }
 
     /**
@@ -218,11 +253,15 @@ public class ApiServerMonitorController extends BaseController {
     @GetMapping("/api/chart")
     public ResponseMessage<ChartAndDelayOfApi> delayOfApi(@RequestParam(required = true) String apiId,
                                                           @RequestParam(required = false) Long startAt,
-                                                          @RequestParam(required = false) Long endAt) {
+                                                          @RequestParam(required = false) Long endAt,
+                                                          @RequestParam(required = false, name = "type") String type,
+                                                          @RequestParam(required = false, name = "step") Long step) {
         ApiChart param = new ApiChart();
         param.setApiId(apiId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.delayOfApi(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.delayOfApi(param));
     }
 }

@@ -31,4 +31,6 @@ public class ServerOverviewDetail extends DataValueBase {
     private double errorRate;
 
     private long errorCount;
+
+    TopWorkerInServer workerInfo = new TopWorkerInServer();
 }

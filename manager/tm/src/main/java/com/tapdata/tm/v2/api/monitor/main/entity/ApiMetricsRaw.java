@@ -4,6 +4,7 @@ import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.bson.types.ObjectId;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -36,7 +38,7 @@ public class ApiMetricsRaw extends BaseEntity {
      * 2: each server * all api
      *
      * @see MetricTypes
-     * */
+     */
     private int metricType;
 
     /**
@@ -100,9 +102,23 @@ public class ApiMetricsRaw extends BaseEntity {
 
     private Long minDelay;
 
+    private List<WorkerInfo> workerInfoMap;
+
     private ObjectId lastCallId;
 
     private Date ttlKey;
+
+    @Data
+    public static class WorkerInfo {
+        String workerOid;
+        Long reqCount;
+        Long errorCount;
+
+        public WorkerInfo() {
+            this.reqCount = 0L;
+            this.errorCount = 0L;
+        }
+    }
 
     public static ApiMetricsRaw instance(String serverId, String apiId, Long bucketMin, TimeGranularity type, MetricTypes metricType) {
         ApiMetricsRaw item = new ApiMetricsRaw();
@@ -125,6 +141,7 @@ public class ApiMetricsRaw extends BaseEntity {
                 break;
             case SERER:
                 item.setProcessId(serverId);
+                item.setWorkerInfoMap(new ArrayList<>());
                 break;
             default:
                 //do nothing
@@ -142,24 +159,24 @@ public class ApiMetricsRaw extends BaseEntity {
         List<Map<Long, Integer>> mergeDbCost = ApiMetricsDelayUtil.merge(Optional.ofNullable(getDbCost()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()), Optional.ofNullable(raw.getDbCost()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>()));
         setDbCost(mergeDbCost);
         calcRps();
+        this.mergeWorkerInfo(raw.getWorkerInfoMap());
     }
 
-    public void mergeSimple(ApiMetricsRaw raw) {
-        List<Map<Long, Integer>> rawDelay = Optional.ofNullable(raw.getDelay()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>());
-        List<Map<Long, Integer>> rawBytes = Optional.ofNullable(raw.getBytes()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>());
-        List<Map<Long, Integer>> rawDbCost = Optional.ofNullable(raw.getDbCost()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>());
-        long rawReqCount = Optional.ofNullable(raw.getReqCount()).orElse(0L);
-        long rawErrorCount = Optional.ofNullable(raw.getErrorCount()).orElse(0L);
-        long reqCount = Optional.ofNullable(getReqCount()).orElse(0L);
-        long errorCount = Optional.ofNullable(getErrorCount()).orElse(0L);
-        List<Map<Long, Integer>> bytes = Optional.ofNullable(getBytes()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>());
-        List<Map<Long, Integer>> delay = Optional.ofNullable(getDelay()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>());
-        List<Map<Long, Integer>> dbCost = Optional.ofNullable(getDbCost()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>());
-        setReqCount(reqCount + rawReqCount);
-        setErrorCount(errorCount + rawErrorCount);
-        setBytes(ApiMetricsDelayUtil.merge(bytes, rawBytes));
-        setDelay(ApiMetricsDelayUtil.merge(delay, rawDelay));
-        setDbCost(ApiMetricsDelayUtil.merge(dbCost, rawDbCost));
+    protected void mergeWorkerInfo(List<WorkerInfo> list) {
+        if (null == list || list.isEmpty()) {
+            return;
+        }
+        List<WorkerInfo> workerInfos = Optional.ofNullable(getWorkerInfoMap()).orElse(new ArrayList<>());
+        Map<String, WorkerInfo> collected = workerInfos.stream()
+                .collect(Collectors.toMap(WorkerInfo::getWorkerOid, e -> e, (e1, e2) -> e2));
+        list.forEach(workerInfo -> {
+            String workerOid = workerInfo.getWorkerOid();
+            WorkerInfo info = collected.computeIfAbsent(workerOid, k -> new WorkerInfo());
+            info.setWorkerOid(workerOid);
+            info.setReqCount(ApiMetricsDelayInfoUtil.sum(info.getReqCount(), workerInfo.getReqCount()));
+            info.setErrorCount(ApiMetricsDelayInfoUtil.sum(info.getErrorCount(), workerInfo.getErrorCount()));
+        });
+        setWorkerInfoMap(workerInfos);
     }
 
     public void merge(ApiMetricsRaw raw, long time, long timeGranularity) {
@@ -168,6 +185,7 @@ public class ApiMetricsRaw extends BaseEntity {
         List<Map<Long, Integer>> rawDbCost = Optional.ofNullable(raw.getDbCost()).map(ApiMetricsDelayUtil::fixDelayAsMap).orElse(new ArrayList<>());
         long rawReqCount = Optional.ofNullable(raw.getReqCount()).orElse(0L);
         long rawErrorCount = Optional.ofNullable(raw.getErrorCount()).orElse(0L);
+        mergeWorkerInfo(raw.getWorkerInfoMap());
         if (timeGranularity == 0) {
             Map<Long, ApiMetricsRaw> subMetrics = Optional.ofNullable(getSubMetrics()).orElse(new HashMap<>());
             ApiMetricsRaw sub = Optional.ofNullable(subMetrics.get(time)).orElse(new ApiMetricsRaw());
@@ -194,12 +212,6 @@ public class ApiMetricsRaw extends BaseEntity {
             setDelay(ApiMetricsDelayUtil.merge(delay, rawDelay));
             setDbCost(ApiMetricsDelayUtil.merge(dbCost, rawDbCost));
         }
-
-//        setP50();
-//        setP95();
-//        setP99();
-//        setMaxDelay();
-//        setMinDelay();
     }
 
     public void merge(boolean isOk, long reqBytes, long requestCost, long dbCost) {
@@ -209,6 +221,20 @@ public class ApiMetricsRaw extends BaseEntity {
         setDelay(ApiMetricsDelayUtil.addDelay(Optional.ofNullable(getDelay()).orElse(new ArrayList<>()), requestCost));
         setDbCost(ApiMetricsDelayUtil.addDelay(Optional.ofNullable(getDbCost()).orElse(new ArrayList<>()), dbCost));
         calcRps();
+    }
+
+    public void mergeWorker(String workerOid, boolean isOk, boolean needWorkerInfo) {
+        if (!needWorkerInfo) {
+            return;
+        }
+        List<WorkerInfo> workerInfos = Optional.ofNullable(getWorkerInfoMap()).orElse(new ArrayList<>());
+        Map<String, WorkerInfo> collected = workerInfos.stream()
+                .collect(Collectors.toMap(WorkerInfo::getWorkerOid, e -> e, (e1, e2) -> e2));
+        WorkerInfo info = collected.computeIfAbsent(workerOid, k -> new WorkerInfo());
+        info.setWorkerOid(workerOid);
+        info.setReqCount(info.getReqCount() + 1L);
+        info.setErrorCount(info.getErrorCount() + (isOk ? 0L : 1L));
+        setWorkerInfoMap(new ArrayList<>(collected.values()));
     }
 
     void calcRps() {

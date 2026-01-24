@@ -1,6 +1,7 @@
 package com.tapdata.tm.apiCalls.vo;
 
 import lombok.Data;
+import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.util.Date;
@@ -36,4 +37,6 @@ public class WorkerCallsInfo {
     private String reqPath;
 
     private Date lastCreateTime;
+
+    private ObjectId lastApiCallId;
 }

@@ -27,6 +27,7 @@ public class UsageBase extends BaseEntity {
      * 1:engine
      * 2:api server
      * 3:api server worker
+     * @see ServerUsage.ProcessType
      */
     protected int processType;
     /**
@@ -43,6 +44,8 @@ public class UsageBase extends BaseEntity {
     protected String workOid;
 
     protected Double cpuUsage;
+
+    protected Double selfCpuUsage;
 
     protected Long heapMemoryMax;
 

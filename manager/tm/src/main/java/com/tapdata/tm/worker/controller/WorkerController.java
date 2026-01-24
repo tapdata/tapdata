@@ -531,6 +531,7 @@ public class WorkerController extends BaseController {
                 status.setCpuMemStatus(new HashMap<>());
                 status.setWorkerBaseInfo(new HashMap<>());
                 status.setProcessCpuMemStatus(workerStatus.getMetricValues());
+                status.setAuditLogPushMaxDelay(workerStatus.getAuditLogPushMaxDelay());
                 Optional.ofNullable(workerStatus.getWorkerProcessId())
                         .ifPresent(status::setPid);
                 Map<String, ApiServerWorkerInfo> workers = workerStatus.getWorkers();
