@@ -6,16 +6,18 @@ import com.tapdata.tm.cluster.repository.ClusterStateRepository;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.utils.HttpUtils;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiOfEachServer;
-import com.tapdata.tm.v2.api.monitor.main.dto.ApiTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.dto.ChartAndDelayOfApi;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerChart;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerItem;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerOverviewDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiChart;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiDetailParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiWithServerDetail;
@@ -24,7 +26,6 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerChartParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
-import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.v2.api.usage.repository.ServerUsageMetricRepository;
 import com.tapdata.tm.v2.api.usage.repository.UsageRepository;
@@ -40,7 +41,6 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -77,7 +76,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
-class ApiMetricsRawQueryTest {
+class ApiMetricsChartQueryTest {
     private ApiMetricsRawService service;
     private UsageRepository usageRepository;
     private WorkerRepository workerRepository;
@@ -85,7 +84,7 @@ class ApiMetricsRawQueryTest {
     private ModulesService modulesService;
     private MongoTemplate mongoTemplate;
     private ServerUsageMetricRepository serverUsageMetricRepository;
-    private ApiMetricsRawQuery apiMetricsRawQuery;
+    private ApiMetricsChartQuery apiMetricsChartQuery;
 
     @BeforeEach
     void setUp() {
@@ -94,38 +93,39 @@ class ApiMetricsRawQueryTest {
         workerRepository = mock(WorkerRepository.class);
         clusterRepository = mock(ClusterStateRepository.class);
         modulesService = mock(ModulesService.class);
+        mongoTemplate = mock(MongoTemplate.class);
         serverUsageMetricRepository = mock(ServerUsageMetricRepository.class);
 
-        apiMetricsRawQuery = mock(ApiMetricsRawQuery.class);
-        ReflectionTestUtils.setField(apiMetricsRawQuery, "service", service);
-        ReflectionTestUtils.setField(apiMetricsRawQuery, "usageRepository", usageRepository);
-        ReflectionTestUtils.setField(apiMetricsRawQuery, "workerRepository", workerRepository);
-        ReflectionTestUtils.setField(apiMetricsRawQuery, "clusterRepository", clusterRepository);
-        ReflectionTestUtils.setField(apiMetricsRawQuery, "modulesService", modulesService);
-        ReflectionTestUtils.setField(apiMetricsRawQuery, "serverUsageMetricRepository", serverUsageMetricRepository);
-        when(apiMetricsRawQuery.serverTopOnHomepage(any(QueryBase.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.errorCount(anyList(), any(Function.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.serverOverviewList(any(ServerListParam.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.queryCpuUsageRecords(any(Criteria.class), anyLong(), anyLong(), anyInt())).thenCallRealMethod();
-        when(apiMetricsRawQuery.mapUsage(anyList(), anyLong(), anyLong(), anyInt())).thenCallRealMethod();
-        doCallRealMethod().when(apiMetricsRawQuery).asServerItemInfo(anyString(), any(ServerItem.class), anyMap(), any(Worker.class), anyMap(), any(ServerListParam.class));
-        when(apiMetricsRawQuery.findServerById(anyString())).thenCallRealMethod();
-        when(apiMetricsRawQuery.serverOverviewDetail(any(ServerDetail.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.serverChart(any(ServerChartParam.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.topWorkerInServer(any(TopWorkerInServerParam.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.apiOverviewDetail(any(ApiDetailParam.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.findRowByApiId(any(Criteria.class), anyString(), any(QueryBase.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
-        when(apiMetricsRawQuery.extractIndex(anyString())).thenCallRealMethod();
+        apiMetricsChartQuery = mock(ApiMetricsChartQuery.class);
+        ReflectionTestUtils.setField(apiMetricsChartQuery, "service", service);
+        ReflectionTestUtils.setField(apiMetricsChartQuery, "usageRepository", usageRepository);
+        ReflectionTestUtils.setField(apiMetricsChartQuery, "workerRepository", workerRepository);
+        ReflectionTestUtils.setField(apiMetricsChartQuery, "clusterRepository", clusterRepository);
+        ReflectionTestUtils.setField(apiMetricsChartQuery, "modulesService", modulesService);
+        ReflectionTestUtils.setField(apiMetricsChartQuery, "serverUsageMetricRepository", serverUsageMetricRepository);
+        when(apiMetricsChartQuery.serverTopOnHomepage(any(QueryBase.class))).thenCallRealMethod();
+        //when(apiMetricsChartQuery.errorCount(anyList(), any(Function.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.serverOverviewList(any(ServerListParam.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.queryCpuUsageRecords(any(Criteria.class), anyLong(), anyLong(), any(TimeGranularity.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.mapUsage(anyList(), anyLong(), anyLong(), any(TimeGranularity.class))).thenCallRealMethod();
+        doCallRealMethod().when(apiMetricsChartQuery).asServerItemInfo(anyString(), any(ServerItem.class), anyMap(), any(Worker.class), anyMap(), any(ServerListParam.class));
+        when(apiMetricsChartQuery.findServerById(anyString())).thenCallRealMethod();
+        when(apiMetricsChartQuery.serverOverviewDetail(any(ServerDetail.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.serverChart(any(ServerChartParam.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.topWorkerInServer(any(TopWorkerInServerParam.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.apiOverviewDetail(any(ApiDetailParam.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.findRowByApiId(anyString(), any(QueryBase.class), any(MetricTypes.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.extractIndex(anyString())).thenCallRealMethod();
         List<ModulesDto> modulesDtoLit = new ArrayList<>();
         ModulesDto m = new ModulesDto();
         m.setId(new ObjectId());
         modulesDtoLit.add(m);
         when(modulesService.findAllActiveApi(ModuleStatusEnum.ACTIVE)).thenReturn(modulesDtoLit);
-        when(apiMetricsRawQuery.activeWorkers(anyList())).thenCallRealMethod();
-        when(apiMetricsRawQuery.activeWorkers(anySet())).thenCallRealMethod();
-        when(apiMetricsRawQuery.activeWorkers(null)).thenCallRealMethod();
+        when(apiMetricsChartQuery.activeWorkers(anyList())).thenCallRealMethod();
+        when(apiMetricsChartQuery.activeWorkers(anySet())).thenCallRealMethod();
+        when(apiMetricsChartQuery.activeWorkers(null)).thenCallRealMethod();
         List<Worker> workers = new ArrayList<>();
         Worker e = new Worker();
         e.setProcessId("xxxxx");
@@ -140,11 +140,10 @@ class ApiMetricsRawQueryTest {
         void testEmptyApiMetricsRaws() {
             QueryBase param = new QueryBase();
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(Collections.emptyList());
                 when(service.find(any(Query.class))).thenReturn(Collections.emptyList());
 
-                ServerTopOnHomepage result = apiMetricsRawQuery.serverTopOnHomepage(param);
+                ServerTopOnHomepage result = apiMetricsChartQuery.serverTopOnHomepage(param);
 
                 assertNotNull(result);
                 assertEquals(0L, result.getTotalRequestCount());
@@ -161,7 +160,6 @@ class ApiMetricsRawQueryTest {
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
 
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
 
@@ -174,7 +172,7 @@ class ApiMetricsRawQueryTest {
                         return null;
                     });
 
-                    ServerTopOnHomepage result = apiMetricsRawQuery.serverTopOnHomepage(param);
+                    ServerTopOnHomepage result = apiMetricsChartQuery.serverTopOnHomepage(param);
 
                     assertNotNull(result);
                     assertEquals(300L, result.getTotalRequestCount());
@@ -189,11 +187,10 @@ class ApiMetricsRawQueryTest {
             List<ApiMetricsRaw> raws = Arrays.asList(null, createApiMetricsRaw("api1", "server1", 100L, 10L));
 
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
 
-                ServerTopOnHomepage result = apiMetricsRawQuery.serverTopOnHomepage(param);
+                ServerTopOnHomepage result = apiMetricsChartQuery.serverTopOnHomepage(param);
 
                 assertNotNull(result);
                 assertEquals(100L, result.getTotalRequestCount());
@@ -201,31 +198,31 @@ class ApiMetricsRawQueryTest {
         }
     }
 
-    @Nested
-    class ErrorCountTest {
-        @Test
-        void testErrorCount() {
-            ApiMetricsRaw raw1 = createApiMetricsRaw("api1", "server1", 100L, 10L);
-            ApiMetricsRaw raw2 = createApiMetricsRaw("api1", "server1", 50L, 0L);
-            ApiMetricsRaw raw3 = createApiMetricsRaw("api2", "server2", 200L, 20L);
-            List<ApiMetricsRaw> raws = Arrays.asList(raw1, raw2, raw3);
-
-            long result = apiMetricsRawQuery.errorCount(raws, ApiMetricsRaw::getApiId);
-
-            assertEquals(2L, result); // api1 and api2 both have errors
-        }
-
-        @Test
-        void testErrorCountNoErrors() {
-            ApiMetricsRaw raw1 = createApiMetricsRaw("api1", "server1", 100L, 0L);
-            ApiMetricsRaw raw2 = createApiMetricsRaw("api2", "server2", 200L, 0L);
-            List<ApiMetricsRaw> raws = Arrays.asList(raw1, raw2);
-
-            long result = apiMetricsRawQuery.errorCount(raws, ApiMetricsRaw::getApiId);
-
-            assertEquals(0L, result);
-        }
-    }
+//    @Nested
+//    class ErrorCountTest {
+//        @Test
+//        void testErrorCount() {
+//            ApiMetricsRaw raw1 = createApiMetricsRaw("api1", "server1", 100L, 10L);
+//            ApiMetricsRaw raw2 = createApiMetricsRaw("api1", "server1", 50L, 0L);
+//            ApiMetricsRaw raw3 = createApiMetricsRaw("api2", "server2", 200L, 20L);
+//            List<ApiMetricsRaw> raws = Arrays.asList(raw1, raw2, raw3);
+//
+//            long result = apiMetricsChartQuery.errorCount(raws, ApiMetricsRaw::getApiId);
+//
+//            assertEquals(2L, result); // api1 and api2 both have errors
+//        }
+//
+//        @Test
+//        void testErrorCountNoErrors() {
+//            ApiMetricsRaw raw1 = createApiMetricsRaw("api1", "server1", 100L, 0L);
+//            ApiMetricsRaw raw2 = createApiMetricsRaw("api2", "server2", 200L, 0L);
+//            List<ApiMetricsRaw> raws = Arrays.asList(raw1, raw2);
+//
+//            long result = apiMetricsChartQuery.errorCount(raws, ApiMetricsRaw::getApiId);
+//
+//            assertEquals(0L, result);
+//        }
+//    }
 
     @Nested
     class ServerOverviewListTest {
@@ -233,10 +230,9 @@ class ApiMetricsRawQueryTest {
         void testEmptyServerInfos() {
             ServerListParam param = new ServerListParam();
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(Collections.emptyList());
 
-                List<ServerItem> result = apiMetricsRawQuery.serverOverviewList(param);
+                List<ServerItem> result = apiMetricsChartQuery.serverOverviewList(param);
 
                 assertTrue(result.isEmpty());
             }
@@ -248,14 +244,13 @@ class ApiMetricsRawQueryTest {
             param.setServerName("test-server");
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
-            param.setGranularity(2);
+            param.setGranularity(TimeGranularity.HOUR);
             Worker worker = createWorker("server1", "hostname1");
             List<Worker> workers = Arrays.asList(worker);
             ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
             List<ApiMetricsRaw> raws = Arrays.asList(raw);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 when(service.find(any(Query.class))).thenReturn(raws);
@@ -265,7 +260,7 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyInt())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyInt())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                List<ServerItem> result = apiMetricsRawQuery.serverOverviewList(param);
+                List<ServerItem> result = apiMetricsChartQuery.serverOverviewList(param);
                 assertNotNull(result);
                 assertFalse(result.isEmpty());
             }
@@ -277,14 +272,13 @@ class ApiMetricsRawQueryTest {
             param.setServerName("test-server");
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
-            param.setGranularity(0);
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
             Worker worker = createWorker("server1", "hostname1");
             List<Worker> workers = Arrays.asList(worker);
             ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
             List<ApiMetricsRaw> raws = Arrays.asList(raw);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 when(service.find(any(Query.class))).thenReturn(raws);
@@ -292,7 +286,7 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyInt())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyInt())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
-                List<ServerItem> result = apiMetricsRawQuery.serverOverviewList(param);
+                List<ServerItem> result = apiMetricsChartQuery.serverOverviewList(param);
                 assertNotNull(result);
                 assertFalse(result.isEmpty());
             }
@@ -307,7 +301,7 @@ class ApiMetricsRawQueryTest {
             Worker worker = createWorker(serverId, "hostname1");
             when(workerRepository.findOne(any(Query.class))).thenReturn(Optional.of(worker));
 
-            Worker result = apiMetricsRawQuery.findServerById(serverId);
+            Worker result = apiMetricsChartQuery.findServerById(serverId);
 
             assertNotNull(result);
             assertEquals(serverId, result.getProcessId());
@@ -318,7 +312,7 @@ class ApiMetricsRawQueryTest {
             String serverId = "server1";
             when(workerRepository.findOne(any(Query.class))).thenReturn(Optional.empty());
 
-            assertThrows(BizException.class, () -> apiMetricsRawQuery.findServerById(serverId));
+            assertThrows(BizException.class, () -> apiMetricsChartQuery.findServerById(serverId));
         }
     }
 
@@ -329,7 +323,7 @@ class ApiMetricsRawQueryTest {
             ServerDetail param = new ServerDetail();
             param.setServerId("");
 
-            assertThrows(BizException.class, () -> apiMetricsRawQuery.serverOverviewDetail(param));
+            assertThrows(BizException.class, () -> apiMetricsChartQuery.serverOverviewDetail(param));
         }
 
         @Test
@@ -337,7 +331,7 @@ class ApiMetricsRawQueryTest {
             ServerDetail param = new ServerDetail();
             param.setServerId(null);
 
-            assertThrows(BizException.class, () -> apiMetricsRawQuery.serverOverviewDetail(param));
+            assertThrows(BizException.class, () -> apiMetricsChartQuery.serverOverviewDetail(param));
         }
 
         @Test
@@ -364,15 +358,14 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
 
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
-                doReturn(worker).when(apiMetricsRawQuery).findServerById(anyString());
+                doReturn(worker).when(apiMetricsChartQuery).findServerById(anyString());
                 when(service.find(any(Query.class))).thenReturn(raws);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyInt())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                ServerOverviewDetail result = apiMetricsRawQuery.serverOverviewDetail(param);
+                ServerOverviewDetail result = apiMetricsChartQuery.serverOverviewDetail(param);
 
                 assertNotNull(result);
                 assertEquals("server1", result.getServerId());
@@ -389,7 +382,7 @@ class ApiMetricsRawQueryTest {
             ServerChartParam param = new ServerChartParam();
             param.setServerId("");
 
-            assertThrows(BizException.class, () -> apiMetricsRawQuery.serverChart(param));
+            assertThrows(BizException.class, () -> apiMetricsChartQuery.serverChart(param));
         }
 
         @Test
@@ -398,7 +391,7 @@ class ApiMetricsRawQueryTest {
             param.setServerId("server1");
             param.setStartAt(System.currentTimeMillis() - 3600000);
             param.setEndAt(System.currentTimeMillis());
-            param.setGranularity(2);
+            param.setGranularity(TimeGranularity.HOUR);
 
             ApiMetricsRaw raw = createApiMetricsRaw("api1", "server1", 100L, 10L);
             raw.setTimeStart(System.currentTimeMillis());
@@ -407,7 +400,6 @@ class ApiMetricsRawQueryTest {
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class);
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class)) {
 
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
@@ -415,7 +407,7 @@ class ApiMetricsRawQueryTest {
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                ServerChart result = apiMetricsRawQuery.serverChart(param);
+                ServerChart result = apiMetricsChartQuery.serverChart(param);
 
                 assertNotNull(result);
                 assertNotNull(result.getUsage());
@@ -431,7 +423,7 @@ class ApiMetricsRawQueryTest {
         void testEmptyServerId() {
             TopWorkerInServerParam param = new TopWorkerInServerParam();
             param.setServerId("");
-            assertThrows(BizException.class, () -> apiMetricsRawQuery.topWorkerInServer(param));
+            assertThrows(BizException.class, () -> apiMetricsChartQuery.topWorkerInServer(param));
         }
 
         @Test
@@ -440,7 +432,7 @@ class ApiMetricsRawQueryTest {
             param.setServerId("server1");
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L + 1L);
-            param.setGranularity(2);
+            param.setGranularity(TimeGranularity.HOUR);
 
             WorkerCallEntity callEntity = new WorkerCallEntity();
             callEntity.setWorkOid("worker1");
@@ -451,7 +443,7 @@ class ApiMetricsRawQueryTest {
             workerInfo.setName("Worker-1");
             Worker w = new Worker();
             when(workerRepository.findOne(any(Query.class))).thenReturn(Optional.of(w));
-            Assertions.assertDoesNotThrow(() -> apiMetricsRawQuery.topWorkerInServer(param));
+            Assertions.assertDoesNotThrow(() -> apiMetricsChartQuery.topWorkerInServer(param));
         }
 
         @Test
@@ -460,7 +452,7 @@ class ApiMetricsRawQueryTest {
             param.setServerId("server1");
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
-            param.setGranularity(2);
+            param.setGranularity(TimeGranularity.HOUR);
 
             WorkerCallEntity callEntity = new WorkerCallEntity();
             callEntity.setWorkOid("worker1");
@@ -480,7 +472,7 @@ class ApiMetricsRawQueryTest {
             when(mongoTemplate.find(any(Query.class), any(Class.class), anyString())).thenReturn(callEntities);
             List<ServerUsageMetric> usage2 = new ArrayList<>();
             when(serverUsageMetricRepository.findAll(any(Query.class))).thenReturn(usage2);
-            Assertions.assertDoesNotThrow(() -> apiMetricsRawQuery.topWorkerInServer(param));
+            Assertions.assertDoesNotThrow(() -> apiMetricsChartQuery.topWorkerInServer(param));
         }
 
         @Test
@@ -489,7 +481,7 @@ class ApiMetricsRawQueryTest {
             param.setServerId("server1");
             param.setStartAt(System.currentTimeMillis() / 1000L - 3600);
             param.setEndAt(System.currentTimeMillis() / 1000L);
-            param.setGranularity(2);
+            param.setGranularity(TimeGranularity.HOUR);
 
             WorkerCallEntity callEntity = new WorkerCallEntity();
             callEntity.setWorkOid("worker1");
@@ -516,7 +508,7 @@ class ApiMetricsRawQueryTest {
             when(mongoTemplate.find(any(Query.class), any(Class.class), anyString())).thenReturn(callEntities);
             List<ServerUsageMetric> usage2 = new ArrayList<>();
             when(serverUsageMetricRepository.findAll(any(Query.class))).thenReturn(usage2);
-            Assertions.assertDoesNotThrow(() -> apiMetricsRawQuery.topWorkerInServer(param));
+            Assertions.assertDoesNotThrow(() -> apiMetricsChartQuery.topWorkerInServer(param));
         }
     }
 
@@ -539,15 +531,14 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
 
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
-                doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(raws).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                ApiDetail result = apiMetricsRawQuery.apiOverviewDetail(param);
+                ApiDetail result = apiMetricsChartQuery.apiOverviewDetail(param);
 
                 assertNotNull(result);
                 assertEquals(100L, result.getRequestCount());
@@ -565,10 +556,9 @@ class ApiMetricsRawQueryTest {
             apiInfo.setPrefix("");
             when(modulesService.findOne(any(Query.class))).thenReturn(apiInfo);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(Collections.emptyList()).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
 
-                ApiDetail result = apiMetricsRawQuery.apiOverviewDetail(param);
+                ApiDetail result = apiMetricsChartQuery.apiOverviewDetail(param);
 
                 assertNotNull(result);
             }
@@ -585,9 +575,8 @@ class ApiMetricsRawQueryTest {
             apiInfo.setPrefix("");
             when(modulesService.findOne(any(Query.class))).thenReturn(apiInfo);
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
-                ApiDetail result = apiMetricsRawQuery.apiOverviewDetail(param);
+                doReturn(Collections.emptyList()).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
+                ApiDetail result = apiMetricsChartQuery.apiOverviewDetail(param);
                 assertNotNull(result);
             }
         }
@@ -600,20 +589,19 @@ class ApiMetricsRawQueryTest {
             Criteria criteria = new Criteria();
             QueryBase param = new QueryBase();
 
-            assertThrows(BizException.class, () -> apiMetricsRawQuery.findRowByApiId(criteria, "", param));
+            assertThrows(BizException.class, () -> apiMetricsChartQuery.findRowByApiId("", param, MetricTypes.API));
         }
 
         @Test
         void testNullApiId() {
             Criteria criteria = new Criteria();
             QueryBase param = new QueryBase();
-            when(apiMetricsRawQuery.findRowByApiId(criteria, null, param)).thenCallRealMethod();
-            assertThrows(BizException.class, () -> apiMetricsRawQuery.findRowByApiId(criteria, null, param));
+            when(apiMetricsChartQuery.findRowByApiId(null, param, MetricTypes.API)).thenCallRealMethod();
+            assertThrows(BizException.class, () -> apiMetricsChartQuery.findRowByApiId(null, param, MetricTypes.API));
         }
 
         @Test
         void testValidApiId() {
-            Criteria criteria = new Criteria();
             QueryBase param = new QueryBase();
             String apiId = "api1";
             List<ApiMetricsRaw> raws = Arrays.asList(createApiMetricsRaw(apiId, "server1", 100L, 10L));
@@ -622,7 +610,7 @@ class ApiMetricsRawQueryTest {
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(any(), any())).thenReturn(raws);
                 when(service.find(any(Query.class))).thenReturn(raws);
 
-                List<ApiMetricsRaw> result = apiMetricsRawQuery.findRowByApiId(criteria, apiId, param);
+                List<ApiMetricsRaw> result = apiMetricsChartQuery.findRowByApiId(apiId, param, MetricTypes.API);
 
                 assertNotNull(result);
                 assertEquals(1, result.size());
@@ -638,9 +626,8 @@ class ApiMetricsRawQueryTest {
             param.setApiId("api1");
 
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
-                List<ApiOfEachServer> result = apiMetricsRawQuery.apiOfEachServer(param);
+                doReturn(Collections.emptyList()).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
+                List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
 
                 assertFalse(result.isEmpty());
             }
@@ -665,15 +652,14 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(raws).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                List<ApiOfEachServer> result = apiMetricsRawQuery.apiOfEachServer(param);
+                List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
 
                 assertNotNull(result);
             }
@@ -699,15 +685,14 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(raws).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                List<ApiOfEachServer> result = apiMetricsRawQuery.apiOfEachServer(param);
+                List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
 
                 assertNotNull(result);
             }
@@ -732,15 +717,14 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(raws).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                List<ApiOfEachServer> result = apiMetricsRawQuery.apiOfEachServer(param);
+                List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
 
                 assertNotNull(result);
             }
@@ -766,15 +750,14 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(raws).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                List<ApiOfEachServer> result = apiMetricsRawQuery.apiOfEachServer(param);
+                List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
 
                 assertNotNull(result);
             }
@@ -799,15 +782,14 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(raws).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                List<ApiOfEachServer> result = apiMetricsRawQuery.apiOfEachServer(param);
+                List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
 
                 assertNotNull(result);
             }
@@ -831,15 +813,14 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
-                doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(raws).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                List<ApiOfEachServer> result = apiMetricsRawQuery.apiOfEachServer(param);
+                List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
 
                 assertNotNull(result);
             }
@@ -862,16 +843,15 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayUtil> delayUtil = mockStatic(ApiMetricsDelayUtil.class);
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any())).thenReturn(new Criteria());
                 analyzer.when(() -> ParticleSizeAnalyzer.apiMetricsRaws(anyList(), any(QueryBase.class))).thenReturn(raws);
-                doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(raws).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
                 when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                List<ApiOfEachServer> result = apiMetricsRawQuery.apiOfEachServer(param);
+                List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
 
                 assertNotNull(result);
             }
@@ -886,10 +866,9 @@ class ApiMetricsRawQueryTest {
             param.setApiId("api1");
 
             try (MockedStatic<ParticleSizeAnalyzer> analyzer = mockStatic(ParticleSizeAnalyzer.class)) {
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
-                doReturn(Collections.emptyList()).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(Collections.emptyList()).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
 
-                ChartAndDelayOfApi result = apiMetricsRawQuery.delayOfApi(param);
+                ChartAndDelayOfApi result = apiMetricsChartQuery.delayOfApi(param);
 
                 assertNotNull(result);
             }
@@ -911,15 +890,14 @@ class ApiMetricsRawQueryTest {
                  MockedStatic<ApiMetricsDelayInfoUtil> amdiu = mockStatic(ApiMetricsDelayInfoUtil.class)) {
                 amdiu.when(() -> ApiMetricsDelayInfoUtil.mergeItems(anyList(), any(Function.class))).thenReturn(new ArrayList<>());
 
-                analyzer.when(() -> ParticleSizeAnalyzer.of(any(), any())).thenReturn(new Criteria());
-                doReturn(raws).when(apiMetricsRawQuery).findRowByApiId(any(), anyString(), any());
+                doReturn(raws).when(apiMetricsChartQuery).findRowByApiId(anyString(), any(), any());
                 delayUtil.when(() -> ApiMetricsDelayUtil.fixDelayAsMap(any())).thenReturn(new ArrayList<>());
                 delayUtil.when(() -> ApiMetricsDelayUtil.sum(any())).thenReturn(1000L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p95(any(), anyLong())).thenReturn(950L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.p99(any(), anyLong())).thenReturn(990L);
                 delayUtil.when(() -> ApiMetricsDelayUtil.readMaxAndMin(any(), any(), any())).thenAnswer(invocation -> null);
 
-                ChartAndDelayOfApi result = apiMetricsRawQuery.delayOfApi(param);
+                ChartAndDelayOfApi result = apiMetricsChartQuery.delayOfApi(param);
 
                 assertNotNull(result);
             }
@@ -933,40 +911,40 @@ class ApiMetricsRawQueryTest {
             List<? extends ServerUsage> infos = new ArrayList<>();
             long startAt = 1765209600L;
             long endAt = 1765209660L;
-            int granularity = 0;
-            ServerChart.Usage usage = apiMetricsRawQuery.mapUsage(infos, startAt, endAt, granularity);
+            ServerChart.Usage usage = apiMetricsChartQuery.mapUsage(infos, startAt, endAt, TimeGranularity.SECOND_FIVE);
             Assertions.assertNotNull(usage);
             Assertions.assertNotNull(usage.getCpuUsage());
             Assertions.assertNotNull(usage.getMemoryUsage());
             Assertions.assertNotNull(usage.getTs());
             Assertions.assertEquals(0, usage.getTs().size());
         }
+
         @Test
         void testMinute() {
             List<? extends ServerUsage> infos = new ArrayList<>();
             long startAt = 1765209600L;
             long endAt = 1765213200L;
-            int granularity = 1;
-            ServerChart.Usage usage = apiMetricsRawQuery.mapUsage(infos, startAt, endAt, granularity);
+            ServerChart.Usage usage = apiMetricsChartQuery.mapUsage(infos, startAt, endAt, TimeGranularity.MINUTE);
             Assertions.assertNotNull(usage);
             Assertions.assertNotNull(usage.getCpuUsage());
             Assertions.assertNotNull(usage.getMemoryUsage());
             Assertions.assertNotNull(usage.getTs());
             Assertions.assertEquals(0, usage.getTs().size());
         }
+
         @Test
         void testHour() {
             List<? extends ServerUsage> infos = new ArrayList<>();
             long startAt = 1765209600L;
             long endAt = 1767888000L;
-            int granularity = 2;
-            ServerChart.Usage usage = apiMetricsRawQuery.mapUsage(infos, startAt, endAt, granularity);
+            ServerChart.Usage usage = apiMetricsChartQuery.mapUsage(infos, startAt, endAt, TimeGranularity.HOUR);
             Assertions.assertNotNull(usage);
             Assertions.assertNotNull(usage.getCpuUsage());
             Assertions.assertNotNull(usage.getMemoryUsage());
             Assertions.assertNotNull(usage.getTs());
             Assertions.assertEquals(0, usage.getTs().size());
         }
+
         @Test
         void testMissingPreviousPart() {
             List<? extends UsageBase> infos = new ArrayList<>();
@@ -977,16 +955,15 @@ class ApiMetricsRawQueryTest {
             instance1.setHeapMemoryMax(100L);
 
             //2025-12-09 00:00:35
-            ServerUsageMetric instance2 = ServerUsageMetric.instance(0,1765209635000L, "processId", "workOid", 0);
+            ServerUsageMetric instance2 = ServerUsageMetric.instance(0, 1765209635000L, "processId", "workOid", 0);
             instance2.setCpuUsage(2.0D);
             instance2.setHeapMemoryUsage(200L);
             instance2.setHeapMemoryMax(400L);
             ((List<UsageBase>) infos).add(instance1);
             ((List<UsageBase>) infos).add(instance2);
             long startAt = 1765209600L; //2025-12-09 00:00:00
-            long endAt   = 1765209660L; //2025-12-09 00:01:00
-            int granularity = 0;
-            ServerChart.Usage usage = apiMetricsRawQuery.mapUsage(infos, startAt, endAt, granularity);
+            long endAt = 1765209660L; //2025-12-09 00:01:00
+            ServerChart.Usage usage = apiMetricsChartQuery.mapUsage(infos, startAt, endAt, TimeGranularity.SECOND_FIVE);
             Assertions.assertNotNull(usage);
             Assertions.assertNotNull(usage.getCpuUsage());
             Assertions.assertNotNull(usage.getMemoryUsage());
@@ -1015,13 +992,13 @@ class ApiMetricsRawQueryTest {
     class extractIndexTest {
         @Test
         void testNormal() {
-            Assertions.assertEquals(0, apiMetricsRawQuery.extractIndex("Worker-0"));
-            Assertions.assertEquals(1, apiMetricsRawQuery.extractIndex("Worker-1"));
-            Assertions.assertEquals(1, apiMetricsRawQuery.extractIndex("Worker---1"));
-            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsRawQuery.extractIndex("Worker1"));
-            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsRawQuery.extractIndex("Worker---"));
-            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsRawQuery.extractIndex(""));
-            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsRawQuery.extractIndex("Worker-ddd"));
+            Assertions.assertEquals(0, apiMetricsChartQuery.extractIndex("Worker-0"));
+            Assertions.assertEquals(1, apiMetricsChartQuery.extractIndex("Worker-1"));
+            Assertions.assertEquals(1, apiMetricsChartQuery.extractIndex("Worker---1"));
+            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsChartQuery.extractIndex("Worker1"));
+            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsChartQuery.extractIndex("Worker---"));
+            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsChartQuery.extractIndex(""));
+            Assertions.assertEquals(Integer.MAX_VALUE, apiMetricsChartQuery.extractIndex("Worker-ddd"));
         }
     }
 
@@ -1046,16 +1023,38 @@ class ApiMetricsRawQueryTest {
         return worker;
     }
 
-    //@Test
+    @Test
     void call() {
         String token = "eyJraWQiOiI5NGJhMDRkNC0wYWZjLTRmNzgtYjAyMi1kZTAwNGQ1ZTlmNmIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxMTUzNDMyMzcwODgxOTgsImF1ZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsImNyZWF0ZWRBdCI6MTc2ODcwOTA4ODE5OCwibmJmIjoxNzY4NzA5MDg4LCJleHAiOjExNTM0MzIzNzA4OCwiaWF0IjoxNzY4NzA5MDg4LCJqdGkiOiJkMjUzNWJhMS01NDQ0LTRiZjItYjRkNS0yNjk1YWFmNGVjNWIifQ.U7Jg-FQ9zdae-dinCuy86383raAN150sl77MDClJysaamET_ozXXPIK0EM9bAyOnQswYEeVlbx1h9usuB9r4V3ANRPjhdEocW1TUeQHQjXGaC0htwWVpw7yjXiMz0UPc56aNVBNeCLo9xVKK4-YntjuU5TBvh4oM_m-DTVwTkXUnz4P8CBIixW1FaRAiR6gvKu6k3o20qVRvBj9U9HX2z_wPSLpY2GHGJwpQ3A-SMCtFPqW5Sy5ULkQ5TiEHA6PEZ-8FGI67SOrlqOjPm_WKMU3kAtNCD51X2SVIMO9466H5kW1qHVk_pmVE67eIMJI3l05L4-Ar0OeGPCf79FHuJg";
         String uri = "http://127.0.0.1:3080/api/%s?access_token=%s";
         List<String> api = List.of("v1/tjq7duqpvs7", "v1/aslw80no7ze", "v1/tnuihy78hd1", "v1/c2hhm58iqvf",
-        "/v1/we/y36xqmi0k0i","/v1/sd/qq","/v1/a7gei772p62","/v1/tjq7duqpvs7","/v1/aslw80no7ze","/v1/tnuihy78hd1",
-                "/v1/c2hhm58iqvf","/v1/v1v1lerdf18","/v1/zohp6j9z28a","/v1/call/ekwoyltbqit","/v1/call/fiyh6xusf8w","/v1/a56jflpyrs8",
-                "/v1/mbooiyue1w9","/v1/po73y0ge6e7","/v1/call/yt2cpjuhyfr","/v1/call/fields","/v1/jadevt6nzpm",
-                "/v1/yw0n3lvjiku","/v1/aqs919theqr","/v1/agvegbzt3qx","/v1/qrknw3gxn5c","/v1/a5y8f564xei","/v1/irk7mbxr05p",
-                "/opop/g48sx5lk9th","/no/id","/dummy/ok","/x999/o9","/mmm/xu3dugn8ubk","/version/suffix/base_path","/v1/fexs98lzrz3"
+                "/v1/we/y36xqmi0k0i", "/v1/sd/qq", "/v1/a7gei772p62", "/v1/tjq7duqpvs7", "/v1/aslw80no7ze", "/v1/tnuihy78hd1",
+                "/v1/c2hhm58iqvf", "/v1/v1v1lerdf18", "/v1/zohp6j9z28a", "/v1/call/ekwoyltbqit", "/v1/call/fiyh6xusf8w", "/v1/a56jflpyrs8",
+                "/v1/mbooiyue1w9", "/v1/po73y0ge6e7", "/v1/call/yt2cpjuhyfr", "/v1/call/fields", "/v1/jadevt6nzpm",
+                "/v1/yw0n3lvjiku", "/v1/aqs919theqr", "/v1/agvegbzt3qx", "/v1/qrknw3gxn5c", "/v1/a5y8f564xei", "/v1/irk7mbxr05p",
+                "/opop/g48sx5lk9th", "/no/id", "/dummy/ok", "/x999/o9", "/mmm/xu3dugn8ubk", "/version/suffix/base_path", "/v1/fexs98lzrz3"
+        );
+
+        for (int i = 0; i < 1314520; i++) {
+            for (String s : api) {
+                try {
+                    HttpUtils.sendGetData(String.format(uri, s, token), new HashMap<>());
+                } catch (Exception e) {
+                    //
+                }
+            }
+        }
+    }
+    @Test
+    void callAsync() {
+        String token = "eyJraWQiOiI5NGJhMDRkNC0wYWZjLTRmNzgtYjAyMi1kZTAwNGQ1ZTlmNmIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxMTUzNDMyMzcwODgxOTgsImF1ZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsImNyZWF0ZWRBdCI6MTc2ODcwOTA4ODE5OCwibmJmIjoxNzY4NzA5MDg4LCJleHAiOjExNTM0MzIzNzA4OCwiaWF0IjoxNzY4NzA5MDg4LCJqdGkiOiJkMjUzNWJhMS01NDQ0LTRiZjItYjRkNS0yNjk1YWFmNGVjNWIifQ.U7Jg-FQ9zdae-dinCuy86383raAN150sl77MDClJysaamET_ozXXPIK0EM9bAyOnQswYEeVlbx1h9usuB9r4V3ANRPjhdEocW1TUeQHQjXGaC0htwWVpw7yjXiMz0UPc56aNVBNeCLo9xVKK4-YntjuU5TBvh4oM_m-DTVwTkXUnz4P8CBIixW1FaRAiR6gvKu6k3o20qVRvBj9U9HX2z_wPSLpY2GHGJwpQ3A-SMCtFPqW5Sy5ULkQ5TiEHA6PEZ-8FGI67SOrlqOjPm_WKMU3kAtNCD51X2SVIMO9466H5kW1qHVk_pmVE67eIMJI3l05L4-Ar0OeGPCf79FHuJg";
+        String uri = "http://127.0.0.1:3080/api/%s?access_token=%s";
+        List<String> api = List.of("v1/tjq7duqpvs7", "v1/aslw80no7ze", "v1/tnuihy78hd1", "v1/c2hhm58iqvf",
+                "/v1/we/y36xqmi0k0i", "/v1/sd/qq", "/v1/a7gei772p62", "/v1/tjq7duqpvs7", "/v1/aslw80no7ze", "/v1/tnuihy78hd1",
+                "/v1/c2hhm58iqvf", "/v1/v1v1lerdf18", "/v1/zohp6j9z28a", "/v1/call/ekwoyltbqit", "/v1/call/fiyh6xusf8w", "/v1/a56jflpyrs8",
+                "/v1/mbooiyue1w9", "/v1/po73y0ge6e7", "/v1/call/yt2cpjuhyfr", "/v1/call/fields", "/v1/jadevt6nzpm",
+                "/v1/yw0n3lvjiku", "/v1/aqs919theqr", "/v1/agvegbzt3qx", "/v1/qrknw3gxn5c", "/v1/a5y8f564xei", "/v1/irk7mbxr05p",
+                "/opop/g48sx5lk9th", "/no/id", "/dummy/ok", "/x999/o9", "/mmm/xu3dugn8ubk", "/version/suffix/base_path", "/v1/fexs98lzrz3"
         );
 
         for (int i = 0; i < 1314520; i++) {

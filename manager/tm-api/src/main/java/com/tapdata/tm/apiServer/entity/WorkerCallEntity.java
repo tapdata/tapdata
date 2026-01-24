@@ -3,6 +3,7 @@ package com.tapdata.tm.apiServer.entity;
 import com.tapdata.tm.base.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Date;
@@ -85,4 +86,6 @@ public class WorkerCallEntity extends BaseEntity {
     private Date ttlKey;
 
     private Boolean delete;
+
+    private ObjectId lastApiCallId;
 }

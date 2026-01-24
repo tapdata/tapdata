@@ -19,6 +19,7 @@ import com.tapdata.tm.v2.api.monitor.main.dto.ServerTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.dto.TopWorkerInServer;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiChart;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiDetailParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiWithServerDetail;
@@ -30,6 +31,7 @@ import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ApiPathUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ChartSortUtil;
+import com.tapdata.tm.v2.api.monitor.utils.TimeRangeUtil;
 import com.tapdata.tm.v2.api.usage.repository.ServerUsageMetricRepository;
 import com.tapdata.tm.v2.api.usage.repository.UsageRepository;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
@@ -52,8 +54,8 @@ import org.springframework.util.CollectionUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,7 +63,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -73,7 +74,7 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class ApiMetricsRawQuery {
+public class ApiMetricsChartQuery {
     public static final String WORKER_TYPE = "worker_type";
     public static final String PROCESS_ID = "processId";
     public static final String PROCESS_TYPE = "processType";
@@ -87,16 +88,17 @@ public class ApiMetricsRawQuery {
     ServerUsageMetricRepository serverUsageMetricRepository;
     ApiMetricsRawMergeService metricsRawMergeService;
 
-    public ApiMetricsRawQuery() {
+    public ApiMetricsChartQuery() {
 
     }
 
     public ServerTopOnHomepage serverTopOnHomepage(QueryBase param) {
         final ServerTopOnHomepage result = ServerTopOnHomepage.create();
-        ParticleSizeAnalyzer.fixTime(result, param, false);
+        long delay = metricsRawMergeService.getDelay();
+        TimeRangeUtil.rangeOf(param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = metricsRawMergeService.merge(
                 param,
-                c -> c.and("metricType").is(MetricTypes.API.getType()),
+                c -> c.and("metricType").is(MetricTypes.ALL.getType()),
                 null);
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return result;
@@ -112,30 +114,23 @@ public class ApiMetricsRawQuery {
         final Long totalRequestCount = result.getTotalRequestCount();
         if (totalRequestCount > 0L) {
             long errorNum = errorCount.get();
-            final long errorServer = errorNum <= 0L ? 0L : errorCount(apiMetricsRaws, ApiMetricsRaw::getProcessId);
-            final long errorApi = errorNum <= 0L ? 0L : errorCount(apiMetricsRaws, ApiMetricsRaw::getApiId);
-            result.setErrorCount(errorNum);
+            if (errorNum > 0L) {
+                Long erroredCount = metricsRawMergeService.errorCount(
+                        param, c -> c.and("metricType").is(MetricTypes.API.getType()),
+                        null);
+                result.setNotHealthyApiCount(Optional.ofNullable(erroredCount).orElse(0L));
+                result.setErrorCount(errorNum);
+            }
             result.setTotalErrorRate(ApiMetricsDelayInfoUtil.rate(errorNum, totalRequestCount));
-            result.setNotHealthyApiCount(errorApi);
-            result.setNotHealthyServerCount(errorServer);
             metricsRawMergeService.baseDataCalculate(result, apiMetricsRaws, result::setResponseTime);
         }
         return result;
     }
 
-    protected long errorCount(List<ApiMetricsRaw> apiMetricsRaws, Function<ApiMetricsRaw, String> groupBy) {
-        return apiMetricsRaws.stream()
-                .filter(Objects::nonNull)
-                .filter(e -> Objects.nonNull(groupBy.apply(e)))
-                .filter(e -> null != e.getErrorCount() && e.getErrorCount() > 0L)
-                .map(groupBy)
-                .distinct()
-                .count();
-    }
-
     public List<ServerItem> serverOverviewList(ServerListParam param) {
         List<ServerItem> result = new ArrayList<>();
-        ParticleSizeAnalyzer.fixTime(param, false);
+        long delay = metricsRawMergeService.getDelay();
+        TimeRangeUtil.rangeOf(param, delay, true);
         String serverMatchName = param.getServerName();
         //find all server
         Criteria criteriaOfWorker = Criteria.where(WORKER_TYPE).is(API_SERVER)
@@ -179,13 +174,13 @@ public class ApiMetricsRawQuery {
         //find all server's usage info
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).in(serverMap.keySet())
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER.getType());
-        List<? extends UsageBase> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
+        List<? extends UsageBase> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getRealStart(), param.getRealEnd(), param.getGranularity());
         Map<String, ServerChart.Usage> usageMap = allUsage.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getProcessId()))
                 .collect(Collectors.groupingBy(UsageBase::getProcessId, Collectors.collectingAndThen(
                         Collectors.toList(),
-                        items -> this.mapUsage(items, param.getFixStart(), param.getEndAt(), param.getGranularity())
+                        items -> this.mapUsage(items, param.getRealStart(), param.getRealEnd(), param.getGranularity())
                 )));
         final Map<String, ServerItem> collect = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
@@ -225,10 +220,10 @@ public class ApiMetricsRawQuery {
         return result;
     }
 
-    protected <T extends UsageBase> List<T> queryCpuUsageRecords(Criteria criteriaBase, long queryStart, long queryEnd, int type) {
+    protected <T extends UsageBase> List<T> queryCpuUsageRecords(Criteria criteriaBase, long queryStart, long queryEnd, TimeGranularity type) {
         long start = queryStart * 1000L;
         long end = queryEnd * 1000L;
-        if (type == 0) {
+        if (type == TimeGranularity.SECOND_FIVE) {
             //往前推一个5秒点，防止数据上报不及时导致前端显示0
             long now = System.currentTimeMillis() / 5000L * 5000L - 5000L;
             if (end > now) {
@@ -238,7 +233,7 @@ public class ApiMetricsRawQuery {
             criteriaBase.and("type").in(List.of(0, 1, 2));
             Query queryOfUsage = Query.query(criteriaBase);
             return (List<T>) usageRepository.findAll(queryOfUsage);
-        } else if (type == 1) {
+        } else if (type == TimeGranularity.MINUTE) {
             start = start / 60000L * 60000L;
         } else {
             start = start / 3600000L * 3600000L;
@@ -248,7 +243,7 @@ public class ApiMetricsRawQuery {
         return (List<T>) serverUsageMetricRepository.findAll(query);
     }
 
-    protected ServerChart.Usage mapUsage(List<? extends UsageBase> infos, long startAt, long endAt, int granularity) {
+    protected ServerChart.Usage mapUsage(List<? extends UsageBase> infos, long startAt, long endAt, TimeGranularity granularity) {
         final ServerChart.Usage usage = ServerChart.Usage.create();
         // Calculate step based on granularity
         long step = ApiMetricsDelayInfoUtil.stepByGranularity(granularity);
@@ -258,8 +253,8 @@ public class ApiMetricsRawQuery {
         // Sort by time
         infos.sort(Comparator.comparingLong(UsageBase::getLastUpdateTime));
         // Fill gaps before first data point
-        endAt = endAt / 5L * 5L;
-        long currentTime = startAt / 5L * 5L;
+        endAt = granularity.fixTime(endAt);
+        long currentTime = granularity.fixTime(startAt);
         long firstDataTime = infos.get(0).getLastUpdateTime() / 1000L;
         while (currentTime < firstDataTime) {
             //usage.addEmpty(currentTime, granularity != 0);
@@ -271,7 +266,7 @@ public class ApiMetricsRawQuery {
             long ts = info.getLastUpdateTime() / 1000L;
             // Fill any gaps between data points
             while (lastProcessedTime < ts) {
-                usage.addEmpty(lastProcessedTime, granularity != 0);
+                usage.addEmpty(lastProcessedTime, granularity != TimeGranularity.SECOND_FIVE);
                 lastProcessedTime += step;
             }
             // Add the actual data point if not already added
@@ -307,7 +302,7 @@ public class ApiMetricsRawQuery {
         item.setServerPingStatus(Optional.ofNullable(worker).map(Worker::getWorkerStatus).map(ApiServerStatus::getStatus).orElse(null));
         item.setQueryFrom(param.getStartAt());
         item.setQueryEnd(param.getEndAt());
-        item.setGranularity(param.getGranularity());
+        item.setGranularity(param.getGranularity().getType());
     }
 
     protected Worker findServerById(String serverId) {
@@ -335,12 +330,14 @@ public class ApiMetricsRawQuery {
                 .map(ApiServerStatus::getMetricValues)
                 .ifPresent(u -> {
                     result.setCpuUsage(u.getCpuUsage());
-                    Optional.ofNullable(u.getHeapMemoryUsageMax()).ifPresent(max -> result.setMemoryUsage(ApiMetricsDelayInfoUtil.rate(u.getHeapMemoryUsage(), max)));
+                    Optional.ofNullable(u.getHeapMemoryUsageMax())
+                            .ifPresent(max -> result.setMemoryUsage(ApiMetricsDelayInfoUtil.rate(u.getHeapMemoryUsage(), max)));
                     if (u.getLastUpdateTime() instanceof Number iNum) {
                         result.setUsagePingTime(iNum.longValue());
                     }
                 });
-        ParticleSizeAnalyzer.fixTime(result, param, false);
+        long delay = metricsRawMergeService.getDelay();
+        TimeRangeUtil.rangeOf(param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = metricsRawMergeService.merge(
                 param,
                 c -> c.and(PROCESS_ID).is(serverId).and("metricType").is(MetricTypes.SERER.getType()),
@@ -350,6 +347,8 @@ public class ApiMetricsRawQuery {
         result.setErrorCount(errorCount);
         result.setErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount, result.getRequestCount()));
         metricsRawMergeService.baseDataCalculate(result, apiMetricsRaws, null);
+        TopWorkerInServer topWorkerInServer = topWorkerInServer(apiMetricsRaws, param);
+        result.setWorkerInfo(topWorkerInServer);
         return result;
     }
 
@@ -359,21 +358,16 @@ public class ApiMetricsRawQuery {
             throw new BizException(SERVER_ID_EMPTY);
         }
         ServerChart result = new ServerChart();
-        Criteria criteria = ParticleSizeAnalyzer.of(result, param);
-        criteria.and(PROCESS_ID).is(serverId);
-        criteria.and("metricType").is(MetricTypes.SERER.getType());
-
+        long delay = metricsRawMergeService.getDelay();
+        TimeRangeUtil.rangeOf(param, delay, false);
         //cpu&mem usage
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).is(serverId)
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER.getType());
-        List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
-        ServerChart.Usage usage = this.mapUsage(allUsage, param.getQStart(), param.getEndAt(), param.getGranularity());
+        List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getRealStart(), param.getRealEnd(), param.getGranularity());
+        ServerChart.Usage usage = this.mapUsage(allUsage, param.getRealStart(), param.getRealEnd(), param.getGranularity());
         result.setUsage(usage);
-
         //request chart & avg delay & p95 & p99
-        Query query = Query.query(criteria);
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(
-                service.find(query),
                 param,
                 c -> c.and(PROCESS_ID).is(serverId).and("metricType").is(MetricTypes.SERER.getType()),
                 Criteria.where("api_gateway_uuid").is(serverId));
@@ -408,22 +402,20 @@ public class ApiMetricsRawQuery {
                                 )
                         )
                 );
-
         //fix time and sort by time
         //5秒点位最多攒5分钟
         //分钟点位最多攒1小时
         //其他不赞批，直接用
         int maxDepth = switch (param.getGranularity()) {
-            case 0, 1 -> 60;
+            case SECOND_FIVE, MINUTE -> 60;
             default -> 1;
         };
         List<List<Map<Long, Integer>>> delays = new ArrayList<>();
         List<List<Map<Long, Integer>>> dbCosts = new ArrayList<>();
         AtomicInteger size = new AtomicInteger(0);
         List<ServerChart.Item> items = ChartSortUtil.fixAndSort(collect,
-                param.getQStart(), param.getEndAt(), param.getGranularity(),
+                param.getStartAt(), param.getEndAt(), param.getGranularity(),
                 ServerChart.Item::create,
-                //item -> handler(item, maxDepth, size, delays, dbCosts)，
                 item -> {
                     delays.add(item.getDelay());
                     dbCosts.add(item.getDbCost());
@@ -510,7 +502,8 @@ public class ApiMetricsRawQuery {
             return result;
         }
         result.setWorkerList(new ArrayList<>());
-        ParticleSizeAnalyzer.fixTime(result, param, false);
+        long delay = metricsRawMergeService.getDelay();
+        TimeRangeUtil.rangeOf(param, delay, true);
         Set<String> workerOid = new HashSet<>(Optional.ofNullable(worker.getWorkerStatus())
                 .map(ApiServerStatus::getWorkers)
                 .map(Map::keySet)
@@ -548,13 +541,13 @@ public class ApiMetricsRawQuery {
                 ));
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).is(serverId)
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER_WORKER.getType());
-        List<? extends UsageBase> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getStartAt(), param.getEndAt(), param.getGranularity());
+        List<? extends UsageBase> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getRealStart(), param.getRealEnd(), param.getGranularity());
         Map<String, ServerChart.Usage> usageMap = allUsage.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getWorkOid()))
                 .collect(Collectors.groupingBy(UsageBase::getWorkOid, Collectors.collectingAndThen(
                         Collectors.toList(),
-                        items -> this.mapUsage(items, param.getFixStart(), param.getEndAt(), param.getGranularity())
+                        items -> this.mapUsage(items, param.getRealStart(), param.getRealEnd(), param.getGranularity())
                 )));
         for (ApiServerWorkerInfo e : workers) {
             if (null == e || StringUtils.isBlank(e.getOid())) {
@@ -568,7 +561,92 @@ public class ApiMetricsRawQuery {
         }
         result.setQueryFrom(param.getStartAt());
         result.setQueryEnd(param.getEndAt());
-        result.setGranularity(param.getGranularity());
+        result.setGranularity(param.getGranularity().getType());
+        result.getWorkerList().sort((a, b) -> {
+            int n1 = extractIndex(a.getWorkerName());
+            int n2 = extractIndex(b.getWorkerName());
+            return Integer.compare(n1, n2);
+        });
+        return result;
+    }
+
+    public TopWorkerInServer topWorkerInServer(List<ApiMetricsRaw> apiMetricsRaws, ServerDetail param) {
+        String serverId = param.getServerId();
+        if (StringUtils.isBlank(serverId)) {
+            throw new BizException(SERVER_ID_EMPTY);
+        }
+        TopWorkerInServer result = new TopWorkerInServer();
+        Worker worker = findServerById(serverId);
+        Collection<ApiServerWorkerInfo> workers = Optional.ofNullable(worker.getWorkerStatus())
+                .map(ApiServerStatus::getWorkers)
+                .map(Map::values)
+                .orElse(new ArrayList<>());
+        Optional<Double> maxCpu = workers.stream().map(ApiServerWorkerInfo::getMetricValues)
+                .filter(Objects::nonNull)
+                .map(MetricInfo::getCpuUsage)
+                .filter(Objects::nonNull)
+                .max(Double::compareTo);
+        Optional<Double> minCpu = workers.stream().map(ApiServerWorkerInfo::getMetricValues)
+                .filter(Objects::nonNull)
+                .map(MetricInfo::getCpuUsage)
+                .filter(Objects::nonNull)
+                .min(Double::compareTo);
+        maxCpu.ifPresent(result::setCpuUsageMax);
+        minCpu.ifPresent(result::setCpuUsageMin);
+        result.setWorkerList(new ArrayList<>());
+        Set<String> workerOid = new HashSet<>(Optional.ofNullable(worker.getWorkerStatus())
+                .map(ApiServerStatus::getWorkers)
+                .map(Map::keySet)
+                .orElse(new HashSet<>()));
+        List<String> workerIds = workers.stream().
+                filter(Objects::nonNull)
+                .map(ApiServerWorkerInfo::getOid)
+                .filter(StringUtils::isNotBlank)
+                .toList();
+        workerOid.addAll(workerIds);
+        if (workerOid.isEmpty()) {
+            return result;
+        }
+
+        Map<String, TopWorkerInServer.TopWorkerInServerItem> workerInfoMap = new HashMap<>();
+        apiMetricsRaws.stream()
+                .map(ApiMetricsRaw::getWorkerInfoMap)
+                .filter(Objects::nonNull)
+                .forEach(list -> list.stream()
+                        .filter(Objects::nonNull)
+                        .filter(e -> StringUtils.isNotBlank(e.getWorkerOid()))
+                        .forEach(w -> {
+                            TopWorkerInServer.TopWorkerInServerItem info = workerInfoMap.computeIfAbsent(w.getWorkerOid(), k -> new TopWorkerInServer.TopWorkerInServerItem());
+                            info.setRequestCount(ApiMetricsDelayInfoUtil.sum(info.getRequestCount(), w.getReqCount()));
+                            long errorCount = ApiMetricsDelayInfoUtil.sum(info.getErrorCount(), w.getErrorCount());
+                            info.setErrorCount(errorCount);
+                            if (errorCount > 0L) {
+                                info.setErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount, info.getRequestCount()));
+                            }
+                        }));
+        Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).is(serverId)
+                .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER_WORKER.getType());
+        List<? extends UsageBase> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getRealStart(), param.getRealEnd(), param.getGranularity());
+        Map<String, ServerChart.Usage> usageMap = allUsage.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> StringUtils.isNotBlank(e.getWorkOid()))
+                .collect(Collectors.groupingBy(UsageBase::getWorkOid, Collectors.collectingAndThen(
+                        Collectors.toList(),
+                        items -> this.mapUsage(items, param.getRealStart(), param.getRealEnd(), param.getGranularity())
+                )));
+        for (ApiServerWorkerInfo e : workers) {
+            if (null == e || StringUtils.isBlank(e.getOid())) {
+                continue;
+            }
+            TopWorkerInServer.TopWorkerInServerItem item = Optional.ofNullable(workerInfoMap.get(e.getOid())).orElse(new TopWorkerInServer.TopWorkerInServerItem());
+            item.setWorkerId(e.getOid());
+            item.setWorkerName(e.getName());
+            item.setUsage(Optional.ofNullable(usageMap.get(e.getOid())).orElse(new ServerChart.Usage()));
+            result.getWorkerList().add(item);
+        }
+        result.setQueryFrom(param.getStartAt());
+        result.setQueryEnd(param.getEndAt());
+        result.setGranularity(param.getGranularity().getType());
         result.getWorkerList().sort((a, b) -> {
             int n1 = extractIndex(a.getWorkerName());
             int n2 = extractIndex(b.getWorkerName());
@@ -598,7 +676,8 @@ public class ApiMetricsRawQuery {
 
     public ApiDetail apiOverviewDetail(ApiDetailParam param) {
         ApiDetail result = new ApiDetail();
-        ParticleSizeAnalyzer.fixTime(result, param, false);
+        long delay = metricsRawMergeService.getDelay();
+        TimeRangeUtil.rangeOf(param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(param.getApiId(), param, MetricTypes.API);
         ObjectId apiId = MongoUtils.toObjectId(param.getApiId());
         result.setApiName(param.getApiId());
@@ -636,21 +715,9 @@ public class ApiMetricsRawQuery {
                 Criteria.where("allPathId").is(apiId));
     }
 
-    protected List<ApiMetricsRaw> findRowByApiId(Criteria criteria, String apiId, QueryBase param) {
-        if (StringUtils.isBlank(apiId)) {
-            throw new BizException("api.id.empty");
-        }
-        criteria.and("apiId").is(apiId);
-        return service.supplementMetricsRaw(
-                service.find(Query.query(criteria)),
-                param,
-                false,
-                c -> c.and("apiId").is(apiId).and("metricType").is(MetricTypes.API.getType()),
-                Criteria.where("allPathId").is(apiId));
-    }
-
     public List<ApiOfEachServer> apiOfEachServer(ApiWithServerDetail param) {
-        ParticleSizeAnalyzer.fixTime(param, false);
+        long delay = metricsRawMergeService.getDelay();
+        TimeRangeUtil.rangeOf(param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(param.getApiId(), param, MetricTypes.API_SERVER);
         if (apiMetricsRaws.isEmpty()) {
             return ApiOfEachServer.supplement(new ArrayList<>(), activeWorkers(null));
@@ -692,7 +759,7 @@ public class ApiMetricsRawQuery {
                                             metricsRawMergeService.baseDataCalculate(item, rows, null);
                                             item.setQueryFrom(param.getStartAt());
                                             item.setQueryEnd(param.getEndAt());
-                                            item.setGranularity(param.getGranularity());
+                                            item.setGranularity(param.getGranularity().getType());
                                             return item;
                                         }
                                 ))
@@ -710,9 +777,15 @@ public class ApiMetricsRawQuery {
 
     public ChartAndDelayOfApi delayOfApi(ApiChart param) {
         ChartAndDelayOfApi result = ChartAndDelayOfApi.create();
-        Criteria criteria = ParticleSizeAnalyzer.of(result, param);
-        criteria.and("metricType").is(MetricTypes.API.getType());
-        List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(criteria, param.getApiId(), param);
+        long delay = metricsRawMergeService.getDelay();
+        TimeRangeUtil.rangeOf(param, delay, false);
+        if (StringUtils.isBlank(param.getApiId())) {
+            throw new BizException("api.id.empty");
+        }
+        List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(
+                param,
+                c -> c.and("apiId").is(param.getApiId()).and("metricType").is(MetricTypes.API.getType()),
+                Criteria.where("allPathId").is(param.getApiId()));
         if (apiMetricsRaws.isEmpty()) {
             return result;
         }
@@ -749,14 +822,14 @@ public class ApiMetricsRawQuery {
         //分钟点位最多攒1小时
         //其他不赞批，直接用
         int maxDepth = switch (param.getGranularity()) {
-            case 0, 1 -> 60;
+            case SECOND_FIVE, MINUTE -> 60;
             default -> 1;
         };
         List<List<Map<Long, Integer>>> delays = new ArrayList<>();
         List<Long> bytes = new ArrayList<>();
         List<List<Map<Long, Integer>>> dbCosts = new ArrayList<>();
         List<ChartAndDelayOfApi.Item> items = ChartSortUtil.fixAndSort(collect,
-                param.getQStart(), param.getEndAt(), param.getGranularity(),
+                param.getStartAt(), param.getEndAt(), param.getGranularity(),
                 ChartAndDelayOfApi.Item::create,
                 item -> {
                     delays.add(item.getDelay());
@@ -772,7 +845,7 @@ public class ApiMetricsRawQuery {
                         item.point(delays, bytes, dbCosts);
                     }
                 }
-                );
+        );
         items.parallelStream().forEach(this::mapping);
         for (ChartAndDelayOfApi.Item item : items) {
             if (item.getTs() < param.getStartAt() || item.getTs() >= param.getEndAt()) {

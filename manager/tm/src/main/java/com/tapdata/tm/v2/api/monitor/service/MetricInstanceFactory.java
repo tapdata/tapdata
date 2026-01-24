@@ -48,7 +48,8 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         final String keyOfAll = "*:*_3";
         final MetricInstanceAcceptor acceptorOfApiServer = create(keyOfApiServer, MetricTypes.API_SERVER, apiId, serverId);
         final MetricInstanceAcceptor acceptorOfApi = create(keyOfApi, MetricTypes.API, apiId, null);
-        final MetricInstanceAcceptor acceptorOfServer = create(keyOfServer, MetricTypes.SERER, null, serverId);
+        final MetricInstanceAcceptor acceptorOfServer = create(keyOfServer, MetricTypes.SERER, null, serverId)
+                .beSaveWorkerInfo();
         final MetricInstanceAcceptor acceptorOfAll = create(keyOfAll, MetricTypes.ALL, null, null);
         acceptorOfApiServer.accept(entity);
         acceptorOfApi.accept(entity);

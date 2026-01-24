@@ -42,4 +42,6 @@ public class WorkerOrServerStatus {
     Map<String, MetricInfo> cpuMemStatus;
 
     Map<String, ApiServerWorkerInfo> workerBaseInfo;
+
+    Long auditLogPushMaxDelay;
 }

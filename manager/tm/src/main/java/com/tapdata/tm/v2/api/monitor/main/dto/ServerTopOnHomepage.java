@@ -37,6 +37,7 @@ public class ServerTopOnHomepage extends DataValueBase {
         result.setResponseTimeAvg(0.0D);
         result.setNotHealthyApiCount(0L);
         result.setNotHealthyServerCount(0L);
+        result.setErrorCount(0L);
         return result;
     }
 

@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.utils;
 
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 import org.mockito.ArgumentCaptor;
@@ -49,7 +50,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, 1000L, 1020L, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, 1000L, 1020L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // With granularity 0, step = 5, so we should have timestamps: 1000, 1005, 1010, 1015
             assertEquals(4, items.size());
@@ -81,7 +82,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, 1000L, 1180L, 1, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, 1000L, 1180L, TimeGranularity.MINUTE, emptyGetter, mapping);
             
             // With granularity 1, step = 60, so we should have timestamps: 1000, 1060, 1120
             assertEquals(3, items.size());
@@ -107,7 +108,7 @@ class ChartSortUtilTest {
             long tsFrom = 3500L; // Not aligned to hour boundary
             long tsEnd = 10900L;  // Not aligned to hour boundary
             
-            ChartSortUtil.fixAndSort(items, tsFrom, tsEnd, 2, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, tsFrom, tsEnd, TimeGranularity.HOUR, emptyGetter, mapping);
             
             // With granularity 2, step = 3600 (1 hour)
             // tsFrom should be aligned to 3600 (3500 / 3600 * 3600 = 0, but we start from 3600)
@@ -134,7 +135,7 @@ class ChartSortUtilTest {
             long tsFrom = 1800L; // 0.5 hour, should align to 0
             long tsEnd = 5400L;  // 1.5 hours, should align to 7200 (2 hours)
             
-            ChartSortUtil.fixAndSort(items, tsFrom, tsEnd, 2, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, tsFrom, tsEnd, TimeGranularity.HOUR, emptyGetter, mapping);
             
             // tsFrom should be aligned to 0 (1800 / 3600 * 3600 = 0)
             // tsEnd should be aligned to 7200 ((5400 / 3600 + 1) * 3600 = 7200)
@@ -157,7 +158,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, 1000L, 1010L, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, 1000L, 1010L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should not replace existing item
             assertSame(existingItem, items.get(1000L));
@@ -179,7 +180,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, 1000L, 1015L, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, 1000L, 1015L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should create all missing items
             assertEquals(3, items.size()); // 1000, 1005, 1010
@@ -201,7 +202,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, 1000L, 1000L, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, 1000L, 1000L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should not create any items since tsFrom >= tsEnd
             assertTrue(items.isEmpty());
@@ -217,7 +218,7 @@ class ChartSortUtilTest {
             Function<Long, TestItem> emptyGetter = mock(Function.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
-            ChartSortUtil.fixAndSort(items, 1010L, 1000L, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, 1010L, 1000L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should not create any items since tsFrom > tsEnd
             assertTrue(items.isEmpty());
@@ -236,7 +237,7 @@ class ChartSortUtilTest {
             Function<Long, TestItem> emptyGetter = mock(Function.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
-            ChartSortUtil.fixAndSort(items, 1000L, 1015L, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, 1000L, 1015L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Verify items are passed to mapping in sorted order
             ArgumentCaptor<TestItem> captor = ArgumentCaptor.forClass(TestItem.class);
@@ -259,7 +260,7 @@ class ChartSortUtilTest {
                 new TestItem(invocation.getArgument(0)));
             
             // Test with a larger range to ensure performance is acceptable
-            ChartSortUtil.fixAndSort(items, 0L, 300L, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, 0L, 300L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should create 60 items (0, 5, 10, ..., 295)
             assertEquals(60, items.size());
@@ -275,7 +276,7 @@ class ChartSortUtilTest {
             
             // Should handle null emptyGetter gracefully
             assertThrows(NullPointerException.class, () -> {
-                ChartSortUtil.fixAndSort(items, 1000L, 1010L, 0, null, mapping);
+                ChartSortUtil.fixAndSort(items, 1000L, 1010L, TimeGranularity.SECOND_FIVE, null, mapping);
             });
         }
 
@@ -288,7 +289,7 @@ class ChartSortUtilTest {
             
             // Should handle null mapping gracefully
             assertThrows(NullPointerException.class, () -> {
-                ChartSortUtil.fixAndSort(items, 1000L, 1010L, 0, emptyGetter, null);
+                ChartSortUtil.fixAndSort(items, 1000L, 1010L, TimeGranularity.SECOND_FIVE, emptyGetter, null);
             });
         }
     }
@@ -305,7 +306,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, 0L, 10L, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, 0L, 10L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             assertTrue(items.containsKey(0L));
             assertTrue(items.containsKey(5L));
@@ -323,7 +324,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, -10L, 0L, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, -10L, 0L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             assertTrue(items.containsKey(-10L));
             assertTrue(items.containsKey(-5L));
@@ -342,7 +343,7 @@ class ChartSortUtilTest {
                 new TestItem(invocation.getArgument(0)));
             
             long largeTs = Long.MAX_VALUE - 100;
-            ChartSortUtil.fixAndSort(items, largeTs, largeTs + 10, 0, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items, largeTs, largeTs + 10, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             assertTrue(items.containsKey(largeTs));
             assertTrue(items.containsKey(largeTs + 5));

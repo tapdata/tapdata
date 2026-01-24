@@ -91,4 +91,9 @@ public class Worker extends BaseEntity {
 
     private Date workerDate;
 
+    /**
+     * Api server Maximum delay for audit log submission interval(ms)
+     * */
+    Long auditLogPushMaxDelay;
+
 }

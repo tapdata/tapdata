@@ -8,6 +8,7 @@ import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +16,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -24,6 +24,8 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -42,7 +44,7 @@ public class ApiMetricsRawScheduleExecutor {
     public static final String OBJECT_ID = "_id";
     MongoTemplate mongoTemplate;
 
-    MetricInstanceFactory create() {
+    public MetricInstanceFactory create() {
         return new MetricInstanceFactory(this::saveApiMetricsRaw, this::findMetricStart);
     }
 
@@ -51,17 +53,17 @@ public class ApiMetricsRawScheduleExecutor {
         if (StringUtils.isBlank(collectionName)) {
             return;
         }
-        ApiMetricsRaw lastOne = lastOne();
+        ObjectId lastCallId = lastOne();
         try (MetricInstanceFactory acceptor = create()) {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
             final Criteria criteria = Criteria.where("deleted").ne(true)
                     .and("supplement").ne(true);
-            if (Objects.nonNull(lastOne) && Objects.nonNull(lastOne.getLastCallId())) {
-                criteria.and(OBJECT_ID).gt(lastOne.getLastCallId());
+            if (Objects.nonNull(lastCallId)) {
+                criteria.and(OBJECT_ID).gt(lastCallId);
             }
-            criteria.and("reqTime").lt(System.currentTimeMillis() - 60000L);
+            criteria.and("reqTime").lt(System.currentTimeMillis());
             final Query query = Query.query(criteria);
-            query.fields().include(OBJECT_ID, "allPathId", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path");
+            query.fields().include(OBJECT_ID, "allPathId", "workerOid", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path");
             final Document queryObject = query.getQueryObject();
             final FindIterable<Document> iterable =
                     collection.find(queryObject, Document.class)
@@ -76,16 +78,35 @@ public class ApiMetricsRawScheduleExecutor {
         }
     }
 
-    ApiMetricsRaw lastOne() {
-        Query query = Query.query(Criteria.where("timeGranularity").is(1));
-        query.with(Sort.by(Sort.Order.desc("timeStart"))).limit(1);
-        ApiMetricsRaw lastOne = mongoTemplate.findOne(query, ApiMetricsRaw.class);
-        if (null != lastOne) {
-            return lastOne;
+    protected ObjectId lastOne() {
+        List<Document> pipeline = Arrays.asList(
+                new Document("$match",
+                        new Document("timeGranularity", TimeGranularity.MINUTE.getType())
+                                .append("metricType", MetricTypes.API_SERVER.getType())
+                ),
+                new Document("$group",
+                        new Document("_id", "$apiId")
+                                .append("maxLastCallId", new Document("$max", "$lastCallId"))
+                ),
+                new Document("$group",
+                        new Document("_id", null)
+                                .append("minOfMaxLastCallId", new Document("$min", "$maxLastCallId"))
+                )
+        );
+        List<Document> results = mongoTemplate.getCollection("ApiMetricsRaw")
+                .aggregate(pipeline)
+                .into(new ArrayList<>());
+        if (!results.isEmpty()) {
+            Document resultDoc = results.get(0);
+            Object minValue = resultDoc.get("minOfMaxLastCallId");
+            if (minValue instanceof org.bson.types.ObjectId) {
+                return (org.bson.types.ObjectId) minValue;
+            } else {
+                return null;
+            }
         }
         return null;
     }
-
 
     void saveApiMetricsRaw(List<ApiMetricsRaw> apiMetricsRawList) {
         if (CollectionUtils.isEmpty(apiMetricsRawList)) {
@@ -100,8 +121,8 @@ public class ApiMetricsRawScheduleExecutor {
 
 
     void bulkUpsert(List<ApiMetricsRaw> entities,
-                           Function<ApiMetricsRaw, Query> queryBuilder,
-                           Function<ApiMetricsRaw, Update> updateBuilder) {
+                    Function<ApiMetricsRaw, Query> queryBuilder,
+                    Function<ApiMetricsRaw, Update> updateBuilder) {
         try {
             BulkOperations bulkOps = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class);
             for (ApiMetricsRaw entity : entities) {
@@ -138,6 +159,10 @@ public class ApiMetricsRawScheduleExecutor {
         update.set("p95", entity.getP95());
         update.set("p99", entity.getP99());
         update.set("lastCallId", entity.getLastCallId());
+        update.set("lastCallId", entity.getLastCallId());
+        if (null != entity.getWorkerInfoMap()) {
+            update.set("workerInfoMap", entity.getWorkerInfoMap());
+        }
         update.currentDate("updatedAt");
         update.set("ttlKey", entity.getTtlKey());
         return update;

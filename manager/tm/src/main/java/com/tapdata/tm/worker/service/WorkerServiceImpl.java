@@ -625,6 +625,7 @@ public class WorkerServiceImpl extends WorkerService{
                 .ifPresent(s -> update.set("worker_status.status", s));
         update.set("worker_status.activeTime", time);
         update.set("worker_status.pid", status.getPid());
+        update.set("auditLogPushMaxDelay", status.getAuditLogPushMaxDelay());
         Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
             update.set("worker_status.metricValues", s)
         );
@@ -695,6 +696,9 @@ public class WorkerServiceImpl extends WorkerService{
         update.set("lastUpdateTime", entity.getLastUpdateTime());
         update.set("type", entity.getType());
         update.set("processType", entity.getProcessType());
+        if (ServerUsage.ProcessType.API_SERVER.getType() == entity.getProcessType()) {
+            update.set("selfCpuUsage", entity.getSelfCpuUsage());
+        }
         update.set("processId", entity.getProcessId());
         update.set("workOid", entity.getWorkOid());
         update.set("ttlKey", entity.getTtlKey());

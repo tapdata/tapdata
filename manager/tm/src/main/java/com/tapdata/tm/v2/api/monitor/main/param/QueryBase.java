@@ -1,11 +1,11 @@
 package com.tapdata.tm.v2.api.monitor.main.param;
 
+import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
-import com.tapdata.tm.v2.api.monitor.service.ParticleSizeAnalyzer;
 import lombok.Data;
+import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -20,10 +20,22 @@ import java.util.Map;
 @Data
 public class QueryBase {
     /**
-     * 前端传参
+     * 前端传参(并使用数据上报定时任务延时做区间修复)
      */
     Long startAt;
     Long endAt;
+
+    /**
+     * 未使用数据上报定时任务延时做区间修复，查询cpu&内存曲线时需要
+     * */
+    Long realStart;
+    Long realEnd;
+
+    /**
+     * @see TimeType
+     */
+    String type;
+    Long step;
 
     /**
      * 筛选范围区间
@@ -37,18 +49,11 @@ public class QueryBase {
     long fixStart;
     long fixEnd;
 
-
-    Long qStart;
-
-    int granularity;
-
-    long batchStart;
+    TimeGranularity granularity;
 
     SortInfo sortInfo;
 
-    QueryParam queryParam = new QueryParam();
-
-    Map<TimeGranularity, List<ParticleSizeAnalyzer.TimeRange>> queryRange;
+    Map<TimeGranularity, List<TimeRange>> queryRange;
 
     @Data
     public static class SortInfo {
@@ -70,7 +75,7 @@ public class QueryBase {
             return sortInfo;
         }
 
-        public <T>void order(List<T> result, Comparator<T> comparing) {
+        public <T> void order(List<T> result, Comparator<T> comparing) {
             if ("DESC".equals(order)) {
                 result.sort(comparing.reversed());
             } else {
@@ -79,29 +84,29 @@ public class QueryBase {
         }
     }
 
-    @Data
-    public static class QueryParam {
-        List<Point> secondPoint = new ArrayList<>();
-        List<Point> second5Point = new ArrayList<>();
-        List<Point> minutePoint = new ArrayList<>();
-        List<Point> hourPoint = new ArrayList<>();
+    @Getter
+    public enum TimeType {
+        MINUTE("minute", 60L, 5L),
+        HOURS("hours", 60L * 60L, 1L),
+        DAYS("days", 24L * 60L * 60L, 1L),
+        RANGE("range", 60L * 60L, 1L);
+        final String key;
+        final long defaultSecond;
+        final long defaultStep;
 
-        Long start;
-        Long end;
-    }
+        TimeType(String key, long defaultSecond, long defaultStep) {
+            this.key = key;
+            this.defaultSecond = defaultSecond;
+            this.defaultStep = defaultStep;
+        }
 
-    @Data
-    public static class Point {
-        long start;
-        long end;
-        int granularity;
-
-        public static Point of(long start, long end, int granularity) {
-            Point point = new Point();
-            point.setStart(start);
-            point.setEnd(end);
-            point.setGranularity(granularity);
-            return point;
+        public static TimeType parse(String key) {
+            for (TimeType value : values()) {
+                if (value.key.equalsIgnoreCase(key)) {
+                    return value;
+                }
+            }
+            return MINUTE;
         }
     }
 }

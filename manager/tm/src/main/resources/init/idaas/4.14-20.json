@@ -117,5 +117,36 @@
         "background": true
       }
     ]
+  },
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "apiStatsBatchReport.timeSpanOfTriggerApiStatsBatchReport",
+          "value": "60000"
+        },
+        "u": {
+          "$set": {
+            "value": "5000",
+            "default_value": "5000"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "apiStatsBatchReport.sizeOfTriggerApiStatsBatchReport",
+          "value": "10000"
+        },
+        "u": {
+          "$set": {
+            "value": "200",
+            "default_value": "200"
+          }
+        },
+        "upsert": true
+      }
+    ]
   }
 ]
