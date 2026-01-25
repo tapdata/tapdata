@@ -63,6 +63,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -470,17 +471,24 @@ public class ApiMetricsChartQuery {
 //        if (item.isEmpty() || requestCount <= 0L) {
 //            return;
 //        }
+        AtomicReference<ApiMetricsDelayUtil.Sum> sumOf = new AtomicReference<>(null);
         Optional.ofNullable(item.getDelays()).ifPresent(delays -> {
             List<Map<String, Number>> mergedDelay = ApiMetricsDelayUtil.merge(delays);
-            ApiMetricsDelayUtil.Sum sumOf = ApiMetricsDelayUtil.sum(mergedDelay);
-            item.setP95(ApiMetricsDelayUtil.p95(mergedDelay, sumOf.getCount()));
-            item.setP99(ApiMetricsDelayUtil.p99(mergedDelay, sumOf.getCount()));
+            sumOf.set(ApiMetricsDelayUtil.sum(mergedDelay));
+            long totalCount = sumOf.get().getCount();
+            item.setP95(ApiMetricsDelayUtil.p95(mergedDelay, totalCount));
+            item.setP99(ApiMetricsDelayUtil.p99(mergedDelay, totalCount));
         });
         Optional.ofNullable(item.getDbCosts()).ifPresent(dbCosts -> {
             List<Map<String, Number>> mergedDBCost = ApiMetricsDelayUtil.merge(dbCosts);
-            ApiMetricsDelayUtil.Sum sumOf = ApiMetricsDelayUtil.sum(mergedDBCost);
-            item.setDbCostP95(ApiMetricsDelayUtil.p95(mergedDBCost, sumOf.getCount()));
-            item.setDbCostP99(ApiMetricsDelayUtil.p99(mergedDBCost, sumOf.getCount()));
+            long totalCount = 0L;
+            if (null == sumOf.get()) {
+                totalCount = ApiMetricsDelayUtil.sum(mergedDBCost).getCount();
+            } else {
+                totalCount = sumOf.get().getCount();
+            }
+            item.setDbCostP95(ApiMetricsDelayUtil.p95(mergedDBCost, totalCount));
+            item.setDbCostP99(ApiMetricsDelayUtil.p99(mergedDBCost, totalCount));
         });
     }
 
@@ -897,15 +905,20 @@ public class ApiMetricsChartQuery {
 //        if (item.isEmpty() || reqCount <= 0L) {
 //            return;
 //        }
+        Long totalCount = null;
         if (null != item.getDelays()) {
             List<Map<String, Number>> mergedDelays = ApiMetricsDelayUtil.merge(item.getDelays());
-            item.setP95(ApiMetricsDelayUtil.p95(mergedDelays, reqCount));
-            item.setP99(ApiMetricsDelayUtil.p99(mergedDelays, reqCount));
+            totalCount = ApiMetricsDelayUtil.sum(mergedDelays).getCount();
+            item.setP95(ApiMetricsDelayUtil.p95(mergedDelays, totalCount));
+            item.setP99(ApiMetricsDelayUtil.p99(mergedDelays, totalCount));
         }
         if (null != item.getDbCosts()) {
             List<Map<String, Number>> mergeDdCosts = ApiMetricsDelayUtil.merge(item.getDbCosts());
-            item.setDbCostP95(ApiMetricsDelayUtil.p95(mergeDdCosts, reqCount));
-            item.setDbCostP99(ApiMetricsDelayUtil.p99(mergeDdCosts, reqCount));
+            if (null == totalCount) {
+                totalCount = ApiMetricsDelayUtil.sum(mergeDdCosts).getCount();
+            }
+            item.setDbCostP95(ApiMetricsDelayUtil.p95(mergeDdCosts, totalCount));
+            item.setDbCostP99(ApiMetricsDelayUtil.p99(mergeDdCosts, totalCount));
         }
     }
 
