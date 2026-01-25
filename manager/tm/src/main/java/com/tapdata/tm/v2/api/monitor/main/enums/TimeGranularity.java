@@ -2,6 +2,12 @@ package com.tapdata.tm.v2.api.monitor.main.enums;
 
 import lombok.Getter;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+
 @Getter
 public enum TimeGranularity {
     SECOND(-1, 1L, null, 0L),
@@ -23,6 +29,17 @@ public enum TimeGranularity {
     }
 
     public long fixTime(long ts) {
+        if (this == DAY) {
+            return toStartOfDay(ts);
+        }
         return ts / seconds * seconds;
+    }
+
+    public static long toStartOfDay(long timestamp) {
+        Instant instant = Instant.ofEpochMilli(timestamp * 1000L);
+        ZonedDateTime zonedDateTime = instant.atZone(ZoneId.systemDefault());
+        LocalDate localDate = zonedDateTime.toLocalDate();
+        LocalDateTime startOfDay = localDate.atStartOfDay();
+        return startOfDay.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() / 1000L;
     }
 }

@@ -73,6 +73,13 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         this.metricType = metricType;
     }
 
+    long value(Long val) {
+        if (null == val) {
+            return 0L;
+        }
+        return Math.min(0L, val);
+    }
+
     public void accept(Document entity) {
         if (null == entity) {
             return;
@@ -85,10 +92,11 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         if (StringUtils.isBlank(apiId)) {
             return;
         }
-        long requestCost = Optional.ofNullable(entity.get("latency", Long.class)).orElse(0L);
-        long dbCost = Optional.ofNullable(entity.get("dataQueryTotalTime", Long.class)).orElse(0L);
+        long requestCost = value(entity.get("latency", Long.class));
+        long dbCost = value(entity.get("dataQueryTotalTime", Long.class));
         boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(entity.get("code", String.class), entity.get("httpStatus", String.class));
-        long reqBytes = Optional.ofNullable(entity.get("req_bytes", Long.class)).orElse(0L);
+        long reqBytes = value(entity.get("req_bytes", Long.class));
+        boolean supplement = Optional.ofNullable(entity.get("supplement", Boolean.class)).orElse(false);
         String workerId = entity.get("workOid", String.class);
         Long apiCallReqTime = entity.get("reqTime", Long.class);
         long reqTimeOSec = Optional.ofNullable(apiCallReqTime).orElse(0L) / 1000L;
@@ -97,7 +105,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         long bucketHour = TimeGranularity.HOUR.fixTime(reqTimeOSec);
         long bucketDay = TimeGranularity.DAY.fixTime(reqTimeOSec);
         ObjectId callId = entity.get("_id", ObjectId.class);
-        if (this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0) {
+        if (this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0 && !supplement) {
             return;
         }
 
@@ -156,9 +164,10 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
                 lessBucket.getLastBucketDay().merge(isOk, reqBytes, requestCost, dbCost);
                 lessBucket.getLastBucketDay().mergeWorker(workerId, isOk, needWorkerInfo);
                 acceptOnce(lessBucket.getLastBucketDay(), true);
+            } else {
+                acceptOnce(lastBucketDay);
+                lastBucketDay = null;
             }
-            acceptOnce(lastBucketDay);
-            lastBucketDay = null;
         }
 
         if (null == lastBucketMin) {
@@ -227,7 +236,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             return item;
         }
         int total = item.getReqCount().intValue();
-        List<Map<Long, Integer>> delay = ApiMetricsDelayUtil.fixDelayAsMap(item.getDelay());
+        List<Map<String, Number>> delay = item.getDelay();
         Long p50 = ApiMetricsDelayUtil.p50(delay, total);
         Long p95 = ApiMetricsDelayUtil.p95(delay, total);
         Long p99 = ApiMetricsDelayUtil.p99(delay, total);

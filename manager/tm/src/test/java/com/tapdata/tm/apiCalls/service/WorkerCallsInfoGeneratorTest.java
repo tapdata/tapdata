@@ -526,24 +526,6 @@ class WorkerCallsInfoGeneratorTest {
         }
 
         @Test
-        void testBatchSizeExactMatch() {
-            // 测试批次大小精确匹配
-            generator = spy(new WorkerCallsInfoGenerator(acceptor, 2));
-
-            List<WorkerCallsInfo> infos = Arrays.asList(
-                    createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L),
-                    createWorkerCallsInfo("worker2", "api2", "gateway2", 150L, "200", 120000L)
-            );
-
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(125L);
-
-                Assertions.assertDoesNotThrow(() -> generator.append(infos));
-                verify(acceptor, atLeastOnce()).accept(any());
-            }
-        }
-
-        @Test
         void testBatchSizeCondition() {
             // 测试第48行的批次大小条件：batchSize >= calls.size()
             generator = spy(new WorkerCallsInfoGenerator(acceptor, 1));

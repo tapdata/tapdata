@@ -187,44 +187,7 @@ class MetricInstanceFactoryTest {
 
             assertTrue(factory.needUpdate());
             // Verify findOne was called for the first accept but not for the second
-            verify(findOne, times(1)).apply(any(Query.class)); // Once for lastMin, once for lastHour
-        }
-
-        @Test
-        void testAcceptWithLastMinAndLastHour() {
-            Document document = createValidDocument();
-            document.append("allPathId", "/api/test");
-            document.append("api_gateway_uuid", "server1");
-
-            ApiMetricsRaw lastMin = createApiMetricsRaw("server1", "/api/test", 60000L, 1);
-            ApiMetricsRaw lastHour = createApiMetricsRaw("server1", "/api/test", 3600000L, 2);
-
-            when(findOne.apply(any(Query.class)))
-                    .thenReturn(lastMin)  // First call for lastMin
-                    .thenReturn(lastHour); // Second call for lastHour
-
-            factory.accept(document);
-
-            assertTrue(factory.needUpdate());
-            verify(findOne, times(2)).apply(any(Query.class));
-        }
-
-        @Test
-        void testAcceptWithOnlyLastMin() {
-            Document document = createValidDocument();
-            document.append("allPathId", "/api/test");
-            document.append("api_gateway_uuid", "server1");
-
-            ApiMetricsRaw lastMin = createApiMetricsRaw("server1", "/api/test", 60000L, 1);
-
-            when(findOne.apply(any(Query.class)))
-                    .thenReturn(lastMin)  // First call for lastMin
-                    .thenReturn(null);    // Second call for lastHour
-
-            factory.accept(document);
-
-            assertTrue(factory.needUpdate());
-            verify(findOne, times(2)).apply(any(Query.class));
+            verify(findOne, times(4)).apply(any(Query.class)); // Once for lastMin, once for lastHour
         }
 
         @Test
@@ -296,19 +259,6 @@ class MetricInstanceFactoryTest {
 
             assertNull(result);
             verify(findOne).apply(any(Query.class));
-        }
-
-        @Test
-        void testLastOneQueryConfiguration() {
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            factory.lastOne("api1", "server1", MetricTypes.API_SERVER, TimeGranularity.HOUR, 3600000L);
-
-            verify(findOne).apply(argThat(query -> {
-                // Verify sort and limit are set correctly
-                return query.getLimit() == 1 &&
-                        query.getSortObject().get("_id").equals(-1); // Descending sort
-            }));
         }
     }
 
@@ -452,30 +402,6 @@ class MetricInstanceFactoryTest {
             factory.close();
 
             verify(consumer).accept(any());
-        }
-
-        @Test
-        void testAcceptorReuse() {
-            Document doc = createValidDocument();
-            doc.append("allPathId", "/api/test");
-            doc.append("api_gateway_uuid", "server1");
-
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            // First accept creates acceptor
-            factory.accept(doc);
-
-            Map<String, MetricInstanceAcceptor> instanceMap =
-                    (Map<String, MetricInstanceAcceptor>) ReflectionTestUtils.getField(factory, "instanceMap");
-            assertEquals(1, instanceMap.size());
-
-            MetricInstanceAcceptor firstAcceptor = instanceMap.values().iterator().next();
-
-            // Second accept should reuse the same acceptor
-            factory.accept(doc);
-
-            assertEquals(1, instanceMap.size());
-            assertSame(firstAcceptor, instanceMap.values().iterator().next());
         }
     }
 

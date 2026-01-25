@@ -3,6 +3,7 @@ package com.tapdata.tm.v2.api.monitor.service;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
@@ -11,7 +12,6 @@ import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
 import com.tapdata.tm.v2.api.monitor.repository.ApiMetricsRepository;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
-import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -127,7 +127,7 @@ public class ApiMetricsRawService {
     }
 
     void end(WorkerCallEntity one) {
-        List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.fixDelayAsMap(one.getDelays());
+        List<Map<String, Number>> merged = one.getDelays();
         long reqCount = ApiMetricsDelayUtil.sum(merged).getCount();
         Long p50L = ApiMetricsDelayUtil.p50(merged, reqCount);
         Long p95L = ApiMetricsDelayUtil.p95(merged, reqCount);
@@ -140,7 +140,7 @@ public class ApiMetricsRawService {
     void merge(WorkerCallEntity one, ApiCallEntity entity) {
         one.setReqCount(one.getReqCount() + 1L);
         one.setRps(one.getReqCount() / 60D);
-        List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.fixDelayAsMap(one.getDelays());
+        List<Map<String, Number>> merged = one.getDelays();
         merged = ApiMetricsDelayUtil.addDelay(merged, entity.getLatency());
         one.setDelays(merged);
         boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(entity.getCode(), entity.getHttpStatus());
@@ -161,10 +161,6 @@ public class ApiMetricsRawService {
         one.setTimeGranularity(1);
         one.setId(new ObjectId());
         return one;
-    }
-
-    public List<ApiMetricsRaw> supplementMetricsRaw(QueryBase param, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
-        return supplementMetricsRaw(param, true, criteriaConsumer, apiCallCriteria);
     }
 
     protected void supplementSeconds(Criteria apiCallCriteria, List<ApiMetricsRaw> supplement, List<TimeRange> ranges) {
@@ -214,7 +210,7 @@ public class ApiMetricsRawService {
         }
     }
 
-    protected void supplementMinute(Consumer<Criteria> criteriaConsumer, List<ApiMetricsRaw> supplement, List<TimeRange> ranges) {
+    protected void supplementMinute(Consumer<Criteria> criteriaConsumer, List<ApiMetricsRaw> supplement, List<TimeRange> ranges, String[] filterFields) {
         Criteria criteriaOfMin = Criteria.where("timeGranularity").is(2);
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfMin));
         List<Criteria> or = new ArrayList<>();
@@ -228,32 +224,14 @@ public class ApiMetricsRawService {
         }
         criteriaOfMin.orOperator(or);
         Query query = Query.query(criteriaOfMin);
-        query.fields().include("apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "bytes", "delay", "dbCost");
+        query.fields().include(filterFields);
         List<ApiMetricsRaw> raws = find(query);
         if (!raws.isEmpty()) {
             supplement.addAll(raws);
         }
     }
 
-    protected void supplementSeconds(List<ApiMetricsRaw> supplement, List<TimeRange> ranges, Criteria apiCallCriteria) {
-        List<Criteria> andCriteria = new ArrayList<>();
-        andCriteria.add(Criteria.where("delete").is(false));
-        Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
-        List<Criteria> orSec = new ArrayList<>();
-        for (TimeRange point : ranges) {
-            orSec.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
-        }
-        andCriteria.add(new Criteria().orOperator(orSec));
-        Query query = Query.query(new Criteria().andOperator(andCriteria));
-        query.fields().include("api_gateway_uuid", "allPathId", "req_path", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id", "workOid");
-        String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
-        if (StringUtils.isNotBlank(callName)) {
-            List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);
-            ParticleSizeAnalyzer.parseToMetric(calls, supplement::add);
-        }
-    }
-
-    public List<ApiMetricsRaw> supplementMetricsRaw(QueryBase param, boolean filterByTime, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
+    public List<ApiMetricsRaw> supplementMetricsRaw(QueryBase param, boolean filterByTime, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria, String[] filterFields) {
         TimeGranularity granularity = param.getGranularity();
         Map<TimeGranularity, List<TimeRange>> queryRange = param.getQueryRange();
         List<TimeRange> currentRanges = queryRange.get(granularity);
@@ -276,6 +254,11 @@ public class ApiMetricsRawService {
             }
             criteria.andOperator(orTimeRange);
             Query query = new Query(criteria);
+            if (granularity != TimeGranularity.SECOND_FIVE) {
+                query.fields().include(filterFields);
+            } else {
+                query.fields().include("apiId", "processId", "timeGranularity", "timeStart", "subMetrics");
+            }
             List<ApiMetricsRaw> apiMetricsRaws = find(query);
             if (granularity == TimeGranularity.SECOND_FIVE) {
                 for (TimeRange range : currentRanges) {
@@ -308,7 +291,7 @@ public class ApiMetricsRawService {
                     }
                     switch (granularity) {
                         case MINUTE:
-                            supplementMinute(criteriaConsumer, supplement, ranges);
+                            supplementMinute(criteriaConsumer, supplement, ranges, filterFields);
                             break;
                         case SECOND_FIVE:
                             supplementFiveSecond(criteriaConsumer, supplement, ranges);

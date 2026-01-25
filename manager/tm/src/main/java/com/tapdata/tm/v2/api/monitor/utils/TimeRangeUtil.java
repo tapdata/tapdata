@@ -74,7 +74,8 @@ public class TimeRangeUtil {
         long fixStart = query.getFixStart();
         long fixEnd = granularity.fixTime(query.getEndAt() + granularity.getSeconds() - 1);
         //滑动窗口
-        long supplementStart = fixStart - granularity.getSupplement();
+        long windowsStart = fixStart - granularity.getSupplement();
+        query.setWindowsStart(windowsStart);
         Map<TimeGranularity, List<TimeRange>> timeGranularityListMap = new HashMap<>();
         if (startAt < fixStart) {
             split(startAt, fixStart).forEach(timeRange -> {
@@ -90,18 +91,18 @@ public class TimeRangeUtil {
                 ranges.add(timeRange);
             });
         }
-        if (supplementStart < fixStart) {
+        if (windowsStart < fixStart) {
             List<TimeRange> ranges = timeGranularityListMap.computeIfAbsent(granularity, k -> new ArrayList<>());
             boolean supplemented = false;
             for (TimeRange range : ranges) {
                 if (range.getStart() == fixStart) {
                     supplemented = true;
-                    range.setStart(supplementStart);
+                    range.setStart(windowsStart);
                     break;
                 }
             }
             if (!supplemented) {
-                ranges.add(new TimeRange(supplementStart, fixStart, granularity));
+                ranges.add(new TimeRange(windowsStart, fixStart, granularity));
             }
         }
         return timeGranularityListMap;
@@ -115,13 +116,13 @@ public class TimeRangeUtil {
         // 根据时间范围确定最大允许的粒度
         long range = endAt - startAt;
         TimeGranularity maxAllowedUnit;
-        if (range >= 86400L) {
+        if (range > 86400L) {
             maxAllowedUnit = TimeGranularity.DAY;
-        } else if (range >= 3600L) {
+        } else if (range > 3600L) {
             maxAllowedUnit = TimeGranularity.HOUR;
-        } else if (range >= 60L) {
+        } else if (range > 60L) {
             maxAllowedUnit = TimeGranularity.MINUTE;
-        } else if (range >= 5L) {
+        } else if (range > 5L) {
             maxAllowedUnit = TimeGranularity.SECOND_FIVE;
         } else {
             maxAllowedUnit = TimeGranularity.SECOND;

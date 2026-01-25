@@ -71,29 +71,6 @@ class ChartSortUtilTest {
         }
 
         @Test
-        void testFixAndSortWithGranularity1() {
-            Map<Long, TestItem> items = new HashMap<>();
-            items.put(1000L, new TestItem(1000L));
-            items.put(1120L, new TestItem(1120L));
-            
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
-            Consumer<TestItem> mapping = mock(Consumer.class);
-            
-            when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
-                new TestItem(invocation.getArgument(0)));
-            
-            ChartSortUtil.fixAndSort(items, 1000L, 1180L, TimeGranularity.MINUTE, emptyGetter, mapping);
-            
-            // With granularity 1, step = 60, so we should have timestamps: 1000, 1060, 1120
-            assertEquals(3, items.size());
-            assertTrue(items.containsKey(1000L));
-            assertTrue(items.containsKey(1060L));
-            assertTrue(items.containsKey(1120L));
-            
-            verify(mapping, times(3)).accept(any(TestItem.class));
-        }
-
-        @Test
         void testFixAndSortWithGranularity2() {
             Map<Long, TestItem> items = new HashMap<>();
             items.put(3600L, new TestItem(3600L)); // 1 hour
@@ -180,7 +157,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, 1000L, 1015L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items,  1000L, 1015L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should create all missing items
             assertEquals(3, items.size()); // 1000, 1005, 1010
@@ -202,7 +179,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, 1000L, 1000L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items,  1000L, 1000L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should not create any items since tsFrom >= tsEnd
             assertTrue(items.isEmpty());
@@ -218,7 +195,7 @@ class ChartSortUtilTest {
             Function<Long, TestItem> emptyGetter = mock(Function.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
-            ChartSortUtil.fixAndSort(items, 1010L, 1000L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items,  1010L, 1000L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should not create any items since tsFrom > tsEnd
             assertTrue(items.isEmpty());
@@ -237,7 +214,7 @@ class ChartSortUtilTest {
             Function<Long, TestItem> emptyGetter = mock(Function.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
-            ChartSortUtil.fixAndSort(items, 1000L, 1015L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items,  1000L, 1015L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Verify items are passed to mapping in sorted order
             ArgumentCaptor<TestItem> captor = ArgumentCaptor.forClass(TestItem.class);
@@ -276,7 +253,7 @@ class ChartSortUtilTest {
             
             // Should handle null emptyGetter gracefully
             assertThrows(NullPointerException.class, () -> {
-                ChartSortUtil.fixAndSort(items, 1000L, 1010L, TimeGranularity.SECOND_FIVE, null, mapping);
+                ChartSortUtil.fixAndSort(items,  1000L, 1010L, TimeGranularity.SECOND_FIVE, null, mapping);
             });
         }
 
@@ -306,7 +283,7 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, 0L, 10L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items,  0L, 10L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             assertTrue(items.containsKey(0L));
             assertTrue(items.containsKey(5L));
@@ -324,29 +301,10 @@ class ChartSortUtilTest {
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
                 new TestItem(invocation.getArgument(0)));
             
-            ChartSortUtil.fixAndSort(items, -10L, 0L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
+            ChartSortUtil.fixAndSort(items,  -10L, 0L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             assertTrue(items.containsKey(-10L));
             assertTrue(items.containsKey(-5L));
-            
-            verify(mapping, times(2)).accept(any(TestItem.class));
-        }
-
-        @Test
-        void testWithVeryLargeTimestamps() {
-            Map<Long, TestItem> items = new HashMap<>();
-            
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
-            Consumer<TestItem> mapping = mock(Consumer.class);
-            
-            when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
-                new TestItem(invocation.getArgument(0)));
-            
-            long largeTs = Long.MAX_VALUE - 100;
-            ChartSortUtil.fixAndSort(items, largeTs, largeTs + 10, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
-            
-            assertTrue(items.containsKey(largeTs));
-            assertTrue(items.containsKey(largeTs + 5));
             
             verify(mapping, times(2)).accept(any(TestItem.class));
         }

@@ -242,14 +242,14 @@ public class ServerChart extends ValueBase {
         Long dbCostP95;
         Long dbCostP99;
 
-        List<Map<Long, Integer>> delay = new ArrayList<>();
-        List<Map<Long, Integer>> dbCost = new ArrayList<>();
+        List<Map<String, Number>> delay = new ArrayList<>();
+        List<Map<String, Number>> dbCost = new ArrayList<>();
         Long errorCount;
         boolean tag;
 
 
-        List<List<Map<Long, Integer>>> delays;
-        List<List<Map<Long, Integer>>> dbCosts;
+        List<List<Map<String, Number>>> delays;
+        List<List<Map<String, Number>>> dbCosts;
 
         public static Item create(long ts) {
             Item item = new Item();

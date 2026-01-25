@@ -97,12 +97,12 @@ public class ChartAndDelayOfApi extends ValueBase {
         Long dbCostP99;
 
         Long totalBytes;
-        List<Map<Long, Integer>> delay = new ArrayList<>();
-        List<Map<Long, Integer>> dbCost = new ArrayList<>();
+        List<Map<String, Number>> delay = new ArrayList<>();
+        List<Map<String, Number>> dbCost = new ArrayList<>();
 
-        List<List<Map<Long, Integer>>> delays;
+        List<List<Map<String, Number>>> delays;
         List<Long> bytes;
-        List<List<Map<Long, Integer>>> dbCosts;
+        List<List<Map<String, Number>>> dbCosts;
 
         public static Item create(long ts) {
             Item item = new Item();
@@ -112,7 +112,7 @@ public class ChartAndDelayOfApi extends ValueBase {
             return item;
         }
 
-        public void point(List<List<Map<Long, Integer>>> delays, List<Long> bytes, List<List<Map<Long, Integer>>> dbCosts) {
+        public void point(List<List<Map<String, Number>>> delays, List<Long> bytes, List<List<Map<String, Number>>> dbCosts) {
             Optional.ofNullable(delays).map(e -> new ArrayList(e)).ifPresent(this::setDelays);
             Optional.ofNullable(bytes).map(e -> new ArrayList(e)).ifPresent(this::setBytes);
             Optional.ofNullable(dbCosts).map(e -> new ArrayList(e)).ifPresent(this::setDbCosts);

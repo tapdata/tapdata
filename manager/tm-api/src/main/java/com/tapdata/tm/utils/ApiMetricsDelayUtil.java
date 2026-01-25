@@ -10,8 +10,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 
 /**
@@ -27,90 +27,44 @@ public final class ApiMetricsDelayUtil {
 
     }
 
-    public static List<Map<Long, Integer>> fixDelayAsMap(List<?> delay) {
-        if (CollectionUtils.isEmpty(delay)) {
-            delay = new ArrayList<>();
-        }
-        Map<Long, Integer> values = new HashMap<>();
-        List<Map<Long, Integer>> result = new ArrayList<>();
-        for (Object o : delay) {
-            if (o instanceof Map<?, ?> iMap) {
-                iMap.forEach((k, v) -> each(k, v, values));
-            } else if (o instanceof Number iNumber) {
-                values.computeIfAbsent(iNumber.longValue(), k -> 1);
-            }
-        }
-        if (values.isEmpty()) {
-            return result;
-        }
-        values.forEach((k, v) -> result.add(toMap(k, v)));
-        return result;
-    }
-
-    static void put(Number iKey, Number iValue, Map<Long, Integer> values) {
-        long realKey = iKey.longValue();
-        int oldCount = Optional.ofNullable(values.get(realKey)).orElse(0);
-        oldCount += iValue.intValue();
-        values.put(realKey, oldCount);
-    }
-
-    public static void each(Object k, Object v, Map<Long, Integer> result) {
-        if (k instanceof Number iKey && v instanceof Number iValue) {
-            put(iKey, iValue, result);
-        } else if (k instanceof String iKey && v instanceof Number iValue) {
-            try {
-                put(Long.parseLong(iKey), iValue, result);
-            } catch (NumberFormatException e) {
-                log.warn(e.getMessage());
-            }
-        } else if (k instanceof String iKey && v instanceof String iValue) {
-            try {
-                put(Long.parseLong(iKey), Integer.parseInt(iValue), result);
-            } catch (NumberFormatException e) {
-                log.warn(e.getMessage());
-            }
-        } else if (k instanceof Number iKey && v instanceof String iValue) {
-            try {
-                put(iKey, Integer.parseInt(iValue), result);
-            } catch (NumberFormatException e) {
-                log.warn(e.getMessage());
-            }
-        } else {
-            log.warn("Unknown support entry: {} : {}", k, v);
-        }
-    }
-
     @SafeVarargs
-    public static List<Map<Long, Integer>> merge(List<Map<Long, Integer>>... delayList) {
-        List<List<Map<Long, Integer>>> delayLists = new ArrayList<>(Arrays.asList(delayList));
+    public static List<Map<String, Number>> merge(List<Map<String, Number>>... delayList) {
+        List<List<Map<String, Number>>> delayLists = new ArrayList<>(Arrays.asList(delayList));
         return merge(delayLists);
     }
 
-    public static List<Map<Long, Integer>> merge(List<List<Map<Long, Integer>>> delayList) {
+    public static List<Map<String, Number>> merge(List<List<Map<String, Number>>> delayList) {
         if (CollectionUtils.isEmpty(delayList)) {
             return new ArrayList<>();
         }
         Map<Long, Integer> merged = new HashMap<>();
-        for (List<Map<Long, Integer>> list : delayList) {
+        for (List<Map<String, Number>> list : delayList) {
             if (null == list) {
                 continue;
             }
-            for (Map<Long, Integer> m : list) {
+            for (Map<String, Number> m : list) {
                 if (null == m) {
                     continue;
                 }
-                for (Map.Entry<Long, Integer> e : m.entrySet()) {
-                    if (null == e.getKey()) {
-                        continue;
+                Number k = m.get("k");
+                if (null != k) {
+                    int iV = Optional.ofNullable(merged.get(k.longValue())).orElse(0);
+                    int iVal = Optional.ofNullable(m.get("v")).map(Number::intValue).orElse(0);
+                    int sum = iV + iVal;
+                    if (sum > 0) {
+                        merged.put(k.longValue(), sum);
                     }
-                    merged.merge(e.getKey(), Optional.ofNullable(e.getValue()).orElse(0), Integer::sum);
                 }
             }
         }
-        return new ArrayList<>(merged.entrySet()
-                .stream()
-                .map(e -> toMap(e.getKey(), e.getValue()))
-                .toList());
+        List<Map<String, Number>> result = new ArrayList<>();
+        merged.forEach((k, v) -> {
+            Map<String, Number> iMap = new HashMap<>();
+            iMap.put("k", k);
+            iMap.put("v", v);
+            result.add(iMap);
+        });
+        return result;
     }
 
     @Getter
@@ -119,66 +73,58 @@ public final class ApiMetricsDelayUtil {
         long total;
     }
 
-    public static Sum sum(List<Map<Long, Integer>> delayList) {
+    public static Sum sum(List<Map<String, Number>> delayList) {
         Sum sumOf = new Sum();
         if (CollectionUtils.isEmpty(delayList)) {
             return sumOf;
         }
         long sum = 0L;
         long count = 0L;
-        for (Map<Long, Integer> m : delayList) {
-            for (Map.Entry<Long, Integer> e : m.entrySet()) {
-                Long iKey = e.getKey();
-                Integer iValue = e.getValue();
-                sum += iKey * iValue.longValue();
-                count += iValue.longValue();
-            }
+        for (Map<String, Number> m : delayList) {
+            long iKey = Optional.ofNullable(m.get("k")).map(Number::longValue).orElse(0L);
+            Integer iValue = Optional.ofNullable(m.get("v")).map(Number::intValue).orElse(0);
+            sum += iKey * iValue.longValue();
+            count += iValue.longValue();
         }
         sumOf.count = count;
         sumOf.total = sum;
         return sumOf;
     }
 
-    public static Long sumValue(List<Long> items) {
-        long sum = 0L;
-        for (Long item : items) {
-            sum += item;
-        }
-        return sum;
-    }
-
-    public static Long p95(List<Map<Long, Integer>> delayList, long total) {
+    public static Long p95(List<Map<String, Number>> delayList, long total) {
         if (total <= 20 || delayList.size() < 2) {
             return null;
         }
         return p(delayList, total, 0.95D);
     }
 
-    public static Long p99(List<Map<Long, Integer>> delayList, long total) {
+    public static Long p99(List<Map<String, Number>> delayList, long total) {
         if (total <= 10 || delayList.size() < 2) {
             return null;
         }
         return p(delayList, total, 0.99D);
     }
 
-    public static Long p50(List<Map<Long, Integer>> delayList, long total) {
+    public static Long p50(List<Map<String, Number>> delayList, long total) {
         if (delayList.size() < 2) {
             return null;
         }
         return p(delayList, total, 0.5D);
     }
 
-    public static void readMaxAndMin(List<Map<Long, Integer>> delayList, LongConsumer max, LongConsumer min) {
+    public static void readMaxAndMin(List<Map<String, Number>> delayList, LongConsumer max, LongConsumer min) {
         Long minValue = null;
         Long maxValue = null;
-        for (Map<Long, Integer> item : delayList) {
-            for (Long reqDelay : item.keySet()) {
-                if (null == reqDelay) continue;
-                if (null == minValue) minValue = reqDelay;
-                else minValue = Math.min(reqDelay, minValue);
-                if (null == maxValue) maxValue = reqDelay;
-                else maxValue = Math.max(reqDelay, maxValue);
+        for (Map<String, Number> item : delayList) {
+            Number iKey = item.get("k");
+            if (null == iKey) {
+                continue;
             }
+            long reqDelay = iKey.longValue();
+            if (null == minValue) minValue = reqDelay;
+            else minValue = Math.min(reqDelay, minValue);
+            if (null == maxValue) maxValue = reqDelay;
+            else maxValue = Math.max(reqDelay, maxValue);
         }
         if (null != min) {
             min.accept(Optional.ofNullable(minValue).orElse(0L));
@@ -188,53 +134,52 @@ public final class ApiMetricsDelayUtil {
         }
     }
 
-    static Long p(List<Map<Long, Integer>> delayList, long total, double p) {
+    static Long p(List<Map<String, Number>> delayList, long total, double p) {
         int target = ((Double) Math.ceil(total * p)).intValue();
         int sum = 0;
         Long pVal = null;
-        delayList.sort(Comparator.comparing(m -> m.keySet().stream().findFirst().orElse(0L)));
-        for (Map<Long, Integer> m : delayList) {
-            for (Map.Entry<Long, Integer> e : m.entrySet()) {
-                if (sum >= target) {
-                    return e.getKey();
-                }
-                sum += e.getValue();
-                pVal = e.getKey();
+        delayList.sort(Comparator.comparing(m -> Optional.ofNullable(m.get("k")).map(Number::longValue).orElse(0L)));
+        for (Map<String, Number> m : delayList) {
+            Number iKey = m.get("k");
+            if (null == iKey) {
+                continue;
             }
+            int iVal = Optional.ofNullable(m.get("v")).map(Number::intValue).orElse(0);
             if (sum >= target) {
-                pVal = m.keySet().stream().findFirst().orElse(null);
-                if (null != pVal) {
-                    return pVal;
-                }
+                return iKey.longValue();
+            }
+            sum += iVal;
+            pVal = iKey.longValue();
+
+            if (sum >= target) {
+                return pVal;
             }
         }
         return sum >= target ? pVal : null;
     }
 
-    public static <T> List<T> addDelay(List<T> delay, long value) {
+    public static List<Map<String, Number>> addDelay(List<Map<String, Number>> delay, long value) {
         if (null == delay) {
             delay = new ArrayList<>();
         }
         for (int i = 0; i < delay.size(); i++) {
-            Object item = delay.get(i);
-            if (item instanceof Map<?, ?> iMap) {
-                Map<Object, Integer> typedMap = (Map<Object, Integer>) iMap;
-                if (typedMap.containsKey(value)) {
-                    typedMap.computeIfPresent(value, (k, v) -> v + 1);
-                    return delay;
-                }
-            } else if (item instanceof Number iNumber && value == iNumber.longValue()) {
-                ((List<Object>) delay).set(i, toMap(value, 2));
+            Map<String, Number> item = delay.get(i);
+            if (Objects.equals(item.get("k"), value)) {
+                item.put("v", Optional.ofNullable(item.get("v")).map(Number::intValue).orElse(0) + 1);
                 return delay;
             }
         }
-        ((List<Object>) delay).add(toMap(value, 1));
+        Map<String, Number> iMap = new HashMap<>();
+        iMap.put("k", value);
+        iMap.put("v", 1);
+        delay.add(iMap);
         return delay;
     }
 
-    public static <K, V> Map<K, V> toMap(K key, V value) {
-        Map<K, V> iMap = new HashMap<>();
-        iMap.put(key, value);
+    public static Map<String, Number> toMap(Long key, Integer value) {
+        Map<String, Number> iMap = new HashMap<>();
+        iMap.put("k",key);
+        iMap.put("v",value);
         return iMap;
     }
 }

@@ -92,8 +92,6 @@ public class ApiMetricsRawMergeService {
                 //do nothing
             }
         }
-
-        //@todo p95&p99  | 24小时过滤 ｜ worker cpu | 统计不准
         return Math.min(Math.max(delay + 10000L, 15000L), 90000L);
     }
 
@@ -122,7 +120,8 @@ public class ApiMetricsRawMergeService {
         List<ApiMetricsRaw> apiMetricsRaws = merge(
                 param,
                 c -> c.and(ApiMetricsChartQuery.PROCESS_ID).is(serverId).and("metricType").is(MetricTypes.API_SERVER.getType()),
-                Criteria.where("api_gateway_uuid").is(serverId));
+                Criteria.where("api_gateway_uuid").is(serverId),
+                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay"});
         Map<String, TopApiInServer> apiInfoMap = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getApiId()))
@@ -192,7 +191,6 @@ public class ApiMetricsRawMergeService {
             long sumRps = rows.stream()
                     .filter(Objects::nonNull)
                     .map(ApiMetricsRaw::getBytes)
-                    .map(ApiMetricsDelayUtil::fixDelayAsMap)
                     .map(ApiMetricsDelayUtil::sum)
                     .map(ApiMetricsDelayUtil.Sum::getTotal)
                     .mapToLong(Long::longValue)
@@ -208,7 +206,9 @@ public class ApiMetricsRawMergeService {
         List<ApiMetricsRaw> apiMetricsRaws = merge(
                 param,
                 c -> c.and("metricType").is(MetricTypes.API.getType()),
-                null);
+                null,
+                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay"}
+        );
         Map<String, ApiItem> apiInfoMap = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getApiId()))
@@ -281,7 +281,7 @@ public class ApiMetricsRawMergeService {
         }
     }
 
-    protected void mergeOfMinuteRange(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer) {
+    protected void mergeOfMinuteRange(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
         Criteria criteriaMin = Criteria.where("timeGranularity").is(1);
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaMin));
         List<Criteria> or = new ArrayList<>();
@@ -290,12 +290,12 @@ public class ApiMetricsRawMergeService {
         }
         criteriaMin.orOperator(or);
         Query queryMin = Query.query(criteriaMin);
-        queryMin.fields().include("apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "bytes", "delay", "dbCost", "workerInfoMap");
+        queryMin.fields().include(filterFields);
         List<ApiMetricsRaw> metricsRawListMin = service.find(queryMin);
         metricsRawList.addAll(metricsRawListMin);
     }
 
-    protected void mergeOfHour(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer) {
+    protected void mergeOfHour(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
         Criteria criteriaOfHour = Criteria.where("timeGranularity").is(2);
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfHour));
         List<Criteria> orHour = new ArrayList<>();
@@ -304,13 +304,13 @@ public class ApiMetricsRawMergeService {
         }
         criteriaOfHour.orOperator(orHour);
         Query queryHour = Query.query(criteriaOfHour);
-        queryHour.fields().include("apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "bytes", "delay", "dbCost", "workerInfoMap");
+        queryHour.fields().include(filterFields);
         List<ApiMetricsRaw> metricsRawListHour = service.find(queryHour);
         metricsRawList.addAll(metricsRawListHour);
     }
 
-    protected void mergeDay(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer) {
-        Criteria criteriaOfDay = Criteria.where("timeGranularity").is(3);
+    protected void mergeDay(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
+        Criteria criteriaOfDay = Criteria.where("timeGranularity").is(TimeGranularity.DAY.getType());
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfDay));
         List<Criteria> orDay = new ArrayList<>();
         for (TimeRange point : ranges) {
@@ -318,12 +318,12 @@ public class ApiMetricsRawMergeService {
         }
         criteriaOfDay.orOperator(orDay);
         Query queryDay = Query.query(criteriaOfDay);
-        queryDay.fields().include("apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "bytes", "delay", "dbCost", "workerInfoMap");
+        queryDay.fields().include(filterFields);
         List<ApiMetricsRaw> metricsRawListDay = service.find(queryDay);
         metricsRawList.addAll(metricsRawListDay);
     }
 
-    public List<ApiMetricsRaw> merge(QueryBase param, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
+    public List<ApiMetricsRaw> merge(QueryBase param, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria, String[] filterFields) {
         List<ApiMetricsRaw> metricsRawList = new ArrayList<>();
         Map<TimeGranularity, List<TimeRange>> queryRange = param.getQueryRange();
         queryRange.forEach((timeGranularity, ranges) -> {
@@ -338,13 +338,13 @@ public class ApiMetricsRawMergeService {
                     mergeOfSecondFiveRange(metricsRawList, ranges, criteriaConsumer);
                     break;
                 case MINUTE:
-                    mergeOfMinuteRange(metricsRawList, ranges, criteriaConsumer);
+                    mergeOfMinuteRange(metricsRawList, ranges, criteriaConsumer, filterFields);
                     break;
                 case HOUR:
-                    mergeOfHour(metricsRawList, ranges, criteriaConsumer);
+                    mergeOfHour(metricsRawList, ranges, criteriaConsumer, filterFields);
                     break;
                 default:
-                    mergeDay(metricsRawList, ranges, criteriaConsumer);
+                    mergeDay(metricsRawList, ranges, criteriaConsumer, filterFields);
             }
         });
         return metricsRawList;

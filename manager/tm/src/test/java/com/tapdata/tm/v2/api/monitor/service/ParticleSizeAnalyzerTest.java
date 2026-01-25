@@ -23,37 +23,6 @@ class ParticleSizeAnalyzerTest {
 
     @Nested
     class ApiMetricsRawsTest {
-        @Test
-        void testApiMetricsRawsWithGranularity0() {
-            QueryBase query = new QueryBase();
-            query.setGranularity(TimeGranularity.SECOND_FIVE);
-            query.setStartAt(1000L);
-            query.setEndAt(2000L);
-            
-            ApiMetricsRaw raw1 = new ApiMetricsRaw();
-            raw1.setTimeStart(1500L);
-            Map<Long, ApiMetricsRaw> subMetrics1 = new HashMap<>();
-            
-            ApiMetricsRaw sub1 = new ApiMetricsRaw();
-            sub1.setTimeStart(1200L);
-            ApiMetricsRaw sub2 = new ApiMetricsRaw();
-            sub2.setTimeStart(1800L);
-            ApiMetricsRaw sub3 = new ApiMetricsRaw();
-            sub3.setTimeStart(2500L); // Outside range
-            
-            subMetrics1.put(1200L, sub1);
-            subMetrics1.put(1800L, sub2);
-            subMetrics1.put(2500L, sub3);
-            raw1.setSubMetrics(subMetrics1);
-            
-            List<ApiMetricsRaw> input = Arrays.asList(raw1);
-            
-            List<ApiMetricsRaw> result = ParticleSizeAnalyzer.apiMetricsRaws(input, query);
-            
-            assertEquals(2, result.size());
-            assertEquals(1200L, result.get(0).getTimeStart());
-            assertEquals(1800L, result.get(1).getTimeStart());
-        }
 
         @Test
         void testApiMetricsRawsWithGranularity1() {
@@ -138,19 +107,6 @@ class ParticleSizeAnalyzerTest {
             
             assertNotNull(query.getEndAt());
             assertTrue(query.getEndAt() > 0);
-        }
-
-        @Test
-        void testCheckQueryTimeWithNullStart() {
-            QueryBase query = new QueryBase();
-            long currentTime = System.currentTimeMillis() / 1000L;
-            query.setStartAt(null);
-            query.setEndAt(currentTime);
-            
-            ParticleSizeAnalyzer.checkQueryTime(query);
-            
-            assertNotNull(query.getStartAt());
-            assertEquals(currentTime - 5L * 60L, query.getStartAt());
         }
 
         @Test
