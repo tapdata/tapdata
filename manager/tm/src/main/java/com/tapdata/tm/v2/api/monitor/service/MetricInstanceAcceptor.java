@@ -77,7 +77,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         if (null == val) {
             return 0L;
         }
-        return Math.min(0L, val);
+        return Math.max(0L, val);
     }
 
     public void accept(Document entity) {
