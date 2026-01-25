@@ -489,35 +489,6 @@ class WorkerCallServiceImplTest {
     }
 
     @Nested
-    class metricWorkerTest {
-        @Test
-        void testNormal() {
-            doCallRealMethod().when(callService).metricWorker(anyString());
-            WorkerCallEntity lastOne = new WorkerCallEntity();
-            lastOne.setTimeStart(System.currentTimeMillis());
-            WorkerCallsInfo workerCallsInfo = new WorkerCallsInfo();
-            workerCallsInfo.setWorkOid(new ObjectId().toHexString());
-            workerCallsInfo.setLatency(100L);
-            workerCallsInfo.setCode("200");
-            workerCallsInfo.setResTime(System.currentTimeMillis());
-            workerCallsInfo.setReqTime(System.currentTimeMillis());
-            workerCallsInfo.setApiGatewayUuid(new ObjectId().toHexString());
-            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(List.of(workerCallsInfo), new ArrayList<>());
-            when(mongoOperations.findOne(any(Query.class), any(Class.class))).thenReturn(lastOne);
-            doNothing().when(callService).bulkUpsert(anyList());
-            Assertions.assertDoesNotThrow(() -> callService.metricWorker("id"));
-        }
-        @Test
-        void testLastOneIsNull() {
-            doCallRealMethod().when(callService).metricWorker(anyString());
-            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
-            when(mongoOperations.findOne(any(Query.class), any(Class.class))).thenReturn(null);
-            doNothing().when(callService).bulkUpsert(anyList());
-            Assertions.assertDoesNotThrow(() -> callService.metricWorker("id"));
-        }
-    }
-
-    @Nested
     class findDataTest {
         @Test
         void testNormal() {

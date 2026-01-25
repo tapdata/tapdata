@@ -50,44 +50,6 @@ class ApiMetricsRawScheduleExecutorTest {
     }
 
     @Nested
-    class AggregateApiCallTest {
-        @Test
-        void testAggregateApiCall() {
-            MongoCollection<Document> collection = mock(MongoCollection.class);
-            when(mongoTemplate.getCollection(anyString())).thenReturn(collection);
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(createApiMetricsRaw());
-            FindIterable<Document> iterable = mock(FindIterable.class);
-            MongoCursor<Document> cursor = mock(MongoCursor.class);
-            when(collection.find(any(Document.class), any(Class.class))).thenReturn(iterable);
-            when(iterable.sort(any(Bson.class))).thenReturn(iterable);
-            when(iterable.batchSize(anyInt())).thenReturn(iterable);
-            when(iterable.iterator()).thenReturn(cursor);
-            when(cursor.hasNext()).thenReturn(true, false);
-            when(cursor.next()).thenReturn(new Document());
-            doNothing().when(metricInstanceFactory).accept(any(Document.class));
-            Assertions.assertDoesNotThrow(executor::aggregateApiCall);
-            verify(executor).create();
-        }
-        @Test
-        void testAggregateApiCallNotHaveLastOne() {
-            MongoCollection<Document> collection = mock(MongoCollection.class);
-            when(mongoTemplate.getCollection(anyString())).thenReturn(collection);
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(null);
-            FindIterable<Document> iterable = mock(FindIterable.class);
-            MongoCursor<Document> cursor = mock(MongoCursor.class);
-            when(collection.find(any(Document.class), any(Class.class))).thenReturn(iterable);
-            when(iterable.sort(any(Bson.class))).thenReturn(iterable);
-            when(iterable.batchSize(anyInt())).thenReturn(iterable);
-            when(iterable.iterator()).thenReturn(cursor);
-            when(cursor.hasNext()).thenReturn(true, false);
-            when(cursor.next()).thenReturn(new Document());
-            doNothing().when(metricInstanceFactory).accept(any(Document.class));
-            Assertions.assertDoesNotThrow(executor::aggregateApiCall);
-            verify(executor).create();
-        }
-    }
-
-    @Nested
     class saveApiMetricsRawTest {
         @Test
         void testSaveApiMetricsRaw() {

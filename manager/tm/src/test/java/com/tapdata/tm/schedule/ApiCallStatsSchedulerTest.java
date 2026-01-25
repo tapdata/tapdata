@@ -1,6 +1,5 @@
 package com.tapdata.tm.schedule;
 
-import com.tapdata.tm.apiCalls.service.SupplementApiCallServer;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawScheduleExecutor;
 import com.tapdata.tm.worker.dto.WorkerDto;
@@ -37,15 +36,12 @@ class ApiCallStatsSchedulerTest {
 
     private WorkerCallServiceImpl workerCallServiceImpl;
     WorkerService workerService;
-    SupplementApiCallServer supplementApiCallServer;
     ApiMetricsRawScheduleExecutor service;
 
     @BeforeEach
     void setUp() {
         apiCallStatsScheduler = mock(ApiCallStatsScheduler.class);
         service = mock(ApiMetricsRawScheduleExecutor.class);
-        supplementApiCallServer = mock(SupplementApiCallServer.class);
-        doNothing().when(supplementApiCallServer).supplementOnce();
         workerCallServiceImpl = mock(WorkerCallServiceImpl.class);
         workerService = mock(WorkerService.class);
     }
@@ -98,19 +94,6 @@ class ApiCallStatsSchedulerTest {
             }).when(workerCallServiceImpl).collectApiCallCountGroupByWorker(anyString());
             Assertions.assertDoesNotThrow(apiCallStatsScheduler::scheduleForApiCall);
             verify(workerCallServiceImpl, times(0)).collectApiCallCountGroupByWorker(anyString());
-        }
-
-        @Test
-        void testException2() {
-            ArrayList<WorkerDto> objects = new ArrayList<>();
-            WorkerDto dto = new WorkerDto();
-            dto.setProcessId("1");
-            objects.add(dto);
-            doThrow(new RuntimeException("test")).when(workerCallServiceImpl).metric();
-            when(workerService.findAll(any(Query.class))).thenReturn(objects);
-            doThrow(new RuntimeException("test")).when(workerCallServiceImpl).collectApiCallCountGroupByWorker(anyString());
-            Assertions.assertDoesNotThrow(apiCallStatsScheduler::scheduleForApiCall);
-            verify(workerCallServiceImpl, times(objects.size())).collectApiCallCountGroupByWorker(anyString());
         }
     }
 }

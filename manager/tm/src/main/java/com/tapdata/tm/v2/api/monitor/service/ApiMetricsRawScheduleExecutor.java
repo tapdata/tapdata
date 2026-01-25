@@ -6,6 +6,7 @@ import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.Sorts;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -56,24 +58,37 @@ public class ApiMetricsRawScheduleExecutor {
         ObjectId lastCallId = lastOne();
         try (MetricInstanceFactory acceptor = create()) {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
-            final Criteria criteria = Criteria.where("deleted").ne(true)
-                    .and("supplement").ne(true);
+            final Criteria criteria = Criteria.where("deleted").ne(true);
+            Criteria newOr = Criteria.where("reqTime").lt(System.currentTimeMillis());
             if (Objects.nonNull(lastCallId)) {
-                criteria.and(OBJECT_ID).gt(lastCallId);
+                newOr.and(OBJECT_ID).gt(lastCallId);
             }
-            criteria.and("reqTime").lt(System.currentTimeMillis());
+            criteria.orOperator(newOr, Criteria.where("supplement").is(true));
             final Query query = Query.query(criteria);
-            query.fields().include(OBJECT_ID, "allPathId", "workerOid", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path");
+            query.fields().include(OBJECT_ID, "allPathId", "workerOid", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path","supplement");
             final Document queryObject = query.getQueryObject();
             final FindIterable<Document> iterable =
                     collection.find(queryObject, Document.class)
                             .sort(Sorts.ascending("reqTime"))
                             .batchSize(2000);
+            ObjectId batchEnd = null;
             try (final MongoCursor<Document> cursor = iterable.iterator()) {
                 while (cursor.hasNext()) {
                     final Document entity = cursor.next();
                     acceptor.accept(entity);
+                    ObjectId oId = entity.getObjectId(OBJECT_ID);
+                    if (null != oId) {
+                        if (null == batchEnd || batchEnd.compareTo(oId) < 0) {
+                            batchEnd = oId;
+                        }
+                    }
                 }
+            }
+            if (null != batchEnd) {
+                Criteria lte = Criteria.where(OBJECT_ID).lte(batchEnd)
+                        .and("supplement").is(true);
+                Query queried = Query.query(lte);
+                mongoTemplate.updateMulti(queried, Update.update("supplement", false), collectionName);
             }
         }
     }

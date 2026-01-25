@@ -53,6 +53,8 @@ public class QueryBase {
 
     SortInfo sortInfo;
 
+    //滑动窗口开始时间，用于统计图计算p95/p99
+    long windowsStart;
     Map<TimeGranularity, List<TimeRange>> queryRange;
 
     @Data

@@ -95,11 +95,13 @@ public class ApiMetricsChartQuery {
     public ServerTopOnHomepage serverTopOnHomepage(QueryBase param) {
         final ServerTopOnHomepage result = ServerTopOnHomepage.create();
         long delay = metricsRawMergeService.getDelay();
-        TimeRangeUtil.rangeOf(param, delay, true);
+        TimeRangeUtil.rangeOf(result, param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = metricsRawMergeService.merge(
                 param,
                 c -> c.and("metricType").is(MetricTypes.ALL.getType()),
-                null);
+                null,
+                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay"}
+        );
         if (CollectionUtils.isEmpty(apiMetricsRaws)) {
             return result;
         }
@@ -160,7 +162,8 @@ public class ApiMetricsChartQuery {
                         c.and(PROCESS_ID).in(serverMap.keySet());
                     }
                 },
-                apiCallCriteria);
+                apiCallCriteria,
+                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay"});
         //find cluster state of worker
         Criteria criteriaOfCluster = Criteria.where("apiServer.serverId").in(serverMap.keySet());
         Query queryOfCluster = Query.query(criteriaOfCluster);
@@ -337,11 +340,13 @@ public class ApiMetricsChartQuery {
                     }
                 });
         long delay = metricsRawMergeService.getDelay();
-        TimeRangeUtil.rangeOf(param, delay, true);
+        TimeRangeUtil.rangeOf(result, param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = metricsRawMergeService.merge(
                 param,
                 c -> c.and(PROCESS_ID).is(serverId).and("metricType").is(MetricTypes.SERER.getType()),
-                Criteria.where("api_gateway_uuid").is(serverId));
+                Criteria.where("api_gateway_uuid").is(serverId),
+                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay", "workerInfoMap"}
+                );
         result.setRequestCount(0L);
         long errorCount = metricsRawMergeService.errorCountGetter(apiMetricsRaws, e -> result.setRequestCount(result.getRequestCount() + e));
         result.setErrorCount(errorCount);
@@ -359,7 +364,7 @@ public class ApiMetricsChartQuery {
         }
         ServerChart result = new ServerChart();
         long delay = metricsRawMergeService.getDelay();
-        TimeRangeUtil.rangeOf(param, delay, false);
+        TimeRangeUtil.rangeOf(result, param, delay, false);
         //cpu&mem usage
         Criteria criteriaOfUsage = Criteria.where(PROCESS_ID).is(serverId)
                 .and(PROCESS_TYPE).is(ServerUsage.ProcessType.API_SERVER.getType());
@@ -368,9 +373,11 @@ public class ApiMetricsChartQuery {
         result.setUsage(usage);
         //request chart & avg delay & p95 & p99
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(
-                param,
+                param, false,
                 c -> c.and(PROCESS_ID).is(serverId).and("metricType").is(MetricTypes.SERER.getType()),
-                Criteria.where("api_gateway_uuid").is(serverId));
+                Criteria.where("api_gateway_uuid").is(serverId),
+                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay", "workerInfoMap"}
+                );
         result.setRequest(ServerChart.Request.create());
         result.setDelay(ServerChart.Delay.create());
         result.setDBCost(ServerChart.DBCost.create());
@@ -390,8 +397,8 @@ public class ApiMetricsChartQuery {
                                                 totalErrorCount += Optional.ofNullable(row.getErrorCount()).orElse(0L);
                                                 reqCount += Optional.ofNullable(row.getReqCount()).orElse(0L);
                                             }
-                                            List<Map<Long, Integer>> delays = ApiMetricsDelayInfoUtil.mergeItems(rows, ApiMetricsRaw::getDelay);
-                                            List<Map<Long, Integer>> dbCosts = ApiMetricsDelayInfoUtil.mergeItems(rows, ApiMetricsRaw::getDbCost);
+                                            List<Map<String, Number>> delays = ApiMetricsDelayInfoUtil.mergeItems(rows, ApiMetricsRaw::getDelay);
+                                            List<Map<String, Number>> dbCosts = ApiMetricsDelayInfoUtil.mergeItems(rows, ApiMetricsRaw::getDbCost);
                                             item.setDelay(delays);
                                             item.setDbCost(dbCosts);
                                             item.setTs(apiMetricsRaw.getTimeStart());
@@ -410,11 +417,11 @@ public class ApiMetricsChartQuery {
             case SECOND_FIVE, MINUTE -> 60;
             default -> 1;
         };
-        List<List<Map<Long, Integer>>> delays = new ArrayList<>();
-        List<List<Map<Long, Integer>>> dbCosts = new ArrayList<>();
+        List<List<Map<String, Number>>> delays = new ArrayList<>();
+        List<List<Map<String, Number>>> dbCosts = new ArrayList<>();
         AtomicInteger size = new AtomicInteger(0);
         List<ServerChart.Item> items = ChartSortUtil.fixAndSort(collect,
-                param.getStartAt(), param.getEndAt(), param.getGranularity(),
+                param.getWindowsStart(), param.getEndAt(), param.getGranularity(),
                 ServerChart.Item::create,
                 item -> {
                     delays.add(item.getDelay());
@@ -434,7 +441,7 @@ public class ApiMetricsChartQuery {
         items.parallelStream()
                 .forEach(this::handler);
         for (ServerChart.Item item : items) {
-            if (item.getTs() < param.getStartAt() || item.getTs() >= param.getEndAt()) {
+            if (item.getTs() < param.getFixStart() || item.getTs() >= param.getEndAt()) {
                 continue;
             }
             result.add(item);
@@ -443,7 +450,7 @@ public class ApiMetricsChartQuery {
     }
 
     void handler(ServerChart.Item item) {
-        List<Map<Long, Integer>> delay = item.getDelay();
+        List<Map<String, Number>> delay = item.getDelay();
         Long errorCountNum = item.getErrorCount();
         Long requestCount = item.getRequestCount();
         if (requestCount > 0L) {
@@ -460,14 +467,17 @@ public class ApiMetricsChartQuery {
             item.setAvg(1.0D * sumOfDelay.getTotal() / requestCount);
             item.setDbCostAvg(1.0D * dbCostTotal / requestCount);
         }
+//        if (item.isEmpty() || requestCount <= 0L) {
+//            return;
+//        }
         Optional.ofNullable(item.getDelays()).ifPresent(delays -> {
-            List<Map<Long, Integer>> mergedDelay = ApiMetricsDelayUtil.merge(delays);
+            List<Map<String, Number>> mergedDelay = ApiMetricsDelayUtil.merge(delays);
             ApiMetricsDelayUtil.Sum sumOf = ApiMetricsDelayUtil.sum(mergedDelay);
             item.setP95(ApiMetricsDelayUtil.p95(mergedDelay, sumOf.getCount()));
             item.setP99(ApiMetricsDelayUtil.p99(mergedDelay, sumOf.getCount()));
         });
         Optional.ofNullable(item.getDbCosts()).ifPresent(dbCosts -> {
-            List<Map<Long, Integer>> mergedDBCost = ApiMetricsDelayUtil.merge(dbCosts);
+            List<Map<String, Number>> mergedDBCost = ApiMetricsDelayUtil.merge(dbCosts);
             ApiMetricsDelayUtil.Sum sumOf = ApiMetricsDelayUtil.sum(mergedDBCost);
             item.setDbCostP95(ApiMetricsDelayUtil.p95(mergedDBCost, sumOf.getCount()));
             item.setDbCostP99(ApiMetricsDelayUtil.p99(mergedDBCost, sumOf.getCount()));
@@ -503,7 +513,7 @@ public class ApiMetricsChartQuery {
         }
         result.setWorkerList(new ArrayList<>());
         long delay = metricsRawMergeService.getDelay();
-        TimeRangeUtil.rangeOf(param, delay, true);
+        TimeRangeUtil.rangeOf(result, param, delay, true);
         Set<String> workerOid = new HashSet<>(Optional.ofNullable(worker.getWorkerStatus())
                 .map(ApiServerStatus::getWorkers)
                 .map(Map::keySet)
@@ -677,8 +687,12 @@ public class ApiMetricsChartQuery {
     public ApiDetail apiOverviewDetail(ApiDetailParam param) {
         ApiDetail result = new ApiDetail();
         long delay = metricsRawMergeService.getDelay();
-        TimeRangeUtil.rangeOf(param, delay, true);
-        List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(param.getApiId(), param, MetricTypes.API);
+        TimeRangeUtil.rangeOf(result, param, delay, true);
+        List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(
+                param.getApiId(),
+                param,
+                MetricTypes.API,
+                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay"});
         ObjectId apiId = MongoUtils.toObjectId(param.getApiId());
         result.setApiName(param.getApiId());
         result.setApiPath(param.getApiId());
@@ -705,20 +719,27 @@ public class ApiMetricsChartQuery {
         return result;
     }
 
-    protected List<ApiMetricsRaw> findRowByApiId(String apiId, QueryBase param, MetricTypes metricTypes) {
+    protected List<ApiMetricsRaw> findRowByApiId(String apiId, QueryBase param, MetricTypes metricTypes, String[] filterFields) {
         if (StringUtils.isBlank(apiId)) {
             throw new BizException("api.id.empty");
         }
         return metricsRawMergeService.merge(
                 param,
                 c -> c.and("apiId").is(apiId).and("metricType").is(metricTypes.getType()),
-                Criteria.where("allPathId").is(apiId));
+                Criteria.where("allPathId").is(apiId),
+                filterFields
+        );
     }
 
     public List<ApiOfEachServer> apiOfEachServer(ApiWithServerDetail param) {
         long delay = metricsRawMergeService.getDelay();
         TimeRangeUtil.rangeOf(param, delay, true);
-        List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(param.getApiId(), param, MetricTypes.API_SERVER);
+        List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(
+                param.getApiId(),
+                param,
+                MetricTypes.API_SERVER,
+                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay"}
+        );
         if (apiMetricsRaws.isEmpty()) {
             return ApiOfEachServer.supplement(new ArrayList<>(), activeWorkers(null));
         }
@@ -778,14 +799,16 @@ public class ApiMetricsChartQuery {
     public ChartAndDelayOfApi delayOfApi(ApiChart param) {
         ChartAndDelayOfApi result = ChartAndDelayOfApi.create();
         long delay = metricsRawMergeService.getDelay();
-        TimeRangeUtil.rangeOf(param, delay, false);
+        TimeRangeUtil.rangeOf(result, param, delay, false);
         if (StringUtils.isBlank(param.getApiId())) {
             throw new BizException("api.id.empty");
         }
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(
-                param,
+                param, false,
                 c -> c.and("apiId").is(param.getApiId()).and("metricType").is(MetricTypes.API.getType()),
-                Criteria.where("allPathId").is(param.getApiId()));
+                Criteria.where("allPathId").is(param.getApiId()),
+                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "bytes", "delay", "dbCost"}
+        );
         if (apiMetricsRaws.isEmpty()) {
             return result;
         }
@@ -802,15 +825,14 @@ public class ApiMetricsChartQuery {
                                             long timeStart = apiMetricsRaw.getTimeStart();
                                             ChartAndDelayOfApi.Item item = new ChartAndDelayOfApi.Item();
                                             long totalBytes = rows.stream().map(ApiMetricsRaw::getBytes)
-                                                    .map(ApiMetricsDelayUtil::fixDelayAsMap)
                                                     .map(ApiMetricsDelayUtil::sum)
                                                     .mapToLong(ApiMetricsDelayUtil.Sum::getTotal)
                                                     .sum();
-                                            List<Map<Long, Integer>> mergedDelay = ApiMetricsDelayInfoUtil.mergeItems(rows, ApiMetricsRaw::getDelay);
+                                            List<Map<String, Number>> mergedDelay = ApiMetricsDelayInfoUtil.mergeItems(rows, ApiMetricsRaw::getDelay);
                                             item.setDelay(mergedDelay);
                                             item.setTs(timeStart);
                                             item.setTotalBytes(totalBytes);
-                                            List<Map<Long, Integer>> mergedDBCost = ApiMetricsDelayInfoUtil.mergeItems(rows, ApiMetricsRaw::getDbCost);
+                                            List<Map<String, Number>> mergedDBCost = ApiMetricsDelayInfoUtil.mergeItems(rows, ApiMetricsRaw::getDbCost);
                                             item.setDbCost(mergedDBCost);
                                             return item;
                                         }
@@ -825,11 +847,11 @@ public class ApiMetricsChartQuery {
             case SECOND_FIVE, MINUTE -> 60;
             default -> 1;
         };
-        List<List<Map<Long, Integer>>> delays = new ArrayList<>();
+        List<List<Map<String, Number>>> delays = new ArrayList<>();
         List<Long> bytes = new ArrayList<>();
-        List<List<Map<Long, Integer>>> dbCosts = new ArrayList<>();
+        List<List<Map<String, Number>>> dbCosts = new ArrayList<>();
         List<ChartAndDelayOfApi.Item> items = ChartSortUtil.fixAndSort(collect,
-                param.getStartAt(), param.getEndAt(), param.getGranularity(),
+                param.getWindowsStart(), param.getEndAt(), param.getGranularity(),
                 ChartAndDelayOfApi.Item::create,
                 item -> {
                     delays.add(item.getDelay());
@@ -848,7 +870,7 @@ public class ApiMetricsChartQuery {
         );
         items.parallelStream().forEach(this::mapping);
         for (ChartAndDelayOfApi.Item item : items) {
-            if (item.getTs() < param.getStartAt() || item.getTs() >= param.getEndAt()) {
+            if (item.getTs() < param.getFixStart() || item.getTs() >= param.getEndAt()) {
                 continue;
             }
             result.add(item);
@@ -872,13 +894,16 @@ public class ApiMetricsChartQuery {
         ApiMetricsDelayUtil.readMaxAndMin(item.getDelay(), item::setMaxDelay, item::setMinDelay);
         long totalBytes = Optional.ofNullable(item.getTotalBytes()).orElse(0L);
         item.setRps(totalDelayMs > 0L ? (totalBytes * 1000.0D / totalDelayMs) : 0D);
+//        if (item.isEmpty() || reqCount <= 0L) {
+//            return;
+//        }
         if (null != item.getDelays()) {
-            List<Map<Long, Integer>> mergedDelays = ApiMetricsDelayUtil.merge(item.getDelays());
+            List<Map<String, Number>> mergedDelays = ApiMetricsDelayUtil.merge(item.getDelays());
             item.setP95(ApiMetricsDelayUtil.p95(mergedDelays, reqCount));
             item.setP99(ApiMetricsDelayUtil.p99(mergedDelays, reqCount));
         }
         if (null != item.getDbCosts()) {
-            List<Map<Long, Integer>> mergeDdCosts = ApiMetricsDelayUtil.merge(item.getDbCosts());
+            List<Map<String, Number>> mergeDdCosts = ApiMetricsDelayUtil.merge(item.getDbCosts());
             item.setDbCostP95(ApiMetricsDelayUtil.p95(mergeDdCosts, reqCount));
             item.setDbCostP99(ApiMetricsDelayUtil.p99(mergeDdCosts, reqCount));
         }

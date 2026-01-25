@@ -33,13 +33,13 @@ public class MetricResponseTime implements Metric<ApiCallMetricVo.MetricResponse
     public MetricDataBase mergeTo(Long timeStart, List<WorkerCallEntity> vos) {
         OfResponseTime ofResponseTime = new OfResponseTime();
         ofResponseTime.setTime(timeStart);
-        List<List<Map<Long, Integer>>> delayList = new ArrayList<>();
+        List<List<Map<String, Number>>> delayList = new ArrayList<>();
         vos.forEach(vo -> {
             if (vo.getDelays() != null && !vo.getDelays().isEmpty()) {
-                delayList.add(ApiMetricsDelayUtil.fixDelayAsMap(vo.getDelays()));
+                delayList.add(vo.getDelays());
             }
         });
-        List<Map<Long, Integer>> merged = ApiMetricsDelayUtil.merge(delayList);
+        List<Map<String, Number>> merged = ApiMetricsDelayUtil.merge(delayList);
         ApiMetricsDelayUtil.Sum sum = ApiMetricsDelayUtil.sum(merged);
         long total = sum.getTotal();
         Long p95 = ApiMetricsDelayUtil.p95(merged, total);

@@ -25,6 +25,7 @@ public class DecimalFormatSerializer extends JsonSerializer<Object>
             return;
         }
         if (value instanceof Double dVal) {
+            dVal = dVal >= 0D ? dVal : 0D;
             BigDecimal decimal = BigDecimal.valueOf(dVal)
                     .setScale(scale, roundingMode);
             gen.writeNumber(decimal);
@@ -35,6 +36,7 @@ public class DecimalFormatSerializer extends JsonSerializer<Object>
                     if (null == val) {
                         gen.writeNull();
                     } else if (val instanceof Double dVal) {
+                        dVal = dVal >= 0D ? dVal : 0D;
                         BigDecimal decimal = BigDecimal.valueOf(dVal)
                                 .setScale(scale, roundingMode);
                         gen.writeNumber(decimal);

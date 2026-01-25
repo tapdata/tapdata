@@ -144,12 +144,19 @@ public class ParticleSizeAnalyzer {
             row.setReqCount(1L);
             row.setErrorCount(errorCount);
             row.setRps(1D / 60D);
-            row.setBytes(new ArrayList<>(List.of(apiCallEntity.getReqBytes())));
-            row.setDelay(new ArrayList<>(List.of(apiCallEntity.getLatency())));
+            row.setBytes(asInit(apiCallEntity.getReqBytes()));
+            row.setDelay(asInit(apiCallEntity.getLatency()));
             row.setSubMetrics(new HashMap<>());
             row.setLastCallId(apiCallEntity.getId());
             row.setId(new ObjectId());
             consumer.accept(row);
         }
+    }
+
+    static List<Map<String, Number>> asInit(Long k) {
+        Map<String, Number> iMap = new HashMap<>();
+        iMap.put("k", k);
+        iMap.put("v", 1);
+        return List.of(iMap);
     }
 }

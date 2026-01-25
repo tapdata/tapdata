@@ -43,11 +43,11 @@ public final class ApiMetricsDelayInfoUtil {
     }
 
 
-    public static <T> void calculate(List<T> items, Function<T, List<?>> itemGetter, Setter setter) {
+    public static <T> void calculate(List<T> items, Function<T, List<Map<String, Number>>> itemGetter, Setter setter) {
         if (CollectionUtils.isEmpty(items)) {
             return;
         }
-        final List<Map<Long, Integer>> merge = mergeItems(items, itemGetter);
+        final List<Map<String, Number>> merge = mergeItems(items, itemGetter);
         ApiMetricsDelayUtil.Sum sumOf = ApiMetricsDelayUtil.sum(merge);
         final long sum = sumOf.getTotal();
         final long reqCount = sumOf.getCount();
@@ -60,17 +60,17 @@ public final class ApiMetricsDelayInfoUtil {
         Optional.ofNullable(setter.getAvgSetter()).ifPresent(s -> s.accept(reqCount > 0L ? (1.0D * sum / reqCount) : 0D));
     }
 
-    public static <T> List<Map<Long, Integer>> mergeItems(List<T> items, Function<T, List<?>> itemGetter) {
+    public static <T> List<Map<String, Number>> mergeItems(List<T> items, Function<T, List<Map<String, Number>>> itemGetter) {
         if (CollectionUtils.isEmpty(items)) {
             return new ArrayList<>();
         }
-        final List<Map<Long, Integer>>[] delays = new List[items.size()];
+        final List<Map<String, Number>>[] delays = new List[items.size()];
         for (int i = 0; i < items.size(); i++) {
             final T info = items.get(i);
             if (null == info) {
                 continue;
             }
-            delays[i] = ApiMetricsDelayUtil.fixDelayAsMap(itemGetter.apply(info));
+            delays[i] = itemGetter.apply(info);
         }
         return ApiMetricsDelayUtil.merge(delays);
     }
@@ -136,7 +136,7 @@ public final class ApiMetricsDelayInfoUtil {
         }
     }
 
-   public static long sum(Long left, Long right) {
+    public static long sum(Long left, Long right) {
         if (null == left && null == right) {
             return 0L;
         }
