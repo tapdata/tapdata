@@ -18,6 +18,9 @@ public @interface DecimalFormat {
     /** Reserved decimal places, default 2 digits */
     int scale() default 2;
 
+    /** Reserved decimal places, default 4 digits */
+    int maxScale() default 6;
+
     /** Rounding method, default rounding */
     RoundingMode roundingMode() default RoundingMode.HALF_UP;
 }

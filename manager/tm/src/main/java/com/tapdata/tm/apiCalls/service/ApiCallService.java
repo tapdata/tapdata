@@ -180,7 +180,7 @@ public class ApiCallService {
         Optional.ofNullable(where.get("end"))
                 .map(value -> (Double) where.remove("end"))
                 .map(Double::longValue)
-                .ifPresent(value -> endTimeCriteria.and(Tag.REQ_TIME).lte(value));
+                .ifPresent(value -> endTimeCriteria.and(Tag.REQ_TIME).lt(value));
         criteria.andOperator(startTimeCriteria, endTimeCriteria, subCriteria);
         return criteria;
     }
