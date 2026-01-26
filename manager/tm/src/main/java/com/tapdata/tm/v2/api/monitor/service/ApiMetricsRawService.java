@@ -167,16 +167,17 @@ public class ApiMetricsRawService {
         List<Criteria> andCriteria = new ArrayList<>();
         andCriteria.add(Criteria.where("delete").is(false));
         Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
-        List<Criteria> or = new ArrayList<>();
-        for (TimeRange point : ranges) {
-            Criteria aubAndCriteria = new Criteria();
-            List<Criteria> and = new ArrayList<>();
-            and.add(Criteria.where("reqTime").gte(point.getStart() * 1000L));
-            and.add(Criteria.where("reqTime").lt(point.getEnd() * 1000L));
-            aubAndCriteria.andOperator(and);
-            or.add(aubAndCriteria);
+        if (!ranges.isEmpty()) {
+            if (ranges.size() == 1) {
+                TimeRange point = ranges.get(0);
+                andCriteria.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+            } else {
+                List<Criteria> orSec = ranges.stream()
+                        .map(point -> Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
+                        .toList();
+                andCriteria.add(new Criteria().orOperator(orSec));
+            }
         }
-        andCriteria.add(new Criteria().orOperator(or));
         Query query = Query.query(new Criteria().andOperator(andCriteria));
         query.fields().include("api_gateway_uuid", "allPathId", "req_path", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id");
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
@@ -297,7 +298,7 @@ public class ApiMetricsRawService {
                             supplementFiveSecond(criteriaConsumer, supplement, ranges);
                             break;
                         case SECOND:
-//                            supplementSeconds(apiCallCriteria, supplement, ranges);
+                            supplementSeconds(apiCallCriteria, supplement, ranges);
                             break;
                         default:
                             //do nothing

@@ -245,11 +245,17 @@ public class ApiMetricsRawMergeService {
         List<Criteria> andCriteria = new ArrayList<>();
         andCriteria.add(Criteria.where("delete").is(false));
         Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
-        List<Criteria> orSec = new ArrayList<>();
-        for (TimeRange point : ranges) {
-            orSec.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+        if (!ranges.isEmpty()) {
+            if (ranges.size() == 1) {
+                TimeRange point = ranges.get(0);
+                andCriteria.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+            } else {
+                List<Criteria> orSec = ranges.stream()
+                        .map(point -> Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
+                        .toList();
+                andCriteria.add(new Criteria().orOperator(orSec));
+            }
         }
-        andCriteria.add(new Criteria().orOperator(orSec));
         Query query = Query.query(new Criteria().andOperator(andCriteria));
         query.fields().include("api_gateway_uuid", "allPathId", "req_path", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id", "workOid");
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
@@ -332,7 +338,7 @@ public class ApiMetricsRawMergeService {
             }
             switch (timeGranularity) {
                 case SECOND:
-//                    mergeOfSecondRange(metricsRawList, ranges, apiCallCriteria);
+                    mergeOfSecondRange(metricsRawList, ranges, apiCallCriteria);
                     break;
                 case SECOND_FIVE:
                     mergeOfSecondFiveRange(metricsRawList, ranges, criteriaConsumer);
@@ -354,11 +360,17 @@ public class ApiMetricsRawMergeService {
         List<Criteria> andCriteria = new ArrayList<>();
         andCriteria.add(Criteria.where("delete").is(false));
         Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
-        List<Criteria> orSec = new ArrayList<>();
-        for (TimeRange point : ranges) {
-            orSec.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+        if (!ranges.isEmpty()) {
+            if (ranges.size() == 1) {
+                TimeRange point = ranges.get(0);
+                andCriteria.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+            } else {
+                List<Criteria> orSec = ranges.stream()
+                        .map(point -> Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
+                        .toList();
+                andCriteria.add(new Criteria().orOperator(orSec));
+            }
         }
-        andCriteria.add(new Criteria().orOperator(orSec));
         Query query = Query.query(new Criteria().andOperator(andCriteria));
         query.fields().include("allPathId", "code", "httpStatus");
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
@@ -435,8 +447,8 @@ public class ApiMetricsRawMergeService {
             }
             switch (timeGranularity) {
                 case SECOND:
-//                    Optional.ofNullable(errorCountOfSecondRange(ranges, apiCallCriteria))
-//                            .ifPresent(errorApiIds::addAll);
+                    Optional.ofNullable(errorCountOfSecondRange(ranges, apiCallCriteria))
+                            .ifPresent(errorApiIds::addAll);
                     break;
                 case SECOND_FIVE:
                     Optional.ofNullable(errorCountOfSecondFiveRange(ranges, criteriaConsumer))
