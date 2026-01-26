@@ -297,7 +297,7 @@ public class ApiMetricsRawService {
                             supplementFiveSecond(criteriaConsumer, supplement, ranges);
                             break;
                         case SECOND:
-                            supplementSeconds(apiCallCriteria, supplement, ranges);
+//                            supplementSeconds(apiCallCriteria, supplement, ranges);
                             break;
                         default:
                             //do nothing

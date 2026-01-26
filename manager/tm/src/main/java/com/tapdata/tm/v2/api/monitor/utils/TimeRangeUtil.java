@@ -29,8 +29,8 @@ public class TimeRangeUtil {
 
     public static void rangeOf(ValueBase valueBase, QueryBase query, long delay, boolean compress) {
         rangeOf(query, delay, compress);
-        valueBase.setQueryFrom(query.getStartAt());
-        valueBase.setQueryEnd(query.getEndAt());
+        valueBase.setQueryFrom((query.getStartAt() + 5L) / 5L * 5L);
+        valueBase.setQueryEnd(query.getEndAt() / 5L * 5L);
         valueBase.setGranularity(query.getGranularity().getType());
     }
 
