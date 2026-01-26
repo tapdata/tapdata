@@ -332,7 +332,7 @@ public class ApiMetricsRawMergeService {
             }
             switch (timeGranularity) {
                 case SECOND:
-                    mergeOfSecondRange(metricsRawList, ranges, apiCallCriteria);
+//                    mergeOfSecondRange(metricsRawList, ranges, apiCallCriteria);
                     break;
                 case SECOND_FIVE:
                     mergeOfSecondFiveRange(metricsRawList, ranges, criteriaConsumer);
@@ -435,8 +435,8 @@ public class ApiMetricsRawMergeService {
             }
             switch (timeGranularity) {
                 case SECOND:
-                    Optional.ofNullable(errorCountOfSecondRange(ranges, apiCallCriteria))
-                            .ifPresent(errorApiIds::addAll);
+//                    Optional.ofNullable(errorCountOfSecondRange(ranges, apiCallCriteria))
+//                            .ifPresent(errorApiIds::addAll);
                     break;
                 case SECOND_FIVE:
                     Optional.ofNullable(errorCountOfSecondFiveRange(ranges, criteriaConsumer))
