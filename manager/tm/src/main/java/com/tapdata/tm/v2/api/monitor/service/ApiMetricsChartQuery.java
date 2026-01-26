@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -146,7 +147,7 @@ public class ApiMetricsChartQuery {
         queryOfWorker.fields().include(PROCESS_ID, "workerStatus", "pingTime", "deleted", "hostname");
         List<Worker> serverInfos = workerRepository.findAll(queryOfWorker);
         Map<String, Worker> serverMap = serverInfos.stream()
-                .collect(Collectors.toMap(Worker::getProcessId, e -> e, (e1, e2) -> e2));
+                .collect(Collectors.toMap(Worker::getProcessId, e -> e,     (e1, e2) -> e2));
         if (CollectionUtils.isEmpty(serverInfos)) {
             return ServerItem.supplement(result, activeWorkers(null));
         }
@@ -425,6 +426,9 @@ public class ApiMetricsChartQuery {
                 param.getWindowsStart(), param.getEndAt(), param.getGranularity(),
                 ServerChart.Item::create,
                 item -> {
+                    if (size.get() <= 0 && CollectionUtils.isEmpty(item.getDelay()) && CollectionUtils.isEmpty(item.getDbCost()) ) {
+                        return;
+                    }
                     delays.add(item.getDelay());
                     dbCosts.add(item.getDbCost());
                     size.addAndGet(1);
@@ -434,8 +438,8 @@ public class ApiMetricsChartQuery {
                         size.addAndGet(-1);
                     }
                     if (size.get() >= maxDepth) {
-                        item.setDelays(new ArrayList<>(new ArrayList<>(delays)));
-                        item.setDbCosts(new ArrayList<>(new ArrayList<>(dbCosts)));
+                        item.setDelays(new ArrayList<>(delays));
+                        item.setDbCosts(new ArrayList<>(dbCosts));
                     }
                 }
         );
@@ -858,18 +862,25 @@ public class ApiMetricsChartQuery {
         List<List<Map<String, Number>>> delays = new ArrayList<>();
         List<Long> bytes = new ArrayList<>();
         List<List<Map<String, Number>>> dbCosts = new ArrayList<>();
+        AtomicInteger size = new AtomicInteger(0);
         List<ChartAndDelayOfApi.Item> items = ChartSortUtil.fixAndSort(collect,
                 param.getWindowsStart(), param.getEndAt(), param.getGranularity(),
                 ChartAndDelayOfApi.Item::create,
                 item -> {
-                    delays.add(item.getDelay());
+                    if (size.get() <= 0 &&
+                            CollectionUtils.isEmpty(item.getDelay())
+                            && CollectionUtils.isEmpty(item.getDbCost())) {
+                        return;
+                    }
                     bytes.add(item.getTotalBytes());
+                    delays.add(item.getDelay());
                     dbCosts.add(item.getDbCost());
-                    int size = delays.size();
-                    if (size > maxDepth) {
+                    size.addAndGet(1);
+                    if (size.get() > maxDepth) {
                         delays.remove(0);
                         bytes.remove(0);
                         dbCosts.remove(0);
+                        size.addAndGet(-1);
                     }
                     if (delays.size() >= maxDepth) {
                         item.point(delays, bytes, dbCosts);

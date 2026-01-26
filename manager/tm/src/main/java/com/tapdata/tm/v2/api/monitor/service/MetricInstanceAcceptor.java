@@ -105,6 +105,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         long bucketHour = TimeGranularity.HOUR.fixTime(reqTimeOSec);
         long bucketDay = TimeGranularity.DAY.fixTime(reqTimeOSec);
         ObjectId callId = entity.get("_id", ObjectId.class);
+        ObjectId topCallId = this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0 ? this.lastCallId : callId;
         if (this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0 && !supplement) {
             return;
         }
@@ -120,7 +121,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
                     lessBucket.setLastBucketMin(ApiMetricsRaw.instance(serverId, apiId, bucketMin, TimeGranularity.MINUTE, metricType));
                     lessBucket.getLastBucketMin().setSubMetrics(subMetrics);
                 }
-                lastCallId(lessBucket.getLastBucketMin(), callId);
+                lastCallId(lessBucket.getLastBucketMin(), topCallId);
                 lessBucket.getLastBucketMin().merge(isOk, reqBytes, requestCost, dbCost);
                 lessBucket.getLastBucketMin().mergeWorker(workerId, isOk, needWorkerInfo);
                 if (null == lessBucket.getLastBucketMin().getSubMetrics()) {
@@ -145,7 +146,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
                 if (lessBucket.getLastBucketHour() == null) {
                     lessBucket.setLastBucketHour(ApiMetricsRaw.instance(serverId, apiId, bucketHour, TimeGranularity.HOUR, metricType));
                 }
-                lastCallId(lessBucket.getLastBucketHour(), callId);
+                lastCallId(lessBucket.getLastBucketHour(), topCallId);
                 lessBucket.getLastBucketHour().merge(isOk, reqBytes, requestCost, dbCost);
                 lessBucket.getLastBucketHour().mergeWorker(workerId, isOk, needWorkerInfo);
                 acceptOnce(lessBucket.getLastBucketHour(), true);
@@ -160,7 +161,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
                 if (lessBucket.getLastBucketDay() == null) {
                     lessBucket.setLastBucketDay(ApiMetricsRaw.instance(serverId, apiId, bucketDay, TimeGranularity.DAY, metricType));
                 }
-                lastCallId(lessBucket.getLastBucketDay(), callId);
+                lastCallId(lessBucket.getLastBucketDay(), topCallId);
                 lessBucket.getLastBucketDay().merge(isOk, reqBytes, requestCost, dbCost);
                 lessBucket.getLastBucketDay().mergeWorker(workerId, isOk, needWorkerInfo);
                 acceptOnce(lessBucket.getLastBucketDay(), true);
@@ -195,9 +196,9 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         sub.merge(isOk, reqBytes, requestCost, dbCost);
         sub.mergeWorker(workerId, isOk, needWorkerInfo);
 
-        lastCallId(lastBucketMin, callId);
-        lastCallId(lastBucketHour, callId);
-        lastCallId(lastBucketDay, callId);
+        lastCallId(lastBucketMin, topCallId);
+        lastCallId(lastBucketHour, topCallId);
+        lastCallId(lastBucketDay, topCallId);
         lastBucketMin.merge(isOk, reqBytes, requestCost, dbCost);
         lastBucketHour.merge(isOk, reqBytes, requestCost, dbCost);
         lastBucketDay.merge(isOk, reqBytes, requestCost, dbCost);

@@ -116,13 +116,13 @@ public class TimeRangeUtil {
         // 根据时间范围确定最大允许的粒度
         long range = endAt - startAt;
         TimeGranularity maxAllowedUnit;
-        if (range > 86400L) {
+        if (range >= 86400L) {
             maxAllowedUnit = TimeGranularity.DAY;
-        } else if (range > 3600L) {
+        } else if (range >= 3600L) {
             maxAllowedUnit = TimeGranularity.HOUR;
-        } else if (range > 60L) {
+        } else if (range >= 60L) {
             maxAllowedUnit = TimeGranularity.MINUTE;
-        } else if (range > 5L) {
+        } else if (range >= 5L) {
             maxAllowedUnit = TimeGranularity.SECOND_FIVE;
         } else {
             maxAllowedUnit = TimeGranularity.SECOND;
