@@ -41,7 +41,7 @@ public class ApiCallStatsScheduler {
     }
 
     @Scheduled(fixedDelay = 5000L, initialDelay = 0L)
-    @SchedulerLock(name = "api_call_metric_stats_scheduler_task", lockAtMostFor = "30m", lockAtLeastFor = "10s")
+    @SchedulerLock(name = "api_call_metric_worker_stats_scheduler_task", lockAtMostFor = "10m", lockAtLeastFor = "10s")
     public void scheduleForApiCall() {
         try {
             service.aggregateApiCall();

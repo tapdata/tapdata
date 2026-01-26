@@ -29,8 +29,8 @@ public class TimeRangeUtil {
 
     public static void rangeOf(ValueBase valueBase, QueryBase query, long delay, boolean compress) {
         rangeOf(query, delay, compress);
-        valueBase.setQueryFrom((query.getStartAt() + 5L) / 5L * 5L);
-        valueBase.setQueryEnd(query.getEndAt() / 5L * 5L);
+        valueBase.setQueryFrom(query.getStartAt());
+        valueBase.setQueryEnd(query.getEndAt());
         valueBase.setGranularity(query.getGranularity().getType());
     }
 
@@ -218,9 +218,11 @@ public class TimeRangeUtil {
         query.setRealEnd(query.getEndAt());
         long step = Optional.ofNullable(query.getStep()).orElse(type.getDefaultStep());
         if (type != QueryBase.TimeType.RANGE) {
+            now = now / 5L * 5L;
             query.setStartAt(now - type.getDefaultSecond() * step);
             query.setEndAt(now);
 
+            timestamp = timestamp / 5L * 5L;
             query.setRealStart(timestamp - type.getDefaultSecond() * step);
             query.setRealEnd(timestamp);
         }
