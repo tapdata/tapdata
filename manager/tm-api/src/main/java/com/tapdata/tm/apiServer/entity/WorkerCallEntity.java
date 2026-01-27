@@ -1,12 +1,14 @@
 package com.tapdata.tm.apiServer.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
-import com.tapdata.tm.base.entity.Entity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -44,7 +46,7 @@ public class WorkerCallEntity extends BaseEntity {
     /**
      * 当前时间粒度下的延迟列表, 单位ms
      * */
-    private List<Long> delays;
+    private List<Map<String, Number>> delays;
     /**
      * 当前时间粒度下P50 = 中位数，50%的请求延迟低于这个值, 单位ms
      * */
@@ -82,5 +84,9 @@ public class WorkerCallEntity extends BaseEntity {
      * */
     private int timeGranularity;
 
+    private Date ttlKey;
+
     private Boolean delete;
+
+    private ObjectId lastApiCallId;
 }

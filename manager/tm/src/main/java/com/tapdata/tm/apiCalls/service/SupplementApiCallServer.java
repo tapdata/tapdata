@@ -4,15 +4,14 @@ import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
-import com.tapdata.tm.apiServer.utils.PercentileCalculator;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.entity.ApiCallMinuteStatsEntity;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.entity.ApiCallStatsEntity;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.utils.MongoUtils;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -281,6 +280,7 @@ public class SupplementApiCallServer {
                     .and(WorkerCallServiceImpl.Tag.API_ID).is(entity.getApiId())
                     .and(WorkerCallServiceImpl.Tag.WORK_OID).is(entity.getWorkOid());
             or.add(criteria);
+            entity.setTtlKey(new Date(entity.getTimeStart()));
         }
         Query query = Query.query(new Criteria().orOperator(or));
         List<WorkerCallEntity> entities = mongoOperations.find(query, WorkerCallEntity.class);
@@ -298,17 +298,18 @@ public class SupplementApiCallServer {
                             .ifPresent(vos -> vos.forEach(item -> {
                                 entity.setReqCount(Optional.ofNullable(entity.getErrorCount()).orElse(0L) + Optional.ofNullable(item.getErrorCount()).orElse(0L));
                                 entity.setReqCount(Optional.ofNullable(entity.getReqCount()).orElse(0L) + Optional.ofNullable(item.getReqCount()).orElse(0L));
-                                Optional.ofNullable(item.getDelays()).ifPresent(ds -> {
-                                    List<Long> delays = Optional.ofNullable(entity.getDelays()).orElse(new ArrayList<>());
-                                    delays.addAll(ds);
-                                    entity.setDelays(delays);
-                                });
+                                Optional.ofNullable(item.getDelays())
+                                        .ifPresent(ds -> {
+                                            Optional.ofNullable(entity.getDelays()).ifPresent(ds::addAll);
+                                            entity.setDelays(ds);
+                                        });
                             }));
-                    Long p50 = PercentileCalculator.calculatePercentile(entity.getDelays(), 0.5d);
-                    Long p95 = PercentileCalculator.calculatePercentile(entity.getDelays(), 0.95d);
-                    Long p99 = PercentileCalculator.calculatePercentile(entity.getDelays(), 0.99d);
+                    List<Map<String, Number>> merged = entity.getDelays();
+                    long reqCount = ApiMetricsDelayUtil.sum(merged).getCount();
+                    Long p50 = ApiMetricsDelayUtil.p50(merged, reqCount);
+                    Long p95 = ApiMetricsDelayUtil.p95(merged, reqCount);
+                    Long p99 = ApiMetricsDelayUtil.p99(merged, reqCount);
                     long errorCount = Optional.ofNullable(entity.getErrorCount()).orElse(0L);
-                    long reqCount = Optional.ofNullable(entity.getReqCount()).orElse(0L);
                     Double errorRate = reqCount <= 0 ? 0 : (0.1d * errorCount / reqCount);
                     entity.setReqCount(reqCount);
                     Double rps = reqCount > 0L ? reqCount * 1.0D / 60D : 0D;

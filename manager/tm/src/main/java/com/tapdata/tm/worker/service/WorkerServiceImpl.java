@@ -13,6 +13,7 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -39,6 +40,8 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.dto.WorkSchedule;
@@ -46,6 +49,7 @@ import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.MetricInfoEntity;
+import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.repository.WorkerRepository;
@@ -63,6 +67,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -82,6 +87,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -619,6 +625,7 @@ public class WorkerServiceImpl extends WorkerService{
                 .ifPresent(s -> update.set("worker_status.status", s));
         update.set("worker_status.activeTime", time);
         update.set("worker_status.pid", status.getPid());
+        update.set("auditLogPushMaxDelay", status.getAuditLogPushMaxDelay());
         Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
             update.set("worker_status.metricValues", s)
         );
@@ -632,6 +639,7 @@ public class WorkerServiceImpl extends WorkerService{
                         ));
         Optional.ofNullable(status.getWorkerBaseInfo()).ifPresent(workerBaseInfo ->
             workerBaseInfo.forEach((oid,  worker) -> {
+                update.set(String.format("worker_status.workers.%s.oid", oid), oid);
                 Optional.ofNullable(worker.getName()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", oid), v));
                 Optional.ofNullable(worker.getId()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.id", oid), v));
                 Optional.ofNullable(worker.getPid()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.pid", oid), v));
@@ -642,6 +650,60 @@ public class WorkerServiceImpl extends WorkerService{
             })
         );
         update(query, update);
+    }
+
+    @Override
+    public void appendUsage(List<ServerUsage> usages) {
+        bulkUpsert(usages);
+    }
+
+    public void bulkUpsert(List<ServerUsage> entities) {
+        bulkUpsert(entities, this::buildDefaultQuery, this::buildDefaultUpdate);
+    }
+
+    public void bulkUpsert(List<ServerUsage> entities,
+                           Function<ServerUsage, Query> queryBuilder,
+                           Function<ServerUsage, Update> updateBuilder) {
+        if (CollectionUtils.isEmpty(entities)) {
+            return;
+        }
+        try {
+            BulkOperations bulkOps = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ServerUsage.class);
+            for (ServerUsage entity : entities) {
+                entity.setTtlKey(new Date(entity.getLastUpdateTime()));
+                Query query = queryBuilder.apply(entity);
+                Update update = updateBuilder.apply(entity);
+                bulkOps.upsert(query, update);
+            }
+            bulkOps.execute();
+        } catch (Exception e) {
+            log.error("bulkUpsert ServerUsage error", e);
+        }
+    }
+
+    private Query buildDefaultQuery(ServerUsage entity) {
+        Criteria criteria = Criteria.where("processId").is(entity.getProcessId())
+                .and("workOid").is(entity.getWorkOid())
+                .and("lastUpdateTime").is(entity.getLastUpdateTime());
+        return Query.query(criteria);
+    }
+
+    private Update buildDefaultUpdate(ServerUsage entity) {
+        Update update = new Update();
+        update.set("cpuUsage", entity.getCpuUsage());
+        update.set("heapMemoryMax", entity.getHeapMemoryMax());
+        update.set("heapMemoryUsage", entity.getHeapMemoryUsage());
+        update.set("lastUpdateTime", entity.getLastUpdateTime());
+        update.set("type", entity.getType());
+        update.set("processType", entity.getProcessType());
+        if (ServerUsage.ProcessType.API_SERVER.getType() == entity.getProcessType()) {
+            update.set("selfCpuUsage", entity.getSelfCpuUsage());
+        }
+        update.set("processId", entity.getProcessId());
+        update.set("workOid", entity.getWorkOid());
+        update.set("ttlKey", entity.getTtlKey());
+        update.currentDate("updatedAt");
+        return update;
     }
 
     public void updateAll(Query query, Update update) {
