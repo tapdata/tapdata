@@ -76,7 +76,7 @@ public class BatchUpChecker {
                     Set<String> targets = Stream.of("File","SaaS","schema-free").collect(Collectors.toSet());
                     if(!dataSourceDefinitionDto.getQcType().equals(DataSourceQCType.GA) || dataSourceDefinitionDto.getTags().stream().anyMatch(targets::contains)){
                         if(dataSourceDefinitionDto.getType().equals("MongoDB"))continue;
-                        throw new BizException("Group.Connection.No.Supported");
+                        throw new BizException("Connection.No.Supported");
                     }
                 }
             }

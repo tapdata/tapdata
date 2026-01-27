@@ -1,6 +1,7 @@
 package com.tapdata.tm.ds.controller;
 
 import cn.hutool.core.lang.Assert;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -10,6 +11,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -29,6 +31,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.BeanUtil;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -39,13 +42,18 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Setter;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -722,5 +730,25 @@ public class DataSourceController extends BaseController {
         UserDetail user = getLoginUser();
         result.put(resultKey, dataSourceService.updatePartialSchema(id, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, user));
         return success(result);
+    }
+    @Operation(summary = "数据源导出")
+    @GetMapping("batch/load")
+    public void batchLoadTasks(@RequestParam("connectionId") List<String> connectionId, HttpServletResponse response) {
+        dataSourceService.batchLoadConnection(response, connectionId, getLoginUser());
+    }
+
+    @Operation(summary = "数据源导入")
+    @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
+                                        @RequestParam(value = "importMode", required = false, defaultValue = "import_as_copy") String importMode,
+                                        @RequestParam(value = "listtags", required = false) String listtags) throws IOException {
+        List<String> tags = Lists.newArrayList();
+        if (org.apache.commons.lang3.StringUtils.isNoneBlank(listtags)) {
+            tags = JSON.parseArray(listtags, String.class);
+        }
+
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        dataSourceService.batchUpConnection(file,getLoginUser(),importModeEnum,tags);
+        return success();
     }
 }

@@ -245,52 +245,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         contents.put("GroupInfo.json", Objects.requireNonNull(JsonUtil.toJsonUseJackson(groupInfoPayload))
                 .getBytes(StandardCharsets.UTF_8));
 
-        // 统一生成连接Excel文件
-        List<TaskUpAndLoadDto> connectionPayloads = payloadsByType.get(ResourceType.CONNECTION.name());
-        if (connectionPayloads != null && !connectionPayloads.isEmpty()) {
-            try {
-                List<DataSourceConnectionDto> connectionDtos = new ArrayList<>();
-                for (TaskUpAndLoadDto dto : connectionPayloads) {
-                    if (GroupConstants.COLLECTION_CONNECTION.equals(dto.getCollectionName())
-                            && org.apache.commons.lang3.StringUtils.isNotBlank(dto.getJson())) {
-                        DataSourceConnectionDto conn = JsonUtil.parseJsonUseJackson(dto.getJson(), DataSourceConnectionDto.class);
-                        if (conn != null) {
-                            connectionDtos.add(conn);
-                        }
-                    }
-                }
-                batchUpChecker.checkDataSourceConnection(connectionDtos,user,true);
-                byte[] excelData = ExcelUtil.exportConnectionsToExcel(connectionDtos,user);
-                if (excelData != null && excelData.length > 0) {
-                    contents.put(GroupConstants.COLLECTION_CONNECTION_EXCEL, excelData);
-                }
-            } catch (Exception e) {
-                updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_FAILED, e.getMessage(),
-                        null, user);
-                throw new BizException(e);
-            }
-            // 过滤掉连接数据，只保留元数据
-            List<TaskUpAndLoadDto> metadataPayloads = connectionPayloads.stream()
-                    .filter(dto -> GroupConstants.COLLECTION_METADATA_INSTANCES.equals(dto.getCollectionName()))
-                    .collect(Collectors.toList());
-            if (!metadataPayloads.isEmpty()) {
-                contents.put(ResourceType.getResourceName(ResourceType.CONNECTION.name()),
-                        Objects.requireNonNull(JsonUtil.toJsonUseJackson(metadataPayloads))
-                                .getBytes(StandardCharsets.UTF_8));
-            }
-        }
-
-        // 处理其他类型的payload
         for (Map.Entry<String, List<TaskUpAndLoadDto>> entry : payloadsByType.entrySet()) {
-            if (ResourceType.CONNECTION.name().equals(entry.getKey())) {
-                continue; // 连接已单独处理
-            }
-            List<TaskUpAndLoadDto> payloadList = entry.getValue();
-            if (!payloadList.isEmpty()) {
-                contents.put(ResourceType.getResourceName(entry.getKey()),
-                        Objects.requireNonNull(JsonUtil.toJsonUseJackson(payloadList))
-                                .getBytes(StandardCharsets.UTF_8));
-            }
+            contents.put(ResourceType.getResourceName(entry.getKey()),
+                    Objects.requireNonNull(JsonUtil.toJsonUseJackson(entry.getValue()))
+                            .getBytes(StandardCharsets.UTF_8));
         }
 
         log.info("Start exporting groups, groupCount={}, user={}", groupInfos.size(), user.getUsername());
@@ -427,7 +385,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         Map<String, DataSourceConnectionDto> connections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
                 .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
         try{
-            batchUpChecker.checkDataSourceConnection(connections.values().stream().toList(), user,true);
+            batchUpChecker.checkDataSourceConnection(connections.values().stream().toList(), user,false);
         } catch (Exception e) {
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, ExceptionUtils.getMessage(e), null, user);
         }
