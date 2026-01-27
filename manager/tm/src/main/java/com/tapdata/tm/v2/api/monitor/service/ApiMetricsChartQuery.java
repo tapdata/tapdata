@@ -423,7 +423,7 @@ public class ApiMetricsChartQuery {
         List<List<Map<String, Number>>> dbCosts = new ArrayList<>();
         AtomicInteger size = new AtomicInteger(0);
         List<ServerChart.Item> items = ChartSortUtil.fixAndSort(collect,
-                param.getWindowsStart(), param.getEndAt(), param.getGranularity(),
+                param.getWindowsStart(), param.getFixEnd(), param.getGranularity(),
                 ServerChart.Item::create,
                 item -> {
                     delays.add(item.getDelay());
@@ -861,7 +861,7 @@ public class ApiMetricsChartQuery {
         List<List<Map<String, Number>>> dbCosts = new ArrayList<>();
         AtomicInteger size = new AtomicInteger(0);
         List<ChartAndDelayOfApi.Item> items = ChartSortUtil.fixAndSort(collect,
-                param.getWindowsStart(), param.getEndAt(), param.getGranularity(),
+                param.getWindowsStart(), param.getFixEnd(), param.getGranularity(),
                 ChartAndDelayOfApi.Item::create,
                 item -> {
                     if (size.get() <= 0 &&
@@ -886,7 +886,7 @@ public class ApiMetricsChartQuery {
         );
         items.parallelStream().forEach(this::mapping);
         for (ChartAndDelayOfApi.Item item : items) {
-            if (item.getTs() < param.getFixStart() || item.getTs() >= param.getEndAt()) {
+            if (item.getTs() < param.getFixStart() || item.getTs() > param.getEndAt()) {
                 continue;
             }
             result.add(item);
