@@ -1,24 +1,24 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.tapdata.tm.apiCalls.entity.ApiCallField;
+import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.v2.api.common.service.AcceptorBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.util.CollectionUtils;
 
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -36,6 +36,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         ApiMetricsRaw lastBucketMin;
         ApiMetricsRaw lastBucketHour;
         ApiMetricsRaw lastBucketDay;
+
         public BucketInfo(ApiMetricsRaw min, ApiMetricsRaw hour, ApiMetricsRaw day) {
             this.lastBucketMin = min;
             this.lastBucketHour = hour;
@@ -84,27 +85,27 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         if (null == entity) {
             return;
         }
-        String allPathId = entity.get("allPathId", String.class);
-        String reqPath = entity.get("req_path", String.class);
+        String allPathId = entity.get(ApiCallField.ALL_PATH_ID.field(), String.class);
+        String reqPath = entity.get(ApiCallField.REQ_PATH.field(), String.class);
         String apiId = Optional.ofNullable(allPathId)
                 .orElse(Optional.ofNullable(reqPath).orElse(UN_KNOW));
-        String serverId = entity.get("api_gateway_uuid", String.class);
+        String serverId = entity.get(ApiCallField.API_GATEWAY_UUID.field(), String.class);
         if (StringUtils.isBlank(apiId)) {
             return;
         }
-        long requestCost = value(entity.get("latency", Long.class));
-        long dbCost = value(entity.get("dataQueryTotalTime", Long.class));
-        boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(entity.get("code", String.class), entity.get("httpStatus", String.class));
-        long reqBytes = value(entity.get("req_bytes", Long.class));
-        boolean supplement = Optional.ofNullable(entity.get("supplement", Boolean.class)).orElse(false);
-        String workerId = entity.get("workOid", String.class);
-        Long apiCallReqTime = entity.get("reqTime", Long.class);
+        long requestCost = value(entity.get(ApiCallField.LATENCY.field(), Long.class));
+        long dbCost = value(entity.get(ApiCallField.DATA_QUERY_TOTAL_TIME.field(), Long.class));
+        boolean isOk = ApiMetricsCompressValueUtil.checkByCode(entity.get(ApiCallField.CODE.field(), String.class), entity.get(ApiCallField.HTTP_STATUS.field(), String.class));
+        long reqBytes = value(entity.get(ApiCallField.REQ_BYTES.field(), Long.class));
+        boolean supplement = Optional.ofNullable(entity.get(ApiCallField.SUPPLEMENT.field(), Boolean.class)).orElse(false);
+        String workerId = entity.get(ApiCallField.WORK_O_ID.field(), String.class);
+        Long apiCallReqTime = entity.get(ApiCallField.REQ_TIME.field(), Long.class);
         long reqTimeOSec = Optional.ofNullable(apiCallReqTime).orElse(0L) / 1000L;
         long bucketSec = TimeGranularity.SECOND_FIVE.fixTime(reqTimeOSec);
         long bucketMin = TimeGranularity.MINUTE.fixTime(reqTimeOSec);
         long bucketHour = TimeGranularity.HOUR.fixTime(reqTimeOSec);
         long bucketDay = TimeGranularity.DAY.fixTime(reqTimeOSec);
-        ObjectId callId = entity.get("_id", ObjectId.class);
+        ObjectId callId = entity.get(BaseEntityFields._ID.field(), ObjectId.class);
         ObjectId topCallId = this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0 ? this.lastCallId : callId;
         if (this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0 && !supplement) {
             return;

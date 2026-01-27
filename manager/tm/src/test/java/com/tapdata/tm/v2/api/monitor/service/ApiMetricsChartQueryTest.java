@@ -1,20 +1,13 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
-import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
-import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.utils.HttpUtils;
-import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
-import com.tapdata.tm.v2.api.monitor.main.dto.ApiOfEachServer;
-import com.tapdata.tm.v2.api.monitor.main.dto.ChartAndDelayOfApi;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerChart;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerItem;
-import com.tapdata.tm.v2.api.monitor.main.dto.ServerOverviewDetail;
-import com.tapdata.tm.v2.api.monitor.main.dto.ServerTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
@@ -26,15 +19,9 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerChartParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
 import com.tapdata.tm.v2.api.usage.repository.ServerUsageMetricRepository;
 import com.tapdata.tm.v2.api.usage.repository.UsageRepository;
-import com.tapdata.tm.worker.dto.ApiServerStatus;
-import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
-import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.entity.ServerUsage;
-import com.tapdata.tm.worker.entity.ServerUsageMetric;
-import com.tapdata.tm.worker.entity.UsageBase;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import org.bson.types.ObjectId;
@@ -42,38 +29,28 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 class ApiMetricsChartQueryTest {
@@ -112,7 +89,6 @@ class ApiMetricsChartQueryTest {
         when(apiMetricsChartQuery.findServerById(anyString())).thenCallRealMethod();
         when(apiMetricsChartQuery.serverOverviewDetail(any(ServerDetail.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.serverChart(any(ServerChartParam.class))).thenCallRealMethod();
-        when(apiMetricsChartQuery.topWorkerInServer(any(TopWorkerInServerParam.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.apiOverviewDetail(any(ApiDetailParam.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.findRowByApiId(anyString(), any(QueryBase.class), any(MetricTypes.class), any(String[].class))).thenCallRealMethod();
         when(apiMetricsChartQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
@@ -184,16 +160,6 @@ class ApiMetricsChartQueryTest {
             param.setServerId("");
 
             assertThrows(BizException.class, () -> apiMetricsChartQuery.serverChart(param));
-        }
-    }
-
-    @Nested
-    class TopWorkerInServerTest {
-        @Test
-        void testEmptyServerId() {
-            TopWorkerInServerParam param = new TopWorkerInServerParam();
-            param.setServerId("");
-            assertThrows(BizException.class, () -> apiMetricsChartQuery.topWorkerInServer(param));
         }
     }
 
@@ -289,13 +255,9 @@ class ApiMetricsChartQueryTest {
     //@Test
     void call() {
         String token = "eyJraWQiOiI5NGJhMDRkNC0wYWZjLTRmNzgtYjAyMi1kZTAwNGQ1ZTlmNmIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxMTUzNDMyMzcwODgxOTgsImF1ZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsImNyZWF0ZWRBdCI6MTc2ODcwOTA4ODE5OCwibmJmIjoxNzY4NzA5MDg4LCJleHAiOjExNTM0MzIzNzA4OCwiaWF0IjoxNzY4NzA5MDg4LCJqdGkiOiJkMjUzNWJhMS01NDQ0LTRiZjItYjRkNS0yNjk1YWFmNGVjNWIifQ.U7Jg-FQ9zdae-dinCuy86383raAN150sl77MDClJysaamET_ozXXPIK0EM9bAyOnQswYEeVlbx1h9usuB9r4V3ANRPjhdEocW1TUeQHQjXGaC0htwWVpw7yjXiMz0UPc56aNVBNeCLo9xVKK4-YntjuU5TBvh4oM_m-DTVwTkXUnz4P8CBIixW1FaRAiR6gvKu6k3o20qVRvBj9U9HX2z_wPSLpY2GHGJwpQ3A-SMCtFPqW5Sy5ULkQ5TiEHA6PEZ-8FGI67SOrlqOjPm_WKMU3kAtNCD51X2SVIMO9466H5kW1qHVk_pmVE67eIMJI3l05L4-Ar0OeGPCf79FHuJg";
-        String uri = "http://127.0.0.1:3080/api/%s?access_token=%s";
-        List<String> api = List.of("v1/tjq7duqpvs7", "v1/aslw80no7ze", "v1/tnuihy78hd1", "v1/c2hhm58iqvf",
-                "/v1/we/y36xqmi0k0i", "/v1/sd/qq", "/v1/a7gei772p62", "/v1/tjq7duqpvs7", "/v1/aslw80no7ze", "/v1/tnuihy78hd1",
-                "/v1/c2hhm58iqvf", "/v1/v1v1lerdf18", "/v1/zohp6j9z28a", "/v1/call/ekwoyltbqit", "/v1/call/fiyh6xusf8w", "/v1/a56jflpyrs8",
-                "/v1/mbooiyue1w9", "/v1/po73y0ge6e7", "/v1/call/yt2cpjuhyfr", "/v1/call/fields", "/v1/jadevt6nzpm",
-                "/v1/yw0n3lvjiku", "/v1/aqs919theqr", "/v1/agvegbzt3qx", "/v1/qrknw3gxn5c", "/v1/a5y8f564xei", "/v1/irk7mbxr05p",
-                "/opop/g48sx5lk9th", "/no/id", "/dummy/ok", "/x999/o9", "/mmm/xu3dugn8ubk", "/version/suffix/base_path", "/v1/fexs98lzrz3"
+        String uri = "http://127.0.0.1:3081/api%s?access_token=%s";
+        List<String> api = List.of(
+                "/v1/i1g0cby3udp", "/v1/raxtm20xrtt", "/v1/mqicy1ine22"
         );
 
         for (int i = 0; i < 1314520; i++) {
@@ -306,8 +268,14 @@ class ApiMetricsChartQueryTest {
                     //
                 }
             }
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
+
     //@Test
     void callAsync() {
         String token = "eyJraWQiOiI5NGJhMDRkNC0wYWZjLTRmNzgtYjAyMi1kZTAwNGQ1ZTlmNmIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxMTUzNDMyMzcwODgxOTgsImF1ZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsImNyZWF0ZWRBdCI6MTc2ODcwOTA4ODE5OCwibmJmIjoxNzY4NzA5MDg4LCJleHAiOjExNTM0MzIzNzA4OCwiaWF0IjoxNzY4NzA5MDg4LCJqdGkiOiJkMjUzNWJhMS01NDQ0LTRiZjItYjRkNS0yNjk1YWFmNGVjNWIifQ.U7Jg-FQ9zdae-dinCuy86383raAN150sl77MDClJysaamET_ozXXPIK0EM9bAyOnQswYEeVlbx1h9usuB9r4V3ANRPjhdEocW1TUeQHQjXGaC0htwWVpw7yjXiMz0UPc56aNVBNeCLo9xVKK4-YntjuU5TBvh4oM_m-DTVwTkXUnz4P8CBIixW1FaRAiR6gvKu6k3o20qVRvBj9U9HX2z_wPSLpY2GHGJwpQ3A-SMCtFPqW5Sy5ULkQ5TiEHA6PEZ-8FGI67SOrlqOjPm_WKMU3kAtNCD51X2SVIMO9466H5kW1qHVk_pmVE67eIMJI3l05L4-Ar0OeGPCf79FHuJg";

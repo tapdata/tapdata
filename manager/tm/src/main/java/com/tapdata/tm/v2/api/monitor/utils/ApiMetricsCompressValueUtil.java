@@ -7,6 +7,7 @@ import lombok.Getter;
 import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,10 +21,19 @@ import java.util.function.LongConsumer;
  * @version v1.0 2025/12/29 18:27 Create
  * @description
  */
-public final class ApiMetricsDelayInfoUtil {
+public final class ApiMetricsCompressValueUtil {
+    public static final String KEY = "k";
+    public static final String VALUE = "v";
 
-    private ApiMetricsDelayInfoUtil() {
+    private ApiMetricsCompressValueUtil() {
 
+    }
+
+    public static List<Map<String, Number>> asInit(Long k) {
+        Map<String, Number> iMap = new HashMap<>();
+        iMap.put(KEY, k);
+        iMap.put(VALUE, 1);
+        return List.of(iMap);
     }
 
     public static boolean checkByCode(String code, String tag) {
@@ -87,9 +97,9 @@ public final class ApiMetricsDelayInfoUtil {
 
     public static long stepByGranularity(TimeGranularity granularity) {
         return switch (granularity) {
-            case MINUTE -> 60L;
-            case HOUR -> 3600L;
-            default -> 5L;
+            case MINUTE -> TimeGranularity.MINUTE.getSeconds();
+            case HOUR -> TimeGranularity.HOUR.getSeconds();
+            default -> TimeGranularity.SECOND_FIVE.getSeconds();
         };
     }
 

@@ -12,7 +12,6 @@ import com.tapdata.tm.v2.api.monitor.main.dto.ServerItem;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerOverviewDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.dto.TopApiInServer;
-import com.tapdata.tm.v2.api.monitor.main.dto.TopWorkerInServer;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiChart;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiDetailParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiListParam;
@@ -22,7 +21,6 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerChartParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
-import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
 import com.tapdata.tm.v2.api.monitor.service.ApiMetricsChartQuery;
 import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawMergeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -159,30 +157,6 @@ public class ApiServerMonitorController extends BaseController {
         return success(apiMetricsRawMergeService.topApiInServer(param));
     }
 
-    /**
-     * Top worker in server
-     *
-     * @param tag CPU: 仅查询cpu分布
-     *            ALL: 查询cpu分布 + Worker列表, default
-     */
-    @Operation(summary = "Top worker in server")
-    @GetMapping("/server/worker")
-    public ResponseMessage<TopWorkerInServer> topWorkerInServer(@RequestParam(required = true) String serverId,
-                                                                @RequestParam(required = false, defaultValue = "ALL") String tag,
-                                                                @RequestParam(required = false) Long startAt,
-                                                                @RequestParam(required = false) Long endAt,
-                                                                @RequestParam(required = false, name = "type") String type,
-                                                                @RequestParam(required = false, name = "step") Long step) {
-        TopWorkerInServerParam param = new TopWorkerInServerParam();
-        param.setServerId(serverId);
-        param.setStartAt(startAt);
-        param.setEndAt(endAt);
-        param.setTag(tag);
-        param.setType(type);
-        param.setStep(step);
-        return success(apiMetricsChartQuery.topWorkerInServer(param));
-    }
-
 
     /**
      * Api Overview List
@@ -228,9 +202,9 @@ public class ApiServerMonitorController extends BaseController {
     }
 
     /**
-     * api的各 Server 表现分布
+     * Distribution of API performance across servers
      */
-    @Operation(summary = "api的各 Server 表现分布")
+    @Operation(summary = "Distribution of API performance across servers")
     @GetMapping("/api/server")
     public ResponseMessage<List<ApiOfEachServer>> apiOfEachServer(@RequestParam(required = true) String apiId,
                                                                   @RequestParam(required = false) Long startAt,
@@ -247,9 +221,9 @@ public class ApiServerMonitorController extends BaseController {
     }
 
     /**
-     * 吞吐量与延迟趋势
+     * Throughput and latency trends
      */
-    @Operation(summary = "吞吐量与延迟趋势")
+    @Operation(summary = "Throughput and latency trends")
     @GetMapping("/api/chart")
     public ResponseMessage<ChartAndDelayOfApi> delayOfApi(@RequestParam(required = true) String apiId,
                                                           @RequestParam(required = false) Long startAt,

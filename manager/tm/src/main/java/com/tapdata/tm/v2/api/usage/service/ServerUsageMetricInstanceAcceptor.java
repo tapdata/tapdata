@@ -4,6 +4,7 @@ import com.tapdata.tm.v2.api.common.service.AcceptorBase;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
+import com.tapdata.tm.worker.entity.field.ServerUsageField;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 
@@ -49,10 +50,10 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         if (null == entity) {
             return;
         }
-        String serverId = entity.get("processId", String.class);
-        Object workOidObj = entity.get("workOid");
+        String serverId = entity.get(ServerUsageField.PROCESS_ID.field(), String.class);
+        Object workOidObj = entity.get(ServerUsageField.WORK_OID.field());
         String workOid = workOidObj != null ? workOidObj.toString() : null;
-        long lastUpdateTime = Optional.ofNullable(entity.get("lastUpdateTime", Long.class)).orElse(0L) / 1000L;
+        long lastUpdateTime = Optional.ofNullable(entity.get(ServerUsageField.LAST_UPDATE_TIME.field(), Long.class)).orElse(0L) / 1000L;
         long bucketMin = TimeGranularity.MINUTE.fixTime(lastUpdateTime) * 1000L;
         long bucketHour = TimeGranularity.HOUR.fixTime(lastUpdateTime) * 1000L;
         if (null != lastBucketMin && lastBucketMin.getLastUpdateTime() != bucketMin) {
@@ -74,9 +75,9 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
     }
 
     void append(Document usage) {
-        final Double cpuUsage = Optional.ofNullable(usage.get("cpuUsage", Double.class)).orElse(0D);
-        final Long heapMemoryUsage = Optional.ofNullable(usage.get("heapMemoryUsage", Long.class)).orElse(0L);
-        final Long heapMemoryMax = Optional.ofNullable(usage.get("heapMemoryMax", Long.class)).orElse(0L);
+        final Double cpuUsage = Optional.ofNullable(usage.get(ServerUsageField.CPU_USAGE.field(), Double.class)).orElse(0D);
+        final Long heapMemoryUsage = Optional.ofNullable(usage.get(ServerUsageField.HEAP_MEMORY_USAGE.field(), Long.class)).orElse(0L);
+        final Long heapMemoryMax = Optional.ofNullable(usage.get(ServerUsageField.HEAP_MEMORY_MAX.field(), Long.class)).orElse(0L);
         this.minMemory.add(heapMemoryUsage);
         this.minMemoryMax.add(heapMemoryMax);
         this.minCpu.add(cpuUsage);

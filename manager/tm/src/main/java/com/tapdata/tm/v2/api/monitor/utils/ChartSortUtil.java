@@ -12,12 +12,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.LongFunction;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -26,6 +25,7 @@ import java.util.function.Function;
  * @description
  */
 public final class ChartSortUtil {
+    public static final String DESC = "DESC";
 
     private ChartSortUtil() {
 
@@ -34,13 +34,16 @@ public final class ChartSortUtil {
     public static <T extends ValueBase.Item> List<T> fixAndSort(
             Map<Long, T> items,
             long tsFrom, long tsEnd, TimeGranularity granularity,
-            Function<Long, T> emptyGetter, Consumer<T> mapping) {
+            LongFunction<T> emptyGetter, Consumer<T> mapping) {
         tsFrom = granularity.fixTime(tsFrom);
-        long step = 5L;
+        if (TimeGranularity.SECOND_FIVE == granularity) {
+            tsEnd = tsEnd - 2 * TimeGranularity.SECOND_FIVE.getSeconds();
+        }
+        long step = TimeGranularity.SECOND_FIVE.getSeconds();
         if (granularity == TimeGranularity.MINUTE) {
-            step = 60L;
+            step = TimeGranularity.MINUTE.getSeconds();
         } else if (granularity == TimeGranularity.HOUR) {
-            step = 60L * 60L;
+            step = TimeGranularity.HOUR.getSeconds();
             if (tsFrom % step != 0L) {
                 tsFrom = tsFrom / step * step;
             }
@@ -58,14 +61,6 @@ public final class ChartSortUtil {
         }
         ArrayList<T> itemValues = new ArrayList<>(items.values());
         itemValues.sort(Comparator.comparingLong(ValueBase.Item::getTs));
-//        for (int i = itemValues.size() - 1; i >= 0; i--) {
-//            T item = itemValues.get(i);
-//            if (item.isEmpty()) {
-//                itemValues.remove(i) ;
-//            } else {
-//                break;
-//            }
-//        }
         itemValues.forEach(mapping);
         return itemValues;
     }
@@ -78,9 +73,8 @@ public final class ChartSortUtil {
         if (null == sortField) {
             return;
         }
-        sortField.setAccessible(true);
         Comparator<Object> comparing = Comparator.comparing(o -> get(o, sortField));
-        if (null == sortInfo || StringUtils.isBlank(sortInfo.getOrder()) || "DESC".equalsIgnoreCase(sortInfo.getOrder())) {
+        if (null == sortInfo || StringUtils.isBlank(sortInfo.getOrder()) || DESC.equalsIgnoreCase(sortInfo.getOrder())) {
             comparing = comparing.reversed();
         }
         obj.sort(comparing);

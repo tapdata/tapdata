@@ -3,8 +3,11 @@ package com.tapdata.tm.v2.api.monitor.service;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.apiCalls.entity.ApiCallField;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.field.BaseEntityFields;
+import com.tapdata.tm.base.field.CollectionField;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
@@ -16,13 +19,14 @@ import com.tapdata.tm.v2.api.monitor.main.dto.DataValueBase;
 import com.tapdata.tm.v2.api.monitor.main.dto.TopApiInServer;
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
 import com.tapdata.tm.v2.api.monitor.repository.ApiMetricsRepository;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ApiPathUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ChartSortUtil;
 import com.tapdata.tm.v2.api.monitor.utils.TimeRangeUtil;
@@ -46,7 +50,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -70,9 +73,9 @@ public class ApiMetricsRawMergeService {
     public long getDelay() {
         Settings byKey = settingsService.getByKey("apiStatsBatchReport.timeSpanOfTriggerApiStatsBatchReport");
         if (null == byKey) {
-            return 15000L;
+            return 30000L;
         }
-        long delay = 15000L;
+        long delay = 30000L;
         Object value = byKey.getValue();
         if (value instanceof Number iValue) {
             delay = iValue.longValue();
@@ -92,7 +95,7 @@ public class ApiMetricsRawMergeService {
                 //do nothing
             }
         }
-        return Math.min(Math.max(delay + 10000L, 15000L), 90000L);
+        return Math.min(Math.max(delay + 25000L, 30000L), 120000L);
     }
 
     protected TopApiInServer groupAsTopApiInServer(List<ApiMetricsRaw> rows, TopApiInServerParam param) {
@@ -103,7 +106,7 @@ public class ApiMetricsRawMergeService {
         long errorCount = errorCountGetter(rows, e -> item.setRequestCount(item.getRequestCount() + e));
         int total = item.getRequestCount().intValue();
         if (total > 0) {
-            item.setErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount, item.getRequestCount()));
+            item.setErrorRate(ApiMetricsCompressValueUtil.rate(errorCount, item.getRequestCount()));
             item.setErrorCount(errorCount);
             baseDataCalculate(item, rows, null);
         }
@@ -119,9 +122,10 @@ public class ApiMetricsRawMergeService {
         TimeRangeUtil.rangeOf(param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = merge(
                 param,
-                c -> c.and(ApiMetricsChartQuery.PROCESS_ID).is(serverId).and("metricType").is(MetricTypes.API_SERVER.getType()),
-                Criteria.where("api_gateway_uuid").is(serverId),
-                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay"});
+                c -> c.and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId).and(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.API_SERVER.getType()),
+                Criteria.where(ApiCallField.API_GATEWAY_UUID.field()).is(serverId),
+                CollectionField.fields(ApiMetricsRawFields.API_ID, ApiMetricsRawFields.PROCESS_ID, ApiMetricsRawFields.TIME_GRANULARITY, ApiMetricsRawFields.TIME_START, ApiMetricsRawFields.REQ_COUNT, ApiMetricsRawFields.ERROR_COUNT, ApiMetricsRawFields.DELAY)
+        );
         Map<String, TopApiInServer> apiInfoMap = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getApiId()))
@@ -144,7 +148,7 @@ public class ApiMetricsRawMergeService {
             List<TopApiInServer> api = TopApiInServer.supplement(new ArrayList<>(), publishApis(), e -> TopApiInServer.create());
             return Page.page(api.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), api.size());
         }
-        Criteria criteriaOfApi = Criteria.where("_id").in(apiIds);
+        Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
         Query queryOfApi = Query.query(criteriaOfApi);
         List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
         mapApiInfo(apiDtoList, apiInfoMap, k -> TopApiInServer.create());
@@ -185,7 +189,7 @@ public class ApiMetricsRawMergeService {
         long errorCount = errorCountGetter(rows, e -> item.setRequestCount(item.getRequestCount() + e));
         int total = item.getRequestCount().intValue();
         if (total > 0) {
-            item.setErrorRate(ApiMetricsDelayInfoUtil.rate(errorCount, item.getRequestCount()));
+            item.setErrorRate(ApiMetricsCompressValueUtil.rate(errorCount, item.getRequestCount()));
             item.setErrorCount(errorCount);
             baseDataCalculate(item, rows, null);
             long sumRps = rows.stream()
@@ -205,9 +209,9 @@ public class ApiMetricsRawMergeService {
         TimeRangeUtil.rangeOf(param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = merge(
                 param,
-                c -> c.and("metricType").is(MetricTypes.API.getType()),
+                c -> c.and(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.API.getType()),
                 null,
-                new String[]{"apiId", "processId", "timeGranularity", "timeStart", "reqCount", "errorCount", "delay"}
+                CollectionField.fields(ApiMetricsRawFields.API_ID, ApiMetricsRawFields.PROCESS_ID, ApiMetricsRawFields.TIME_GRANULARITY, ApiMetricsRawFields.TIME_START, ApiMetricsRawFields.REQ_COUNT, ApiMetricsRawFields.ERROR_COUNT, ApiMetricsRawFields.DELAY)
         );
         Map<String, ApiItem> apiInfoMap = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
@@ -231,7 +235,7 @@ public class ApiMetricsRawMergeService {
             List<ApiItem> api = TopApiInServer.supplement(new ArrayList<>(), publishApis(), e -> ApiItem.create());
             return Page.page(api.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), api.size());
         }
-        Criteria criteriaOfApi = Criteria.where("_id").in(apiIds);
+        Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
         Query queryOfApi = Query.query(criteriaOfApi);
         List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
         mapApiInfo(apiDtoList, apiInfoMap, k -> ApiItem.create());
@@ -243,21 +247,33 @@ public class ApiMetricsRawMergeService {
 
     protected void mergeOfSecondRange(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Criteria apiCallCriteria) {
         List<Criteria> andCriteria = new ArrayList<>();
-        andCriteria.add(Criteria.where("delete").is(false));
+        andCriteria.add(Criteria.where(ApiCallField.DELETE.field()).is(false));
         Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
         if (!ranges.isEmpty()) {
             if (ranges.size() == 1) {
                 TimeRange point = ranges.get(0);
-                andCriteria.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+                andCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
             } else {
                 List<Criteria> orSec = ranges.stream()
-                        .map(point -> Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
+                        .map(point -> Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
                         .toList();
                 andCriteria.add(new Criteria().orOperator(orSec));
             }
         }
         Query query = Query.query(new Criteria().andOperator(andCriteria));
-        query.fields().include("api_gateway_uuid", "allPathId", "req_path", "reqTime", "code", "httpStatus", "req_bytes", "latency", "_id", "workOid");
+        String[] filterFields = CollectionField.fields(
+                ApiCallField.API_GATEWAY_UUID,
+                ApiCallField.ALL_PATH_ID,
+                ApiCallField.REQ_PATH,
+                ApiCallField.REQ_TIME,
+                ApiCallField.CODE,
+                ApiCallField.HTTP_STATUS,
+                ApiCallField.REQ_BYTES,
+                ApiCallField.LATENCY,
+                BaseEntityFields._ID,
+                ApiCallField.WORK_O_ID
+        );
+        query.fields().include(filterFields);
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
         if (StringUtils.isNotBlank(callName)) {
             List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);
@@ -266,15 +282,23 @@ public class ApiMetricsRawMergeService {
     }
 
     protected void mergeOfSecondFiveRange(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer) {
-        Criteria criteriaOfSec5 = Criteria.where("timeGranularity").is(1);
+        Criteria criteriaOfSec5 = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(1);
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfSec5));
         Set<Long> times = ParticleSizeAnalyzer.asMinute(ranges);
         if (times.isEmpty()) {
             return;
         }
-        criteriaOfSec5.and("timeStart").in(times);
+        criteriaOfSec5.and(ApiMetricsRawFields.TIME_START.field()).in(times);
         Query querySec5 = Query.query(criteriaOfSec5);
-        querySec5.fields().include("apiId", "processId", "timeGranularity", "timeStart", "subMetrics", "workerInfoMap");
+        String[] filterFields = CollectionField.fields(
+                ApiMetricsRawFields.API_ID,
+                ApiMetricsRawFields.PROCESS_ID,
+                ApiMetricsRawFields.TIME_GRANULARITY,
+                ApiMetricsRawFields.TIME_START,
+                ApiMetricsRawFields.SUB_METRICS,
+                ApiMetricsRawFields.WORKER_INFO_MAP
+        );
+        querySec5.fields().include(filterFields);
         List<ApiMetricsRaw> metricsRawListSec5 = service.find(querySec5);
         for (TimeRange point : ranges) {
             List<ApiMetricsRaw> raws = ParticleSizeAnalyzer.secondFiveMetricsRaws(
@@ -288,11 +312,11 @@ public class ApiMetricsRawMergeService {
     }
 
     protected void mergeOfMinuteRange(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
-        Criteria criteriaMin = Criteria.where("timeGranularity").is(1);
+        Criteria criteriaMin = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(1);
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaMin));
         List<Criteria> or = new ArrayList<>();
         for (TimeRange point : ranges) {
-            or.add(Criteria.where("timeStart").gte(point.getStart()).lt(point.getEnd()));
+            or.add(Criteria.where(ApiMetricsRawFields.TIME_START.field()).gte(point.getStart()).lt(point.getEnd()));
         }
         criteriaMin.orOperator(or);
         Query queryMin = Query.query(criteriaMin);
@@ -302,11 +326,11 @@ public class ApiMetricsRawMergeService {
     }
 
     protected void mergeOfHour(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
-        Criteria criteriaOfHour = Criteria.where("timeGranularity").is(2);
+        Criteria criteriaOfHour = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(2);
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfHour));
         List<Criteria> orHour = new ArrayList<>();
         for (TimeRange point : ranges) {
-            orHour.add(Criteria.where("timeStart").gte(point.getStart()).lt(point.getEnd()));
+            orHour.add(Criteria.where(ApiMetricsRawFields.TIME_START.field()).gte(point.getStart()).lt(point.getEnd()));
         }
         criteriaOfHour.orOperator(orHour);
         Query queryHour = Query.query(criteriaOfHour);
@@ -316,11 +340,11 @@ public class ApiMetricsRawMergeService {
     }
 
     protected void mergeDay(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
-        Criteria criteriaOfDay = Criteria.where("timeGranularity").is(TimeGranularity.DAY.getType());
+        Criteria criteriaOfDay = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(TimeGranularity.DAY.getType());
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfDay));
         List<Criteria> orDay = new ArrayList<>();
         for (TimeRange point : ranges) {
-            orDay.add(Criteria.where("timeStart").gte(point.getStart()).lt(point.getEnd()));
+            orDay.add(Criteria.where(ApiMetricsRawFields.TIME_START.field()).gte(point.getStart()).lt(point.getEnd()));
         }
         criteriaOfDay.orOperator(orDay);
         Query queryDay = Query.query(criteriaOfDay);
@@ -358,27 +382,27 @@ public class ApiMetricsRawMergeService {
 
     protected Collection<String> errorCountOfSecondRange(List<TimeRange> ranges, Criteria apiCallCriteria) {
         List<Criteria> andCriteria = new ArrayList<>();
-        andCriteria.add(Criteria.where("delete").is(false));
+        andCriteria.add(Criteria.where(ApiCallField.DELETE.field()).is(false));
         Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
         if (!ranges.isEmpty()) {
             if (ranges.size() == 1) {
                 TimeRange point = ranges.get(0);
-                andCriteria.add(Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+                andCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
             } else {
                 List<Criteria> orSec = ranges.stream()
-                        .map(point -> Criteria.where("reqTime").gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
+                        .map(point -> Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
                         .toList();
                 andCriteria.add(new Criteria().orOperator(orSec));
             }
         }
         Query query = Query.query(new Criteria().andOperator(andCriteria));
-        query.fields().include("allPathId", "code", "httpStatus");
+        query.fields().include(CollectionField.fields(ApiCallField.ALL_PATH_ID, ApiCallField.CODE, ApiCallField.HTTP_STATUS));
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
         if (StringUtils.isNotBlank(callName)) {
             List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);
             return calls.stream()
                     .filter(Objects::nonNull)
-                    .filter(e -> !ApiMetricsDelayInfoUtil.checkByCode(e.getCode(), e.getHttpStatus()))
+                    .filter(e -> !ApiMetricsCompressValueUtil.checkByCode(e.getCode(), e.getHttpStatus()))
                     .map(ApiCallEntity::getAllPathId)
                     .distinct()
                     .toList();
@@ -387,14 +411,14 @@ public class ApiMetricsRawMergeService {
     }
 
     protected Collection<String> errorCountOfSecondFiveRange(List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer) {
-        Criteria criteriaOfSec5 = Criteria.where("timeGranularity").is(TimeGranularity.SECOND_FIVE.getType());
+        Criteria criteriaOfSec5 = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(TimeGranularity.SECOND_FIVE.getType());
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfSec5));
         Set<Long> times = ParticleSizeAnalyzer.asMinute(ranges);
         if (times.isEmpty()) {
             return null;
         }
-        criteriaOfSec5.and("timeStart").in(times);
-        criteriaOfSec5.and("errorCount").gt(0);
+        criteriaOfSec5.and(ApiMetricsRawFields.TIME_START.field()).in(times);
+        criteriaOfSec5.and(ApiMetricsRawFields.ERROR_COUNT.field()).gt(0);
         List<ApiMetricsRaw> raws = service.find(Query.query(criteriaOfSec5));
         for (TimeRange point : ranges) {
             Set<String> apiIds = new HashSet<>();
@@ -403,7 +427,7 @@ public class ApiMetricsRawMergeService {
                     e -> e.getTimeStart() >= point.getStart() && e.getTimeStart() < point.getEnd()
             );
             if (!rawsSub.isEmpty()) {
-               rawsSub.stream().map(ApiMetricsRaw::getApiId).distinct().forEach(apiIds::add);
+                rawsSub.stream().map(ApiMetricsRaw::getApiId).distinct().forEach(apiIds::add);
             }
             return apiIds;
         }
@@ -411,27 +435,27 @@ public class ApiMetricsRawMergeService {
     }
 
     protected Collection<String> errorCountOf(List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, TimeGranularity granularity) {
-        Criteria criteriaOfHour = Criteria.where("timeGranularity").is(granularity.getType());
+        Criteria criteriaOfHour = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(granularity.getType());
         List<Criteria> orHour = new ArrayList<>();
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfHour));
         for (TimeRange point : ranges) {
-            orHour.add(Criteria.where("timeStart").gte(point.getStart()).lt(point.getEnd()));
+            orHour.add(Criteria.where(ApiMetricsRawFields.TIME_START.field()).gte(point.getStart()).lt(point.getEnd()));
         }
         criteriaOfHour.orOperator(orHour);
-        criteriaOfHour.and("errorCount").gt(0);
+        criteriaOfHour.and(ApiMetricsRawFields.ERROR_COUNT.field()).gt(0);
         return count(criteriaOfHour);
     }
 
     protected Collection<String> count(Criteria criteria) {
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(criteria),
-                Aggregation.group("apiId"),
-                Aggregation.project().and("_id").as("apiId")
+                Aggregation.group(ApiMetricsRawFields.API_ID.field()),
+                Aggregation.project().and(BaseEntityFields._ID.field()).as(ApiMetricsRawFields.API_ID.field())
         );
         AggregationResults<Map> results = apiMetricsRepository.aggregate(aggregation, Map.class);
         return results.getMappedResults().stream()
                 .map(item -> {
-                    Object apiId = item.get("apiId");
+                    Object apiId = item.get(ApiMetricsRawFields.API_ID.field());
                     return apiId != null ? apiId.toString() : null;
                 })
                 .filter(Objects::nonNull)
@@ -477,20 +501,20 @@ public class ApiMetricsRawMergeService {
 
     public <T extends ValueBase> void baseDataCalculate(T item, List<ApiMetricsRaw> apiMetricsRaws, LongConsumer valueSetter) {
         if (item instanceof DataValueBase result) {
-            ApiMetricsDelayInfoUtil.Setter delaySetter = ApiMetricsDelayInfoUtil.Setter.of(valueSetter)
+            ApiMetricsCompressValueUtil.Setter delaySetter = ApiMetricsCompressValueUtil.Setter.of(valueSetter)
                     .avg(result::setResponseTimeAvg)
                     .max(result::setMaxDelay)
                     .min(result::setMinDelay)
                     .p95(result::setP95)
                     .p99(result::setP99);
-            ApiMetricsDelayInfoUtil.calculate(apiMetricsRaws, ApiMetricsRaw::getDelay, delaySetter);
-            ApiMetricsDelayInfoUtil.Setter dbCostSetter = ApiMetricsDelayInfoUtil.Setter.of(result::setDbCostTotal)
+            ApiMetricsCompressValueUtil.calculate(apiMetricsRaws, ApiMetricsRaw::getDelay, delaySetter);
+            ApiMetricsCompressValueUtil.Setter dbCostSetter = ApiMetricsCompressValueUtil.Setter.of(result::setDbCostTotal)
                     .avg(result::setDbCostAvg)
                     .max(result::setDbCostMax)
                     .min(result::setDbCostMin)
                     .p95(result::setDbCostP95)
                     .p99(result::setDbCostP99);
-            ApiMetricsDelayInfoUtil.calculate(apiMetricsRaws, ApiMetricsRaw::getDbCost, dbCostSetter);
+            ApiMetricsCompressValueUtil.calculate(apiMetricsRaws, ApiMetricsRaw::getDbCost, dbCostSetter);
         }
     }
 

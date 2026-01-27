@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,8 +24,11 @@ import java.util.stream.Collectors;
  * @description
  */
 public class TimeRangeUtil {
+    public static final long MAX_QUERY_RANGE = 30L * 24L * 60L * 60L;
+    public static final long MAX_QUERY_RANGE_DAY = 30L;
 
-    private TimeRangeUtil() {}
+    private TimeRangeUtil() {
+    }
 
     public static void rangeOf(ValueBase valueBase, QueryBase query, long delay, boolean compress) {
         rangeOf(query, delay, compress);
@@ -43,9 +46,9 @@ public class TimeRangeUtil {
 
         long queryStartAt = startAt;
         long queryEndAt = endAt;
-        if (range < 60L * 60L) {
+        if (range < TimeGranularity.HOUR.getSeconds()) {
             query.setGranularity(TimeGranularity.SECOND_FIVE);
-        } else if (range < 60L * 60L * 24L) {
+        } else if (range < TimeGranularity.DAY.getSeconds()) {
             query.setGranularity(TimeGranularity.MINUTE);
         } else {
             query.setGranularity(TimeGranularity.HOUR);
@@ -73,10 +76,10 @@ public class TimeRangeUtil {
         TimeGranularity granularity = query.getGranularity();
         long fixStart = query.getFixStart();
         long fixEnd = granularity.fixTime(query.getEndAt() + granularity.getSeconds() - 1);
-        //滑动窗口
+        //sliding window
         long windowsStart = fixStart - granularity.getSupplement();
         query.setWindowsStart(windowsStart);
-        Map<TimeGranularity, List<TimeRange>> timeGranularityListMap = new HashMap<>();
+        Map<TimeGranularity, List<TimeRange>> timeGranularityListMap = new EnumMap<>(TimeGranularity.class);
         if (startAt < fixStart) {
             split(startAt, fixStart).forEach(timeRange -> {
                 List<TimeRange> ranges = timeGranularityListMap.computeIfAbsent(timeRange.getUnit(), k -> new ArrayList<>());
@@ -108,31 +111,34 @@ public class TimeRangeUtil {
         return timeGranularityListMap;
     }
 
+    public static TimeGranularity rangeOf(long range) {
+        if (range >= TimeGranularity.DAY.getSeconds()) {
+            return TimeGranularity.DAY;
+        } else if (range >= TimeGranularity.HOUR.getSeconds()) {
+            return TimeGranularity.HOUR;
+        } else if (range >= TimeGranularity.MINUTE.getSeconds()) {
+            return TimeGranularity.MINUTE;
+        } else if (range >= TimeGranularity.SECOND_FIVE.getSeconds()) {
+            return TimeGranularity.SECOND_FIVE;
+        } else {
+            return TimeGranularity.SECOND;
+        }
+    }
+
     public static List<TimeRange> split(long startAt, long endAt) {
         List<TimeRange> result = new ArrayList<>();
         if (startAt >= endAt) {
             return result;
         }
-        // 根据时间范围确定最大允许的粒度
+        //Determine the maximum allowable granularity based on the time range
         long range = endAt - startAt;
-        TimeGranularity maxAllowedUnit;
-        if (range >= 86400L) {
-            maxAllowedUnit = TimeGranularity.DAY;
-        } else if (range >= 3600L) {
-            maxAllowedUnit = TimeGranularity.HOUR;
-        } else if (range >= 60L) {
-            maxAllowedUnit = TimeGranularity.MINUTE;
-        } else if (range >= 5L) {
-            maxAllowedUnit = TimeGranularity.SECOND_FIVE;
-        } else {
-            maxAllowedUnit = TimeGranularity.SECOND;
-        }
+        TimeGranularity maxAllowedUnit = rangeOf(range);
         long cursor = startAt;
         TimeGranularity lastUnit = null;
         long last = startAt;
         while (cursor < endAt) {
             TimeGranularity unit = chooseBestUnit(cursor);
-            // 限制粒度不超过最大允许值
+            // Limit granularity to no more than the maximum allowable value
             while (unit.getType() > maxAllowedUnit.getType()) {
                 unit = unit.getLowerOne();
             }
@@ -144,14 +150,14 @@ public class TimeRangeUtil {
                 lastUnit = unit;
             }
             long nextCursor = cursor + nextUnit.getSeconds();
-            // 情况1: 粒度升级（从小粒度到大粒度）
+            // Scenario 1: Granularity upgrade (from small granularity to large granularity)
             if (lastUnit != unit && unit.getType() > lastUnit.getType()) {
                 TimeRange current = new TimeRange(last, cursor, lastUnit);
                 result.add(current);
                 lastUnit = unit;
                 last = cursor;
             }
-            // 情况2: 粒度降级（从大粒度到小粒度）
+            // Scenario 2: Granularity degradation (from large to small granularity)
             else if (unit != nextUnit && nextUnit.getType() < lastUnit.getType()) {
                 TimeRange current = new TimeRange(last, cursor, lastUnit);
                 result.add(current);
@@ -160,8 +166,8 @@ public class TimeRangeUtil {
             }
             cursor = nextCursor;
         }
-        // 处理最后一个区间
-        if (last < endAt && lastUnit != null) {
+        // Process the last interval
+        if (lastUnit != null) {
             TimeRange current = new TimeRange(last, cursor, lastUnit);
             result.add(current);
         }
@@ -180,7 +186,7 @@ public class TimeRangeUtil {
         if (localDateTime.getSecond() == 0) {
             return TimeGranularity.MINUTE;
         }
-        if (localDateTime.getSecond() % 5 == 0) {
+        if (localDateTime.getSecond() % TimeGranularity.SECOND_FIVE.getSeconds() == 0) {
             return TimeGranularity.SECOND_FIVE;
         }
         return TimeGranularity.SECOND;
@@ -193,11 +199,11 @@ public class TimeRangeUtil {
         TimeGranularity candidate = unit;
         while (candidate != null) {
             long nextTime = t + candidate.getSeconds();
-            // 如果这个粒度不会超过终点，或者已经是最小粒度，就使用它
+            // If this granularity does not exceed the endpoint or is already the minimum granularity, use it
             if (nextTime <= endAt || candidate.getLowerOne() == null) {
                 return candidate;
             }
-            // 否则尝试更小的粒度
+            // Otherwise, try smaller granularity
             candidate = candidate.getLowerOne();
         }
         return null;
@@ -210,19 +216,18 @@ public class TimeRangeUtil {
         QueryBase.TimeType type = QueryBase.TimeType.parse(query.getType());
         if (Objects.nonNull(query.getStartAt()) && Objects.nonNull(query.getEndAt())) {
             long range = query.getEndAt() - query.getStartAt();
-            if (range > 30L * 24L * 60L * 60L) {
-                throw new BizException("query.range.too.large", 31);
+            if (range > MAX_QUERY_RANGE) {
+                throw new BizException("query.range.too.large", MAX_QUERY_RANGE_DAY);
             }
         }
         query.setRealStart(query.getStartAt());
         query.setRealEnd(query.getEndAt());
         long step = Optional.ofNullable(query.getStep()).orElse(type.getDefaultStep());
         if (type != QueryBase.TimeType.RANGE) {
-            now = now / 5L * 5L;
+            now = TimeGranularity.SECOND_FIVE.fixTime(now);
             query.setStartAt(now - type.getDefaultSecond() * step);
             query.setEndAt(now);
-
-            timestamp = timestamp / 5L * 5L;
+            timestamp = TimeGranularity.SECOND_FIVE.fixTime(timestamp);
             query.setRealStart(timestamp - type.getDefaultSecond() * step);
             query.setRealEnd(timestamp);
         }
@@ -236,19 +241,16 @@ public class TimeRangeUtil {
         if (null == start) {
             start = end - type.getDefaultSecond() * type.getDefaultStep();
             query.setStartAt(start);
-
             query.setRealStart(start);
         }
         if (end > now) {
             end = now;
             query.setEndAt(end);
-
             query.setRealEnd(timestamp);
         }
         if (start >= end) {
             start = end - type.getDefaultSecond() * type.getDefaultStep();
             query.setStartAt(start);
-
             query.setRealStart(start);
         }
     }

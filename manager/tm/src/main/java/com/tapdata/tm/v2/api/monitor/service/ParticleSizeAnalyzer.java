@@ -4,9 +4,11 @@ import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.entity.WorkerInfo;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
+import com.tapdata.tm.v2.api.monitor.utils.TimeRangeUtil;
 import org.bson.types.ObjectId;
 import org.springframework.util.CollectionUtils;
 
@@ -79,8 +81,8 @@ public class ParticleSizeAnalyzer {
         for (TimeRange point : rangesOfSecondFive) {
             long s = point.getStart();
             while (s < point.getEnd()) {
-                minutes.add(s / 60L * 60L);
-                s += 5L;
+                minutes.add(TimeGranularity.MINUTE.fixTime(s));
+                s += TimeGranularity.SECOND_FIVE.getSeconds();
             }
         }
         return minutes;
@@ -91,8 +93,8 @@ public class ParticleSizeAnalyzer {
         QueryBase.TimeType type = QueryBase.TimeType.parse(query.getType());
         if (Objects.nonNull(query.getStartAt()) && Objects.nonNull(query.getEndAt())) {
             long range = query.getEndAt() - query.getStartAt();
-            if (range > 30L * 24L * 60L * 60L) {
-                throw new BizException("query.range.too.large", 31);
+            if (range > TimeRangeUtil.MAX_QUERY_RANGE) {
+                throw new BizException("query.range.too.large", TimeRangeUtil.MAX_QUERY_RANGE_DAY);
             }
         }
         long step = Optional.ofNullable(query.getStep()).orElse(type.getDefaultStep());
@@ -129,10 +131,10 @@ public class ParticleSizeAnalyzer {
             ApiMetricsRaw row = new ApiMetricsRaw();
             row.setProcessId(apiCallEntity.getApi_gateway_uuid());
             row.setApiId(apiCallEntity.getAllPathId());
-            long errorCount = ApiMetricsDelayInfoUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()) ? 0L : 1L;
+            long errorCount = ApiMetricsCompressValueUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()) ? 0L : 1L;
             Optional.ofNullable(apiCallEntity.getWorkOid()).ifPresent(oId -> {
-                List<ApiMetricsRaw.WorkerInfo> workerInfos = new ArrayList<>();
-                ApiMetricsRaw.WorkerInfo info = new ApiMetricsRaw.WorkerInfo();
+                List<WorkerInfo> workerInfos = new ArrayList<>();
+                WorkerInfo info = new WorkerInfo();
                 info.setWorkerOid(oId);
                 info.setReqCount(1L);
                 info.setErrorCount(errorCount);
@@ -144,19 +146,12 @@ public class ParticleSizeAnalyzer {
             row.setReqCount(1L);
             row.setErrorCount(errorCount);
             row.setRps(1D / 60D);
-            row.setBytes(asInit(apiCallEntity.getReqBytes()));
-            row.setDelay(asInit(apiCallEntity.getLatency()));
+            row.setBytes(ApiMetricsCompressValueUtil.asInit(apiCallEntity.getReqBytes()));
+            row.setDelay(ApiMetricsCompressValueUtil.asInit(apiCallEntity.getLatency()));
             row.setSubMetrics(new HashMap<>());
             row.setLastCallId(apiCallEntity.getId());
             row.setId(new ObjectId());
             consumer.accept(row);
         }
-    }
-
-    static List<Map<String, Number>> asInit(Long k) {
-        Map<String, Number> iMap = new HashMap<>();
-        iMap.put("k", k);
-        iMap.put("v", 1);
-        return List.of(iMap);
     }
 }

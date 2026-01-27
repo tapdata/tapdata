@@ -4,7 +4,7 @@ import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.bson.types.ObjectId;
@@ -42,21 +42,21 @@ public class ApiMetricsRaw extends BaseEntity {
     private int metricType;
 
     /**
-     * 0: 5S级别
-     * 1: 1分钟级别
-     * 2: 1小时级别
-     * 3: 天级别
+     * 0: 5S level
+     * 1: 1-minute level
+     * 2: 1-hour level
+     * 3: day-level
      *
      * @see TimeGranularity
      */
     private int timeGranularity;
 
     /**
-     * 时间：
-     * timeGranularity = 0 时，表示5S级别的时间戳
-     * timeGranularity = 1 时，表示1分钟级别的时间戳
-     * timeGranularity = 2 时，表示1小时级别的时间戳
-     * timeGranularity = 3 时，表示天级别的时间戳
+     * time：
+     * When timeGranularity=0, it represents a 5S level timestamp
+     * When timeGranularity=1, it represents a timestamp at the 1-minute level
+     * When timeGranularity=2, it represents a timestamp at the 1-hour level
+     * When timeGranularity=3, it represents a timestamp at the day level
      */
     private Long timeStart;
 
@@ -67,28 +67,25 @@ public class ApiMetricsRaw extends BaseEntity {
     private Double rps;
 
     /**
-     * 为了节省空间, 此字段内容如下：[{k:102,v:2},{k:89, v:5}]
-     * 数组元素为纯数子：表示某次请求的延时
-     * 数组元素为对象：表示某次请求的字节以及出现的次数
+     * To save space, the content of this field is as follows: [{k: 102, v: 2}, {k: 89, v: 5}]
+     * k represents the byte of a request, and v represents the corresponding number of occurrences
      */
     private List<Map<String, Number>> bytes;
 
     /**
-     * 为了节省空间, 此字段内容如下：[{k:102,v:2},{k:89, v:5}]
-     * 数组元素为纯数子：表示某次请求的延时
-     * 数组元素为对象：表示某次请求的延时以及出现的次数
+     * To save space, the content of this field is as follows: [{k: 102, v: 2}, {k: 89, v: 5}]
+     * k represents the delay of a request, and v represents the corresponding number of occurrences
      */
     private List<Map<String, Number>> delay;
 
     /**
-     * 为了节省空间, 此字段内容如下：[{k:102,v:2},{k:89, v:5}]
-     * 数组元素为纯数子：表示某次请求的延时
-     * 数组元素为对象：表示某次请求的数据库访问延时以及出现的次数
+     * To save space, the content of this field is as follows: [{k: 102, v: 2}, {k: 89, v: 5}]
+     * k represents the query db cost time of a request, and v represents the corresponding number of occurrences
      */
     private List<Map<String, Number>> dbCost;
 
     /**
-     * timeGranularity = 0 时，聚合了1分钟的数据，5S一个数据点，每分钟12条
+     * When timeGranularity=0, 1 minute of data is aggregated, with 5 seconds per data point and 12 records per minute
      */
     private Map<Long, ApiMetricsRaw> subMetrics;
 
@@ -107,18 +104,6 @@ public class ApiMetricsRaw extends BaseEntity {
     private ObjectId lastCallId;
 
     private Date ttlKey;
-
-    @Data
-    public static class WorkerInfo {
-        String workerOid;
-        Long reqCount;
-        Long errorCount;
-
-        public WorkerInfo() {
-            this.reqCount = 0L;
-            this.errorCount = 0L;
-        }
-    }
 
     public static ApiMetricsRaw instance(String serverId, String apiId, Long bucketMin, TimeGranularity type, MetricTypes metricType) {
         ApiMetricsRaw item = new ApiMetricsRaw();
@@ -176,8 +161,8 @@ public class ApiMetricsRaw extends BaseEntity {
             String workerOid = workerInfo.getWorkerOid();
             WorkerInfo info = collected.computeIfAbsent(workerOid, k -> new WorkerInfo());
             info.setWorkerOid(workerOid);
-            info.setReqCount(ApiMetricsDelayInfoUtil.sum(info.getReqCount(), workerInfo.getReqCount()));
-            info.setErrorCount(ApiMetricsDelayInfoUtil.sum(info.getErrorCount(), workerInfo.getErrorCount()));
+            info.setReqCount(ApiMetricsCompressValueUtil.sum(info.getReqCount(), workerInfo.getReqCount()));
+            info.setErrorCount(ApiMetricsCompressValueUtil.sum(info.getErrorCount(), workerInfo.getErrorCount()));
         });
         setWorkerInfoMap(workerInfos);
     }
@@ -190,30 +175,30 @@ public class ApiMetricsRaw extends BaseEntity {
         long rawErrorCount = Optional.ofNullable(raw.getErrorCount()).orElse(0L);
         mergeWorkerInfo(raw.getWorkerInfoMap());
         if (timeGranularity == 0) {
-            Map<Long, ApiMetricsRaw> subMetrics = Optional.ofNullable(getSubMetrics()).orElse(new HashMap<>());
-            ApiMetricsRaw sub = Optional.ofNullable(subMetrics.get(time)).orElse(new ApiMetricsRaw());
-            long reqCount = Optional.ofNullable(sub.getReqCount()).orElse(0L);
-            long errorCount = Optional.ofNullable(sub.getErrorCount()).orElse(0L);
-            List<Map<String, Number>> bytes = Optional.ofNullable(sub.getBytes()).orElse(new ArrayList<>());
-            List<Map<String, Number>> delay = Optional.ofNullable(sub.getDelay()).orElse(new ArrayList<>());
-            List<Map<String, Number>> dbCost = Optional.ofNullable(sub.getDbCost()).orElse(new ArrayList<>());
-            sub.setReqCount(reqCount + rawReqCount);
-            sub.setErrorCount(errorCount + rawErrorCount);
-            sub.setBytes(ApiMetricsDelayUtil.merge(bytes, rawBytes));
-            sub.setDelay(ApiMetricsDelayUtil.merge(delay, rawDelay));
-            sub.setDbCost(ApiMetricsDelayUtil.merge(dbCost, rawDbCost));
-            setSubMetrics(subMetrics);
+            Map<Long, ApiMetricsRaw> subMetricsInfo = Optional.ofNullable(getSubMetrics()).orElse(new HashMap<>());
+            ApiMetricsRaw sub = Optional.ofNullable(subMetricsInfo.get(time)).orElse(new ApiMetricsRaw());
+            long reqCountInfo = Optional.ofNullable(sub.getReqCount()).orElse(0L);
+            long errorCountInfo = Optional.ofNullable(sub.getErrorCount()).orElse(0L);
+            List<Map<String, Number>> bytesInfo = Optional.ofNullable(sub.getBytes()).orElse(new ArrayList<>());
+            List<Map<String, Number>> delayInfo = Optional.ofNullable(sub.getDelay()).orElse(new ArrayList<>());
+            List<Map<String, Number>> dbCostInfo = Optional.ofNullable(sub.getDbCost()).orElse(new ArrayList<>());
+            sub.setReqCount(reqCountInfo + rawReqCount);
+            sub.setErrorCount(errorCountInfo + rawErrorCount);
+            sub.setBytes(ApiMetricsDelayUtil.merge(bytesInfo, rawBytes));
+            sub.setDelay(ApiMetricsDelayUtil.merge(delayInfo, rawDelay));
+            sub.setDbCost(ApiMetricsDelayUtil.merge(dbCostInfo, rawDbCost));
+            setSubMetrics(subMetricsInfo);
         } else {
-            long reqCount = Optional.ofNullable(getReqCount()).orElse(0L);
-            long errorCount = Optional.ofNullable(getErrorCount()).orElse(0L);
-            List<Map<String, Number>> bytes = Optional.ofNullable(getBytes()).orElse(new ArrayList<>());
-            List<Map<String, Number>> delay = Optional.ofNullable(getDelay()).orElse(new ArrayList<>());
-            List<Map<String, Number>> dbCost = Optional.ofNullable(getDbCost()).orElse(new ArrayList<>());
-            setReqCount(reqCount + rawReqCount);
-            setErrorCount(errorCount + rawErrorCount);
-            setBytes(ApiMetricsDelayUtil.merge(bytes, rawBytes));
-            setDelay(ApiMetricsDelayUtil.merge(delay, rawDelay));
-            setDbCost(ApiMetricsDelayUtil.merge(dbCost, rawDbCost));
+            long reqCountInfo = Optional.ofNullable(getReqCount()).orElse(0L);
+            long errorCountInfo = Optional.ofNullable(getErrorCount()).orElse(0L);
+            List<Map<String, Number>> bytesInfo = Optional.ofNullable(getBytes()).orElse(new ArrayList<>());
+            List<Map<String, Number>> delayInfo = Optional.ofNullable(getDelay()).orElse(new ArrayList<>());
+            List<Map<String, Number>> dbCostInfo = Optional.ofNullable(getDbCost()).orElse(new ArrayList<>());
+            setReqCount(reqCountInfo + rawReqCount);
+            setErrorCount(errorCountInfo + rawErrorCount);
+            setBytes(ApiMetricsDelayUtil.merge(bytesInfo, rawBytes));
+            setDelay(ApiMetricsDelayUtil.merge(delayInfo, rawDelay));
+            setDbCost(ApiMetricsDelayUtil.merge(dbCostInfo, rawDbCost));
         }
     }
 
