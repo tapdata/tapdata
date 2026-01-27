@@ -32,8 +32,7 @@ import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.system.api.utils.TextEncryptionUtil;
 import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.v2.api.monitor.main.dto.ServerChart;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -426,7 +425,7 @@ public class ApiCallService {
         item.setReqTime(new Date(e.getReqTime()));
         item.setCreateAt(e.getApiCreateAt());
         item.setMethod(e.getMethod());
-        item.setFailed(ApiMetricsDelayInfoUtil.checkByCode(e.getCode(), e.getHttpStatus()));
+        item.setFailed(ApiMetricsCompressValueUtil.checkByCode(e.getCode(), e.getHttpStatus()));
         return item;
     }
 

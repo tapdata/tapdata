@@ -27,6 +27,10 @@ public class Worker extends BaseEntity {
 
     @Field("process_id")
     private String processId;
+
+    /**
+     * @see com.tapdata.tm.worker.entity.field.WorkerType
+     * */
     @Field("worker_type")
     private String workerType;
     private PlatformInfo platformInfo;

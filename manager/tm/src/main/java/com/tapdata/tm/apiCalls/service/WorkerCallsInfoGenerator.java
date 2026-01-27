@@ -5,12 +5,11 @@ import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.apiServer.enums.TimeGranularityType;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.v2.api.monitor.service.MetricInstanceFactory;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,7 +115,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setDelays(delays);
         delays = ApiMetricsDelayUtil.addDelay(delays, latency);
         item.setErrorCount(Optional.ofNullable(item.getErrorCount()).orElse(0L));
-        if (!ApiMetricsDelayInfoUtil.checkByCode(info.getCode(), info.getHttpStatus())) {
+        if (!ApiMetricsCompressValueUtil.checkByCode(info.getCode(), info.getHttpStatus())) {
             item.setErrorCount(item.getErrorCount() + 1);
         }
         item.setReqCount(Optional.ofNullable(item.getReqCount()).orElse(0L) + 1);

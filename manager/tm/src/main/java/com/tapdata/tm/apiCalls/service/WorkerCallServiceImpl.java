@@ -17,9 +17,7 @@ import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawScheduleExecutor;
-import com.tapdata.tm.v2.api.monitor.service.MetricInstanceFactory;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsDelayInfoUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -67,7 +65,6 @@ public class WorkerCallServiceImpl implements WorkerCallService {
     MongoTemplate mongoOperations;
     private ApiWorkerServer apiWorkerServer;
     MongoTemplate mongoTemplate;
-    ApiMetricsRawScheduleExecutor executor;
 
     public ApiCallMetricVo find(String processId, Long from, Long to, Integer type, Integer granularity) {
         if (StringUtils.isBlank(processId)) {
@@ -299,7 +296,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
                 return workerCallStats;
             });
             item.setTotalCount(1 + item.getTotalCount());
-            boolean isOk = ApiMetricsDelayInfoUtil.checkByCode(apiCall.getCode(), apiCall.getHttpStatus());
+            boolean isOk = ApiMetricsCompressValueUtil.checkByCode(apiCall.getCode(), apiCall.getHttpStatus());
             item.setNotOkCount((isOk ? 0 : 1) + item.getNotOkCount());
         }
         return groupByApiAndWorker;

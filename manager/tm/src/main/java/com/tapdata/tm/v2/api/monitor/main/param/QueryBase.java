@@ -20,13 +20,13 @@ import java.util.Map;
 @Data
 public class QueryBase {
     /**
-     * 前端传参(并使用数据上报定时任务延时做区间修复)
+     * Front end parameter transmission (and interval repair using data reporting timing task delay)
      */
     Long startAt;
     Long endAt;
 
     /**
-     * 未使用数据上报定时任务延时做区间修复，查询cpu&内存曲线时需要
+     * Interval repair for unused data reporting scheduled task delay, required for querying CPU&memory curves
      * */
     Long realStart;
     Long realEnd;
@@ -38,13 +38,13 @@ public class QueryBase {
     Long step;
 
     /**
-     * 筛选范围区间
+     * Filter range interval
      */
     long queryStart;
     long queryEnd;
 
     /**
-     * 返回结果点位区间
+     * Return result point interval
      */
     long fixStart;
     long fixEnd;
@@ -53,7 +53,9 @@ public class QueryBase {
 
     SortInfo sortInfo;
 
-    //滑动窗口开始时间，用于统计图计算p95/p99
+    /**
+     * Start time of sliding window, used for statistical chart calculation of p95/p99
+     * */
     long windowsStart;
     Map<TimeGranularity, List<TimeRange>> queryRange;
 

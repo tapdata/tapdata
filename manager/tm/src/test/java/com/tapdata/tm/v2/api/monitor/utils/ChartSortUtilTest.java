@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -44,7 +45,7 @@ class ChartSortUtilTest {
             items.put(1000L, new TestItem(1000L));
             items.put(1010L, new TestItem(1010L));
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
@@ -74,8 +75,8 @@ class ChartSortUtilTest {
         void testFixAndSortWithGranularity2() {
             Map<Long, TestItem> items = new HashMap<>();
             items.put(3600L, new TestItem(3600L)); // 1 hour
-            
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
@@ -101,8 +102,8 @@ class ChartSortUtilTest {
         @Test
         void testFixAndSortWithGranularity2AndAlignment() {
             Map<Long, TestItem> items = new HashMap<>();
-            
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
@@ -129,7 +130,7 @@ class ChartSortUtilTest {
             TestItem existingItem = new TestItem(1000L);
             items.put(1000L, existingItem);
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
@@ -151,7 +152,7 @@ class ChartSortUtilTest {
         void testFixAndSortWithEmptyItems() {
             Map<Long, TestItem> items = new HashMap<>();
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
@@ -173,7 +174,7 @@ class ChartSortUtilTest {
         void testFixAndSortWithSameStartAndEnd() {
             Map<Long, TestItem> items = new HashMap<>();
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
@@ -192,7 +193,7 @@ class ChartSortUtilTest {
         void testFixAndSortWithReverseRange() {
             Map<Long, TestItem> items = new HashMap<>();
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             ChartSortUtil.fixAndSort(items,  1010L, 1000L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
@@ -211,7 +212,7 @@ class ChartSortUtilTest {
             items.put(1000L, new TestItem(1000L));
             items.put(1005L, new TestItem(1005L));
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             ChartSortUtil.fixAndSort(items,  1000L, 1015L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
@@ -230,7 +231,7 @@ class ChartSortUtilTest {
         void testFixAndSortWithLargeRange() {
             Map<Long, TestItem> items = new HashMap<>();
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
@@ -262,7 +263,7 @@ class ChartSortUtilTest {
             Map<Long, TestItem> items = new HashMap<>();
             items.put(1000L, new TestItem(1000L));
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             
             // Should handle null mapping gracefully
             assertThrows(NullPointerException.class, () -> {
@@ -277,7 +278,7 @@ class ChartSortUtilTest {
         void testWithZeroTimestamps() {
             Map<Long, TestItem> items = new HashMap<>();
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 
@@ -295,7 +296,7 @@ class ChartSortUtilTest {
         void testWithNegativeTimestamps() {
             Map<Long, TestItem> items = new HashMap<>();
             
-            Function<Long, TestItem> emptyGetter = mock(Function.class);
+            LongFunction<TestItem> emptyGetter = mock(LongFunction.class);
             Consumer<TestItem> mapping = mock(Consumer.class);
             
             when(emptyGetter.apply(anyLong())).thenAnswer(invocation -> 

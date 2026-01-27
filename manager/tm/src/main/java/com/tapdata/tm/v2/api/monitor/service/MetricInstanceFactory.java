@@ -1,7 +1,9 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.tapdata.tm.apiCalls.entity.ApiCallField;
 import com.tapdata.tm.v2.api.common.service.FactoryBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import org.bson.Document;
@@ -21,7 +23,13 @@ import java.util.function.Function;
  * @description
  */
 public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, MetricInstanceAcceptor> {
-    public static final List<String> IGNORE_PATH = List.of("/sitemap.xml", "/openapi-readOnly.json", "/robots.txt", "/favicon.ico", "//v4.loopback.io/favicon.ico");
+    public static final List<String> IGNORE_PATH = List.of(
+            "/sitemap.xml",
+            "/openapi-readOnly.json",
+            "/robots.txt",
+            "/favicon.ico",
+            "//v4.loopback.io/favicon.ico"
+    );
 
     public MetricInstanceFactory(Consumer<List<ApiMetricsRaw>> consumer, Function<Query, ApiMetricsRaw> findOne) {
         super(consumer, findOne);
@@ -31,17 +39,17 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         if (null == entity) {
             return;
         }
-        final String reqPath = entity.get("req_path", String.class);
+        final String reqPath = entity.get(ApiCallField.REQ_PATH.field(), String.class);
         if (null != reqPath && IGNORE_PATH.contains(reqPath)) {
             return;
         }
         if (!needUpdate()) {
             needUpdate(true);
         }
-        final String allPathId = entity.get("allPathId", String.class);
+        final String allPathId = entity.get(ApiCallField.ALL_PATH_ID.field(), String.class);
         final String apiId = Optional.ofNullable(allPathId)
                 .orElse(Optional.ofNullable(reqPath).orElse(MetricInstanceAcceptor.UN_KNOW));
-        final String serverId = entity.get("api_gateway_uuid", String.class);
+        final String serverId = entity.get(ApiCallField.API_GATEWAY_UUID.field(), String.class);
         final String keyOfApiServer = String.format("%s:%s_0", apiId, serverId);
         final String keyOfApi = String.format("%s:*_1", apiId);
         final String keyOfServer = String.format("*:%s_2", serverId);
@@ -85,27 +93,27 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
 
 
     ApiMetricsRaw lastOne(String apiId, String serverId, MetricTypes metricType, TimeGranularity timeGranularity, Long timeStart) {
-        final Criteria criteria = Criteria.where("metricType").is(metricType.getType())
-                .and("timeGranularity").is(timeGranularity.getType());
+        final Criteria criteria = Criteria.where(ApiMetricsRawFields.METRIC_TYPE.field()).is(metricType.getType())
+                .and(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(timeGranularity.getType());
         switch (metricType) {
             case API_SERVER:
-                criteria.and("apiId").is(apiId)
-                        .and("processId").is(serverId);
+                criteria.and(ApiMetricsRawFields.API_ID.field()).is(apiId)
+                        .and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId);
                 break;
             case API:
-                criteria.and("apiId").is(apiId);
+                criteria.and(ApiMetricsRawFields.API_ID.field()).is(apiId);
                 break;
             case SERER:
-                criteria.and("processId").is(serverId);
+                criteria.and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId);
                 break;
             default:
                 //do nothing
         }
         if (null != timeStart) {
-            criteria.and("timeStart").is(timeStart);
+            criteria.and(ApiMetricsRawFields.TIME_START.field()).is(timeStart);
         }
         final Query query = Query.query(criteria);
-        query.with(Sort.by("timeStart").descending());
+        query.with(Sort.by(ApiMetricsRawFields.TIME_START.field()).descending());
         query.limit(1);
         return findOne.apply(query);
     }

@@ -4,11 +4,12 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.Sorts;
-import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
+import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
+import com.tapdata.tm.worker.entity.field.ServerUsageField;
+import com.tapdata.tm.worker.entity.field.ServerUsageMetricField;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -41,7 +42,7 @@ import java.util.function.Function;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ServerUsageMetricScheduleExecutor {
-    public static final String LAST_UPDATE_TIME = "lastUpdateTime";
+    static final int BATCH_READ_SIZE = 1000;
     MongoTemplate mongoTemplate;
     MongoTemplate mongoOperations;
 
@@ -55,13 +56,13 @@ public class ServerUsageMetricScheduleExecutor {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
             final Criteria criteria = new Criteria();
             if (Objects.nonNull(lastUpdateTime)) {
-                criteria.and(LAST_UPDATE_TIME).gt(lastUpdateTime);
+                criteria.and(ServerUsageField.LAST_UPDATE_TIME.field()).gt(lastUpdateTime);
             }
             final Document queryObject = Query.query(criteria).getQueryObject();
             final FindIterable<Document> iterable =
                     collection.find(queryObject, Document.class)
-                            .sort(Sorts.ascending(LAST_UPDATE_TIME))
-                            .batchSize(1000);
+                            .sort(Sorts.ascending(ServerUsageField.LAST_UPDATE_TIME.field()))
+                            .batchSize(BATCH_READ_SIZE);
             try (final MongoCursor<Document> cursor = iterable.iterator()) {
                 while (cursor.hasNext()) {
                     final Document entity = cursor.next();
@@ -72,8 +73,8 @@ public class ServerUsageMetricScheduleExecutor {
     }
 
     Long lastOne() {
-        Query query = Query.query(Criteria.where("timeGranularity").is(2));
-        query.with(Sort.by(Sort.Order.desc(LAST_UPDATE_TIME))).limit(1);
+        Query query = Query.query(Criteria.where(ServerUsageMetricField.TIME_GRANULARITY.field()).is(2));
+        query.with(Sort.by(Sort.Order.desc(ServerUsageField.LAST_UPDATE_TIME.field()))).limit(1);
         ServerUsageMetric lastOne = mongoTemplate.findOne(query, ServerUsageMetric.class);
         if (null != lastOne) {
             return lastOne.getLastUpdateTime();
@@ -115,34 +116,34 @@ public class ServerUsageMetricScheduleExecutor {
     }
 
     private Query buildDefaultQuery(ServerUsageMetric entity) {
-        Criteria criteria = Criteria.where(LAST_UPDATE_TIME).is(entity.getLastUpdateTime())
-                .and(WorkerCallServiceImpl.Tag.TIME_GRANULARITY).is(entity.getTimeGranularity())
-                .and(WorkerCallServiceImpl.Tag.PROCESS_ID).is(entity.getProcessId())
-                .and("workOid").is(entity.getWorkOid());
+        Criteria criteria = Criteria.where(ServerUsageField.LAST_UPDATE_TIME.field()).is(entity.getLastUpdateTime())
+                .and(ServerUsageMetricField.TIME_GRANULARITY.field()).is(entity.getTimeGranularity())
+                .and(ServerUsageField.PROCESS_ID.field()).is(entity.getProcessId())
+                .and(ServerUsageField.WORK_OID.field()).is(entity.getWorkOid());
         return Query.query(criteria);
     }
 
     private Update buildDefaultUpdate(ServerUsageMetric entity) {
         Update update = new Update();
-        update.set("processType", entity.getProcessType());
+        update.set(ServerUsageField.PROCESS_TYPE.field(), entity.getProcessType());
         Optional.ofNullable(entity.getMaxCpuUsage())
                 .map(BigDecimal::valueOf)
                 .map(v -> v.setScale(4, RoundingMode.HALF_DOWN).doubleValue())
-                .ifPresent(v -> update.set("maxCpuUsage", v));
+                .ifPresent(v -> update.set(ServerUsageMetricField.MAX_CPU_USAGE.field(), v));
         Optional.ofNullable(entity.getMinCpuUsage())
                 .map(BigDecimal::valueOf)
                 .map(v -> v.setScale(4, RoundingMode.HALF_DOWN).doubleValue())
-                .ifPresent(v -> update.set("minCpuUsage", v));
+                .ifPresent(v -> update.set(ServerUsageMetricField.MIN_CPU_USAGE.field(), v));
         Optional.ofNullable(entity.getCpuUsage())
                 .map(BigDecimal::valueOf)
                 .map(v -> v.setScale(4, RoundingMode.HALF_DOWN).doubleValue())
-                .ifPresent(v -> update.set("cpuUsage", v));
-        update.set("maxHeapMemoryUsage", entity.getMaxHeapMemoryUsage());
-        update.set("minHeapMemoryUsage", entity.getMinHeapMemoryUsage());
-        update.set("heapMemoryUsage", entity.getHeapMemoryUsage());
-        update.set("heapMemoryMax", entity.getHeapMemoryMax());
-        update.set("ttlKey", entity.getTtlKey());
-        update.currentDate("updatedAt");
+                .ifPresent(v -> update.set(ServerUsageField.CPU_USAGE.field(), v));
+        update.set(ServerUsageMetricField.MAX_HEAP_MEMORY_USAGE.field(), entity.getMaxHeapMemoryUsage());
+        update.set(ServerUsageMetricField.MIN_HEAP_MEMORY_USAGE.field(), entity.getMinHeapMemoryUsage());
+        update.set(ServerUsageField.HEAP_MEMORY_USAGE.field(), entity.getHeapMemoryUsage());
+        update.set(ServerUsageField.HEAP_MEMORY_MAX.field(), entity.getHeapMemoryMax());
+        update.set(ServerUsageField.TTL_KEY.field(), entity.getTtlKey());
+        update.currentDate(BaseEntityFields.UPDATED_AT.field());
         return update;
     }
 
