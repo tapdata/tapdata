@@ -426,9 +426,6 @@ public class ApiMetricsChartQuery {
                 param.getWindowsStart(), param.getEndAt(), param.getGranularity(),
                 ServerChart.Item::create,
                 item -> {
-                    if (size.get() <= 0 && CollectionUtils.isEmpty(item.getDelay()) && CollectionUtils.isEmpty(item.getDbCost()) ) {
-                        return;
-                    }
                     delays.add(item.getDelay());
                     dbCosts.add(item.getDbCost());
                     size.addAndGet(1);
@@ -882,7 +879,7 @@ public class ApiMetricsChartQuery {
                         dbCosts.remove(0);
                         size.addAndGet(-1);
                     }
-                    if (delays.size() >= maxDepth) {
+                    if (size.get() >= maxDepth) {
                         item.point(delays, bytes, dbCosts);
                     }
                 }
