@@ -67,7 +67,12 @@ public class AppenderFactory implements Serializable {
 	private long cycle;
 
 	private AppenderFactory() {
-		cacheLogsQueue = ChronicleQueue.singleBuilder(CACHE_QUEUE_DIR)
+		String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
+		String tapdataCacheObserveLogsDir = null;
+		if(StringUtils.isNotBlank(tapdataWorkDir)) {
+			tapdataCacheObserveLogsDir = tapdataWorkDir + File.separator + "CacheObserveLogs";
+		}
+		cacheLogsQueue = ChronicleQueue.singleBuilder(StringUtils.isNotBlank(tapdataCacheObserveLogsDir) ? tapdataCacheObserveLogsDir : CACHE_QUEUE_DIR)
 				.rollCycle(RollCycles.FAST_DAILY)
 				.storeFileListener(this::deleteFileIfLessThanCurrentCycle)
 				.build();
