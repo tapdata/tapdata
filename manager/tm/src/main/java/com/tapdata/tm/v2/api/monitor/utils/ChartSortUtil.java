@@ -57,15 +57,15 @@ public final class ChartSortUtil {
             tsFrom += step;
         }
         ArrayList<T> itemValues = new ArrayList<>(items.values());
-//        for (int i = itemValues.size() - 1; i >= 0; i--) {
-//            T item = itemValues.get(i);
-//            if (item.isEmpty()) {
-//               itemValues.remove(i) ;
-//            } else {
-//                break;
-//            }
-//        }
         itemValues.sort(Comparator.comparingLong(ValueBase.Item::getTs));
+        for (int i = itemValues.size() - 1; i >= 0; i--) {
+            T item = itemValues.get(i);
+            if (item.isEmpty()) {
+                itemValues.remove(i) ;
+            } else {
+                break;
+            }
+        }
         itemValues.forEach(mapping);
         return itemValues;
     }
