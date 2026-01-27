@@ -48,7 +48,7 @@ public final class ChartSortUtil {
                 tsEnd = (tsEnd / step + 1) * step;
             }
         }
-        while (tsFrom < tsEnd) {
+        while (tsFrom <= tsEnd) {
             items.computeIfAbsent(tsFrom, k -> {
                 T t = emptyGetter.apply(k);
                 t.setTs(k);
