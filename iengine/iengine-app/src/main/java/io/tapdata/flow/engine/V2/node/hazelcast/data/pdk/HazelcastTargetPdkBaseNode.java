@@ -187,6 +187,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected Connections sourceConnection;
     private final ITaskInspect taskInspect;
 	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
+	protected final Map<String, Boolean> startTransactionMap = new HashMap<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -1067,37 +1068,41 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         List<TapEvent> otherLevelEvents = new ArrayList<>();
         boolean hasMergeInfo = false;
 
-        for (TapEvent tapEvent : tapEvents) {
-            Object mergeInfoObj = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
-            if (mergeInfoObj instanceof MergeInfo) {
-                hasMergeInfo = true;
-                MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
-                Integer level = mergeInfo.getLevel();
-                if (level != null && level == 1) {
-                    level1Events.add(tapEvent);
-                } else {
-                    otherLevelEvents.add(tapEvent);
-                }
-            } else {
-                otherLevelEvents.add(tapEvent);
-            }
-        }
+		TapdataEvent firstRecordEvent = tapdataEvents.stream().filter(event -> event.getTapEvent() instanceof TapRecordEvent).findFirst().orElse(null);
+		if (null != firstRecordEvent && !firstRecordEvent.getSyncStage().equals(SyncStage.CDC)) {
+			processEvents(tapEvents);
+		} else {
+			for (TapEvent tapEvent : tapEvents) {
+				Object mergeInfoObj = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
+				if (mergeInfoObj instanceof MergeInfo mergeInfo) {
+					hasMergeInfo = true;
+					Integer level = mergeInfo.getLevel();
+					if (level != null && level == 1) {
+						level1Events.add(tapEvent);
+					} else {
+						otherLevelEvents.add(tapEvent);
+					}
+				} else {
+					otherLevelEvents.add(tapEvent);
+				}
+			}
 
-        // If no MergeInfo exists, use original logic
-        if (!hasMergeInfo) {
-            processEventsWithExactlyOnceCheck(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
-            return;
-        }
+			// If no MergeInfo exists, use original logic
+			if (!hasMergeInfo) {
+				processEventsWithExactlyOnceCheck(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
+				return;
+			}
 
-        // Process level=1 events with exactly once write if enabled
-        if (CollectionUtils.isNotEmpty(level1Events)) {
-            processEventsWithExactlyOnceCheck(tapdataEvents, level1Events, hasExactlyOnceWriteCache);
-        }
+			// Process level=1 events with exactly once write if enabled
+			if (CollectionUtils.isNotEmpty(level1Events)) {
+				processEventsWithExactlyOnceCheck(tapdataEvents, level1Events, hasExactlyOnceWriteCache);
+			}
 
-        // Process other level events without exactly once write
-        if (CollectionUtils.isNotEmpty(otherLevelEvents)) {
-            processEvents(otherLevelEvents);
-        }
+			// Process other level events without exactly once write
+			if (CollectionUtils.isNotEmpty(otherLevelEvents)) {
+				processEvents(otherLevelEvents);
+			}
+		}
     }
 
     private void processEventsWithExactlyOnceCheck(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
@@ -1999,15 +2004,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     void transactionBegin() {
-        throw new UnsupportedOperationException();
+		startTransactionMap.put(Thread.currentThread().getName(), true);
     }
 
     void transactionCommit() {
-        throw new UnsupportedOperationException();
+        startTransactionMap.put(Thread.currentThread().getName(), false);
     }
 
     void transactionRollback() {
-        throw new UnsupportedOperationException();
+        startTransactionMap.put(Thread.currentThread().getName(), false);
     }
 
     void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents) {
