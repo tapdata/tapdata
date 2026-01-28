@@ -365,7 +365,7 @@ class MetricInstanceFactoryTest {
 
         @Test
         void testBatchSizeConstant() {
-            assertEquals(500, ReflectionTestUtils.getField(MetricInstanceFactory.class, "BATCH_SIZE"));
+            assertEquals(100, ReflectionTestUtils.getField(MetricInstanceFactory.class, "BATCH_SIZE"));
         }
 
         @Test

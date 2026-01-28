@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -57,12 +58,39 @@ public class TimeRangeUtil {
         query.setQueryEnd(originEnd);
         query.setFixStart(query.getGranularity().fixTime(startAt));
         query.setFixEnd(query.getGranularity().fixTime(originEnd));
+        Map<TimeGranularity, List<TimeRange>> timeGranularityListMap = doNotCompress(query, queryStartAt, queryEndAt);
         if (!compress) {
-            query.setQueryRange(doNotCompress(query, queryStartAt, queryEndAt));
+            query.setQueryRange(timeGranularityListMap);
         } else {
-            query.setQueryRange(doCompress(queryStartAt, queryEndAt));
+            query.setQueryRange(compress(timeGranularityListMap));
         }
+    }
 
+    static Map<TimeGranularity, List<TimeRange>> compress(Map<TimeGranularity, List<TimeRange>> timeGranularity) {
+        Map<TimeGranularity, List<TimeRange>> compressMap = new EnumMap<>(TimeGranularity.class);
+        timeGranularity.forEach((type, ranges) -> {
+            ranges.sort(Comparator.comparing(TimeRange::getStart));
+            TimeRange r = null;
+            for (TimeRange range : ranges) {
+                if (null == r) {
+                    r = range;
+                } else {
+                   long e = r.getEnd();
+                   if (e == range.getStart()) {
+                       r.setEnd(range.getEnd());
+                   } else {
+                       List<TimeRange> temp = compressMap.computeIfAbsent(type, k -> new ArrayList<>());
+                       temp.add(r);
+                       r = range;
+                   }
+                }
+            }
+            List<TimeRange> temp = compressMap.computeIfAbsent(type, k -> new ArrayList<>());
+            if (null != r) {
+                temp.add(r);
+            }
+        });
+        return compressMap;
     }
 
     static Map<TimeGranularity, List<TimeRange>> doCompress(long queryStartAt, long queryEndAt) {

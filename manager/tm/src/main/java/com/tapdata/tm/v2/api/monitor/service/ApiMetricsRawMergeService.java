@@ -459,7 +459,7 @@ public class ApiMetricsRawMergeService {
                     return apiId != null ? apiId.toString() : null;
                 })
                 .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public Long errorCount(QueryBase param, Consumer<Criteria> criteriaConsumer, Criteria apiCallCriteria) {
