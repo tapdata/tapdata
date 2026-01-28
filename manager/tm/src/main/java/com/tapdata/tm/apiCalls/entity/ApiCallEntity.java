@@ -129,6 +129,8 @@ public class ApiCallEntity extends BaseEntity {
      * */
     private String httpStatus;
 
+    private boolean succeed;
+
     private boolean delete;
 
     @Getter

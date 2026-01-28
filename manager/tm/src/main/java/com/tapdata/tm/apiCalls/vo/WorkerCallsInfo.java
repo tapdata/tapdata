@@ -39,4 +39,6 @@ public class WorkerCallsInfo {
     private Date lastCreateTime;
 
     private ObjectId lastApiCallId;
+
+    private boolean failed;
 }

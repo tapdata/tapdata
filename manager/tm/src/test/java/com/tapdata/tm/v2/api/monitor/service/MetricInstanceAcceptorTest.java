@@ -119,7 +119,7 @@ class MetricInstanceAcceptorTest {
             };
             MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             
-            testAcceptor.accept(document);
+            testAcceptor.accept(new MetricInstanceFactory.CallInfo(document));
             
             // Verify the bucket calculations are correct
             verify(consumer, never()).apply(anyBoolean(), any());

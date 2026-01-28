@@ -22,7 +22,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -57,14 +57,14 @@ public class ParticleSizeAnalyzer {
         return apiMetricsRaws;
     }
 
-    public static List<ApiMetricsRaw> secondFiveMetricsRaws(List<ApiMetricsRaw> apiMetricsRaws, Function<ApiMetricsRaw, Boolean> filter) {
+    public static List<ApiMetricsRaw> secondFiveMetricsRaws(List<ApiMetricsRaw> apiMetricsRaws, Predicate<ApiMetricsRaw> filter) {
         List<ApiMetricsRaw> sub = new ArrayList<>();
         for (ApiMetricsRaw raw : apiMetricsRaws) {
             Map<Long, ApiMetricsRaw> subMetrics = raw.getSubMetrics();
             if (!CollectionUtils.isEmpty(subMetrics)) {
                 subMetrics.values()
                         .stream()
-                        .filter(filter::apply)
+                        .filter(filter)
                         .sorted(Comparator.comparing(ApiMetricsRaw::getTimeStart))
                         .forEach(e -> {
                             e.setApiId(raw.getApiId());
@@ -131,7 +131,7 @@ public class ParticleSizeAnalyzer {
             ApiMetricsRaw row = new ApiMetricsRaw();
             row.setProcessId(apiCallEntity.getApi_gateway_uuid());
             row.setApiId(apiCallEntity.getAllPathId());
-            long errorCount = ApiMetricsCompressValueUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()) ? 0L : 1L;
+            long errorCount = apiCallEntity.isSucceed() ? 0L : 1L;
             Optional.ofNullable(apiCallEntity.getWorkOid()).ifPresent(oId -> {
                 List<WorkerInfo> workerInfos = new ArrayList<>();
                 WorkerInfo info = new WorkerInfo();

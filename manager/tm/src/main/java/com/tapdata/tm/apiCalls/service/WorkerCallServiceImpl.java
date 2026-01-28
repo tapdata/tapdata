@@ -17,7 +17,6 @@ import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -235,7 +234,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         criteria.andOperator(idCriteria);
         criteria.and("supplement").ne(true);
         Query callQuery = Query.query(criteria);
-        callQuery.fields().include(Tag.ALL_PATH_ID, Tag.WORK_OID, "codeMsg", "httpStatus", "code");
+        callQuery.fields().include(Tag.ALL_PATH_ID, Tag.WORK_OID, "codeMsg", "httpStatus", "code", "succeed");
         List<ApiCallEntity> apiCalls = mongoOperations.find(callQuery, ApiCallEntity.class, MongoUtils.getCollectionName(ApiCallEntity.class));
         Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = groupCallResult(processId, apiCalls);
         List<WorkerCallStats> mappedResults = new ArrayList<>();
@@ -296,7 +295,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
                 return workerCallStats;
             });
             item.setTotalCount(1 + item.getTotalCount());
-            boolean isOk = ApiMetricsCompressValueUtil.checkByCode(apiCall.getCode(), apiCall.getHttpStatus());
+            boolean isOk = apiCall.isSucceed();
             item.setNotOkCount((isOk ? 0 : 1) + item.getNotOkCount());
         }
         return groupByApiAndWorker;
@@ -415,7 +414,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         criteriaCall.andOperator(timeCriteria);
         final MongoCollection<Document> collection = mongoTemplate.getCollection("ApiCall");
         final Query queryCall = Query.query(criteriaCall);
-        queryCall.fields().include("_id", "allPathId", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path");
+        queryCall.fields().include("_id", "allPathId", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path", "succeed");
         final Document queryObject = queryCall.getQueryObject();
         final FindIterable<Document> iterable =
                 collection.find(queryObject, Document.class)

@@ -38,6 +38,7 @@ public enum ApiCallField implements CollectionField {
     DATA_QUERY_FROM_TIME("dataQueryFromTime"),
     DATA_QUERY_END_TIME("dataQueryEndTime"),
     DATA_QUERY_TOTAL_TIME("dataQueryTotalTime"),
+    SUCCEED("succeed"),
     QUERY_OF_COUNT("queryOfCount"),
     QUERY_OF_PAGE("queryOfPage"),
     TOTAL_ROWS("totalRows"),

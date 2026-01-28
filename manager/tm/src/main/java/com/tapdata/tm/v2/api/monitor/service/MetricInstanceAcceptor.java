@@ -1,23 +1,17 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
-import com.tapdata.tm.apiCalls.entity.ApiCallField;
-import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.v2.api.common.service.AcceptorBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import lombok.Data;
-import org.apache.commons.lang3.StringUtils;
-import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.util.CollectionUtils;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -74,150 +68,208 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         this.metricType = metricType;
     }
 
-    long value(Long val) {
-        if (null == val) {
-            return 0L;
+    BucketInfo acceptLastMinute(MetricInstanceFactory.CallInfo entity, ObjectId topCallId) {
+        String apiId = entity.getApiId();
+        String serverId = entity.getServerId();
+        long requestCost = entity.getRequestCost();
+        long dbCost = entity.getDbCost();
+        boolean isOk = entity.isOk();
+        long reqBytes = entity.getReqBytes();
+        String workerId = entity.getWorkerId();
+        long bucketSec = entity.getBucketSec();
+        long bucketMin = entity.getBucketMin();
+        BucketInfo lessBucket = this.bucketInfoGetter.apply(bucketMin);
+        if (null == lessBucket.getLastBucketMin()) {
+            Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
+            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
+            subMetrics.put(bucketSec, sub);
+            lessBucket.setLastBucketMin(ApiMetricsRaw.instance(serverId, apiId, bucketMin, TimeGranularity.MINUTE, metricType));
+            lessBucket.getLastBucketMin().setSubMetrics(subMetrics);
         }
-        return Math.max(0L, val);
+        updateLastCallId(lessBucket.getLastBucketMin(), topCallId);
+        lessBucket.getLastBucketMin().merge(isOk, reqBytes, requestCost, dbCost);
+        lessBucket.getLastBucketMin().mergeWorker(workerId, isOk, needWorkerInfo);
+        if (null == lessBucket.getLastBucketMin().getSubMetrics()) {
+            Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
+            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
+            subMetrics.put(bucketSec, sub);
+            lessBucket.getLastBucketMin().setSubMetrics(subMetrics);
+        }
+        Map<Long, ApiMetricsRaw> subMetrics = lessBucket.getLastBucketMin().getSubMetrics();
+        ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
+        sub.merge(isOk, reqBytes, requestCost, dbCost);
+        sub.mergeWorker(workerId, isOk, needWorkerInfo);
+        acceptOnce(lessBucket.getLastBucketMin(), true);
+        return lessBucket;
     }
 
-    public void accept(Document entity) {
-        if (null == entity) {
-            return;
+    void acceptLastHour(MetricInstanceFactory.CallInfo entity, BucketInfo lessBucket, ObjectId topCallId) {
+        String serverId = entity.getServerId();
+        String apiId = entity.getApiId();
+        long requestCost = entity.getRequestCost();
+        long dbCost = entity.getDbCost();
+        boolean isOk = entity.isOk();
+        long reqBytes = entity.getReqBytes();
+        String workerId = entity.getWorkerId();
+        long bucketHour = entity.getBucketHour();
+        if (lessBucket.getLastBucketHour() == null) {
+            lessBucket.setLastBucketHour(ApiMetricsRaw.instance(serverId, apiId, bucketHour, TimeGranularity.HOUR, metricType));
         }
-        String allPathId = entity.get(ApiCallField.ALL_PATH_ID.field(), String.class);
-        String reqPath = entity.get(ApiCallField.REQ_PATH.field(), String.class);
-        String apiId = Optional.ofNullable(allPathId)
-                .orElse(Optional.ofNullable(reqPath).orElse(UN_KNOW));
-        String serverId = entity.get(ApiCallField.API_GATEWAY_UUID.field(), String.class);
-        if (StringUtils.isBlank(apiId)) {
-            return;
+        updateLastCallId(lessBucket.getLastBucketHour(), topCallId);
+        lessBucket.getLastBucketHour().merge(isOk, reqBytes, requestCost, dbCost);
+        lessBucket.getLastBucketHour().mergeWorker(workerId, isOk, needWorkerInfo);
+        acceptOnce(lessBucket.getLastBucketHour(), true);
+    }
+
+    void acceptLastDay(MetricInstanceFactory.CallInfo entity, BucketInfo lessBucket, ObjectId topCallId) {
+        long requestCost = entity.getRequestCost();
+        String serverId = entity.getServerId();
+        String apiId = entity.getApiId();
+        long dbCost = entity.getDbCost();
+        boolean isOk = entity.isOk();
+        long reqBytes = entity.getReqBytes();
+        String workerId = entity.getWorkerId();
+        long bucketDay = entity.getBucketDay();
+        if (lessBucket.getLastBucketDay() == null) {
+            lessBucket.setLastBucketDay(ApiMetricsRaw.instance(serverId, apiId, bucketDay, TimeGranularity.DAY, metricType));
         }
-        long requestCost = value(entity.get(ApiCallField.LATENCY.field(), Long.class));
-        long dbCost = value(entity.get(ApiCallField.DATA_QUERY_TOTAL_TIME.field(), Long.class));
-        boolean isOk = ApiMetricsCompressValueUtil.checkByCode(entity.get(ApiCallField.CODE.field(), String.class), entity.get(ApiCallField.HTTP_STATUS.field(), String.class));
-        long reqBytes = value(entity.get(ApiCallField.REQ_BYTES.field(), Long.class));
-        boolean supplement = Optional.ofNullable(entity.get(ApiCallField.SUPPLEMENT.field(), Boolean.class)).orElse(false);
-        String workerId = entity.get(ApiCallField.WORK_O_ID.field(), String.class);
-        Long apiCallReqTime = entity.get(ApiCallField.REQ_TIME.field(), Long.class);
-        long reqTimeOSec = Optional.ofNullable(apiCallReqTime).orElse(0L) / 1000L;
-        long bucketSec = TimeGranularity.SECOND_FIVE.fixTime(reqTimeOSec);
-        long bucketMin = TimeGranularity.MINUTE.fixTime(reqTimeOSec);
-        long bucketHour = TimeGranularity.HOUR.fixTime(reqTimeOSec);
-        long bucketDay = TimeGranularity.DAY.fixTime(reqTimeOSec);
-        ObjectId callId = entity.get(BaseEntityFields._ID.field(), ObjectId.class);
-        ObjectId topCallId = this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0 ? this.lastCallId : callId;
+        updateLastCallId(lessBucket.getLastBucketDay(), topCallId);
+        lessBucket.getLastBucketDay().merge(isOk, reqBytes, requestCost, dbCost);
+        lessBucket.getLastBucketDay().mergeWorker(workerId, isOk, needWorkerInfo);
+        acceptOnce(lessBucket.getLastBucketDay(), true);
+    }
+
+    ObjectId compareOid(ObjectId callId) {
+        return this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0 ? this.lastCallId : callId;
+    }
+
+    public void accept(MetricInstanceFactory.CallInfo entity) {
+        String apiId = entity.getApiId();
+        String serverId = entity.getServerId();
+        long requestCost = entity.getRequestCost();
+        long dbCost = entity.getDbCost();
+        boolean isOk = entity.isOk();
+        long reqBytes = entity.getReqBytes();
+        boolean supplement = entity.isSupplement();
+        String workerId = entity.getWorkerId();
+        long bucketSec = entity.getBucketSec();
+        ObjectId callId = entity.getCallId();
+        ObjectId topCallId = compareOid(callId);
         if (this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0 && !supplement) {
             return;
         }
-
-        boolean supplementMin = false;
-        boolean supplementHour = false;
-        boolean supplementDay = false;
-        BucketInfo lessBucket = null;
-        if (null != lastBucketMin && lastBucketMin.getTimeStart() != bucketMin) {
-            if (bucketMin < lastBucketMin.getTimeStart()) {
-                lessBucket = this.bucketInfoGetter.apply(bucketMin);
-                if (null == lessBucket.getLastBucketMin()) {
-                    Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-                    ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
-                    subMetrics.put(bucketSec, sub);
-                    lessBucket.setLastBucketMin(ApiMetricsRaw.instance(serverId, apiId, bucketMin, TimeGranularity.MINUTE, metricType));
-                    lessBucket.getLastBucketMin().setSubMetrics(subMetrics);
-                }
-                lastCallId(lessBucket.getLastBucketMin(), topCallId);
-                lessBucket.getLastBucketMin().merge(isOk, reqBytes, requestCost, dbCost);
-                lessBucket.getLastBucketMin().mergeWorker(workerId, isOk, needWorkerInfo);
-                if (null == lessBucket.getLastBucketMin().getSubMetrics()) {
-                    Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-                    ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
-                    subMetrics.put(bucketSec, sub);
-                    lessBucket.getLastBucketMin().setSubMetrics(subMetrics);
-                }
-                Map<Long, ApiMetricsRaw> subMetrics = lessBucket.getLastBucketMin().getSubMetrics();
-                ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
-                sub.merge(isOk, reqBytes, requestCost, dbCost);
-                sub.mergeWorker(workerId, isOk, needWorkerInfo);
-                acceptOnce(lessBucket.getLastBucketMin(), true);
-                supplementMin = true;
-            } else {
-                acceptOnce(lastBucketMin);
-                lastBucketMin = null;
-            }
-        }
-        if (null != lastBucketHour && lastBucketHour.getTimeStart() != bucketHour) {
-            if (bucketHour < lastBucketHour.getTimeStart()) {
-                assert lessBucket != null;
-                if (lessBucket.getLastBucketHour() == null) {
-                    lessBucket.setLastBucketHour(ApiMetricsRaw.instance(serverId, apiId, bucketHour, TimeGranularity.HOUR, metricType));
-                }
-                lastCallId(lessBucket.getLastBucketHour(), topCallId);
-                lessBucket.getLastBucketHour().merge(isOk, reqBytes, requestCost, dbCost);
-                lessBucket.getLastBucketHour().mergeWorker(workerId, isOk, needWorkerInfo);
-                acceptOnce(lessBucket.getLastBucketHour(), true);
-                supplementHour = true;
-            } else {
-                acceptOnce(lastBucketHour);
-                lastBucketHour = null;
-            }
-        }
-        if (null != lastBucketDay && lastBucketDay.getTimeStart() != bucketDay) {
-            if (bucketDay < lastBucketDay.getTimeStart()) {
-                assert lessBucket != null;
-                if (lessBucket.getLastBucketDay() == null) {
-                    lessBucket.setLastBucketDay(ApiMetricsRaw.instance(serverId, apiId, bucketDay, TimeGranularity.DAY, metricType));
-                }
-                lastCallId(lessBucket.getLastBucketDay(), topCallId);
-                lessBucket.getLastBucketDay().merge(isOk, reqBytes, requestCost, dbCost);
-                lessBucket.getLastBucketDay().mergeWorker(workerId, isOk, needWorkerInfo);
-                acceptOnce(lessBucket.getLastBucketDay(), true);
-                supplementDay = true;
-            } else {
-                acceptOnce(lastBucketDay);
-                lastBucketDay = null;
-            }
-        }
+        BucketInfo lessBucket = acceptMinuteIfNeed(entity, topCallId);
+        boolean supplementMin = null != lessBucket;
+        boolean supplementHour = acceptHourIfNeed(entity, topCallId, lessBucket);
+        boolean supplementDay = acceptDayIfNeed(entity, topCallId, lessBucket);
         if (!supplementMin) {
-            if (null == lastBucketMin) {
-                Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-                ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
-                subMetrics.put(bucketSec, sub);
-                lastBucketMin = ApiMetricsRaw.instance(serverId, apiId, bucketMin, TimeGranularity.MINUTE, metricType);
-                lastBucketMin.setSubMetrics(subMetrics);
-            }
-            if (null == lastBucketMin.getSubMetrics()) {
-                Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-                ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
-                subMetrics.put(bucketSec, sub);
-                lastBucketMin.setSubMetrics(subMetrics);
-            }
+            initMinuteIfNeed(entity);
+            initSecondIfNeed(entity);
             Map<Long, ApiMetricsRaw> subMetrics = lastBucketMin.getSubMetrics();
             ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
             sub.merge(isOk, reqBytes, requestCost, dbCost);
             sub.mergeWorker(workerId, isOk, needWorkerInfo);
-            lastCallId(lastBucketMin, topCallId);
+            updateLastCallId(lastBucketMin, topCallId);
             lastBucketMin.merge(isOk, reqBytes, requestCost, dbCost);
             lastBucketMin.mergeWorker(workerId, isOk, needWorkerInfo);
         }
         if (!supplementHour) {
-            if (null == lastBucketHour) {
-                lastBucketHour = ApiMetricsRaw.instance(serverId, apiId, bucketHour, TimeGranularity.HOUR, metricType);
-            }
-            lastCallId(lastBucketHour, topCallId);
+            initHourIfNeed(entity);
+            updateLastCallId(lastBucketHour, topCallId);
             lastBucketHour.merge(isOk, reqBytes, requestCost, dbCost);
             lastBucketHour.mergeWorker(workerId, isOk, needWorkerInfo);
         }
         if (!supplementDay) {
-            if (null == lastBucketDay) {
-                lastBucketDay = ApiMetricsRaw.instance(serverId, apiId, bucketDay, TimeGranularity.DAY, metricType);
-            }
-            lastCallId(lastBucketDay, topCallId);
+            initDayIfNeed(entity);
+            updateLastCallId(lastBucketDay, topCallId);
             lastBucketDay.merge(isOk, reqBytes, requestCost, dbCost);
             lastBucketDay.mergeWorker(workerId, isOk, needWorkerInfo);
         }
     }
 
-    void lastCallId(ApiMetricsRaw raw, ObjectId callId) {
+    void initMinuteIfNeed(MetricInstanceFactory.CallInfo entity) {
+        if (null != lastBucketMin) {
+            return;
+        }
+        Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
+        ApiMetricsRaw sub = ApiMetricsRaw.instance(
+                entity.getServerId(),
+                entity.getApiId(),
+                entity.getBucketSec(),
+                TimeGranularity.SECOND_FIVE,
+                metricType);
+        subMetrics.put(entity.getBucketSec(), sub);
+        lastBucketMin = ApiMetricsRaw.instance(entity.getServerId(), entity.getApiId(), entity.getBucketMin(), TimeGranularity.MINUTE, metricType);
+        lastBucketMin.setSubMetrics(subMetrics);
+    }
+
+    void initSecondIfNeed(MetricInstanceFactory.CallInfo entity) {
+        if (null != lastBucketMin.getSubMetrics()) {
+            return;
+        }
+        Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
+        ApiMetricsRaw sub = ApiMetricsRaw.instance(entity.getServerId(), entity.getApiId(), entity.getBucketSec(), TimeGranularity.SECOND_FIVE, metricType);
+        subMetrics.put(entity.getBucketSec(), sub);
+        lastBucketMin.setSubMetrics(subMetrics);
+    }
+
+    void initHourIfNeed(MetricInstanceFactory.CallInfo entity) {
+        if (null != lastBucketHour) {
+            return;
+        }
+        lastBucketHour = ApiMetricsRaw.instance(entity.getServerId(), entity.getApiId(), entity.getBucketHour(), TimeGranularity.HOUR, metricType);
+    }
+
+    void initDayIfNeed(MetricInstanceFactory.CallInfo entity) {
+        if (null == lastBucketDay) {
+            lastBucketDay = ApiMetricsRaw.instance(entity.getServerId(), entity.getApiId(), entity.getBucketDay(), TimeGranularity.DAY, metricType);
+        }
+    }
+
+    BucketInfo acceptMinuteIfNeed(MetricInstanceFactory.CallInfo entity, ObjectId topCallId) {
+        long bucketMin = entity.getBucketMin();
+        if (null != lastBucketMin && lastBucketMin.getTimeStart() != bucketMin) {
+            if (bucketMin < lastBucketMin.getTimeStart()) {
+                return acceptLastMinute(entity, topCallId);
+            } else {
+                acceptOnce(lastBucketMin);
+                lastBucketMin = null;
+            }
+        }
+        return null;
+    }
+
+    boolean acceptHourIfNeed(MetricInstanceFactory.CallInfo entity, ObjectId topCallId, BucketInfo lessBucket) {
+        long bucketHour = entity.getBucketHour();
+        if (null != lastBucketHour && lastBucketHour.getTimeStart() != bucketHour) {
+            if (bucketHour < lastBucketHour.getTimeStart()) {
+                assert lessBucket != null;
+                acceptLastHour(entity, lessBucket, topCallId);
+                return true;
+            } else {
+                acceptOnce(lastBucketHour);
+                lastBucketHour = null;
+            }
+        }
+        return false;
+    }
+
+    boolean acceptDayIfNeed(MetricInstanceFactory.CallInfo entity, ObjectId topCallId, BucketInfo lessBucket) {
+        long bucketDay = entity.getBucketDay();
+        if (null != lastBucketDay && lastBucketDay.getTimeStart() != bucketDay) {
+            if (bucketDay < lastBucketDay.getTimeStart()) {
+                assert lessBucket != null;
+                acceptLastDay(entity, lessBucket, topCallId);
+                return true;
+            } else {
+                acceptOnce(lastBucketDay);
+                lastBucketDay = null;
+            }
+        }
+        return false;
+    }
+
+    void updateLastCallId(ApiMetricsRaw raw, ObjectId callId) {
         if (raw.getLastCallId() == null || raw.getLastCallId().compareTo(callId) < 0) {
             raw.setLastCallId(callId);
         }

@@ -67,6 +67,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setApiId(info.getString("allPathId"));
         item.setLatency(info.getLong("latency"));
         item.setCode(info.getString("code"));
+        item.setFailed(!info.getBoolean("succeed"));
         item.setHttpStatus(info.getString("httpStatus"));
         item.setReqTime(info.getLong("reqTime"));
         item.setResTime(info.getLong("resTime"));
@@ -115,7 +116,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setDelays(delays);
         delays = ApiMetricsDelayUtil.addDelay(delays, latency);
         item.setErrorCount(Optional.ofNullable(item.getErrorCount()).orElse(0L));
-        if (!ApiMetricsCompressValueUtil.checkByCode(info.getCode(), info.getHttpStatus())) {
+        if (info.isFailed()) {
             item.setErrorCount(item.getErrorCount() + 1);
         }
         item.setReqCount(Optional.ofNullable(item.getReqCount()).orElse(0L) + 1);

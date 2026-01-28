@@ -28,6 +28,6 @@ class ApiOfEachServerTest {
         apiServerMap.put("serverId", worker);
         List<ApiOfEachServer> items = ApiOfEachServer.supplement(apiMetricsRaws, apiServerMap);
         Assertions.assertNotNull(items);
-        Assertions.assertEquals(1, items.size());
+        Assertions.assertEquals(2, items.size());
     }
 }

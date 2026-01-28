@@ -317,8 +317,8 @@ public class ApiMetricsChartQuery {
         item.setServerStatus(Optional.ofNullable(workerClusterStatus).map(Component::getStatus).orElse(null));
         item.setServerPingTime(Optional.ofNullable(worker).map(Worker::getWorkerStatus).map(ApiServerStatus::getActiveTime).orElse(null));
         item.setServerPingStatus(Optional.ofNullable(worker).map(Worker::getWorkerStatus).map(ApiServerStatus::getStatus).orElse(null));
-        item.setQueryFrom(param.getStartAt());
-        item.setQueryEnd(param.getEndAt());
+        item.setQueryFrom(param.getQueryStart());
+        item.setQueryEnd(param.getQueryEnd());
         item.setGranularity(param.getGranularity().getType());
     }
 
@@ -593,8 +593,8 @@ public class ApiMetricsChartQuery {
             item.setUsage(Optional.ofNullable(usageMap.get(e.getOid())).orElse(new ServerChart.Usage()));
             result.getWorkerList().add(item);
         }
-        result.setQueryFrom(param.getStartAt());
-        result.setQueryEnd(param.getEndAt());
+        result.setQueryFrom(param.getQueryStart());
+        result.setQueryEnd(param.getQueryEnd());
         result.setGranularity(param.getGranularity().getType());
         result.getWorkerList().sort((a, b) -> {
             int n1 = extractIndex(a.getWorkerName());
@@ -733,8 +733,8 @@ public class ApiMetricsChartQuery {
                                             item.setErrorRate(ApiMetricsCompressValueUtil.rate(errorCount, item.getRequestCount()));
                                             item.setErrorCount(errorCount);
                                             metricsRawMergeService.baseDataCalculate(item, rows, null);
-                                            item.setQueryFrom(param.getStartAt());
-                                            item.setQueryEnd(param.getEndAt());
+                                            item.setQueryFrom(param.getQueryStart());
+                                            item.setQueryEnd(param.getQueryEnd());
                                             item.setGranularity(param.getGranularity().getType());
                                             return item;
                                         }

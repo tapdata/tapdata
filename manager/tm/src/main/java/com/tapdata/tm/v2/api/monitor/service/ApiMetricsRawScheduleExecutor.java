@@ -84,7 +84,8 @@ public class ApiMetricsRawScheduleExecutor {
                     ApiCallField.DATA_QUERY_TOTAL_TIME,
                     ApiCallField.WORK_O_ID,
                     ApiCallField.REQ_PATH,
-                    ApiCallField.SUPPLEMENT
+                    ApiCallField.SUPPLEMENT,
+                    ApiCallField.SUCCEED
             );
             query.fields().include(filterFields);
             final Document queryObject = query.getQueryObject();
@@ -98,10 +99,8 @@ public class ApiMetricsRawScheduleExecutor {
                     final Document entity = cursor.next();
                     acceptor.accept(entity);
                     ObjectId oId = entity.getObjectId(BaseEntityFields._ID.field());
-                    if (null != oId) {
-                        if (null == batchEnd || batchEnd.compareTo(oId) < 0) {
-                            batchEnd = oId;
-                        }
+                    if (null != oId && (null == batchEnd || batchEnd.compareTo(oId) < 0)) {
+                        batchEnd = oId;
                     }
                 }
             }
@@ -139,11 +138,7 @@ public class ApiMetricsRawScheduleExecutor {
         if (!results.isEmpty()) {
             Document resultDoc = results.get(ValueResult.ZERO_INT.as());
             Object minValue = resultDoc.get(MIN_OF_MAX_LAST_CALL_ID);
-            if (minValue instanceof org.bson.types.ObjectId) {
-                return (org.bson.types.ObjectId) minValue;
-            } else {
-                return null;
-            }
+            return minValue instanceof org.bson.types.ObjectId oid ? oid : null;
         }
         return null;
     }
