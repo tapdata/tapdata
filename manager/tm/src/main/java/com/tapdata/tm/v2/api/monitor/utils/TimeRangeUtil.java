@@ -33,8 +33,8 @@ public class TimeRangeUtil {
 
     public static void rangeOf(ValueBase valueBase, QueryBase query, long delay, boolean compress) {
         rangeOf(query, delay, compress);
-        valueBase.setQueryFrom(query.getStartAt());
-        valueBase.setQueryEnd(query.getEndAt());
+        valueBase.setQueryFrom(query.getQueryStart());
+        valueBase.setQueryEnd(query.getQueryEnd());
         valueBase.setGranularity(query.getGranularity().getType());
     }
 

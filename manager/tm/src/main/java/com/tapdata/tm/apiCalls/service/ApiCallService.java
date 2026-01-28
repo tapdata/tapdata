@@ -156,22 +156,13 @@ public class ApiCallService {
         }
         analyseRangeNumber(Tag.DB_COST, Tag.DATA_QUERY_TOTAL_TIME, where, criteria);
         analyseRangeNumber(Tag.LATENCY, Tag.LATENCY, where, criteria);
-        Criteria subCriteria = new Criteria();
         Optional.ofNullable(code)
                 .map(value -> String.valueOf(value).trim())
                 .ifPresent(value -> {
                     if (Objects.equals("200", value)) {
-                        subCriteria.orOperator(
-                                Criteria.where("code").is("200"),
-                                Criteria.where("code").is("404")
-                                        .and("httpStatus").ne(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode())
-                        );
+                        criteria.and("succeed").is(true);
                     } else {
-                        subCriteria.orOperator(
-                                Criteria.where("code").is("404")
-                                        .and("httpStatus").is(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode()),
-                                Criteria.where("code").ne("200")
-                        );
+                        criteria.and("succeed").is(false);
                     }
                 });
         Optional.ofNullable(where.get(Tag.START))
@@ -182,7 +173,7 @@ public class ApiCallService {
                 .map(value -> (Double) where.remove("end"))
                 .map(Double::longValue)
                 .ifPresent(value -> endTimeCriteria.and(Tag.REQ_TIME).lt(value));
-        criteria.andOperator(startTimeCriteria, endTimeCriteria, subCriteria);
+        criteria.andOperator(startTimeCriteria, endTimeCriteria);
         return criteria;
     }
 
@@ -323,6 +314,7 @@ public class ApiCallService {
                             .and("user_port").as("userPort")
                             .and(Tag.METHOD).as(Tag.METHOD)
                             .and("code").as("code")
+                            .and("succeed").as("succeed")
                             .and("codeMsg").as("codeMsg")
                             .and("report_time").as("reportTime")
                             .and("visitTotalCount").as("visitTotalCount")
@@ -427,7 +419,7 @@ public class ApiCallService {
         item.setReqTime(new Date(e.getReqTime()));
         item.setCreateAt(e.getApiCreateAt());
         item.setMethod(e.getMethod());
-        item.setFailed(ApiMetricsCompressValueUtil.checkByCode(e.getCode(), e.getHttpStatus()));
+        item.setFailed(e.isSucceed());
         return item;
     }
 
@@ -435,6 +427,7 @@ public class ApiCallService {
         List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
         saveApiCallParamList.forEach(saveApiCallParam -> {
             ApiCallEntity apiCallEntity = BeanUtil.copyProperties(saveApiCallParam, ApiCallEntity.class);
+            apiCallEntity.setSucceed(ApiMetricsCompressValueUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()));
             apiCallEntity.setCreateAt(new Date());
             apiCallEntityList.add(apiCallEntity);
         });

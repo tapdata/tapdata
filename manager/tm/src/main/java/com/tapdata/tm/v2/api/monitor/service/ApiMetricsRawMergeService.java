@@ -100,8 +100,8 @@ public class ApiMetricsRawMergeService {
 
     protected TopApiInServer groupAsTopApiInServer(List<ApiMetricsRaw> rows, TopApiInServerParam param) {
         TopApiInServer item = TopApiInServer.create();
-        item.setQueryFrom(param.getStartAt());
-        item.setQueryEnd(param.getEndAt());
+        item.setQueryFrom(param.getQueryStart());
+        item.setQueryEnd(param.getQueryEnd());
         item.setGranularity(param.getGranularity().getType());
         long errorCount = errorCountGetter(rows, e -> item.setRequestCount(item.getRequestCount() + e));
         int total = item.getRequestCount().intValue();
@@ -183,8 +183,8 @@ public class ApiMetricsRawMergeService {
 
     protected ApiItem groupAsApiItem(List<ApiMetricsRaw> rows, ApiListParam param) {
         ApiItem item = ApiItem.create();
-        item.setQueryFrom(param.getStartAt());
-        item.setQueryEnd(param.getEndAt());
+        item.setQueryFrom(param.getQueryStart());
+        item.setQueryEnd(param.getQueryEnd());
         item.setGranularity(param.getGranularity().getType());
         long errorCount = errorCountGetter(rows, e -> item.setRequestCount(item.getRequestCount() + e));
         int total = item.getRequestCount().intValue();
@@ -271,7 +271,8 @@ public class ApiMetricsRawMergeService {
                 ApiCallField.REQ_BYTES,
                 ApiCallField.LATENCY,
                 BaseEntityFields._ID,
-                ApiCallField.WORK_O_ID
+                ApiCallField.WORK_O_ID,
+                ApiCallField.SUCCEED
         );
         query.fields().include(filterFields);
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
@@ -401,13 +402,13 @@ public class ApiMetricsRawMergeService {
         if (StringUtils.isNotBlank(callName)) {
             List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);
             return calls.stream()
-                    .filter(Objects::nonNull)
-                    .filter(e -> !ApiMetricsCompressValueUtil.checkByCode(e.getCode(), e.getHttpStatus()))
+                    .filter(e -> Objects.nonNull(e) && StringUtils.isNotBlank(e.getAllPathId()))
+                    .filter(e -> !e.isSucceed())
                     .map(ApiCallEntity::getAllPathId)
                     .distinct()
                     .toList();
         }
-        return null;
+        return new ArrayList<>();
     }
 
     protected Collection<String> errorCountOfSecondFiveRange(List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer) {
@@ -415,23 +416,25 @@ public class ApiMetricsRawMergeService {
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfSec5));
         Set<Long> times = ParticleSizeAnalyzer.asMinute(ranges);
         if (times.isEmpty()) {
-            return null;
+            return new ArrayList<>();
         }
         criteriaOfSec5.and(ApiMetricsRawFields.TIME_START.field()).in(times);
         criteriaOfSec5.and(ApiMetricsRawFields.ERROR_COUNT.field()).gt(0);
         List<ApiMetricsRaw> raws = service.find(Query.query(criteriaOfSec5));
+        Set<String> apiIds = new HashSet<>();
         for (TimeRange point : ranges) {
-            Set<String> apiIds = new HashSet<>();
             List<ApiMetricsRaw> rawsSub = ParticleSizeAnalyzer.secondFiveMetricsRaws(
                     raws,
                     e -> e.getTimeStart() >= point.getStart() && e.getTimeStart() < point.getEnd()
             );
             if (!rawsSub.isEmpty()) {
-                rawsSub.stream().map(ApiMetricsRaw::getApiId).distinct().forEach(apiIds::add);
+                rawsSub.stream().map(ApiMetricsRaw::getApiId)
+                        .filter(StringUtils::isNotBlank)
+                        .distinct()
+                        .forEach(apiIds::add);
             }
-            return apiIds;
         }
-        return null;
+        return apiIds;
     }
 
     protected Collection<String> errorCountOf(List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, TimeGranularity granularity) {
@@ -458,7 +461,7 @@ public class ApiMetricsRawMergeService {
                     Object apiId = item.get(ApiMetricsRawFields.API_ID.field());
                     return apiId != null ? apiId.toString() : null;
                 })
-                .filter(Objects::nonNull)
+                .filter(StringUtils::isNotBlank)
                 .toList();
     }
 

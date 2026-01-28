@@ -135,4 +135,6 @@ public class ApiCallDataVo {
      * @see ApiCallEntity.HttpStatusType
      * */
     private String httpStatus;
+
+    private boolean succeed;
 }

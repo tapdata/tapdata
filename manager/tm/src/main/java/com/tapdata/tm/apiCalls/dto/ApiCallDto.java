@@ -119,6 +119,8 @@ public class ApiCallDto extends BaseDto {
      * */
     private Long requestCost;
 
+    private boolean failed;
+
     /**
      * @see ApiCallEntity.HttpStatusType
      * */

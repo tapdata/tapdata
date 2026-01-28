@@ -1,12 +1,15 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.apiCalls.entity.ApiCallField;
+import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.v2.api.common.service.FactoryBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import lombok.Getter;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -40,17 +43,16 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         if (null == entity) {
             return;
         }
-        final String reqPath = entity.get(ApiCallField.REQ_PATH.field(), String.class);
+        CallInfo item = new CallInfo(entity);
+        final String reqPath = item.getReqPath();
         if (null != reqPath && IGNORE_PATH.contains(reqPath)) {
             return;
         }
         if (!needUpdate()) {
             needUpdate(true);
         }
-        final String allPathId = entity.get(ApiCallField.ALL_PATH_ID.field(), String.class);
-        final String apiId = Optional.ofNullable(allPathId)
-                .orElse(Optional.ofNullable(reqPath).orElse(MetricInstanceAcceptor.UN_KNOW));
-        final String serverId = entity.get(ApiCallField.API_GATEWAY_UUID.field(), String.class);
+        final String apiId = item.getApiId();
+        final String serverId = item.getServerId();
         final String keyOfApiServer = String.format("%s:%s_0", apiId, serverId);
         final String keyOfApi = String.format("%s:*_1", apiId);
         final String keyOfServer = String.format("*:%s_2", serverId);
@@ -60,10 +62,10 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         final MetricInstanceAcceptor acceptorOfServer = create(keyOfServer, MetricTypes.SERER, null, serverId)
                 .beSaveWorkerInfo();
         final MetricInstanceAcceptor acceptorOfAll = create(keyOfAll, MetricTypes.ALL, null, null);
-        acceptorOfApiServer.accept(entity);
-        acceptorOfApi.accept(entity);
-        acceptorOfServer.accept(entity);
-        acceptorOfAll.accept(entity);
+        acceptorOfApiServer.accept(item);
+        acceptorOfApi.accept(item);
+        acceptorOfServer.accept(item);
+        acceptorOfAll.accept(item);
         if (apiMetricsRaws.size() >= BATCH_SIZE) {
             flush();
         }
@@ -82,7 +84,7 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
                     }
                     return new MetricInstanceAcceptor.BucketInfo(lastMin, lastHour, lastDay);
                 }, (quickUpload, info) -> {
-                    if (!quickUpload) {
+                    if (null != quickUpload && !quickUpload) {
                         this.apiMetricsRaws.add(info);
                     } else {
                         this.consumer.accept(List.of(info));
@@ -91,7 +93,6 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
                 })
         );
     }
-
 
     ApiMetricsRaw lastOne(String apiId, String serverId, MetricTypes metricType, TimeGranularity timeGranularity, Long timeStart) {
         final Criteria criteria = Criteria.where(ApiMetricsRawFields.METRIC_TYPE.field()).is(metricType.getType())
@@ -118,4 +119,56 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         query.limit(1);
         return findOne.apply(query);
     }
+
+    @Getter
+    public static class CallInfo {
+        static final String UN_KNOW = "UN_KNOWN";
+        String allPathId;
+        String reqPath;
+        String apiId;
+        String serverId;
+        long requestCost;
+        long dbCost;
+        boolean isOk;
+        long reqBytes;
+        boolean supplement;
+        String workerId;
+        Long apiCallReqTime;
+        long reqTimeOSec;
+        long bucketSec;
+        long bucketMin;
+        long bucketHour;
+        long bucketDay;
+        ObjectId callId;
+
+        public CallInfo(Document entity) {
+            this.allPathId = entity.get(ApiCallField.ALL_PATH_ID.field(), String.class);
+            this.reqPath = entity.get(ApiCallField.REQ_PATH.field(), String.class);
+            this.apiId = Optional.ofNullable(allPathId)
+                    .orElse(Optional.ofNullable(reqPath)
+                            .orElse(UN_KNOW));
+            this.serverId = entity.get(ApiCallField.API_GATEWAY_UUID.field(), String.class);
+            this.requestCost = value(entity.get(ApiCallField.LATENCY.field(), Long.class));
+            this.dbCost = value(entity.get(ApiCallField.DATA_QUERY_TOTAL_TIME.field(), Long.class));
+            this.isOk = entity.get(ApiCallField.SUCCEED.field(), Boolean.class);
+            this.reqBytes = value(entity.get(ApiCallField.REQ_BYTES.field(), Long.class));
+            this.supplement = Optional.ofNullable(entity.get(ApiCallField.SUPPLEMENT.field(), Boolean.class)).orElse(false);
+            this.workerId = entity.get(ApiCallField.WORK_O_ID.field(), String.class);
+            this.apiCallReqTime = entity.get(ApiCallField.REQ_TIME.field(), Long.class);
+            this.reqTimeOSec = Optional.ofNullable(apiCallReqTime).orElse(0L) / 1000L;
+            this.bucketSec = TimeGranularity.SECOND_FIVE.fixTime(reqTimeOSec);
+            this.bucketMin = TimeGranularity.MINUTE.fixTime(reqTimeOSec);
+            this.bucketHour = TimeGranularity.HOUR.fixTime(reqTimeOSec);
+            this.bucketDay = TimeGranularity.DAY.fixTime(reqTimeOSec);
+            this.callId = entity.get(BaseEntityFields._ID.field(), ObjectId.class);
+        }
+
+        long value(Long val) {
+            if (null == val) {
+                return 0L;
+            }
+            return Math.max(0L, val);
+        }
+    }
+
 }
