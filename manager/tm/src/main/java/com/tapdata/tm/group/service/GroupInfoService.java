@@ -388,6 +388,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             batchUpChecker.checkDataSourceConnection(connections.values().stream().toList(), user,false);
         } catch (Exception e) {
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, ExceptionUtils.getMessage(e), null, user);
+            throw new RuntimeException(e);
         }
         List<GroupInfoRecordDetail> details = new ArrayList<>();
         try {
