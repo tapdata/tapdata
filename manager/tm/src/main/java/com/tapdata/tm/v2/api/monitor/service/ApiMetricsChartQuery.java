@@ -820,11 +820,6 @@ public class ApiMetricsChartQuery {
                 param.getWindowsStart(), param.getFixEnd(), param.getGranularity(),
                 ChartAndDelayOfApi.Item::create,
                 item -> {
-                    if (size.get() <= 0 &&
-                            CollectionUtils.isEmpty(item.getDelay())
-                            && CollectionUtils.isEmpty(item.getDbCost())) {
-                        return;
-                    }
                     bytes.add(item.getTotalBytes());
                     delays.add(item.getDelay());
                     dbCosts.add(item.getDbCost());
