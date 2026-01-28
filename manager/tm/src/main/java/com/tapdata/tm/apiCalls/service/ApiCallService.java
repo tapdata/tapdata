@@ -163,12 +163,14 @@ public class ApiCallService {
                     if (Objects.equals("200", value)) {
                         subCriteria.orOperator(
                                 Criteria.where("code").is("200"),
-                                Criteria.where("code").is("404").and("httpStatus").ne(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode())
+                                Criteria.where("code").is("404")
+                                        .and("httpStatus").ne(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode())
                         );
                     } else {
-                        subCriteria.andOperator(
-                                Criteria.where("code").ne("200"),
-                                Criteria.where("code").is("404").and("httpStatus").is(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode())
+                        subCriteria.orOperator(
+                                Criteria.where("code").is("404")
+                                        .and("httpStatus").is(ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode()),
+                                Criteria.where("code").ne("200")
                         );
                     }
                 });
