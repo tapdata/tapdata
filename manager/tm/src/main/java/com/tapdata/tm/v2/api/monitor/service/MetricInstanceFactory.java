@@ -28,7 +28,8 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
             "/openapi-readOnly.json",
             "/robots.txt",
             "/favicon.ico",
-            "//v4.loopback.io/favicon.ico"
+            "//v4.loopback.io/favicon.ico",
+            "/security.txt"
     );
 
     public MetricInstanceFactory(Consumer<List<ApiMetricsRaw>> consumer, Function<Query, ApiMetricsRaw> findOne) {

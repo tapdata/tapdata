@@ -111,6 +111,9 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             return;
         }
 
+        boolean supplementMin = false;
+        boolean supplementHour = false;
+        boolean supplementDay = false;
         BucketInfo lessBucket = null;
         if (null != lastBucketMin && lastBucketMin.getTimeStart() != bucketMin) {
             if (bucketMin < lastBucketMin.getTimeStart()) {
@@ -136,6 +139,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
                 sub.merge(isOk, reqBytes, requestCost, dbCost);
                 sub.mergeWorker(workerId, isOk, needWorkerInfo);
                 acceptOnce(lessBucket.getLastBucketMin(), true);
+                supplementMin = true;
             } else {
                 acceptOnce(lastBucketMin);
                 lastBucketMin = null;
@@ -151,6 +155,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
                 lessBucket.getLastBucketHour().merge(isOk, reqBytes, requestCost, dbCost);
                 lessBucket.getLastBucketHour().mergeWorker(workerId, isOk, needWorkerInfo);
                 acceptOnce(lessBucket.getLastBucketHour(), true);
+                supplementHour = true;
             } else {
                 acceptOnce(lastBucketHour);
                 lastBucketHour = null;
@@ -166,47 +171,50 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
                 lessBucket.getLastBucketDay().merge(isOk, reqBytes, requestCost, dbCost);
                 lessBucket.getLastBucketDay().mergeWorker(workerId, isOk, needWorkerInfo);
                 acceptOnce(lessBucket.getLastBucketDay(), true);
+                supplementDay = true;
             } else {
                 acceptOnce(lastBucketDay);
                 lastBucketDay = null;
             }
         }
-
-        if (null == lastBucketMin) {
-            Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
-            subMetrics.put(bucketSec, sub);
-            lastBucketMin = ApiMetricsRaw.instance(serverId, apiId, bucketMin, TimeGranularity.MINUTE, metricType);
-            lastBucketMin.setSubMetrics(subMetrics);
+        if (!supplementMin) {
+            if (null == lastBucketMin) {
+                Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
+                ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
+                subMetrics.put(bucketSec, sub);
+                lastBucketMin = ApiMetricsRaw.instance(serverId, apiId, bucketMin, TimeGranularity.MINUTE, metricType);
+                lastBucketMin.setSubMetrics(subMetrics);
+            }
+            if (null == lastBucketMin.getSubMetrics()) {
+                Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
+                ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
+                subMetrics.put(bucketSec, sub);
+                lastBucketMin.setSubMetrics(subMetrics);
+            }
+            Map<Long, ApiMetricsRaw> subMetrics = lastBucketMin.getSubMetrics();
+            ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
+            sub.merge(isOk, reqBytes, requestCost, dbCost);
+            sub.mergeWorker(workerId, isOk, needWorkerInfo);
+            lastCallId(lastBucketMin, topCallId);
+            lastBucketMin.merge(isOk, reqBytes, requestCost, dbCost);
+            lastBucketMin.mergeWorker(workerId, isOk, needWorkerInfo);
         }
-        if (null == lastBucketHour) {
-            lastBucketHour = ApiMetricsRaw.instance(serverId, apiId, bucketHour, TimeGranularity.HOUR, metricType);
+        if (!supplementHour) {
+            if (null == lastBucketHour) {
+                lastBucketHour = ApiMetricsRaw.instance(serverId, apiId, bucketHour, TimeGranularity.HOUR, metricType);
+            }
+            lastCallId(lastBucketHour, topCallId);
+            lastBucketHour.merge(isOk, reqBytes, requestCost, dbCost);
+            lastBucketHour.mergeWorker(workerId, isOk, needWorkerInfo);
         }
-        if (null == lastBucketDay) {
-            lastBucketDay = ApiMetricsRaw.instance(serverId, apiId, bucketDay, TimeGranularity.DAY, metricType);
+        if (!supplementDay) {
+            if (null == lastBucketDay) {
+                lastBucketDay = ApiMetricsRaw.instance(serverId, apiId, bucketDay, TimeGranularity.DAY, metricType);
+            }
+            lastCallId(lastBucketDay, topCallId);
+            lastBucketDay.merge(isOk, reqBytes, requestCost, dbCost);
+            lastBucketDay.mergeWorker(workerId, isOk, needWorkerInfo);
         }
-
-        if (null == lastBucketMin.getSubMetrics()) {
-            Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
-            subMetrics.put(bucketSec, sub);
-            lastBucketMin.setSubMetrics(subMetrics);
-        }
-        Map<Long, ApiMetricsRaw> subMetrics = lastBucketMin.getSubMetrics();
-        ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
-        sub.merge(isOk, reqBytes, requestCost, dbCost);
-        sub.mergeWorker(workerId, isOk, needWorkerInfo);
-
-        lastCallId(lastBucketMin, topCallId);
-        lastCallId(lastBucketHour, topCallId);
-        lastCallId(lastBucketDay, topCallId);
-        lastBucketMin.merge(isOk, reqBytes, requestCost, dbCost);
-        lastBucketHour.merge(isOk, reqBytes, requestCost, dbCost);
-        lastBucketDay.merge(isOk, reqBytes, requestCost, dbCost);
-
-        lastBucketMin.mergeWorker(workerId, isOk, needWorkerInfo);
-        lastBucketHour.mergeWorker(workerId, isOk, needWorkerInfo);
-        lastBucketDay.mergeWorker(workerId, isOk, needWorkerInfo);
     }
 
     void lastCallId(ApiMetricsRaw raw, ObjectId callId) {

@@ -60,10 +60,11 @@ public class ApiMetricsRawScheduleExecutor {
             return;
         }
         ObjectId lastCallId = lastOne();
+        long queryTime = System.currentTimeMillis();
         try (MetricInstanceFactory acceptor = create()) {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
             final Criteria criteria = Criteria.where(ApiCallField.DELETE.field()).ne(true);
-            Criteria newOr = Criteria.where(ApiCallField.REQ_TIME.field()).lt(System.currentTimeMillis());
+            Criteria newOr = Criteria.where(ApiCallField.REQ_TIME.field()).lt(queryTime);
             if (Objects.nonNull(lastCallId)) {
                 newOr.and(BaseEntityFields._ID.field()).gt(lastCallId);
             }

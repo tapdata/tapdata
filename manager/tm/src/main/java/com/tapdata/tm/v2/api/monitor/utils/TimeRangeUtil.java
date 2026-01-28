@@ -140,9 +140,7 @@ public class TimeRangeUtil {
     }
 
     public static TimeGranularity rangeOf(long range) {
-        if (range >= TimeGranularity.DAY.getSeconds()) {
-            return TimeGranularity.DAY;
-        } else if (range >= TimeGranularity.HOUR.getSeconds()) {
+        if (range >= TimeGranularity.HOUR.getSeconds()) {
             return TimeGranularity.HOUR;
         } else if (range >= TimeGranularity.MINUTE.getSeconds()) {
             return TimeGranularity.MINUTE;
