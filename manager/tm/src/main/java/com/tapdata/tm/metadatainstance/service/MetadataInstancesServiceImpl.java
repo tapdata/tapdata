@@ -2157,8 +2157,9 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                                     metadataInstancesDto.setId(oldMeta.getId());
                                 }else{
                                     metadataInstancesDto.setId(null);
-                                    metadataInstancesDto.setDeleted(false);
                                 }
+                            }else{
+                                metadataInstancesDto.setId(null);
                             }
                             newMeta = importEntity(metadataInstancesDto, user);
                             if (newMeta.getId() == null){
