@@ -2150,14 +2150,20 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                                 metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName().replace(connectionId, connectionDto.getId().toHexString()));
                                 metadataInstancesDto.setOriginalName(connectionDto.getName());
                                 metadataInstancesDto.setAncestorsName(connectionDto.getName());
-                                MetadataInstancesDto oldMeta = findByQualifiedNameNotDelete(metadataInstancesDto.getQualifiedName(), user, "_id");
+                                Criteria criteria = Criteria.where(QUALIFIED_NAME).is(metadataInstancesDto.getQualifiedName());
+                                Query query = new Query(criteria);
+                                MetadataInstancesDto oldMeta = findOne(query,user);
                                 if (oldMeta != null) {
                                     metadataInstancesDto.setId(oldMeta.getId());
                                 }else{
-                                    metadataInstancesDto.setId(new ObjectId());
+                                    metadataInstancesDto.setId(null);
+                                    metadataInstancesDto.setDeleted(false);
                                 }
                             }
                             newMeta = importEntity(metadataInstancesDto, user);
+                            if (newMeta.getId() == null){
+                                newMeta = findByQualifiedNameNotDelete(metadataInstancesDto.getQualifiedName(), user, "_id");
+                            }
                             databaseIdMap.put(oldDatabaseId,newMeta.getId().toHexString());
                             metaMap.put(newMeta.getId().toHexString(), metadataInstancesDto);
                         }
