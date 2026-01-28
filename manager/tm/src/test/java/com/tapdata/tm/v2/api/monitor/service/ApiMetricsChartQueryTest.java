@@ -1,13 +1,20 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.cluster.dto.Component;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.HttpUtils;
+import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
+import com.tapdata.tm.v2.api.monitor.main.dto.ApiOfEachServer;
+import com.tapdata.tm.v2.api.monitor.main.dto.ChartAndDelayOfApi;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerChart;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerItem;
+import com.tapdata.tm.v2.api.monitor.main.dto.ServerOverviewDetail;
+import com.tapdata.tm.v2.api.monitor.main.dto.ServerTopOnHomepage;
+import com.tapdata.tm.v2.api.monitor.main.dto.TopWorkerInServer;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
@@ -18,9 +25,11 @@ import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerChartParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
-import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
 import com.tapdata.tm.v2.api.usage.repository.ServerUsageMetricRepository;
 import com.tapdata.tm.v2.api.usage.repository.UsageRepository;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
+import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
+import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
@@ -29,14 +38,16 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -50,6 +61,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -59,8 +71,8 @@ class ApiMetricsChartQueryTest {
     private WorkerRepository workerRepository;
     private ClusterStateRepository clusterRepository;
     private ModulesService modulesService;
-    private MongoTemplate mongoTemplate;
     private ServerUsageMetricRepository serverUsageMetricRepository;
+    private ApiMetricsRawMergeService metricsRawMergeService;
     private ApiMetricsChartQuery apiMetricsChartQuery;
 
     @BeforeEach
@@ -70,8 +82,8 @@ class ApiMetricsChartQueryTest {
         workerRepository = mock(WorkerRepository.class);
         clusterRepository = mock(ClusterStateRepository.class);
         modulesService = mock(ModulesService.class);
-        mongoTemplate = mock(MongoTemplate.class);
         serverUsageMetricRepository = mock(ServerUsageMetricRepository.class);
+        metricsRawMergeService = mock(ApiMetricsRawMergeService.class);
 
         apiMetricsChartQuery = mock(ApiMetricsChartQuery.class);
         ReflectionTestUtils.setField(apiMetricsChartQuery, "service", service);
@@ -80,8 +92,8 @@ class ApiMetricsChartQueryTest {
         ReflectionTestUtils.setField(apiMetricsChartQuery, "clusterRepository", clusterRepository);
         ReflectionTestUtils.setField(apiMetricsChartQuery, "modulesService", modulesService);
         ReflectionTestUtils.setField(apiMetricsChartQuery, "serverUsageMetricRepository", serverUsageMetricRepository);
+        ReflectionTestUtils.setField(apiMetricsChartQuery, "metricsRawMergeService", metricsRawMergeService);
         when(apiMetricsChartQuery.serverTopOnHomepage(any(QueryBase.class))).thenCallRealMethod();
-        //when(apiMetricsChartQuery.errorCount(anyList(), any(Function.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.serverOverviewList(any(ServerListParam.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.queryCpuUsageRecords(any(Criteria.class), anyLong(), anyLong(), any(TimeGranularity.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.mapUsage(anyList(), anyLong(), anyLong(), any(TimeGranularity.class))).thenCallRealMethod();
@@ -94,6 +106,9 @@ class ApiMetricsChartQueryTest {
         when(apiMetricsChartQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.extractIndex(anyString())).thenCallRealMethod();
+        when(apiMetricsChartQuery.topWorkerInServer(anyList(), any(ServerDetail.class))).thenCallRealMethod();
+        doCallRealMethod().when(apiMetricsChartQuery).handler(any(ServerChart.Item.class));
+        doCallRealMethod().when(apiMetricsChartQuery).mapping(any(ChartAndDelayOfApi.Item.class));
         List<ModulesDto> modulesDtoLit = new ArrayList<>();
         ModulesDto m = new ModulesDto();
         m.setId(new ObjectId());
@@ -107,7 +122,7 @@ class ApiMetricsChartQueryTest {
         e.setProcessId("xxxxx");
         workers.add(e);
         when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
-
+        when(metricsRawMergeService.getDelay()).thenReturn(0L);
     }
 
     @Nested
@@ -231,6 +246,462 @@ class ApiMetricsChartQueryTest {
         }
     }
 
+    @Nested
+    class ServerTopOnHomepageTest {
+        @Test
+        void testEmptyResult() {
+            QueryBase param = new QueryBase();
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(new ArrayList<>());
+            ServerTopOnHomepage result = apiMetricsChartQuery.serverTopOnHomepage(param);
+            assertNotNull(result);
+            assertEquals(0L, result.getTotalRequestCount());
+        }
+
+        @Test
+        void testWithData() {
+            QueryBase param = new QueryBase();
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            List<ApiMetricsRaw> raws = new ArrayList<>();
+            raws.add(createApiMetricsRaw("api1", "server1", 100L, 10L));
+            raws.add(createApiMetricsRaw("api2", "server1", 200L, 20L));
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(raws);
+            when(metricsRawMergeService.errorCount(any(), any(), any())).thenReturn(2L);
+            doNothing().when(metricsRawMergeService).baseDataCalculate(any(), anyList(), any());
+            ServerTopOnHomepage result = apiMetricsChartQuery.serverTopOnHomepage(param);
+            assertNotNull(result);
+            assertEquals(300L, result.getTotalRequestCount());
+        }
+
+        @Test
+        void testWithNullElement() {
+            QueryBase param = new QueryBase();
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            List<ApiMetricsRaw> raws = new ArrayList<>();
+            raws.add(null);
+            raws.add(createApiMetricsRaw("api1", "server1", 100L, 10L));
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(raws);
+            when(metricsRawMergeService.errorCount(any(), any(), any())).thenReturn(1L);
+            doNothing().when(metricsRawMergeService).baseDataCalculate(any(), anyList(), any());
+            ServerTopOnHomepage result = apiMetricsChartQuery.serverTopOnHomepage(param);
+            assertNotNull(result);
+            assertEquals(100L, result.getTotalRequestCount());
+        }
+
+        @Test
+        void testWithZeroErrorCount() {
+            QueryBase param = new QueryBase();
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            List<ApiMetricsRaw> raws = new ArrayList<>();
+            raws.add(createApiMetricsRaw("api1", "server1", 100L, 0L));
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(raws);
+            doNothing().when(metricsRawMergeService).baseDataCalculate(any(), anyList(), any());
+            ServerTopOnHomepage result = apiMetricsChartQuery.serverTopOnHomepage(param);
+            assertNotNull(result);
+            assertEquals(100L, result.getTotalRequestCount());
+            assertEquals(0D, result.getTotalErrorRate());
+        }
+    }
+
+    @Nested
+    class ServerOverviewListTest {
+        @Test
+        void testEmptyServerList() {
+            ServerListParam param = new ServerListParam();
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            when(workerRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            List<ServerItem> result = apiMetricsChartQuery.serverOverviewList(param);
+            assertNotNull(result);
+        }
+
+        @Test
+        void testWithServerNameFilter() {
+            ServerListParam param = new ServerListParam();
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            param.setServerName("test-server");
+            List<Worker> workers = new ArrayList<>();
+            Worker worker = createWorker("server1", "test-server-1");
+            workers.add(worker);
+            when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
+            when(clusterRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            when(usageRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(new ArrayList<>());
+            List<ServerItem> result = apiMetricsChartQuery.serverOverviewList(param);
+            assertNotNull(result);
+        }
+    }
+
+    @Nested
+    class QueryCpuUsageRecordsTest {
+        @Test
+        void testSecondFiveGranularity() {
+            Criteria criteria = new Criteria();
+            when(usageRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            List<?> result = apiMetricsChartQuery.queryCpuUsageRecords(criteria, 1765209600L, 1765209660L, TimeGranularity.SECOND_FIVE);
+            assertNotNull(result);
+        }
+
+        @Test
+        void testMinuteGranularity() {
+            Criteria criteria = new Criteria();
+            when(serverUsageMetricRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            List<?> result = apiMetricsChartQuery.queryCpuUsageRecords(criteria, 1765209600L, 1765213200L, TimeGranularity.MINUTE);
+            assertNotNull(result);
+        }
+
+        @Test
+        void testHourGranularity() {
+            Criteria criteria = new Criteria();
+            when(serverUsageMetricRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            List<?> result = apiMetricsChartQuery.queryCpuUsageRecords(criteria, 1765209600L, 1767888000L, TimeGranularity.HOUR);
+            assertNotNull(result);
+        }
+    }
+
+    @Nested
+    class AsServerItemInfoTest {
+        @Test
+        void testWithWorkerAndClusterState() {
+            ServerItem item = ServerItem.create();
+            Map<String, ServerChart.Usage> usageMap = new HashMap<>();
+            ServerChart.Usage usage = ServerChart.Usage.create();
+            usage.getCpuUsage().add(50.0);
+            usage.getMemoryUsage().add(60.0);
+            usage.getTs().add(1765209600L);
+            usageMap.put("server1", usage);
+            Worker worker = createWorker("server1", "test-host");
+            ApiServerStatus status = new ApiServerStatus();
+            status.setActiveTime(1765209600000L);
+            status.setStatus("running");
+            worker.setWorkerStatus(status);
+            Map<String, Component> clusterStateMap = new HashMap<>();
+            Component component = new Component();
+            component.setStatus("running");
+            clusterStateMap.put("server1", component);
+            ServerListParam param = new ServerListParam();
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            apiMetricsChartQuery.asServerItemInfo("server1", item, usageMap, worker, clusterStateMap, param);
+            assertEquals("server1", item.getServerId());
+            assertEquals("test-host", item.getServerName());
+            assertEquals("running", item.getServerStatus());
+        }
+
+        @Test
+        void testWithNullWorker() {
+            ServerItem item = ServerItem.create();
+            Map<String, ServerChart.Usage> usageMap = new HashMap<>();
+            Map<String, Component> clusterStateMap = new HashMap<>();
+            ServerListParam param = new ServerListParam();
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            apiMetricsChartQuery.asServerItemInfo("server1", item, usageMap, null, clusterStateMap, param);
+            assertEquals("server1", item.getServerId());
+            assertEquals("", item.getServerName());
+        }
+    }
+
+    @Nested
+    class ServerOverviewDetailFullTest {
+        @Test
+        void testWithValidServerId() {
+            ServerDetail param = new ServerDetail();
+            param.setServerId("server1");
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            Worker worker = createWorker("server1", "test-host");
+            ApiServerStatus status = new ApiServerStatus();
+            MetricInfo metricInfo = new MetricInfo();
+            metricInfo.setCpuUsage(50.0);
+            metricInfo.setHeapMemoryUsage(1000L);
+            metricInfo.setHeapMemoryUsageMax(2000L);
+            metricInfo.setLastUpdateTime(1765209600000L);
+            status.setMetricValues(metricInfo);
+            worker.setWorkerStatus(status);
+            when(workerRepository.findOne(any(Query.class))).thenReturn(Optional.of(worker));
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(new ArrayList<>());
+            when(metricsRawMergeService.errorCountGetter(anyList(), any())).thenReturn(0L);
+            doNothing().when(metricsRawMergeService).baseDataCalculate(any(), anyList(), any());
+            when(apiMetricsChartQuery.topWorkerInServer(anyList(), any(ServerDetail.class))).thenReturn(new TopWorkerInServer());
+            ServerOverviewDetail result = apiMetricsChartQuery.serverOverviewDetail(param);
+            assertNotNull(result);
+            assertEquals("server1", result.getServerId());
+            assertEquals("test-host", result.getServerName());
+        }
+    }
+
+    @Nested
+    class HandlerTest {
+        @Test
+        void testWithRequestCount() {
+            ServerChart.Item item = new ServerChart.Item();
+            item.setRequestCount(100L);
+            item.setErrorCount(10L);
+            item.setDelay(Arrays.asList(Map.of("100", 50)));
+            item.setDbCost(Arrays.asList(Map.of("50", 30)));
+            apiMetricsChartQuery.handler(item);
+            assertNotNull(item.getErrorRate());
+            assertEquals(10.0, item.getErrorRate());
+        }
+
+        @Test
+        void testWithZeroRequestCount() {
+            ServerChart.Item item = new ServerChart.Item();
+            item.setRequestCount(0L);
+            item.setErrorCount(0L);
+            item.setDelay(new ArrayList<>());
+            item.setDbCost(new ArrayList<>());
+            apiMetricsChartQuery.handler(item);
+            Assertions.assertNull(item.getErrorRate());
+        }
+
+        @Test
+        void testWithDelays() {
+            ServerChart.Item item = new ServerChart.Item();
+            item.setRequestCount(100L);
+            item.setErrorCount(5L);
+            item.setDelay(Arrays.asList(Map.of("100", 50)));
+            item.setDbCost(Arrays.asList(Map.of("50", 30)));
+            List<List<Map<String, Number>>> delays = new ArrayList<>();
+            delays.add(Arrays.asList(Map.of("100", 50)));
+            item.setDelays(delays);
+            List<List<Map<String, Number>>> dbCosts = new ArrayList<>();
+            dbCosts.add(Arrays.asList(Map.of("50", 30)));
+            item.setDbCosts(dbCosts);
+            apiMetricsChartQuery.handler(item);
+            assertNotNull(item.getP95());
+            assertNotNull(item.getP99());
+        }
+    }
+
+    @Nested
+    class TopWorkerInServerTest {
+        @Test
+        void testEmptyServerId() {
+            ServerDetail param = new ServerDetail();
+            param.setServerId("");
+            assertThrows(BizException.class, () -> apiMetricsChartQuery.topWorkerInServer(new ArrayList<>(), param));
+        }
+
+        @Test
+        void testWithWorkers() {
+            ServerDetail param = new ServerDetail();
+            param.setServerId("server1");
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            Worker worker = createWorker("server1", "test-host");
+            ApiServerStatus status = new ApiServerStatus();
+            Map<String, ApiServerWorkerInfo> workersMap = new HashMap<>();
+            ApiServerWorkerInfo workerInfo = new ApiServerWorkerInfo();
+            workerInfo.setOid("worker1");
+            workerInfo.setName("Worker-0");
+            MetricInfo metricInfo = new MetricInfo();
+            metricInfo.setCpuUsage(50.0);
+            workerInfo.setMetricValues(metricInfo);
+            workersMap.put("worker1", workerInfo);
+            status.setWorkers(workersMap);
+            worker.setWorkerStatus(status);
+            when(workerRepository.findOne(any(Query.class))).thenReturn(Optional.of(worker));
+            when(usageRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            TopWorkerInServer result = apiMetricsChartQuery.topWorkerInServer(new ArrayList<>(), param);
+            assertNotNull(result);
+            assertNotNull(result.getWorkerList());
+        }
+    }
+
+    @Nested
+    class ApiOverviewDetailTest {
+        @Test
+        void testWithValidApiId() {
+            ApiDetailParam param = new ApiDetailParam();
+            param.setApiId(new ObjectId().toHexString());
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            List<ApiMetricsRaw> raws = new ArrayList<>();
+            raws.add(createApiMetricsRaw(param.getApiId(), "server1", 100L, 10L));
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(raws);
+            ModulesDto modulesDto = new ModulesDto();
+            modulesDto.setName("Test API");
+            modulesDto.setApiVersion("v1");
+            modulesDto.setBasePath("test");
+            when(modulesService.findOne(any(Query.class))).thenReturn(modulesDto);
+            doNothing().when(metricsRawMergeService).baseDataCalculate(any(), anyList(), any());
+            ApiDetail result = apiMetricsChartQuery.apiOverviewDetail(param);
+            assertNotNull(result);
+            assertEquals("Test API", result.getApiName());
+        }
+
+        @Test
+        void testWithEmptyApiMetrics() {
+            ApiDetailParam param = new ApiDetailParam();
+            param.setApiId("testApiId");
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(new ArrayList<>());
+            ApiDetail result = apiMetricsChartQuery.apiOverviewDetail(param);
+            assertNotNull(result);
+        }
+    }
+
+    @Nested
+    class ApiOfEachServerTest {
+        @Test
+        void testEmptyApiMetrics() {
+            ApiWithServerDetail param = new ApiWithServerDetail();
+            param.setApiId("testApiId");
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(new ArrayList<>());
+            List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
+            assertNotNull(result);
+        }
+
+        @Test
+        void testWithApiMetrics() {
+            ApiWithServerDetail param = new ApiWithServerDetail();
+            param.setApiId("testApiId");
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            List<ApiMetricsRaw> raws = new ArrayList<>();
+            raws.add(createApiMetricsRaw("testApiId", "server1", 100L, 10L));
+            when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(raws);
+            List<Worker> workers = new ArrayList<>();
+            workers.add(createWorker("server1", "test-host"));
+            when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
+            doNothing().when(metricsRawMergeService).baseDataCalculate(any(), anyList(), any());
+            List<ApiOfEachServer> result = apiMetricsChartQuery.apiOfEachServer(param);
+            assertNotNull(result);
+        }
+    }
+
+    @Nested
+    class DelayOfApiTest {
+        @Test
+        void testEmptyApiId() {
+            ApiChart param = new ApiChart();
+            param.setApiId("");
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            assertThrows(BizException.class, () -> apiMetricsChartQuery.delayOfApi(param));
+        }
+
+        @Test
+        void testEmptyApiMetrics() {
+            ApiChart param = new ApiChart();
+            param.setApiId("testApiId");
+            param.setGranularity(TimeGranularity.SECOND_FIVE);
+            param.setStartAt(1765209600L);
+            param.setEndAt(1765209660L);
+            when(service.supplementMetricsRaw(any(), any(Boolean.class), any(), any(), any(String[].class))).thenReturn(new ArrayList<>());
+            ChartAndDelayOfApi result = apiMetricsChartQuery.delayOfApi(param);
+            assertNotNull(result);
+        }
+    }
+
+    @Nested
+    class MappingTest {
+        @Test
+        void testWithRequestCount() {
+            ChartAndDelayOfApi.Item item = new ChartAndDelayOfApi.Item();
+            item.setDelay(Arrays.asList(Map.of("100", 50)));
+            item.setDbCost(Arrays.asList(Map.of("50", 30)));
+            item.setTotalBytes(1000L);
+            apiMetricsChartQuery.mapping(item);
+            assertNotNull(item.getRequestCostAvg());
+            assertNotNull(item.getRps());
+        }
+
+        @Test
+        void testWithZeroRequestCount() {
+            ChartAndDelayOfApi.Item item = new ChartAndDelayOfApi.Item();
+            item.setDelay(new ArrayList<>());
+            item.setDbCost(new ArrayList<>());
+            item.setTotalBytes(0L);
+            apiMetricsChartQuery.mapping(item);
+            assertEquals(0D, item.getRequestCostAvg());
+            assertEquals(0D, item.getDbCostAvg());
+        }
+
+        @Test
+        void testWithDelaysAndDbCosts() {
+            ChartAndDelayOfApi.Item item = new ChartAndDelayOfApi.Item();
+            item.setDelay(Arrays.asList(Map.of("100", 50)));
+            item.setDbCost(Arrays.asList(Map.of("50", 30)));
+            item.setTotalBytes(1000L);
+            List<List<Map<String, Number>>> delays = new ArrayList<>();
+            delays.add(Arrays.asList(Map.of("100", 50)));
+            item.setDelays(delays);
+            List<List<Map<String, Number>>> dbCosts = new ArrayList<>();
+            dbCosts.add(Arrays.asList(Map.of("50", 30)));
+            item.setDbCosts(dbCosts);
+            apiMetricsChartQuery.mapping(item);
+            assertNotNull(item.getP95());
+            assertNotNull(item.getP99());
+        }
+
+        @Test
+        void testWithDbCostsOnly() {
+            ChartAndDelayOfApi.Item item = new ChartAndDelayOfApi.Item();
+            item.setDelay(new ArrayList<>());
+            item.setDbCost(Arrays.asList(Map.of("50", 30)));
+            item.setTotalBytes(0L);
+            List<List<Map<String, Number>>> dbCosts = new ArrayList<>();
+            dbCosts.add(Arrays.asList(Map.of("50", 30)));
+            item.setDbCosts(dbCosts);
+            apiMetricsChartQuery.mapping(item);
+            assertNotNull(item.getDbCostP95());
+            assertNotNull(item.getDbCostP99());
+        }
+    }
+
+    @Nested
+    class ActiveWorkersTest {
+        @Test
+        void testWithNullIgnoreIds() {
+            Map<String, Worker> result = apiMetricsChartQuery.activeWorkers(null);
+            assertNotNull(result);
+        }
+
+        @Test
+        void testWithEmptyIgnoreIds() {
+            Map<String, Worker> result = apiMetricsChartQuery.activeWorkers(new ArrayList<>());
+            assertNotNull(result);
+        }
+
+        @Test
+        void testWithIgnoreIds() {
+            Map<String, Worker> result = apiMetricsChartQuery.activeWorkers(Arrays.asList("server1", "server2"));
+            assertNotNull(result);
+        }
+
+        @Test
+        void testWithSetIgnoreIds() {
+            Map<String, Worker> result = apiMetricsChartQuery.activeWorkers(new HashSet<>(Arrays.asList("server1", "server2")));
+            assertNotNull(result);
+        }
+    }
+
     // Helper methods
     private ApiMetricsRaw createApiMetricsRaw(String apiId, String processId, Long reqCount, Long errorCount) {
         ApiMetricsRaw raw = new ApiMetricsRaw();
@@ -251,9 +722,7 @@ class ApiMetricsChartQueryTest {
         worker.setHostname(hostname);
         return worker;
     }
-
-    //@Test
-    void call() {
+}
         String token = "eyJraWQiOiI5NGJhMDRkNC0wYWZjLTRmNzgtYjAyMi1kZTAwNGQ1ZTlmNmIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxMTUzNDMyMzcwODgxOTgsImF1ZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsImNyZWF0ZWRBdCI6MTc2ODcwOTA4ODE5OCwibmJmIjoxNzY4NzA5MDg4LCJleHAiOjExNTM0MzIzNzA4OCwiaWF0IjoxNzY4NzA5MDg4LCJqdGkiOiJkMjUzNWJhMS01NDQ0LTRiZjItYjRkNS0yNjk1YWFmNGVjNWIifQ.U7Jg-FQ9zdae-dinCuy86383raAN150sl77MDClJysaamET_ozXXPIK0EM9bAyOnQswYEeVlbx1h9usuB9r4V3ANRPjhdEocW1TUeQHQjXGaC0htwWVpw7yjXiMz0UPc56aNVBNeCLo9xVKK4-YntjuU5TBvh4oM_m-DTVwTkXUnz4P8CBIixW1FaRAiR6gvKu6k3o20qVRvBj9U9HX2z_wPSLpY2GHGJwpQ3A-SMCtFPqW5Sy5ULkQ5TiEHA6PEZ-8FGI67SOrlqOjPm_WKMU3kAtNCD51X2SVIMO9466H5kW1qHVk_pmVE67eIMJI3l05L4-Ar0OeGPCf79FHuJg";
         String uri = "http://127.0.0.1:3081/api%s?access_token=%s";
         List<String> api = List.of(

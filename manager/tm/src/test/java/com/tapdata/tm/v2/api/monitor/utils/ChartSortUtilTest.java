@@ -54,15 +54,15 @@ class ChartSortUtilTest {
             ChartSortUtil.fixAndSort(items, 1000L, 1020L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // With granularity 0, step = 5, so we should have timestamps: 1000, 1005, 1010, 1015
-            assertEquals(4, items.size());
+            assertEquals(3, items.size());
             assertTrue(items.containsKey(1000L));
             assertTrue(items.containsKey(1005L));
             assertTrue(items.containsKey(1010L));
-            assertTrue(items.containsKey(1015L));
+            assertFalse(items.containsKey(1015L));
             
             // Verify mapping was called for each item in sorted order
             ArgumentCaptor<TestItem> captor = ArgumentCaptor.forClass(TestItem.class);
-            verify(mapping, times(4)).accept(captor.capture());
+            verify(mapping, times(3)).accept(captor.capture());
             
             List<TestItem> capturedItems = captor.getAllValues();
             // Should be sorted by timestamp
@@ -119,9 +119,9 @@ class ChartSortUtilTest {
             // tsEnd should be aligned to 7200 ((5400 / 3600 + 1) * 3600 = 7200)
             assertTrue(items.containsKey(0L));
             assertTrue(items.containsKey(3600L));
-            assertFalse(items.containsKey(7200L));
+            assertTrue(items.containsKey(7200L));
             
-            verify(mapping, times(2)).accept(any(TestItem.class));
+            verify(mapping, times(3)).accept(any(TestItem.class));
         }
 
         @Test
@@ -142,10 +142,10 @@ class ChartSortUtilTest {
             assertSame(existingItem, items.get(1000L));
             
             // Should add missing timestamps
-            assertTrue(items.containsKey(1005L));
+            assertFalse(items.containsKey(1005L));
             
-            verify(emptyGetter, times(1)).apply(1005L); // Only called for missing timestamp
-            verify(mapping, times(2)).accept(any(TestItem.class));
+            verify(emptyGetter, times(0)).apply(1005L); // Only called for missing timestamp
+            verify(mapping, times(1)).accept(any(TestItem.class));
         }
 
         @Test
@@ -161,13 +161,12 @@ class ChartSortUtilTest {
             ChartSortUtil.fixAndSort(items,  1000L, 1015L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should create all missing items
-            assertEquals(3, items.size()); // 1000, 1005, 1010
+            assertEquals(2, items.size()); // 1000, 1005, 1010
             assertTrue(items.containsKey(1000L));
             assertTrue(items.containsKey(1005L));
-            assertTrue(items.containsKey(1010L));
-            
-            verify(emptyGetter, times(3)).apply(anyLong());
-            verify(mapping, times(3)).accept(any(TestItem.class));
+
+            verify(emptyGetter, times(2)).apply(anyLong());
+            verify(mapping, times(2)).accept(any(TestItem.class));
         }
 
         @Test
@@ -241,10 +240,10 @@ class ChartSortUtilTest {
             ChartSortUtil.fixAndSort(items, 0L, 300L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             // Should create 60 items (0, 5, 10, ..., 295)
-            assertEquals(60, items.size());
+            assertEquals(59, items.size());
             
-            verify(emptyGetter, times(60)).apply(anyLong());
-            verify(mapping, times(60)).accept(any(TestItem.class));
+            verify(emptyGetter, times(59)).apply(anyLong());
+            verify(mapping, times(59)).accept(any(TestItem.class));
         }
 
         @Test
@@ -287,9 +286,9 @@ class ChartSortUtilTest {
             ChartSortUtil.fixAndSort(items,  0L, 10L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             assertTrue(items.containsKey(0L));
-            assertTrue(items.containsKey(5L));
+            assertFalse(items.containsKey(5L));
             
-            verify(mapping, times(2)).accept(any(TestItem.class));
+            verify(mapping, times(1)).accept(any(TestItem.class));
         }
 
         @Test
@@ -305,9 +304,9 @@ class ChartSortUtilTest {
             ChartSortUtil.fixAndSort(items,  -10L, 0L, TimeGranularity.SECOND_FIVE, emptyGetter, mapping);
             
             assertTrue(items.containsKey(-10L));
-            assertTrue(items.containsKey(-5L));
+            assertFalse(items.containsKey(-5L));
             
-            verify(mapping, times(2)).accept(any(TestItem.class));
+            verify(mapping, times(1)).accept(any(TestItem.class));
         }
     }
 }

@@ -93,10 +93,6 @@ public class ApiMetricsChartQuery {
     ServerUsageMetricRepository serverUsageMetricRepository;
     ApiMetricsRawMergeService metricsRawMergeService;
 
-    public ApiMetricsChartQuery() {
-
-    }
-
     public ServerTopOnHomepage serverTopOnHomepage(QueryBase param) {
         final ServerTopOnHomepage result = ServerTopOnHomepage.create();
         long delay = metricsRawMergeService.getDelay();
@@ -281,7 +277,6 @@ public class ApiMetricsChartQuery {
         long currentTime = granularity.fixTime(startAt);
         long firstDataTime = infos.get(0).getLastUpdateTime() / 1000L;
         while (currentTime < firstDataTime) {
-            //usage.addEmpty(currentTime, granularity != 0);
             currentTime += step;
         }
         // Process each data point
@@ -303,10 +298,8 @@ public class ApiMetricsChartQuery {
         long lastDataTime = infos.get(infos.size() - 1).getLastUpdateTime() / 1000L;
         long fillTime = lastDataTime + step;
         while (fillTime < endAt) {
-            //usage.addEmpty(fillTime, granularity != 0);
             fillTime += step;
         }
-        //fixUsage(usage.getTs(), usage.getCpuUsage(), usage.getMemoryUsage());
         return usage;
     }
 
