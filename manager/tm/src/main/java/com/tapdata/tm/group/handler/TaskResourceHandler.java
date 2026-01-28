@@ -326,13 +326,16 @@ public class TaskResourceHandler implements ResourceHandler {
             payloadsByType.computeIfAbsent(ResourceType.INSPECT_TASK.name(), k -> new ArrayList<>()).addAll(payload);
         }
 
-        List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAndParent(null, tagIds.stream().toList());
-        if (CollectionUtils.isNotEmpty(allDto)) {
-            List<TaskUpAndLoadDto> payload = new ArrayList<>(allDto.stream()
-                    .map(t -> new TaskUpAndLoadDto(GroupConstants.METADATA_DEFINITION, JsonUtil.toJsonUseJackson(t)))
-                    .toList());
-            payloadsByType.computeIfAbsent(ResourceType.METADATA_DEFINITION.name(), k -> new ArrayList<>()).addAll(payload);
+        if(CollectionUtils.isNotEmpty(tagIds)){
+            List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAndParent(null, tagIds.stream().toList());
+            if (CollectionUtils.isNotEmpty(allDto)) {
+                List<TaskUpAndLoadDto> payload = new ArrayList<>(allDto.stream()
+                        .map(t -> new TaskUpAndLoadDto(GroupConstants.METADATA_DEFINITION, JsonUtil.toJsonUseJackson(t)))
+                        .toList());
+                payloadsByType.computeIfAbsent(ResourceType.METADATA_DEFINITION.name(), k -> new ArrayList<>()).addAll(payload);
+            }
         }
+
 
     }
 
