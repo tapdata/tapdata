@@ -95,7 +95,7 @@ public class ApiMetricsRawMergeService {
                 //do nothing
             }
         }
-        return Math.min(Math.max(delay + 25000L, 30000L), 120000L);
+        return Math.min(Math.max(delay + 30000L, 30000L), 150000L);
     }
 
     protected TopApiInServer groupAsTopApiInServer(List<ApiMetricsRaw> rows, TopApiInServerParam param) {
@@ -211,7 +211,7 @@ public class ApiMetricsRawMergeService {
                 param,
                 c -> c.and(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.API.getType()),
                 null,
-                CollectionField.fields(ApiMetricsRawFields.API_ID, ApiMetricsRawFields.PROCESS_ID, ApiMetricsRawFields.TIME_GRANULARITY, ApiMetricsRawFields.TIME_START, ApiMetricsRawFields.REQ_COUNT, ApiMetricsRawFields.ERROR_COUNT, ApiMetricsRawFields.DELAY)
+                CollectionField.fields(ApiMetricsRawFields.API_ID, ApiMetricsRawFields.PROCESS_ID, ApiMetricsRawFields.TIME_GRANULARITY, ApiMetricsRawFields.TIME_START, ApiMetricsRawFields.REQ_COUNT, ApiMetricsRawFields.ERROR_COUNT, ApiMetricsRawFields.DELAY, ApiMetricsRawFields.BYTES)
         );
         Map<String, ApiItem> apiInfoMap = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
