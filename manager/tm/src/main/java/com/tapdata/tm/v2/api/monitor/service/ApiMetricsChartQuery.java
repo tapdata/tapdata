@@ -655,7 +655,7 @@ public class ApiMetricsChartQuery {
         result.setApiName(param.getReqPath());
         result.setApiPath(param.getReqPath());
         if (!CollectionUtils.isEmpty(apiIds)) {
-            String topOne = apiIds.get(0).toHexString();
+            String topOne = Optional.ofNullable(apiIds.get(0)).map(ObjectId::toHexString).orElse("");
             Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
             Query queryApiInfo = Query.query(criteriaOfApi);
             queryApiInfo.fields().include(CollectionField.fields(ModulesField.NAME, ModulesField.API_VERSION, ModulesField.BASE_PATH, ModulesField.PREFIX));
