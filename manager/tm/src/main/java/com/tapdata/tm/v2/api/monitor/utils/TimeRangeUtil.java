@@ -57,10 +57,11 @@ public class TimeRangeUtil {
         query.setQueryEnd(originEnd);
         query.setFixStart(query.getGranularity().fixTime(startAt));
         query.setFixEnd(query.getGranularity().fixTime(originEnd));
-        Map<TimeGranularity, List<TimeRange>> timeGranularityListMap = doNotCompress(query, queryStartAt, queryEndAt);
         if (!compress) {
+            Map<TimeGranularity, List<TimeRange>> timeGranularityListMap = doNotCompress(query, queryStartAt, queryEndAt, query.getGranularity().getSupplement());
             query.setQueryRange(timeGranularityListMap);
         } else {
+            Map<TimeGranularity, List<TimeRange>> timeGranularityListMap = doNotCompress(query, queryStartAt, queryEndAt, 0L);
             query.setQueryRange(compress(timeGranularityListMap));
         }
     }
@@ -92,12 +93,12 @@ public class TimeRangeUtil {
         return compressMap;
     }
 
-    static Map<TimeGranularity, List<TimeRange>> doNotCompress(QueryBase query, long startAt, long endAt) {
+    static Map<TimeGranularity, List<TimeRange>> doNotCompress(QueryBase query, long startAt, long endAt, long windows) {
         TimeGranularity granularity = query.getGranularity();
         long fixStart = query.getFixStart();
         long fixEnd = granularity.fixTime(query.getEndAt() + granularity.getSeconds() - 1);
         //sliding window
-        long windowsStart = fixStart - granularity.getSupplement();
+        long windowsStart = fixStart - windows;
         query.setWindowsStart(windowsStart);
         Map<TimeGranularity, List<TimeRange>> timeGranularityListMap = new EnumMap<>(TimeGranularity.class);
         if (startAt < fixStart) {
