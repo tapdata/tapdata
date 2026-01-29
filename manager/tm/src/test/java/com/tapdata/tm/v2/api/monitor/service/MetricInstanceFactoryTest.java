@@ -109,7 +109,7 @@ class MetricInstanceFactoryTest {
         @Test
         void testAcceptWithIgnoredPath() {
             Document document = new Document("req_path", "/openapi-readOnly.json");
-
+            document.append("succeed", true);
             factory.accept(document);
 
             assertFalse(factory.needUpdate());
@@ -120,6 +120,7 @@ class MetricInstanceFactoryTest {
         void testAcceptWithNonIgnoredPath() {
             Document document = createValidDocument();
             document.append("req_path", "/api/test");
+            document.append("succeed", true);
 
             when(findOne.apply(any(Query.class))).thenReturn(null);
 
@@ -134,6 +135,7 @@ class MetricInstanceFactoryTest {
             Document document = createValidDocument();
             document.append("allPathId", "/api/test");
             document.append("req_path", "/api/other");
+            document.append("succeed", true);
 
             when(findOne.apply(any(Query.class))).thenReturn(null);
 
@@ -148,6 +150,7 @@ class MetricInstanceFactoryTest {
         void testAcceptWithReqPathOnly() {
             Document document = createValidDocument();
             document.append("req_path", "/api/test");
+            document.append("succeed", true);
             // No allPathId
 
             when(findOne.apply(any(Query.class))).thenReturn(null);
@@ -161,6 +164,7 @@ class MetricInstanceFactoryTest {
         @Test
         void testAcceptWithUnknownApiId() {
             Document document = createValidDocument();
+            document.append("succeed", true);
             // No allPathId or req_path
 
             when(findOne.apply(any(Query.class))).thenReturn(null);
@@ -226,7 +230,7 @@ class MetricInstanceFactoryTest {
             assertEquals(expected, result);
             verify(findOne).apply(argThat(query -> {
                 Document queryObject = query.getQueryObject();
-                return queryObject.get("apiId").equals("api1") &&
+                return queryObject.get("reqPath").equals("api1") &&
                         queryObject.get("processId").equals("server1") &&
                         queryObject.get("timeGranularity").equals(1) &&
                         !queryObject.containsKey("timeStart");
@@ -243,7 +247,7 @@ class MetricInstanceFactoryTest {
             assertEquals(expected, result);
             verify(findOne).apply(argThat(query -> {
                 Document queryObject = query.getQueryObject();
-                return queryObject.get("apiId").equals("api1") &&
+                return queryObject.get("reqPath").equals("api1") &&
                         queryObject.get("processId").equals("server1") &&
                         queryObject.get("timeGranularity").equals(1) &&
                         queryObject.get("timeStart").equals(60000L);
@@ -384,10 +388,12 @@ class MetricInstanceFactoryTest {
             Document doc1 = createValidDocument();
             doc1.append("allPathId", "/api/test1");
             doc1.append("api_gateway_uuid", "server1");
+            doc1.append("succeed", true);
 
             Document doc2 = createValidDocument();
             doc2.append("allPathId", "/api/test2");
             doc2.append("api_gateway_uuid", "server1");
+            doc2.append("succeed", true);
 
             when(findOne.apply(any(Query.class))).thenReturn(null);
 
@@ -410,6 +416,7 @@ class MetricInstanceFactoryTest {
                 .append("_id", new ObjectId())
                 .append("latency", 100L)
                 .append("req_bytes", 1024L)
+                .append("succeed", true)
                 .append("reqTime", System.currentTimeMillis());
     }
 

@@ -108,6 +108,7 @@ class MetricInstanceAcceptorTest {
         void testBucketTimeCalculation() {
             Document document = createValidDocument();
             document.append("reqTime", 125000L); // 125 seconds
+            document.append("succeed", true); // 125 seconds
             
             // Expected calculations:
             // reqTimeOSec = 125000 / 1000 = 125

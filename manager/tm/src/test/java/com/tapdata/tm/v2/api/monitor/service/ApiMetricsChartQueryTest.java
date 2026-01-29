@@ -686,28 +686,29 @@ class ApiMetricsChartQueryTest {
         @Test
         void testWithValidApiId() {
             ApiDetailParam param = new ApiDetailParam();
-            param.setApiId(new ObjectId().toHexString());
+            String oid = new ObjectId().toHexString();
+            param.setReqPath(oid);
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
             List<ApiMetricsRaw> raws = new ArrayList<>();
-            raws.add(createApiMetricsRaw(param.getApiId(), "server1", 100L, 10L));
+            raws.add(createApiMetricsRaw(param.getReqPath(), "server1", 100L, 10L));
             when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(raws);
             ModulesDto modulesDto = new ModulesDto();
-            modulesDto.setName("Test API");
+            modulesDto.setName("697b5caac4b09eceb902c166");
             modulesDto.setApiVersion("v1");
             modulesDto.setBasePath("test");
             when(modulesService.findOne(any(Query.class))).thenReturn(modulesDto);
             doNothing().when(metricsRawMergeService).baseDataCalculate(any(), anyList(), any());
             ApiDetail result = apiMetricsChartQuery.apiOverviewDetail(param);
             assertNotNull(result);
-            assertEquals("Test API", result.getApiName());
+            assertEquals(oid, result.getApiName());
         }
 
         @Test
         void testWithEmptyApiMetrics() {
             ApiDetailParam param = new ApiDetailParam();
-            param.setApiId("testApiId");
+            param.setReqPath("testApiId");
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
@@ -719,24 +720,24 @@ class ApiMetricsChartQueryTest {
         @Test
         void testWithNullModulesDto() {
             ApiDetailParam param = new ApiDetailParam();
-            param.setApiId(new ObjectId().toHexString());
+            param.setReqPath(new ObjectId().toHexString());
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
             List<ApiMetricsRaw> raws = new ArrayList<>();
-            raws.add(createApiMetricsRaw(param.getApiId(), "server1", 100L, 10L));
+            raws.add(createApiMetricsRaw(param.getReqPath(), "server1", 100L, 10L));
             when(metricsRawMergeService.merge(any(), any(), any(), any(String[].class))).thenReturn(raws);
             when(modulesService.findOne(any(Query.class))).thenReturn(null);
             doNothing().when(metricsRawMergeService).baseDataCalculate(any(), anyList(), any());
             ApiDetail result = apiMetricsChartQuery.apiOverviewDetail(param);
             assertNotNull(result);
-            assertEquals(param.getApiId(), result.getApiName());
+            assertEquals(param.getReqPath(), result.getApiName());
         }
 
         @Test
         void testWithInvalidApiId() {
             ApiDetailParam param = new ApiDetailParam();
-            param.setApiId("invalidApiId");
+            param.setReqPath("invalidApiId");
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
@@ -752,7 +753,7 @@ class ApiMetricsChartQueryTest {
         @Test
         void testEmptyApiMetrics() {
             ApiWithServerDetail param = new ApiWithServerDetail();
-            param.setApiId("testApiId");
+            param.setReqPath("testApiId");
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
@@ -764,7 +765,7 @@ class ApiMetricsChartQueryTest {
         @Test
         void testWithApiMetrics() {
             ApiWithServerDetail param = new ApiWithServerDetail();
-            param.setApiId("testApiId");
+            param.setReqPath("testApiId");
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
@@ -782,7 +783,7 @@ class ApiMetricsChartQueryTest {
         @Test
         void testWithEmptyServerIds() {
             ApiWithServerDetail param = new ApiWithServerDetail();
-            param.setApiId("testApiId");
+            param.setReqPath("testApiId");
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
@@ -798,7 +799,7 @@ class ApiMetricsChartQueryTest {
         @Test
         void testWithBlankProcessId() {
             ApiWithServerDetail param = new ApiWithServerDetail();
-            param.setApiId("testApiId");
+            param.setReqPath("testApiId");
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
@@ -817,7 +818,7 @@ class ApiMetricsChartQueryTest {
         @Test
         void testEmptyApiId() {
             ApiChart param = new ApiChart();
-            param.setApiId("");
+            param.setReqPath("");
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
@@ -827,7 +828,7 @@ class ApiMetricsChartQueryTest {
         @Test
         void testNullApiId() {
             ApiChart param = new ApiChart();
-            param.setApiId(null);
+            param.setReqPath(null);
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
@@ -837,7 +838,7 @@ class ApiMetricsChartQueryTest {
         @Test
         void testEmptyApiMetrics() {
             ApiChart param = new ApiChart();
-            param.setApiId("testApiId");
+            param.setReqPath("testApiId");
             param.setGranularity(TimeGranularity.SECOND_FIVE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
@@ -849,7 +850,7 @@ class ApiMetricsChartQueryTest {
         @Test
         void testWithMinuteGranularity() {
             ApiChart param = new ApiChart();
-            param.setApiId("testApiId");
+            param.setReqPath("testApiId");
             param.setGranularity(TimeGranularity.MINUTE);
             param.setStartAt(1765209600L);
             param.setEndAt(1765213200L);
@@ -861,7 +862,7 @@ class ApiMetricsChartQueryTest {
         @Test
         void testWithHourGranularity() {
             ApiChart param = new ApiChart();
-            param.setApiId("testApiId");
+            param.setReqPath("testApiId");
             param.setGranularity(TimeGranularity.HOUR);
             param.setStartAt(1765209600L);
             param.setEndAt(1767801600L);
