@@ -32,6 +32,8 @@ public class ApiMetricsRaw extends BaseEntity {
 
     private String apiId;
 
+    private String reqPath;
+
     /**
      * 0: each api * each server
      * 1: each api * all server
@@ -105,7 +107,7 @@ public class ApiMetricsRaw extends BaseEntity {
 
     private Date ttlKey;
 
-    public static ApiMetricsRaw instance(String serverId, String apiId, Long bucketMin, TimeGranularity type, MetricTypes metricType) {
+    public static ApiMetricsRaw instance(String serverId, String reqPath, String apiId, Long bucketMin, TimeGranularity type, MetricTypes metricType) {
         ApiMetricsRaw item = new ApiMetricsRaw();
         item.setId(new ObjectId());
         item.setTimeStart(bucketMin);
@@ -120,9 +122,11 @@ public class ApiMetricsRaw extends BaseEntity {
             case API_SERVER:
                 item.setProcessId(serverId);
                 item.setApiId(apiId);
+                item.setReqPath(reqPath);
                 break;
             case API:
                 item.setApiId(apiId);
+                item.setReqPath(reqPath);
                 break;
             case SERER:
                 item.setProcessId(serverId);

@@ -53,12 +53,12 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         }
         final String apiId = item.getApiId();
         final String serverId = item.getServerId();
-        final String keyOfApiServer = String.format("%s:%s_0", apiId, serverId);
-        final String keyOfApi = String.format("%s:*_1", apiId);
+        final String keyOfApiServer = String.format("%s:%s:%s_0", apiId, reqPath, serverId);
+        final String keyOfApi = String.format("%s:%s:*_1", reqPath, apiId);
         final String keyOfServer = String.format("*:%s_2", serverId);
         final String keyOfAll = "*:*_3";
-        final MetricInstanceAcceptor acceptorOfApiServer = create(keyOfApiServer, MetricTypes.API_SERVER, apiId, serverId);
-        final MetricInstanceAcceptor acceptorOfApi = create(keyOfApi, MetricTypes.API, apiId, null);
+        final MetricInstanceAcceptor acceptorOfApiServer = create(keyOfApiServer, MetricTypes.API_SERVER, reqPath, serverId);
+        final MetricInstanceAcceptor acceptorOfApi = create(keyOfApi, MetricTypes.API, reqPath, null);
         final MetricInstanceAcceptor acceptorOfServer = create(keyOfServer, MetricTypes.SERER, null, serverId)
                 .beSaveWorkerInfo();
         final MetricInstanceAcceptor acceptorOfAll = create(keyOfAll, MetricTypes.ALL, null, null);
@@ -71,16 +71,16 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         }
     }
 
-    MetricInstanceAcceptor create(String key, MetricTypes metricType, String apiId, String serverId) {
+    MetricInstanceAcceptor create(String key, MetricTypes metricType, String reqPath, String serverId) {
         return instanceMap.computeIfAbsent(key, k -> new MetricInstanceAcceptor(metricType, ts -> {
-                    final ApiMetricsRaw lastMin = lastOne(apiId, serverId, metricType, TimeGranularity.MINUTE, ts);
+                    final ApiMetricsRaw lastMin = lastOne(reqPath, serverId, metricType, TimeGranularity.MINUTE, ts);
                     ApiMetricsRaw lastHour = null;
                     ApiMetricsRaw lastDay = null;
                     if (null != lastMin) {
                         long bucketHour = TimeGranularity.HOUR.fixTime(lastMin.getTimeStart());
-                        lastHour = lastOne(apiId, serverId, metricType, TimeGranularity.HOUR, bucketHour);
+                        lastHour = lastOne(reqPath, serverId, metricType, TimeGranularity.HOUR, bucketHour);
                         long bucketDay = TimeGranularity.DAY.fixTime(lastMin.getTimeStart());
-                        lastDay = lastOne(apiId, serverId, metricType, TimeGranularity.DAY, bucketDay);
+                        lastDay = lastOne(reqPath, serverId, metricType, TimeGranularity.DAY, bucketDay);
                     }
                     return new MetricInstanceAcceptor.BucketInfo(lastMin, lastHour, lastDay);
                 }, (quickUpload, info) -> {
@@ -94,16 +94,16 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         );
     }
 
-    ApiMetricsRaw lastOne(String apiId, String serverId, MetricTypes metricType, TimeGranularity timeGranularity, Long timeStart) {
+    ApiMetricsRaw lastOne(String reqPath, String serverId, MetricTypes metricType, TimeGranularity timeGranularity, Long timeStart) {
         final Criteria criteria = Criteria.where(ApiMetricsRawFields.METRIC_TYPE.field()).is(metricType.getType())
                 .and(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(timeGranularity.getType());
         switch (metricType) {
             case API_SERVER:
-                criteria.and(ApiMetricsRawFields.API_ID.field()).is(apiId)
+                criteria.and(ApiMetricsRawFields.REQ_PATH.field()).is(reqPath)
                         .and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId);
                 break;
             case API:
-                criteria.and(ApiMetricsRawFields.API_ID.field()).is(apiId);
+                criteria.and(ApiMetricsRawFields.REQ_PATH.field()).is(reqPath);
                 break;
             case SERER:
                 criteria.and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId);

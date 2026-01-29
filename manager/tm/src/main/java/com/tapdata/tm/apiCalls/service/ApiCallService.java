@@ -6,6 +6,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.apiCalls.entity.ApiCallField;
 import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
 import com.tapdata.tm.apiCalls.vo.ApiPercentile;
@@ -123,14 +124,20 @@ public class ApiCallService {
         long reqBytes = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getReqBytes).orElse(0L);
         double speed = latency <= 0 ? 0D : (1000.0D * reqBytes / latency);
         apiCallDetailVo.setSpeed(BigDecimal.valueOf(speed).setScale(2, RoundingMode.HALF_UP).doubleValue());
-
-        if (apiCallEntity != null && StringUtils.isNotBlank(apiCallEntity.getAllPathId())) {
-            ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(apiCallEntity.getAllPathId()), loginUser);
+        ObjectId apiId = Optional.ofNullable(apiCallEntity)
+                .map(ApiCallEntity::getAllPathId)
+                .map(MongoUtils::toObjectId)
+                .orElse(null);
+        if (apiId != null) {
+            ModulesDto modulesDto = modulesService.findById(apiId, loginUser);
             if (null != modulesDto) {
                 apiCallDetailVo.setName(modulesDto.getName());
                 apiCallDetailVo.setApiId(apiCallEntity.getAllPathId());
                 apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
             }
+        } else if (null != apiCallEntity) {
+            apiCallDetailVo.setApiPath(apiCallEntity.getAllPathId());
+            apiCallDetailVo.setApiId(null);
         }
         return apiCallDetailVo;
     }
@@ -211,37 +218,38 @@ public class ApiCallService {
     protected void startFilterApiNameOrId(Filter filter, Criteria criteria) {
         final Where where = filter.getWhere();
         final List<Map<String, Map<String, String>>> orList = (List<Map<String, Map<String, String>>>) where.getOrDefault("or", new ArrayList<>());
-        final String id = getValueFromOrList(orList, Tag.ID);
-        final String name = getValueFromOrList(orList, Tag.NAME);
+        final String id = getValueFromOrList(orList, Tag.ID, "$regex");
+        final String name = getValueFromOrList(orList, Tag.NAME, "$regex");
         ObjectId apiId = MongoUtils.toObjectId(id);
         if (null != apiId) {
             //filter by api id
             criteria.and(Tag.ALL_PATH_ID).is(id);
         } else if (StringUtils.isNotBlank(name)) {
-            //filter by api name
-            Criteria regexName = Criteria.where(Tag.NAME).regex(name, "i");
-            Query query = Query.query(regexName);
-            List<ModulesDto> all = modulesService.findAll(query);
-            List<Criteria> or = new ArrayList<>();
-            if (!all.isEmpty()) {
-                List<String> apiIds = all.stream()
-                        .filter(Objects::nonNull)
-                        .map(ModulesDto::getId)
-                        .map(ObjectId::toString)
-                        .distinct()
-                        .toList();
-                or.add(Criteria.where(Tag.ALL_PATH_ID).in(apiIds));
-            }
-            if (StringUtils.isNotBlank(id)) {
-                or.add(Criteria.where(Tag.ALL_PATH_ID).regex(id));
-            }
-            if (or.isEmpty()) {
-                criteria.and(Tag.ALL_PATH_ID).nin("", null);
-            } else {
+            String option = getValueFromOrList(orList, Tag.NAME, "$options");
+            if (!"-".equals(option)) {
+                if (StringUtils.isBlank(option)) {
+                    option = "i";
+                }
+                //filter by api name
+                Criteria regexName = Criteria.where(Tag.NAME).regex(name, option);
+                Query query = Query.query(regexName);
+                List<ModulesDto> all = modulesService.findAll(query);
+                List<Criteria> or = new ArrayList<>();
+                if (!all.isEmpty()) {
+                    List<String> apiIds = all.stream()
+                            .filter(Objects::nonNull)
+                            .map(ModulesDto::getId)
+                            .map(ObjectId::toHexString)
+                            .distinct()
+                            .toList();
+                    or.add(Criteria.where(Tag.ALL_PATH_ID).in(apiIds));
+                } else {
+                    or.add(Criteria.where(ApiCallField.REQ_PATH.field()).regex(name, option));
+                }
                 criteria.orOperator(or);
+            } else {
+                criteria.and(ApiCallField.REQ_PATH.field()).is(name);
             }
-        } else {
-            criteria.and(Tag.ALL_PATH_ID).nin("", null);
         }
     }
 
@@ -306,6 +314,7 @@ public class ApiCallService {
                             .and(Tag.LATENCY).as(Tag.LATENCY)
                             .and(Tag.DATA_QUERY_TOTAL_TIME).as(Tag.DB_COST)
                             .and(Tag.REQ_TIME).as(Tag.REQ_TIME)
+                            .and(ApiCallField.REQ_PATH.field()).as("reqPath")
                             .and("resTime").as("resTime")
                             .and("api_meta").as("apiMeta")
                             .and("user_info").as("userInfo")
@@ -365,7 +374,8 @@ public class ApiCallService {
                         .map(userInfo -> userInfo.get(Tag.CLIENT_ID))
                         .map(applicationNameMap::get)
                         .ifPresent(e::setClientName);
-                Optional.ofNullable(modulesDtoMap.get(e.getApiId())).ifPresent(api -> {
+                ModulesDto api = modulesDtoMap.get(e.getApiId());
+                if (null != api) {
                     e.setApiName(api.getName());
                     e.setApiVersion(api.getApiVersion());
                     e.setApiPath(api.getPath());
@@ -378,7 +388,11 @@ public class ApiCallService {
                     e.setResponseTime(api.getResponseTime());
                     e.setOperationType(api.getOperationType());
                     e.setApiCreateAt(api.getCreateAt());
-                });
+                } else {
+                    e.setApiName(e.getApiId());
+                    e.setApiPath(e.getApiId());
+                    e.setApiId(null);
+                }
             });
         } else {
             apiCallDetailVoList = new ArrayList<>();
@@ -420,6 +434,7 @@ public class ApiCallService {
         item.setCreateAt(e.getApiCreateAt());
         item.setMethod(e.getMethod());
         item.setFailed(e.isSucceed());
+        item.setApiPath(e.getReqPath());
         return item;
     }
 
@@ -429,6 +444,9 @@ public class ApiCallService {
             ApiCallEntity apiCallEntity = BeanUtil.copyProperties(saveApiCallParam, ApiCallEntity.class);
             apiCallEntity.setSucceed(ApiMetricsCompressValueUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()));
             apiCallEntity.setCreateAt(new Date());
+            if (StringUtils.isBlank(apiCallEntity.getAllPathId())) {
+                apiCallEntity.setAllPathId(apiCallEntity.getReq_path());
+            }
             apiCallEntityList.add(apiCallEntity);
         });
         mongoOperations.insert(apiCallEntityList, "ApiCall");
@@ -500,12 +518,12 @@ public class ApiCallService {
         return result;
     }
 
-    private String getValueFromOrList(List<Map<String, Map<String, String>>> orList, String fieldName) {
+    private String getValueFromOrList(List<Map<String, Map<String, String>>> orList, String fieldName, String keyOf) {
         String fieldValue = "";
         for (Map<String, Map<String, String>> orMap : orList) {
             for (String key : orMap.keySet()) {
                 if (fieldName.equals(key)) {
-                    fieldValue = orMap.get(key).get("$regex");
+                    fieldValue = orMap.get(key).get(keyOf);
                 }
             }
         }
@@ -793,7 +811,11 @@ public class ApiCallService {
             return entities;
         }
         final Boolean open = ruleService.checkAudioSwitchStatus();
-        Map<String, Map<String, Param>> apiParamTypeMap = findApiParamTypeMap(apiIds.stream().map(ObjectId::new).toArray(ObjectId[]::new));
+        ObjectId[] apiIdArr = apiIds.stream()
+                .map(MongoUtils::toObjectId)
+                .filter(Objects::nonNull)
+                .toArray(ObjectId[]::new);
+        Map<String, Map<String, Param>> apiParamTypeMap = findApiParamTypeMap(apiIdArr);
         entities.stream()
                 .filter(Objects::nonNull)
                 .forEach(data -> {

@@ -17,9 +17,9 @@ public class ApiPathUtil {
 
     }
 
-    public static String apiPath(String version, String basePath, String prefix) {
+    public static String apiPath(String version, String basePath, String prefix, String pathEnd) {
         StringJoiner path = new StringJoiner(PATH_SPLIT);
-        path.add("");
+        path.add("/api");
         if (!StringUtils.isBlank(version)) {
             path.add(version);
         }
@@ -28,6 +28,9 @@ public class ApiPathUtil {
         }
         if (StringUtils.isNotBlank(prefix)) {
             path.add(prefix);
+        }
+        if (StringUtils.isNotBlank(pathEnd)) {
+            path.add(pathEnd);
         }
         return path.toString();
     }

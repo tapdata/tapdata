@@ -70,6 +70,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
 
     BucketInfo acceptLastMinute(MetricInstanceFactory.CallInfo entity, ObjectId topCallId) {
         String apiId = entity.getApiId();
+        String reqPath = entity.getReqPath();
         String serverId = entity.getServerId();
         long requestCost = entity.getRequestCost();
         long dbCost = entity.getDbCost();
@@ -81,9 +82,9 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         BucketInfo lessBucket = this.bucketInfoGetter.apply(bucketMin);
         if (null == lessBucket.getLastBucketMin()) {
             Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
+            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, reqPath, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
             subMetrics.put(bucketSec, sub);
-            lessBucket.setLastBucketMin(ApiMetricsRaw.instance(serverId, apiId, bucketMin, TimeGranularity.MINUTE, metricType));
+            lessBucket.setLastBucketMin(ApiMetricsRaw.instance(serverId, reqPath, apiId, bucketMin, TimeGranularity.MINUTE, metricType));
             lessBucket.getLastBucketMin().setSubMetrics(subMetrics);
         }
         updateLastCallId(lessBucket.getLastBucketMin(), topCallId);
@@ -91,12 +92,12 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         lessBucket.getLastBucketMin().mergeWorker(workerId, isOk, needWorkerInfo);
         if (null == lessBucket.getLastBucketMin().getSubMetrics()) {
             Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
+            ApiMetricsRaw sub = ApiMetricsRaw.instance(serverId, reqPath, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType);
             subMetrics.put(bucketSec, sub);
             lessBucket.getLastBucketMin().setSubMetrics(subMetrics);
         }
         Map<Long, ApiMetricsRaw> subMetrics = lessBucket.getLastBucketMin().getSubMetrics();
-        ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
+        ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, reqPath, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
         sub.merge(isOk, reqBytes, requestCost, dbCost);
         sub.mergeWorker(workerId, isOk, needWorkerInfo);
         acceptOnce(lessBucket.getLastBucketMin(), true);
@@ -113,7 +114,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         String workerId = entity.getWorkerId();
         long bucketHour = entity.getBucketHour();
         if (lessBucket.getLastBucketHour() == null) {
-            lessBucket.setLastBucketHour(ApiMetricsRaw.instance(serverId, apiId, bucketHour, TimeGranularity.HOUR, metricType));
+            lessBucket.setLastBucketHour(ApiMetricsRaw.instance(serverId, entity.getReqPath(), apiId, bucketHour, TimeGranularity.HOUR, metricType));
         }
         updateLastCallId(lessBucket.getLastBucketHour(), topCallId);
         lessBucket.getLastBucketHour().merge(isOk, reqBytes, requestCost, dbCost);
@@ -131,7 +132,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         String workerId = entity.getWorkerId();
         long bucketDay = entity.getBucketDay();
         if (lessBucket.getLastBucketDay() == null) {
-            lessBucket.setLastBucketDay(ApiMetricsRaw.instance(serverId, apiId, bucketDay, TimeGranularity.DAY, metricType));
+            lessBucket.setLastBucketDay(ApiMetricsRaw.instance(serverId, entity.getReqPath(), apiId, bucketDay, TimeGranularity.DAY, metricType));
         }
         updateLastCallId(lessBucket.getLastBucketDay(), topCallId);
         lessBucket.getLastBucketDay().merge(isOk, reqBytes, requestCost, dbCost);
@@ -166,7 +167,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             initMinuteIfNeed(entity);
             initSecondIfNeed(entity);
             Map<Long, ApiMetricsRaw> subMetrics = lastBucketMin.getSubMetrics();
-            ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
+            ApiMetricsRaw sub = subMetrics.computeIfAbsent(bucketSec, k -> ApiMetricsRaw.instance(serverId, entity.getReqPath(), apiId, bucketSec, TimeGranularity.SECOND_FIVE, metricType));
             sub.merge(isOk, reqBytes, requestCost, dbCost);
             sub.mergeWorker(workerId, isOk, needWorkerInfo);
             updateLastCallId(lastBucketMin, topCallId);
@@ -194,12 +195,13 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
         ApiMetricsRaw sub = ApiMetricsRaw.instance(
                 entity.getServerId(),
+                entity.getReqPath(),
                 entity.getApiId(),
                 entity.getBucketSec(),
                 TimeGranularity.SECOND_FIVE,
                 metricType);
         subMetrics.put(entity.getBucketSec(), sub);
-        lastBucketMin = ApiMetricsRaw.instance(entity.getServerId(), entity.getApiId(), entity.getBucketMin(), TimeGranularity.MINUTE, metricType);
+        lastBucketMin = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketMin(), TimeGranularity.MINUTE, metricType);
         lastBucketMin.setSubMetrics(subMetrics);
     }
 
@@ -208,7 +210,7 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             return;
         }
         Map<Long, ApiMetricsRaw> subMetrics = new HashMap<>();
-        ApiMetricsRaw sub = ApiMetricsRaw.instance(entity.getServerId(), entity.getApiId(), entity.getBucketSec(), TimeGranularity.SECOND_FIVE, metricType);
+        ApiMetricsRaw sub = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketSec(), TimeGranularity.SECOND_FIVE, metricType);
         subMetrics.put(entity.getBucketSec(), sub);
         lastBucketMin.setSubMetrics(subMetrics);
     }
@@ -217,12 +219,12 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         if (null != lastBucketHour) {
             return;
         }
-        lastBucketHour = ApiMetricsRaw.instance(entity.getServerId(), entity.getApiId(), entity.getBucketHour(), TimeGranularity.HOUR, metricType);
+        lastBucketHour = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketHour(), TimeGranularity.HOUR, metricType);
     }
 
     void initDayIfNeed(MetricInstanceFactory.CallInfo entity) {
         if (null == lastBucketDay) {
-            lastBucketDay = ApiMetricsRaw.instance(entity.getServerId(), entity.getApiId(), entity.getBucketDay(), TimeGranularity.DAY, metricType);
+            lastBucketDay = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketDay(), TimeGranularity.DAY, metricType);
         }
     }
 

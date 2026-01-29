@@ -1762,7 +1762,13 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	public List<ModulesDto> findAllModulesByIds(List<String> list) {
-		List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
+		List<ObjectId> ids = list.stream()
+				.map(MongoUtils::toObjectId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toList());
+		if (ids.isEmpty()) {
+			return new ArrayList<>();
+		}
 		Query query = new Query(Criteria.where("_id").in(ids));
 		List<ModulesEntity> entityList = findAllEntity(query);
 		return CglibUtil.copyList(entityList, ModulesDto::new);
