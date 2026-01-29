@@ -73,6 +73,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -103,6 +104,7 @@ public class ApiMetricsChartQuery {
                 null,
                 CollectionField.fields(
                         ApiMetricsRawFields.API_ID,
+                        ApiMetricsRawFields.REQ_PATH,
                         ApiMetricsRawFields.PROCESS_ID,
                         ApiMetricsRawFields.TIME_GRANULARITY,
                         ApiMetricsRawFields.TIME_START,
@@ -174,6 +176,7 @@ public class ApiMetricsChartQuery {
                 apiCallCriteria,
                 CollectionField.fields(
                         ApiMetricsRawFields.API_ID,
+                        ApiMetricsRawFields.REQ_PATH,
                         ApiMetricsRawFields.PROCESS_ID,
                         ApiMetricsRawFields.TIME_GRANULARITY,
                         ApiMetricsRawFields.TIME_START,
@@ -360,6 +363,7 @@ public class ApiMetricsChartQuery {
                 Criteria.where(ApiCallField.API_GATEWAY_UUID.field()).is(serverId),
                 CollectionField.fields(
                         ApiMetricsRawFields.API_ID,
+                        ApiMetricsRawFields.REQ_PATH,
                         ApiMetricsRawFields.PROCESS_ID,
                         ApiMetricsRawFields.TIME_GRANULARITY,
                         ApiMetricsRawFields.TIME_START,
@@ -399,6 +403,7 @@ public class ApiMetricsChartQuery {
                 Criteria.where(ApiCallField.API_GATEWAY_UUID.field()).is(serverId),
                 CollectionField.fields(
                         ApiMetricsRawFields.API_ID,
+                        ApiMetricsRawFields.REQ_PATH,
                         ApiMetricsRawFields.PROCESS_ID,
                         ApiMetricsRawFields.TIME_GRANULARITY,
                         ApiMetricsRawFields.TIME_START,
@@ -627,11 +632,12 @@ public class ApiMetricsChartQuery {
         long delay = metricsRawMergeService.getDelay();
         TimeRangeUtil.rangeOf(result, param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(
-                param.getApiId(),
+                param.getReqPath(),
                 param,
                 MetricTypes.API,
                 CollectionField.fields(
                         ApiMetricsRawFields.API_ID,
+                        ApiMetricsRawFields.REQ_PATH,
                         ApiMetricsRawFields.PROCESS_ID,
                         ApiMetricsRawFields.TIME_GRANULARITY,
                         ApiMetricsRawFields.TIME_START,
@@ -639,22 +645,36 @@ public class ApiMetricsChartQuery {
                         ApiMetricsRawFields.ERROR_COUNT,
                         ApiMetricsRawFields.DELAY
                 ));
-        ObjectId apiId = MongoUtils.toObjectId(param.getApiId());
-        result.setApiName(param.getApiId());
-        result.setApiPath(param.getApiId());
-        if (null != apiId) {
-            Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).is(apiId);
+        List<ObjectId> apiIds = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(ApiMetricsRaw::getTimeStart).reversed())
+                .map(ApiMetricsRaw::getApiId)
+                .map(MongoUtils::toObjectId)
+                .distinct()
+                .toList();
+        result.setApiName(param.getReqPath());
+        result.setApiPath(param.getReqPath());
+        if (!CollectionUtils.isEmpty(apiIds)) {
+            String topOne = apiIds.get(0).toHexString();
+            Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
             Query queryApiInfo = Query.query(criteriaOfApi);
             queryApiInfo.fields().include(CollectionField.fields(ModulesField.NAME, ModulesField.API_VERSION, ModulesField.BASE_PATH, ModulesField.PREFIX));
             queryApiInfo.limit(1);
-            ModulesDto allApi = modulesService.findOne(queryApiInfo);
-            Optional.ofNullable(allApi).ifPresent(api -> {
-                result.setApiName(api.getName());
-                String path = ApiPathUtil.apiPath(api.getApiVersion(), api.getBasePath(), api.getPrefix());
-                result.setApiPath(path);
-            });
+            List<ModulesDto> allApi = modulesService.findAll(queryApiInfo);
+            allApi.stream()
+                    .filter(Objects::nonNull)
+                    .forEach(api -> {
+                        if (Objects.equals(topOne, api.getId().toHexString())) {
+                            result.setApiName(api.getName());
+                            //String path = ApiPathUtil.apiPath(api.getApiVersion(), api.getBasePath(), api.getPrefix());
+                            //result.setApiPath(path);
+                        }
+                        result.getHistoryNameBeUsed().add(api.getName());
+                    });
         }
         if (!CollectionUtils.isEmpty(apiMetricsRaws)) {
+            ApiMetricsRaw first = apiMetricsRaws.get(0);
+            result.setApiPath(first.getReqPath());
             long totalRequestCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getReqCount).sum();
             long totalErrorCount = apiMetricsRaws.stream().mapToLong(ApiMetricsRaw::getErrorCount).sum();
             result.setRequestCount(totalRequestCount);
@@ -665,14 +685,14 @@ public class ApiMetricsChartQuery {
         return result;
     }
 
-    protected List<ApiMetricsRaw> findRowByApiId(String apiId, QueryBase param, MetricTypes metricTypes, String[] filterFields) {
-        if (StringUtils.isBlank(apiId)) {
+    protected List<ApiMetricsRaw> findRowByApiId(String reqPath, QueryBase param, MetricTypes metricTypes, String[] filterFields) {
+        if (StringUtils.isBlank(reqPath)) {
             throw new BizException("api.id.empty");
         }
         return metricsRawMergeService.merge(
                 param,
-                c -> c.and(ApiMetricsRawFields.API_ID.field()).is(apiId).and(ApiMetricsRawFields.METRIC_TYPE.field()).is(metricTypes.getType()),
-                Criteria.where(ApiCallField.ALL_PATH_ID.field()).is(apiId),
+                c -> c.and(ApiMetricsRawFields.REQ_PATH.field()).is(reqPath).and(ApiMetricsRawFields.METRIC_TYPE.field()).is(metricTypes.getType()),
+                Criteria.where(ApiCallField.REQ_PATH.field()).is(reqPath),
                 filterFields
         );
     }
@@ -681,11 +701,12 @@ public class ApiMetricsChartQuery {
         long delay = metricsRawMergeService.getDelay();
         TimeRangeUtil.rangeOf(param, delay, true);
         List<ApiMetricsRaw> apiMetricsRaws = findRowByApiId(
-                param.getApiId(),
+                param.getReqPath(),
                 param,
                 MetricTypes.API_SERVER,
                 CollectionField.fields(
                         ApiMetricsRawFields.API_ID,
+                        ApiMetricsRawFields.REQ_PATH,
                         ApiMetricsRawFields.PROCESS_ID,
                         ApiMetricsRawFields.TIME_GRANULARITY,
                         ApiMetricsRawFields.TIME_START,
@@ -754,15 +775,16 @@ public class ApiMetricsChartQuery {
         ChartAndDelayOfApi result = ChartAndDelayOfApi.create();
         long delay = metricsRawMergeService.getDelay();
         TimeRangeUtil.rangeOf(result, param, delay, false);
-        if (StringUtils.isBlank(param.getApiId())) {
+        if (StringUtils.isBlank(param.getReqPath())) {
             throw new BizException("api.id.empty");
         }
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(
                 param, false,
-                c -> c.and(ApiMetricsRawFields.API_ID.field()).is(param.getApiId()).and(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.API.getType()),
-                Criteria.where(ApiCallField.ALL_PATH_ID.field()).is(param.getApiId()),
+                c -> c.and(ApiMetricsRawFields.REQ_PATH.field()).is(param.getReqPath()).and(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.API.getType()),
+                Criteria.where(ApiCallField.REQ_PATH.field()).is(param.getReqPath()),
                 CollectionField.fields(
                         ApiMetricsRawFields.API_ID,
+                        ApiMetricsRawFields.REQ_PATH,
                         ApiMetricsRawFields.PROCESS_ID,
                         ApiMetricsRawFields.TIME_GRANULARITY,
                         ApiMetricsRawFields.TIME_START,

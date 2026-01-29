@@ -105,6 +105,7 @@ public class ApiMetricsRawService {
         Query query = Query.query(criteriaOfSec5);
         String[] filterFields = CollectionField.fields(
                 ApiMetricsRawFields.API_ID,
+                ApiMetricsRawFields.REQ_PATH,
                 ApiMetricsRawFields.PROCESS_ID,
                 ApiMetricsRawFields.TIME_GRANULARITY,
                 ApiMetricsRawFields.TIME_START,
@@ -161,6 +162,7 @@ public class ApiMetricsRawService {
         if (granularity == TimeGranularity.SECOND_FIVE) {
             return CollectionField.fields(
                     ApiMetricsRawFields.API_ID,
+                    ApiMetricsRawFields.REQ_PATH,
                     ApiMetricsRawFields.PROCESS_ID,
                     ApiMetricsRawFields.TIME_GRANULARITY,
                     ApiMetricsRawFields.TIME_START,

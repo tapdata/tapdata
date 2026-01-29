@@ -2,8 +2,12 @@ package com.tapdata.tm.v2.api.monitor.main.enums;
 
 import com.tapdata.tm.base.field.CollectionField;
 
+/**
+ * @see com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw
+ * */
 public enum ApiMetricsRawFields implements CollectionField {
     PROCESS_ID("processId"),
+    REQ_PATH("reqPath"),
     API_ID("apiId"),
     METRIC_TYPE("metricType"),
     TIME_GRANULARITY("timeGranularity"),

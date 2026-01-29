@@ -12,5 +12,5 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ApiChart extends QueryBase {
-    String apiId;
+    String reqPath;
 }

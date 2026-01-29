@@ -4,6 +4,9 @@ import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
  * @author <a href="https://github.com/11000100111010101100111">Gavin'Xiao</a>
@@ -27,4 +30,6 @@ public class ApiDetail extends DataValueBase {
     double errorRate;
 
     long errorCount;
+
+    List<String> historyNameBeUsed = new ArrayList<>();
 }

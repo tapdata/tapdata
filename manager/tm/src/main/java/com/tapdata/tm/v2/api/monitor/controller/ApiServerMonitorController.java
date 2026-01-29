@@ -193,7 +193,7 @@ public class ApiServerMonitorController extends BaseController {
                                                         @RequestParam(required = false, name = "type") String type,
                                                         @RequestParam(required = false, name = "step") Long step) {
         ApiDetailParam param = new ApiDetailParam();
-        param.setApiId(apiId);
+        param.setReqPath(apiId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
         param.setType(type);
@@ -212,7 +212,7 @@ public class ApiServerMonitorController extends BaseController {
                                                                   @RequestParam(required = false, name = "type") String type,
                                                                   @RequestParam(required = false, name = "step") Long step) {
         ApiWithServerDetail param = new ApiWithServerDetail();
-        param.setApiId(apiId);
+        param.setReqPath(apiId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
         param.setType(type);
@@ -231,7 +231,7 @@ public class ApiServerMonitorController extends BaseController {
                                                           @RequestParam(required = false, name = "type") String type,
                                                           @RequestParam(required = false, name = "step") Long step) {
         ApiChart param = new ApiChart();
-        param.setApiId(apiId);
+        param.setReqPath(apiId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
         param.setType(type);

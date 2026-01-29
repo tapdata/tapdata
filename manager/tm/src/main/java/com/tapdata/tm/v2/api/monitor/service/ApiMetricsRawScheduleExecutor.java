@@ -74,6 +74,7 @@ public class ApiMetricsRawScheduleExecutor {
                     BaseEntityFields._ID,
                     ApiCallField.ALL_PATH_ID,
                     ApiCallField.WORK_O_ID,
+                    ApiCallField.REQ_PATH,
                     ApiCallField.API_GATEWAY_UUID,
                     ApiCallField.LATENCY,
                     ApiCallField.REQ_BYTES,
@@ -124,7 +125,7 @@ public class ApiMetricsRawScheduleExecutor {
                                 .append(ApiMetricsRawFields.METRIC_TYPE.field(), MetricTypes.API_SERVER.getType())
                 ),
                 new Document(ValueResult.$GROUP.as(),
-                        new Document(BaseEntityFields._ID.field(), ValueResult.$.concat(ApiMetricsRawFields.API_ID))
+                        new Document(BaseEntityFields._ID.field(), ValueResult.$.concat(ApiMetricsRawFields.REQ_PATH))
                                 .append(MAX_LAST_CALL_ID, new Document(ValueResult.$MAX.as(), ValueResult.$.concat(ApiMetricsRawFields.LAST_CALL_ID)))
                 ),
                 new Document(ValueResult.$GROUP.as(),
@@ -177,6 +178,7 @@ public class ApiMetricsRawScheduleExecutor {
                 .and(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(entity.getTimeGranularity())
                 .and(ApiMetricsRawFields.PROCESS_ID.field()).is(entity.getProcessId())
                 .and(ApiMetricsRawFields.API_ID.field()).is(entity.getApiId())
+                .and(ApiMetricsRawFields.REQ_PATH.field()).is(entity.getReqPath())
                 .and(ApiMetricsRawFields.METRIC_TYPE.field()).is(entity.getMetricType());
         return Query.query(criteria);
     }

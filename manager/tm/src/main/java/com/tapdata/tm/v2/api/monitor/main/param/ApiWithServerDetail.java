@@ -12,6 +12,6 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ApiWithServerDetail extends QueryBase {
-    String apiId;
+    String reqPath;
     String orderBy;
 }

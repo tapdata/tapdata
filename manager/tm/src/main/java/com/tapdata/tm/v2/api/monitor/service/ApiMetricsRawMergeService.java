@@ -4,6 +4,7 @@ import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.entity.ApiCallField;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.field.BaseEntityFields;
@@ -21,13 +22,11 @@ import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
 import com.tapdata.tm.v2.api.monitor.repository.ApiMetricsRepository;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
-import com.tapdata.tm.v2.api.monitor.utils.ApiPathUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ChartSortUtil;
 import com.tapdata.tm.v2.api.monitor.utils.TimeRangeUtil;
 import lombok.Setter;
@@ -44,6 +43,8 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +99,7 @@ public class ApiMetricsRawMergeService {
         return Math.min(Math.max(delay + 30000L, 30000L), 150000L);
     }
 
-    protected TopApiInServer groupAsTopApiInServer(List<ApiMetricsRaw> rows, TopApiInServerParam param) {
+    protected TopApiInServer groupAsTopApiInServer(List<ApiMetricsRaw> rows, TopApiInServerParam param, Map<String, List<String>> historyApiIdOfPath) {
         TopApiInServer item = TopApiInServer.create();
         item.setQueryFrom(param.getQueryStart());
         item.setQueryEnd(param.getQueryEnd());
@@ -110,6 +111,10 @@ public class ApiMetricsRawMergeService {
             item.setErrorCount(errorCount);
             baseDataCalculate(item, rows, null);
         }
+        if (!rows.isEmpty()) {
+            item.setApiPath(rows.get(0).getReqPath());
+        }
+        groupHistoryApiIdOfPath(rows, historyApiIdOfPath);
         return item;
     }
 
@@ -124,17 +129,18 @@ public class ApiMetricsRawMergeService {
                 param,
                 c -> c.and(ApiMetricsRawFields.PROCESS_ID.field()).is(serverId).and(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.API_SERVER.getType()),
                 Criteria.where(ApiCallField.API_GATEWAY_UUID.field()).is(serverId),
-                CollectionField.fields(ApiMetricsRawFields.API_ID, ApiMetricsRawFields.PROCESS_ID, ApiMetricsRawFields.TIME_GRANULARITY, ApiMetricsRawFields.TIME_START, ApiMetricsRawFields.REQ_COUNT, ApiMetricsRawFields.ERROR_COUNT, ApiMetricsRawFields.DELAY)
+                CollectionField.fields(ApiMetricsRawFields.API_ID, ApiMetricsRawFields.REQ_PATH, ApiMetricsRawFields.PROCESS_ID, ApiMetricsRawFields.TIME_GRANULARITY, ApiMetricsRawFields.TIME_START, ApiMetricsRawFields.REQ_COUNT, ApiMetricsRawFields.ERROR_COUNT, ApiMetricsRawFields.DELAY)
         );
+        Map<String, List<String>> historyApiIdOfPath = new HashMap<>();
         Map<String, TopApiInServer> apiInfoMap = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
                 .filter(e -> StringUtils.isNotBlank(e.getApiId()))
                 .collect(
                         Collectors.groupingBy(
-                                ApiMetricsRaw::getApiId,
+                                ApiMetricsRaw::getReqPath,
                                 Collectors.collectingAndThen(
                                         Collectors.toList(),
-                                        rows -> this.groupAsTopApiInServer(rows, param)
+                                        rows -> this.groupAsTopApiInServer(rows, param, historyApiIdOfPath)
                                 )
                         ));
         List<ObjectId> apiIds = apiMetricsRaws.stream()
@@ -151,36 +157,58 @@ public class ApiMetricsRawMergeService {
         Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
         Query queryOfApi = Query.query(criteriaOfApi);
         List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
-        mapApiInfo(apiDtoList, apiInfoMap, k -> TopApiInServer.create());
+        mapApiInfo(apiDtoList, apiInfoMap, historyApiIdOfPath, k -> TopApiInServer.create());
         List<TopApiInServer> result = new ArrayList<>(apiInfoMap.values());
         TopApiInServer.supplement(result, publishApis(), e -> TopApiInServer.create());
         ChartSortUtil.sort(result, param.getSortInfo(), TopApiInServer.class);
         return Page.page(result.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), result.size());
     }
 
-    protected <T extends TopApiInServer> void initApiInfo(String apiId, T apiInfo) {
-        apiInfo.setApiId(apiId);
-        apiInfo.setApiName(apiId);
-        apiInfo.setApiPath(apiId);
+    protected <T extends TopApiInServer> void initApiInfo(String reqPath, T apiInfo) {
+        apiInfo.setApiId(reqPath);
+        apiInfo.setApiName(reqPath);
+        apiInfo.setApiPath(reqPath);
         apiInfo.setNotExistsApi(true);
     }
 
-    protected <T extends TopApiInServer> void mapApiInfo(List<ModulesDto> apiDtoList, Map<String, T> apiInfoMap, Function<String, T> instance) {
+    protected <T extends TopApiInServer> void mapApiInfo(List<ModulesDto> apiDtoList, Map<String, T> apiInfoMap, Map<String, List<String>> historyApiIdOfPath, Function<String, T> instance) {
         if (CollectionUtils.isEmpty(apiDtoList)) {
             return;
         }
-        apiDtoList.forEach(apiDto -> {
-            String apiId = apiDto.getId().toHexString();
-            T item = apiInfoMap.computeIfAbsent(apiId, instance);
-            String path = ApiPathUtil.apiPath(apiDto.getApiVersion(), apiDto.getBasePath(), apiDto.getPrefix());
-            item.setApiId(apiId);
-            item.setApiName(apiDto.getName());
-            item.setApiPath(path);
-            item.setNotExistsApi(Optional.ofNullable(apiDto.getIsDeleted()).orElse(false));
+//        apiDtoList.forEach(apiDto -> {
+//            String apiId = apiDto.getId().toHexString();
+//            T item = apiInfoMap.computeIfAbsent(apiId, instance);
+//            item.setApiName(apiDto.getName());
+//            item.setNotExistsApi(Optional.ofNullable(apiDto.getIsDeleted()).orElse(false));
+//        });
+        acceptHistoryApiIdOfPath(apiDtoList, apiInfoMap, historyApiIdOfPath);
+    }
+
+    <T extends TopApiInServer> void acceptHistoryApiIdOfPath(List<ModulesDto> apiDtoList, Map<String, T> apiInfoMap, Map<String, List<String>> historyApiIdOfPath) {
+        Map<String, ModulesDto> apiMap = apiDtoList.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(
+                        e -> e.getId().toHexString(),
+                        e -> e,
+                        (e1, e2) -> e2
+                ));
+        apiInfoMap.forEach((path, e) -> {
+            List<String> apiIds = historyApiIdOfPath.get(path);
+            List<String> apiNames = Optional.ofNullable(apiIds)
+                    .orElse(new ArrayList<>())
+                    .stream()
+                    .map(id -> Optional.ofNullable(apiMap.get(id))
+                            .map(ModulesDto::getName)
+                            .orElse(id))
+                    .toList();
+            if (!apiNames.isEmpty()) {
+                e.setApiName(apiNames.get(0));
+                e.setHistoryApiBeUsed(apiNames);
+            }
         });
     }
 
-    protected ApiItem groupAsApiItem(List<ApiMetricsRaw> rows, ApiListParam param) {
+    protected ApiItem groupAsApiItem(List<ApiMetricsRaw> rows, ApiListParam param, Map<String, List<String>> historyApiIdOfPath) {
         ApiItem item = ApiItem.create();
         item.setQueryFrom(param.getQueryStart());
         item.setQueryEnd(param.getQueryEnd());
@@ -200,7 +228,21 @@ public class ApiMetricsRawMergeService {
                     .sum();
             baseDataCalculate(item, rows, sumDelay -> item.setTotalRps(sumDelay > 0 ? 1000.0D * sumRps / sumDelay : 0D));
         }
+        groupHistoryApiIdOfPath(rows, historyApiIdOfPath);
         return item;
+    }
+
+    void groupHistoryApiIdOfPath(List<ApiMetricsRaw> rows, Map<String, List<String>> historyApiIdOfPath) {
+        ApiMetricsRaw first = rows.get(0);
+        String reqPath = first.getReqPath();
+        List<String> apiIds = historyApiIdOfPath.computeIfAbsent(reqPath, k -> new ArrayList<>());
+        rows.stream()
+                .sorted(Comparator.comparing(ApiMetricsRaw::getTimeStart).reversed())
+                .forEach(apiMetricsRaw -> {
+                    if (!apiIds.contains(apiMetricsRaw.getApiId())) {
+                        apiIds.add(apiMetricsRaw.getApiId());
+                    }
+                });
     }
 
     public Page<ApiItem> apiOverviewList(ApiListParam param) {
@@ -210,17 +252,18 @@ public class ApiMetricsRawMergeService {
                 param,
                 c -> c.and(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.API.getType()),
                 null,
-                CollectionField.fields(ApiMetricsRawFields.API_ID, ApiMetricsRawFields.PROCESS_ID, ApiMetricsRawFields.TIME_GRANULARITY, ApiMetricsRawFields.TIME_START, ApiMetricsRawFields.REQ_COUNT, ApiMetricsRawFields.ERROR_COUNT, ApiMetricsRawFields.DELAY, ApiMetricsRawFields.BYTES)
+                CollectionField.fields(ApiMetricsRawFields.API_ID, ApiMetricsRawFields.REQ_PATH, ApiMetricsRawFields.PROCESS_ID, ApiMetricsRawFields.TIME_GRANULARITY, ApiMetricsRawFields.TIME_START, ApiMetricsRawFields.REQ_COUNT, ApiMetricsRawFields.ERROR_COUNT, ApiMetricsRawFields.DELAY, ApiMetricsRawFields.BYTES)
         );
+        Map<String, List<String>> historyApiIdOfPath = new HashMap<>();
         Map<String, ApiItem> apiInfoMap = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
-                .filter(e -> StringUtils.isNotBlank(e.getApiId()))
+                .filter(e -> StringUtils.isNotBlank(e.getReqPath()))
                 .collect(
                         Collectors.groupingBy(
-                                ApiMetricsRaw::getApiId,
+                                ApiMetricsRaw::getReqPath,
                                 Collectors.collectingAndThen(
                                         Collectors.toList(),
-                                        rows -> this.groupAsApiItem(rows, param)
+                                        rows -> this.groupAsApiItem(rows, param, historyApiIdOfPath)
                                 )
                         ));
         List<ObjectId> apiIds = apiMetricsRaws.stream()
@@ -237,7 +280,7 @@ public class ApiMetricsRawMergeService {
         Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
         Query queryOfApi = Query.query(criteriaOfApi);
         List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
-        mapApiInfo(apiDtoList, apiInfoMap, k -> ApiItem.create());
+        mapApiInfo(apiDtoList, apiInfoMap, historyApiIdOfPath, k -> ApiItem.create());
         List<ApiItem> result = new ArrayList<>(apiInfoMap.values());
         TopApiInServer.supplement(result, publishApis(), e -> ApiItem.create());
         ChartSortUtil.sort(result, param.getSortInfo(), ApiItem.class);
@@ -278,6 +321,7 @@ public class ApiMetricsRawMergeService {
         Query querySec5 = Query.query(criteriaOfSec5);
         String[] filterFields = CollectionField.fields(
                 ApiMetricsRawFields.API_ID,
+                ApiMetricsRawFields.REQ_PATH,
                 ApiMetricsRawFields.PROCESS_ID,
                 ApiMetricsRawFields.TIME_GRANULARITY,
                 ApiMetricsRawFields.TIME_START,
