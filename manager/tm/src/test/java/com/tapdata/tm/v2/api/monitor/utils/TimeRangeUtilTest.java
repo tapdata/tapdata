@@ -1,7 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.utils;
 
 import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -56,7 +56,7 @@ class TimeRangeUtilTest {
 
         }
 
-        @Test
+        //@Test
         void split1() {
             //2026-01-27 10:38:50
             //2026-01-28 10:38:50

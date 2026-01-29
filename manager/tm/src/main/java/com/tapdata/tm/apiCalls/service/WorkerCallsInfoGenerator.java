@@ -2,10 +2,9 @@ package com.tapdata.tm.apiCalls.service;
 
 import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
-import com.tapdata.tm.apiServer.enums.TimeGranularityType;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.service.MetricInstanceFactory;
-import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 
@@ -125,7 +124,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setId(Optional.ofNullable(item.getId()).orElse(new ObjectId()));
         item.setWorkOid(workOid);
         item.setTimeStart(key);
-        item.setTimeGranularity(TimeGranularityType.MINUTE.getCode());
+        item.setTimeGranularity(TimeGranularity.MINUTE.getType());
         item.setRps(item.getReqCount() / 60.0d);
         long total = Optional.ofNullable(item.getReqCount()).orElse(0L);
         long error = Optional.ofNullable(item.getErrorCount()).orElse(0L);

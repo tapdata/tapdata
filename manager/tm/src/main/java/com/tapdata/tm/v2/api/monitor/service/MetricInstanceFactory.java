@@ -6,7 +6,7 @@ import com.tapdata.tm.v2.api.common.service.FactoryBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import lombok.Getter;
 import org.bson.Document;
 import org.bson.types.ObjectId;

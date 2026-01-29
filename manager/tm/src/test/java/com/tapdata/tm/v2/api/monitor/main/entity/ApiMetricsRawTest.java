@@ -1,7 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.main.entity;
 
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import org.junit.jupiter.api.Nested;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;

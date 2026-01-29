@@ -3,7 +3,7 @@ package com.tapdata.tm.v2.api.monitor.main.entity;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

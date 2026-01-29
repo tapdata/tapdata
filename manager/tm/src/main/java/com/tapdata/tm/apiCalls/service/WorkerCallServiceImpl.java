@@ -5,18 +5,21 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.Sorts;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.apiCalls.entity.ApiCallField;
 import com.tapdata.tm.apiCalls.entity.WorkerCallStats;
 import com.tapdata.tm.apiCalls.vo.ApiCountMetricVo;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
-import com.tapdata.tm.apiServer.enums.TimeGranularityType;
 import com.tapdata.tm.apiServer.service.WorkerCallService;
 import com.tapdata.tm.apiServer.service.compress.Compress;
 import com.tapdata.tm.apiServer.service.metric.Metric;
 import com.tapdata.tm.apiServer.vo.ApiCallMetricVo;
 import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.field.BaseEntityFields;
+import com.tapdata.tm.base.field.CollectionField;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -396,7 +399,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
 
     void metricWorker(String workerOid) {
         Criteria criteria = Criteria.where(Tag.WORK_OID).is(workerOid)
-                .and(Tag.TIME_GRANULARITY).is(TimeGranularityType.MINUTE.getCode())
+                .and(Tag.TIME_GRANULARITY).is(TimeGranularity.MINUTE.getType())
                 .and(Tag.DELETE).is(false);
         Query query = Query.query(criteria);
         query.limit(1);
@@ -407,19 +410,34 @@ public class WorkerCallServiceImpl implements WorkerCallService {
             queryFrom = lastOne.getTimeStart();
         }
         final WorkerCallsInfoGenerator.Acceptor acceptor = this::bulkUpsert;
-        Criteria criteriaCall = Criteria.where(Tag.WORK_OID).is(workerOid);
+        Criteria criteriaCall = Criteria.where(ApiCallField.WORK_O_ID.field()).is(workerOid);
         List<Criteria> timeCriteria = new ArrayList<>();
-        Optional.ofNullable(queryFrom).ifPresent(time -> timeCriteria.add(Criteria.where(Tag.REQ_TIME).gte(time)));
-        timeCriteria.add(Criteria.where(Tag.REQ_TIME).lt(System.currentTimeMillis()));
+        Optional.ofNullable(queryFrom).ifPresent(time -> timeCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(time)));
+        timeCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).lt(System.currentTimeMillis()));
         criteriaCall.andOperator(timeCriteria);
         final MongoCollection<Document> collection = mongoTemplate.getCollection("ApiCall");
         final Query queryCall = Query.query(criteriaCall);
-        queryCall.fields().include("_id", "allPathId", "api_gateway_uuid", "latency", "req_bytes", "reqTime", "code", "httpStatus", "createTime", "dataQueryTotalTime", "workOid", "req_path", "succeed");
+        String[] filterFields = CollectionField.fields(
+                BaseEntityFields._ID,
+                ApiCallField.ALL_PATH_ID,
+                ApiCallField.API_GATEWAY_UUID,
+                ApiCallField.LATENCY,
+                ApiCallField.REQ_BYTES,
+                ApiCallField.REQ_TIME,
+                ApiCallField.CODE,
+                ApiCallField.HTTP_STATUS,
+                ApiCallField.DATA_QUERY_TOTAL_TIME,
+                BaseEntityFields.CREATE_TIME,
+                ApiCallField.WORK_O_ID,
+                ApiCallField.REQ_PATH,
+                ApiCallField.SUCCEED
+        );
+        queryCall.fields().include(filterFields);
         final Document queryObject = queryCall.getQueryObject();
         final FindIterable<Document> iterable =
                 collection.find(queryObject, Document.class)
                         .projection(queryCall.getFieldsObject())
-                        .sort(Sorts.ascending(Tag.REQ_TIME))
+                        .sort(Sorts.ascending(ApiCallField.REQ_TIME.field()))
                         .batchSize(1000);
         try (final MongoCursor<Document> cursor = iterable.iterator();
              WorkerCallsInfoGenerator generator = new WorkerCallsInfoGenerator(acceptor)) {
@@ -445,9 +463,6 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         public static final String DELETE = "delete";
         public static final String PROCESS_ID = "processId";
 
-
-        public static final String REQ_TIME = "reqTime";
-        public static final String RES_TIME = "resTime";
         public static final String ALL_PATH_ID = "allPathId";
         public static final String API_ID = "apiId";
     }

@@ -16,7 +16,7 @@ import com.tapdata.tm.v2.api.monitor.main.dto.ServerTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.dto.TopWorkerInServer;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiChart;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiDetailParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiWithServerDetail;

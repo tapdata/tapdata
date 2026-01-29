@@ -6,6 +6,7 @@ import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.Sorts;
 import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import com.tapdata.tm.worker.entity.field.ServerUsageField;
@@ -73,7 +74,7 @@ public class ServerUsageMetricScheduleExecutor {
     }
 
     Long lastOne() {
-        Query query = Query.query(Criteria.where(ServerUsageMetricField.TIME_GRANULARITY.field()).is(2));
+        Query query = Query.query(Criteria.where(ServerUsageMetricField.TIME_GRANULARITY.field()).is(TimeGranularity.HOUR.getSeconds()));
         query.with(Sort.by(Sort.Order.desc(ServerUsageField.LAST_UPDATE_TIME.field()))).limit(1);
         ServerUsageMetric lastOne = mongoTemplate.findOne(query, ServerUsageMetric.class);
         if (null != lastOne) {

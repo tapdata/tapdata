@@ -1,7 +1,7 @@
 package com.tapdata.tm.v2.api.usage.service;
 
 import com.tapdata.tm.v2.api.common.service.FactoryBase;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import com.tapdata.tm.worker.entity.field.ServerUsageField;
 import com.tapdata.tm.worker.entity.field.ServerUsageMetricField;
@@ -37,11 +37,11 @@ public final class ServerUsageMetricInstanceFactory extends FactoryBase<ServerUs
         final String workOid = entity.get(ServerUsageField.WORK_OID.field(), String.class);
         final String key = String.format("%s:%s", serverId, workOid);
         final ServerUsageMetricInstanceAcceptor acceptor = instanceMap.computeIfAbsent(key, k -> {
-            final ServerUsageMetric lastMin = lastOne(serverId, 1, null);
+            final ServerUsageMetric lastMin = lastOne(serverId, TimeGranularity.MINUTE.getType(), null);
             ServerUsageMetric lastHour = null;
             if (null != lastMin) {
                 long bucketHour = TimeGranularity.HOUR.fixTime(lastMin.getLastUpdateTime());
-                lastHour = lastOne(serverId, 2, bucketHour);
+                lastHour = lastOne(serverId, TimeGranularity.HOUR.getType(), bucketHour);
             }
             return new ServerUsageMetricInstanceAcceptor(lastMin, lastHour, this.apiMetricsRaws::add);
         });
