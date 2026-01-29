@@ -1197,7 +1197,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 
 	protected void checkMergeTaskReBuildCache(TaskDto taskDto) {
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
-		if (null == dag || !dag.isMergeTableDag() || (taskDto.isInitialSyncTask() && !taskDto.hasSyncProgress())){
+		if (null == dag || !dag.isMergeTableDag()){
 			return;
 		}
 		List<Node> nodes = taskDto.getDag().getNodes();
