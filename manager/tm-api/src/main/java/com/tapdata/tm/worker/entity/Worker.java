@@ -27,6 +27,10 @@ public class Worker extends BaseEntity {
 
     @Field("process_id")
     private String processId;
+
+    /**
+     * @see com.tapdata.tm.worker.entity.field.WorkerType
+     * */
     @Field("worker_type")
     private String workerType;
     private PlatformInfo platformInfo;
@@ -90,5 +94,10 @@ public class Worker extends BaseEntity {
     private Boolean licenseBind;
 
     private Date workerDate;
+
+    /**
+     * Api server Maximum delay for audit log submission interval(ms)
+     * */
+    Long auditLogPushMaxDelay;
 
 }
