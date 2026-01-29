@@ -5,6 +5,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.config.security.UserDetail;
@@ -16,11 +17,13 @@ import com.tapdata.tm.ds.vo.SupportListVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Data;
 import lombok.NonNull;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -150,4 +153,10 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
         private String _id;
         private long count;
     }
+
+    public abstract void batchLoadConnection(HttpServletResponse response, List<String> connectionIds, UserDetail user);
+
+
+    public abstract void batchUpConnection(MultipartFile multipartFile, UserDetail user, ImportModeEnum importMode, List<String> tags);
+
 }
