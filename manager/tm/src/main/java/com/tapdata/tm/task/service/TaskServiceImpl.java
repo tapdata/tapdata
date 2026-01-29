@@ -3779,6 +3779,9 @@ public class TaskServiceImpl extends TaskService{
                if(null != taskDto.getId()){
                    importResult.put(taskDto.getId().toHexString(), ExceptionUtils.getStackTrace(e));
                }
+               if(importMode != ImportModeEnum.GROUP_IMPORT){
+                   throw e;
+               }
            }
         }
         return importResult;

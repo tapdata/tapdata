@@ -161,7 +161,7 @@ public interface ResourceHandler {
         }
         Map<String, Object> connections = (Map<String, Object>) resourceMap.computeIfAbsent(ResourceType.CONNECTION,
                 k -> new HashMap<>());
-        List<MetadataInstancesDto> connectionMetadata = metadataList.computeIfAbsent(ResourceType.SHARE_CACHE,
+        List<MetadataInstancesDto> connectionMetadata = metadataList.computeIfAbsent(ResourceType.CONNECTION,
                 k -> new ArrayList<>());
 
         // 处理Excel文件（Connections.xlsx）

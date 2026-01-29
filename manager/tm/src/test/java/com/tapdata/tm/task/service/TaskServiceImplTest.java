@@ -759,6 +759,7 @@ class TaskServiceImplTest {
                 when(taskDto.getCrontabExpressionFlag()).thenReturn(true);
                 doCallRealMethod().when(taskService).updateById(taskDto, user);
                 doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+                doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
                 assertThrows(BizException.class, ()->taskService.updateById(taskDto, user));
             }
         }
@@ -813,6 +814,7 @@ class TaskServiceImplTest {
             when(taskDto.getId()).thenReturn(null);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+            doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).create(taskDto, user);
         }
@@ -840,6 +842,7 @@ class TaskServiceImplTest {
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+            doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
             verify(transformSchemaService,times(1)).transformSchema(any(),any(),any());
@@ -867,6 +870,7 @@ class TaskServiceImplTest {
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+            doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
             verify(transformSchemaAsyncService,times(1)).transformSchema(any(DAG.class),any(),any());

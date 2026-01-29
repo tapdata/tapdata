@@ -99,6 +99,12 @@ public class GroupInfoServiceTest {
     @Mock
     private GroupTransferStrategy groupTransferStrategy;
 
+    @Mock
+    private com.tapdata.tm.task.service.batchup.BatchUpChecker batchUpChecker;
+
+    @Mock
+    private com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService metadataDefinitionService;
+
     private GroupInfoService groupInfoService;
 
     private UserDetail user;
@@ -113,6 +119,8 @@ public class GroupInfoServiceTest {
         ReflectionTestUtils.setField(groupInfoService, "metadataInstancesService", metadataInstancesService);
         ReflectionTestUtils.setField(groupInfoService, "inspectService", inspectService);
         ReflectionTestUtils.setField(groupInfoService, "transferStrategyRegistry", transferStrategyRegistry);
+        ReflectionTestUtils.setField(groupInfoService, "batchUpChecker", batchUpChecker);
+        ReflectionTestUtils.setField(groupInfoService, "metadataDefinitionService", metadataDefinitionService);
 
         // Setup default mock for transfer strategy (lenient because not all tests use it)
         lenient().when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
@@ -698,8 +706,13 @@ public class GroupInfoServiceTest {
             payloads.put("GroupInfo.json", new ArrayList<>());
             ObjectId recordId = new ObjectId();
 
+            // Mock all required dependencies
+            when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+            doReturn(new ArrayList<>()).when(groupInfoService).buildImportRecordDetails(any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
@@ -715,8 +728,13 @@ public class GroupInfoServiceTest {
             payloads.put("GroupInfo.json", new ArrayList<>());
             ObjectId recordId = new ObjectId();
 
+            // Mock all required dependencies
+            when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+            doReturn(new ArrayList<>()).when(groupInfoService).buildImportRecordDetails(any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
@@ -731,6 +749,11 @@ public class GroupInfoServiceTest {
             payloads.put("GroupInfo.json", new ArrayList<>());
             ObjectId recordId = new ObjectId();
 
+            // Mock all required dependencies - use lenient for those that might not be called due to early exception
+            lenient().when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
+            lenient().when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
+            doReturn(new ArrayList<>()).when(groupInfoService).buildImportRecordDetails(any(), any());
             doThrow(new RuntimeException("Import error")).when(groupInfoService)
                     .updateImportProgress(any(), anyInt(), any(), any());
 
@@ -748,10 +771,13 @@ public class GroupInfoServiceTest {
             payloads.put("GroupInfo.json", new ArrayList<>());
             ObjectId recordId = new ObjectId();
 
+            // Mock all required dependencies
             when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
-
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+            doReturn(new ArrayList<>()).when(groupInfoService).buildImportRecordDetails(any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
@@ -776,11 +802,14 @@ public class GroupInfoServiceTest {
             payloads.put("GroupInfo.json", Arrays.asList(groupPayload));
             ObjectId recordId = new ObjectId();
 
+            // Mock all required dependencies
             when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
             doReturn(new GroupInfoDto()).when(groupInfoService).upsertByWhere(any(), any(), any(UserDetail.class));
-
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+            doReturn(new ArrayList<>()).when(groupInfoService).buildImportRecordDetails(any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
@@ -808,11 +837,15 @@ public class GroupInfoServiceTest {
 
             payloads.put("GroupInfo.json", Arrays.asList(groupPayload));
             ObjectId recordId = new ObjectId();
-            when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
-            doReturn(new GroupInfoDto()).when(groupInfoService).upsertByWhere(any(), any(), any(UserDetail.class));
 
+            // Mock all required dependencies
+            when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
+            doReturn(new GroupInfoDto()).when(groupInfoService).upsertByWhere(any(), any(), any(UserDetail.class));
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+            doReturn(new ArrayList<>()).when(groupInfoService).buildImportRecordDetails(any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
@@ -826,10 +859,13 @@ public class GroupInfoServiceTest {
             Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
             ObjectId recordId = new ObjectId();
 
+            // Mock all required dependencies
             when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
-
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+            doReturn(new ArrayList<>()).when(groupInfoService).buildImportRecordDetails(any(), any());
 
             assertDoesNotThrow(() -> {
                 groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
@@ -846,12 +882,13 @@ public class GroupInfoServiceTest {
             payloads.put("GroupInfo.json", new ArrayList<>());
             ObjectId recordId = new ObjectId();
 
-
-
+            // Mock all required dependencies
             when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
-
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+            doReturn(new ArrayList<>()).when(groupInfoService).buildImportRecordDetails(any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
@@ -868,8 +905,9 @@ public class GroupInfoServiceTest {
             item.setId("oldTaskId");
             item.setType(ResourceType.SYNC_TASK);
 
+            ObjectId groupId = new ObjectId();
             GroupInfoDto groupInfo = new GroupInfoDto();
-            groupInfo.setId(new ObjectId());
+            groupInfo.setId(groupId);
             groupInfo.setName("Test Group");
             groupInfo.setResourceItemList(Arrays.asList(item));
 
@@ -880,11 +918,20 @@ public class GroupInfoServiceTest {
             payloads.put("GroupInfo.json", Arrays.asList(groupPayload));
             ObjectId recordId = new ObjectId();
 
-            when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
-            doReturn(new GroupInfoDto()).when(groupInfoService).upsertByWhere(any(), any(), any(UserDetail.class));
+            // Create a matching GroupInfoRecordDetail
+            GroupInfoRecordDetail recordDetail = new GroupInfoRecordDetail();
+            recordDetail.setGroupId(groupId.toHexString());
+            recordDetail.setRecordDetails(new ArrayList<>());
+            List<GroupInfoRecordDetail> details = Arrays.asList(recordDetail);
 
+            // Mock all required dependencies
+            when(dataSourceService.batchImport(any(), any(), any())).thenReturn(new HashMap<>());
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
+            doReturn(new GroupInfoDto()).when(groupInfoService).upsertByWhere(any(), any(), any(UserDetail.class));
             doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
             doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+            doReturn(details).when(groupInfoService).buildImportRecordDetails(any(), any());
 
             groupInfoService.executeImportAsync(payloads, user, null, "test.tar", recordId);
 
