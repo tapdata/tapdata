@@ -362,7 +362,7 @@ class ApiCallServiceTest {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":\"xxx\"}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"req_path\":\"xxx\"}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testQueryById() {
@@ -376,28 +376,28 @@ class ApiCallServiceTest {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{}}", JSON.toJSONString(criteria));
         }
         @Test
         void testNull() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":null}},{\"id\": {\"$regex\":null}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{}}", JSON.toJSONString(criteria));
         }
         @Test
         void testApiNameIsNull() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":null}},{\"id\": {\"$regex\":null}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{}}", JSON.toJSONString(criteria));
         }
         @Test
         void testApiNameIsEmpty() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{}}", JSON.toJSONString(criteria));
         }
         @Test
         void testApiNameIsLikeButNotAnyApi() {
@@ -405,7 +405,7 @@ class ApiCallServiceTest {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":\"xxx\"}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"req_path\":\"xxx\"}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testApiNameIsLikeWithOption() {
@@ -419,7 +419,7 @@ class ApiCallServiceTest {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":{\"$in\":[\"68a7e8decd50c74ff40731f4\"]}},{\"allPathId\":\"xxx\"}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":{\"$in\":[\"68a7e8decd50c74ff40731f4\"]}}]}}", JSON.toJSONString(criteria));
         }
     }
 
