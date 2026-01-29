@@ -25,7 +25,7 @@ import com.tapdata.tm.v2.api.monitor.main.dto.TopWorkerInServer;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiChart;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiDetailParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiWithServerDetail;
@@ -190,7 +190,6 @@ public class ApiMetricsChartQuery {
                 .filter(Objects::nonNull)
                 .filter(e -> Objects.nonNull(e.getApiServer()) && Objects.nonNull(e.getApiServer().getServerId()))
                 .collect(Collectors.toMap(e -> e.getApiServer().getServerId(), ClusterStateEntity::getApiServer, (e1, e2) -> e2));
-
         //find all server's usage info
         Criteria criteriaOfUsage = Criteria.where(ServerUsageField.PROCESS_ID.field()).in(serverMap.keySet())
                 .and(ServerUsageField.PROCESS_TYPE.field()).is(ServerUsage.ProcessType.API_SERVER.getType());
@@ -244,7 +243,7 @@ public class ApiMetricsChartQuery {
         long start = queryStart * 1000L;
         long end = queryEnd * 1000L;
         if (type == TimeGranularity.SECOND_FIVE) {
-            //往前推一个5秒点，防止数据上报不及时导致前端显示0
+            //Push forward a 5-second point to prevent delayed data reporting from causing the front-end to display 0
             long now = System.currentTimeMillis() / 5000L * 5000L - 5000L;
             if (end > now) {
                 end = now;
@@ -440,10 +439,10 @@ public class ApiMetricsChartQuery {
                                 )
                         )
                 );
-        //fix time and sort by time
-        //5秒点位最多攒5分钟
-        //分钟点位最多攒1小时
-        //其他不赞批，直接用
+        //Fix time and sort by time
+        //Save up to 5 minutes at a 5-second point
+        //Min points can save up to 1 hour at most
+        //Do not approve of others, use directly
         int maxDepth = switch (param.getGranularity()) {
             case SECOND_FIVE, MINUTE -> 60;
             default -> 1;
@@ -804,10 +803,10 @@ public class ApiMetricsChartQuery {
                                 )
                         )
                 );
-        //fix time and sort by time
-        //5秒点位最多攒5分钟
-        //分钟点位最多攒1小时
-        //其他不赞批，直接用
+        //Fix time and sort by time
+        //Save up to 5 minutes at a 5-second point
+        //Min points can save up to 1 hour at most
+        //Do not approve of others, use directly
         int maxDepth = switch (param.getGranularity()) {
             case SECOND_FIVE, MINUTE -> 60;
             default -> 1;

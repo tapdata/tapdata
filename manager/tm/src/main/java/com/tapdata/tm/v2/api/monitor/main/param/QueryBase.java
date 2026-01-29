@@ -1,7 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.main.param;
 
 import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import lombok.Data;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;

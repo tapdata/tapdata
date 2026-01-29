@@ -1,17 +1,15 @@
 package com.tapdata.tm.v2.api.monitor.utils;
 
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 import org.mockito.ArgumentCaptor;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.LongFunction;
 
 import static org.junit.jupiter.api.Assertions.*;

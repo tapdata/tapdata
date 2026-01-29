@@ -1,7 +1,7 @@
 package com.tapdata.tm.v2.api.usage.service;
 
 import com.tapdata.tm.v2.api.common.service.AcceptorBase;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import com.tapdata.tm.worker.entity.field.ServerUsageField;
@@ -66,10 +66,10 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         }
         ServerUsage.ProcessType processType = StringUtils.isBlank(workOid) ? ServerUsage.ProcessType.API_SERVER : ServerUsage.ProcessType.API_SERVER_WORKER;
         if (null == lastBucketMin) {
-            lastBucketMin = ServerUsageMetric.instance(1, bucketMin, serverId, workOid, processType.getType());
+            lastBucketMin = ServerUsageMetric.instance(TimeGranularity.MINUTE.getType(), bucketMin, serverId, workOid, processType.getType());
         }
         if (null == lastBucketHour) {
-            lastBucketHour = ServerUsageMetric.instance(2, bucketHour, serverId, workOid, processType.getType());
+            lastBucketHour = ServerUsageMetric.instance(TimeGranularity.HOUR.getType(), bucketHour, serverId, workOid, processType.getType());
         }
         append(entity);
     }

@@ -8,7 +8,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.repository.ApiMetricsRepository;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
@@ -52,19 +52,21 @@ public class ApiMetricsRawService {
     }
 
     protected void supplementSeconds(Criteria apiCallCriteria, List<ApiMetricsRaw> supplement, List<TimeRange> ranges) {
+        Criteria criteria = Criteria.where(ApiCallField.DELETE.field()).is(false);
         List<Criteria> andCriteria = new ArrayList<>();
-        andCriteria.add(Criteria.where(ApiCallField.DELETE.field()).is(false));
-        Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
-        if (!ranges.isEmpty()) {
-            if (ranges.size() == 1) {
-                TimeRange point = ranges.get(0);
-                andCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
-            } else {
-                List<Criteria> orSec = ranges.stream()
-                        .map(point -> Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
-                        .toList();
-                andCriteria.add(new Criteria().orOperator(orSec));
-            }
+        andCriteria.add(criteria);
+        if (null != apiCallCriteria) {
+            andCriteria.add(apiCallCriteria);
+        }
+        int rangeSize = ranges.size();
+        if (1 == rangeSize) {
+            TimeRange point = ranges.get(0);
+            andCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+        } else if (!ranges.isEmpty()) {
+            List<Criteria> orSec = ranges.stream()
+                    .map(point -> Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
+                    .toList();
+            andCriteria.add(new Criteria().orOperator(orSec));
         }
         Query query = Query.query(new Criteria().andOperator(andCriteria));
         String[] filterField = CollectionField.fields(
@@ -88,7 +90,7 @@ public class ApiMetricsRawService {
     }
 
     protected void supplementFiveSecond(Consumer<Criteria> criteriaConsumer, List<ApiMetricsRaw> supplement, List<TimeRange> ranges) {
-        Criteria criteriaOfSec5 = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(1);
+        Criteria criteriaOfSec5 = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(TimeGranularity.MINUTE.getType());
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfSec5));
         List<Criteria> or = new ArrayList<>();
         for (TimeRange point : ranges) {
@@ -119,7 +121,7 @@ public class ApiMetricsRawService {
     }
 
     protected void supplementMinute(Consumer<Criteria> criteriaConsumer, List<ApiMetricsRaw> supplement, List<TimeRange> ranges, String[] filterFields) {
-        Criteria criteriaOfMin = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(2);
+        Criteria criteriaOfMin = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(TimeGranularity.HOUR.getType());
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfMin));
         List<Criteria> or = new ArrayList<>();
         for (TimeRange point : ranges) {
@@ -233,7 +235,7 @@ public class ApiMetricsRawService {
         Map<String, ApiMetricsRaw> right = new HashMap<>();
         eachAllApiMetricsRaw(supplement, param, left, right);
         long step = ApiMetricsCompressValueUtil.stepByGranularity(param.getGranularity());
-        acceptMetric(right, result, step, 0);
+        acceptMetric(left, result, step, 0);
         acceptMetric(right, result, step, -1);
         return result.stream()
                 .filter(Objects::nonNull)

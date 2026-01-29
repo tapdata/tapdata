@@ -5,7 +5,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.entity.WorkerInfo;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import com.tapdata.tm.v2.api.monitor.utils.TimeRangeUtil;

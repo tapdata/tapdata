@@ -2,7 +2,7 @@ package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiServer.entity;
 
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -80,7 +81,7 @@ public class WorkerCallEntity extends BaseEntity {
      * 2 - hour
      * 3 - day
      *
-     * @see com.tapdata.tm.apiServer.enums.TimeGranularityType
+     * @see TimeGranularity
      * */
     private int timeGranularity;
 

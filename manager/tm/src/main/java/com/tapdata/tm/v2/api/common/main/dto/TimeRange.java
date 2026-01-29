@@ -1,6 +1,6 @@
 package com.tapdata.tm.v2.api.common.main.dto;
 
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import lombok.Data;
 
 @Data

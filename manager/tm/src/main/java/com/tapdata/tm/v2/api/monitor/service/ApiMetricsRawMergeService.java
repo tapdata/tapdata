@@ -21,7 +21,7 @@ import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
@@ -180,7 +180,6 @@ public class ApiMetricsRawMergeService {
         });
     }
 
-
     protected ApiItem groupAsApiItem(List<ApiMetricsRaw> rows, ApiListParam param) {
         ApiItem item = ApiItem.create();
         item.setQueryFrom(param.getQueryStart());
@@ -246,21 +245,7 @@ public class ApiMetricsRawMergeService {
     }
 
     protected void mergeOfSecondRange(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Criteria apiCallCriteria) {
-        List<Criteria> andCriteria = new ArrayList<>();
-        andCriteria.add(Criteria.where(ApiCallField.DELETE.field()).is(false));
-        Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
-        if (!ranges.isEmpty()) {
-            if (ranges.size() == 1) {
-                TimeRange point = ranges.get(0);
-                andCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
-            } else {
-                List<Criteria> orSec = ranges.stream()
-                        .map(point -> Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
-                        .toList();
-                andCriteria.add(new Criteria().orOperator(orSec));
-            }
-        }
-        Query query = Query.query(new Criteria().andOperator(andCriteria));
+        Query query = genericSecondQuery(ranges, apiCallCriteria);
         String[] filterFields = CollectionField.fields(
                 ApiCallField.API_GATEWAY_UUID,
                 ApiCallField.ALL_PATH_ID,
@@ -283,7 +268,7 @@ public class ApiMetricsRawMergeService {
     }
 
     protected void mergeOfSecondFiveRange(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer) {
-        Criteria criteriaOfSec5 = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(1);
+        Criteria criteriaOfSec5 = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(TimeGranularity.MINUTE.getSeconds());
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfSec5));
         Set<Long> times = ParticleSizeAnalyzer.asMinute(ranges);
         if (times.isEmpty()) {
@@ -312,36 +297,8 @@ public class ApiMetricsRawMergeService {
         }
     }
 
-    protected void mergeOfMinuteRange(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
-        Criteria criteriaMin = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(1);
-        Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaMin));
-        List<Criteria> or = new ArrayList<>();
-        for (TimeRange point : ranges) {
-            or.add(Criteria.where(ApiMetricsRawFields.TIME_START.field()).gte(point.getStart()).lt(point.getEnd()));
-        }
-        criteriaMin.orOperator(or);
-        Query queryMin = Query.query(criteriaMin);
-        queryMin.fields().include(filterFields);
-        List<ApiMetricsRaw> metricsRawListMin = service.find(queryMin);
-        metricsRawList.addAll(metricsRawListMin);
-    }
-
-    protected void mergeOfHour(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
-        Criteria criteriaOfHour = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(2);
-        Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfHour));
-        List<Criteria> orHour = new ArrayList<>();
-        for (TimeRange point : ranges) {
-            orHour.add(Criteria.where(ApiMetricsRawFields.TIME_START.field()).gte(point.getStart()).lt(point.getEnd()));
-        }
-        criteriaOfHour.orOperator(orHour);
-        Query queryHour = Query.query(criteriaOfHour);
-        queryHour.fields().include(filterFields);
-        List<ApiMetricsRaw> metricsRawListHour = service.find(queryHour);
-        metricsRawList.addAll(metricsRawListHour);
-    }
-
-    protected void mergeDay(List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
-        Criteria criteriaOfDay = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(TimeGranularity.DAY.getType());
+    protected void mergeByTimeGranularity(TimeGranularity granularity, List<ApiMetricsRaw> metricsRawList, List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer, String[] filterFields) {
+        Criteria criteriaOfDay = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(granularity.getType());
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfDay));
         List<Criteria> orDay = new ArrayList<>();
         for (TimeRange point : ranges) {
@@ -369,34 +326,20 @@ public class ApiMetricsRawMergeService {
                     mergeOfSecondFiveRange(metricsRawList, ranges, criteriaConsumer);
                     break;
                 case MINUTE:
-                    mergeOfMinuteRange(metricsRawList, ranges, criteriaConsumer, filterFields);
+                    mergeByTimeGranularity(TimeGranularity.MINUTE, metricsRawList, ranges, criteriaConsumer, filterFields);
                     break;
                 case HOUR:
-                    mergeOfHour(metricsRawList, ranges, criteriaConsumer, filterFields);
+                    mergeByTimeGranularity(TimeGranularity.HOUR, metricsRawList, ranges, criteriaConsumer, filterFields);
                     break;
                 default:
-                    mergeDay(metricsRawList, ranges, criteriaConsumer, filterFields);
+                    mergeByTimeGranularity(TimeGranularity.DAY, metricsRawList, ranges, criteriaConsumer, filterFields);
             }
         });
         return metricsRawList;
     }
 
     protected Collection<String> errorCountOfSecondRange(List<TimeRange> ranges, Criteria apiCallCriteria) {
-        List<Criteria> andCriteria = new ArrayList<>();
-        andCriteria.add(Criteria.where(ApiCallField.DELETE.field()).is(false));
-        Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
-        if (!ranges.isEmpty()) {
-            if (ranges.size() == 1) {
-                TimeRange point = ranges.get(0);
-                andCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
-            } else {
-                List<Criteria> orSec = ranges.stream()
-                        .map(point -> Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
-                        .toList();
-                andCriteria.add(new Criteria().orOperator(orSec));
-            }
-        }
-        Query query = Query.query(new Criteria().andOperator(andCriteria));
+        Query query = genericSecondQuery(ranges, apiCallCriteria);
         query.fields().include(CollectionField.fields(ApiCallField.ALL_PATH_ID, ApiCallField.CODE, ApiCallField.HTTP_STATUS));
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
         if (StringUtils.isNotBlank(callName)) {
@@ -489,7 +432,6 @@ public class ApiMetricsRawMergeService {
         return (long) errorApiIds.size();
     }
 
-
     public long errorCountGetter(List<ApiMetricsRaw> rows, LongConsumer acceptReqCount) {
         long errorCount = 0L;
         for (final ApiMetricsRaw info : rows) {
@@ -527,5 +469,23 @@ public class ApiMetricsRawMergeService {
                 .filter(Objects::nonNull)
                 .filter(e -> Objects.nonNull(e.getId()))
                 .collect(Collectors.toMap(e -> e.getId().toHexString(), e -> e, (e1, e2) -> e1));
+    }
+
+    protected Query genericSecondQuery(List<TimeRange> ranges, Criteria apiCallCriteria) {
+        List<Criteria> andCriteria = new ArrayList<>();
+        andCriteria.add(Criteria.where(ApiCallField.DELETE.field()).is(false));
+        Optional.ofNullable(apiCallCriteria).ifPresent(andCriteria::add);
+        if (!ranges.isEmpty()) {
+            if (ranges.size() == 1) {
+                TimeRange point = ranges.get(0);
+                andCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L));
+            } else {
+                List<Criteria> orSec = ranges.stream()
+                        .map(point -> Criteria.where(ApiCallField.REQ_TIME.field()).gte(point.getStart() * 1000L).lt(point.getEnd() * 1000L))
+                        .toList();
+                andCriteria.add(new Criteria().orOperator(orSec));
+            }
+        }
+        return Query.query(new Criteria().andOperator(andCriteria));
     }
 }

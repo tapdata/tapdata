@@ -2,7 +2,7 @@ package com.tapdata.tm.v2.api.monitor.utils;
 
 import com.tapdata.tm.commons.base.SortField;
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.CollectionUtils;

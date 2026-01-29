@@ -3,7 +3,7 @@ package com.tapdata.tm.v2.api.monitor.utils;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
 
 import java.time.Instant;
@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -91,13 +90,6 @@ public class TimeRangeUtil {
             }
         });
         return compressMap;
-    }
-
-    static Map<TimeGranularity, List<TimeRange>> doCompress(long queryStartAt, long queryEndAt) {
-        List<TimeRange> split = split(queryStartAt, queryEndAt);
-        return split.stream().collect(
-                Collectors.groupingBy(TimeRange::getUnit)
-        );
     }
 
     static Map<TimeGranularity, List<TimeRange>> doNotCompress(QueryBase query, long startAt, long endAt) {

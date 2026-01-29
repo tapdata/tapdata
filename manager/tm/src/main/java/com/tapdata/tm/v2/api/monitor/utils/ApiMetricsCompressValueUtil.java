@@ -2,7 +2,7 @@ package com.tapdata.tm.v2.api.monitor.utils;
 
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
-import com.tapdata.tm.v2.api.monitor.main.enums.TimeGranularity;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import lombok.Getter;
 import org.springframework.util.CollectionUtils;
 
