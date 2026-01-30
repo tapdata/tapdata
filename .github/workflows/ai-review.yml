@@ -1,19 +1,32 @@
-name: "AI Code Review"
+name: "Gemini AI Code Review"
+
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize] # 当 PR 开启或有新代码推送时触发
 
 jobs:
   review:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write # 必须赋予写入评论的权限
+      pull-requests: write # 必须赋予写入 PR 评论的权限
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Run Gemini CLI
-        uses: google-github-actions/run-gemini-cli@v0.1.20
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
-          gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-          # 可选：配置排除的文件类型
-          exclude: "*.md, *.json"
+          fetch-depth: 2 # 获取足够的 commit 历史以对比变更
+
+      - name: Gemini AI Review
+        uses: anc95/ChatGPT-CodeReview@main
+        with:
+          # 使用 Gemini API
+          openai_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          # 关键点：将 API 地址指向 Google 的 Gemini 适配点
+          openai_base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+          # 使用 Gemini 的模型名称
+          model: "gemini-1.5-flash"
+          # 审查语言（可选，默认为英文）
+          language: "Chinese"
+          # 排除不需要 AI 检查的文件
+          exclude: "package-lock.json,yarn.lock,dist/**,*.md"
