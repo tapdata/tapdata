@@ -16,10 +16,10 @@ import java.util.Date;
 @Data
 public class UsageBase extends BaseEntity {
     /**
-     * 0: 5S颗粒度点位
-     * 1: 1分钟颗粒度点位
-     * 2: 1小时颗粒度点位
-     * null: 零散点位
+     * 0: 5S particle size point location
+     * 1: 1-minute granularity point location
+     * 2: 1-hour particle size point location
+     * null: Scattered locations
      */
     protected Integer type;
     /**
@@ -39,7 +39,7 @@ public class UsageBase extends BaseEntity {
     protected String processId;
 
     /**
-     * 只有当processType=3时，workOid=worker id
+     * Only when processType=3, workOid=worker id
      */
     protected String workOid;
 
