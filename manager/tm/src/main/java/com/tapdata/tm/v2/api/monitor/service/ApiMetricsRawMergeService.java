@@ -29,6 +29,7 @@ import com.tapdata.tm.v2.api.monitor.repository.ApiMetricsRepository;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ChartSortUtil;
 import com.tapdata.tm.v2.api.monitor.utils.TimeRangeUtil;
+import io.tapdata.entity.utils.PropertyUtils;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -65,6 +66,7 @@ import java.util.stream.Collectors;
 @Service
 @Setter(onMethod_ = {@Autowired})
 public class ApiMetricsRawMergeService {
+    private static final long API_METRIC_DELAY_MS = PropertyUtils.getPropertyLong("API_METRIC_DELAY_MS", 20000L);
     private MongoTemplate mongoTemplate;
     ApiMetricsRawService service;
     ModulesService modulesService;
@@ -74,9 +76,9 @@ public class ApiMetricsRawMergeService {
     public long getDelay() {
         Settings byKey = settingsService.getByKey("apiStatsBatchReport.timeSpanOfTriggerApiStatsBatchReport");
         if (null == byKey) {
-            return 30000L;
+            return API_METRIC_DELAY_MS;
         }
-        long delay = 30000L;
+        long delay = API_METRIC_DELAY_MS;
         Object value = byKey.getValue();
         if (value instanceof Number iValue) {
             delay = iValue.longValue();
@@ -96,7 +98,7 @@ public class ApiMetricsRawMergeService {
                 //do nothing
             }
         }
-        return Math.min(Math.max(delay + 30000L, 30000L), 150000L);
+        return Math.min(Math.max(delay + API_METRIC_DELAY_MS, API_METRIC_DELAY_MS), 150000L);
     }
 
     protected TopApiInServer groupAsTopApiInServer(List<ApiMetricsRaw> rows, TopApiInServerParam param, Map<String, List<String>> historyApiIdOfPath) {
