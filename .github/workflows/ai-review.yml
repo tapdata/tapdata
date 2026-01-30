@@ -13,9 +13,19 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Verify Gemini key exists
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}" ]; then
+            echo "❌ Secret GEMINI_AI_CODE_REVIEW_JACKIN is empty or not configured"
+            exit 1
+          fi
+          echo "✅ Gemini key is present"
 
       - name: Build PR diff (with excludes)
         id: pr_diff
@@ -25,6 +35,7 @@ jobs:
           BASE_REF: "${{ github.event.pull_request.base.ref }}"
         run: |
           set -euo pipefail
+
           git fetch origin "${BASE_REF}:${BASE_REF}"
           git fetch origin "${HEAD_REF}:${HEAD_REF}"
 
@@ -36,6 +47,7 @@ jobs:
             ":(exclude)build/**" \
             ":(exclude)**/*.md" \
             ":(exclude)**/*.snap" \
+            ":(exclude)**/*.min.*" \
             > diff.txt
 
           if [ ! -s diff.txt ]; then
@@ -48,7 +60,7 @@ jobs:
             exit 0
           fi
 
-          MAX_BYTES=$((700000))
+          MAX_BYTES=$((900000))
           SIZE=$(wc -c < diff.txt)
           if [ "$SIZE" -gt "$MAX_BYTES" ]; then
             head -c "$MAX_BYTES" diff.txt > diff_truncated.txt
@@ -62,97 +74,37 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Gemini review & comment to PR (Gemini API v1)
+      - name: Gemini Code Review (flash)
+        uses: rubensflinco/gemini-code-review-action@1.0.5
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_repository: ${{ github.repository }}
+          github_pull_request_number: ${{ github.event.pull_request.number }}
+          git_commit_hash: ${{ github.event.pull_request.head.sha }}
+
+          model: "gemini-1.5-flash"
+
+          pull_request_diff: |-
+            ${{ steps.pr_diff.outputs.diff }}
+
+          pull_request_chunk_size: "3500"
+          temperature: "0.2"
+          top_p: "0.9"
+          max_tokens: "2048"
+          log_level: "INFO"
+          extra_prompt: |-
+            用中文进行 Code Review。输出：
+            1) 总体结论（风险等级：低/中/高）
+            2) 必须修复（阻塞合并）
+            3) 建议优化（不阻塞）
+            4) 潜在 Bug/边界条件
+            5) 测试建议
+            6) 安全与合规（密钥/权限/日志泄露/依赖风险）
+
+      - name: List models (Gemini API v1)
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          DIFF: ${{ steps.pr_diff.outputs.diff }}
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-  import os, json, textwrap, urllib.request
-  
-  gemini_key = os.environ["GEMINI_API_KEY"]
-  repo = os.environ["REPO"]
-  pr_number = os.environ["PR_NUMBER"]
-  diff = os.environ.get("DIFF", "")
-
-if not diff.strip():
-  print("Empty diff, skip.")
-  raise SystemExit(0)
-  
-  prompt = f"""
-  你是资深代码审查员，请用中文对这次 PR 的 diff 做 Code Review。
-  输出结构必须严格按以下格式：
-  1) 总体结论（风险等级：低/中/高）
-  2) 必须修复（阻塞合并）：按条列出，说明原因，并给出可执行修改建议
-  3) 建议优化（不阻塞）：按条列出
-  4) 潜在 Bug/边界条件：按条列出
-  5) 测试建议：需要补哪些单测/集成测试/回归点
-  6) 安全与合规：如果发现密钥、权限、日志泄露、依赖风险，必须指出
-  
-  下面是 diff：
-  {diff}
-  """.strip()
-
-# ✅ Gemini API v1 endpoint（注意不是 v1beta）
-# 常见可用：gemini-1.5-flash / gemini-1.5-pro
-# 如果你的 key 只支持某个模型，可以把这里改成 models/<name>
-model = "models/gemini-1.5-flash"
-  url = f"https://generativelanguage.googleapis.com/v1/{model}:generateContent?key={gemini_key}"
-  
-  payload = {
-"contents": [{
-  "role": "user",
-  "parts": [{"text": prompt}]
-}],
-"generationConfig": {
-  "temperature": 0.2,
-  "topP": 0.9,
-  "maxOutputTokens": 2048
-}
-}
-
-  req = urllib.request.Request(
-  url,
-  data=json.dumps(payload).encode("utf-8"),
-headers={"Content-Type": "application/json"},
-  method="POST"
-  )
-
-try:
-  with urllib.request.urlopen(req, timeout=180) as resp:
-    data = json.loads(resp.read().decode("utf-8"))
-except Exception as e:
-  raise SystemExit(f"Gemini call failed: {e}")
-
-# 解析输出
-text = ""
-cands = data.get("candidates", [])
-if cands:
-  parts = cands[0].get("content", {}).get("parts", [])
-  text = "".join(p.get("text", "") for p in parts).strip()
-
-if not text:
-  text = f"(Gemini returned empty response)\nRaw: {json.dumps(data)[:1000]}"
-
-comment_body = "## 🤖 Gemini Code Review\n\n" + text
-
-# GitHub PR comment API
-  gh_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
-  gh_req = urllib.request.Request(
-  gh_url,
-data=json.dumps({"body": comment_body}).encode("utf-8"),
-  headers={
-"Authorization": f"token {os.environ['GITHUB_TOKEN']}",
-"Accept": "application/vnd.github+json",
-"Content-Type": "application/json"
-},
-  method="POST"
-  )
-with urllib.request.urlopen(gh_req, timeout=60) as resp:
-  print("Comment created:", resp.status)
-  PY
+          curl -s "https://generativelanguage.googleapis.com/v1/models?key=${GEMINI_API_KEY}" | head -c 4000
