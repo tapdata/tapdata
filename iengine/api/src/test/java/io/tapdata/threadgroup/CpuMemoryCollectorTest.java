@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -153,7 +154,7 @@ class CpuMemoryCollectorTest {
             collector.taskWithNode.put(nodeId, taskId);
             collector.taskWithNode.put("nodeId2", "taskId2");
             collector.threadGroupMap.put(taskId, new CopyOnWriteArrayList<>());
-            collector.weakReferenceMap.put(taskId, new CopyOnWriteArrayList<>());
+            collector.weakReferenceMap.put(taskId, new ConcurrentLinkedQueue<>());
             collector.taskDtoMap.put(taskId, new WeakReference<>(taskDto));
             collector.taskDtoMap.put("taskId2", new WeakReference<>(taskDto));
 
@@ -169,7 +170,7 @@ class CpuMemoryCollectorTest {
         void test2() {
             String taskId = "task1";
             String nodeId = "node1";
-            CopyOnWriteArrayList<WeakReference<Object>> objects = new CopyOnWriteArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> objects = new ConcurrentLinkedQueue<>();
             objects.add(new WeakReference<>(new Object()));
             collector.weakReferenceMap.put(taskId, objects);
 
@@ -303,7 +304,7 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test main process")
         void test1() {
-            List<WeakReference<Object>> weakReferences = new ArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = new ConcurrentLinkedQueue<>();
             Usage usage = new Usage();
             Object testObj = new Object();
 
@@ -317,7 +318,7 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test with null reference")
         void test2() {
-            List<WeakReference<Object>> weakReferences = new ArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = new ConcurrentLinkedQueue<>();
             List<WeakReference<Object>> remove = new ArrayList<>();
             Usage usage = new Usage();
 
@@ -333,7 +334,7 @@ class CpuMemoryCollectorTest {
         void test3() {
             try (MockedStatic<GraphLayout> s = mockStatic(GraphLayout.class)) {
                 s.when(() -> GraphLayout.parseInstance(any())).thenAnswer(a -> {throw new RuntimeException("test");});
-                List<WeakReference<Object>> weakReferences = new ArrayList<>();
+                ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = new ConcurrentLinkedQueue<>();
                 Usage usage = new Usage();
 
                 weakReferences.add(new WeakReference<>(null));
@@ -345,7 +346,7 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test with null reference")
         void test4() {
-            List<WeakReference<Object>> weakReferences = new ArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = new ConcurrentLinkedQueue<>();
             Usage usage = new Usage();
             WeakReference<Object> ref = new WeakReference<>(new Object());
             weakReferences.add(ref);
@@ -363,7 +364,7 @@ class CpuMemoryCollectorTest {
         void test1() {
             String taskId = "task1";
             collector.taskDtoMap.put(taskId, new WeakReference<>(taskDto));
-            collector.weakReferenceMap.put(taskId, new ArrayList<>());
+            collector.weakReferenceMap.put(taskId, new ConcurrentLinkedQueue<>());
 
             Map<String, Usage> usageMap = new java.util.HashMap<>();
             collector.collectMemoryUsage(List.of(taskId), usageMap);
@@ -639,7 +640,7 @@ class CpuMemoryCollectorTest {
             Map<String, Usage> usageMap = new HashMap<>();
 
             Object testObj = new Object();
-            CopyOnWriteArrayList<WeakReference<Object>> weakRefs = new CopyOnWriteArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakRefs = new ConcurrentLinkedQueue<>();
             weakRefs.add(new WeakReference<>(testObj));
             collector.weakReferenceMap.put(taskId, weakRefs);
 
@@ -655,7 +656,7 @@ class CpuMemoryCollectorTest {
             Map<String, Usage> usageMap = new HashMap<>();
 
             Object testObj = new Object();
-            CopyOnWriteArrayList<WeakReference<Object>> weakRefs = new CopyOnWriteArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakRefs = new ConcurrentLinkedQueue<>();
             weakRefs.add(new WeakReference<>(testObj));
             collector.weakReferenceMap.put(taskId, weakRefs);
 
@@ -670,7 +671,7 @@ class CpuMemoryCollectorTest {
             String taskId = "task1";
             Map<String, Usage> usageMap = new HashMap<>();
 
-            collector.weakReferenceMap.put(taskId, new CopyOnWriteArrayList<>());
+            collector.weakReferenceMap.put(taskId, new ConcurrentLinkedQueue<>());
 
             collector.collectMemoryUsage(null, usageMap);
 
@@ -684,7 +685,7 @@ class CpuMemoryCollectorTest {
             Map<String, Usage> usageMap = new HashMap<>();
 
             Object testObj = new Object();
-            CopyOnWriteArrayList<WeakReference<Object>> weakRefs = new CopyOnWriteArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakRefs = new ConcurrentLinkedQueue<>();
             weakRefs.add(new WeakReference<>(testObj));
             collector.weakReferenceMap.put(taskId, weakRefs);
             collector.taskInfo.remove(taskId);
@@ -701,7 +702,7 @@ class CpuMemoryCollectorTest {
             Map<String, Usage> usageMap = new HashMap<>();
 
             Object testObj = new Object();
-            CopyOnWriteArrayList<WeakReference<Object>> weakRefs = new CopyOnWriteArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakRefs = new ConcurrentLinkedQueue<>();
             weakRefs.add(new WeakReference<>(testObj));
             collector.weakReferenceMap.put(taskId, weakRefs);
 
@@ -721,7 +722,7 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test with valid weak references")
         void test1() {
-            CopyOnWriteArrayList<WeakReference<Object>> weakReferences = new CopyOnWriteArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = new ConcurrentLinkedQueue<>();
             Usage usage = new Usage();
 
             Object testObj = new Object();
@@ -736,7 +737,7 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test with null weak reference object")
         void test2() {
-            CopyOnWriteArrayList<WeakReference<Object>> weakReferences = new CopyOnWriteArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = new ConcurrentLinkedQueue<>();
             Usage usage = new Usage();
 
             WeakReference<Object> ref = new WeakReference<>(null);
@@ -748,7 +749,7 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test with null mem info")
         void test3() {
-            List<WeakReference<Object>> weakReferences = new ArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = new ConcurrentLinkedQueue<>();
             Usage usage = new Usage();
 
             Object testObj = new Object();
@@ -762,10 +763,10 @@ class CpuMemoryCollectorTest {
         @Test
         @DisplayName("test with null weak reference")
         void test4() {
-            List<WeakReference<Object>> weakReferences = new ArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> weakReferences = new ConcurrentLinkedQueue<>();
             Usage usage = new Usage();
 
-            weakReferences.add(null);
+            weakReferences.add(new WeakReference<>(null));
 
             collector.eachTaskOnce(weakReferences, usage);
         }
@@ -900,22 +901,20 @@ class CpuMemoryCollectorTest {
         @Test
         void testWithNull() {
             collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
-            collector.cacheLeftWeakReferenceMap.put("taskId", null);
-            collector.cacheRightWeakReferenceMap.put("taskId", null);
             Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
 
         @Test
         void testWithEmpty() {
             collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
-            collector.cacheLeftWeakReferenceMap.put("taskId", new ArrayList<>());
-            collector.cacheRightWeakReferenceMap.put("taskId", new ArrayList<>());
+            collector.cacheLeftWeakReferenceMap.put("taskId", new ConcurrentLinkedQueue<>());
+            collector.cacheRightWeakReferenceMap.put("taskId", new ConcurrentLinkedQueue<>());
             Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
         @Test
         void testWithNullReference() {
             collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
-            List<WeakReference<Object>> list = new ArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> list = new ConcurrentLinkedQueue<>();
             list.add(new WeakReference<>(null));
             collector.cacheLeftWeakReferenceMap.put("taskId", list);
             collector.cacheRightWeakReferenceMap.put("taskId", list);
@@ -924,12 +923,38 @@ class CpuMemoryCollectorTest {
         @Test
         void testWithSomeReference() {
             collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
-            List<WeakReference<Object>> list = new ArrayList<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> list = new ConcurrentLinkedQueue<>();
             list.add(new WeakReference<>(null));
             list.add(new WeakReference<>(new Object()));
             collector.cacheLeftWeakReferenceMap.put("taskId", list);
             collector.cacheRightWeakReferenceMap.put("taskId", list);
             Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
+        }
+    }
+
+    @Nested
+    class cleanTest {
+        @Test
+        void testNormal() {
+            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.clean());
+        }
+
+        @Test
+        void testNotEmptyTask() {
+            CpuMemoryCollector.COLLECTOR.taskDtoMap.put("taskId", new WeakReference<>(null));
+            ConcurrentLinkedQueue<WeakReference<Object>> list1 = new ConcurrentLinkedQueue<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> list2 = new ConcurrentLinkedQueue<>();
+            ConcurrentLinkedQueue<WeakReference<Object>> list3 = new ConcurrentLinkedQueue<>();
+            list1.add(new WeakReference<>(null));
+            CpuMemoryCollector.COLLECTOR.weakReferenceMap.put("taskId", list1);
+            list2.add(new WeakReference<>(null));
+            CpuMemoryCollector.COLLECTOR.cacheRightWeakReferenceMap.put("taskId", list2);
+            list3.add(new WeakReference<>(null));
+            CpuMemoryCollector.COLLECTOR.cacheLeftWeakReferenceMap.put("taskId", list3);
+            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.clean());
+            Assertions.assertTrue(list1::isEmpty);
+            Assertions.assertTrue(list2::isEmpty);
+            Assertions.assertTrue(list3::isEmpty);
         }
     }
 }

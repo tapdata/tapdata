@@ -33,6 +33,14 @@ public class CpuMemoryScheduler {
 
     @Autowired
     private SettingService settingService;
+    @Scheduled(cron = "0/2 * * * * ?")
+    public void clean() {
+        try {
+            CpuMemoryCollector.clean();
+        } catch (Exception e) {
+            log.warn("Remove empty weak reference object failed: {}", e.getMessage());
+        }
+    }
 
     @Scheduled(cron = "0/10 * * * * ?")
     public void collectCpuUsage() {
