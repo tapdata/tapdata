@@ -86,90 +86,55 @@ jobs:
           DIFF: ${{ steps.pr_diff.outputs.diff }}
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-            import os, json, urllib.request, textwrap
-            
-            gemini_key = os.environ["GEMINI_API_KEY"]
-            repo = os.environ["REPO"]
-            pr_number = os.environ["PR_NUMBER"]
-            diff = os.environ.get("DIFF", "")
-          
-          if not diff.strip():
-            print("Empty diff, skip.")
-            raise SystemExit(0)
-          
-          # ✅ 选择你 key 已证明可用的模型（从你 v1/models 输出里来）
-            MODEL = "models/gemini-2.5-flash"
-            
-            prompt = f"""
-            你是资深代码审查员，请用中文对这次 PR 的 diff 做 Code Review。
-            输出结构必须严格按以下格式：
-            1) 总体结论（风险等级：低/中/高）
-            2) 必须修复（阻塞合并）：按条列出，说明原因，并给出可执行修改建议
-            3) 建议优化（不阻塞）：按条列出
-            4) 潜在 Bug/边界条件：按条列出
-            5) 测试建议：需要补哪些单测/集成测试/回归点
-            6) 安全与合规：如果发现密钥、权限、日志泄露、依赖风险，必须指出
-            
-            额外要求：
-          - 尽量引用文件路径与 diff 片段定位问题
-          - 如果信息不足，明确写“需要更多上下文”的点
-            
-            下面是 diff：
-            {diff}
-            """.strip()
-          
-          url = f"https://generativelanguage.googleapis.com/v1/{MODEL}:generateContent?key={gemini_key}"
-            
-            payload = {
-          "contents": [{
-            "role": "user",
-            "parts": [{"text": prompt}]
-          }],
-          "generationConfig": {
-            "temperature": 0.2,
-            "topP": 0.9,
-            "maxOutputTokens": 2048
-          }
-          }
-          
-            req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-          headers={"Content-Type": "application/json"},
-            method="POST"
-            )
-          
-          try:
-            with urllib.request.urlopen(req, timeout=180) as resp:
-              data = json.loads(resp.read().decode("utf-8"))
-          except Exception as e:
-            raise SystemExit(f"Gemini call failed: {e}")
-          
-          text = ""
-          cands = data.get("candidates", [])
-          if cands:
-            parts = cands[0].get("content", {}).get("parts", [])
-            text = "".join(p.get("text", "") for p in parts).strip()
-          
-          if not text:
-            text = f"(Gemini returned empty response)\nRaw: {json.dumps(data)[:1200]}"
-          
-          comment_body = "## 🤖 Gemini Code Review\n\n" + text
-          
-          # GitHub PR comment API
-            gh_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
-            gh_req = urllib.request.Request(
-            gh_url,
-          data=json.dumps({"body": comment_body}).encode("utf-8"),
-            headers={
-          "Authorization": f"token {os.environ['GITHUB_TOKEN']}",
-          "Accept": "application/vnd.github+json",
-          "Content-Type": "application/json"
-          },
-            method="POST"
-            )
-          
-          with urllib.request.urlopen(gh_req, timeout=60) as resp:
-            print("Comment created:", resp.status)
-            PY
+
+          cat <<'PY' | python3
+      import os, json, urllib.request
+
+      gemini_key = os.environ["GEMINI_API_KEY"]
+      repo = os.environ["REPO"]
+      pr_number = os.environ["PR_NUMBER"]
+      diff = os.environ.get("DIFF", "")
+
+      if not diff.strip():
+        print("Empty diff, skip.")
+        raise SystemExit(0)
+
+      MODEL = "models/gemini-2.5-flash"
+      url = f"https://generativelanguage.googleapis.com/v1/{MODEL}:generateContent?key={gemini_key}"
+
+      prompt = f"""用中文做 Code Review（略）...\n\nDIFF:\n{diff}"""
+
+      payload = {
+      "contents": [ { "role": "user", "parts": [ { "text": prompt } ] } ],
+      "generationConfig": { "temperature": 0.2, "topP": 0.9, "maxOutputTokens": 2048 }
+  }
+
+    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
+    headers={"Content-Type": "application/json" }, method="POST")
+    with urllib.request.urlopen(req, timeout=180) as resp:
+      data = json.loads(resp.read().decode("utf-8"))
+
+    text = ""
+    cands = data.get("candidates", [])
+    if cands:
+      parts = cands[0].get("content", {}).get("parts", [])
+      text = "".join(p.get("text", "") for p in parts).strip()
+    if not text:
+      text = "(Gemini returned empty response)"
+
+    comment = "## 🤖 Gemini Code Review\n\n" + text
+    
+    gh_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
+    gh_req = urllib.request.Request(
+    gh_url,
+    data=json.dumps({"body": comment}).encode("utf-8"),
+    headers={
+    "Authorization": f"token {os.environ['GITHUB_TOKEN']}",
+    "Accept": "application/vnd.github+json",
+    "Content-Type": "application/json"
+  },
+    method="POST"
+    )
+    with urllib.request.urlopen(gh_req, timeout=60) as resp:
+      print("Comment created:", resp.status)
+PY
