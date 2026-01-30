@@ -1,41 +1,24 @@
-name: Gemini AI Code Reviewer
-
 on:
   pull_request:
     types: [opened, synchronize]
 
-permissions: write-all
-
 jobs:
   gemini-code-review:
+    # 删除了 comment 相关的判断
     runs-on: ubuntu-latest
-    if: |
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/gemini-review')
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      - name: PR Info
-        run: |
-          echo "Comment: ${{ github.event.comment.body }}"
-          echo "Issue Number: ${{ github.event.issue.number }}"
-          echo "Repository: ${{ github.repository }}"
-
       - name: Checkout Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2 # 自动触发通常只需要对比最近的提交
 
-      - name: Get PR Details
-        id: pr
-        run: |
-          PR_JSON=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
-          echo "head_sha=$(echo $PR_JSON | jq -r .head.sha)" >> $GITHUB_OUTPUT
-          echo "base_sha=$(echo $PR_JSON | jq -r .base.sha)" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: truongnh1992/gemini-ai-code-reviewer@main
+      - name: Gemini AI Review
+        uses: truongnh1992/gemini-ai-code-reviewer@main
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-2.5-pro # Optional, default is `gemini-2.5-flash`
+          GEMINI_MODEL: gemini-1.5-flash # 建议先用 flash，速度快且成本低
           EXCLUDE: "*.md,*.txt,package-lock.json,*.yml,*.yaml"
