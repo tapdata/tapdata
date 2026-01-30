@@ -149,14 +149,13 @@ public class ApiMetricsRawMergeService {
                 .map(MongoUtils::toObjectId)
                 .filter(Objects::nonNull)
                 .toList();
-        if (CollectionUtils.isEmpty(apiIds)) {
-            return Page.page(new ArrayList<>(), 0);
-        }
         apiInfoMap.forEach(this::initApiInfo);
+        if (!CollectionUtils.isEmpty(apiIds)) {
         Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
         Query queryOfApi = Query.query(criteriaOfApi);
         List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
         mapApiInfo(apiDtoList, apiInfoMap, historyApiIdOfPath, k -> TopApiInServer.create());
+        }
         List<TopApiInServer> result = new ArrayList<>(apiInfoMap.values());
         ChartSortUtil.sort(result, param.getSortInfo(), TopApiInServer.class);
         return Page.page(result.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), result.size());
@@ -271,13 +270,12 @@ public class ApiMetricsRawMergeService {
                 .filter(Objects::nonNull)
                 .toList();
         apiInfoMap.forEach(this::initApiInfo);
-        if (CollectionUtils.isEmpty(apiIds)) {
-            return Page.page(new ArrayList<>(), 0);
+        if (!apiIds.isEmpty()) {
+            Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
+            Query queryOfApi = Query.query(criteriaOfApi);
+            List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
+            mapApiInfo(apiDtoList, apiInfoMap, historyApiIdOfPath, k -> ApiItem.create());
         }
-        Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
-        Query queryOfApi = Query.query(criteriaOfApi);
-        List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
-        mapApiInfo(apiDtoList, apiInfoMap, historyApiIdOfPath, k -> ApiItem.create());
         List<ApiItem> result = new ArrayList<>(apiInfoMap.values());
         ChartSortUtil.sort(result, param.getSortInfo(), ApiItem.class);
         return Page.page(result.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), result.size());
