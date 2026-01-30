@@ -6,33 +6,30 @@ on:
 
 jobs:
   review:
+    # 避免在草稿 PR 上运行以节省额度
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: write # 必须赋予写入评论的权限
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # 获取完整历史以确保 diff 计算准确
 
-      - name: Gemini AI Review
-        uses: anc95/ChatGPT-CodeReview@main
-        env:
-          # 1. 必填：用于在 PR 发表评论
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 2. 必填：你的 Gemini API Key
-          OPENAI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-          # 3. 必填：强制重定向。如果之前带 /openai 报错，请尝试这个更短的
-          OPENAI_API_BASE: "https://generativelanguage.googleapis.com/v1beta"
-          # 4. 必填：指定模型，否则它可能默认去找 GPT-3.5 导致 404
-          MODEL: "gemini-1.5-flash"
+      - name: Gemini AI Code Review
+        # 使用 Google 官方推荐的 Google AI Action 或成熟的 Gemini 专用插件
+        uses: google-gemini/gemini-review-action@v1
         with:
-          # 冗余参数，防止某些版本只读 with
-          openai_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-          openai_base_url: "https://generativelanguage.googleapis.com/v1beta"
+          # 传入你的 Gemini API Key
+          gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          # 传入 GitHub Token 用于发表评论
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # 指定使用的模型
           model: "gemini-1.5-flash"
+          # 审查语言
           language: "Chinese"
-          exclude: "package-lock.json,yarn.lock,dist/**,*.md,*.snap"
+          # 排除不需要 AI 检查的文件
+          exclude: "package-lock.json,yarn.lock,dist/**,*.md"
