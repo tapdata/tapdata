@@ -59,14 +59,16 @@ public class ApiMetricsRawScheduleExecutor {
         if (StringUtils.isBlank(collectionName)) {
             return;
         }
-        ObjectId lastCallId = lastOne();
+        Long lastCallTime = lastOne();
         long queryTime = System.currentTimeMillis();
-        try (MetricInstanceFactory acceptor = create()) {
+        try (MetricInstanceFactory acceptor = create().last(lastCallTime)) {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
             final Criteria criteria = Criteria.where(ApiCallField.DELETE.field()).ne(true);
-            Criteria newOr = Criteria.where(ApiCallField.REQ_TIME.field()).lt(queryTime);
-            if (Objects.nonNull(lastCallId)) {
-                newOr.and(BaseEntityFields._ID.field()).gt(lastCallId);
+            Criteria newOr;
+            if (Objects.nonNull(lastCallTime)) {
+                newOr = Criteria.where(ApiCallField.REQ_TIME.field()).gte(lastCallTime).lt(queryTime);
+            } else {
+                newOr = Criteria.where(ApiCallField.REQ_TIME.field()).lt(queryTime);
             }
             criteria.orOperator(newOr, Criteria.where(ApiCallField.SUPPLEMENT.field()).is(true));
             final Query query = Query.query(criteria);
@@ -114,7 +116,7 @@ public class ApiMetricsRawScheduleExecutor {
         }
     }
 
-    protected ObjectId lastOne() {
+    protected Long lastOne() {
         final String collectionName = MongoUtils.getCollectionNameIgnore(ApiMetricsRaw.class);
         if (StringUtils.isBlank(collectionName)) {
             return null;
@@ -139,7 +141,14 @@ public class ApiMetricsRawScheduleExecutor {
         if (!results.isEmpty()) {
             Document resultDoc = results.get(ValueResult.ZERO_INT.as());
             Object minValue = resultDoc.get(MIN_OF_MAX_LAST_CALL_ID);
-            return minValue instanceof org.bson.types.ObjectId oid ? oid : null;
+            if (minValue instanceof org.bson.types.ObjectId oid) {
+                ApiCallEntity lastOne = mongoTemplate.findById(oid, ApiCallEntity.class);
+                if (null == lastOne) {
+                    return null;
+                }
+                return TimeGranularity.HOUR.fixTime(lastOne.getReqTime() / 1000L) * 1000L;
+            }
+            return null;
         }
         return null;
     }

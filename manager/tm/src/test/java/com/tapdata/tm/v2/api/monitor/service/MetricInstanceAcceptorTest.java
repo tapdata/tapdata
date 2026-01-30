@@ -38,7 +38,7 @@ class MetricInstanceAcceptorTest {
         lastBucketHour = createApiMetricsRaw("server1", "api1", 3600000L, 2);
         lastBucketDay = createApiMetricsRaw("server1", "api1", 86400000L, 3);
         Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
-            return new MetricInstanceAcceptor.BucketInfo(lastBucketMin, lastBucketHour, lastBucketDay);
+            return new MetricInstanceAcceptor.BucketInfo(lastBucketMin, lastBucketHour);
         };
         acceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
     }
@@ -87,8 +87,8 @@ class MetricInstanceAcceptorTest {
             
             spyAcceptor.close();
             
-            verify(spyAcceptor).acceptOnce(lastBucketMin);
-            verify(spyAcceptor).acceptOnce(lastBucketHour);
+            verify(spyAcceptor, times(0)).acceptOnce(lastBucketMin);
+            verify(spyAcceptor, times(0)).acceptOnce(lastBucketHour);
         }
     }
 
@@ -116,7 +116,7 @@ class MetricInstanceAcceptorTest {
             // bucketMin = (125 / 60) * 60 = 120
             // bucketHour = (120 / 60) * 60 = 120
             Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
-                return new MetricInstanceAcceptor.BucketInfo(null, null, null);
+                return new MetricInstanceAcceptor.BucketInfo(null, null);
             };
             MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             
