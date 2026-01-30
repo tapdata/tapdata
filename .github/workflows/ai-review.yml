@@ -1,55 +1,41 @@
-name: "ChatGPT Java Code Review"
+name: Gemini AI Code Reviewer
 
 on:
   pull_request:
     types: [opened, synchronize]
-    # 仅针对 Java 核心文件变动触发
-    paths:
-      - '**.java'
-      - 'pom.xml'
-      - 'build.gradle'
+
+permissions: write-all
 
 jobs:
-  ai-review:
-    name: AI Review
+  gemini-code-review:
     runs-on: ubuntu-latest
-    # 赋予 Action 写入 PR 评论的权限
-    permissions:
-      contents: read
-      pull-requests: write
-
+    if: |
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/gemini-review')
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
+      - name: PR Info
+        run: |
+          echo "Comment: ${{ github.event.comment.body }}"
+          echo "Issue Number: ${{ github.event.issue.number }}"
+          echo "Repository: ${{ github.repository }}"
 
-      - name: ChatGPT Reviewer
-        uses: anc95/ChatGPT-CodeReview@main
+      - name: Checkout Repo
+        uses: actions/checkout@v3
         with:
-          # 使用你指定的 OpenAI Key 名称
-          openai_api_key: ${{ secrets.OPEN_AI_CODE_REVIEW_KEY_JACKIN }}
+          fetch-depth: 0
 
-          # GitHub 内置 Token，无需手动配置，用于自动发表评论
+      - name: Get PR Details
+        id: pr
+        run: |
+          PR_JSON=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
+          echo "head_sha=$(echo $PR_JSON | jq -r .head.sha)" >> $GITHUB_OUTPUT
+          echo "base_sha=$(echo $PR_JSON | jq -r .base.sha)" >> $GITHUB_OUTPUT
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # 使用 GPT-4o-mini，兼顾速度、成本和逻辑深度
-          model: "gpt-4o-mini"
-
-          # 审查语言
-          language: "Chinese"
-
-          # 排除非业务核心代码，避免消耗过多 Token
-          exclude: "**/test/**, **/target/**, .github/**, *.md, **/vendor/**"
-
-          # 针对 Java 专家身份定制的审查指令
-          system_message: |
-            你是一位顶级的 Java 架构师。请针对 PR 中的代码变更（Diff）进行严格审查。
-            
-            你的审查重点包括：
-            1. **代码健壮性**：识别潜在的空指针异常（NPE）、未关闭的资源流、不规范的异常捕获。
-            2. **并发安全**：检查多线程环境下是否存在竞态条件或错误的同步锁使用。
-            3. **性能优化**：发现循环中的冗余操作、不必要的对象创建或潜在的慢 SQL 逻辑。
-            4. **设计模式与规范**：检查是否符合 Java 最佳实践及阿里巴巴开发手册，并关注代码的可读性。
-            
-            请直接在有问题的代码行下方给出具体的改进建议和重构后的示例代码，回复请使用中文。
+      - uses: truongnh1992/gemini-ai-code-reviewer@main
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-2.5-pro # Optional, default is `gemini-2.5-flash`
+          EXCLUDE: "*.md,*.txt,package-lock.json,*.yml,*.yaml"
