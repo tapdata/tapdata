@@ -74,28 +74,7 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      # ✅ 这里是你截图里出语法问题的地方：我已经按正确 heredoc 写好了
-      - name: List Gemini models (debug)
-        shell: bash
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-        run: |
-          set -euo pipefail
-          echo "Listing models from v1beta..."
-          curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}" \
-            | python3 - <<'PY'
-              import json, sys
-            data = json.load(sys.stdin)
-          for m in data.get("models", []):
-            name = m.get("name")
-            methods = m.get("supportedGenerationMethods", [])
-            if name:
-              print(f"{name}\tmethods={methods}")
-            PY
-
-      - name: Gemini Code Review (try flash)
-        id: gemini_flash
-        continue-on-error: true
+      - name: Gemini Code Review (flash)
         uses: rubensflinco/gemini-code-review-action@1.0.5
         with:
           gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
@@ -104,42 +83,12 @@ jobs:
           github_pull_request_number: ${{ github.event.pull_request.number }}
           git_commit_hash: ${{ github.event.pull_request.head.sha }}
 
-          # ✅ 先用 flash（你那边 pro 404 很常见）
           model: "gemini-1.5-flash"
 
           pull_request_diff: |-
             ${{ steps.pr_diff.outputs.diff }}
 
           pull_request_chunk_size: "3500"
-          temperature: "0.2"
-          top_p: "0.9"
-          max_tokens: "2048"
-          log_level: "INFO"
-          extra_prompt: |-
-            用中文进行 Code Review。输出：
-            1) 总体结论（风险等级：低/中/高）
-            2) 必须修复（阻塞合并）
-            3) 建议优化（不阻塞）
-            4) 潜在 Bug/边界条件
-            5) 测试建议
-            6) 安全与合规（密钥/权限/日志泄露/依赖风险）
-
-      - name: Gemini Code Review (fallback 1.0-pro)
-        if: steps.gemini_flash.outcome == 'failure'
-        uses: rubensflinco/gemini-code-review-action@1.0.5
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          github_repository: ${{ github.repository }}
-          github_pull_request_number: ${{ github.event.pull_request.number }}
-          git_commit_hash: ${{ github.event.pull_request.head.sha }}
-
-          model: "gemini-1.0-pro"
-
-          pull_request_diff: |-
-            ${{ steps.pr_diff.outputs.diff }}
-
-          pull_request_chunk_size: "3000"
           temperature: "0.2"
           top_p: "0.9"
           max_tokens: "2048"
