@@ -13,25 +13,70 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Gemini AI Review
-        uses: anc95/ChatGPT-CodeReview@main
+      # 生成 PR diff，并在这里做“排除规则”（因为很多 Gemini action 不自带 exclude）
+      - name: Build PR diff (with excludes)
+        id: pr_diff
+        shell: bash
         env:
-          # 1. 注入 GitHub Token 用于发表评论
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 2. 强制设置 API Key 环境变量
-          OPENAI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-          # 3. 强制重定向到 Gemini 接口地址
-          # 注意：去掉结尾的 /openai 试试，部分插件会自动补全路径
-          OPENAI_API_BASE: "https://generativelanguage.googleapis.com/v1beta/openai"
+          HEAD_REF: "${{ github.event.pull_request.head.ref }}"
+          BASE_REF: "${{ github.event.pull_request.base.ref }}"
+        run: |
+          set -euo pipefail
+          git fetch origin "${BASE_REF}:${BASE_REF}"
+          git fetch origin "${HEAD_REF}:${HEAD_REF}"
+
+          # 只取文本 diff，且排除你不想 review 的文件/目录
+          git diff "origin/${BASE_REF}...origin/${HEAD_REF}" \
+            -- . \
+            ":(exclude)package-lock.json" \
+            ":(exclude)yarn.lock" \
+            ":(exclude)dist/**" \
+            ":(exclude)*.md" \
+            ":(exclude)*.snap" \
+            > diff.txt
+
+          # 防止 diff 超大（按需调整上限）
+          MAX_BYTES=$((900000))  # ~0.9MB
+          SIZE=$(wc -c < diff.txt)
+          if [ "$SIZE" -gt "$MAX_BYTES" ]; then
+            head -c "$MAX_BYTES" diff.txt > diff_truncated.txt
+            mv diff_truncated.txt diff.txt
+            echo "[WARN] diff too large, truncated to ${MAX_BYTES} bytes." >&2
+          fi
+
+          {
+            echo "diff<<EOF"
+            cat diff.txt
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Gemini Code Review
+        uses: rubensflinco/gemini-code-review-action@1.0.5
         with:
-          # 保持这里的配置作为冗余备份
-          openai_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-          openai_base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
-          model: "gemini-1.5-flash"
-          language: "Chinese"
-          exclude: "package-lock.json,yarn.lock,dist/**,*.md,*.snap"
+          gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_repository: ${{ github.repository }}
+          github_pull_request_number: ${{ github.event.pull_request.number }}
+          git_commit_hash: ${{ github.event.pull_request.head.sha }}
+
+          # 模型按需：flash 更快更便宜，pro 更强
+          model: "gemini-1.5-pro-latest"
+
+          pull_request_diff: |-
+            ${{ steps.pr_diff.outputs.diff }}
+
+          # diff 分块，越小越稳但更慢（按你仓库大小调）
+          pull_request_chunk_size: "3500"
+
+          extra_prompt: |-
+            请用中文进行 Code Review。
+            输出结构：
+            1) 总体结论（风险等级：低/中/高）
+            2) 必须修复（阻塞合并）
+            3) 建议优化（不阻塞）
+            4) 可能遗漏的测试点
+            5) 若涉及安全/权限/密钥，必须指出
