@@ -15,18 +15,19 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          # 获取完整历史以确保 diff 计算准确
           fetch-depth: 0
 
       - name: Gemini AI Review
-        uses: anc95/ChatGPT-CodeReview@main
+        # 建议使用特定版本号而非 main 以保持稳定性
+        uses: anc95/ChatGPT-CodeReview@v1.0.13
+        env:
+          # 必须在这里传入 GitHub Token，Action 才能发表评论
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # 确保你在 Settings > Secrets > Actions 里配置了对应的变量名
+          # 请确认你的 Secret 名称是否完全一致
           openai_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          # 尝试使用这个更标准的兼容地址
           openai_base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
           model: "gemini-1.5-flash"
           language: "Chinese"
-          # 建议根据你的项目增加排除项，比如自动生成的代码或大文件
-          exclude: "package-lock.json,yarn.lock,dist/**,*.md,*.snap,*.min.js"
-          # 选填：如果你想限制单次审查的最大 token 数防止报错
-          # max_tokens: 4096
+          exclude: "package-lock.json,yarn.lock,dist/**,*.md"
