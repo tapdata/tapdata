@@ -313,7 +313,7 @@ public class ApiCallService {
                             .and("createUser").as("createUser")
                             .and(Tag.LATENCY).as(Tag.LATENCY)
                             .and(Tag.DATA_QUERY_TOTAL_TIME).as(Tag.DB_COST)
-                            .and(Tag.REQ_TIME).as(Tag.REQ_TIME)
+                            .and(ApiCallField.REQ_TIME.field()).as(ApiCallField.REQ_TIME.field())
                             .and(ApiCallField.REQ_PATH.field()).as("reqPath")
                             .and("resTime").as("resTime")
                             .and("api_meta").as("apiMeta")
@@ -323,7 +323,7 @@ public class ApiCallService {
                             .and("user_port").as("userPort")
                             .and(Tag.METHOD).as(Tag.METHOD)
                             .and("code").as("code")
-                            .and("succeed").as("succeed")
+                            .and(ApiCallField.SUCCEED.field()).as(ApiCallField.SUCCEED.field())
                             .and("codeMsg").as("codeMsg")
                             .and("report_time").as("reportTime")
                             .and("visitTotalCount").as("visitTotalCount")
@@ -362,37 +362,14 @@ public class ApiCallService {
                         .filter(e -> Objects.nonNull(e.getClientId()))
                         .collect(Collectors.toMap(ApplicationDto::getClientId, ApplicationDto::getClientName, (e1, e2) -> e2)));
             }
-            final Map<String, ModulesDto> modulesDtoMap = new HashMap<>();
-            if (!moduleIds.isEmpty()) {
-                List<ModulesDto> allModulesByIds = modulesService.findAllModulesByIds(new ArrayList<>(moduleIds));
-                modulesDtoMap.putAll(allModulesByIds.stream()
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toMap(e -> e.getId().toHexString(), e -> e, (e1, e2) -> e2)));
-            }
             apiCallDetailVoList.stream().filter(Objects::nonNull).forEach(e -> {
                 Optional.ofNullable(e.getUserInfo())
                         .map(userInfo -> userInfo.get(Tag.CLIENT_ID))
                         .map(applicationNameMap::get)
                         .ifPresent(e::setClientName);
-                ModulesDto api = modulesDtoMap.get(e.getApiId());
-                if (null != api) {
-                    e.setApiName(api.getName());
-                    e.setApiVersion(api.getApiVersion());
-                    e.setApiPath(api.getPath());
-                    e.setApiType(api.getApiType());
-                    e.setPaths(api.getPaths());
-                    e.setProject(api.getProject());
-                    e.setConnection(api.getConnection());
-                    e.setUser(api.getUser());
-                    e.setResRows(api.getResRows());
-                    e.setResponseTime(api.getResponseTime());
-                    e.setOperationType(api.getOperationType());
-                    e.setApiCreateAt(api.getCreateAt());
-                } else {
-                    e.setApiName(e.getApiId());
-                    e.setApiPath(e.getApiId());
-                    e.setApiId(null);
-                }
+                e.setApiName(e.getApiId());
+                e.setApiPath(e.getApiId());
+                e.setApiId(null);
             });
         } else {
             apiCallDetailVoList = new ArrayList<>();
