@@ -213,12 +213,13 @@ public class ApiCallService {
         final Where where = filter.getWhere();
         final List<Map<String, Map<String, String>>> orList = (List<Map<String, Map<String, String>>>) where.getOrDefault("or", new ArrayList<>());
         final String id = getValueFromOrList(orList, Tag.ID, "$regex");
-        final String name = getValueFromOrList(orList, Tag.NAME, "$regex");
+        String name = getValueFromOrList(orList, Tag.NAME, "$regex");
         ObjectId apiId = MongoUtils.toObjectId(id);
         if (null != apiId) {
             //filter by api id
             criteria.and(Tag.ALL_PATH_ID).is(id);
         } else if (StringUtils.isNotBlank(name)) {
+            name = name.trim();
             String option = getValueFromOrList(orList, Tag.NAME, "$options");
             if (!"-".equals(option)) {
                 if (StringUtils.isBlank(option)) {
