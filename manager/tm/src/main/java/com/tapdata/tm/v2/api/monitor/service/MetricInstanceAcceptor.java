@@ -25,22 +25,20 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
     public static final String UN_KNOW = "UN_KNOWN";
     BiFunction<Boolean, ApiMetricsRaw, Void> consumer;
 
+    Long lastCallTime;
     @Data
     public static class BucketInfo {
         ApiMetricsRaw lastBucketMin;
         ApiMetricsRaw lastBucketHour;
-        ApiMetricsRaw lastBucketDay;
 
-        public BucketInfo(ApiMetricsRaw min, ApiMetricsRaw hour, ApiMetricsRaw day) {
+        public BucketInfo(ApiMetricsRaw min, ApiMetricsRaw hour) {
             this.lastBucketMin = min;
             this.lastBucketHour = hour;
-            this.lastBucketDay = day;
         }
     }
 
     ApiMetricsRaw lastBucketMin;
     ApiMetricsRaw lastBucketHour;
-    ApiMetricsRaw lastBucketDay;
     ObjectId lastCallId;
 
     MetricTypes metricType;
@@ -53,17 +51,17 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         return this;
     }
 
+    public MetricInstanceAcceptor lastCallTime(Long lastCallTime) {
+        this.lastCallTime = null != lastCallTime ? lastCallTime / 1000L : null;
+        return this;
+    }
+
     public MetricInstanceAcceptor(MetricTypes metricType,
                                   Function<Long, BucketInfo> bucketInfoGetter,
                                   BiFunction<Boolean, ApiMetricsRaw, Void> consumer) {
         this.bucketInfoGetter = bucketInfoGetter;
-        BucketInfo apply = bucketInfoGetter.apply(null);
-        this.lastBucketMin = apply.getLastBucketMin();
-        if (this.lastBucketMin != null) {
-            this.lastCallId = this.lastBucketMin.getLastCallId();
-        }
-        this.lastBucketHour = apply.getLastBucketHour();
-        this.lastBucketDay = apply.getLastBucketDay();
+        this.lastBucketMin = null;
+        this.lastBucketHour = null;
         this.consumer = consumer;
         this.metricType = metricType;
     }
@@ -122,24 +120,6 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         acceptOnce(lessBucket.getLastBucketHour(), true);
     }
 
-    void acceptLastDay(MetricInstanceFactory.CallInfo entity, BucketInfo lessBucket, ObjectId topCallId) {
-        long requestCost = entity.getRequestCost();
-        String serverId = entity.getServerId();
-        String apiId = entity.getApiId();
-        long dbCost = entity.getDbCost();
-        boolean isOk = entity.isOk();
-        long reqBytes = entity.getReqBytes();
-        String workerId = entity.getWorkerId();
-        long bucketDay = entity.getBucketDay();
-        if (lessBucket.getLastBucketDay() == null) {
-            lessBucket.setLastBucketDay(ApiMetricsRaw.instance(serverId, entity.getReqPath(), apiId, bucketDay, TimeGranularity.DAY, metricType));
-        }
-        updateLastCallId(lessBucket.getLastBucketDay(), topCallId);
-        lessBucket.getLastBucketDay().merge(isOk, reqBytes, requestCost, dbCost);
-        lessBucket.getLastBucketDay().mergeWorker(workerId, isOk, needWorkerInfo);
-        acceptOnce(lessBucket.getLastBucketDay(), true);
-    }
-
     ObjectId compareOid(ObjectId callId) {
         return this.lastCallId != null && this.lastCallId.compareTo(callId) >= 0 ? this.lastCallId : callId;
     }
@@ -162,7 +142,6 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         BucketInfo lessBucket = acceptMinuteIfNeed(entity, topCallId);
         boolean supplementMin = null != lessBucket;
         boolean supplementHour = acceptHourIfNeed(entity, topCallId, lessBucket);
-        boolean supplementDay = acceptDayIfNeed(entity, topCallId, lessBucket);
         if (!supplementMin) {
             initMinuteIfNeed(entity);
             initSecondIfNeed(entity);
@@ -179,12 +158,6 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             updateLastCallId(lastBucketHour, topCallId);
             lastBucketHour.merge(isOk, reqBytes, requestCost, dbCost);
             lastBucketHour.mergeWorker(workerId, isOk, needWorkerInfo);
-        }
-        if (!supplementDay) {
-            initDayIfNeed(entity);
-            updateLastCallId(lastBucketDay, topCallId);
-            lastBucketDay.merge(isOk, reqBytes, requestCost, dbCost);
-            lastBucketDay.mergeWorker(workerId, isOk, needWorkerInfo);
         }
     }
 
@@ -222,12 +195,6 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
         lastBucketHour = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketHour(), TimeGranularity.HOUR, metricType);
     }
 
-    void initDayIfNeed(MetricInstanceFactory.CallInfo entity) {
-        if (null == lastBucketDay) {
-            lastBucketDay = ApiMetricsRaw.instance(entity.getServerId(), entity.getReqPath(), entity.getApiId(), entity.getBucketDay(), TimeGranularity.DAY, metricType);
-        }
-    }
-
     BucketInfo acceptMinuteIfNeed(MetricInstanceFactory.CallInfo entity, ObjectId topCallId) {
         long bucketMin = entity.getBucketMin();
         if (null != lastBucketMin && lastBucketMin.getTimeStart() != bucketMin) {
@@ -236,6 +203,10 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
             } else {
                 acceptOnce(lastBucketMin);
                 lastBucketMin = null;
+            }
+        } else if (null == lastBucketMin) {
+            if (entity.isSupplement() && this.lastCallTime != null && this.lastCallTime > bucketMin) {
+                return acceptLastMinute(entity, topCallId);
             }
         }
         return null;
@@ -252,20 +223,11 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
                 acceptOnce(lastBucketHour);
                 lastBucketHour = null;
             }
-        }
-        return false;
-    }
-
-    boolean acceptDayIfNeed(MetricInstanceFactory.CallInfo entity, ObjectId topCallId, BucketInfo lessBucket) {
-        long bucketDay = entity.getBucketDay();
-        if (null != lastBucketDay && lastBucketDay.getTimeStart() != bucketDay) {
-            if (bucketDay < lastBucketDay.getTimeStart()) {
+        } else if (null == lastBucketHour) {
+            if (entity.isSupplement() && this.lastCallTime != null && this.lastCallTime > bucketHour) {
                 assert lessBucket != null;
-                acceptLastDay(entity, lessBucket, topCallId);
+                acceptLastHour(entity, lessBucket, topCallId);
                 return true;
-            } else {
-                acceptOnce(lastBucketDay);
-                lastBucketDay = null;
             }
         }
         return false;
@@ -315,6 +277,5 @@ public final class MetricInstanceAcceptor implements AcceptorBase {
     public void close() {
         acceptOnce(lastBucketMin);
         acceptOnce(lastBucketHour);
-        acceptOnce(lastBucketDay);
     }
 }

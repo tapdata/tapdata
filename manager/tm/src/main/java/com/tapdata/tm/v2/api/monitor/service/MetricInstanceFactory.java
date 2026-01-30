@@ -34,6 +34,12 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
             "//v4.loopback.io/favicon.ico",
             "/security.txt"
     );
+    Long lastCallTime;
+
+    MetricInstanceFactory last(Long lastCallTime) {
+        this.lastCallTime = lastCallTime;
+        return this;
+    }
 
     public MetricInstanceFactory(Consumer<List<ApiMetricsRaw>> consumer, Function<Query, ApiMetricsRaw> findOne) {
         super(consumer, findOne);
@@ -75,14 +81,11 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         return instanceMap.computeIfAbsent(key, k -> new MetricInstanceAcceptor(metricType, ts -> {
                     final ApiMetricsRaw lastMin = lastOne(reqPath, serverId, metricType, TimeGranularity.MINUTE, ts);
                     ApiMetricsRaw lastHour = null;
-                    ApiMetricsRaw lastDay = null;
                     if (null != lastMin) {
                         long bucketHour = TimeGranularity.HOUR.fixTime(lastMin.getTimeStart());
                         lastHour = lastOne(reqPath, serverId, metricType, TimeGranularity.HOUR, bucketHour);
-                        long bucketDay = TimeGranularity.DAY.fixTime(lastMin.getTimeStart());
-                        lastDay = lastOne(reqPath, serverId, metricType, TimeGranularity.DAY, bucketDay);
                     }
-                    return new MetricInstanceAcceptor.BucketInfo(lastMin, lastHour, lastDay);
+                    return new MetricInstanceAcceptor.BucketInfo(lastMin, lastHour);
                 }, (quickUpload, info) -> {
                     if (null != quickUpload && !quickUpload) {
                         this.apiMetricsRaws.add(info);
@@ -90,7 +93,7 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
                         this.consumer.accept(List.of(info));
                     }
                     return null;
-                })
+                }).lastCallTime(lastCallTime)
         );
     }
 
