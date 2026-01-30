@@ -1,36 +1,54 @@
-name: "Gemini AI Code Review"
+name: "Gemini AI Java Code Review"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
+    paths:
+      - '**.java'
+      - 'pom.xml'
+      - 'build.gradle'
+      - 'src/main/resources/**'
 
 jobs:
-  review:
-    # 避免在草稿 PR 上运行以节省额度
-    if: github.event.pull_request.draft == false
+  ai-review:
+    name: AI Review
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write # 必须赋予写入评论的权限
+      pull-requests: write
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取完整历史以确保 diff 计算准确
+          fetch-depth: 2
 
-      - name: Gemini AI Review
-        # 使用目前对 Gemini 适配最稳定的专用 Action
-        uses: coderabbitai/ai-pr-reviewer@latest
-        env:
-          # 传入你的 Gemini API Key
-          GEMINI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-          # 传入 GitHub Token 用于发表评论
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Gemini AI Reviewer
+        uses: anc95/ChatGPT-CodeReview@main
         with:
-          debug: false
-          # 指定使用 Gemini 模型
-          chatgpt_reverse_proxy: "https://generativelanguage.googleapis.com/v1beta/openai"
+          # 使用你指定的 Secret 名称
+          openai_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+
+          # GitHub 内置 Token，用于发表评论
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # Gemini 接口适配
           openai_base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
           model: "gemini-1.5-flash"
-          language: "zh-CN" # 使用中文审查
+          language: "Chinese"
+
+          # 排除非核心代码
+          exclude: "**/test/**, **/target/**, .github/**, *.md, **/vendor/**"
+
+          # 针对 Java 及业务场景定制的审查指令
+          system_message: |
+            你是一位顶级的 Java 架构师和代码审计专家。请对 PR 中的 Diff 进行深度审查。
+            
+            审查重点：
+            1. **代码鲁棒性**：重点检查 NPE（空指针）、资源流关闭、异常处理是否规范。
+            2. **并发与性能**：检查是否存在多线程竞争条件、死锁风险，以及不必要的数据库循环查询。
+            3. **数据一致性**：关注涉及数据库（如 MongoDB, Paimon 等）的操作逻辑是否严谨。
+            4. **代码规范**：检查是否符合阿里巴巴 Java 开发规范，变量命名是否清晰。
+            5. **业务逻辑**：如果涉及电商逻辑（如价格计算、库存更新），请特别留意边界条件。
+            
+            请在有改进空间的行直接评论，回复使用简洁的中文，并给出重构后的示例代码。
