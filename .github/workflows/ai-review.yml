@@ -74,6 +74,13 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: List models (Gemini API v1)
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+        run: |
+          curl -s "https://generativelanguage.googleapis.com/v1/models?key=${GEMINI_API_KEY}" | head -c 4000
+
       - name: Gemini Code Review (flash)
         uses: rubensflinco/gemini-code-review-action@1.0.5
         with:
@@ -101,10 +108,3 @@ jobs:
             4) 潜在 Bug/边界条件
             5) 测试建议
             6) 安全与合规（密钥/权限/日志泄露/依赖风险）
-
-      - name: List models (Gemini API v1)
-        shell: bash
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-        run: |
-          curl -s "https://generativelanguage.googleapis.com/v1/models?key=${GEMINI_API_KEY}" | head -c 4000
