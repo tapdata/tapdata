@@ -14,6 +14,6 @@ jobs:
       - name: Gemini Code Review
         uses: google-gemini/gemini-ai-code-review-action@v1 # 示例路径，具体参考 Marketplace
         with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
           # 可选：配置排除的文件类型
           exclude: "*.md, *.json"
