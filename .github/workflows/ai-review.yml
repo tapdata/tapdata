@@ -18,7 +18,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 可选：确认 Secret 注入成功（不泄露 key）
       - name: Verify Gemini key exists
         shell: bash
         run: |
@@ -28,7 +27,6 @@ jobs:
           fi
           echo "✅ Gemini key is present"
 
-      # 生成 PR diff，并在这里做排除规则（因为很多 Gemini action 不支持 exclude 参数）
       - name: Build PR diff (with excludes)
         id: pr_diff
         shell: bash
@@ -38,11 +36,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 获取 base/head 分支
           git fetch origin "${BASE_REF}:${BASE_REF}"
           git fetch origin "${HEAD_REF}:${HEAD_REF}"
 
-          # 生成 diff：排除不需要 review 的文件
           git diff "origin/${BASE_REF}...origin/${HEAD_REF}" \
             -- . \
             ":(exclude)package-lock.json" \
@@ -54,7 +50,6 @@ jobs:
             ":(exclude)**/*.min.*" \
             > diff.txt
 
-          # 若 diff 为空，则直接输出空并结束（避免 action 报错）
           if [ ! -s diff.txt ]; then
             echo "No diff to review (after excludes)."
             {
@@ -65,7 +60,6 @@ jobs:
             exit 0
           fi
 
-          # 防止 diff 超大：截断到 0.9MB（按需调整）
           MAX_BYTES=$((900000))
           SIZE=$(wc -c < diff.txt)
           if [ "$SIZE" -gt "$MAX_BYTES" ]; then
@@ -80,56 +74,81 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      # （可选）调试：列出该 Key 在 v1beta 下能用的模型（只输出前 4000 字符，避免刷屏）
-      # 如果你已经稳定了，可以删掉这个 step
+      # ✅ 这里是你截图里出语法问题的地方：我已经按正确 heredoc 写好了
       - name: List Gemini models (debug)
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
         run: |
-          set -e
-          curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}" | head -c 4000 || true
-          echo ""
+          set -euo pipefail
+          echo "Listing models from v1beta..."
+          curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}" \
+            | python3 - <<'PY'
+              import json, sys
+            data = json.load(sys.stdin)
+          for m in data.get("models", []):
+            name = m.get("name")
+            methods = m.get("supportedGenerationMethods", [])
+            if name:
+              print(f"{name}\tmethods={methods}")
+            PY
 
-      - name: Gemini Code Review
-        # 这个 action 是原生 Gemini（不会走 OpenAI）
+      - name: Gemini Code Review (try flash)
+        id: gemini_flash
+        continue-on-error: true
         uses: rubensflinco/gemini-code-review-action@1.0.5
         with:
-          # ✅ 你的 Secret 名字
           gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-
-          # ✅ 用于在 PR 发表评论
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_repository: ${{ github.repository }}
           github_pull_request_number: ${{ github.event.pull_request.number }}
           git_commit_hash: ${{ github.event.pull_request.head.sha }}
 
-          # ✅ 注意：不要用 gemini-1.5-pro-latest（你之前 404 就是这个）
-          model: "gemini-1.5-pro"
-          # 更快更便宜可用：
-          # model: "gemini-1.5-flash"
+          # ✅ 先用 flash（你那边 pro 404 很常见）
+          model: "gemini-1.5-flash"
 
           pull_request_diff: |-
             ${{ steps.pr_diff.outputs.diff }}
 
-          # diff 分块，越小越稳但更慢；3500 一般比较稳
           pull_request_chunk_size: "3500"
-
-          # 可选：更稳的生成参数（不一定所有 action 都用得上，但写着无害）
           temperature: "0.2"
           top_p: "0.9"
           max_tokens: "2048"
           log_level: "INFO"
-
           extra_prompt: |-
-            你是资深代码审查员，请用中文对这次 PR 的 diff 做 Code Review。
-            输出结构必须严格按以下格式：
+            用中文进行 Code Review。输出：
             1) 总体结论（风险等级：低/中/高）
-            2) 必须修复（阻塞合并）：按条列出，说明原因，并给出可执行修改建议
-            3) 建议优化（不阻塞）：按条列出
-            4) 潜在 Bug/边界条件：按条列出
-            5) 测试建议：需要补哪些单测/集成测试/回归点
-            6) 安全与合规：如果发现密钥、权限、日志泄露、依赖风险，必须指出
-            额外要求：
-            - 尽量引用文件路径与 diff 片段定位问题
-            - 如果信息不足，明确写“需要更多上下文”的点
+            2) 必须修复（阻塞合并）
+            3) 建议优化（不阻塞）
+            4) 潜在 Bug/边界条件
+            5) 测试建议
+            6) 安全与合规（密钥/权限/日志泄露/依赖风险）
+
+      - name: Gemini Code Review (fallback 1.0-pro)
+        if: steps.gemini_flash.outcome == 'failure'
+        uses: rubensflinco/gemini-code-review-action@1.0.5
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_repository: ${{ github.repository }}
+          github_pull_request_number: ${{ github.event.pull_request.number }}
+          git_commit_hash: ${{ github.event.pull_request.head.sha }}
+
+          model: "gemini-1.0-pro"
+
+          pull_request_diff: |-
+            ${{ steps.pr_diff.outputs.diff }}
+
+          pull_request_chunk_size: "3000"
+          temperature: "0.2"
+          top_p: "0.9"
+          max_tokens: "2048"
+          log_level: "INFO"
+          extra_prompt: |-
+            用中文进行 Code Review。输出：
+            1) 总体结论（风险等级：低/中/高）
+            2) 必须修复（阻塞合并）
+            3) 建议优化（不阻塞）
+            4) 潜在 Bug/边界条件
+            5) 测试建议
+            6) 安全与合规（密钥/权限/日志泄露/依赖风险）
