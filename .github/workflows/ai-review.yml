@@ -19,15 +19,17 @@ jobs:
           fetch-depth: 0
 
       - name: Gemini AI Review
-        # 换成最新的 main 分支，修复了参数读取的 Bug
         uses: anc95/ChatGPT-CodeReview@main
         env:
+          # 1. 注入 GitHub Token 用于发表评论
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 强制通过环境变量注入，跳过默认的 OpenAI 路径
+          # 2. 强制设置 API Key 环境变量
           OPENAI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          # 3. 强制重定向到 Gemini 接口地址
+          # 注意：去掉结尾的 /openai 试试，部分插件会自动补全路径
           OPENAI_API_BASE: "https://generativelanguage.googleapis.com/v1beta/openai"
         with:
-          # 以下参数用于双重保险
+          # 保持这里的配置作为冗余备份
           openai_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
           openai_base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
           model: "gemini-1.5-flash"
