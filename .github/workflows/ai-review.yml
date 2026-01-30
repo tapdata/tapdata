@@ -13,128 +13,26 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify Gemini key exists
-        shell: bash
-        run: |
-          if [ -z "${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}" ]; then
-            echo "❌ Secret GEMINI_AI_CODE_REVIEW_JACKIN is empty or not configured"
-            exit 1
-          fi
-          echo "✅ Gemini key is present"
-
-      - name: Build PR diff (with excludes)
-        id: pr_diff
-        shell: bash
+      - name: Gemini AI Review
+        uses: anc95/ChatGPT-CodeReview@main
         env:
-          HEAD_REF: "${{ github.event.pull_request.head.ref }}"
-          BASE_REF: "${{ github.event.pull_request.base.ref }}"
-        run: |
-          set -euo pipefail
-
-          git fetch origin "${BASE_REF}:${BASE_REF}"
-          git fetch origin "${HEAD_REF}:${HEAD_REF}"
-
-          # 生成 diff：排除不需要 review 的文件
-          git diff "origin/${BASE_REF}...origin/${HEAD_REF}" \
-            -- . \
-            ":(exclude)package-lock.json" \
-            ":(exclude)yarn.lock" \
-            ":(exclude)dist/**" \
-            ":(exclude)build/**" \
-            ":(exclude)**/*.md" \
-            ":(exclude)**/*.snap" \
-            ":(exclude)**/*.min.*" \
-            > diff.txt
-
-          if [ ! -s diff.txt ]; then
-            echo "No diff to review (after excludes)."
-            {
-              echo "diff<<EOF"
-              echo ""
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # 防止 diff 超大：截断（按需调大/调小）
-          MAX_BYTES=$((800000))  # ~0.8MB
-          SIZE=$(wc -c < diff.txt)
-          if [ "$SIZE" -gt "$MAX_BYTES" ]; then
-            head -c "$MAX_BYTES" diff.txt > diff_truncated.txt
-            mv diff_truncated.txt diff.txt
-            echo "[WARN] diff too large (${SIZE} bytes), truncated to ${MAX_BYTES} bytes." >&2
-          fi
-
-          {
-            echo "diff<<EOF"
-            cat diff.txt
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Gemini review & comment to PR (Gemini API v1)
-        shell: bash
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          # 1. 必填：用于在 PR 发表评论
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          DIFF: ${{ steps.pr_diff.outputs.diff }}
-        run: |
-          set -euo pipefail
-
-          cat <<'PY' | python3
-      import os, json, urllib.request
-
-      gemini_key = os.environ["GEMINI_API_KEY"]
-      repo = os.environ["REPO"]
-      pr_number = os.environ["PR_NUMBER"]
-      diff = os.environ.get("DIFF", "")
-
-      if not diff.strip():
-        print("Empty diff, skip.")
-        raise SystemExit(0)
-
-      MODEL = "models/gemini-2.5-flash"
-      url = f"https://generativelanguage.googleapis.com/v1/{MODEL}:generateContent?key={gemini_key}"
-
-      prompt = f"""用中文做 Code Review（略）...\n\nDIFF:\n{diff}"""
-
-      payload = {
-      "contents": [ { "role": "user", "parts": [ { "text": prompt } ] } ],
-      "generationConfig": { "temperature": 0.2, "topP": 0.9, "maxOutputTokens": 2048 }
-  }
-
-    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
-    headers={"Content-Type": "application/json" }, method="POST")
-    with urllib.request.urlopen(req, timeout=180) as resp:
-      data = json.loads(resp.read().decode("utf-8"))
-
-    text = ""
-    cands = data.get("candidates", [])
-    if cands:
-      parts = cands[0].get("content", {}).get("parts", [])
-      text = "".join(p.get("text", "") for p in parts).strip()
-    if not text:
-      text = "(Gemini returned empty response)"
-
-    comment = "## 🤖 Gemini Code Review\n\n" + text
-    
-    gh_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
-    gh_req = urllib.request.Request(
-    gh_url,
-    data=json.dumps({"body": comment}).encode("utf-8"),
-    headers={
-    "Authorization": f"token {os.environ['GITHUB_TOKEN']}",
-    "Accept": "application/vnd.github+json",
-    "Content-Type": "application/json"
-  },
-    method="POST"
-    )
-    with urllib.request.urlopen(gh_req, timeout=60) as resp:
-      print("Comment created:", resp.status)
-PY
+          # 2. 必填：你的 Gemini API Key
+          OPENAI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          # 3. 必填：强制重定向。如果之前带 /openai 报错，请尝试这个更短的
+          OPENAI_API_BASE: "https://generativelanguage.googleapis.com/v1beta"
+          # 4. 必填：指定模型，否则它可能默认去找 GPT-3.5 导致 404
+          MODEL: "gemini-1.5-flash"
+        with:
+          # 冗余参数，防止某些版本只读 with
+          openai_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
+          openai_base_url: "https://generativelanguage.googleapis.com/v1beta"
+          model: "gemini-1.5-flash"
+          language: "Chinese"
+          exclude: "package-lock.json,yarn.lock,dist/**,*.md,*.snap"
