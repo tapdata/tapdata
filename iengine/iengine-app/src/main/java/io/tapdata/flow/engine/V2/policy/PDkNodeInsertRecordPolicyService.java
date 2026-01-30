@@ -14,8 +14,10 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -76,6 +78,13 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 		} catch (Throwable e) {
 			Throwable matchThrowable = CommonUtils.matchThrowable(e, TapPdkViolateUniqueEx.class);
 			if (null != matchThrowable) {
+				if (null != startTransactionMap && Boolean.TRUE.equals(startTransactionMap.get(Thread.currentThread().getName()))) {
+					if (null == transactionOperator) {
+						throw new RuntimeException("Transaction operator is null, cannot rollback transaction, original error: " + e.getMessage(), e);
+					}
+					transactionOperator.transactionRollback();
+					transactionOperator.transactionBegin();
+				}
 				connectorNode.getConnectorContext().getConnectorCapabilities().alternative(ConnectionOptions.DML_INSERT_POLICY, settingInsertPolicy.name());
 				writePolicyRunner.apply(tapRecordEvents);
 				Optional.ofNullable(obsLogger).ifPresent(log -> log.trace("Table '{}' has duplicate key error, switch the insert policy to {} and retry writing, continuous error time: {}",

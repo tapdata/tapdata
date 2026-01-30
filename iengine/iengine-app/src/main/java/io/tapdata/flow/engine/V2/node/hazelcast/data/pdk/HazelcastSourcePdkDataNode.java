@@ -1203,8 +1203,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 								TapdataStartedCdcEvent startedCdcEvent = TapdataStartedCdcEvent.create();
 								startedCdcEvent.setCdcStartTime(System.currentTimeMillis());
 								startedCdcEvent.setSyncStage(SyncStage.CDC);
-								tapdataStartedCdcEvent.setSourceNodeId(node.getId());
-								tapdataStartedCdcEvent.setSourceNodeAssociateId(associateId);
+								startedCdcEvent.setSourceNodeId(node.getId());
+								startedCdcEvent.setSourceNodeAssociateId(associateId);
 								startedCdcEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
 								startedCdcEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connection.getId());
 								startedCdcEvent.addInfo(TapdataEvent.TABLE_NAMES_INFO_KEY, logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getTableNames());
