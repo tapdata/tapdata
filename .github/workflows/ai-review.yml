@@ -2,12 +2,10 @@ name: "Gemini AI Code Review"
 
 on:
   pull_request:
-    # 当 PR 开启、有新代码推送或重新打开时触发
     types: [opened, synchronize, reopened]
 
 jobs:
   review:
-    # 避免在 Draft PR 上浪费额度
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
@@ -18,25 +16,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          # 获取完整历史以确保增量 diff 计算准确
           fetch-depth: 0
 
       - name: Gemini AI Review
-        # 使用稳定的版本号
-        uses: anc95/ChatGPT-CodeReview@v1.0.13
+        # 换成最新的 main 分支，修复了参数读取的 Bug
+        uses: anc95/ChatGPT-CodeReview@main
         env:
-          # 必须注入 GITHUB_TOKEN，脚本才能获得评论写入权限
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 关键：通过环境变量强制覆盖，解决插件不读取 with 参数的问题
+          # 强制通过环境变量注入，跳过默认的 OpenAI 路径
           OPENAI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
           OPENAI_API_BASE: "https://generativelanguage.googleapis.com/v1beta/openai"
         with:
-          # 重复声明以确保不同版本的插件都能读取到
+          # 以下参数用于双重保险
           openai_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
           openai_base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
           model: "gemini-1.5-flash"
           language: "Chinese"
-          # 排除大文件和自动生成的文件，节省 Token
-          exclude: "package-lock.json,yarn.lock,dist/**,*.md,*.snap,*.min.js"
-          # 设定单次审查的最大 token 数（可选）
-          max_tokens: 4096
+          exclude: "package-lock.json,yarn.lock,dist/**,*.md,*.snap"
