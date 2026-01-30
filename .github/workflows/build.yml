@@ -96,7 +96,7 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: compile opensource tapdata
         run: |
-          cd tapdata 
+          cd tapdata
           update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
           export JAVA_HOME=/usr/java/jdk-17.0.12
           bash build/build.sh -c tapdata -u false -l "-Dmaven.compile.fork=true -P idaas -P oss"
@@ -274,7 +274,7 @@ jobs:
           repository: 'tapdata-application'
           commit_user_name: 'cicd'
           commit_user_email: 'cicd@tapdata.io'
-  
+
   Make-Tar-File:
     runs-on: office-scan
     timeout-minutes: 60
@@ -305,10 +305,10 @@ jobs:
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
           bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }} -m x86_64
-          rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-x86_64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@58.251.34.123:873/data/enterprise-artifact/gz/
+          rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-x86_64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@192.168.1.184:873/data/enterprise-artifact/gz/
           rm -rf output/tapdata-x86_64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz
           bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }} -m arm64
-          rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-arm64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@58.251.34.123:873/data/enterprise-artifact/gz/
+          rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-arm64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@192.168.1.184:873/data/enterprise-artifact/gz/
 
   Clean-Build-Temp:
     runs-on: office-scan
