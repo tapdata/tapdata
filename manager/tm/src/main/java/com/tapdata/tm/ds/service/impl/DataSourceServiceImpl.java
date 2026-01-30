@@ -1,6 +1,7 @@
 package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,6 +43,7 @@ import com.tapdata.tm.ds.utils.UriRootConvertUtils;
 import com.tapdata.tm.ds.vo.SupportListVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
+import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.job.dto.JobDto;
 import com.tapdata.tm.job.service.JobService;
 import com.tapdata.tm.libSupported.entity.LibSupportedsEntity;
@@ -65,6 +67,7 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
@@ -76,6 +79,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -98,9 +102,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -174,6 +181,10 @@ public class DataSourceServiceImpl extends DataSourceService{
     private AgentGroupService agentGroupService;
     @Autowired
     private UserDataReportService userDataReportService;
+    @Autowired
+    private FileService fileService;
+    @Autowired
+    private BatchUpChecker batchUpChecker;
 
     public DataSourceServiceImpl(@NonNull DataSourceRepository repository) {
         super(repository);
@@ -1852,8 +1863,6 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
             String connId = connectionDto.getId().toString();
-            connectionDto.setListtags(null);
-
             // 基于名称查找现有连接
             Query nameQuery = new Query(Criteria.where("name").is(connectionDto.getName()).and("is_deleted").ne(true));
             nameQuery.fields().include("_id", "name");
@@ -1884,7 +1893,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
                     break;
-                case REUSE_EXISTING:
+                case REUSE_EXISTING,GROUP_IMPORT:
                     if (existingConnectionByName != null) {
                         resultConnection = existingConnectionByName;
                     } else {
@@ -1942,7 +1951,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
 
         agentGroupService.importAgentInfo(connectionDto);
-        return importEntity(connectionDto, user);
+        DataSourceConnectionDto result = importEntity(connectionDto, user);
+        sendTestConnection(connectionDto, true, true, user);
+        return result;
     }
 
     public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {
@@ -2410,6 +2421,49 @@ public class DataSourceServiceImpl extends DataSourceService{
                 )
             );
         return notSupports;
+    }
+
+    @Override
+    public void batchLoadConnection(HttpServletResponse response, List<String> connectionIds, UserDetail user) {
+        List<DataSourceConnectionDto> connections = findAllByIds(connectionIds);
+        batchUpChecker.checkDataSourceConnection(connections, user,true);
+        try {
+            byte[] bytes = ExcelUtil.exportConnectionsToExcel(connections,user);
+            AtomicReference<String> fileName = new AtomicReference<>("");
+            String yyyymmdd = DateUtil.today().replace("-", "");
+            FunctionUtils.isTureOrFalse(connectionIds.size() > 1).trueOrFalseHandle(
+                    () -> fileName.set("connection_batch" + "-" + yyyymmdd),
+                    () -> fileName.set(connections.get(0).getName() + "-" + yyyymmdd)
+            );
+            fileService.viewImg1(bytes, response, fileName.get() + ".xlsx");
+        }catch (Exception e) {
+            throw new BizException("Connection.Export.Error",e,e.getMessage());
+        }
+    }
+
+    @Override
+    public void batchUpConnection(MultipartFile multipartFile, UserDetail user, ImportModeEnum importMode, List<String> tags) {
+        if (!Objects.requireNonNull(multipartFile.getOriginalFilename()).endsWith("xlsx")) {
+            //不支持其他的格式文件
+            throw new BizException("Connection.ImportFormatError");
+        }
+        List<DataSourceConnectionDto> importedConnections = new ArrayList<>();
+       try {
+           byte[] binaryData = multipartFile.getBytes();
+           if (binaryData.length > 0) {
+               try (java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(binaryData)) {
+                   List<DataSourceConnectionDto> connections = ExcelUtil.importConnectionsFromExcel(bais,user);
+                   if(CollectionUtils.isNotEmpty(connections)){
+                       importedConnections.addAll(connections);
+                   }
+               }
+           }
+       } catch (Exception e) {
+           throw new BizException("Connection.Import.Error",e,e.getMessage());
+       }
+        batchUpChecker.checkDataSourceConnection(importedConnections, user,true);
+        batchImport(importedConnections,user,importMode);
+
     }
 
     public void sendScheduleMonitor(DataSourceConnectionDto connectionDto, UserDetail user) {
