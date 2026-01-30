@@ -149,17 +149,15 @@ public class ApiMetricsRawMergeService {
                 .map(MongoUtils::toObjectId)
                 .filter(Objects::nonNull)
                 .toList();
-        apiInfoMap.forEach(this::initApiInfo);
         if (CollectionUtils.isEmpty(apiIds)) {
-            List<TopApiInServer> api = TopApiInServer.supplement(new ArrayList<>(), publishApis(), e -> TopApiInServer.create());
-            return Page.page(api.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), api.size());
+            return Page.page(new ArrayList<>(), 0);
         }
+        apiInfoMap.forEach(this::initApiInfo);
         Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
         Query queryOfApi = Query.query(criteriaOfApi);
         List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
         mapApiInfo(apiDtoList, apiInfoMap, historyApiIdOfPath, k -> TopApiInServer.create());
         List<TopApiInServer> result = new ArrayList<>(apiInfoMap.values());
-        TopApiInServer.supplement(result, publishApis(), e -> TopApiInServer.create());
         ChartSortUtil.sort(result, param.getSortInfo(), TopApiInServer.class);
         return Page.page(result.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), result.size());
     }
@@ -274,15 +272,13 @@ public class ApiMetricsRawMergeService {
                 .toList();
         apiInfoMap.forEach(this::initApiInfo);
         if (CollectionUtils.isEmpty(apiIds)) {
-            List<ApiItem> api = TopApiInServer.supplement(new ArrayList<>(), publishApis(), e -> ApiItem.create());
-            return Page.page(api.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), api.size());
+            return Page.page(new ArrayList<>(), 0);
         }
         Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
         Query queryOfApi = Query.query(criteriaOfApi);
         List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
         mapApiInfo(apiDtoList, apiInfoMap, historyApiIdOfPath, k -> ApiItem.create());
         List<ApiItem> result = new ArrayList<>(apiInfoMap.values());
-        TopApiInServer.supplement(result, publishApis(), e -> ApiItem.create());
         ChartSortUtil.sort(result, param.getSortInfo(), ApiItem.class);
         return Page.page(result.stream().skip(param.getSkip()).limit(param.getLimit()).toList(), result.size());
     }

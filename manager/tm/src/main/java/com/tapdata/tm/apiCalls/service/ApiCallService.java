@@ -165,13 +165,7 @@ public class ApiCallService {
         analyseRangeNumber(Tag.LATENCY, Tag.LATENCY, where, criteria);
         Optional.ofNullable(code)
                 .map(value -> String.valueOf(value).trim())
-                .ifPresent(value -> {
-                    if (Objects.equals("200", value)) {
-                        criteria.and("succeed").is(true);
-                    } else {
-                        criteria.and("succeed").is(false);
-                    }
-                });
+                .ifPresent(value -> criteria.and("succeed").is(Objects.equals("200", value)));
         Optional.ofNullable(where.get(Tag.START))
                 .map(value -> (Double) where.remove(Tag.START))
                 .map(Double::longValue)

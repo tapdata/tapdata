@@ -46,9 +46,9 @@ public final class ApiMetricsCompressValueUtil {
         } catch (NumberFormatException e) {
             return false;
         }
-        if (codNumber == 404) {
-            return !ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode().equals(tag);
-        }
+//        if (codNumber == 404) {
+//            return !ApiCallEntity.HttpStatusType.PUBLISH_FAILED_404.getCode().equals(tag);
+//        }
         return codNumber >= 200 && codNumber < 300;
     }
 
