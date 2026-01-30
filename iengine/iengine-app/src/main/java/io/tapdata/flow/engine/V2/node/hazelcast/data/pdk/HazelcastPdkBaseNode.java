@@ -107,6 +107,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
 	private static final String DOUBLE_ACTIVE = "doubleActive";
 	private static final String DATA_SAVING = "dataSaving";
+	private static final String FILE_LOG = "fileLog";
 	private static final String WRITE_THREAD_SIZE = "writeThreadSize";
 	protected TapRecordSkipDetector skipDetector;
 	protected PdkStateMap pdkStateMap;
@@ -291,6 +292,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
         }
 		nodeConfig.put(DOUBLE_ACTIVE, taskDto.getDoubleActive());
 		nodeConfig.put(DATA_SAVING, taskDto.getDataSaving());
+		nodeConfig.put(FILE_LOG, taskDto.getFileLog());
 		Boolean oldVersionTimezone = taskDto.getOldVersionTimezone();
 		oldVersionTimezone = CommonUtils.getPropertyBool(OLD_VERSION_TIME_ZONE_PROP_KEY, oldVersionTimezone);
 		nodeConfig.put(OLD_VERSION_TIMEZONE, oldVersionTimezone);
@@ -592,7 +594,9 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 					return aspect;
 				}, aspect -> {
-					aspect.dataProcessorContext(getDataProcessorContext());
+					if (aspect != null) {
+						aspect.dataProcessorContext(getDataProcessorContext());
+					}
 				});
 			}
 		};

@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.schema.type.TapArray;
 import io.tapdata.entity.schema.type.TapMap;
 import lombok.Getter;
 import lombok.Setter;
@@ -102,7 +103,7 @@ public class MergeTableNode extends ProcessorNode {
         String targetPath = mergeProperty.getTargetPath();
         if (StringUtils.isNotBlank(targetPath)) {
             if (schema1 != null) {
-                Field mapField = createMapField(targetPath, schema1.getName());
+                Field mapField = createMapField(targetPath, schema1.getName(),mergeProperty.getMergeType());
                 List<Field> fields = schema1.getFields();
                 for (Field field : fields) {
                     inlineF.add(field.getId());
@@ -162,17 +163,24 @@ public class MergeTableNode extends ProcessorNode {
         return schema;
     }*/
 
-    public Field createMapField(String name, String tableName) {
+    public Field createMapField(String name, String tableName,MergeTableProperties.MergeType mergeType) {
         Field field = new Field();
         field.setFieldName(name);
         field.setSource("job_analyze");
-        field.setDataType("Map");
+        if(mergeType == MergeTableProperties.MergeType.updateIntoArray){
+            field.setDataType("Array");
+            TapArray tapArray = new TapArray();
+            tapArray.setType((byte) 2);
+            field.setTapType(JsonUtil.toJson(tapArray));
+        }else {
+            field.setDataType("Map");
+            TapMap tapMap = new TapMap();
+            tapMap.setType((byte) 4);
+            field.setTapType(JsonUtil.toJson(tapMap));
+        }
         field.setId(MetaDataBuilderUtils.generateFieldId(this.getId(), tableName, name));
         field.setTableName(tableName);
         field.setOriginalFieldName(name);
-        TapMap tapMap = new TapMap();
-        tapMap.setType((byte) 4);
-        field.setTapType(JsonUtil.toJson(tapMap));
         field.setColumnPosition(1);
         return field;
     }

@@ -357,7 +357,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				if (controlOrIgnoreEvent(batchEventWrapper.getTapdataEvent())) {
 					continue;
 				}
-				if (Boolean.TRUE.equals(needCache(batchEventWrapper.getTapdataEvent()))) {
+				if (needCache(batchEventWrapper.getTapdataEvent())) {
 					batchCache.add(batchEventWrapper);
 				}
 				wrapMergeInfo(batchEventWrapper.getTapdataEvent());

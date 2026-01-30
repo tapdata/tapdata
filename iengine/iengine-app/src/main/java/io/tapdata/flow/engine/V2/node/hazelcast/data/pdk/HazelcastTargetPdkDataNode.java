@@ -42,6 +42,7 @@ import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
+import io.tapdata.flow.engine.V2.policy.TransactionOperator;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -122,6 +123,23 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 			initTargetDB();
 			this.writePolicyService = new PDkNodeInsertRecordPolicyService(dataProcessorContext.getTaskDto(), getNode(), associateId);
+			this.writePolicyService.setStartTransactionMap(startTransactionMap);
+			this.writePolicyService.setTransactionOperator(new TransactionOperator() {
+				@Override
+				public void transactionBegin() {
+					HazelcastTargetPdkDataNode.this.transactionBegin();
+				}
+
+				@Override
+				public void transactionCommit() {
+					HazelcastTargetPdkDataNode.this.transactionCommit();
+				}
+
+				@Override
+				public void transactionRollback() {
+					HazelcastTargetPdkDataNode.this.transactionRollback();
+				}
+			});
 		} catch (Exception e) {
 			Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
 			if (null != matched) {
@@ -1220,6 +1238,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TransactionBeginFunction transactionBeginFunction = connectorFunctions.getTransactionBeginFunction();
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
 				() -> transactionBeginFunction.begin(connectorNode.getConnectorContext()), TAG);
+		super.transactionBegin();
 	}
 
 	@Override
@@ -1232,6 +1251,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TransactionCommitFunction transactionCommitFunction = connectorFunctions.getTransactionCommitFunction();
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
 				() -> transactionCommitFunction.commit(connectorNode.getConnectorContext()), TAG);
+		super.transactionCommit();
 	}
 
 	@Override
@@ -1244,6 +1264,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
 				() -> transactionRollbackFunction.rollback(connectorNode.getConnectorContext()), TAG);
+		super.transactionRollback();
 	}
 
 	@Override

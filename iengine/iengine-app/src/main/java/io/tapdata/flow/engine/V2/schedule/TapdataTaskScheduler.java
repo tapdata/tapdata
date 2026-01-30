@@ -60,6 +60,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -118,6 +119,13 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private final Object startTaskLock = new Object();
 	private volatile long lastStartTaskTime = 0L;
 	private static final long START_TASK_RATE_LIMIT_MILLIS = 5000L; // 5秒限流间隔
+
+	// 批量启动任务的并发控制
+	private static final double BATCH_SIZE_RATIO = 0.7; // 使用线程池70%的线程用于批量启动
+	private static final int MIN_BATCH_SIZE = 1; // 最小批次大小
+	private final Semaphore startTaskSemaphore = new Semaphore(calculateBatchSize()); // 控制并发启动任务数量
+	private volatile long lastBatchStartTime = 0L; // 上一批次启动时间
+	private final AtomicInteger currentBatchCount = new AtomicInteger(0); // 当前批次已启动任务数
 
 	@Bean(name = "taskControlScheduler")
 	public TaskScheduler taskControlScheduler() {
@@ -414,9 +422,32 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	/**
+	 * Calculate batch size for concurrent task startup
+	 * Uses 70% of thread pool size, with minimum guarantee of 1
+	 *
+	 * @return batch size for concurrent task startup
+	 */
+	private static int calculateBatchSize() {
+		int threadPoolSize = Runtime.getRuntime().availableProcessors() + 1;
+		int batchSize = (int) Math.ceil(threadPoolSize * BATCH_SIZE_RATIO);
+		int result = Math.max(batchSize, MIN_BATCH_SIZE);
+
+		LogManager.getLogger(TapdataTaskScheduler.class).info(
+			"Calculated batch size for task startup: {} (thread pool size: {}, ratio: {}%, min: {})",
+			result, threadPoolSize, (int)(BATCH_SIZE_RATIO * 100), MIN_BATCH_SIZE
+		);
+
+		return result;
+	}
+
+	/**
 	 * 应用 startTask 方法的限流控制
 	 * 确保任何调用 startTask 的方法都不会超过 5 秒一个的频率
+	 * 已废弃，使用 applyBatchStartTaskRateLimit 替代
+	 *
+	 * @deprecated Use {@link #applyBatchStartTaskRateLimit(TaskDto)} instead
 	 */
+	@Deprecated
 	public void applyStartTaskRateLimit(TaskDto taskDto) {
 		synchronized (startTaskLock) {
 			long currentTime = System.currentTimeMillis();
@@ -444,6 +475,64 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 	}
 
+	/**
+	 * Apply batch-based rate limiting for task startup
+	 * Allows concurrent task startup within batch size limit, with 5-second interval between batches
+	 *
+	 * @param taskDto the task to start
+	 */
+	public void applyBatchStartTaskRateLimit(TaskDto taskDto) {
+		try {
+			// Acquire semaphore permit (blocks if batch is full)
+			startTaskSemaphore.acquire();
+
+			synchronized (startTaskLock) {
+				int batchCount = currentBatchCount.incrementAndGet();
+				int batchSize = calculateBatchSize();
+
+				logger.debug("Task {} ({}) acquired startup permit, current batch count: {}/{}",
+					taskDto.getName(), taskDto.getId().toHexString(), batchCount, batchSize);
+
+				// Check if this is the first task in a new batch
+				if (batchCount == 1) {
+					long currentTime = System.currentTimeMillis();
+					long timeSinceLastBatch = currentTime - lastBatchStartTime;
+
+					// If less than 5 seconds since last batch, wait
+					if (lastBatchStartTime > 0 && timeSinceLastBatch < START_TASK_RATE_LIMIT_MILLIS) {
+						long waitTime = START_TASK_RATE_LIMIT_MILLIS - timeSinceLastBatch;
+						logger.info("Rate limiting batch startup, waiting {}ms to maintain 5-second batch interval", waitTime);
+
+						try {
+							startTaskLock.wait(waitTime);
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+							logger.warn("Batch rate limit wait interrupted");
+							throw new RuntimeException("Batch rate limit wait interrupted", e);
+						}
+					}
+
+					// Update last batch start time
+					lastBatchStartTime = System.currentTimeMillis();
+					logger.info("Starting new batch of tasks, batch size limit: {}, batch start time: {}",
+						batchSize, lastBatchStartTime);
+				}
+
+				// If batch is full, reset counter and release all permits for next batch
+				if (batchCount >= batchSize) {
+					logger.info("Batch full ({}/{}), resetting for next batch", batchCount, batchSize);
+					currentBatchCount.set(0);
+					startTaskSemaphore.release(batchSize);
+				}
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			logger.error("Failed to acquire startup permit for task {} ({}): {}",
+				taskDto.getName(), taskDto.getId().toHexString(), e.getMessage());
+			throw new RuntimeException("Failed to acquire startup permit", e);
+		}
+	}
+
 	protected void startTask(TaskDto taskDto) {
 		final String taskId = taskDto.getId().toHexString();
 		TaskClient<TaskDto> taskClient = getTaskClient(taskId);
@@ -457,8 +546,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 
-		// 应用限流控制
-		applyStartTaskRateLimit(taskDto);
+		// 应用批量限流控制
+		applyBatchStartTaskRateLimit(taskDto);
 
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		try {
