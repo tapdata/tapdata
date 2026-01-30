@@ -23,6 +23,7 @@ jobs:
         env:
           # 必须在这里传入 GitHub Token，Action 才能发表评论
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
         with:
           # 请确认你的 Secret 名称是否完全一致
           openai_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
