@@ -47,7 +47,7 @@ public class ExcelUtil {
      */
     public static final String CONFIG_COLUMN_PREFIX = "config.";
 
-    private static final String SHEET_PROTECT_PASSWORD = "tapdata";
+    private static final String SHEET_PROTECT = "tapdata";
 
     private static final String SHEET_NAME_MONGO = "Mongo";
     private static final String SHEET_NAME_JDBC = "JDBC";
@@ -345,7 +345,7 @@ public class ExcelUtil {
         }
         adjustHeaderColumnWidth(sheet, headerRow, colIndex);
         applyDataValidations(sheet, apiKeyColumnIndex, layout.enumOptions, connections.size());
-        sheet.protectSheet(SHEET_PROTECT_PASSWORD);
+        sheet.protectSheet(SHEET_PROTECT);
     }
 
     private static ColumnLayout buildColumnLayout(List<DataSourceConnectionDto> connections,
