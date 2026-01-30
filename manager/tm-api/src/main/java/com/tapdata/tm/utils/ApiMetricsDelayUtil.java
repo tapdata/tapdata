@@ -21,6 +21,8 @@ import java.util.function.LongConsumer;
  * @description
  */
 public final class ApiMetricsDelayUtil {
+    public static final String KEY = "k";
+    public static final String VALUE = "v";
     public static final Logger log = org.slf4j.LoggerFactory.getLogger(ApiMetricsDelayUtil.class);
 
     private ApiMetricsDelayUtil() {
@@ -46,10 +48,10 @@ public final class ApiMetricsDelayUtil {
                 if (null == m) {
                     continue;
                 }
-                Number k = m.get("k");
+                Number k = m.get(KEY);
                 if (null != k) {
                     int iV = Optional.ofNullable(merged.get(k.longValue())).orElse(0);
-                    int iVal = Optional.ofNullable(m.get("v")).map(Number::intValue).orElse(0);
+                    int iVal = Optional.ofNullable(m.get(VALUE)).map(Number::intValue).orElse(0);
                     int sum = iV + iVal;
                     if (sum > 0) {
                         merged.put(k.longValue(), sum);
@@ -60,8 +62,8 @@ public final class ApiMetricsDelayUtil {
         List<Map<String, Number>> result = new ArrayList<>();
         merged.forEach((k, v) -> {
             Map<String, Number> iMap = new HashMap<>();
-            iMap.put("k", k);
-            iMap.put("v", v);
+            iMap.put(KEY, k);
+            iMap.put(VALUE, v);
             result.add(iMap);
         });
         return result;
@@ -81,8 +83,8 @@ public final class ApiMetricsDelayUtil {
         long sum = 0L;
         long count = 0L;
         for (Map<String, Number> m : delayList) {
-            long iKey = Optional.ofNullable(m.get("k")).map(Number::longValue).orElse(0L);
-            Integer iValue = Optional.ofNullable(m.get("v")).map(Number::intValue).orElse(0);
+            long iKey = Optional.ofNullable(m.get(KEY)).map(Number::longValue).orElse(0L);
+            Integer iValue = Optional.ofNullable(m.get(VALUE)).map(Number::intValue).orElse(0);
             sum += iKey * iValue.longValue();
             count += iValue.longValue();
         }
@@ -116,7 +118,7 @@ public final class ApiMetricsDelayUtil {
         Long minValue = null;
         Long maxValue = null;
         for (Map<String, Number> item : delayList) {
-            Number iKey = item.get("k");
+            Number iKey = item.get(KEY);
             if (null == iKey) {
                 continue;
             }
@@ -138,13 +140,13 @@ public final class ApiMetricsDelayUtil {
         int target = ((Double) Math.ceil(total * p)).intValue();
         int sum = 0;
         Long pVal = null;
-        delayList.sort(Comparator.comparing(m -> Optional.ofNullable(m.get("k")).map(Number::longValue).orElse(0L)));
+        delayList.sort(Comparator.comparing(m -> Optional.ofNullable(m.get(KEY)).map(Number::longValue).orElse(0L)));
         for (Map<String, Number> m : delayList) {
-            Number iKey = m.get("k");
+            Number iKey = m.get(KEY);
             if (null == iKey) {
                 continue;
             }
-            int iVal = Optional.ofNullable(m.get("v")).map(Number::intValue).orElse(0);
+            int iVal = Optional.ofNullable(m.get(VALUE)).map(Number::intValue).orElse(0);
             if (sum >= target) {
                 return iKey.longValue();
             }
@@ -164,22 +166,22 @@ public final class ApiMetricsDelayUtil {
         }
         for (int i = 0; i < delay.size(); i++) {
             Map<String, Number> item = delay.get(i);
-            if (Objects.equals(item.get("k"), value)) {
-                item.put("v", Optional.ofNullable(item.get("v")).map(Number::intValue).orElse(0) + 1);
+            if (Objects.equals(item.get(KEY), value)) {
+                item.put(VALUE, Optional.ofNullable(item.get(VALUE)).map(Number::intValue).orElse(0) + 1);
                 return delay;
             }
         }
         Map<String, Number> iMap = new HashMap<>();
-        iMap.put("k", value);
-        iMap.put("v", 1);
+        iMap.put(KEY, value);
+        iMap.put(VALUE, 1);
         delay.add(iMap);
         return delay;
     }
 
     public static Map<String, Number> toMap(Long key, Integer value) {
         Map<String, Number> iMap = new HashMap<>();
-        iMap.put("k",key);
-        iMap.put("v",value);
+        iMap.put(KEY, key);
+        iMap.put(VALUE, value);
         return iMap;
     }
 }
