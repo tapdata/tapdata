@@ -1,41 +1,43 @@
-name: Gemini AI Code Reviewer
+name: Gemini AI Code Review for Java
 
 on:
-  issue_comment:
-    types: [created]
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**.java'
 
-permissions: write-all
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   gemini-code-review:
     runs-on: ubuntu-latest
-    if: |
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/gemini-review')
-    steps:
-      - name: PR Info
-        run: |
-          echo "Comment: ${{ github.event.comment.body }}"
-          echo "Issue Number: ${{ github.event.issue.number }}"
-          echo "Repository: ${{ github.repository }}"
 
-      - name: Checkout Repo
-        uses: actions/checkout@v3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get PR Details
-        id: pr
-        run: |
-          PR_JSON=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
-          echo "head_sha=$(echo $PR_JSON | jq -r .head.sha)" >> $GITHUB_OUTPUT
-          echo "base_sha=$(echo $PR_JSON | jq -r .base.sha)" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: truongnh1992/gemini-ai-code-reviewer@main
+      - name: Get changed Java files
+        id: changed-files
+        uses: tj-actions/changed-files@v41
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            **.java
+
+      - name: Gemini AI Code Review
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-2.5-pro # Optional, default is `gemini-2.5-flash`
-          EXCLUDE: "*.md,*.txt,package-lock.json,*.yml,*.yaml"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 安装依赖
+          pip install google-generativeai PyGithub
+          
+          # 运行 Gemini 代码审查脚本
+          python .github/scripts/gemini_review.py \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --files "${{ steps.changed-files.outputs.all_changed_files }}"
