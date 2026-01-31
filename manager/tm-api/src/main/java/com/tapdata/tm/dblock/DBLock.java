@@ -4,7 +4,8 @@ import com.tapdata.tm.dblock.impl.StandardLock;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Date;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -45,11 +46,14 @@ public class DBLock {
 
 		/**
 		 * 全局调度线程池，用于执行定时任务（如心跳检测）
+		 * <p>
+		 * 使用 Integer.MAX_VALUE 作为线程池大小，确保可以处理大量并发任务。
+		 * 每个任务都会分配一个唯一的线程名称，便于调试和监控。
 		 */
-		public static final ScheduledExecutorService executor = initExecutorService(
-						Math.max(Runtime.getRuntime().availableProcessors() * 2, 8),
-						TimeUnit.SECONDS.toMillis(60L)
-		);
+		public static final ScheduledExecutorService executor = Executors.newScheduledThreadPool(Integer.MAX_VALUE, r -> {
+				String threadName = prefixTag("-%d", idAtomic.getAndIncrement());
+				return new Thread(threadGroup, r, threadName);
+		});
 
 		/**
 		 * 工具方法：为日志或其他用途生成带前缀的字符串
@@ -71,20 +75,5 @@ public class DBLock {
 		 */
 		public static ILock create(DBLockRepository repository, String key) {
 				return new StandardLock(repository, key);
-		}
-
-		protected static ScheduledExecutorService initExecutorService(int corePoolSize, long keepAliveTime) {
-				// 创建线程工厂，为每个线程设置唯一的线程名称
-				ThreadFactory threadFactory = r -> {
-						String threadName = prefixTag("-%d", idAtomic.getAndIncrement());
-						return new Thread(threadGroup, r, threadName);
-				};
-
-				ScheduledThreadPoolExecutor instance = new ScheduledThreadPoolExecutor(corePoolSize, threadFactory);
-//        // 允许核心线程超时销毁（解决空闲线程堆积）
-				instance.allowCoreThreadTimeOut(true);
-//        // 设置空闲线程存活时间
-				instance.setKeepAliveTime(keepAliveTime, TimeUnit.MILLISECONDS);
-				return instance;
 		}
 }
