@@ -1,6 +1,7 @@
 package com.tapdata.tm.apiCalls.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -21,7 +22,7 @@ public class ApiCallDto extends BaseDto {
     @Field("res_rows")
     private Long resRows;
 
-    private Long latency;
+    private Double latency;
 
     private Long reqTime;
 
@@ -97,7 +98,7 @@ public class ApiCallDto extends BaseDto {
     /**
      * Database access time for API requests
      * */
-    private Long dataQueryTotalTime;
+    private Double dataQueryTotalTime;
     /**
      * query Of Count
      * */
@@ -117,4 +118,11 @@ public class ApiCallDto extends BaseDto {
      * query Of http request cost time(ms)
      * */
     private Long requestCost;
+
+    private boolean failed;
+
+    /**
+     * @see ApiCallEntity.HttpStatusType
+     * */
+    private String httpStatus;
 }

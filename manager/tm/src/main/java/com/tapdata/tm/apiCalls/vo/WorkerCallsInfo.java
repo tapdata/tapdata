@@ -1,7 +1,10 @@
 package com.tapdata.tm.apiCalls.vo;
 
 import lombok.Data;
+import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.mapping.Field;
+
+import java.util.Date;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -20,11 +23,22 @@ public class WorkerCallsInfo {
     @Field("allPathId")
     private String apiId;
 
-    private Long latency;
+    private Number latency;
 
     private String code;
+
+    private String httpStatus;
 
     private Long reqTime;
 
     private Long resTime;
+
+    @Field("req_path")
+    private String reqPath;
+
+    private Date lastCreateTime;
+
+    private ObjectId lastApiCallId;
+
+    private boolean failed;
 }
