@@ -132,7 +132,13 @@ def review_code_with_gemini(filename, code_content, api_key):
         genai.configure(api_key=api_key)
 
         # 使用 Gemini 1.5 Pro 模型（推荐用于代码审查）
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        try:
+            model = genai.GenerativeModel('gemini-1.5-pro')  # ✅ 稳定版本
+        except:
+            try:
+                model = genai.GenerativeModel('gemini-1.5-flash')  # ✅ 备选方案
+            except:
+                model = genai.GenerativeModel('gemini-pro')  # ✅ 兜底方案
 
         # 构建提示词
         prompt = REVIEW_PROMPT.format(
