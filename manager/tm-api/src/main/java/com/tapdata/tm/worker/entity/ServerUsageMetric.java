@@ -14,6 +14,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Data
 @Document("ServerUsageMetric")
 public class ServerUsageMetric extends UsageBase {
+    /**
+     * @see com.tapdata.tm.apiServer.enums.TimeGranularity
+     * */
     int timeGranularity;
 
     private Double maxCpuUsage;

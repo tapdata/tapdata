@@ -13,36 +13,36 @@ class PercentileCalculatorTest {
     @Test
     void testList() {
         // 测试小数据集
-        List<Long> smallDataset = Arrays.asList(10L, 15L, 20L, 25L, 30L, 35L, 40L, 45L, 50L, 55L, 60L, 65L, 70L, 75L, 80L, 85L, 90L, 95L, 100L);
+        List<Double> smallDataset = Arrays.asList(10D, 15D, 20D, 25D, 30D, 35D, 40D, 45D, 50D, 55D, 60D, 65D, 70D, 75D, 80D, 85D, 90D, 95D, 100D);
         PercentileCalculator.PercentileResult percentileResult = PercentileCalculator.calculatePercentiles(smallDataset);
-        Assertions.assertEquals(55L, percentileResult.getP50());
-        Assertions.assertEquals(95L, percentileResult.getP95());
-        Assertions.assertEquals(95L, percentileResult.getP99());
+        Assertions.assertEquals(55D, percentileResult.getP50());
+        Assertions.assertEquals(95D, percentileResult.getP95());
+        Assertions.assertEquals(95D, percentileResult.getP99());
     }
 
     @Test
     void testSingle() {
         // 测试单个数据点
-        List<Long> singleValue = Arrays.asList(42L);
+        List<Double> singleValue = Arrays.asList(42D);
         PercentileCalculator.PercentileResult percentileResult = PercentileCalculator.calculatePercentiles(singleValue);
-        Assertions.assertEquals(42L, percentileResult.getP50());
-        Assertions.assertEquals(42L, percentileResult.getP95());
-        Assertions.assertEquals(42L, percentileResult.getP99());
+        Assertions.assertEquals(42D, percentileResult.getP50());
+        Assertions.assertEquals(42D, percentileResult.getP95());
+        Assertions.assertEquals(42D, percentileResult.getP99());
     }
 
     @Test
     void testTwoNumber() {
         // 测试单个数据点
-        List<Long> singleValue = Arrays.asList(10L, 20L);
+        List<Double> singleValue = Arrays.asList(10D, 20D);
         PercentileCalculator.PercentileResult percentileResult = PercentileCalculator.calculatePercentiles(singleValue);
-        Assertions.assertEquals(20L, percentileResult.getP50());
-        Assertions.assertEquals(20L, percentileResult.getP95());
-        Assertions.assertEquals(20L, percentileResult.getP99());
+        Assertions.assertEquals(20D, percentileResult.getP50());
+        Assertions.assertEquals(20D, percentileResult.getP95());
+        Assertions.assertEquals(20D, percentileResult.getP99());
     }
 
     @Test
     void testEmpty() {
-        List<Long> singleValue = new ArrayList<>();
+        List<Double> singleValue = new ArrayList<>();
         PercentileCalculator.PercentileResult percentileResult = PercentileCalculator.calculatePercentiles(singleValue);
         Assertions.assertNull(percentileResult.getP50());
         Assertions.assertNull(percentileResult.getP95());

@@ -23,7 +23,7 @@ public class WorkerCallsInfo {
     @Field("allPathId")
     private String apiId;
 
-    private Long latency;
+    private Number latency;
 
     private String code;
 

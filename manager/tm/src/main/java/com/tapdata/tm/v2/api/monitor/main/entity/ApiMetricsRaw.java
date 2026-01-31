@@ -91,26 +91,24 @@ public class ApiMetricsRaw extends BaseEntity {
      */
     private Map<Long, ApiMetricsRaw> subMetrics;
 
-    private Long p50;
+    private Double p50;
 
-    private Long p95;
+    private Double p95;
 
-    private Long p99;
+    private Double p99;
 
-    private Long maxDelay;
+    private Double maxDelay;
 
-    private Long minDelay;
+    private Double minDelay;
 
     private List<WorkerInfo> workerInfoMap;
 
-    private ObjectId lastCallId;
-
     private Date ttlKey;
 
-    public static ApiMetricsRaw instance(String serverId, String reqPath, String apiId, Long bucketMin, TimeGranularity type, MetricTypes metricType) {
+    public static ApiMetricsRaw instance(String serverId, String reqPath, String apiId, Long bucketTime, TimeGranularity type, MetricTypes metricType) {
         ApiMetricsRaw item = new ApiMetricsRaw();
         item.setId(new ObjectId());
-        item.setTimeStart(bucketMin);
+        item.setTimeStart(bucketTime);
         item.setTimeGranularity(type.getType());
         item.setReqCount(0L);
         item.setErrorCount(0L);
@@ -206,7 +204,7 @@ public class ApiMetricsRaw extends BaseEntity {
         }
     }
 
-    public void merge(boolean isOk, long reqBytes, long requestCost, long dbCost) {
+    public void merge(boolean isOk, long reqBytes, double requestCost, double dbCost) {
         setReqCount(Optional.ofNullable(getReqCount()).orElse(0L) + 1L);
         setErrorCount(Optional.ofNullable(getErrorCount()).orElse(0L) + (isOk ? 0L : 1L));
         setBytes(ApiMetricsDelayUtil.addDelay(Optional.ofNullable(getBytes()).orElse(new ArrayList<>()), reqBytes));

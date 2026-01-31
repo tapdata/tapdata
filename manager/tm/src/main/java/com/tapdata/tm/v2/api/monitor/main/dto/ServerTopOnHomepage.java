@@ -24,7 +24,8 @@ public class ServerTopOnHomepage extends DataValueBase {
     @DecimalFormat
     Double totalErrorRate;
 
-    Long responseTime;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double responseTime;
 
     Long notHealthyApiCount;
 

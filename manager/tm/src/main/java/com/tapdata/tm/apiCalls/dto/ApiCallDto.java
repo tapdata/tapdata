@@ -22,7 +22,7 @@ public class ApiCallDto extends BaseDto {
     @Field("res_rows")
     private Long resRows;
 
-    private Long latency;
+    private Double latency;
 
     private Long reqTime;
 
@@ -98,7 +98,7 @@ public class ApiCallDto extends BaseDto {
     /**
      * Database access time for API requests
      * */
-    private Long dataQueryTotalTime;
+    private Double dataQueryTotalTime;
     /**
      * query Of Count
      * */

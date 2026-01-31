@@ -23,19 +23,27 @@ public class ChartAndDelayOfApi extends ValueBase {
     List<Long> ts;
     @DecimalFormat
     List<Double> rps;
-    List<Long> p95;
-    List<Long> p99;
-    List<Long> maxDelay;
-    List<Long> minDelay;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    List<Double> p95;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    List<Double> p99;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    List<Double> maxDelay;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    List<Double> minDelay;
     @DecimalFormat
     List<Double> requestCostAvg;
 
     @DecimalFormat
     List<Double> dbCostAvg;
-    List<Long> dbCostMax;
-    List<Long> dbCostMin;
-    List<Long> dbCostP95;
-    List<Long> dbCostP99;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    List<Double> dbCostMax;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    List<Double> dbCostMin;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    List<Double> dbCostP95;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    List<Double> dbCostP99;
 
     public static ChartAndDelayOfApi create() {
         ChartAndDelayOfApi item = new ChartAndDelayOfApi();
@@ -83,18 +91,18 @@ public class ChartAndDelayOfApi extends ValueBase {
     @Data
     public static class Item extends ValueBase.Item {
         Double rps;
-        Long p95;
-        Long p99;
-        Long maxDelay;
-        Long minDelay;
+        Double p95;
+        Double p99;
+        Double maxDelay;
+        Double minDelay;
         Double requestCostAvg;
         boolean tag;
 
         double dbCostAvg;
-        Long dbCostMax;
-        Long dbCostMin;
-        Long dbCostP95;
-        Long dbCostP99;
+        Double dbCostMax;
+        Double dbCostMin;
+        Double dbCostP95;
+        Double dbCostP99;
 
         Long totalBytes;
         List<Map<String, Number>> delay = new ArrayList<>();

@@ -16,39 +16,48 @@ import lombok.EqualsAndHashCode;
 public class DataValueBase extends ValueBase {
     /**
      * 平均耗时
-     * */
+     */
     @DecimalFormat
     @SortField(name = {"responseTimeAvg", "rta"}, originField = {"delay"})
     Double responseTimeAvg;
 
     @SortField(name = {"p95"}, originField = {"delay"})
-    Long p95;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double p95;
 
     @SortField(name = {"p99"}, originField = {"delay"})
-    Long p99;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double p99;
 
     @SortField(name = {"maxDelay"}, originField = {"delay"})
-    Long maxDelay;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double maxDelay;
 
     @SortField(name = {"minDelay"}, originField = {"delay"})
-    Long minDelay;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double minDelay;
 
     @SortField(name = {"dbCostTotal"}, originField = {"dbCost"})
-    long dbCostTotal;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    double dbCostTotal;
 
     @DecimalFormat
     @SortField(name = {"dbCostAvg"}, originField = {"dbCost"})
     double dbCostAvg;
 
     @SortField(name = {"dbCostMax"}, originField = {"dbCost"})
-    Long dbCostMax;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double dbCostMax;
 
     @SortField(name = {"dbCostMin"}, originField = {"dbCost"})
-    Long dbCostMin;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double dbCostMin;
 
     @SortField(name = {"dbCostP95"}, originField = {"dbCost"})
-    Long dbCostP95;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double dbCostP95;
 
     @SortField(name = {"dbCostP99"}, originField = {"dbCost"})
-    Long dbCostP99;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double dbCostP99;
 }

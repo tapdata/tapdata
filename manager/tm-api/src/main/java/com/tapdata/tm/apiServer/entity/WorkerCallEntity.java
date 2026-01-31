@@ -24,55 +24,55 @@ public class WorkerCallEntity extends BaseEntity {
 
     /**
      * ApiServer ID
-     * */
+     */
     private String processId;
 
     /**
      * Worker process ID
-     * */
+     */
     private String workOid;
 
     private String apiId;
 
     /**
      * The number of requests at the current time granularity
-     * */
+     */
     private Long reqCount;
 
     /**
      * RPS
-     * */
+     */
     private Double rps;
 
     /**
      * Delay list at current time granularity, in milliseconds
-     * */
+     */
     private List<Map<String, Number>> delays;
     /**
      * P50=median at current time granularity, 50% of request delays are below this value, in milliseconds
-     * */
-    private Long p50;
+     */
+    private Double p50;
     /**
      * At the current time granularity, P95=95% of requests have a latency lower than this value, measured in milliseconds
-     * */
-    private Long p95;
+     */
+    private Double p95;
     /**
      * At the current time granularity, P99=99% of requests have a latency lower than this value, measured in milliseconds
-     * */
-    private Long p99;
+     */
+    private Double p99;
 
     /**
      * The number of failed requests at the current time granularity
-     * */
+     */
     private Long errorCount;
     /**
      * Exception rate at current time granularity: number of failures/number of requests
-     * */
+     */
     private Double errorRate;
 
     /**
      * The statistical start time at the current time granularity, with millisecond level timestamps (accurate to the minute level)
-     * */
+     */
     private Long timeStart;
 
     /**
@@ -82,7 +82,7 @@ public class WorkerCallEntity extends BaseEntity {
      * 3 - day
      *
      * @see TimeGranularity
-     * */
+     */
     private int timeGranularity;
 
     private Date ttlKey;

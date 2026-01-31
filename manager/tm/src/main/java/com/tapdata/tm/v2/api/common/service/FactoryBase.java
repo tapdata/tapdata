@@ -60,4 +60,11 @@ public abstract class FactoryBase<E, A extends AcceptorBase> implements Closeabl
         }
         flush();
     }
+
+    public void append(List<E> rows) {
+        if (CollectionUtils.isEmpty(rows)) {
+            return;
+        }
+        this.apiMetricsRaws.addAll(rows);
+    }
 }

@@ -119,7 +119,7 @@ public class ApiCallService {
                 .orElse(null);
         ApiCallDetailVo apiCallDetailVo = BeanUtil.copyProperties(apiCallEntity, ApiCallDetailVo.class);
         apiCallDetailVo.setVisitTotalCount(Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getResRows).orElse(0L));
-        long latency = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getLatency).orElse(0L);
+        double latency = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getLatency).map(Number::doubleValue).orElse(0D);
         apiCallDetailVo.setLatency(latency);
         long reqBytes = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getReqBytes).orElse(0L);
         double speed = latency <= 0 ? 0D : (1000.0D * reqBytes / latency);
@@ -136,7 +136,7 @@ public class ApiCallService {
                 apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
             }
         } else if (null != apiCallEntity) {
-            apiCallDetailVo.setApiPath(apiCallEntity.getAllPathId());
+            apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
             apiCallDetailVo.setApiId(null);
         }
         return apiCallDetailVo;
@@ -417,7 +417,9 @@ public class ApiCallService {
             apiCallEntity.setSucceed(ApiMetricsCompressValueUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()));
             apiCallEntity.setCreateAt(new Date());
             if (StringUtils.isBlank(apiCallEntity.getAllPathId())) {
-                apiCallEntity.setAllPathId(apiCallEntity.getReq_path());
+                //Non-existing APIs use empty string placeholder,
+                //eliminating the need for null detection during metric analysis to improve query efficiency
+                apiCallEntity.setAllPathId("");
             }
             apiCallEntityList.add(apiCallEntity);
         });
@@ -427,7 +429,7 @@ public class ApiCallService {
                 apiCallEntityList.stream()
                         .filter(Objects::nonNull)
                         .filter(e -> Objects.nonNull(e.getAllPathId()))
-                        .map(e -> Map.of(e.getAllPathId(), e.getReqBytes()))
+                        .map(e -> Map.of(e.getAllPathId(), Optional.ofNullable(e.getReqBytes()).orElse(0L)))
                         .toList()
         );
         return Optional.of(apiCallEntityList)
@@ -721,10 +723,11 @@ public class ApiCallService {
         Query query = Query.query(criteria);
         query.fields().include("latency");
         List<ApiCallEntity> apiCalls = mongoOperations.find(query, ApiCallEntity.class, "ApiCall");
-        List<Long> latencies = apiCalls.stream()
+        List<Double> latencies = apiCalls.stream()
                 .filter(Objects::nonNull)
                 .map(ApiCallEntity::getLatency)
                 .filter(Objects::nonNull)
+                .map(Number::doubleValue)
                 .toList();
         if (latencies.isEmpty()) {
             return apiPercentile;

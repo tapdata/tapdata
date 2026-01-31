@@ -4,6 +4,8 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.springframework.util.CollectionUtils;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -12,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.LongConsumer;
+import java.util.function.DoubleConsumer;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -39,7 +41,7 @@ public final class ApiMetricsDelayUtil {
         if (CollectionUtils.isEmpty(delayList)) {
             return new ArrayList<>();
         }
-        Map<Long, Integer> merged = new HashMap<>();
+        Map<Double, Integer> merged = new HashMap<>();
         for (List<Map<String, Number>> list : delayList) {
             if (null == list) {
                 continue;
@@ -48,13 +50,13 @@ public final class ApiMetricsDelayUtil {
                 if (null == m) {
                     continue;
                 }
-                Number k = m.get(KEY);
+                Number k = parseKey(m.get(KEY));
                 if (null != k) {
-                    int iV = Optional.ofNullable(merged.get(k.longValue())).orElse(0);
+                    int iV = Optional.ofNullable(merged.get(k.doubleValue())).orElse(0);
                     int iVal = Optional.ofNullable(m.get(VALUE)).map(Number::intValue).orElse(0);
                     int sum = iV + iVal;
                     if (sum > 0) {
-                        merged.put(k.longValue(), sum);
+                        merged.put(k.doubleValue(), sum);
                     }
                 }
             }
@@ -72,7 +74,7 @@ public final class ApiMetricsDelayUtil {
     @Getter
     public static class Sum {
         long count;
-        long total;
+        double total;
     }
 
     public static Sum sum(List<Map<String, Number>> delayList) {
@@ -80,10 +82,10 @@ public final class ApiMetricsDelayUtil {
         if (CollectionUtils.isEmpty(delayList)) {
             return sumOf;
         }
-        long sum = 0L;
+        double sum = 0L;
         long count = 0L;
         for (Map<String, Number> m : delayList) {
-            long iKey = Optional.ofNullable(m.get(KEY)).map(Number::longValue).orElse(0L);
+            double iKey = Optional.ofNullable(m.get(KEY)).map(Number::doubleValue).orElse(0D);
             Integer iValue = Optional.ofNullable(m.get(VALUE)).map(Number::intValue).orElse(0);
             sum += iKey * iValue.longValue();
             count += iValue.longValue();
@@ -93,53 +95,53 @@ public final class ApiMetricsDelayUtil {
         return sumOf;
     }
 
-    public static Long p95(List<Map<String, Number>> delayList, long total) {
+    public static Double p95(List<Map<String, Number>> delayList, long total) {
         if (total <= 20 || delayList.size() < 2) {
             return null;
         }
         return p(delayList, total, 0.95D);
     }
 
-    public static Long p99(List<Map<String, Number>> delayList, long total) {
+    public static Double p99(List<Map<String, Number>> delayList, long total) {
         if (total <= 10 || delayList.size() < 2) {
             return null;
         }
         return p(delayList, total, 0.99D);
     }
 
-    public static Long p50(List<Map<String, Number>> delayList, long total) {
+    public static Double p50(List<Map<String, Number>> delayList, long total) {
         if (delayList.size() < 2) {
             return null;
         }
         return p(delayList, total, 0.5D);
     }
 
-    public static void readMaxAndMin(List<Map<String, Number>> delayList, LongConsumer max, LongConsumer min) {
-        Long minValue = null;
-        Long maxValue = null;
+    public static void readMaxAndMin(List<Map<String, Number>> delayList, DoubleConsumer max, DoubleConsumer min) {
+        Double minValue = null;
+        Double maxValue = null;
         for (Map<String, Number> item : delayList) {
             Number iKey = item.get(KEY);
             if (null == iKey) {
                 continue;
             }
-            long reqDelay = iKey.longValue();
+            double reqDelay = iKey.doubleValue();
             if (null == minValue) minValue = reqDelay;
             else minValue = Math.min(reqDelay, minValue);
             if (null == maxValue) maxValue = reqDelay;
             else maxValue = Math.max(reqDelay, maxValue);
         }
         if (null != min) {
-            min.accept(Optional.ofNullable(minValue).orElse(0L));
+            min.accept(Optional.ofNullable(minValue).orElse(0D));
         }
         if (null != max) {
-            max.accept(Optional.ofNullable(maxValue).orElse(0L));
+            max.accept(Optional.ofNullable(maxValue).orElse(0D));
         }
     }
 
-    static Long p(List<Map<String, Number>> delayList, long total, double p) {
+    public static Double p(List<Map<String, Number>> delayList, long total, double p) {
         int target = ((Double) Math.ceil(total * p)).intValue();
         int sum = 0;
-        Long pVal = null;
+        Double pVal = null;
         delayList.sort(Comparator.comparing(m -> Optional.ofNullable(m.get(KEY)).map(Number::longValue).orElse(0L)));
         for (Map<String, Number> m : delayList) {
             Number iKey = m.get(KEY);
@@ -148,10 +150,10 @@ public final class ApiMetricsDelayUtil {
             }
             int iVal = Optional.ofNullable(m.get(VALUE)).map(Number::intValue).orElse(0);
             if (sum >= target) {
-                return iKey.longValue();
+                return iKey.doubleValue();
             }
             sum += iVal;
-            pVal = iKey.longValue();
+            pVal = iKey.doubleValue();
 
             if (sum >= target) {
                 return pVal;
@@ -160,10 +162,26 @@ public final class ApiMetricsDelayUtil {
         return sum >= target ? pVal : null;
     }
 
-    public static List<Map<String, Number>> addDelay(List<Map<String, Number>> delay, long value) {
+    public static Number parseKey(Number key) {
+        if (key instanceof Double iDouble) {
+            if (iDouble >= 1D) {
+                return iDouble.longValue();
+            }
+            if (iDouble <= 0D) {
+                return 0L;
+            }
+            BigDecimal bigDecimal = BigDecimal.valueOf(iDouble).setScale(1, RoundingMode.HALF_DOWN);
+            return bigDecimal.stripTrailingZeros().doubleValue();
+        } else {
+            return key;
+        }
+    }
+
+    public static List<Map<String, Number>> addDelay(List<Map<String, Number>> delay, Number value) {
         if (null == delay) {
             delay = new ArrayList<>();
         }
+        value = parseKey(value);
         for (int i = 0; i < delay.size(); i++) {
             Map<String, Number> item = delay.get(i);
             if (Objects.equals(item.get(KEY), value)) {
