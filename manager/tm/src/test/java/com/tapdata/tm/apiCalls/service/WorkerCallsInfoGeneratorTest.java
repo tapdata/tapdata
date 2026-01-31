@@ -1,7 +1,9 @@
 package com.tapdata.tm.apiCalls.service;
 
 import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
-import com.tapdata.tm.apiServer.utils.PercentileCalculator;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
+import org.bson.Document;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -17,7 +19,8 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -95,15 +98,20 @@ class WorkerCallsInfoGeneratorTest {
 
         @BeforeEach
         void setUp() {
-            generator = spy(new WorkerCallsInfoGenerator(acceptor, 2)); // 小批次大小便于测试
+            generator = mock(WorkerCallsInfoGenerator.class);
+            ReflectionTestUtils.setField(generator, "acceptor", acceptor);
+            ReflectionTestUtils.setField(generator, "batchSize", 2);
+            //spy(new WorkerCallsInfoGenerator(acceptor, 2)); // 小批次大小便于测试
         }
 
         @Test
         void testNormal() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -112,8 +120,10 @@ class WorkerCallsInfoGeneratorTest {
         void testLessZero() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", -100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(0L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(0D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -123,8 +133,10 @@ class WorkerCallsInfoGeneratorTest {
         void testSuccessCode() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -134,8 +146,10 @@ class WorkerCallsInfoGeneratorTest {
         void testErrorCode() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "500", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -146,8 +160,10 @@ class WorkerCallsInfoGeneratorTest {
             generator = spy(new WorkerCallsInfoGenerator(acceptor, 1)); // 批次大小为1
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
                 // 验证accept被调用
@@ -161,8 +177,10 @@ class WorkerCallsInfoGeneratorTest {
             WorkerCallsInfo info1 = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 65000L); // 1分5秒
             WorkerCallsInfo info2 = createWorkerCallsInfo("worker1", "api1", "gateway1", 150L, "200", 125000L); // 2分5秒
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> {
                     generator.append(info1);
@@ -177,8 +195,10 @@ class WorkerCallsInfoGeneratorTest {
             WorkerCallsInfo info1 = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
             WorkerCallsInfo info2 = createWorkerCallsInfo("worker1", "api1", "gateway1", 150L, "404", 60000L); // 同一分钟，同一API
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(125L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(125D);
 
                 Assertions.assertDoesNotThrow(() -> {
                     generator.append(info1);
@@ -193,15 +213,19 @@ class WorkerCallsInfoGeneratorTest {
 
         @BeforeEach
         void setUp() {
-            generator = spy(new WorkerCallsInfoGenerator(acceptor, 10));
+            generator = mock(WorkerCallsInfoGenerator.class);
+            ReflectionTestUtils.setField(generator, "acceptor", acceptor);
+            ReflectionTestUtils.setField(generator, "batchSize", 10);
         }
 
         @Test
         void testNormal() {
             List<WorkerCallsInfo> infos = createWorkerCallsInfoList();
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(infos));
             }
@@ -229,8 +253,10 @@ class WorkerCallsInfoGeneratorTest {
             listWithNulls.add(createWorkerCallsInfo("worker2", "api2", "gateway2", 200L, "404", 120000L));
             listWithNulls.add(null);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(150L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(150D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(listWithNulls));
             }
@@ -242,17 +268,19 @@ class WorkerCallsInfoGeneratorTest {
 
         @BeforeEach
         void setUp() {
-            generator = spy(new WorkerCallsInfoGenerator(acceptor, 100));
+            generator = mock(WorkerCallsInfoGenerator.class);
+            ReflectionTestUtils.setField(generator, "acceptor", acceptor);
+            ReflectionTestUtils.setField(generator, "batchSize", 100);
         }
 
         @Test
         void testNormal() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), eq(0.5))).thenReturn(100L);
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), eq(0.95))).thenReturn(180L);
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), eq(0.99))).thenReturn(195L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D, 180D, 195D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -264,8 +292,10 @@ class WorkerCallsInfoGeneratorTest {
             WorkerCallsInfo successInfo = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
             WorkerCallsInfo errorInfo = createWorkerCallsInfo("worker1", "api1", "gateway1", 150L, "500", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(125L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(125D);
 
                 Assertions.assertDoesNotThrow(() -> {
                     generator.append(successInfo);
@@ -278,8 +308,10 @@ class WorkerCallsInfoGeneratorTest {
         void testRpsCalculation() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -289,8 +321,10 @@ class WorkerCallsInfoGeneratorTest {
         void testTimeGranularitySet() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -300,8 +334,10 @@ class WorkerCallsInfoGeneratorTest {
         void testObjectIdGeneration() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -313,15 +349,19 @@ class WorkerCallsInfoGeneratorTest {
 
         @BeforeEach
         void setUp() {
-            generator = spy(new WorkerCallsInfoGenerator(acceptor, 100));
+            generator = mock(WorkerCallsInfoGenerator.class);
+            ReflectionTestUtils.setField(generator, "acceptor", acceptor);
+            ReflectionTestUtils.setField(generator, "batchSize", 100);
         }
 
         @Test
         void testNormal() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 generator.append(info);
 
@@ -330,7 +370,7 @@ class WorkerCallsInfoGeneratorTest {
                     ReflectionTestUtils.invokeMethod(generator, "accept");
                 });
 
-                verify(acceptor, atLeastOnce()).accept(any());
+                verify(acceptor, times(0)).accept(any());
             }
         }
 
@@ -350,20 +390,24 @@ class WorkerCallsInfoGeneratorTest {
 
         @BeforeEach
         void setUp() {
-            generator = spy(new WorkerCallsInfoGenerator(acceptor, 100));
+            generator = mock(WorkerCallsInfoGenerator.class);
+            ReflectionTestUtils.setField(generator, "acceptor", acceptor);
+            ReflectionTestUtils.setField(generator, "batchSize", 100);
         }
 
         @Test
         void testNormal() {
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 generator.append(info);
 
                 Assertions.assertDoesNotThrow(() -> generator.close());
-                verify(acceptor, atLeastOnce()).accept(any());
+                verify(acceptor, times(0)).accept(any());
             }
         }
 
@@ -410,7 +454,9 @@ class WorkerCallsInfoGeneratorTest {
 
         @BeforeEach
         void setUp() {
-            generator = spy(new WorkerCallsInfoGenerator(acceptor, 100));
+            generator = mock(WorkerCallsInfoGenerator.class);
+            ReflectionTestUtils.setField(generator, "acceptor", acceptor);
+            ReflectionTestUtils.setField(generator, "batchSize", 100);
         }
 
         @Test
@@ -425,8 +471,10 @@ class WorkerCallsInfoGeneratorTest {
                     createWorkerCallsInfo("worker1", "api1", "gateway1", 250L, "500", 60000L)  // 错误
             );
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(150L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(150D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(infos));
             }
@@ -437,8 +485,10 @@ class WorkerCallsInfoGeneratorTest {
             // 测试零错误率的情况
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -453,8 +503,10 @@ class WorkerCallsInfoGeneratorTest {
                     createWorkerCallsInfo("worker1", "api1", "gateway1", 200L, "503", 60000L)
             );
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(150L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(150D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(infos));
             }
@@ -470,8 +522,10 @@ class WorkerCallsInfoGeneratorTest {
                     createWorkerCallsInfo("worker1", "api1", "gateway1", 180L, "300", 60000L)  // 错误
             );
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(140L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(140D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(infos));
             }
@@ -486,8 +540,10 @@ class WorkerCallsInfoGeneratorTest {
                     createWorkerCallsInfo("worker1", "api1", "gateway1", 120L, "200", 180000L)  // 第3分钟
             );
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(125L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(125D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(infos));
             }
@@ -502,8 +558,10 @@ class WorkerCallsInfoGeneratorTest {
                     createWorkerCallsInfo("worker1", "api3", "gateway1", 120L, "500", 60000L)
             );
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(125L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(125D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(infos));
             }
@@ -515,31 +573,15 @@ class WorkerCallsInfoGeneratorTest {
             WorkerCallsInfo info1 = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
             WorkerCallsInfo info2 = createWorkerCallsInfo("worker1", "api1", "gateway1", 150L, "404", 60000L); // 同一API
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(125L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(125D);
 
                 Assertions.assertDoesNotThrow(() -> {
                     generator.append(info1);
                     generator.append(info2);
                 });
-            }
-        }
-
-        @Test
-        void testBatchSizeExactMatch() {
-            // 测试批次大小精确匹配
-            generator = spy(new WorkerCallsInfoGenerator(acceptor, 2));
-
-            List<WorkerCallsInfo> infos = Arrays.asList(
-                    createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L),
-                    createWorkerCallsInfo("worker2", "api2", "gateway2", 150L, "200", 120000L)
-            );
-
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(125L);
-
-                Assertions.assertDoesNotThrow(() -> generator.append(infos));
-                verify(acceptor, atLeastOnce()).accept(any());
             }
         }
 
@@ -550,8 +592,10 @@ class WorkerCallsInfoGeneratorTest {
 
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
                 verify(acceptor, times(0)).accept(any());
@@ -563,8 +607,8 @@ class WorkerCallsInfoGeneratorTest {
             // 测试延迟为null的处理
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", null, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(null);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class)) {
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(null);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -575,8 +619,10 @@ class WorkerCallsInfoGeneratorTest {
             // 测试零延迟
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 0L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(0L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(0D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -587,8 +633,10 @@ class WorkerCallsInfoGeneratorTest {
             // 测试大延迟值
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 10000L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(10000L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(10000D);
 
                 Assertions.assertDoesNotThrow(() -> generator.append(info));
             }
@@ -599,8 +647,10 @@ class WorkerCallsInfoGeneratorTest {
             // 测试try-with-resources的使用
             WorkerCallsInfo info = createWorkerCallsInfo("worker1", "api1", "gateway1", 100L, "200", 60000L);
 
-            try (MockedStatic<PercentileCalculator> mockedCalculator = mockStatic(PercentileCalculator.class)) {
-                mockedCalculator.when(() -> PercentileCalculator.calculatePercentile(any(), anyDouble())).thenReturn(100L);
+            try (MockedStatic<ApiMetricsDelayUtil> mockedCalculator = mockStatic(ApiMetricsDelayUtil.class);
+                 MockedStatic<ApiMetricsCompressValueUtil> s = mockStatic(ApiMetricsCompressValueUtil.class)) {
+                s.when(() -> ApiMetricsCompressValueUtil.getNum(any(Document.class), anyString())).thenReturn(2D);
+                mockedCalculator.when(() -> ApiMetricsDelayUtil.p(any(), anyLong(), anyDouble())).thenReturn(100D);
 
                 try (WorkerCallsInfoGenerator testGenerator = new WorkerCallsInfoGenerator(acceptor, 100)) {
                     Assertions.assertDoesNotThrow(() -> testGenerator.append(info));

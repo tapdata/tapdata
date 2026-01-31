@@ -58,10 +58,12 @@ public class ApiCallMinuteStatsScheduler {
 	}
 
 	/**
+	 * @deprecated
 	 * Scheduled task to aggregate the API call data of each module and save it to ApiCallMinuteStats
 	 */
-	@Scheduled(cron = "0 0/1 * * * ?")
-	@SchedulerLock(name = "api_call_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
+	@Deprecated(since = "release-4.13")
+	//@Scheduled(cron = "0 0/1 * * * ?")
+	//@SchedulerLock(name = "api_call_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
 	public void schedule() {
 		Thread.currentThread().setName(getClass().getSimpleName() + "-scheduler");
 		if (log.isDebugEnabled()) {
@@ -144,8 +146,12 @@ public class ApiCallMinuteStatsScheduler {
 		}
 	}
 
-	@Scheduled(cron = "0/30 * * * * ?")
-	@SchedulerLock(name = "api_call_worker_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
+	/**
+	 * @deprecated
+	 * */
+	@Deprecated(since = "release-4.13")
+//	@Scheduled(cron = "0/30 * * * * ?")
+//	@SchedulerLock(name = "api_call_worker_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
 	public void scheduleWorkerCall() {
 		try {
 			workerCallServiceImpl.metric();
@@ -161,6 +167,10 @@ public class ApiCallMinuteStatsScheduler {
 		supplement();
 	}
 
+	/**
+	 * @deprecated
+	 * */
+	@Deprecated(since = "release-4.13")
 	void collectOnceApiCountOfWorker() {
 		//query all server
 		List<WorkerDto> all = workerService.findAll(Query.query(
@@ -178,6 +188,10 @@ public class ApiCallMinuteStatsScheduler {
 		});
 	}
 
+	/**
+	 * @deprecated
+	 * */
+	@Deprecated(since = "release-4.13")
 	void supplement() {
 		try {
 			supplementApiCallServer.supplementOnce();

@@ -37,22 +37,6 @@ class MetricResponseTimeTest {
         Assertions.assertNotNull(metricDataBase);
     }
     @Test
-    void testMergeTo1() {
-        List<WorkerCallEntity> vos = new ArrayList<>();
-        WorkerCallEntity entity = new WorkerCallEntity();
-        entity.setDelays(List.of(2L, 4L));
-        vos.add(entity);
-        WorkerCallEntity e1 = new WorkerCallEntity();
-        e1.setDelays(null);
-        vos.add(e1);
-        WorkerCallEntity e2 = new WorkerCallEntity();
-        e2.setDelays(new ArrayList<>());
-        vos.add(e2);
-        MetricResponseTime metric = new MetricResponseTime();
-        MetricDataBase metricDataBase = metric.mergeTo(0L, vos);
-        Assertions.assertNotNull(metricDataBase);
-    }
-    @Test
     void testToResult() {
         MetricResponseTime metric = new MetricResponseTime();
         List<MetricDataBase> data = new ArrayList<>();

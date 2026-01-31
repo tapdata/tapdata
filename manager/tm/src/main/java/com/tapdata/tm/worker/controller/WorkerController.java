@@ -20,9 +20,11 @@ import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
+import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
+import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.WorkerOrServerStatus;
@@ -48,6 +50,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -513,17 +516,22 @@ public class WorkerController extends BaseController {
 
     void updateWorker(WorkerDto worker) {
         if ("api-server".equals(worker.getWorkerType())) {
+            List<ServerUsage> usages = new ArrayList<>();
             worker.setPingTime(new Date().getTime());
             ApiServerStatus workerStatus = worker.getWorkerStatus();
-            if (null != workerStatus) {
+            if (null != workerStatus && null != workerStatus.getUpdateCpuMem() && workerStatus.getUpdateCpuMem()) {
+                MetricInfo metricValues = workerStatus.getMetricValues();
+                String processId = worker.getProcessId();
+                usages.add(MetricInfo.toUsage(metricValues, processId, null, ServerUsage.ProcessType.API_SERVER));
                 WorkerOrServerStatus status = new WorkerOrServerStatus();
                 status.setStatus(String.valueOf(workerStatus.getStatus()));
-                status.setProcessId(worker.getProcessId());
+                status.setProcessId(processId);
                 status.setTime(new Date().getTime());
                 status.setWorkerStatus(new HashMap<>());
                 status.setCpuMemStatus(new HashMap<>());
                 status.setWorkerBaseInfo(new HashMap<>());
                 status.setProcessCpuMemStatus(workerStatus.getMetricValues());
+                status.setAuditLogPushMaxDelay(workerStatus.getAuditLogPushMaxDelay());
                 Optional.ofNullable(workerStatus.getWorkerProcessId())
                         .ifPresent(status::setPid);
                 Map<String, ApiServerWorkerInfo> workers = workerStatus.getWorkers();
@@ -536,10 +544,12 @@ public class WorkerController extends BaseController {
                             status.getWorkerStatus().put(oid, wStatus);
                             status.getCpuMemStatus().put(oid, workerInfo.getMetricValues());
                             status.getWorkerBaseInfo().put(oid, workerInfo);
+                            usages.add(MetricInfo.toUsage(workerInfo.getMetricValues(), processId, oid, ServerUsage.ProcessType.API_SERVER_WORKER));
                         }
                     });
                 }
                 workerService.updateWorkerStatus(status, getLoginUser());
+                workerService.appendUsage(usages);
             }
             worker.setWorkerStatus(null);
         }

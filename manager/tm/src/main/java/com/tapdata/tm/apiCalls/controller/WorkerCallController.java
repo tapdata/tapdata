@@ -1,13 +1,11 @@
 package com.tapdata.tm.apiCalls.controller;
 
-import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
-import com.tapdata.tm.apiServer.vo.ApiCallMetricVo;
 import com.tapdata.tm.apiCalls.vo.ApiCountMetricVo;
+import com.tapdata.tm.apiServer.vo.ApiCallMetricVo;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,23 +23,23 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @RequestMapping(value = {"/api/worker-call"})
 public class WorkerCallController extends BaseController {
-    @Autowired
-    private WorkerCallServiceImpl workerCallServiceImpl;
 
     /**
-     * 查询worker的api调用详情
+     * @deprecated
+     * Query the API call details of the worker
      *
-     * @param processId   api-server的id, 必填
-     * @param from        查询开始时间，默认当前时间过去五分钟
-     * @param to          查询结束时间，默认当前时间
+     * @param processId   api-server's id, required
+     * @param from        Query start time, default is five minutes past the current time
+     * @param to          Query end time, default current time
      * @param type        type of query data (0 is default type)：
      *                    0-rps of worker，
      *                    1-response time of worker，
      *                    2-error rate of worker，
      *                    com.tapdata.tm.apiCalls.service.metric.Metric.Type
-     * @param granularity 查询粒度：0-分钟，1-小时，2-天，3-周，4-月，默认0
+     * @param granularity Query granularity: 0-minute, 1-hour, 2-day, 3-week, 4-month, default 0
      *                    com.tapdata.tm.apiCalls.service.compress.Compress.Type
      */
+    @Deprecated(since = "release-4.13")
     @GetMapping
     public ResponseMessage<ApiCallMetricVo> find(
             @RequestParam(name = "processId", required = true) String processId,
@@ -50,16 +48,18 @@ public class WorkerCallController extends BaseController {
             @RequestParam(name = "type", required = false, defaultValue = "0") Integer type,
             @RequestParam(name = "granularity", required = false, defaultValue = "0") Integer granularity
     ) {
-        return success(workerCallServiceImpl.find(processId, from, to, type, granularity));
+        return success();
     }
 
     /**
-     * 查询api-server对应的worker的api调用情况
+     * @deprecated
+     * Query the API call status of the worker corresponding to the API server
      *
-     * @param processId api-server的id, 必填
+     * @param processId api-server's id, required
      */
+    @Deprecated(since = "release-4.13")
     @GetMapping("/api-calls/{processId}")
     public ResponseMessage<ApiCountMetricVo> findWorkerApiCalls(@PathVariable("processId") String processId) {
-        return success(workerCallServiceImpl.findWorkerApiCalls(processId));
+        return success();
     }
 }

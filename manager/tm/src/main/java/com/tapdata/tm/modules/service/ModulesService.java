@@ -536,7 +536,44 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		textEncryptionRule(apiDefinitionVo);
 		String clusterId = Optional.ofNullable(settingsService.getByKey("cluster")).map(Settings::getId).orElse("");
 		apiDefinitionVo.setClusterId(clusterId);
+		apiDefinitionVo.setApiInfo(withUnPublishApi(apis));
 		return apiDefinitionVo;
+	}
+
+	public List<ApiDefinitionVo.ApiInfo> withUnPublishApi(List<ModulesDto> publishApis) {
+		List<ApiDefinitionVo.ApiInfo> apiInfo = new ArrayList<>();
+		append(apiInfo, publishApis, ModuleStatusEnum.ACTIVE);
+		List<ModulesDto> apis = (List<ModulesDto>) findAllActiveApi(ModuleStatusEnum.PENDING);
+		append(apiInfo, apis, ModuleStatusEnum.PENDING);
+		return apiInfo;
+	}
+
+	public void append(List<ApiDefinitionVo.ApiInfo> apiInfo, List<ModulesDto> apis, ModuleStatusEnum status) {
+		if (CollectionUtils.isEmpty(apis)) {
+			return;
+		}
+		for (ModulesDto api : apis) {
+			String hexString = api.getId().toHexString();
+			ApiDefinitionVo.ApiInfo item = new ApiDefinitionVo.ApiInfo();
+			item.setApiId(hexString);
+			item.setName(api.getName());
+			StringJoiner joiner = new StringJoiner("/");
+			if (StringUtils.isNotBlank(api.getApiVersion())) {
+				joiner.add(api.getApiVersion());
+			}
+			if (StringUtils.isNotBlank(api.getPrefix())) {
+				joiner.add(api.getPrefix());
+			}
+			if (StringUtils.isNotBlank(api.getBasePath())) {
+				joiner.add(api.getBasePath());
+			}
+			item.setUrl(joiner.toString());
+			item.setPublish(status == ModuleStatusEnum.ACTIVE);
+			item.setPathSetting(new HashMap<>());
+			api.withPathSettingIfNeed();
+			api.getPathSetting().forEach(p -> item.getPathSetting().put(p.getMethod(), p.getPath()));
+			apiInfo.add(item);
+		}
 	}
 
 	public List<ApiServerWorkerInfo> getApiWorkerInfo(String processId, Integer workerCount) 	{
@@ -601,6 +638,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiWorkerInfos.add(item);
 		}
 		Optional.ofNullable(one).ifPresent(info -> reUpdateWorkerInfo(info, apiWorkerInfos));
+		apiWorkerInfos.stream()
+				.filter(e -> org.apache.commons.lang3.StringUtils.isBlank(e.getOid()))
+				.forEach(w -> w.setOid(new ObjectId().toHexString()));
 		return apiWorkerInfos;
 	}
 
@@ -1287,9 +1327,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			ApiCallEntity lastApiCall = apiCallService.findOne(lastApiCallQuery);
 			if (null != lastApiCall && null != lastApiCall.getResRows() && lastApiCall.getResRows() > 0) {
 				//最新一次的响应时间
-				apiDetailVo.setResponseTime(BigDecimal.valueOf(lastApiCall.getLatency()).divide(BigDecimal.valueOf(lastApiCall.getResRows()), 2, RoundingMode.HALF_UP).doubleValue());
+				apiDetailVo.setResponseTime(BigDecimal.valueOf(lastApiCall.getLatency().doubleValue())
+						.divide(BigDecimal.valueOf(lastApiCall.getResRows()), 2, RoundingMode.HALF_UP).doubleValue());
 				//最新一次的的耗时
-				apiDetailVo.setTimeConsuming(lastApiCall.getLatency());
+				apiDetailVo.setTimeConsuming(lastApiCall.getLatency().longValue());
 			}
 			// 总行数
 			apiDetailVo.setVisitTotalLine(apiCallStatsDto.getResponseDataRowTotalCount());
@@ -1722,7 +1763,13 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	public List<ModulesDto> findAllModulesByIds(List<String> list) {
-		List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
+		List<ObjectId> ids = list.stream()
+				.map(MongoUtils::toObjectId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toList());
+		if (ids.isEmpty()) {
+			return new ArrayList<>();
+		}
 		Query query = new Query(Criteria.where("_id").in(ids));
 		List<ModulesEntity> entityList = findAllEntity(query);
 		return CglibUtil.copyList(entityList, ModulesDto::new);

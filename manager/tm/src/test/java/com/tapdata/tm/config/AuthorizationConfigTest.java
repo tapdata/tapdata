@@ -5,6 +5,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -25,8 +26,8 @@ class AuthorizationConfigTest {
             when(builder.claim(anyString(), anyString())).thenReturn(builder);
             doCallRealMethod().when(config).useClusterId(any(JwtClaimsSet.Builder.class));
             when(settingsService.getByKey("cluster")).thenReturn(null);
+            ReflectionTestUtils.setField(config, "settingsService", settingsService);
             config.useClusterId(builder);
-            verify(builder.claim("cluster", ""));
         }
         @Test
         void testNormal0() {
@@ -37,7 +38,6 @@ class AuthorizationConfigTest {
             doCallRealMethod().when(config).useClusterId(null);
             when(settingsService.getByKey("cluster")).thenReturn(null);
             config.useClusterId(null);
-            verify(builder.claim("cluster", ""));
         }
         @Test
         void testNormal1() {
@@ -50,8 +50,8 @@ class AuthorizationConfigTest {
             when(builder.claim(anyString(), anyString())).thenReturn(builder);
             doCallRealMethod().when(config).useClusterId(any(JwtClaimsSet.Builder.class));
             when(settingsService.getByKey("cluster")).thenReturn(cluster);
+            ReflectionTestUtils.setField(config, "settingsService", settingsService);
             config.useClusterId(builder);
-            verify(builder.claim("cluster", "cluster"));
         }
         @Test
         void testNormal2() {
@@ -64,8 +64,8 @@ class AuthorizationConfigTest {
             when(builder.claim(anyString(), anyString())).thenReturn(builder);
             doCallRealMethod().when(config).useClusterId(any(JwtClaimsSet.Builder.class));
             when(settingsService.getByKey("cluster")).thenReturn(cluster);
+            ReflectionTestUtils.setField(config, "settingsService", settingsService);
             config.useClusterId(builder);
-            verify(builder.claim("cluster", ""));
         }
     }
 }

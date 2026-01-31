@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiServer.vo.metric;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 
 @Data
@@ -7,15 +8,18 @@ public class OfResponseTime extends MetricDataBase {
     /**
      * percentile 50, millisecond
      * */
-    Long p50;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double p50;
 
     /**
      * percentile 95, millisecond
      * */
-    Long p95;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double p95;
 
     /**
      * percentile 99, millisecond
      * */
-    Long p99;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double p99;
 }
