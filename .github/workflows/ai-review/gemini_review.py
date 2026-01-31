@@ -22,7 +22,6 @@ REVIEW_PROMPT = """你是一位资深的 Java 代码审查专家，请对以下 
    - ThreadLocal 使用后未清理
    - 内部类持有外部类引用导致的泄露
    - 缓存未设置过期策略或上限
-   - 长生命周期对象持有短生命周期对象引用
 
 2. **线程泄露 (Thread Leaks)**
    - 线程池未正确关闭（缺少 shutdown/shutdownNow）
@@ -30,76 +29,34 @@ REVIEW_PROMPT = """你是一位资深的 Java 代码审查专家，请对以下 
    - ExecutorService 未调用 shutdown()
    - ScheduledExecutorService 未停止
    - 定时任务未取消
-   - 线程中断未正确处理
 
 3. **TCP 连接泄露 (Connection Leaks)**
    - HttpClient/HttpURLConnection 未关闭或 disconnect
    - Socket 连接未关闭
-   - 数据库连接未归还连接池（Connection 未关闭）
+   - 数据库连接未归还连接池
    - Redis/缓存连接未释放
    - RPC 客户端连接未关闭
-   - 连接池配置不当（超时、最大连接数）
-   - 连接超时未设置
 
 4. **文件句柄泄露 (File Handle Leaks)**
    - FileInputStream/FileOutputStream 未关闭
    - RandomAccessFile 未关闭
-   - FileChannel 未关闭
    - BufferedReader/BufferedWriter 未关闭
    - 未使用 try-with-resources（Java 7+）
-   - Files.newInputStream/newOutputStream 未正确关闭
-   - ZipInputStream/ZipOutputStream 未关闭
-
-**额外审查要点：**
-- 异常处理是否会导致资源未释放
-- finally 块中的资源关闭顺序是否正确
-- 是否有嵌套的资源需要关闭
-- 是否使用了对象池但未归还对象
-- 是否有循环引用或强引用导致无法 GC
-- 并发场景下的资源竞争和泄露
-
-**审查标准：**
-✅ 优先推荐使用 try-with-resources（适用于所有 AutoCloseable 资源）
-✅ 检查资源关闭的异常安全性
-✅ 检查是否在所有分支路径都正确关闭资源
-✅ 验证资源关闭顺序（先打开的后关闭）
-✅ 检查连接池、线程池的配置合理性
 
 **输出格式要求：**
-请以 Markdown 格式输出审查结果，严格按照以下结构：
+请以 Markdown 格式输出审查结果，包括：
 
 ### 🔍 代码审查总结
-[一句话总结代码整体质量和主要问题]
+[一句话总结]
 
 ### 🚨 严重问题（必须修复）
-[如果没有严重问题，输出：✅ 未发现严重问题]
-
-每个严重问题格式：
-**问题 X: [问题类型] - 第 [行号] 行**
-- **问题描述**：[详细描述问题]
-- **影响**：[可能导致的后果]
-- **修复建议**：
-```java
-// 修复前
-[原代码片段]
-
-// 修复后
-[修复后的代码]
-```
+[如果没有，输出：✅ 未发现严重问题]
 
 ### ⚠️ 潜在风险（建议修复）
-[如果没有潜在风险，输出：✅ 未发现潜在风险]
-
-格式同上。
+[如果没有，输出：✅ 未发现潜在风险]
 
 ### 💡 改进建议（最佳实践）
-[如果没有改进建议，输出：✅ 代码符合最佳实践]
-
-格式：
-- **建议 X**：[建议内容]
-  ```java
-  // 示例代码
-  ```
+[如果没有，输出：✅ 代码符合最佳实践]
 
 ---
 
@@ -111,7 +68,7 @@ REVIEW_PROMPT = """你是一位资深的 Java 代码审查专家，请对以下 
 {code}
 ```
 
-请立即开始审查，输出必须严格遵循上述 Markdown 格式。
+请立即开始审查。
 """
 
 
@@ -128,55 +85,43 @@ def get_file_content(repo, filepath, ref):
 def review_code_with_gemini(filename, code_content, api_key):
     """使用 Gemini AI 审查代码"""
     try:
-        # 配置 Gemini API
         genai.configure(api_key=api_key)
 
-        # 使用 Gemini 1.5 Pro 模型（推荐用于代码审查）
+        # 修复：使用正确的模型名称
+        # gemini-1.5-pro-latest 在某些 API 版本中不可用
+        # 使用稳定的模型版本
         try:
-            model = genai.GenerativeModel('gemini-1.5-pro')  # ✅ 稳定版本
+            # 首选：Gemini 1.5 Pro (stable)
+            model = genai.GenerativeModel('gemini-1.5-pro')
         except:
             try:
-                model = genai.GenerativeModel('gemini-1.5-flash')  # ✅ 备选方案
+                # 备选：Gemini 1.5 Flash (更快，免费额度更高)
+                model = genai.GenerativeModel('gemini-1.5-flash')
             except:
-                model = genai.GenerativeModel('gemini-pro')  # ✅ 兜底方案
+                # 最后备选：Gemini Pro
+                model = genai.GenerativeModel('gemini-pro')
 
-        # 构建提示词
         prompt = REVIEW_PROMPT.format(
             filename=filename,
             code=code_content
         )
 
-        # 生成配置
         generation_config = {
-            'temperature': 0.1,  # 降低随机性，使输出更确定
+            'temperature': 0.1,
             'top_p': 0.95,
             'top_k': 40,
             'max_output_tokens': 8192,
         }
 
-        # 安全设置（允许代码相关讨论）
         safety_settings = [
-            {
-                "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_NONE"
-            },
-            {
-                "category": "HARM_CATEGORY_HATE_SPEECH",
-                "threshold": "BLOCK_NONE"
-            },
-            {
-                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_NONE"
-            },
-            {
-                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_NONE"
-            },
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
         ]
 
-        print(f"  📤 发送代码到 Gemini AI...")
+        print(f"  📤 发送代码到 Gemini AI (模型: {model._model_name})...")
 
-        # 调用 Gemini API
         response = model.generate_content(
             prompt,
             generation_config=generation_config,
@@ -184,7 +129,6 @@ def review_code_with_gemini(filename, code_content, api_key):
         )
 
         print(f"  ✅ 审查完成")
-
         return response.text
 
     except Exception as e:
@@ -201,10 +145,9 @@ def post_review_comment(github_token, repo_name, pr_number, review_results):
         repo = g.get_repo(repo_name)
         pr = repo.get_pull(pr_number)
 
-        # 构建评论内容
         comment_body = f"""## 🤖 Gemini AI 代码审查报告（资源泄露检测）
 
-本次审查由 **Google Gemini 1.5 Pro** 提供支持
+本次审查由 **Google Gemini AI** 提供支持
 
 **审查重点**：内存泄露 · 线程泄露 · TCP连接泄露 · 文件句柄泄露
 
@@ -240,17 +183,12 @@ def post_review_comment(github_token, repo_name, pr_number, review_results):
 - 未使用 try-with-resources
 - 资源关闭异常处理不当
 
-### 审查建议等级：
-- 🚨 **严重问题**：必须修复，可能导致生产环境故障
-- ⚠️ **潜在风险**：建议修复，在特定场景下可能出问题
-- 💡 **改进建议**：最佳实践，提升代码质量
-
 **注意**：AI 审查结果仅供参考，请结合实际业务场景人工复核。
 
 </details>
 
 ---
-<sub>Powered by Google Gemini 1.5 Pro | [Gemini API](https://ai.google.dev/)</sub>
+<sub>Powered by Google Gemini AI</sub>
 """
 
         pr.create_issue_comment(comment_body)
@@ -271,25 +209,21 @@ def main():
 
     args = parser.parse_args()
 
-    # 获取环境变量
     gemini_api_key = os.getenv('GEMINI_API_KEY')
     github_token = os.getenv('GITHUB_TOKEN')
 
     if not gemini_api_key:
         print("❌ 错误: 未设置 GEMINI_API_KEY")
-        print("请在 GitHub Secrets 中添加 GEMINI_API_KEY")
         sys.exit(1)
 
     if not github_token:
         print("❌ 错误: 未设置 GITHUB_TOKEN")
         sys.exit(1)
 
-    # 初始化 GitHub
     g = Github(github_token)
     repo = g.get_repo(args.repo)
     pr = repo.get_pull(args.pr_number)
 
-    # 获取变更的文件
     changed_files = args.files.split()
 
     print(f"\n{'='*60}")
@@ -310,22 +244,19 @@ def main():
 
         print(f"🔍 正在审查: {filepath}")
 
-        # 获取文件内容
         code_content = get_file_content(repo, filepath, pr.head.sha)
         if not code_content:
             skipped_count += 1
             continue
 
-        # 检查文件大小
         code_size = len(code_content)
-        if code_size > 100000:  # 100KB 限制
+        if code_size > 100000:
             print(f"  ⚠️  文件过大 ({code_size} bytes)，跳过")
             skipped_count += 1
             continue
 
         print(f"  📏 文件大小: {code_size} bytes")
 
-        # Gemini AI 审查
         review_result = review_code_with_gemini(filepath, code_content, gemini_api_key)
 
         if review_result:
@@ -343,10 +274,7 @@ def main():
     print(f"{'='*60}\n")
 
     if all_reviews:
-        # 合并所有审查结果
         final_review = "\n".join(all_reviews)
-
-        # 发布到 PR
         print("📤 正在发布审查结果到 PR...")
         post_review_comment(github_token, args.repo, args.pr_number, final_review)
         print("\n✅ 代码审查完成！")
