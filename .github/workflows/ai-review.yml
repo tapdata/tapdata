@@ -1,19 +1,43 @@
-name: "AI Code Review"
+name: Gemini AI Code Review for Java
+
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**.java'
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
-  review:
+  gemini-code-review:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write # 必须赋予写入评论的权限
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Gemini Code Review
-        uses: google-gemini/gemini-ai-code-review-action@v1 # 示例路径，具体参考 Marketplace
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          gemini_api_key: ${{ secrets.GEMINI_AI_CODE_REVIEW_JACKIN }}
-          # 可选：配置排除的文件类型
-          exclude: "*.md, *.json"
+          fetch-depth: 0
+
+      - name: Get changed Java files
+        id: changed-files
+        uses: tj-actions/changed-files@v41
+        with:
+          files: |
+            **.java
+
+      - name: Gemini AI Code Review
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 安装依赖
+          pip install google-generativeai PyGithub
+          
+          # 运行 Gemini 代码审查脚本
+          python .github/workflows/ai-review/gemini_review.py \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --files "${{ steps.changed-files.outputs.all_changed_files }}"
