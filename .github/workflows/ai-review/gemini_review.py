@@ -72,6 +72,83 @@ REVIEW_PROMPT = """你是一位资深的 Java 代码审查专家，请对以下 
 """
 
 
+def list_available_models(api_key):
+    """列出所有可用的模型"""
+    try:
+        genai.configure(api_key=api_key)
+        available_models = []
+
+        print("  🔍 正在检测可用的 Gemini 模型...")
+
+        for model in genai.list_models():
+            if 'generateContent' in model.supported_generation_methods:
+                # 移除 'models/' 前缀（如果有）
+                model_name = model.name.replace('models/', '')
+                available_models.append(model_name)
+                print(f"    ✅ 发现可用模型: {model_name}")
+
+        return available_models
+    except Exception as e:
+        print(f"  ⚠️ 无法列出模型: {e}")
+        return []
+
+
+def get_best_model(api_key):
+    """自动选择最佳可用模型"""
+    genai.configure(api_key=api_key)
+
+    # 优先级列表（从高到低）
+    preferred_models = [
+        'gemini-1.5-pro-002',
+        'gemini-1.5-pro-001',
+        'gemini-1.5-pro',
+        'gemini-1.5-flash-002',
+        'gemini-1.5-flash-001',
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-8b',
+        'gemini-pro',
+        'gemini-1.0-pro',
+    ]
+
+    # 获取可用模型
+    available_models = list_available_models(api_key)
+
+    if not available_models:
+        print("  ⚠️ 无法获取可用模型列表，使用默认模型尝试")
+        # 尝试最常见的模型
+        for model_name in ['gemini-pro', 'gemini-1.0-pro']:
+            try:
+                model = genai.GenerativeModel(model_name)
+                print(f"  ✅ 使用模型: {model_name}")
+                return model, model_name
+            except:
+                continue
+        raise Exception("无法找到任何可用的 Gemini 模型")
+
+    # 从优先级列表中选择第一个可用的模型
+    for preferred in preferred_models:
+        if preferred in available_models:
+            try:
+                model = genai.GenerativeModel(preferred)
+                print(f"  ✅ 选择最佳模型: {preferred}")
+                return model, preferred
+            except Exception as e:
+                print(f"  ⚠️ 无法加载 {preferred}: {e}")
+                continue
+
+    # 如果优先级列表中没有可用的，使用找到的第一个
+    if available_models:
+        model_name = available_models[0]
+        try:
+            model = genai.GenerativeModel(model_name)
+            print(f"  ✅ 使用可用模型: {model_name}")
+            return model, model_name
+        except Exception as e:
+            print(f"  ❌ 无法加载 {model_name}: {e}")
+
+    raise Exception(f"无法加载任何 Gemini 模型。可用模型: {available_models}")
+
+
 def get_file_content(repo, filepath, ref):
     """获取文件内容"""
     try:
@@ -82,24 +159,18 @@ def get_file_content(repo, filepath, ref):
         return None
 
 
-def review_code_with_gemini(filename, code_content, api_key):
+def review_code_with_gemini(filename, code_content, api_key, model_cache=None):
     """使用 Gemini AI 审查代码"""
     try:
-        genai.configure(api_key=api_key)
-
-        # 修复：使用正确的模型名称
-        # gemini-1.5-pro-latest 在某些 API 版本中不可用
-        # 使用稳定的模型版本
-        try:
-            # 首选：Gemini 1.5 Pro (stable)
-            model = genai.GenerativeModel('gemini-1.5-pro')
-        except:
-            try:
-                # 备选：Gemini 1.5 Flash (更快，免费额度更高)
-                model = genai.GenerativeModel('gemini-1.5-flash')
-            except:
-                # 最后备选：Gemini Pro
-                model = genai.GenerativeModel('gemini-pro')
+        # 使用缓存的模型或获取新模型
+        if model_cache and 'model' in model_cache:
+            model = model_cache['model']
+            model_name = model_cache['name']
+        else:
+            model, model_name = get_best_model(api_key)
+            if model_cache is not None:
+                model_cache['model'] = model
+                model_cache['name'] = model_name
 
         prompt = REVIEW_PROMPT.format(
             filename=filename,
@@ -120,7 +191,7 @@ def review_code_with_gemini(filename, code_content, api_key):
             {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
         ]
 
-        print(f"  📤 发送代码到 Gemini AI (模型: {model._model_name})...")
+        print(f"  📤 发送代码到 Gemini AI (模型: {model_name})...")
 
         response = model.generate_content(
             prompt,
@@ -138,7 +209,7 @@ def review_code_with_gemini(filename, code_content, api_key):
         return None
 
 
-def post_review_comment(github_token, repo_name, pr_number, review_results):
+def post_review_comment(github_token, repo_name, pr_number, review_results, model_name):
     """将审查结果发布到 PR"""
     try:
         g = Github(github_token)
@@ -147,7 +218,7 @@ def post_review_comment(github_token, repo_name, pr_number, review_results):
 
         comment_body = f"""## 🤖 Gemini AI 代码审查报告（资源泄露检测）
 
-本次审查由 **Google Gemini AI** 提供支持
+本次审查由 **Google Gemini AI** 提供支持（模型: `{model_name}`）
 
 **审查重点**：内存泄露 · 线程泄露 · TCP连接泄露 · 文件句柄泄露
 
@@ -188,7 +259,7 @@ def post_review_comment(github_token, repo_name, pr_number, review_results):
 </details>
 
 ---
-<sub>Powered by Google Gemini AI</sub>
+<sub>Powered by Google Gemini AI ({model_name})</sub>
 """
 
         pr.create_issue_comment(comment_body)
@@ -234,9 +305,13 @@ def main():
     print(f"📁 变更文件数: {len(changed_files)}")
     print(f"{'='*60}\n")
 
+    # 模型缓存，避免重复检测
+    model_cache = {}
+
     all_reviews = []
     reviewed_count = 0
     skipped_count = 0
+    model_name = "unknown"
 
     for filepath in changed_files:
         if not filepath.endswith('.java'):
@@ -257,11 +332,12 @@ def main():
 
         print(f"  📏 文件大小: {code_size} bytes")
 
-        review_result = review_code_with_gemini(filepath, code_content, gemini_api_key)
+        review_result = review_code_with_gemini(filepath, code_content, gemini_api_key, model_cache)
 
         if review_result:
             all_reviews.append(f"### 📄 `{filepath}`\n\n{review_result}\n")
             reviewed_count += 1
+            model_name = model_cache.get('name', 'unknown')
             print(f"  ✅ 审查成功\n")
         else:
             skipped_count += 1
@@ -276,7 +352,7 @@ def main():
     if all_reviews:
         final_review = "\n".join(all_reviews)
         print("📤 正在发布审查结果到 PR...")
-        post_review_comment(github_token, args.repo, args.pr_number, final_review)
+        post_review_comment(github_token, args.repo, args.pr_number, final_review, model_name)
         print("\n✅ 代码审查完成！")
         print(f"🔗 查看 PR: https://github.com/{args.repo}/pull/{args.pr_number}")
     else:
