@@ -37,7 +37,7 @@ jobs:
           pip install google-generativeai PyGithub
           
           # 运行 Gemini 代码审查脚本
-          python .github/scripts/gemini_review.py \
+          python .github/workflows/ai-review/gemini_review.py \
             --pr-number ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
             --files "${{ steps.changed-files.outputs.all_changed_files }}"
