@@ -11,7 +11,17 @@ public enum MetricTypes {
     ALL(3);
 
     final int type;
+
     MetricTypes(int t) {
         this.type = t;
+    }
+
+    public static MetricTypes of(int val) {
+        for (MetricTypes value : values()) {
+            if (value.type == val) {
+                return value;
+            }
+        }
+        return API_SERVER;
     }
 }

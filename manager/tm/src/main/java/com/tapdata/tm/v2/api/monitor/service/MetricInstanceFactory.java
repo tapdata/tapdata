@@ -1,12 +1,13 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.apiCalls.entity.ApiCallField;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.v2.api.common.service.FactoryBase;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.apiServer.enums.TimeGranularity;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import lombok.Getter;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -34,12 +35,6 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
             "//v4.loopback.io/favicon.ico",
             "/security.txt"
     );
-    Long lastCallTime;
-
-    MetricInstanceFactory last(Long lastCallTime) {
-        this.lastCallTime = lastCallTime;
-        return this;
-    }
 
     public MetricInstanceFactory(Consumer<List<ApiMetricsRaw>> consumer, Function<Query, ApiMetricsRaw> findOne) {
         super(consumer, findOne);
@@ -78,22 +73,11 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
     }
 
     MetricInstanceAcceptor create(String key, MetricTypes metricType, String reqPath, String serverId) {
-        return instanceMap.computeIfAbsent(key, k -> new MetricInstanceAcceptor(metricType, ts -> {
-                    final ApiMetricsRaw lastMin = lastOne(reqPath, serverId, metricType, TimeGranularity.MINUTE, ts);
-                    ApiMetricsRaw lastHour = null;
-                    if (null != lastMin) {
-                        long bucketHour = TimeGranularity.HOUR.fixTime(lastMin.getTimeStart());
-                        lastHour = lastOne(reqPath, serverId, metricType, TimeGranularity.HOUR, bucketHour);
-                    }
-                    return new MetricInstanceAcceptor.BucketInfo(lastMin, lastHour);
-                }, (quickUpload, info) -> {
-                    if (null != quickUpload && !quickUpload) {
-                        this.apiMetricsRaws.add(info);
-                    } else {
-                        this.consumer.accept(List.of(info));
-                    }
-                    return null;
-                }).lastCallTime(lastCallTime)
+        return instanceMap.computeIfAbsent(key,
+                k -> new MetricInstanceAcceptor(
+                        metricType,
+                        (ts, type) -> lastOne(reqPath, serverId, metricType, type, ts),
+                        this.apiMetricsRaws::add)
         );
     }
 
@@ -130,8 +114,8 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
         String reqPath;
         String apiId;
         String serverId;
-        long requestCost;
-        long dbCost;
+        double requestCost;
+        double dbCost;
         boolean isOk;
         long reqBytes;
         boolean supplement;
@@ -151,10 +135,10 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
                     .orElse(Optional.ofNullable(reqPath)
                             .orElse(UN_KNOW));
             this.serverId = entity.get(ApiCallField.API_GATEWAY_UUID.field(), String.class);
-            this.requestCost = value(entity.get(ApiCallField.LATENCY.field(), Long.class));
-            this.dbCost = value(entity.get(ApiCallField.DATA_QUERY_TOTAL_TIME.field(), Long.class));
+            this.requestCost = ApiMetricsCompressValueUtil.getNum(entity, ApiCallField.LATENCY.field());
+            this.dbCost = ApiMetricsCompressValueUtil.getNum(entity, ApiCallField.DATA_QUERY_TOTAL_TIME.field());
             this.isOk = entity.get(ApiCallField.SUCCEED.field(), Boolean.class);
-            this.reqBytes = value(entity.get(ApiCallField.REQ_BYTES.field(), Long.class));
+            this.reqBytes = ApiMetricsCompressValueUtil.value(entity.get(ApiCallField.REQ_BYTES.field(), Long.class)).longValue();
             this.supplement = Optional.ofNullable(entity.get(ApiCallField.SUPPLEMENT.field(), Boolean.class)).orElse(false);
             this.workerId = entity.get(ApiCallField.WORK_O_ID.field(), String.class);
             this.apiCallReqTime = entity.get(ApiCallField.REQ_TIME.field(), Long.class);
@@ -164,13 +148,6 @@ public final class MetricInstanceFactory extends FactoryBase<ApiMetricsRaw, Metr
             this.bucketHour = TimeGranularity.HOUR.fixTime(reqTimeOSec);
             this.bucketDay = TimeGranularity.DAY.fixTime(reqTimeOSec);
             this.callId = entity.get(BaseEntityFields._ID.field(), ObjectId.class);
-        }
-
-        long value(Long val) {
-            if (null == val) {
-                return 0L;
-            }
-            return Math.max(0L, val);
         }
     }
 

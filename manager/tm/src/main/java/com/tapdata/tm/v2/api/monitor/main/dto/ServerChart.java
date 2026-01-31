@@ -157,10 +157,14 @@ public class ServerChart extends ValueBase {
     public static class Delay {
         @DecimalFormat
         List<Double> avg;
-        List<Long> p95;
-        List<Long> p99;
-        List<Long> maxDelay;
-        List<Long> minDelay;
+        @DecimalFormat(scale = 1, maxScale = 1)
+        List<Double> p95;
+        @DecimalFormat(scale = 1, maxScale = 1)
+        List<Double> p99;
+        @DecimalFormat(scale = 1, maxScale = 1)
+        List<Double> maxDelay;
+        @DecimalFormat(scale = 1, maxScale = 1)
+        List<Double> minDelay;
         List<Long> ts;
 
         public Delay() {
@@ -193,10 +197,14 @@ public class ServerChart extends ValueBase {
     public static class DBCost {
         @DecimalFormat
         List<Double> dbCostAvg;
-        List<Long> dbCostP95;
-        List<Long> dbCostP99;
-        List<Long> dbCostMax;
-        List<Long> dbCostMin;
+        @DecimalFormat(scale = 1, maxScale = 1)
+        List<Double> dbCostP95;
+        @DecimalFormat(scale = 1, maxScale = 1)
+        List<Double> dbCostP99;
+        @DecimalFormat(scale = 1, maxScale = 1)
+        List<Double> dbCostMax;
+        @DecimalFormat(scale = 1, maxScale = 1)
+        List<Double> dbCostMin;
         List<Long> ts;
 
         public void add(ServerChart.Item item) {
@@ -231,16 +239,16 @@ public class ServerChart extends ValueBase {
         Long requestCount;
         Double errorRate;
         Double avg;
-        Long p95;
-        Long p99;
-        Long maxDelay;
-        Long minDelay;
+        Double p95;
+        Double p99;
+        Double maxDelay;
+        Double minDelay;
 
         double dbCostAvg;
-        Long dbCostMax;
-        Long dbCostMin;
-        Long dbCostP95;
-        Long dbCostP99;
+        Double dbCostMax;
+        Double dbCostMin;
+        Double dbCostP95;
+        Double dbCostP99;
 
         List<Map<String, Number>> delay = new ArrayList<>();
         List<Map<String, Number>> dbCost = new ArrayList<>();

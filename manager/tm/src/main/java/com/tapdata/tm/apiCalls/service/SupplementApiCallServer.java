@@ -201,11 +201,11 @@ public class SupplementApiCallServer {
         }
         long rows = Optional.ofNullable(callInfo.getResponseDataRowTotalCount()).orElse(0L) + Optional.ofNullable(apiCall.getResRows()).orElse(0L);
         callInfo.setResponseDataRowTotalCount(rows);
-        Long latency = Optional.ofNullable(apiCall.getLatency()).orElse(0L);
-        long time = Optional.ofNullable(callInfo.getTotalResponseTime()).orElse(0L) + latency;
-        callInfo.setTotalResponseTime(time);
+        Double latency = Optional.ofNullable(apiCall.getLatency()).orElse(0D);
+        Double time = Optional.ofNullable(callInfo.getTotalResponseTime()).orElse(0L).doubleValue() + latency;
+        callInfo.setTotalResponseTime(time.longValue());
         callInfo.setAccessFailureRate(1.0D * Optional.ofNullable(callInfo.getCallAlarmTotalCount()).orElse(0L) / totalCount);
-        callInfo.setMaxResponseTime(Math.max(Optional.ofNullable(callInfo.getMaxResponseTime()).orElse(0L), latency));
+        callInfo.setMaxResponseTime(Math.max(Optional.ofNullable(callInfo.getMaxResponseTime()).orElse(0L), latency.longValue()));
         callInfo.setAlarmApiTotalCount(callInfo.getCallAlarmTotalCount());
         Optional.ofNullable(apiCall.getUserInfo())
                 .map(e -> e.get("clientId"))
@@ -235,9 +235,9 @@ public class SupplementApiCallServer {
         long countBefore = Optional.ofNullable(callInfo.getResponseDataRowTotalCount()).orElse(0L);
         long rowCount = countBefore + Optional.ofNullable(apiCall.getResRows()).orElse(0L);
         callInfo.setResponseDataRowTotalCount(rowCount);
-        long latency = Optional.ofNullable(apiCall.getLatency()).orElse(0L);
-        long time = Optional.ofNullable(callInfo.getTotalResponseTime()).orElse(0L) + latency;
-        callInfo.setTotalResponseTime(time);
+        double latency = Optional.ofNullable(apiCall.getLatency()).orElse(0D);
+        Double time = Optional.ofNullable(callInfo.getTotalResponseTime()).orElse(0L) + latency;
+        callInfo.setTotalResponseTime(time.longValue());
         long bytesBefore = Optional.ofNullable(callInfo.getTransferDataTotalBytes()).orElse(0L);
         long bytes = bytesBefore + Optional.ofNullable(apiCall.getReqBytes()).orElse(0L);
         callInfo.setTransferDataTotalBytes(bytes);
@@ -306,9 +306,9 @@ public class SupplementApiCallServer {
                             }));
                     List<Map<String, Number>> merged = entity.getDelays();
                     long reqCount = ApiMetricsDelayUtil.sum(merged).getCount();
-                    Long p50 = ApiMetricsDelayUtil.p50(merged, reqCount);
-                    Long p95 = ApiMetricsDelayUtil.p95(merged, reqCount);
-                    Long p99 = ApiMetricsDelayUtil.p99(merged, reqCount);
+                    Double p50 = ApiMetricsDelayUtil.p50(merged, reqCount);
+                    Double p95 = ApiMetricsDelayUtil.p95(merged, reqCount);
+                    Double p99 = ApiMetricsDelayUtil.p99(merged, reqCount);
                     long errorCount = Optional.ofNullable(entity.getErrorCount()).orElse(0L);
                     Double errorRate = reqCount <= 0 ? 0 : (0.1d * errorCount / reqCount);
                     entity.setReqCount(reqCount);

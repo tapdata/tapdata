@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.apiCalls.entity.ApiCallField;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.dto.ValueResult;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.field.BaseEntityFields;
@@ -25,7 +26,6 @@ import com.tapdata.tm.v2.api.monitor.main.dto.TopWorkerInServer;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiChart;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiDetailParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiWithServerDetail;
@@ -34,7 +34,6 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerChartParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
-import com.tapdata.tm.v2.api.monitor.utils.ApiPathUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ChartSortUtil;
 import com.tapdata.tm.v2.api.monitor.utils.TimeRangeUtil;
 import com.tapdata.tm.v2.api.usage.repository.ServerUsageMetricRepository;
@@ -73,7 +72,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -496,11 +494,11 @@ public class ApiMetricsChartQuery {
             item.setErrorCount(errorCountNum);
 
             ApiMetricsDelayUtil.Sum sumOfDbCost = ApiMetricsDelayUtil.sum(item.getDbCost());
-            long dbCostTotal = sumOfDbCost.getTotal();
+            double dbCostTotal = sumOfDbCost.getTotal();
             ApiMetricsDelayUtil.readMaxAndMin(item.getDbCost(), item::setDbCostMax, item::setDbCostMin);
             ApiMetricsDelayUtil.Sum sumOfDelay = ApiMetricsDelayUtil.sum(delay);
-            item.setAvg(1.0D * sumOfDelay.getTotal() / requestCount);
-            item.setDbCostAvg(1.0D * dbCostTotal / requestCount);
+            item.setAvg(sumOfDelay.getTotal() / requestCount);
+            item.setDbCostAvg(dbCostTotal / requestCount);
         }
         AtomicReference<ApiMetricsDelayUtil.Sum> sumOf = new AtomicReference<>(null);
         Optional.ofNullable(item.getDelays()).ifPresent(delays -> {
@@ -810,14 +808,14 @@ public class ApiMetricsChartQuery {
                                             ApiMetricsRaw apiMetricsRaw = rows.get(0);
                                             long timeStart = apiMetricsRaw.getTimeStart();
                                             ChartAndDelayOfApi.Item item = new ChartAndDelayOfApi.Item();
-                                            long totalBytes = rows.stream().map(ApiMetricsRaw::getBytes)
+                                            Double totalBytes = rows.stream().map(ApiMetricsRaw::getBytes)
                                                     .map(ApiMetricsDelayUtil::sum)
-                                                    .mapToLong(ApiMetricsDelayUtil.Sum::getTotal)
+                                                    .mapToDouble(ApiMetricsDelayUtil.Sum::getTotal)
                                                     .sum();
                                             List<Map<String, Number>> mergedDelay = ApiMetricsCompressValueUtil.mergeItems(rows, ApiMetricsRaw::getDelay);
                                             item.setDelay(mergedDelay);
                                             item.setTs(timeStart);
-                                            item.setTotalBytes(totalBytes);
+                                            item.setTotalBytes(totalBytes.longValue());
                                             List<Map<String, Number>> mergedDBCost = ApiMetricsCompressValueUtil.mergeItems(rows, ApiMetricsRaw::getDbCost);
                                             item.setDbCost(mergedDBCost);
                                             return item;
@@ -868,13 +866,13 @@ public class ApiMetricsChartQuery {
 
     public void mapping(ChartAndDelayOfApi.Item item) {
         ApiMetricsDelayUtil.Sum sumOfDelay = ApiMetricsDelayUtil.sum(item.getDelay());
-        long totalDelayMs = sumOfDelay.getTotal();
+        double totalDelayMs = sumOfDelay.getTotal();
         long reqCount = sumOfDelay.getCount();
-        long totalDbCost = ApiMetricsDelayUtil.sum(item.getDbCost()).getTotal();
+        double totalDbCost = ApiMetricsDelayUtil.sum(item.getDbCost()).getTotal();
         ApiMetricsDelayUtil.readMaxAndMin(item.getDbCost(), item::setDbCostMax, item::setDbCostMin);
         if (reqCount > 0L) {
-            item.setRequestCostAvg(1.0D * totalDelayMs / reqCount);
-            item.setDbCostAvg(1.0D * totalDbCost / reqCount);
+            item.setRequestCostAvg(totalDelayMs / reqCount);
+            item.setDbCostAvg(totalDbCost / reqCount);
         } else {
             item.setRequestCostAvg(0D);
             item.setDbCostAvg(0D);

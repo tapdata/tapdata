@@ -13,14 +13,14 @@ public class PercentileCalculator {
     /**
      * Calculate percentiles - automatic processing of small datasets
      */
-    public static Long calculatePercentile(List<Long> values, double percentile) {
+    public static Double calculatePercentile(List<Double> values, double percentile) {
         if (values == null || values.isEmpty()) {
             return null;
         }
 
         // Convert to array and sort
-        long[] sortedValues = values.stream()
-                .mapToLong(Long::longValue)
+        double[] sortedValues = values.stream()
+                .mapToDouble(Double::doubleValue)
                 .sorted()
                 .toArray();
 
@@ -37,7 +37,7 @@ public class PercentileCalculator {
     /**
      * Processing small datasets (≤ 5 data points)
      */
-    private static Long handleSmallDataset(long[] sortedValues, double percentile) {
+    private static Double handleSmallDataset(double[] sortedValues, double percentile) {
         int n = sortedValues.length;
 
         // Single data point
@@ -62,7 +62,7 @@ public class PercentileCalculator {
     /**
      * Processing large datasets (>5 data points)
      */
-    private static Long handleLargeDataset(long[] sortedValues, double percentile) {
+    private static Double handleLargeDataset(double[] sortedValues, double percentile) {
         int n = sortedValues.length;
         long position = (long) ((n - 1) * percentile);
         int index = (int) position;
@@ -78,7 +78,7 @@ public class PercentileCalculator {
     /**
      * Calculate multiple percentiles
      */
-    public static PercentileResult calculatePercentiles(List<Long> values) {
+    public static PercentileResult calculatePercentiles(List<Double> values) {
         return new PercentileResult(
                 calculatePercentile(values, 0.50),
                 calculatePercentile(values, 0.95),
@@ -120,11 +120,11 @@ public class PercentileCalculator {
      */
     @Getter
     public static class PercentileResult {
-        public final Long p50;
-        public final Long p95;
-        public final Long p99;
+        public final Double p50;
+        public final Double p95;
+        public final Double p99;
 
-        public PercentileResult(Long p50, Long p95, Long p99) {
+        public PercentileResult(Double p50, Double p95, Double p99) {
             this.p50 = p50;
             this.p95 = p95;
             this.p99 = p99;
@@ -132,7 +132,7 @@ public class PercentileCalculator {
 
         @Override
         public String toString() {
-            return String.format("P50: %d, P95: %d, P99: %d", p50, p95, p99);
+            return String.format("P50: %.0f, P95: %.0f, P99: %.0f", p50, p95, p99);
         }
     }
 

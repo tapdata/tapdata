@@ -1,11 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
-import org.bson.Document;
-import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,12 +12,21 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.function.Function;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ApiMetricsRawScheduleExecutorTest {
     private MongoTemplate mongoTemplate;
@@ -38,9 +42,8 @@ class ApiMetricsRawScheduleExecutorTest {
         executor = mock(ApiMetricsRawScheduleExecutor.class);
         ReflectionTestUtils.setField(executor, "mongoTemplate", mongoTemplate);
 
-        when(executor.create()).thenReturn(metricInstanceFactory);
+        when(executor.create(0L)).thenReturn(metricInstanceFactory);
         doCallRealMethod().when(executor).aggregateApiCall();
-        when(executor.lastOne()).thenCallRealMethod();
         doCallRealMethod().when(executor).saveApiMetricsRaw(anyList());
         doCallRealMethod().when(executor).bulkUpsert(anyList());
         doCallRealMethod().when(executor).bulkUpsert(anyList(), any(Function.class), any(Function.class));
@@ -79,7 +82,7 @@ class ApiMetricsRawScheduleExecutorTest {
             when(mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class)).thenReturn(bulkOps);
             when(bulkOps.upsert(any(Query.class), any(Update.class))).thenReturn(null);
             when(bulkOps.execute()).thenAnswer(a -> {throw new Exception("e");});
-            Assertions.assertDoesNotThrow(() -> executor.saveApiMetricsRaw(apiMetricsRawList));
+            Assertions.assertThrows(Exception.class, () -> executor.saveApiMetricsRaw(apiMetricsRawList));
             verify(executor).bulkUpsert(apiMetricsRawList);
         }
     }
@@ -109,10 +112,9 @@ class ApiMetricsRawScheduleExecutorTest {
         raw.setBytes(new ArrayList<>());
         raw.setDelay(new ArrayList<>());
         raw.setSubMetrics(new HashMap<>());
-        raw.setP50(150L);
-        raw.setP95(300L);
-        raw.setP99(400L);
-        raw.setLastCallId(new ObjectId());
+        raw.setP50(150D);
+        raw.setP95(300D);
+        raw.setP99(400D);
         return raw;
     }
 }

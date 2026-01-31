@@ -67,6 +67,7 @@ public class ParticleSizeAnalyzer {
                         .filter(filter)
                         .sorted(Comparator.comparing(ApiMetricsRaw::getTimeStart))
                         .forEach(e -> {
+                            e.setReqPath(raw.getReqPath());
                             e.setApiId(raw.getApiId());
                             e.setProcessId(raw.getProcessId());
                             sub.add(e);
@@ -149,7 +150,6 @@ public class ParticleSizeAnalyzer {
             row.setBytes(ApiMetricsCompressValueUtil.asInit(apiCallEntity.getReqBytes()));
             row.setDelay(ApiMetricsCompressValueUtil.asInit(apiCallEntity.getLatency()));
             row.setSubMetrics(new HashMap<>());
-            row.setLastCallId(apiCallEntity.getId());
             row.setId(new ObjectId());
             consumer.accept(row);
         }

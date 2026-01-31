@@ -1327,9 +1327,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			ApiCallEntity lastApiCall = apiCallService.findOne(lastApiCallQuery);
 			if (null != lastApiCall && null != lastApiCall.getResRows() && lastApiCall.getResRows() > 0) {
 				//最新一次的响应时间
-				apiDetailVo.setResponseTime(BigDecimal.valueOf(lastApiCall.getLatency()).divide(BigDecimal.valueOf(lastApiCall.getResRows()), 2, RoundingMode.HALF_UP).doubleValue());
+				apiDetailVo.setResponseTime(BigDecimal.valueOf(lastApiCall.getLatency().doubleValue())
+						.divide(BigDecimal.valueOf(lastApiCall.getResRows()), 2, RoundingMode.HALF_UP).doubleValue());
 				//最新一次的的耗时
-				apiDetailVo.setTimeConsuming(lastApiCall.getLatency());
+				apiDetailVo.setTimeConsuming(lastApiCall.getLatency().longValue());
 			}
 			// 总行数
 			apiDetailVo.setVisitTotalLine(apiCallStatsDto.getResponseDataRowTotalCount());

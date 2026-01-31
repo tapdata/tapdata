@@ -1,6 +1,7 @@
 package com.tapdata.tm.apiCalls.vo;
 
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.commons.base.DecimalFormat;
 import com.tapdata.tm.module.entity.Path;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -33,9 +34,10 @@ public class ApiCallDataVo {
     private String userId;
     private String lastUpdBy;
     private String createUser;
-
-    private Long dbCost;
-    private Long latency;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    private Double dbCost;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    private Double latency;
     private Long reqTime;
     private Long resTime;
     private Map<String, Object> apiMeta;

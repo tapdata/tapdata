@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
@@ -15,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.*;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -25,7 +27,7 @@ import static org.mockito.Mockito.*;
 class MetricInstanceAcceptorTest {
 
     @Mock
-    private BiFunction<Boolean, ApiMetricsRaw, Void> consumer;
+    private Consumer<ApiMetricsRaw> consumer;
 
     private MetricInstanceAcceptor acceptor;
     private ApiMetricsRaw lastBucketMin;
@@ -37,8 +39,8 @@ class MetricInstanceAcceptorTest {
         lastBucketMin = createApiMetricsRaw("server1", "api1", 60000L, 1);
         lastBucketHour = createApiMetricsRaw("server1", "api1", 3600000L, 2);
         lastBucketDay = createApiMetricsRaw("server1", "api1", 86400000L, 3);
-        Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
-            return new MetricInstanceAcceptor.BucketInfo(lastBucketMin, lastBucketHour);
+        BiFunction<Long, TimeGranularity, ApiMetricsRaw> bucketInfoGetter = (ts, T) -> {
+            return createApiMetricsRaw("server1", "api1", 60000L, 1);
         };
         acceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
     }
@@ -115,15 +117,15 @@ class MetricInstanceAcceptorTest {
             // bucketSec = (125 / 5) * 5 = 125
             // bucketMin = (125 / 60) * 60 = 120
             // bucketHour = (120 / 60) * 60 = 120
-            Function<Long, MetricInstanceAcceptor.BucketInfo> bucketInfoGetter = ts -> {
-                return new MetricInstanceAcceptor.BucketInfo(null, null);
+            BiFunction<Long, TimeGranularity, ApiMetricsRaw> bucketInfoGetter = (ts, T) -> {
+                return null;
             };
             MetricInstanceAcceptor testAcceptor = new MetricInstanceAcceptor(MetricTypes.API_SERVER, bucketInfoGetter, consumer);
             
             testAcceptor.accept(new MetricInstanceFactory.CallInfo(document));
             
             // Verify the bucket calculations are correct
-            verify(consumer, never()).apply(anyBoolean(), any());
+            verify(consumer, never()).accept(any());
         }
     }
 
@@ -150,7 +152,6 @@ class MetricInstanceAcceptorTest {
         raw.setBytes(new ArrayList<>());
         raw.setDelay(new ArrayList<>());
         raw.setSubMetrics(new HashMap<>());
-        raw.setLastCallId(new ObjectId());
         return raw;
     }
 }

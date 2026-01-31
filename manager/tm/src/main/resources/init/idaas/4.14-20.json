@@ -31,12 +31,11 @@
     "indexes": [
       {
         "key": {
-          "supplement": 1,
           "createTime": 1,
-          "allPathId": 1,
-          "reqTime": 1
+          "hasMetric": 1,
+          "delete": 1
         },
-        "name": "ApiCall_query_supplement-3",
+        "name": "ApiCall_query_metric_index",
         "background": true
       }
     ]

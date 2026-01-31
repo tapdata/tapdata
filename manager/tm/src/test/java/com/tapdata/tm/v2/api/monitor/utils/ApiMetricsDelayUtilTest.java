@@ -9,7 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.LongConsumer;
+import java.util.function.DoubleConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 class ApiMetricsDelayUtilTest {
 
@@ -63,15 +62,13 @@ class ApiMetricsDelayUtilTest {
     class SumTest {
         @Test
         void testSumWithEmptyList() {
-            Long result = ApiMetricsDelayUtil.sum(Collections.emptyList()).getTotal();
-
+            Double result = ApiMetricsDelayUtil.sum(Collections.emptyList()).getTotal();
             assertEquals(0L, result);
         }
 
         @Test
         void testSumWithNullList() {
-            Long result = ApiMetricsDelayUtil.sum(null).getTotal();
-
+            Double result = ApiMetricsDelayUtil.sum(null).getTotal();
             assertEquals(0L, result);
         }
     }
@@ -90,18 +87,14 @@ class ApiMetricsDelayUtilTest {
         @Test
         void testP95WithValidData() {
             List<Map<String, Number>> data = createTestData();
-
-            Long result = ApiMetricsDelayUtil.p95(data, 100L);
-
+            Double result = ApiMetricsDelayUtil.p95(data, 100L);
             assertNotNull(result);
         }
 
         @Test
         void testP95WithInsufficientTotal() {
             List<Map<String, Number>> data = createTestData();
-
-            Long result = ApiMetricsDelayUtil.p95(data, 20L); // <= 20
-
+            Double result = ApiMetricsDelayUtil.p95(data, 20L); // <= 20
             assertNull(result);
         }
 
@@ -110,27 +103,21 @@ class ApiMetricsDelayUtilTest {
             List<Map<String, Number>> data = Arrays.asList(
                     ApiMetricsDelayUtil.toMap(100L, 10)
             );
-
-            Long result = ApiMetricsDelayUtil.p95(data, 100L);
-
+            Double result = ApiMetricsDelayUtil.p95(data, 100L);
             assertNull(result);
         }
 
         @Test
         void testP99WithValidData() {
             List<Map<String, Number>> data = createTestData();
-
-            Long result = ApiMetricsDelayUtil.p99(data, 100L);
-
+            Double result = ApiMetricsDelayUtil.p99(data, 100L);
             assertNotNull(result);
         }
 
         @Test
         void testP99WithInsufficientTotal() {
             List<Map<String, Number>> data = createTestData();
-
-            Long result = ApiMetricsDelayUtil.p99(data, 10L); // <= 10
-
+            Double result = ApiMetricsDelayUtil.p99(data, 10L); // <= 10
             assertNull(result);
         }
 
@@ -139,9 +126,7 @@ class ApiMetricsDelayUtilTest {
             List<Map<String, Number>> data = Arrays.asList(
                     ApiMetricsDelayUtil.toMap(100L, 10)
             );
-
-            Long result = ApiMetricsDelayUtil.p99(data, 100L);
-
+            Double result = ApiMetricsDelayUtil.p99(data, 100L);
             assertNull(result);
         }
 
@@ -149,7 +134,7 @@ class ApiMetricsDelayUtilTest {
         void testP50WithValidData() {
             List<Map<String, Number>> data = createTestData();
 
-            Long result = ApiMetricsDelayUtil.p50(data, 100L);
+            Double result = ApiMetricsDelayUtil.p50(data, 100L);
 
             assertNotNull(result);
         }
@@ -160,7 +145,7 @@ class ApiMetricsDelayUtilTest {
                     ApiMetricsDelayUtil.toMap(100L, 10)
             );
 
-            Long result = ApiMetricsDelayUtil.p50(data, 100L);
+            Double result = ApiMetricsDelayUtil.p50(data, 100L);
 
             assertNull(result);
         }
@@ -177,7 +162,7 @@ class ApiMetricsDelayUtilTest {
             );
 
             // Test p method through reflection or create a public wrapper
-            Long result = ApiMetricsDelayUtil.p50(data, 60L); // This calls p internally
+            Double result = ApiMetricsDelayUtil.p50(data, 60L); // This calls p internally
 
             assertNotNull(result);
         }
@@ -189,7 +174,7 @@ class ApiMetricsDelayUtilTest {
                     ApiMetricsDelayUtil.toMap(200L, 10)
             );
 
-            Long result = ApiMetricsDelayUtil.p50(data, 60L);
+            Double result = ApiMetricsDelayUtil.p50(data, 60L);
 
             assertNotNull(result);
             assertEquals(100L, result); // Should return first key as target reached
@@ -202,7 +187,7 @@ class ApiMetricsDelayUtilTest {
                     ApiMetricsDelayUtil.toMap(200L, 5)
             );
 
-            Long result = ApiMetricsDelayUtil.p95(data, 100L); // Target = 95, sum = 10
+            Double result = ApiMetricsDelayUtil.p95(data, 100L); // Target = 95, sum = 10
 
             assertNull(result);
         }
@@ -214,7 +199,7 @@ class ApiMetricsDelayUtilTest {
                     new HashMap<>() // Empty map
             );
 
-            Long result = ApiMetricsDelayUtil.p50(data, 50L);
+            Double result = ApiMetricsDelayUtil.p50(data, 50L);
 
             // Should handle gracefully
             assertNull(result);
@@ -231,8 +216,8 @@ class ApiMetricsDelayUtilTest {
                     ApiMetricsDelayUtil.toMap(200L, 15)
             );
 
-            LongConsumer maxConsumer = mock(LongConsumer.class);
-            LongConsumer minConsumer = mock(LongConsumer.class);
+            DoubleConsumer maxConsumer = mock(DoubleConsumer.class);
+            DoubleConsumer minConsumer = mock(DoubleConsumer.class);
 
             ApiMetricsDelayUtil.readMaxAndMin(data, maxConsumer, minConsumer);
 
@@ -246,13 +231,13 @@ class ApiMetricsDelayUtilTest {
                     ApiMetricsDelayUtil.toMap(150L, 10)
             );
 
-            LongConsumer maxConsumer = mock(LongConsumer.class);
-            LongConsumer minConsumer = mock(LongConsumer.class);
+            DoubleConsumer maxConsumer = mock(DoubleConsumer.class);
+            DoubleConsumer minConsumer = mock(DoubleConsumer.class);
 
             ApiMetricsDelayUtil.readMaxAndMin(data, maxConsumer, minConsumer);
 
-            verify(maxConsumer).accept(150L);
-            verify(minConsumer).accept(150L);
+            verify(maxConsumer).accept(150D);
+            verify(minConsumer).accept(150D);
         }
     }
 }

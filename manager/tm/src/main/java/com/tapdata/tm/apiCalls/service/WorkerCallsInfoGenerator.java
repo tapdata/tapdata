@@ -5,6 +5,7 @@ import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.service.MetricInstanceFactory;
+import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 
@@ -64,7 +65,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setWorkOid(info.getString("workOid"));
         item.setApiGatewayUuid(info.getString("api_gateway_uuid"));
         item.setApiId(info.getString("allPathId"));
-        item.setLatency(info.getLong("latency"));
+        item.setLatency(ApiMetricsCompressValueUtil.getNum(info, "latency"));
         item.setCode(info.getString("code"));
         item.setFailed(!info.getBoolean("succeed"));
         item.setHttpStatus(info.getString("httpStatus"));
@@ -98,10 +99,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         final String processId = info.getApiGatewayUuid();
         final String workOid = info.getWorkOid();
         final String apiId = info.getApiId();
-        long latency = Optional.ofNullable(info.getLatency()).orElse(0L);
-        if (latency < 0L) {
-            latency = 0L;
-        }
+        Number latency = Optional.ofNullable(info.getLatency()).orElse(0L);
         final long key = (reqTime / 60000L) * 60000L;
         final Map<String, WorkerCallEntity> itemMap = calls.computeIfAbsent(key, k -> new HashMap<>());
         final WorkerCallEntity item = itemMap.computeIfAbsent(apiId, k -> new WorkerCallEntity());

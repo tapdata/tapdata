@@ -1,8 +1,8 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
-import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,16 +26,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -301,7 +298,6 @@ class MetricInstanceFactoryTest {
         raw.setBytes(new ArrayList<>());
         raw.setDelay(new ArrayList<>());
         raw.setSubMetrics(new HashMap<>());
-        raw.setLastCallId(new ObjectId());
         return raw;
     }
 }

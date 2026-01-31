@@ -1,10 +1,11 @@
 package com.tapdata.tm.v2.api.monitor.utils;
 
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.v2.api.common.main.dto.TimeRange;
 import com.tapdata.tm.v2.api.monitor.main.dto.ValueBase;
-import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.param.QueryBase;
+import org.springframework.util.CollectionUtils;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -75,14 +76,14 @@ public class TimeRangeUtil {
                 if (null == r) {
                     r = range;
                 } else {
-                   long e = r.getEnd();
-                   if (e == range.getStart()) {
-                       r.setEnd(range.getEnd());
-                   } else {
-                       List<TimeRange> temp = compressMap.computeIfAbsent(type, k -> new ArrayList<>());
-                       temp.add(r);
-                       r = range;
-                   }
+                    long e = r.getEnd();
+                    if (e == range.getStart()) {
+                        r.setEnd(range.getEnd());
+                    } else {
+                        List<TimeRange> temp = compressMap.computeIfAbsent(type, k -> new ArrayList<>());
+                        temp.add(r);
+                        r = range;
+                    }
                 }
             }
             List<TimeRange> temp = compressMap.computeIfAbsent(type, k -> new ArrayList<>());
@@ -90,7 +91,45 @@ public class TimeRangeUtil {
                 temp.add(r);
             }
         });
+        compressHourToDay(timeGranularity);
         return compressMap;
+    }
+
+    static void compressHourToDay(Map<TimeGranularity, List<TimeRange>> timeGranularity) {
+        List<TimeRange> hours = timeGranularity.get(TimeGranularity.HOUR);
+        if (CollectionUtils.isEmpty(hours)) {
+            return;
+        }
+        hours.sort(Comparator.comparing(TimeRange::getStart));
+        List<TimeRange> days = new ArrayList<>();
+        List<TimeRange> newHours = new ArrayList<>();
+        long start = 0L;
+        for (TimeRange hour : hours) {
+            long fixStart = TimeGranularity.DAY.fixTime(hour.getStart() + TimeGranularity.DAY.getSeconds() - 1);
+            if (start <= 0L) {
+                start = fixStart;
+            }
+            TimeRange range = new TimeRange(start, start, TimeGranularity.DAY);
+            while (start <= hour.getEnd()) {
+                range.setEnd(start);
+                start += TimeGranularity.DAY.getSeconds();
+            }
+            if (range.getStart() != range.getEnd()) {
+                days.add(range);
+                if (fixStart != hour.getStart()) {
+                    newHours.add(new TimeRange(hour.getStart(), fixStart, TimeGranularity.HOUR));
+                }
+                if (range.getEnd() != hour.getEnd()) {
+                    newHours.add(new TimeRange(range.getEnd(), hour.getEnd(), TimeGranularity.HOUR));
+                }
+            } else {
+                newHours.add(hour);
+            }
+        }
+        if (!days.isEmpty()) {
+            timeGranularity.put(TimeGranularity.HOUR, newHours);
+            timeGranularity.put(TimeGranularity.DAY, days);
+        }
     }
 
     static Map<TimeGranularity, List<TimeRange>> doNotCompress(QueryBase query, long startAt, long endAt, long windows) {

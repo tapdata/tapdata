@@ -2,6 +2,9 @@ package com.tapdata.tm.apiCalls.entity;
 
 import com.tapdata.tm.base.field.CollectionField;
 
+/**
+ * @see ApiCallEntity
+ * */
 public enum ApiCallField implements CollectionField {
     REQ_PARAMS("req_params"),
     QUERY("query"),
@@ -44,7 +47,8 @@ public enum ApiCallField implements CollectionField {
     TOTAL_ROWS("totalRows"),
     REQUEST_COST("requestCost"),
     HTTP_STATUS("httpStatus"),
-    DELETE("delete");
+    DELETE("delete"),
+    HAS_METRIC("hasMetric");
 
     final String fieldName;
 

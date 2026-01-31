@@ -10,7 +10,6 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.base.field.CollectionField;
 import com.tapdata.tm.module.dto.ModulesDto;
-import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.utils.MongoUtils;
@@ -53,6 +52,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
 @Service
 @Setter(onMethod_ = {@Autowired})
 public class ApiMetricsRawMergeService {
-    private static final long API_METRIC_DELAY_MS = PropertyUtils.getPropertyLong("API_METRIC_DELAY_MS", 20000L);
+    private static final long API_METRIC_DELAY_MS = PropertyUtils.getPropertyLong("API_METRIC_DELAY_MS", 0L);
     private MongoTemplate mongoTemplate;
     ApiMetricsRawService service;
     ModulesService modulesService;
@@ -136,7 +136,7 @@ public class ApiMetricsRawMergeService {
         Map<String, List<String>> historyApiIdOfPath = new HashMap<>();
         Map<String, TopApiInServer> apiInfoMap = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
-                .filter(e -> StringUtils.isNotBlank(e.getApiId()))
+                .filter(e -> StringUtils.isNotBlank(e.getReqPath()))
                 .collect(
                         Collectors.groupingBy(
                                 ApiMetricsRaw::getReqPath,
@@ -153,10 +153,10 @@ public class ApiMetricsRawMergeService {
                 .toList();
         apiInfoMap.forEach(this::initApiInfo);
         if (!CollectionUtils.isEmpty(apiIds)) {
-        Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
-        Query queryOfApi = Query.query(criteriaOfApi);
-        List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
-        mapApiInfo(apiDtoList, apiInfoMap, historyApiIdOfPath, k -> TopApiInServer.create());
+            Criteria criteriaOfApi = Criteria.where(BaseEntityFields._ID.field()).in(apiIds);
+            Query queryOfApi = Query.query(criteriaOfApi);
+            List<ModulesDto> apiDtoList = modulesService.findAll(queryOfApi);
+            mapApiInfo(apiDtoList, apiInfoMap, historyApiIdOfPath, k -> TopApiInServer.create());
         }
         List<TopApiInServer> result = new ArrayList<>(apiInfoMap.values());
         ChartSortUtil.sort(result, param.getSortInfo(), TopApiInServer.class);
@@ -174,12 +174,6 @@ public class ApiMetricsRawMergeService {
         if (CollectionUtils.isEmpty(apiDtoList)) {
             return;
         }
-//        apiDtoList.forEach(apiDto -> {
-//            String apiId = apiDto.getId().toHexString();
-//            T item = apiInfoMap.computeIfAbsent(apiId, instance);
-//            item.setApiName(apiDto.getName());
-//            item.setNotExistsApi(Optional.ofNullable(apiDto.getIsDeleted()).orElse(false));
-//        });
         acceptHistoryApiIdOfPath(apiDtoList, apiInfoMap, historyApiIdOfPath);
     }
 
@@ -218,12 +212,12 @@ public class ApiMetricsRawMergeService {
             item.setErrorRate(ApiMetricsCompressValueUtil.rate(errorCount, item.getRequestCount()));
             item.setErrorCount(errorCount);
             baseDataCalculate(item, rows, null);
-            long sumRps = rows.stream()
+            double sumRps = rows.stream()
                     .filter(Objects::nonNull)
                     .map(ApiMetricsRaw::getBytes)
                     .map(ApiMetricsDelayUtil::sum)
                     .map(ApiMetricsDelayUtil.Sum::getTotal)
-                    .mapToLong(Long::longValue)
+                    .mapToDouble(Double::doubleValue)
                     .sum();
             baseDataCalculate(item, rows, sumDelay -> item.setTotalRps(sumDelay > 0 ? 1000.0D * sumRps / sumDelay : 0D));
         }
@@ -239,7 +233,11 @@ public class ApiMetricsRawMergeService {
                 .sorted(Comparator.comparing(ApiMetricsRaw::getTimeStart).reversed())
                 .forEach(apiMetricsRaw -> {
                     if (!apiIds.contains(apiMetricsRaw.getApiId())) {
-                        apiIds.add(apiMetricsRaw.getApiId());
+                        if (StringUtils.isBlank(apiMetricsRaw.getApiId())) {
+                            apiIds.add(reqPath);
+                        } else {
+                            apiIds.add(apiMetricsRaw.getApiId());
+                        }
                     }
                 });
     }
@@ -380,12 +378,12 @@ public class ApiMetricsRawMergeService {
 
     protected Collection<String> errorCountOfSecondRange(List<TimeRange> ranges, Criteria apiCallCriteria) {
         Query query = genericSecondQuery(ranges, apiCallCriteria);
-        query.fields().include(CollectionField.fields(ApiCallField.ALL_PATH_ID, ApiCallField.CODE, ApiCallField.HTTP_STATUS));
+        query.fields().include(CollectionField.fields(ApiCallField.ALL_PATH_ID, ApiCallField.REQ_PATH, ApiCallField.SUCCEED));
         String callName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
         if (StringUtils.isNotBlank(callName)) {
             List<ApiCallEntity> calls = mongoTemplate.find(query, ApiCallEntity.class, callName);
             return calls.stream()
-                    .filter(e -> Objects.nonNull(e) && StringUtils.isNotBlank(e.getAllPathId()))
+                    .filter(e -> Objects.nonNull(e) && StringUtils.isNotBlank(e.getReq_path()))
                     .filter(e -> !e.isSucceed())
                     .map(ApiCallEntity::getAllPathId)
                     .distinct()
@@ -411,7 +409,8 @@ public class ApiMetricsRawMergeService {
                     e -> e.getTimeStart() >= point.getStart() && e.getTimeStart() < point.getEnd()
             );
             if (!rawsSub.isEmpty()) {
-                rawsSub.stream().map(ApiMetricsRaw::getApiId)
+                rawsSub.stream()
+                        .map(ApiMetricsRaw::getReqPath)
                         .filter(StringUtils::isNotBlank)
                         .distinct()
                         .forEach(apiIds::add);
@@ -435,13 +434,13 @@ public class ApiMetricsRawMergeService {
     protected Collection<String> count(Criteria criteria) {
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(criteria),
-                Aggregation.group(ApiMetricsRawFields.API_ID.field()),
-                Aggregation.project().and(BaseEntityFields._ID.field()).as(ApiMetricsRawFields.API_ID.field())
+                Aggregation.group(ApiMetricsRawFields.REQ_PATH.field()),
+                Aggregation.project().and(BaseEntityFields._ID.field()).as(ApiMetricsRawFields.REQ_PATH.field())
         );
         AggregationResults<Map> results = apiMetricsRepository.aggregate(aggregation, Map.class);
         return results.getMappedResults().stream()
                 .map(item -> {
-                    Object apiId = item.get(ApiMetricsRawFields.API_ID.field());
+                    Object apiId = item.get(ApiMetricsRawFields.REQ_PATH.field());
                     return apiId != null ? apiId.toString() : null;
                 })
                 .filter(StringUtils::isNotBlank)
@@ -484,7 +483,7 @@ public class ApiMetricsRawMergeService {
         return errorCount;
     }
 
-    public <T extends ValueBase> void baseDataCalculate(T item, List<ApiMetricsRaw> apiMetricsRaws, LongConsumer valueSetter) {
+    public <T extends ValueBase> void baseDataCalculate(T item, List<ApiMetricsRaw> apiMetricsRaws, DoubleConsumer valueSetter) {
         if (item instanceof DataValueBase result) {
             ApiMetricsCompressValueUtil.Setter delaySetter = ApiMetricsCompressValueUtil.Setter.of(valueSetter)
                     .avg(result::setResponseTimeAvg)
@@ -501,14 +500,6 @@ public class ApiMetricsRawMergeService {
                     .p99(result::setDbCostP99);
             ApiMetricsCompressValueUtil.calculate(apiMetricsRaws, ApiMetricsRaw::getDbCost, dbCostSetter);
         }
-    }
-
-    protected Map<String, ModulesDto> publishApis() {
-        List<ModulesDto> allActiveApi = (List<ModulesDto>) modulesService.findAllActiveApi(ModuleStatusEnum.ACTIVE);
-        return allActiveApi.stream()
-                .filter(Objects::nonNull)
-                .filter(e -> Objects.nonNull(e.getId()))
-                .collect(Collectors.toMap(e -> e.getId().toHexString(), e -> e, (e1, e2) -> e1));
     }
 
     protected Query genericSecondQuery(List<TimeRange> ranges, Criteria apiCallCriteria) {
