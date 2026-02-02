@@ -80,7 +80,7 @@ public class DBLock {
             return new Thread(threadGroup, r, threadName);
         };
 
-        ScheduledThreadPoolExecutor instance = new ScheduledThreadPoolExecutor(corePoolSize, threadFactory);
+        ScheduledThreadPoolExecutor instance = new ScheduledThreadPoolExecutor(Integer.MAX_VALUE, threadFactory);
 //        // 允许核心线程超时销毁（解决空闲线程堆积）
         instance.allowCoreThreadTimeOut(true);
 //        // 设置空闲线程存活时间
