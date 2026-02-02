@@ -73,18 +73,19 @@ public class DBLock {
         return new StandardLock(repository, key);
     }
 
-    protected static ScheduledExecutorService initExecutorService(int corePoolSize, long keepAliveTime) {
-        // 创建线程工厂，为每个线程设置唯一的线程名称
-        ThreadFactory threadFactory = r -> {
-            String threadName = prefixTag("-%d", idAtomic.getAndIncrement());
-            return new Thread(threadGroup, r, threadName);
-        };
+	    protected static ScheduledExecutorService initExecutorService(int corePoolSize, long keepAliveTime) {
+	        // 创建线程工厂，为每个线程设置唯一的线程名称
+	        ThreadFactory threadFactory = r -> {
+	            String threadName = prefixTag("-%d", idAtomic.getAndIncrement());
+	            return new Thread(threadGroup, r, threadName);
+	        };
 
-        ScheduledThreadPoolExecutor instance = new ScheduledThreadPoolExecutor(Integer.MAX_VALUE, threadFactory);
-//        // 允许核心线程超时销毁（解决空闲线程堆积）
-        instance.allowCoreThreadTimeOut(true);
-//        // 设置空闲线程存活时间
-        instance.setKeepAliveTime(keepAliveTime, TimeUnit.MILLISECONDS);
-        return instance;
-    }
+	        // Use the provided corePoolSize to bound the scheduler thread pool and avoid unbounded thread creation under load
+	        ScheduledThreadPoolExecutor instance = new ScheduledThreadPoolExecutor(corePoolSize, threadFactory);
+	//        // 允许核心线程超时销毁（解决空闲线程堆积）
+	        instance.allowCoreThreadTimeOut(true);
+	//        // 设置空闲线程存活时间
+	        instance.setKeepAliveTime(keepAliveTime, TimeUnit.MILLISECONDS);
+	        return instance;
+	    }
 }
