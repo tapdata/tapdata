@@ -1,43 +1,43 @@
-name: Gemini AI Code Review for Java
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - '**.java'
-
-permissions:
-  contents: read
-  pull-requests: write
-
-jobs:
-  gemini-code-review:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get changed Java files
-        id: changed-files
-        uses: tj-actions/changed-files@v41
-        with:
-          files: |
-            **.java
-
-      - name: Gemini AI Code Review
-        if: steps.changed-files.outputs.any_changed == 'true'
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # 安装依赖
-          pip install google-generativeai PyGithub
-          
-          # 运行 Gemini 代码审查脚本
-          python .github/workflows/ai-review/gemini_review.py \
-            --pr-number ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} \
-            --files "${{ steps.changed-files.outputs.all_changed_files }}"
+#name: Gemini AI Code Review for Java
+#
+#on:
+#  pull_request:
+#    types: [opened, synchronize, reopened]
+#    paths:
+#      - '**.java'
+#
+#permissions:
+#  contents: read
+#  pull-requests: write
+#
+#jobs:
+#  gemini-code-review:
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
+#
+#      - name: Get changed Java files
+#        id: changed-files
+#        uses: tj-actions/changed-files@v41
+#        with:
+#          files: |
+#            **.java
+#
+#      - name: Gemini AI Code Review
+#        if: steps.changed-files.outputs.any_changed == 'true'
+#        env:
+#          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        run: |
+#          # 安装依赖
+#          pip install google-generativeai PyGithub
+#
+#          # 运行 Gemini 代码审查脚本
+#          python .github/workflows/ai-review/gemini_review.py \
+#            --pr-number ${{ github.event.pull_request.number }} \
+#            --repo ${{ github.repository }} \
+#            --files "${{ steps.changed-files.outputs.all_changed_files }}"
