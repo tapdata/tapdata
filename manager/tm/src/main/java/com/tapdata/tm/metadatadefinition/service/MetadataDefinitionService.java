@@ -614,4 +614,60 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         }
     }
 
+    /**
+     * 批量导入标签定义
+     * 如果标签名已存在则更新，否则新建
+     *
+     * @param tags 标签定义列表
+     * @param user 用户信息
+     * @return 旧标签ID到新标签ID的映射
+     */
+    public Map<String, String> batchImport(List<MetadataDefinitionDto> tags, UserDetail user) {
+        Map<String, String> tagIdMap = new HashMap<>();
+        if (CollectionUtils.isEmpty(tags)) {
+            return tagIdMap;
+        }
+        List<MetadataDefinitionDto> sortTags = tags.stream()
+                .sorted(Comparator.comparing((MetadataDefinitionDto dto) -> org.apache.commons.lang3.StringUtils.isNotBlank(dto.getParent_id()))).toList();
+        for (MetadataDefinitionDto tag : sortTags) {
+            String oldId = tag.getId() != null ? tag.getId().toHexString() : null;
+            String tagValue = tag.getValue();
+
+            if (StringUtils.isBlank(tagValue)) {
+                continue;
+            }
+
+            // 查找是否已存在同名标签
+            Criteria criteria = Criteria.where("value").is(tagValue).and("item_type").is(tag.getItemType());
+            Query query = new Query(criteria);
+            MetadataDefinitionDto existing = findOne(query);
+
+            if (existing != null) {
+                // 标签已存在，更新并记录映射
+                if (oldId != null) {
+                    tagIdMap.put(oldId, existing.getId().toHexString());
+                }
+                tag.setId(null);
+                if(StringUtils.isNotBlank(tag.getParent_id())) {
+                    tag.setParent_id(tagIdMap.get(tag.getParent_id()));
+                }
+                update(Query.query(Criteria.where("_id").is(existing.getId())),tag);
+            } else {
+                // 标签不存在，新建
+                tag.setCreateUser(null);
+                tag.setCustomId(null);
+                tag.setLastUpdBy(null);
+                tag.setUserId(null);
+                tag.setId(null);
+                if(StringUtils.isNotBlank(tag.getParent_id())) {
+                    tag.setParent_id(tagIdMap.get(tag.getParent_id()));
+                }
+                MetadataDefinitionDto savedTag = super.save(tag,user);
+                tagIdMap.put(oldId, savedTag.getId().toHexString());
+            }
+        }
+
+        return tagIdMap;
+    }
+
 }
