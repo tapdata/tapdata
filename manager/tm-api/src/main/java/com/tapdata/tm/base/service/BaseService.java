@@ -213,6 +213,17 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
         return dto;
     }
 
+    public UpdateResult saveGetUpdateResult(Dto dto, UserDetail userDetail) {
+
+        Assert.notNull(dto, "Dto must not be null!");
+
+        beforeSave(dto, userDetail);
+
+        Entity entity = convertToEntity(entityClass, dto);
+
+        return repository.saveGetUpdateResult(entity, userDetail);
+    }
+
     public <T extends BaseDto> List<Dto> save(List<Dto> dtoList, UserDetail userDetail) {
         Assert.notNull(dtoList, "Dto must not be null!");
 
