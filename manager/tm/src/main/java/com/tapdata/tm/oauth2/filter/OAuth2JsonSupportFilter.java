@@ -42,8 +42,7 @@ public class OAuth2JsonSupportFilter implements Filter {
         }
         
         String contentType = httpRequest.getContentType();
-        log.debug("OAuth2 token request with Content-Type: {}", contentType);
-        
+
         // 如果是application/json，转换为form-urlencoded
         if (contentType != null && contentType.startsWith(MediaType.APPLICATION_JSON_VALUE)) {
             log.debug("Converting JSON request to form-urlencoded format");
