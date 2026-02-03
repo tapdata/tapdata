@@ -212,12 +212,9 @@ public class ApiMetricsRawMergeService {
             item.setErrorRate(ApiMetricsCompressValueUtil.rate(errorCount, item.getRequestCount()));
             item.setErrorCount(errorCount);
             baseDataCalculate(item, rows, null);
-            double sumRps = rows.stream()
+            long sumRps = rows.stream()
                     .filter(Objects::nonNull)
-                    .map(ApiMetricsRaw::getBytes)
-                    .map(ApiMetricsDelayUtil::sum)
-                    .map(ApiMetricsDelayUtil.Sum::getTotal)
-                    .mapToDouble(Double::doubleValue)
+                    .mapToLong(ApiMetricsRaw::getBytes)
                     .sum();
             baseDataCalculate(item, rows, sumDelay -> item.setTotalRps(sumDelay > 0 ? 1000.0D * sumRps / sumDelay : 0D));
         }

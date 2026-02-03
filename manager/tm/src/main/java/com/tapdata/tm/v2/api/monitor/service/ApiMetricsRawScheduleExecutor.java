@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.alibaba.fastjson.JSON;
 import com.mongodb.ClientSessionOptions;
 import com.mongodb.TransactionOptions;
 import com.mongodb.client.ClientSession;
@@ -17,7 +18,14 @@ import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.BsonBinaryWriter;
+import org.bson.BsonDocumentWriter;
+import org.bson.BsonWriter;
 import org.bson.Document;
+import org.bson.codecs.DocumentCodec;
+import org.bson.codecs.EncoderContext;
+import org.bson.codecs.configuration.CodecRegistry;
+import org.bson.io.BasicOutputBuffer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -54,7 +62,7 @@ public class ApiMetricsRawScheduleExecutor {
     public void aggregateApiCall() {
         String collectionName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
         assert null != collectionName;
-        long queryTime = System.currentTimeMillis() - 1000L;
+        long queryTime = System.currentTimeMillis() - 5000L;
         ClientSessionOptions sessionOptions = ClientSessionOptions.builder()
                 .defaultTimeout(30, TimeUnit.SECONDS)
                 .defaultTransactionOptions(TransactionOptions.builder().build())
@@ -144,6 +152,11 @@ public class ApiMetricsRawScheduleExecutor {
             BulkOperations bulkOps = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class);
             long maxTime = 0L;
             for (ApiMetricsRaw entity : entities) {
+                if (entity.getDelay().size() > 50_000
+                        || entity.getDbCost().size() > 50_000) {
+                    log.warn("API metric record too large, unable save to mongo: {}", JSON.toJSON(entity));
+                    continue;
+                }
                 entity.setTtlKey(new Date(entity.getTimeStart() * 1000L));
                 Query query = queryBuilder.apply(entity);
                 Update update = updateBuilder.apply(entity);

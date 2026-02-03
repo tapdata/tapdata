@@ -64,7 +64,7 @@ class ApiMetricsRawMergeServiceTest {
         raw.setErrorCount(errorCount);
         raw.setTimeStart(System.currentTimeMillis());
         raw.setDelay(new ArrayList<>());
-        raw.setBytes(new ArrayList<>());
+        raw.setBytes(0L);
         raw.setRps(10.0);
         return raw;
     }
