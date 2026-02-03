@@ -1,16 +1,17 @@
 package com.tapdata.tm.apiServer.service.metric;
 
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
-import com.tapdata.tm.apiServer.utils.PercentileCalculator;
 import com.tapdata.tm.apiServer.vo.ApiCallMetricVo;
 import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
 import com.tapdata.tm.apiServer.vo.metric.OfResponseTime;
+import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -30,15 +31,21 @@ public class MetricResponseTime implements Metric<ApiCallMetricVo.MetricResponse
     public MetricDataBase mergeTo(Long timeStart, List<WorkerCallEntity> vos) {
         OfResponseTime ofResponseTime = new OfResponseTime();
         ofResponseTime.setTime(timeStart);
-        List<Long> delays = new ArrayList<>();
+        List<List<Map<String, Number>>> delayList = new ArrayList<>();
         vos.forEach(vo -> {
             if (vo.getDelays() != null && !vo.getDelays().isEmpty()) {
-                delays.addAll(vo.getDelays());
+                delayList.add(vo.getDelays());
             }
         });
-        ofResponseTime.setP50(PercentileCalculator.calculatePercentile(delays, 0.5));
-        ofResponseTime.setP95(PercentileCalculator.calculatePercentile(delays, 0.95));
-        ofResponseTime.setP99(PercentileCalculator.calculatePercentile(delays, 0.99));
+        List<Map<String, Number>> merged = ApiMetricsDelayUtil.merge(delayList);
+        ApiMetricsDelayUtil.Sum sum = ApiMetricsDelayUtil.sum(merged);
+        long total = sum.getCount();
+        Double p95 = ApiMetricsDelayUtil.p95(merged, total);
+        Double p50 = ApiMetricsDelayUtil.p50(merged, total);
+        Double p99 = ApiMetricsDelayUtil.p99(merged, total);
+        ofResponseTime.setP50(p50);
+        ofResponseTime.setP95(p95);
+        ofResponseTime.setP99(p99);
         return ofResponseTime;
     }
 

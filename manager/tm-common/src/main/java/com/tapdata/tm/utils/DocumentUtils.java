@@ -24,6 +24,8 @@ public class DocumentUtils {
 			return (Long) value;
 		} else if (value instanceof Integer) {
 			return Long.parseLong(value.toString());
+		}  else if (value instanceof Double iDouble) {
+			return iDouble.longValue();
 		} else {
 			return 0L;
 		}
