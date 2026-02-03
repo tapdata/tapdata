@@ -147,7 +147,7 @@ public class ParticleSizeAnalyzer {
             row.setReqCount(1L);
             row.setErrorCount(errorCount);
             row.setRps(1D / 60D);
-            row.setBytes(ApiMetricsCompressValueUtil.asInit(apiCallEntity.getReqBytes()));
+            row.setBytes(apiCallEntity.getReqBytes());
             row.setDelay(ApiMetricsCompressValueUtil.asInit(apiCallEntity.getLatency()));
             row.setSubMetrics(new HashMap<>());
             row.setId(new ObjectId());

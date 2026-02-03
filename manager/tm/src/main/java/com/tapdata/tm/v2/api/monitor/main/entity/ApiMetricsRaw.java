@@ -68,11 +68,7 @@ public class ApiMetricsRaw extends BaseEntity {
 
     private Double rps;
 
-    /**
-     * To save space, the content of this field is as follows: [{k: 102, v: 2}, {k: 89, v: 5}]
-     * k represents the byte of a request, and v represents the corresponding number of occurrences
-     */
-    private List<Map<String, Number>> bytes;
+    private Long bytes;
 
     /**
      * To save space, the content of this field is as follows: [{k: 102, v: 2}, {k: 89, v: 5}]
@@ -113,7 +109,7 @@ public class ApiMetricsRaw extends BaseEntity {
         item.setReqCount(0L);
         item.setErrorCount(0L);
         item.setRps(0d);
-        item.setBytes(new ArrayList<>());
+        item.setBytes(0L);
         item.setDelay(new ArrayList<>());
         item.setMetricType(metricType.getType());
         switch (metricType) {
@@ -139,9 +135,7 @@ public class ApiMetricsRaw extends BaseEntity {
     public void merge(ApiMetricsRaw raw) {
         setReqCount(Optional.ofNullable(getReqCount()).orElse(0L) + Optional.ofNullable(raw.getReqCount()).orElse(0L));
         setErrorCount(Optional.ofNullable(getErrorCount()).orElse(0L) + Optional.ofNullable(raw.getErrorCount()).orElse(0L));
-        List<Map<String, Number>> mergeBytes = ApiMetricsDelayUtil.merge(Optional.ofNullable(getBytes())
-                .orElse(new ArrayList<>()), Optional.ofNullable(raw.getBytes()).orElse(new ArrayList<>()));
-        setBytes(mergeBytes);
+        setBytes(Optional.ofNullable(getBytes()).orElse(0L) + Optional.ofNullable(raw.getBytes()).orElse(0L));
         List<Map<String, Number>> mergeDelay = ApiMetricsDelayUtil.merge(Optional.ofNullable(getDelay())
                 .orElse(new ArrayList<>()), Optional.ofNullable(raw.getDelay()).orElse(new ArrayList<>()));
         setDelay(mergeDelay);
@@ -171,34 +165,34 @@ public class ApiMetricsRaw extends BaseEntity {
 
     public void merge(ApiMetricsRaw raw, long time, long timeGranularity) {
         List<Map<String, Number>> rawDelay = Optional.ofNullable(raw.getDelay()).orElse(new ArrayList<>());
-        List<Map<String, Number>> rawBytes = Optional.ofNullable(raw.getBytes()).orElse(new ArrayList<>());
         List<Map<String, Number>> rawDbCost = Optional.ofNullable(raw.getDbCost()).orElse(new ArrayList<>());
         long rawReqCount = Optional.ofNullable(raw.getReqCount()).orElse(0L);
         long rawErrorCount = Optional.ofNullable(raw.getErrorCount()).orElse(0L);
+        long byteCount = Optional.ofNullable(raw.getBytes()).orElse(0L);
         mergeWorkerInfo(raw.getWorkerInfoMap());
         if (timeGranularity == 0) {
             Map<Long, ApiMetricsRaw> subMetricsInfo = Optional.ofNullable(getSubMetrics()).orElse(new HashMap<>());
             ApiMetricsRaw sub = Optional.ofNullable(subMetricsInfo.get(time)).orElse(new ApiMetricsRaw());
             long reqCountInfo = Optional.ofNullable(sub.getReqCount()).orElse(0L);
             long errorCountInfo = Optional.ofNullable(sub.getErrorCount()).orElse(0L);
-            List<Map<String, Number>> bytesInfo = Optional.ofNullable(sub.getBytes()).orElse(new ArrayList<>());
+            long bytesCountInfo = Optional.ofNullable(sub.getBytes()).orElse(0L);
             List<Map<String, Number>> delayInfo = Optional.ofNullable(sub.getDelay()).orElse(new ArrayList<>());
             List<Map<String, Number>> dbCostInfo = Optional.ofNullable(sub.getDbCost()).orElse(new ArrayList<>());
             sub.setReqCount(reqCountInfo + rawReqCount);
             sub.setErrorCount(errorCountInfo + rawErrorCount);
-            sub.setBytes(ApiMetricsDelayUtil.merge(bytesInfo, rawBytes));
+            sub.setBytes(byteCount + bytesCountInfo);
             sub.setDelay(ApiMetricsDelayUtil.merge(delayInfo, rawDelay));
             sub.setDbCost(ApiMetricsDelayUtil.merge(dbCostInfo, rawDbCost));
             setSubMetrics(subMetricsInfo);
         } else {
             long reqCountInfo = Optional.ofNullable(getReqCount()).orElse(0L);
             long errorCountInfo = Optional.ofNullable(getErrorCount()).orElse(0L);
-            List<Map<String, Number>> bytesInfo = Optional.ofNullable(getBytes()).orElse(new ArrayList<>());
+            long bytesCountInfo = Optional.ofNullable(getBytes()).orElse(0L);
             List<Map<String, Number>> delayInfo = Optional.ofNullable(getDelay()).orElse(new ArrayList<>());
             List<Map<String, Number>> dbCostInfo = Optional.ofNullable(getDbCost()).orElse(new ArrayList<>());
             setReqCount(reqCountInfo + rawReqCount);
             setErrorCount(errorCountInfo + rawErrorCount);
-            setBytes(ApiMetricsDelayUtil.merge(bytesInfo, rawBytes));
+            setBytes(byteCount + bytesCountInfo);
             setDelay(ApiMetricsDelayUtil.merge(delayInfo, rawDelay));
             setDbCost(ApiMetricsDelayUtil.merge(dbCostInfo, rawDbCost));
         }
@@ -207,7 +201,7 @@ public class ApiMetricsRaw extends BaseEntity {
     public void merge(boolean isOk, long reqBytes, double requestCost, double dbCost) {
         setReqCount(Optional.ofNullable(getReqCount()).orElse(0L) + 1L);
         setErrorCount(Optional.ofNullable(getErrorCount()).orElse(0L) + (isOk ? 0L : 1L));
-        setBytes(ApiMetricsDelayUtil.addDelay(Optional.ofNullable(getBytes()).orElse(new ArrayList<>()), reqBytes));
+        setBytes(Optional.ofNullable(getBytes()).orElse(0L) + reqBytes);
         setDelay(ApiMetricsDelayUtil.addDelay(Optional.ofNullable(getDelay()).orElse(new ArrayList<>()), requestCost));
         setDbCost(ApiMetricsDelayUtil.addDelay(Optional.ofNullable(getDbCost()).orElse(new ArrayList<>()), dbCost));
         calcRps();

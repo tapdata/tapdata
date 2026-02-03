@@ -199,13 +199,17 @@ public final class ApiMetricsCompressValueUtil {
                     timeGranularity,
                     MetricTypes.of(firstOne.getMetricType())
             );
-            mergeAll(items, ApiMetricsRaw::getBytes, hour::setBytes);
             mergeAll(items, ApiMetricsRaw::getDelay, hour::setDelay);
             mergeAll(items, ApiMetricsRaw::getDbCost, hour::setDbCost);
             long errorCount = items.stream()
                     .filter(Objects::nonNull)
                     .filter(e -> Objects.nonNull(e.getErrorCount()))
                     .mapToLong(ApiMetricsRaw::getErrorCount)
+                    .sum();
+            long bytesCount = items.stream()
+                    .filter(Objects::nonNull)
+                    .filter(e -> Objects.nonNull(e.getBytes()))
+                    .mapToLong(ApiMetricsRaw::getBytes)
                     .sum();
             ApiMetricsDelayUtil.Sum sumOf = ApiMetricsDelayUtil.sum(hour.getDelay());
             final double sum = sumOf.getTotal();
@@ -218,6 +222,7 @@ public final class ApiMetricsCompressValueUtil {
             hour.setTtlKey(new Date(hour.getTimeStart() * 1000L));
             hour.setErrorCount(errorCount);
             hour.setReqCount(reqCount);
+            hour.setBytes(bytesCount);
             List<WorkerInfo> mergedWorkers = items.stream()
                     .map(ApiMetricsRaw::getWorkerInfoMap)
                     .filter(Objects::nonNull)

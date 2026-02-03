@@ -808,14 +808,13 @@ public class ApiMetricsChartQuery {
                                             ApiMetricsRaw apiMetricsRaw = rows.get(0);
                                             long timeStart = apiMetricsRaw.getTimeStart();
                                             ChartAndDelayOfApi.Item item = new ChartAndDelayOfApi.Item();
-                                            Double totalBytes = rows.stream().map(ApiMetricsRaw::getBytes)
-                                                    .map(ApiMetricsDelayUtil::sum)
-                                                    .mapToDouble(ApiMetricsDelayUtil.Sum::getTotal)
+                                            long totalBytes = rows.stream()
+                                                    .mapToLong(ApiMetricsRaw::getBytes)
                                                     .sum();
                                             List<Map<String, Number>> mergedDelay = ApiMetricsCompressValueUtil.mergeItems(rows, ApiMetricsRaw::getDelay);
                                             item.setDelay(mergedDelay);
                                             item.setTs(timeStart);
-                                            item.setTotalBytes(totalBytes.longValue());
+                                            item.setTotalBytes(totalBytes);
                                             List<Map<String, Number>> mergedDBCost = ApiMetricsCompressValueUtil.mergeItems(rows, ApiMetricsRaw::getDbCost);
                                             item.setDbCost(mergedDBCost);
                                             return item;

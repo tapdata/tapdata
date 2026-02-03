@@ -295,7 +295,7 @@ class MetricInstanceFactoryTest {
         raw.setReqCount(0L);
         raw.setErrorCount(0L);
         raw.setRps(0.0);
-        raw.setBytes(new ArrayList<>());
+        raw.setBytes(0L);
         raw.setDelay(new ArrayList<>());
         raw.setSubMetrics(new HashMap<>());
         return raw;

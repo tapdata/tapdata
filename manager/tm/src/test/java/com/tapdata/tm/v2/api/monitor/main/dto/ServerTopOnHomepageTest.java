@@ -32,7 +32,7 @@ class ServerTopOnHomepageTest {
             raw.setReqCount(100L);
             raw.setErrorCount(10L);
             raw.setDelay(new ArrayList<>());
-            raw.setBytes(new ArrayList<>());
+            raw.setBytes(0L);
             raw.setRps(10.0);
             raw.setP95(1000D);
             item.merge(raw);
