@@ -75,7 +75,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     //@Transactional
     public abstract TaskDto updateById(TaskDto taskDto, UserDetail user);
 
-    public abstract TaskDto updateById(TaskDto taskDto, UserDetail user,Boolean importTask);
+    public abstract UpdateResult updateById(TaskDto taskDto, UserDetail user,Boolean importTask);
 
     public abstract TaskDto updateAfter(TaskDto taskDto, UserDetail user);
 
@@ -197,7 +197,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags);
 
-    public abstract void batchImport(List<TaskDto> taskDtos, UserDetail user, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, String> taskMap,Map<String, String> nodeMap);
+    public abstract Map<String, Object> batchImport(List<TaskDto> taskDtos, UserDetail user, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, String> taskMap, Map<String, String> nodeMap, List<String> resetTaskList);
 
     public abstract Criteria parseOrToCriteria(Where where);
 
@@ -336,4 +336,3 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
         private long totalDeleteSize = 0;
     }
 }
-
