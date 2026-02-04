@@ -31,7 +31,7 @@ public class ApiCallEntity extends BaseEntity {
     @JsonProperty("res_rows")
     private Long resRows=0L;
 
-    private Long latency;
+    private Number latency;
 
     private Long reqTime;
 
@@ -102,7 +102,7 @@ public class ApiCallEntity extends BaseEntity {
     /**
      * api请求的数据库访问耗时
      * */
-    private Long dataQueryTotalTime;
+    private Number dataQueryTotalTime;
 
     /**
      * query Of Count
@@ -128,6 +128,12 @@ public class ApiCallEntity extends BaseEntity {
      * @see HttpStatusType
      * */
     private String httpStatus;
+
+    private boolean succeed;
+
+    private boolean delete;
+
+    private boolean hasMetric;
 
     @Getter
     public enum HttpStatusType {

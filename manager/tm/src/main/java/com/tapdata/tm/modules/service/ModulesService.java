@@ -89,6 +89,7 @@ import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -638,6 +639,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiWorkerInfos.add(item);
 		}
 		Optional.ofNullable(one).ifPresent(info -> reUpdateWorkerInfo(info, apiWorkerInfos));
+		apiWorkerInfos.stream()
+				.filter(e -> org.apache.commons.lang3.StringUtils.isBlank(e.getOid()))
+				.forEach(w -> w.setOid(new ObjectId().toHexString()));
 		return apiWorkerInfos;
 	}
 
@@ -1324,9 +1328,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			ApiCallEntity lastApiCall = apiCallService.findOne(lastApiCallQuery);
 			if (null != lastApiCall && null != lastApiCall.getResRows() && lastApiCall.getResRows() > 0) {
 				//最新一次的响应时间
-				apiDetailVo.setResponseTime(BigDecimal.valueOf(lastApiCall.getLatency()).divide(BigDecimal.valueOf(lastApiCall.getResRows()), 2, RoundingMode.HALF_UP).doubleValue());
+				apiDetailVo.setResponseTime(BigDecimal.valueOf(lastApiCall.getLatency().doubleValue())
+						.divide(BigDecimal.valueOf(lastApiCall.getResRows()), 2, RoundingMode.HALF_UP).doubleValue());
 				//最新一次的的耗时
-				apiDetailVo.setTimeConsuming(lastApiCall.getLatency());
+				apiDetailVo.setTimeConsuming(lastApiCall.getLatency().longValue());
 			}
 			// 总行数
 			apiDetailVo.setVisitTotalLine(apiCallStatsDto.getResponseDataRowTotalCount());
@@ -1621,41 +1626,47 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 * @param conMap 连接映射
 	 * @param metaMap 元数据映射
 	 */
-	protected void batchImport(List<ModulesDto> modulesDtos, UserDetail user, ImportModeEnum importMode,
+	public Map<String, Object> batchImport(List<ModulesDto> modulesDtos, UserDetail user, ImportModeEnum importMode,
 							Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap) {
 
+		Map<String, Object> importResult = new HashMap<>();
 		for (ModulesDto modulesDto : modulesDtos) {
-			// 基于名称查找现有模块，而不是基于ID
-			ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
+			try {
+				// 基于名称查找现有模块，而不是基于ID
+				ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
 
-			modulesDto.setIsDeleted(false);
-			modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+				modulesDto.setIsDeleted(false);
+				modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
 
-			// 根据导入模式处理
-			switch (importMode) {
-				case REPLACE,REUSE_EXISTING:
-					handleReplaceMode(modulesDto, existingModuleByName, user, conMap);
-					break;
-				case IMPORT_AS_COPY:
-					handleImportAsCopyMode(modulesDto, user, conMap);
-					break;
-				case CANCEL_IMPORT:
-					if (null != existingModuleByName) {
-						return;
-					} else {
-						if (checkConnectionIdDuplicate(modulesDto, conMap)) {
-							return;
+				// 根据导入模式处理
+				switch (importMode) {
+					case REPLACE,REUSE_EXISTING,GROUP_IMPORT:
+						handleReplaceMode(modulesDto, existingModuleByName, user, conMap,importResult);
+						break;
+					case IMPORT_AS_COPY:
+						handleImportAsCopyMode(modulesDto, user, conMap);
+						break;
+					case CANCEL_IMPORT:
+						if (null != existingModuleByName) {
+							return importResult;
 						} else {
-							handleImportAsCopyMode(modulesDto, user, conMap);
+							if (checkConnectionIdDuplicate(modulesDto, conMap)) {
+								return importResult;
+							} else {
+								handleImportAsCopyMode(modulesDto, user, conMap);
+							}
 						}
-					}
-					break;
-				default:
-					// 默认使用复制导入
-					handleImportAsCopyMode(modulesDto, user, conMap);
-					break;
+						break;
+					default:
+						// 默认使用复制导入
+						handleImportAsCopyMode(modulesDto, user, conMap);
+						break;
+				}
+			}catch (Exception e){
+				importResult.put(modulesDto.getId().toHexString(), ExceptionUtils.getStackTrace(e));
 			}
 		}
+		return importResult;
 	}
 
 	/**
@@ -1663,7 +1674,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 */
 	protected ModulesDto findExistingModuleByName(String name, UserDetail user) {
 		Query query = new Query(Criteria.where("name").is(name).and("is_deleted").ne(true));
-		query.fields().include("_id", "user_id", "name");
+		query.fields().include("_id", "user_id", "name","status");
 		return findOne(query, user);
 	}
 
@@ -1671,17 +1682,22 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 * 处理替换模式
 	 */
 	protected void handleReplaceMode(ModulesDto modulesDto, ModulesDto existingModule, UserDetail user,
-								  Map<String, DataSourceConnectionDto> conMap) {
+								  Map<String, DataSourceConnectionDto> conMap,Map<String, Object> importResult) {
 		if (existingModule != null) {
 			// 保留现有模块的ID，使用导入数据覆盖
 			ObjectId existingId = existingModule.getId();
 			modulesDto.setId(existingId);
-
+			String existStatus = existingModule.getStatus();
+			if(existStatus.equals(ModuleStatusEnum.ACTIVE.getValue())) {
+				existingModule.setStatus(ModuleStatusEnum.PENDING.getValue());
+				updateModuleById(existingModule, user);
+				modulesDto.setStatus(ModuleStatusEnum.ACTIVE.getValue());
+			}
 			// 更新连接ID映射
 			updateConnectionIds(modulesDto, conMap);
-
 			// 更新现有模块
-			updateByWhere(new Query(Criteria.where("_id").is(existingId)), modulesDto, user);
+			Long count = updateByWhere(new Query(Criteria.where("_id").is(existingId)), modulesDto, user);
+			importResult.put(existingId.toHexString(),count);
 		} else {
 			Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
 			idQuery.fields().include("_id", "user_id", "name");
@@ -1759,7 +1775,13 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	public List<ModulesDto> findAllModulesByIds(List<String> list) {
-		List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
+		List<ObjectId> ids = list.stream()
+				.map(MongoUtils::toObjectId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toList());
+		if (ids.isEmpty()) {
+			return new ArrayList<>();
+		}
 		Query query = new Query(Criteria.where("_id").in(ids));
 		List<ModulesEntity> entityList = findAllEntity(query);
 		return CglibUtil.copyList(entityList, ModulesDto::new);

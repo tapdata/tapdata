@@ -1,18 +1,17 @@
 package com.tapdata.tm.v2.api.monitor.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiItem;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiOfEachServer;
-import com.tapdata.tm.v2.api.monitor.main.dto.ApiTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.dto.ChartAndDelayOfApi;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerChart;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerItem;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerOverviewDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerTopOnHomepage;
 import com.tapdata.tm.v2.api.monitor.main.dto.TopApiInServer;
-import com.tapdata.tm.v2.api.monitor.main.dto.TopWorkerInServer;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiChart;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiDetailParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ApiListParam;
@@ -22,8 +21,8 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerChartParam;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerDetail;
 import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.main.param.TopApiInServerParam;
-import com.tapdata.tm.v2.api.monitor.main.param.TopWorkerInServerParam;
-import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawQuery;
+import com.tapdata.tm.v2.api.monitor.service.ApiMetricsChartQuery;
+import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawMergeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -32,7 +31,6 @@ import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -53,8 +51,10 @@ import java.util.List;
 @ApiResponses(value = {@ApiResponse(description = "successful operation", responseCode = "200")})
 public class ApiServerMonitorController extends BaseController {
 
-    @Resource(name = "apiMetricsRawQuery")
-    ApiMetricsRawQuery apiMetricsRawQuery;
+    @Resource(name = "apiMetricsChartQuery")
+    ApiMetricsChartQuery apiMetricsChartQuery;
+    @Resource(name = "apiMetricsRawMergeService")
+    ApiMetricsRawMergeService apiMetricsRawMergeService;
 
     /**
      * Server Top column on the homepage
@@ -62,11 +62,15 @@ public class ApiServerMonitorController extends BaseController {
     @Operation(summary = "Server Top column on the homepage")
     @GetMapping("/server")
     public ResponseMessage<ServerTopOnHomepage> serverTopOnHomepage(@RequestParam(required = false, name = "startAt") Long startAt,
-                                                                    @RequestParam(required = false, name = "endAt") Long endAt) {
+                                                                    @RequestParam(required = false, name = "endAt") Long endAt,
+                                                                    @RequestParam(required = false, name = "type") String type,
+                                                                    @RequestParam(required = false, name = "step") Long step) {
         QueryBase param = new QueryBase();
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.serverTopOnHomepage(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.serverTopOnHomepage(param));
     }
 
     /**
@@ -76,27 +80,35 @@ public class ApiServerMonitorController extends BaseController {
     @GetMapping("/server/list")
     public ResponseMessage<List<ServerItem>> serverOverviewList(@RequestParam(required = false) String serverName,
                                                                 @RequestParam(required = false) Long startAt,
-                                                                @RequestParam(required = false) Long endAt) {
+                                                                @RequestParam(required = false) Long endAt,
+                                                                @RequestParam(required = false, name = "type") String type,
+                                                                @RequestParam(required = false, name = "step") Long step) {
         ServerListParam param = new ServerListParam();
         param.setServerName(serverName);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.serverOverviewList(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.serverOverviewList(param));
     }
 
     /**
      * Server Overview Detail
      */
     @Operation(summary = "Server Overview Detail")
-    @GetMapping("/server/detail/{serverId}")
-    public ResponseMessage<ServerOverviewDetail> serverOverviewDetail(@PathVariable(required = true) String serverId,
+    @GetMapping("/server/detail")
+    public ResponseMessage<ServerOverviewDetail> serverOverviewDetail(@RequestParam(required = true) String serverId,
                                                                       @RequestParam(required = false) Long startAt,
-                                                                      @RequestParam(required = false) Long endAt) {
+                                                                      @RequestParam(required = false) Long endAt,
+                                                                      @RequestParam(required = false, name = "type") String type,
+                                                                      @RequestParam(required = false, name = "step") Long step) {
         ServerDetail param = new ServerDetail();
         param.setServerId(serverId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.serverOverviewDetail(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.serverOverviewDetail(param));
     }
 
 
@@ -104,15 +116,19 @@ public class ApiServerMonitorController extends BaseController {
      * Server Chart
      */
     @Operation(summary = "Server Chart")
-    @GetMapping("/server/chart/{serverId}")
-    public ResponseMessage<ServerChart> serverChart(@PathVariable(required = true) String serverId,
+    @GetMapping("/server/chart")
+    public ResponseMessage<ServerChart> serverChart(@RequestParam(required = true) String serverId,
                                                     @RequestParam(required = false) Long startAt,
-                                                    @RequestParam(required = false) Long endAt) {
+                                                    @RequestParam(required = false) Long endAt,
+                                                    @RequestParam(required = false, name = "type") String type,
+                                                    @RequestParam(required = false, name = "step") Long step) {
         ServerChartParam param = new ServerChartParam();
         param.setServerId(serverId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.serverChart(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.serverChart(param));
     }
 
 
@@ -120,110 +136,106 @@ public class ApiServerMonitorController extends BaseController {
      * Top api in server
      */
     @Operation(summary = "Top api in server")
-    @GetMapping("/server/api/{serverId}")
-    public ResponseMessage<List<TopApiInServer>> topApiInServer(@PathVariable(required = true) String serverId,
+    @GetMapping("/server/api")
+    public ResponseMessage<Page<TopApiInServer>> topApiInServer(@RequestParam(required = true) String serverId,
                                                                 @RequestParam(required = false) String orderBy,
                                                                 @RequestParam(required = false) Long startAt,
-                                                                @RequestParam(required = false) Long endAt) {
+                                                                @RequestParam(required = false) Long endAt,
+                                                                @RequestParam(required = false, name = "type") String type,
+                                                                @RequestParam(required = false, name = "step") Long step,
+                                                                @RequestParam(required = false, defaultValue = "0") Integer skip,
+                                                                @RequestParam(required = false, defaultValue = "10") Integer limit) {
         TopApiInServerParam param = new TopApiInServerParam();
         param.setServerId(serverId);
-        param.setOrderBy(orderBy);
+        param.setSortInfo(QueryBase.SortInfo.parse(orderBy));
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.topApiInServer(param));
+        param.setSkip(skip);
+        param.setLimit(limit);
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsRawMergeService.topApiInServer(param));
     }
 
-    /**
-     * Top worker in server
-     * @param tag
-     * CPU: 仅查询cpu分布
-     * ALL: 查询cpu分布 + Worker列表, default
-     */
-    @Operation(summary = "Top worker in server")
-    @GetMapping("/server/worker/{serverId}")
-    public ResponseMessage<TopWorkerInServer> topWorkerInServer(@PathVariable(required = true) String serverId,
-                                                                      @RequestParam(required = false, defaultValue = "ALL") String tag,
-                                                                      @RequestParam(required = false) Long startAt,
-                                                                      @RequestParam(required = false) Long endAt) {
-        TopWorkerInServerParam param = new TopWorkerInServerParam();
-        param.setServerId(serverId);
-        param.setStartAt(startAt);
-        param.setEndAt(endAt);
-        param.setTag(tag);
-        return success(apiMetricsRawQuery.topWorkerInServer(param));
-    }
-
-
-    /**
-     * Api Top column on the homepage
-     */
-    @Operation(summary = "Api Top column on the homepage")
-    @GetMapping("/api")
-    public ResponseMessage<ApiTopOnHomepage> apiTopOnHomepage(@RequestParam(required = false) Long startAt,
-                                                              @RequestParam(required = false) Long endAt) {
-        QueryBase param = new QueryBase();
-        param.setStartAt(startAt);
-        param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.apiTopOnHomepage(param));
-    }
 
     /**
      * Api Overview List
      */
     @Operation(summary = "Api Overview List")
     @GetMapping("/api/list")
-    public ResponseMessage<List<ApiItem>> apiOverviewList(@RequestParam(required = false) String orderBy,
+    public ResponseMessage<Page<ApiItem>> apiOverviewList(@RequestParam(required = false) String orderBy,
                                                           @RequestParam(required = false) Long startAt,
-                                                          @RequestParam(required = false) Long endAt) {
+                                                          @RequestParam(required = false) Long endAt,
+                                                          @RequestParam(required = false, name = "type") String type,
+                                                          @RequestParam(required = false, name = "step") Long step,
+                                                          @RequestParam(required = false, defaultValue = "0") Integer skip,
+                                                          @RequestParam(required = false, defaultValue = "10") Integer limit) {
         ApiListParam param = new ApiListParam();
-        param.setOrderBy(orderBy);
+        param.setOrderBy(QueryBase.SortInfo.parse(orderBy));
         param.setStartAt(startAt);
+        param.setSortInfo(QueryBase.SortInfo.parse(orderBy));
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.apiOverviewList(param));
+        param.setSkip(skip);
+        param.setLimit(limit);
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsRawMergeService.apiOverviewList(param));
     }
 
     /**
      * Api Overview Detail
      */
     @Operation(summary = "Api Overview Detail")
-    @GetMapping("/api/detail/{apiId}")
-    public ResponseMessage<ApiDetail> apiOverviewDetail(@PathVariable(required = true) String apiId,
+    @GetMapping("/api/detail")
+    public ResponseMessage<ApiDetail> apiOverviewDetail(@RequestParam(required = true) String apiId,
                                                         @RequestParam(required = false) Long startAt,
-                                                        @RequestParam(required = false) Long endAt) {
+                                                        @RequestParam(required = false) Long endAt,
+                                                        @RequestParam(required = false, name = "type") String type,
+                                                        @RequestParam(required = false, name = "step") Long step) {
         ApiDetailParam param = new ApiDetailParam();
-        param.setApiId(apiId);
+        param.setReqPath(apiId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.apiOverviewDetail(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.apiOverviewDetail(param));
     }
 
     /**
-     * api的各 Server 表现分布
+     * Distribution of API performance across servers
      */
-    @Operation(summary = "api的各 Server 表现分布")
-    @GetMapping("/api/server/{apiId}")
-    public ResponseMessage<List<ApiOfEachServer>> apiOfEachServer(@PathVariable(required = true) String apiId,
+    @Operation(summary = "Distribution of API performance across servers")
+    @GetMapping("/api/server")
+    public ResponseMessage<List<ApiOfEachServer>> apiOfEachServer(@RequestParam(required = true) String apiId,
                                                                   @RequestParam(required = false) Long startAt,
-                                                                  @RequestParam(required = false) Long endAt) {
+                                                                  @RequestParam(required = false) Long endAt,
+                                                                  @RequestParam(required = false, name = "type") String type,
+                                                                  @RequestParam(required = false, name = "step") Long step) {
         ApiWithServerDetail param = new ApiWithServerDetail();
-        param.setApiId(apiId);
+        param.setReqPath(apiId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.apiOfEachServer(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.apiOfEachServer(param));
     }
 
     /**
-     * 吞吐量与延迟趋势
+     * Throughput and latency trends
      */
-    @Operation(summary = "吞吐量与延迟趋势")
-    @GetMapping("/api/chart/{apiId}")
-    public ResponseMessage<ChartAndDelayOfApi> delayOfApi(@PathVariable(required = true) String apiId,
+    @Operation(summary = "Throughput and latency trends")
+    @GetMapping("/api/chart")
+    public ResponseMessage<ChartAndDelayOfApi> delayOfApi(@RequestParam(required = true) String apiId,
                                                           @RequestParam(required = false) Long startAt,
-                                                          @RequestParam(required = false) Long endAt) {
+                                                          @RequestParam(required = false) Long endAt,
+                                                          @RequestParam(required = false, name = "type") String type,
+                                                          @RequestParam(required = false, name = "step") Long step) {
         ApiChart param = new ApiChart();
-        param.setApiId(apiId);
+        param.setReqPath(apiId);
         param.setStartAt(startAt);
         param.setEndAt(endAt);
-        return success(apiMetricsRawQuery.delayOfApi(param));
+        param.setType(type);
+        param.setStep(step);
+        return success(apiMetricsChartQuery.delayOfApi(param));
     }
 }

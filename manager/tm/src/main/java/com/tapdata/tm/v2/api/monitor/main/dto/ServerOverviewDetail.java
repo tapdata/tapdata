@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -11,26 +12,25 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ServerOverviewDetail extends ValueBase {
+public class ServerOverviewDetail extends DataValueBase {
     private String serverName;
 
     private String serverId;
 
+    @DecimalFormat
     private Double cpuUsage;
 
+    @DecimalFormat
     private Double memoryUsage;
 
     private Long usagePingTime;
 
     private Long requestCount;
 
-    private Double errorRate;
+    @DecimalFormat
+    private double errorRate;
 
-    private Long p95;
+    private long errorCount;
 
-    private Long p99;
-
-    private Long maxDelay;
-
-    private Long minDelay;
+    TopWorkerInServer workerInfo = new TopWorkerInServer();
 }

@@ -12,5 +12,8 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ApiListParam extends QueryBase {
-    String orderBy;
+    SortInfo orderBy;
+
+    int skip = 0;
+    int limit = 10;
 }

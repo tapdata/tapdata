@@ -44,4 +44,6 @@ public class ApiServerStatus {
     MetricInfo metricValues;
 
     private Boolean updateCpuMem;
+
+    Long auditLogPushMaxDelay;
 }

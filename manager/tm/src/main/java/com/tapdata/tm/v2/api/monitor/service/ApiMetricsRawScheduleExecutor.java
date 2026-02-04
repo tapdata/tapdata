@@ -1,20 +1,32 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.alibaba.fastjson.JSON;
+import com.mongodb.ClientSessionOptions;
+import com.mongodb.TransactionOptions;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.Sorts;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
-import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
+import com.tapdata.tm.apiCalls.entity.ApiCallField;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
+import com.tapdata.tm.base.field.BaseEntityFields;
+import com.tapdata.tm.base.field.CollectionField;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
+import org.bson.BsonBinaryWriter;
+import org.bson.BsonDocumentWriter;
+import org.bson.BsonWriter;
 import org.bson.Document;
-import org.bson.types.ObjectId;
+import org.bson.codecs.DocumentCodec;
+import org.bson.codecs.EncoderContext;
+import org.bson.codecs.configuration.CodecRegistry;
+import org.bson.io.BasicOutputBuffer;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -23,8 +35,10 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.util.Date;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -37,51 +51,88 @@ import java.util.function.Function;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ApiMetricsRawScheduleExecutor {
-    public static final String OBJECT_ID = "_id";
+    static final int BATCH_READ_SIZE = 2000;
+
     MongoTemplate mongoTemplate;
 
-    MetricInstanceFactory create() {
+    public MetricInstanceFactory create(long queryEnd) {
         return new MetricInstanceFactory(this::saveApiMetricsRaw, this::findMetricStart);
     }
 
     public void aggregateApiCall() {
-        final String collectionName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
-        if (StringUtils.isBlank(collectionName)) {
-            return;
-        }
-        ObjectId lastCallId = lastOne();
-        try (MetricInstanceFactory acceptor = create()) {
-            final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
-            final Criteria criteria = Criteria.where("deleted").ne(true)
-                    .and("supplement").ne(true);
-            if (Objects.nonNull(lastCallId)) {
-                criteria.and(OBJECT_ID).gt(lastCallId);
+        String collectionName = MongoUtils.getCollectionNameIgnore(ApiCallEntity.class);
+        assert null != collectionName;
+        long queryTime = System.currentTimeMillis() - 5000L;
+        ClientSessionOptions sessionOptions = ClientSessionOptions.builder()
+                .defaultTimeout(30, TimeUnit.SECONDS)
+                .defaultTransactionOptions(TransactionOptions.builder().build())
+                .build();
+        ClientSession session = null;
+        try {
+            session = mongoTemplate.getMongoDatabaseFactory().getSession(sessionOptions);
+            session.startTransaction();
+            try (MetricInstanceFactory acceptor = create(queryTime)) {
+                final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
+                eachApi(queryTime, collection, acceptor);
             }
-            final Query query = Query.query(criteria);
-            final Document queryObject = query.getQueryObject();
-            final FindIterable<Document> iterable =
-                    collection.find(queryObject, Document.class)
-                            .sort(Sorts.ascending(OBJECT_ID))
-                            .batchSize(1000);
-            try (final MongoCursor<Document> cursor = iterable.iterator()) {
-                while (cursor.hasNext()) {
-                    final Document entity = cursor.next();
-                    acceptor.accept(entity);
-                }
+            Criteria updateCriteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
+                    .and(ApiCallField.HAS_METRIC.field()).is(false);
+            Query queried = Query.query(updateCriteria);
+            mongoTemplate.updateMulti(queried, Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
+            session.commitTransaction();
+        } catch (Exception e) {
+            log.error("bulkUpsert ApiMetricsRaw error", e);
+            if (session != null && session.hasActiveTransaction()) {
+                session.abortTransaction();
+            }
+            throw e;
+        } finally {
+            if (session != null) {
+                session.close();
             }
         }
     }
 
-    ObjectId lastOne() {
-        Query query = Query.query(Criteria.where("timeGranularity").is(2));
-        query.with(Sort.by(Sort.Order.desc("callId"))).limit(1);
-        ApiMetricsRaw lastOne = mongoTemplate.findOne(query, ApiMetricsRaw.class);
-        if (null != lastOne) {
-            return lastOne.getCallId();
+    void eachApi(long queryTime, MongoCollection<Document> collection, MetricInstanceFactory acceptor) {
+        final Criteria criteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
+                .and(ApiCallField.HAS_METRIC.field()).is(false)
+                .and(ApiCallField.DELETE.field()).ne(true);
+        final Query query = Query.query(criteria);
+        String[] filterFields = CollectionField.fields(
+                BaseEntityFields._ID,
+                ApiCallField.ALL_PATH_ID,
+                ApiCallField.WORK_O_ID,
+                ApiCallField.REQ_PATH,
+                ApiCallField.API_GATEWAY_UUID,
+                ApiCallField.LATENCY,
+                ApiCallField.REQ_BYTES,
+                ApiCallField.REQ_TIME,
+                ApiCallField.CODE,
+                ApiCallField.HTTP_STATUS,
+                BaseEntityFields.CREATE_TIME,
+                ApiCallField.DATA_QUERY_TOTAL_TIME,
+                ApiCallField.WORK_O_ID,
+                ApiCallField.REQ_PATH,
+                ApiCallField.SUPPLEMENT,
+                ApiCallField.SUCCEED
+        );
+        query.fields().include(filterFields);
+        final Document queryObject = query.getQueryObject();
+        final FindIterable<Document> iterable =
+                collection.find(queryObject, Document.class)
+                        .sort(Sorts.ascending(ApiCallField.REQ_TIME.field()))
+                        .batchSize(BATCH_READ_SIZE);
+        try (final MongoCursor<Document> cursor = iterable.iterator()) {
+            while (cursor.hasNext()) {
+                final Document entity = cursor.next();
+                acceptor.accept(entity);
+            }
+            Criteria updateCriteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
+                    .and(ApiCallField.HAS_METRIC.field()).is(false);
+            Query queried = Query.query(updateCriteria);
+            mongoTemplate.updateMulti(queried, Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
         }
-        return null;
     }
-
 
     void saveApiMetricsRaw(List<ApiMetricsRaw> apiMetricsRawList) {
         if (CollectionUtils.isEmpty(apiMetricsRawList)) {
@@ -94,44 +145,63 @@ public class ApiMetricsRawScheduleExecutor {
         bulkUpsert(entities, this::buildDefaultQuery, this::buildDefaultUpdate);
     }
 
-
     void bulkUpsert(List<ApiMetricsRaw> entities,
-                           Function<ApiMetricsRaw, Query> queryBuilder,
-                           Function<ApiMetricsRaw, Update> updateBuilder) {
+                    Function<ApiMetricsRaw, Query> queryBuilder,
+                    Function<ApiMetricsRaw, Update> updateBuilder) {
         try {
             BulkOperations bulkOps = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class);
+            long maxTime = 0L;
             for (ApiMetricsRaw entity : entities) {
+                if (entity.getDelay().size() > 50_000
+                        || entity.getDbCost().size() > 50_000) {
+                    log.warn("API metric record too large, unable save to mongo: {}", JSON.toJSON(entity));
+                    continue;
+                }
+                entity.setTtlKey(new Date(entity.getTimeStart() * 1000L));
                 Query query = queryBuilder.apply(entity);
                 Update update = updateBuilder.apply(entity);
                 bulkOps.upsert(query, update);
+                if (entity.getTimeGranularity() == TimeGranularity.MINUTE.getType()) {
+                    Map<Long, ApiMetricsRaw> subMetrics = entity.getSubMetrics();
+                    for (ApiMetricsRaw sub : subMetrics.values()) {
+                        maxTime = Math.max(maxTime, sub.getTimeStart());
+                    }
+                }
             }
             bulkOps.execute();
         } catch (Exception e) {
             log.error("bulkUpsert ApiMetricsRaw error", e);
+            throw e;
         }
     }
 
     protected Query buildDefaultQuery(ApiMetricsRaw entity) {
-        Criteria criteria = Criteria.where(WorkerCallServiceImpl.Tag.TIME_START).is(entity.getTimeStart())
-                .and(WorkerCallServiceImpl.Tag.TIME_GRANULARITY).is(entity.getTimeGranularity())
-                .and(WorkerCallServiceImpl.Tag.PROCESS_ID).is(entity.getProcessId())
-                .and(WorkerCallServiceImpl.Tag.API_ID).is(entity.getApiId());
+        Criteria criteria = Criteria.where(ApiMetricsRawFields.TIME_START.field()).is(entity.getTimeStart())
+                .and(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(entity.getTimeGranularity())
+                .and(ApiMetricsRawFields.PROCESS_ID.field()).is(entity.getProcessId())
+                .and(ApiMetricsRawFields.API_ID.field()).is(entity.getApiId())
+                .and(ApiMetricsRawFields.REQ_PATH.field()).is(entity.getReqPath())
+                .and(ApiMetricsRawFields.METRIC_TYPE.field()).is(entity.getMetricType());
         return Query.query(criteria);
     }
 
     protected Update buildDefaultUpdate(ApiMetricsRaw entity) {
         Update update = new Update();
-        update.set("reqCount", entity.getReqCount());
-        update.set("errorCount", entity.getErrorCount());
-        update.set("rps", entity.getRps());
-        update.set("bytes", entity.getBytes());
-        update.set("delay", entity.getDelay());
-        update.set("subMetrics", entity.getSubMetrics());
-        update.set("p50", entity.getP50());
-        update.set("p95", entity.getP95());
-        update.set("p99", entity.getP99());
-        update.set("callId", entity.getCallId());
-        update.currentDate("updatedAt");
+        update.set(ApiMetricsRawFields.REQ_COUNT.field(), entity.getReqCount());
+        update.set(ApiMetricsRawFields.ERROR_COUNT.field(), entity.getErrorCount());
+        update.set(ApiMetricsRawFields.RPS.field(), entity.getRps());
+        update.set(ApiMetricsRawFields.BYTES.field(), entity.getBytes());
+        update.set(ApiMetricsRawFields.DELAY.field(), entity.getDelay());
+        update.set(ApiMetricsRawFields.DB_COST.field(), entity.getDbCost());
+        update.set(ApiMetricsRawFields.SUB_METRICS.field(), entity.getSubMetrics());
+        update.set(ApiMetricsRawFields.P50.field(), entity.getP50());
+        update.set(ApiMetricsRawFields.P95.field(), entity.getP95());
+        update.set(ApiMetricsRawFields.P99.field(), entity.getP99());
+        if (null != entity.getWorkerInfoMap()) {
+            update.set(ApiMetricsRawFields.WORKER_INFO_MAP.field(), entity.getWorkerInfoMap());
+        }
+        update.currentDate(BaseEntityFields.LAST_UPDATED.field());
+        update.set(ApiMetricsRawFields.TTL_KEY.field(), entity.getTtlKey());
         return update;
     }
 

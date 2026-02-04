@@ -1,10 +1,15 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
+import com.tapdata.tm.worker.entity.Worker;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -14,7 +19,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ServerItem extends ValueBase {
+public class ServerItem extends DataValueBase {
     String serverStatus;
 
     String serverPingStatus;
@@ -25,23 +30,20 @@ public class ServerItem extends ValueBase {
 
     String serverId;
 
+    @DecimalFormat
     List<Double> cpuUsage;
 
+    @DecimalFormat
     List<Double> memoryUsage;
 
     List<Long> ts;
 
     Long requestCount;
 
+    @DecimalFormat
     Double errorRate;
 
-    Long p95;
-
-    Long p99;
-
-    Long maxDelay;
-
-    Long minDelay;
+    long errorCount;
 
     boolean deleted;
 
@@ -52,8 +54,24 @@ public class ServerItem extends ValueBase {
         item.setTs(new ArrayList<>());
         item.setRequestCount(0L);
         item.setErrorRate(0.0D);
-        item.setP95(0L);
-        item.setP99(0L);
+        item.setErrorCount(0L);
         return item;
+    }
+
+    public static List<ServerItem> supplement(List<ServerItem> apiMetricsRaws, Map<String, Worker> apiServerMap) {
+        List<String> serverIds = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .map(ServerItem::getServerId)
+                .filter(StringUtils::isNotBlank)
+                .toList();
+        apiServerMap.forEach((serverId, info) -> {
+            if (!serverIds.contains(serverId)) {
+                ServerItem item = create();
+                item.setServerId(serverId);
+                item.setServerName(info.getHostname());
+                apiMetricsRaws.add(item);
+            }
+        });
+        return apiMetricsRaws;
     }
 }

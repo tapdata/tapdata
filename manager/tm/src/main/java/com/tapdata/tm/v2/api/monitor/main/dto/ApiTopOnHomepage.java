@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -11,7 +12,7 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ApiTopOnHomepage extends ValueBase {
+public class ApiTopOnHomepage extends DataValueBase {
     long apiCount;
 
     long totalRequestCount;
@@ -20,7 +21,11 @@ public class ApiTopOnHomepage extends ValueBase {
 
     long totalDelayMs;
 
+    @DecimalFormat
     double totalRps;
 
-    double responseTimeAvg;
+    long errorCount;
+
+    @DecimalFormat
+    double errorRate;
 }

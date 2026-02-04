@@ -1,7 +1,11 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -11,24 +15,21 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ApiDetail extends ValueBase {
+public class ApiDetail extends DataValueBase {
+    String apiPath;
+    String apiName;
     /**
      * 总调用数
-     * */
-    Long requestCount;
+     */
+    long requestCount;
 
     /**
      * 全局错误率
-     * */
-    Double errorRate;
+     */
+    @DecimalFormat
+    double errorRate;
 
-    /**
-     * 平均耗时
-     * */
-    Double requestCostAvg;
+    long errorCount;
 
-    Long p95;
-    Long p99;
-    Long maxDelay;
-    Long minDelay;
+    List<String> historyNameBeUsed = new ArrayList<>();
 }

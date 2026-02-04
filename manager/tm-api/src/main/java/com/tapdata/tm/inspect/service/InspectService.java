@@ -7,6 +7,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Task;
@@ -96,4 +97,8 @@ public abstract class InspectService extends BaseService<InspectDto, InspectEnti
 
 
     public abstract void importTask(MultipartFile file, String taskId,UserDetail userDetail);
+
+    public abstract void importTaskByGroup(List<InspectDto> inspectDtoList, Map<String, String> taskMap, Map<String, DataSourceConnectionDto> conMap, UserDetail userDetail);
+
+
 }

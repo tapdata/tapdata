@@ -504,7 +504,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 						logger.info("Rate limiting batch startup, waiting {}ms to maintain 5-second batch interval", waitTime);
 
 						try {
-							Thread.sleep(waitTime);
+							startTaskLock.wait(waitTime);
 						} catch (InterruptedException e) {
 							Thread.currentThread().interrupt();
 							logger.warn("Batch rate limit wait interrupted");

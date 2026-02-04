@@ -28,6 +28,11 @@ public class MetricInfo {
     Double cpuUsage;
 
     /**
+     * only server main process usage
+     * */
+    Double selfCpuUsage;
+
+    /**
      * timestamp, unit ms
      * */
     Object lastUpdateTime;
@@ -36,10 +41,11 @@ public class MetricInfo {
         ServerUsage serverUsage = new ServerUsage();
         serverUsage.setProcessType(type.getType());
         serverUsage.setProcessId(processId);
-        serverUsage.setWorkOid(workerId);
+        serverUsage.setWorkOid(Optional.ofNullable(workerId).orElse(""));
         serverUsage.setCpuUsage(Optional.ofNullable(info).map(MetricInfo::getCpuUsage).orElse(null));
         serverUsage.setHeapMemoryUsage(Optional.ofNullable(info).map(MetricInfo::getHeapMemoryUsage).orElse(null));
         serverUsage.setHeapMemoryMax(Optional.ofNullable(info).map(MetricInfo::getHeapMemoryUsageMax).orElse(null));
+        serverUsage.setSelfCpuUsage(Optional.ofNullable(info).map(MetricInfo::getSelfCpuUsage).orElse(null));
         Object lastUpdateTime = Optional.ofNullable(info).map(MetricInfo::getLastUpdateTime).orElse(null);
         if (lastUpdateTime instanceof Number iTime) {
             serverUsage.setLastUpdateTime(iTime.longValue());
@@ -52,16 +58,17 @@ public class MetricInfo {
                 //ignore
             }
         }
-        Optional.ofNullable(serverUsage.getLastUpdateTime()).ifPresent(time -> {
-            if (time % 3600000L == 0) {
+        Optional.ofNullable(serverUsage.getLastUpdateTime()).ifPresent(t -> {
+            long time = t / 1000L;
+            if (time % 3600L == 0) {
                 serverUsage.setType(2);
                 return;
             }
-            if (time % 60000L  == 0) {
+            if (time % 60L  == 0) {
                 serverUsage.setType(1);
                 return;
             }
-            if (time % 5000L == 0L) {
+            if (time % 5L == 0L) {
                 serverUsage.setType(0);
                 return;
             }

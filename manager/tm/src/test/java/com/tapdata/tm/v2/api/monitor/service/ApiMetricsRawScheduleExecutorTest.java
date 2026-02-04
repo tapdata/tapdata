@@ -1,38 +1,32 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.model.Sorts;
-import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
-import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
-import org.bson.Document;
-import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.MockedConstruction;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.function.Function;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ApiMetricsRawScheduleExecutorTest {
     private MongoTemplate mongoTemplate;
@@ -48,53 +42,14 @@ class ApiMetricsRawScheduleExecutorTest {
         executor = mock(ApiMetricsRawScheduleExecutor.class);
         ReflectionTestUtils.setField(executor, "mongoTemplate", mongoTemplate);
 
-        when(executor.create()).thenReturn(metricInstanceFactory);
+        when(executor.create(0L)).thenReturn(metricInstanceFactory);
         doCallRealMethod().when(executor).aggregateApiCall();
-        when(executor.lastOne()).thenCallRealMethod();
         doCallRealMethod().when(executor).saveApiMetricsRaw(anyList());
         doCallRealMethod().when(executor).bulkUpsert(anyList());
         doCallRealMethod().when(executor).bulkUpsert(anyList(), any(Function.class), any(Function.class));
         when(executor.buildDefaultQuery(any(ApiMetricsRaw.class))).thenCallRealMethod();
         when(executor.buildDefaultUpdate(any(ApiMetricsRaw.class))).thenCallRealMethod();
         when(executor.findMetricStart(any(Query.class))).thenCallRealMethod();
-    }
-
-    @Nested
-    class AggregateApiCallTest {
-        @Test
-        void testAggregateApiCall() {
-            MongoCollection<Document> collection = mock(MongoCollection.class);
-            when(mongoTemplate.getCollection(anyString())).thenReturn(collection);
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(createApiMetricsRaw());
-            FindIterable<Document> iterable = mock(FindIterable.class);
-            MongoCursor<Document> cursor = mock(MongoCursor.class);
-            when(collection.find(any(Document.class), any(Class.class))).thenReturn(iterable);
-            when(iterable.sort(any(Bson.class))).thenReturn(iterable);
-            when(iterable.batchSize(anyInt())).thenReturn(iterable);
-            when(iterable.iterator()).thenReturn(cursor);
-            when(cursor.hasNext()).thenReturn(true, false);
-            when(cursor.next()).thenReturn(new Document());
-            doNothing().when(metricInstanceFactory).accept(any(Document.class));
-            Assertions.assertDoesNotThrow(executor::aggregateApiCall);
-            verify(executor).create();
-        }
-        @Test
-        void testAggregateApiCallNotHaveLastOne() {
-            MongoCollection<Document> collection = mock(MongoCollection.class);
-            when(mongoTemplate.getCollection(anyString())).thenReturn(collection);
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(null);
-            FindIterable<Document> iterable = mock(FindIterable.class);
-            MongoCursor<Document> cursor = mock(MongoCursor.class);
-            when(collection.find(any(Document.class), any(Class.class))).thenReturn(iterable);
-            when(iterable.sort(any(Bson.class))).thenReturn(iterable);
-            when(iterable.batchSize(anyInt())).thenReturn(iterable);
-            when(iterable.iterator()).thenReturn(cursor);
-            when(cursor.hasNext()).thenReturn(true, false);
-            when(cursor.next()).thenReturn(new Document());
-            doNothing().when(metricInstanceFactory).accept(any(Document.class));
-            Assertions.assertDoesNotThrow(executor::aggregateApiCall);
-            verify(executor).create();
-        }
     }
 
     @Nested
@@ -127,7 +82,7 @@ class ApiMetricsRawScheduleExecutorTest {
             when(mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ApiMetricsRaw.class)).thenReturn(bulkOps);
             when(bulkOps.upsert(any(Query.class), any(Update.class))).thenReturn(null);
             when(bulkOps.execute()).thenAnswer(a -> {throw new Exception("e");});
-            Assertions.assertDoesNotThrow(() -> executor.saveApiMetricsRaw(apiMetricsRawList));
+            Assertions.assertThrows(Exception.class, () -> executor.saveApiMetricsRaw(apiMetricsRawList));
             verify(executor).bulkUpsert(apiMetricsRawList);
         }
     }
@@ -154,13 +109,12 @@ class ApiMetricsRawScheduleExecutorTest {
         raw.setReqCount(100L);
         raw.setErrorCount(10L);
         raw.setRps(5.0);
-        raw.setBytes(new ArrayList<>());
+        raw.setBytes(0L);
         raw.setDelay(new ArrayList<>());
         raw.setSubMetrics(new HashMap<>());
-        raw.setP50(150L);
-        raw.setP95(300L);
-        raw.setP99(400L);
-        raw.setCallId(new ObjectId());
+        raw.setP50(150D);
+        raw.setP95(300D);
+        raw.setP99(400D);
         return raw;
     }
 }

@@ -47,7 +47,7 @@ class ServerChartTest {
         @Test
         void testAddWithNullHeapMemoryMax() {
             ServerChart.Usage usage = ServerChart.Usage.create();
-            ServerUsage usage1 = ServerUsageMetric.instance(1000L, "processId", "workOid", 0);
+            ServerUsageMetric usage1 = ServerUsageMetric.instance(0, 1000L, "processId", "workOid", 0);
             usage1.setCpuUsage(1.0D);
             usage1.setHeapMemoryUsage(100L);
             usage1.setHeapMemoryMax(null);

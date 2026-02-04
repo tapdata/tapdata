@@ -20,7 +20,7 @@ import java.util.function.Function;
  */
 @Getter
 public abstract class FactoryBase<E, A extends AcceptorBase> implements Closeable {
-    protected static final int BATCH_SIZE = 500;
+    protected static final int BATCH_SIZE = 100;
     protected final Consumer<List<E>> consumer;
     protected final List<E> apiMetricsRaws;
     protected final Map<String, A> instanceMap;
@@ -59,5 +59,12 @@ public abstract class FactoryBase<E, A extends AcceptorBase> implements Closeabl
             return;
         }
         flush();
+    }
+
+    public void append(List<E> rows) {
+        if (CollectionUtils.isEmpty(rows)) {
+            return;
+        }
+        this.apiMetricsRaws.addAll(rows);
     }
 }

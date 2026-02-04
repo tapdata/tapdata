@@ -993,6 +993,7 @@ class DataSourceServiceImplTest {
         private ExternalStorageService externalStorageService;
         private ExternalStorageDto externalStorageDto;
         private ExternalStorageDto defaultExternalStorage;
+        private WorkerService workerService;
 
         @BeforeEach
         void setUp() {
@@ -1015,11 +1016,16 @@ class DataSourceServiceImplTest {
             externalStorageService = mock(ExternalStorageService.class);
             externalStorageDto = mock(ExternalStorageDto.class);
             defaultExternalStorage = mock(ExternalStorageDto.class);
+            workerService = mock(WorkerService.class);
 
             ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
             ReflectionTestUtils.setField(dataSourceService, "externalStorageService", externalStorageService);
+            ReflectionTestUtils.setField(dataSourceService, "workerService", workerService);
 
             when(defaultExternalStorage.getId()).thenReturn(new ObjectId("662877df9179877be8b37080"));
+
+            // Mock sendTestConnection to avoid NullPointerException
+            doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), any(UserDetail.class));
         }
 
         @Test

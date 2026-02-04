@@ -13,5 +13,6 @@ import lombok.EqualsAndHashCode;
 @Data
 public class TopApiInServerParam extends QueryBase {
     String serverId;
-    String orderBy;
+    int skip = 0;
+    int limit = 10;
 }

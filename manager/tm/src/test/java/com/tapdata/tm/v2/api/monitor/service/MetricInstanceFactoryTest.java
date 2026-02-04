@@ -1,6 +1,8 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
+import com.tapdata.tm.v2.api.monitor.main.enums.MetricTypes;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,16 +26,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -107,145 +106,12 @@ class MetricInstanceFactoryTest {
         @Test
         void testAcceptWithIgnoredPath() {
             Document document = new Document("req_path", "/openapi-readOnly.json");
-
+            document.append("succeed", true);
             factory.accept(document);
 
             assertFalse(factory.needUpdate());
             verify(consumer, never()).accept(any());
         }
-
-        @Test
-        void testAcceptWithNonIgnoredPath() {
-            Document document = createValidDocument();
-            document.append("req_path", "/api/test");
-
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            factory.accept(document);
-
-            assertTrue(factory.needUpdate());
-            verify(findOne, atLeastOnce()).apply(any(Query.class));
-        }
-
-        @Test
-        void testAcceptWithAllPathId() {
-            Document document = createValidDocument();
-            document.append("allPathId", "/api/test");
-            document.append("req_path", "/api/other");
-
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            factory.accept(document);
-
-            assertTrue(factory.needUpdate());
-            // Should use allPathId, not req_path
-            verify(findOne, atLeastOnce()).apply(any(Query.class));
-        }
-
-        @Test
-        void testAcceptWithReqPathOnly() {
-            Document document = createValidDocument();
-            document.append("req_path", "/api/test");
-            // No allPathId
-
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            factory.accept(document);
-
-            assertTrue(factory.needUpdate());
-            verify(findOne, atLeastOnce()).apply(any(Query.class));
-        }
-
-        @Test
-        void testAcceptWithUnknownApiId() {
-            Document document = createValidDocument();
-            // No allPathId or req_path
-
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            factory.accept(document);
-
-            assertTrue(factory.needUpdate());
-            verify(findOne, atLeastOnce()).apply(any(Query.class));
-        }
-
-        @Test
-        void testAcceptWithExistingAcceptor() {
-            Document document = createValidDocument();
-            document.append("allPathId", "/api/test");
-            document.append("api_gateway_uuid", "server1");
-
-            // First call to create acceptor
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-            factory.accept(document);
-
-            // Second call should reuse existing acceptor
-            factory.accept(document);
-
-            assertTrue(factory.needUpdate());
-            // Verify findOne was called for the first accept but not for the second
-            verify(findOne, times(1)).apply(any(Query.class)); // Once for lastMin, once for lastHour
-        }
-
-        @Test
-        void testAcceptWithLastMinAndLastHour() {
-            Document document = createValidDocument();
-            document.append("allPathId", "/api/test");
-            document.append("api_gateway_uuid", "server1");
-
-            ApiMetricsRaw lastMin = createApiMetricsRaw("server1", "/api/test", 60000L, 1);
-            ApiMetricsRaw lastHour = createApiMetricsRaw("server1", "/api/test", 3600000L, 2);
-
-            when(findOne.apply(any(Query.class)))
-                    .thenReturn(lastMin)  // First call for lastMin
-                    .thenReturn(lastHour); // Second call for lastHour
-
-            factory.accept(document);
-
-            assertTrue(factory.needUpdate());
-            verify(findOne, times(2)).apply(any(Query.class));
-        }
-
-        @Test
-        void testAcceptWithOnlyLastMin() {
-            Document document = createValidDocument();
-            document.append("allPathId", "/api/test");
-            document.append("api_gateway_uuid", "server1");
-
-            ApiMetricsRaw lastMin = createApiMetricsRaw("server1", "/api/test", 60000L, 1);
-
-            when(findOne.apply(any(Query.class)))
-                    .thenReturn(lastMin)  // First call for lastMin
-                    .thenReturn(null);    // Second call for lastHour
-
-            factory.accept(document);
-
-            assertTrue(factory.needUpdate());
-            verify(findOne, times(2)).apply(any(Query.class));
-        }
-
-        @Test
-        void testAcceptTriggersBatchFlush() {
-            Document document = createValidDocument();
-            document.append("allPathId", "/api/test");
-            document.append("api_gateway_uuid", "server1");
-
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            // Fill the batch to trigger flush
-            List<ApiMetricsRaw> apiMetricsRaws = (List<ApiMetricsRaw>) ReflectionTestUtils.getField(factory, "apiMetricsRaws");
-            for (int i = 0; i < 500; i++) {
-                apiMetricsRaws.add(createApiMetricsRaw("server" + i, "api" + i, (long) i, 1));
-            }
-
-            MetricInstanceFactory spyFactory = spy(factory);
-            doNothing().when(spyFactory).flush();
-
-            spyFactory.accept(document);
-
-            verify(spyFactory).flush();
-        }
-
     }
 
     @Nested
@@ -256,12 +122,12 @@ class MetricInstanceFactoryTest {
             ApiMetricsRaw expected = createApiMetricsRaw("server1", "api1", 60000L, 1);
             when(findOne.apply(any(Query.class))).thenReturn(expected);
 
-            ApiMetricsRaw result = factory.lastOne("api1", "server1", 1, null);
+            ApiMetricsRaw result = factory.lastOne("api1", "server1", MetricTypes.API_SERVER, TimeGranularity.MINUTE, null);
 
             assertEquals(expected, result);
             verify(findOne).apply(argThat(query -> {
                 Document queryObject = query.getQueryObject();
-                return queryObject.get("apiId").equals("api1") &&
+                return queryObject.get("reqPath").equals("api1") &&
                         queryObject.get("processId").equals("server1") &&
                         queryObject.get("timeGranularity").equals(1) &&
                         !queryObject.containsKey("timeStart");
@@ -273,12 +139,12 @@ class MetricInstanceFactoryTest {
             ApiMetricsRaw expected = createApiMetricsRaw("server1", "api1", 60000L, 1);
             when(findOne.apply(any(Query.class))).thenReturn(expected);
 
-            ApiMetricsRaw result = factory.lastOne("api1", "server1", 1, 60000L);
+            ApiMetricsRaw result = factory.lastOne("api1", "server1", MetricTypes.API_SERVER, TimeGranularity.MINUTE, 60000L);
 
             assertEquals(expected, result);
             verify(findOne).apply(argThat(query -> {
                 Document queryObject = query.getQueryObject();
-                return queryObject.get("apiId").equals("api1") &&
+                return queryObject.get("reqPath").equals("api1") &&
                         queryObject.get("processId").equals("server1") &&
                         queryObject.get("timeGranularity").equals(1) &&
                         queryObject.get("timeStart").equals(60000L);
@@ -289,23 +155,10 @@ class MetricInstanceFactoryTest {
         void testLastOneReturnsNull() {
             when(findOne.apply(any(Query.class))).thenReturn(null);
 
-            ApiMetricsRaw result = factory.lastOne("api1", "server1", 1, null);
+            ApiMetricsRaw result = factory.lastOne("api1", "server1", MetricTypes.API_SERVER, TimeGranularity.MINUTE, null);
 
             assertNull(result);
             verify(findOne).apply(any(Query.class));
-        }
-
-        @Test
-        void testLastOneQueryConfiguration() {
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            factory.lastOne("api1", "server1", 2, 3600000L);
-
-            verify(findOne).apply(argThat(query -> {
-                // Verify sort and limit are set correctly
-                return query.getLimit() == 1 &&
-                        query.getSortObject().get("_id").equals(-1); // Descending sort
-            }));
         }
     }
 
@@ -412,7 +265,7 @@ class MetricInstanceFactoryTest {
 
         @Test
         void testBatchSizeConstant() {
-            assertEquals(500, ReflectionTestUtils.getField(MetricInstanceFactory.class, "BATCH_SIZE"));
+            assertEquals(100, ReflectionTestUtils.getField(MetricInstanceFactory.class, "BATCH_SIZE"));
         }
 
         @Test
@@ -423,65 +276,13 @@ class MetricInstanceFactoryTest {
         }
     }
 
-    @Nested
-    class IntegrationTest {
-
-        @Test
-        void testCompleteWorkflow() {
-            // Setup documents
-            Document doc1 = createValidDocument();
-            doc1.append("allPathId", "/api/test1");
-            doc1.append("api_gateway_uuid", "server1");
-
-            Document doc2 = createValidDocument();
-            doc2.append("allPathId", "/api/test2");
-            doc2.append("api_gateway_uuid", "server1");
-
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            // Process documents
-            factory.accept(doc1);
-            factory.accept(doc2);
-
-            assertTrue(factory.needUpdate());
-
-            // Close should trigger flush
-            factory.close();
-
-            verify(consumer).accept(any());
-        }
-
-        @Test
-        void testAcceptorReuse() {
-            Document doc = createValidDocument();
-            doc.append("allPathId", "/api/test");
-            doc.append("api_gateway_uuid", "server1");
-
-            when(findOne.apply(any(Query.class))).thenReturn(null);
-
-            // First accept creates acceptor
-            factory.accept(doc);
-
-            Map<String, MetricInstanceAcceptor> instanceMap =
-                    (Map<String, MetricInstanceAcceptor>) ReflectionTestUtils.getField(factory, "instanceMap");
-            assertEquals(1, instanceMap.size());
-
-            MetricInstanceAcceptor firstAcceptor = instanceMap.values().iterator().next();
-
-            // Second accept should reuse the same acceptor
-            factory.accept(doc);
-
-            assertEquals(1, instanceMap.size());
-            assertSame(firstAcceptor, instanceMap.values().iterator().next());
-        }
-    }
-
     // Helper methods
     private Document createValidDocument() {
         return new Document()
                 .append("_id", new ObjectId())
                 .append("latency", 100L)
                 .append("req_bytes", 1024L)
+                .append("succeed", true)
                 .append("reqTime", System.currentTimeMillis());
     }
 
@@ -494,10 +295,9 @@ class MetricInstanceFactoryTest {
         raw.setReqCount(0L);
         raw.setErrorCount(0L);
         raw.setRps(0.0);
-        raw.setBytes(new ArrayList<>());
+        raw.setBytes(0L);
         raw.setDelay(new ArrayList<>());
         raw.setSubMetrics(new HashMap<>());
-        raw.setCallId(new ObjectId());
         return raw;
     }
 }

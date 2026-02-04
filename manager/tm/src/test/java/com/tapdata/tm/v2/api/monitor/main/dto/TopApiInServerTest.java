@@ -8,6 +8,6 @@ class TopApiInServerTest {
         TopApiInServer item = TopApiInServer.create();
         assertNotNull(item.getRequestCount());
         assertNotNull(item.getErrorRate());
-        assertNotNull(item.getAvg());
+        assertNotNull(item.getResponseTimeAvg());
     }
 }

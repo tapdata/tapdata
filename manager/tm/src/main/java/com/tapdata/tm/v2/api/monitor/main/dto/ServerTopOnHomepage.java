@@ -1,5 +1,6 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,23 +15,17 @@ import java.util.Optional;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ServerTopOnHomepage extends ValueBase {
+public class ServerTopOnHomepage extends DataValueBase {
 
     Long totalRequestCount;
 
     Long errorCount;
+
+    @DecimalFormat
     Double totalErrorRate;
 
-    Long responseTime;
-    Double responseTimeAvg;
-
-    Long p95;
-
-    Long p99;
-
-    Long maxDelay;
-
-    Long minDelay;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    Double responseTime;
 
     Long notHealthyApiCount;
 
@@ -43,6 +38,7 @@ public class ServerTopOnHomepage extends ValueBase {
         result.setResponseTimeAvg(0.0D);
         result.setNotHealthyApiCount(0L);
         result.setNotHealthyServerCount(0L);
+        result.setErrorCount(0L);
         return result;
     }
 

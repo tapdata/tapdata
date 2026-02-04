@@ -17,5 +17,12 @@ public class ValueBase {
     @Data
     public static class Item {
         protected long ts;
+
+        boolean empty;
+
+        public <T extends ValueBase.Item>T empty() {
+            this.empty = true;
+            return (T) this;
+        }
     }
 }
