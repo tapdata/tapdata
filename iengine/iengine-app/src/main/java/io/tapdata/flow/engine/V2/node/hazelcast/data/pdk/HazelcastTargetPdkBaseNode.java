@@ -1533,6 +1533,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         try {
             if (!flushOffset.get()) return true;
             if (MapUtils.isEmpty(syncProgressMap)) return true;
+			// 检查目标连接器是否支持 writeRecordCallback
+			// 如果支持，需要等待数据真正写入后才保存断点（例如 StarRocks 批量写入场景）
+			if (!checkCanSaveSnapshot()) {
+				obsLogger.debug("Skip saveToSnapshot due to pending data in target connector");
+				return true;
+			}
             Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
 			AtomicBoolean needSave = new AtomicBoolean(true);
             for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
@@ -1623,6 +1629,60 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             ThreadContext.clearAll();
         }
         return true;
+    }
+
+    /**
+     * 检查是否可以保存断点
+     * 对于支持 writeRecordCallback 的连接器（如 StarRocks），需要确认没有待刷新的缓存数据
+     *
+     * @return true 表示可以保存断点，false 表示有待刷新数据，应跳过本次保存
+     */
+    private boolean checkCanSaveSnapshot() {
+        try {
+            ConnectorNode connectorNode = getConnectorNode();
+            if (null == connectorNode || null == connectorNode.getConnectorFunctions()) {
+                // 没有节点或函数，默认保存
+                return true;
+            }
+
+            ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+            WriteRecordCallbackFunction writeRecordCallbackFunction = connectorFunctions.getWriteRecordCallbackFunction();
+
+            if (null == writeRecordCallbackFunction) {
+                // 不支持 writeRecordCallback，默认保存
+                obsLogger.trace("Target connector does not support writeRecordCallback, will save snapshot normally");
+                return true;
+            }
+
+            AtomicBoolean canSaveSnapshot = new AtomicBoolean(true);
+
+            try {
+                writeRecordCallbackFunction.writeRecordCallback(connectorNode.getConnectorContext(), hasPendingData -> {
+                    if (Boolean.TRUE.equals(hasPendingData)) {
+                        // 有待刷新的数据，不能保存断点
+                        canSaveSnapshot.set(false);
+                        obsLogger.debug("Target connector has pending data to flush, will skip this snapshot save");
+                    } else {
+                        // 没有待刷新的数据，可以保存断点
+                        obsLogger.trace("Target connector has no pending data, safe to save snapshot");
+                    }
+                });
+            } catch (Exception e) {
+                // 回调执行失败时，为了数据安全，跳过本次断点保存
+                // 避免在数据未真正写入时保存断点，导致数据丢失
+                obsLogger.warn("Failed to check writeRecordCallback, will skip snapshot save for safety. Error: {}",
+                    e.getMessage(), e);
+                return false;
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+            return canSaveSnapshot.get();
+
+        } catch (Exception e) {
+            obsLogger.warn("Exception occurred while checking if can save snapshot, will skip for safety. Error: {}",
+                e.getMessage(), e);
+            return false;
+        }
     }
 
     private class DeleteConditionFieldFilter implements TargetTapEventFilter.TapEventPredicate {
