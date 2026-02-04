@@ -1,5 +1,7 @@
 package com.tapdata.tm.apiCalls.vo;
 
+import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.commons.base.DecimalFormat;
 import com.tapdata.tm.vo.BaseVo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -15,9 +17,13 @@ public class ApiCallDetailVo extends BaseVo {
     private  String apiPath;
     private  String code;
     private Long visitTotalCount;
-    private Long latency;
+    @DecimalFormat(maxScale = 1, scale = 1)
+    private Double latency;
+    @DecimalFormat(maxScale = 1, scale = 1)
+    private Double dbCost;
     private String reqParams;
     private Date createTime;
+    private Date reqTime;
     private String codeMsg;
     private String method;
     private Double speed;
@@ -27,6 +33,7 @@ public class ApiCallDetailVo extends BaseVo {
     private String query;
     private String body;
     private Map<String, Object> reqHeaders;
+    private boolean failed;
 
     /**The unique identifier of the worker corresponding to the current request*/
     private String workOid;
@@ -42,7 +49,8 @@ public class ApiCallDetailVo extends BaseVo {
     /**
      * Database access time for API requests
      * */
-    private Long dataQueryTotalTime;
+    @DecimalFormat(maxScale = 1, scale = 1)
+    private Number dataQueryTotalTime;
 
     /**
      * query Of Count
@@ -65,4 +73,9 @@ public class ApiCallDetailVo extends BaseVo {
      * query Of http request cost time(ms)
      * */
     private Long requestCost;
+
+    /**
+     * @see ApiCallEntity.HttpStatusType
+     * */
+    private String httpStatus;
 }

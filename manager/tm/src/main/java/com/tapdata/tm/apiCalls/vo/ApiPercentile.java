@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiCalls.vo;
 
+import com.tapdata.tm.commons.base.DecimalFormat;
 import lombok.Data;
 
 /**
@@ -15,13 +16,16 @@ public class ApiPercentile {
     /**
      * percentile 50, millisecond
      * */
-    private Long p50;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    private Double p50;
     /**
      * percentile 95, millisecond
      * */
-    private Long p95;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    private Double p95;
     /**
      * percentile 99, millisecond
      * */
-    private Long p99;
+    @DecimalFormat(scale = 1, maxScale = 1)
+    private Double p99;
 }
