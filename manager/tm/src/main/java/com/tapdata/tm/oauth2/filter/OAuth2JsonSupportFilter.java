@@ -54,8 +54,7 @@ public class OAuth2JsonSupportFilter implements Filter {
                 
                 // 解析JSON
                 Map<String, Object> jsonMap = objectMapper.readValue(jsonBody, Map.class);
-                log.debug("Parsed JSON request: {}", jsonMap);
-                
+
                 // 验证必需参数
                 if (!jsonMap.containsKey("grant_type")) {
                     sendErrorResponse(httpResponse, "invalid_request", "Missing required parameter: grant_type");
