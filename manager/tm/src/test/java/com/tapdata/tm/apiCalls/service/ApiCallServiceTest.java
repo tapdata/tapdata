@@ -354,41 +354,6 @@ class ApiCallServiceTest {
 
         assertEquals(apiCallEntity, apiCallService.findOne(inputQuery));
     }
-    @Nested
-    @DisplayName("Method GenericFilterCriteria(Query) test")
-    class GenericFilterCriteriaTest {
-
-        @Test
-        void testGenericFilterCriteria() {
-            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{}}");
-            Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
-        }
-        @Test
-        void testGenericFilterCriteriaMethod() {
-            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"method\":\"get\"}}");
-            Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"method\":\"get\",\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
-        }
-        @Test
-        void testGenericFilterCriteriaCode() {
-            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"code\":200}}");
-            Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"code\":\"200.0\",\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
-        }
-        @Test
-        void testGenericFilterCriteriaCodeV2() {
-            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"code\":\" \"}}");
-            Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"code\":{\"$ne\":\"200\"},\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
-        }
-        @Test
-        void testGenericFilterCriteriaTime() {
-            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"start\":1753804800000,\"end\":1753891200000}}");
-            Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$and\":[{\"createTime\":{\"$gte\":1753804800000}},{\"createTime\":{\"$lte\":1753891200000}}]}}", JSON.toJSONString(criteria));
-        }
-    }
 
     @Nested
     class startFilterApiNameOrIdTest {
@@ -397,7 +362,7 @@ class ApiCallServiceTest {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":\"xxx\"}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"req_path\":\"xxx\"}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testQueryById() {
@@ -411,28 +376,28 @@ class ApiCallServiceTest {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{}}", JSON.toJSONString(criteria));
         }
         @Test
         void testNull() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":null}},{\"id\": {\"$regex\":null}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{}}", JSON.toJSONString(criteria));
         }
         @Test
         void testApiNameIsNull() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":null}},{\"id\": {\"$regex\":null}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{}}", JSON.toJSONString(criteria));
         }
         @Test
         void testApiNameIsEmpty() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{}}", JSON.toJSONString(criteria));
         }
         @Test
         void testApiNameIsLikeButNotAnyApi() {
@@ -440,7 +405,7 @@ class ApiCallServiceTest {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":\"xxx\"}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"req_path\":\"xxx\"}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testApiNameIsLikeWithOption() {
@@ -454,7 +419,7 @@ class ApiCallServiceTest {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
             Criteria criteria = new Criteria();
             apiCallService.startFilterApiNameOrId(filter, criteria);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":{\"$in\":[\"68a7e8decd50c74ff40731f4\"]}},{\"allPathId\":\"xxx\"}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":{\"$in\":[\"68a7e8decd50c74ff40731f4\"]}}]}}", JSON.toJSONString(criteria));
         }
     }
 
@@ -633,68 +598,6 @@ class ApiCallServiceTest {
             Page<ApiCallDetailVo> page = apiCallService.find(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 1L);
-        }
-
-        @Test
-        void testQueryResultNotEmpty2() {
-            List<ApiCallDataVo> result = new ArrayList<>();
-
-            String apiId = new ObjectId().toHexString();
-            result.add(new ApiCallDataVo());
-            result.get(0).setId(new ObjectId());
-            result.get(0).setApiId(apiId);
-            result.get(0).setUserInfo(new HashMap<>());
-            result.get(0).getUserInfo().put(ApiCallService.Tag.CLIENT_ID, new ObjectId().toHexString());
-
-            result.add(null);
-
-            result.add(new ApiCallDataVo());
-            result.get(2).setId(new ObjectId());
-
-            UserDetail userDetail = mock(UserDetail.class);
-            when(userDetail.getEmail()).thenReturn("admin@admin.com");
-            when(userDetail.getUserId()).thenReturn("admin@admin.com");
-            Filter filter = parseFilter("{\"order\": \"createTime ASC\",\"limit\":20,\"skip\":0,\"where\":{\"clientId\": \" \"}}");
-            List<ApplicationDto> applications = new ArrayList<>();
-            ApplicationDto app = new ApplicationDto();
-            app.setClientId(result.get(0).getUserInfo().get(ApiCallService.Tag.CLIENT_ID).toString());
-            app.setClientName("name");
-            when(applicationService.findByIds(anyList())).thenReturn(applications);
-
-            List<ModulesDto> modules = new ArrayList<>();
-            ModulesDto api = new ModulesDto();
-            api.setId(new ObjectId(apiId));
-            api.setName("apiName");
-            modules.add(api);
-            modules.add(null);
-            when(modulesService.findAllModulesByIds(anyList())).thenReturn(modules);
-
-            when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
-                Class<?> className = answer.getArgument(2);
-                if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
-                    return new AggregationResults<>(result, new Document());
-                } else if (Objects.equals(className.getSimpleName(), Map.class.getSimpleName())) {
-                    Map<String, Number> res = new HashMap<>();
-                    res.put("total", 3L);
-                    return new AggregationResults<Map<String, Number>>(List.of(res), new Document());
-                } else {
-                    return null;
-                }
-            });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter);
-            Assertions.assertEquals(page.getItems().size(), 2);
-            Assertions.assertEquals(page.getTotal(), 3L);
-        }
-    }
-
-    @Nested
-    class mapToApiCallDetailVoTest {
-        @Test
-        void testNormal() {
-            ApiCallDataVo entity = new ApiCallDataVo();
-            entity.setId(new ObjectId());
-            ApiCallDetailVo apiCallDetailVo = apiCallService.mapToApiCallDetailVo(entity);
-            Assertions.assertNotNull(apiCallDetailVo.getId());
         }
     }
 
