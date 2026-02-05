@@ -258,7 +258,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				tapdataEvent.setBatchOffset(batchOffset);
 				tapdataEvent.setStreamOffset(streamOffset);
 				if (syncStage != null) {
-					tapdataEvent.setSyncStage(SyncStage.valueOf(syncStage));
+					tapdataEvent.setSyncStage(parseSyncStageSafely(syncStage, SyncStage.CDC));
 				}
 				tapdataEvent.setSourceTime(sourceTime);
 
@@ -270,9 +270,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 				Node<?> node = processorBaseContext.getNode();
 				String syncProgressKey = null;
-				if (nodeIds instanceof List) {
-					List<?> nodeIdList = (List<?>) nodeIds;
-					syncProgressKey = nodeIdList.get(0) + "," + node.getId();
+				if (nodeIds instanceof List<?> nodeIdList && !nodeIdList.isEmpty()) {
+                    syncProgressKey = nodeIdList.get(0) + "," + node.getId();
 				}
 
 				SyncProgress syncProgress = null;
@@ -2258,4 +2257,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
         return true;
     }
+
+	protected SyncStage parseSyncStageSafely(String syncStageStr, SyncStage defaultValue) {
+		if (syncStageStr == null) {
+			return defaultValue;
+		}
+
+		try {
+			return SyncStage.valueOf(syncStageStr);
+		} catch (IllegalArgumentException e) {
+			obsLogger.warn("Invalid syncStage value from connector callback: '{}', will use {} as default. Error: {}",
+				syncStageStr, defaultValue, e.getMessage());
+			return defaultValue;
+		}
+	}
 }
+
