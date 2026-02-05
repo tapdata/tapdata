@@ -390,7 +390,7 @@ public class ApiMetricsRawMergeService {
     }
 
     protected Collection<String> errorCountOfSecondFiveRange(List<TimeRange> ranges, Consumer<Criteria> criteriaConsumer) {
-        Criteria criteriaOfSec5 = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(TimeGranularity.SECOND_FIVE.getType());
+        Criteria criteriaOfSec5 = Criteria.where(ApiMetricsRawFields.TIME_GRANULARITY.field()).is(TimeGranularity.MINUTE.getType());
         Optional.ofNullable(criteriaConsumer).ifPresent(c -> c.accept(criteriaOfSec5));
         Set<Long> times = ParticleSizeAnalyzer.asMinute(ranges);
         if (times.isEmpty()) {
