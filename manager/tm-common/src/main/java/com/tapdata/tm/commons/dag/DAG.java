@@ -836,6 +836,37 @@ public class DAG implements Serializable, Cloneable {
         return graph.successors(id).stream().map(graph::getNode).collect(Collectors.toList());
     }
 
+    /**
+     * 根据源节点ID获取所有下游节点（递归获取所有后继节点）
+     * @param nodeId 源节点ID
+     * @return 所有下游节点的链表，按广度优先顺序排列
+     */
+    public LinkedList<Node> getSuccessorsRecursive(String nodeId) {
+        LinkedList<Node> result = new LinkedList<>();
+        if (!graph.hasNode(nodeId)) {
+            return result;
+        }
+        Set<String> visited = new HashSet<>();
+        LinkedList<String> queue = new LinkedList<>();
+        queue.add(nodeId);
+        visited.add(nodeId);
+        while (!queue.isEmpty()) {
+            String currentId = queue.poll();
+            Collection<String> successorIds = graph.successors(currentId);
+            for (String successorId : successorIds) {
+                if (!visited.contains(successorId)) {
+                    visited.add(successorId);
+                    queue.add(successorId);
+                    Node successorNode = graph.getNode(successorId);
+                    if (successorNode != null) {
+                        result.add(successorNode);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
     //校验dag
     private Map<String, List<Message>> checkDag() {
 

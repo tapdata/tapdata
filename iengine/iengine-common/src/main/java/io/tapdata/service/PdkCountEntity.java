@@ -13,13 +13,15 @@ public class PdkCountEntity {
 	private String errorMsg;
 	private String errorStack;
 	private long rows;
+	private Long avgObjSize;
 
 	public PdkCountEntity() {
 	}
 
-	public PdkCountEntity success(long rows) {
+	public PdkCountEntity success(long rows,Long avgObjSize) {
 		this.code = HttpStatus.SC_OK;
 		this.rows = rows;
+		this.avgObjSize = avgObjSize;
 		return this;
 	}
 
@@ -46,5 +48,9 @@ public class PdkCountEntity {
 
 	public String getErrorStack() {
 		return errorStack;
+	}
+
+	public Long getAvgObjSize() {
+		return avgObjSize;
 	}
 }

@@ -167,6 +167,7 @@ import java.lang.management.ThreadMXBean;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 import io.tapdata.entity.utils.InstanceFactory;
@@ -4503,7 +4504,11 @@ public class TaskServiceImpl extends TaskService{
         if(null != taskDto.getDag() && CollectionUtils.isNotEmpty(taskDto.getDag().getTargetNodes())) {
             metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(taskDto.getDag().getTargetNodes().get(0).getId(), taskDto.getId().toHexString(), user,false);
         }
-
+        CheckTaskMemoryResult checkTaskMemoryResult = checkTaskMemoryHeap(taskDto, false, user);
+        if (null != checkTaskMemoryResult && !checkTaskMemoryResult.getIsSafe()) {
+            String message = String.format("High OOM risk detected. The current Batch Size is %s with an Avg Data Size of %s, but Available Memory is only %s.", checkTaskMemoryResult.getBatchSize(), checkTaskMemoryResult.getAvgSize(), checkTaskMemoryResult.getRealFree());
+            monitoringLogsService.startTaskErrorLog(taskDto, user, message, Level.WARN);
+        }
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             for (int i = 1; i < 6; i++) {
                 TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
@@ -5867,6 +5872,72 @@ public class TaskServiceImpl extends TaskService{
             updateMergeTablePropertiesRebuildStatus(properties.getChildren(), taskStatus);
         });
 
+    }
+
+    @Override
+    public CheckTaskMemoryResult checkTaskMemoryHeap(TaskDto taskDto, boolean isManual,UserDetail userDetail){
+        if(taskDto.getType().equals(TaskDto.TYPE_CDC)
+                || (null != taskDto.getAttrs() && taskDto.getAttrs().containsKey("syncProgress"))
+                || !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC))return null;
+        DAG dag = taskDto.getDag();
+        if(null == dag || CollectionUtils.isEmpty(dag.getNodes())){
+            return CheckTaskMemoryResult.safe();
+        }
+        List<Node> nodes = dag.getSources();
+        List<CheckTaskMemoryParam> checkTaskMemoryParams = new ArrayList<>();
+        AtomicInteger writeBatchSize = new AtomicInteger(0);
+        dag.getTargetDataParentNode().forEach(node -> {
+            if(null != node.getWriteBatchSize()){
+                writeBatchSize.set(node.getWriteBatchSize());
+            }else{
+                writeBatchSize.set(100);
+            }
+        });
+        nodes.forEach(node -> {
+            if(node instanceof DataParentNode<?> dataParentNode){
+                Map<String,Long> tableMap = new HashMap<>();
+                List<MetadataInstancesDto>  metadataInstancesDtoList = metadataInstancesService.findByNodeId(node.getId(),userDetail);
+                metadataInstancesDtoList.forEach(metadataInstancesDto -> {
+                    if(org.apache.commons.collections4.MapUtils.isNotEmpty(metadataInstancesDto.getTableAttr()) && metadataInstancesDto.getTableAttr().containsKey("avgObjSize")){
+                        Integer avgSize = (Integer) metadataInstancesDto.getTableAttr().get("avgObjSize");
+                        if(null != avgSize){
+                            tableMap.put(metadataInstancesDto.getOriginalName(),Long.valueOf(avgSize));
+                        }
+                    }
+                });
+                if(org.apache.commons.collections4.MapUtils.isNotEmpty(tableMap)){
+                    CheckTaskMemoryParam checkTaskMemoryParam = CheckTaskMemoryParam.builder()
+                            .connectionId(dataParentNode.getConnectionId())
+                            .batchSize(dataParentNode.getReadBatchSize())
+                            .tableMap(tableMap)
+                            .nodeSize(dag.getSuccessorsRecursive(node.getId()).size())
+                            .writeBatchSize(writeBatchSize.get())
+                            .build();
+                    checkTaskMemoryParams.add(checkTaskMemoryParam);
+                }
+            }
+        });
+        if(CollectionUtils.isEmpty(checkTaskMemoryParams))return CheckTaskMemoryResult.safe();;
+        CheckTaskMemoryResult result;
+        if(taskDto.getAgentId() == null){
+            taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);
+        }else{
+            try{
+                checkEngineStatus(taskDto, userDetail);
+            }catch (BizException bizException){
+                taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);
+            }
+        }
+        if(taskDto.getAgentId() == null){
+           throw new BizException("Agent.Not.Found");
+        }
+        try {
+            result = callEngineRpc(taskDto.getAgentId(),CheckTaskMemoryResult.class,"CheckTaskMemoryHeapService","checkTaskMemoryHeap",new Object[]{checkTaskMemoryParams});
+        } catch (Throwable e) {
+            log.error("Check task memory heap failed", e);
+            return CheckTaskMemoryResult.safe();
+        }
+        return result;
     }
 
 

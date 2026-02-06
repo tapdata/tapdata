@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesCompareDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.task.dto.CheckTaskMemoryResult;
 import com.tapdata.tm.commons.task.dto.MergeTablePropertiesInfo;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
@@ -313,6 +314,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract void updateMergeTablePropertiesRebuildStatus(String taskId, String nodeId, String mergeTablePropertiesId,UserDetail userDetail,String status);
     public abstract void saveMergeTableCacheInfo(String taskId);
     public abstract List<String> getTargetConnectionIds(String taskId);
+    public abstract CheckTaskMemoryResult checkTaskMemoryHeap(TaskDto taskDto, boolean isManual,UserDetail userDetail);
+
 
     @Data
     @AllArgsConstructor
