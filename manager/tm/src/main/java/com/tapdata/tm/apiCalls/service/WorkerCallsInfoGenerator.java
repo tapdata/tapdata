@@ -109,8 +109,8 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         } else {
             this.last.put(apiId, item);
         }
-        List<Map<String, Number>> delays = item.getDelays();
-        item.setDelays(delays);
+        List<Map<String, Number>> delays = item.getDelayList();
+        item.setDelayList(delays);
         delays = ApiMetricsDelayUtil.addDelay(delays, latency);
         item.setErrorCount(Optional.ofNullable(item.getErrorCount()).orElse(0L));
         if (info.isFailed()) {

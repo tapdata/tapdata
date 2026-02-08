@@ -112,6 +112,7 @@ class ApiMetricsRawScheduleExecutorTest {
         raw.setBytes(0L);
         raw.setDelay(new ArrayList<>());
         raw.setSubMetrics(new HashMap<>());
+        raw.setDbCost(new ArrayList<>());
         raw.setP50(150D);
         raw.setP95(300D);
         raw.setP99(400D);

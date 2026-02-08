@@ -33,8 +33,8 @@ public class MetricResponseTime implements Metric<ApiCallMetricVo.MetricResponse
         ofResponseTime.setTime(timeStart);
         List<List<Map<String, Number>>> delayList = new ArrayList<>();
         vos.forEach(vo -> {
-            if (vo.getDelays() != null && !vo.getDelays().isEmpty()) {
-                delayList.add(vo.getDelays());
+            if (vo.getDelayList() != null && !vo.getDelayList().isEmpty()) {
+                delayList.add(vo.getDelayList());
             }
         });
         List<Map<String, Number>> merged = ApiMetricsDelayUtil.merge(delayList);
