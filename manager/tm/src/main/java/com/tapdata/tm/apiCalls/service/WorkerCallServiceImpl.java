@@ -385,7 +385,7 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         Update update = new Update();
         update.set("reqCount", entity.getReqCount());
         update.set("rps", entity.getRps());
-        update.set("delays", entity.getDelays());
+        update.set("delayList", entity.getDelayList());
         update.set("p50", entity.getP50());
         update.set("p95", entity.getP95());
         update.set("p99", entity.getP99());
