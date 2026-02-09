@@ -1,0 +1,102 @@
+services:
+  mongo:
+    image: mongo:5.0
+    container_name: tapdata-mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: tapdata_best2019
+      MONGO_INITDB_DATABASE: tapdata
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ ! -f /opt/keyfile/mongodb-keyfile ]; then
+          echo "Generating keyfile..."
+          openssl rand -base64 756 > /opt/keyfile/mongodb-keyfile
+          chmod 400 /opt/keyfile/mongodb-keyfile
+          chown 999:999 /opt/keyfile/mongodb-keyfile
+        else
+          chmod 400 /opt/keyfile/mongodb-keyfile
+          chown 999:999 /opt/keyfile/mongodb-keyfile
+        fi
+        exec /usr/local/bin/docker-entrypoint.sh "$@"
+      - --
+    command: ["--replSet", "rs0", "--bind_ip_all", "--auth", "--keyFile", "/opt/keyfile/mongodb-keyfile"]
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ../data/keyfile:/opt/keyfile
+    networks:
+      - tapdata-net
+    healthcheck:
+      test: echo "var s=rs.status(); if(s.ok===0 && s.code===94){rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]})}" | mongo -u admin -p tapdata_best2019 --authenticationDatabase admin --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  tm:
+    build:
+      context: ..
+      dockerfile: tapdata/Dockerfile
+      target: tm
+    ports:
+      - "${TM_PORT:-3030}:3030"
+    command: ["sh", "bin/start_with_register.sh"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - tapdata-net
+    environment:
+      - SERVER_PORT=3030
+      - TM_HEAP_SIZE=4G
+      - SPRING_DATA_MONGODB_URI=mongodb://admin:tapdata_best2019@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+      - DEFAULT_MONGO_URI=mongodb://admin:tapdata_best2019@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+      - OBS_MONGO_URI=mongodb://admin:tapdata_best2019@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+      - LOG_MONGO_URI=mongodb://admin:tapdata_best2019@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+
+  engine:
+    build:
+      context: ..
+      dockerfile: tapdata/Dockerfile
+      target: engine
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - tapdata-net
+    environment:
+      - WORK_DIR=/app/engine/dist
+      - TM_BASE_URL=http://tm:3030/api/
+      - backend_url=http://tm:3030/api/
+      - engineMem=4G
+      - JAVA_OPTS=${JAVA_OPTS}
+      - app_type=DAAS
+      - SPRING_DATA_MONGODB_URI=mongodb://admin:tapdata_best2019@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+      - SPRING_DATA_MONGODB_DEFAULT_URI=mongodb://admin:tapdata_best2019@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+      - SPRING_DATA_MONGODB_OBS_URI=mongodb://admin:tapdata_best2019@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+      - SPRING_DATA_MONGODB_LOG_URI=mongodb://admin:tapdata_best2019@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+      - TAPDATA_MONGO_URI=mongodb://admin:tapdata_best2019@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+
+  web:
+    build:
+      context: ../tapdata-web
+      dockerfile: Dockerfile
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - tapdata-net
+    environment:
+      - TM_API_URL=http://tapdata-tm-official:3030
+
+volumes:
+  mongo_data:
+
+networks:
+  tapdata-net:
+    driver: bridge

@@ -1,0 +1,56 @@
+services:
+  mongo:
+    image: mongo:5.0
+    container_name: tapdata-mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: tapdata_best2019
+      MONGO_INITDB_DATABASE: tapdata
+    command: ["--replSet", "rs0", "--bind_ip_all", "--auth", "--keyFile", "/opt/keyfile/mongodb-keyfile"]
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:../data/db
+      - ../data/mongodb-keyfile:/opt/keyfile/mongodb-keyfile:ro
+    networks:
+      - tapdata-net
+    healthcheck:
+      test: echo "var s=rs.status(); if(s.ok===0 && s.code===94){rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]})}" | mongo -u admin -p tapdata_best2019 --authenticationDatabase admin --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  tm:
+    container_name: tapdata-tm
+    restart: always
+    networks:
+      - tapdata-net
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  engine:
+    container_name: tapdata-engine
+    restart: always
+    networks:
+      - tapdata-net
+    depends_on:
+      - tm
+
+  web:
+    container_name: tapdata-web
+    restart: always
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    networks:
+      - tapdata-net
+    depends_on:
+      - tm
+
+volumes:
+  mongo_data:
+
+networks:
+  tapdata-net:
+    driver: bridge
