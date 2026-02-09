@@ -138,3 +138,5 @@ sybase-poc-temp/
 .tmStartMsg.json
 
 run-resources
+data/
+ll
