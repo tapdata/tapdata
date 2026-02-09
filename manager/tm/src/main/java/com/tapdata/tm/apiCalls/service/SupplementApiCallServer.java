@@ -298,13 +298,13 @@ public class SupplementApiCallServer {
                             .ifPresent(vos -> vos.forEach(item -> {
                                 entity.setReqCount(Optional.ofNullable(entity.getErrorCount()).orElse(0L) + Optional.ofNullable(item.getErrorCount()).orElse(0L));
                                 entity.setReqCount(Optional.ofNullable(entity.getReqCount()).orElse(0L) + Optional.ofNullable(item.getReqCount()).orElse(0L));
-                                Optional.ofNullable(item.getDelays())
+                                Optional.ofNullable(item.getDelayList())
                                         .ifPresent(ds -> {
-                                            Optional.ofNullable(entity.getDelays()).ifPresent(ds::addAll);
-                                            entity.setDelays(ds);
+                                            Optional.ofNullable(entity.getDelayList()).ifPresent(ds::addAll);
+                                            entity.setDelayList(ds);
                                         });
                             }));
-                    List<Map<String, Number>> merged = entity.getDelays();
+                    List<Map<String, Number>> merged = entity.getDelayList();
                     long reqCount = ApiMetricsDelayUtil.sum(merged).getCount();
                     Double p50 = ApiMetricsDelayUtil.p50(merged, reqCount);
                     Double p95 = ApiMetricsDelayUtil.p95(merged, reqCount);
