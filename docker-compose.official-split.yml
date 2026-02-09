@@ -36,7 +36,7 @@ services:
           tar -xzf connectors/dist.tar.gz -C connectors/
         fi
         mkdir -p logs
-        java -Xmx2g -jar -Dserver.port=3030 -server components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 --spring.data.mongodb.obs.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 --spring.data.mongodb.log.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 > logs/tm.log 2>&1 &
+        java -Xmx4g -jar -Dserver.port=3030 -server components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 --spring.data.mongodb.obs.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 --spring.data.mongodb.log.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 > logs/tm.log 2>&1 &
         TM_PID=$!
         echo "Waiting for TM to start..."
         until curl -s http://localhost:3030/api/ > /dev/null; do
@@ -64,7 +64,7 @@ services:
     container_name: tapdata-engine-official
     working_dir: /tapdata/apps
     # Run only Engine Jar
-    command: ["java", "-Xmx2g", "-jar", "components/tapdata-agent.jar"]
+    command: ["java", "-Xmx4g", "-jar", "components/tapdata-agent.jar"]
     depends_on:
       - tm
     environment:
