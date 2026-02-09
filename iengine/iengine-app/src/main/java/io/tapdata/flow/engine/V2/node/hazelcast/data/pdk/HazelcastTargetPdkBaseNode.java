@@ -130,6 +130,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static io.tapdata.entity.event.TapCallbackOffset.*;
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.flow.engine.V2.util.PdkUtil.ENCODE_PREFIX;
 
@@ -192,6 +193,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     protected final ISkipErrorTable skipErrorTable;
 	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
 	protected final Map<String, Boolean> startTransactionMap = new HashMap<>();
+	protected boolean offsetCallbackEnable = false;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -217,6 +219,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         syncMetricCollector = ISyncMetricCollector.init(dataProcessorContext);
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInit(context);
+			initOffsetCallbackEnable();
 			createPdkAndInit(context);
 			everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 			initExactlyOnceWriteIfNeed();
@@ -236,8 +239,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void initFlushOffsetConsumer() {
-		List<Capability> capabilities = dataProcessorContext.getConnections().getCapabilities();
-		if (CollectionUtils.isNotEmpty(capabilities) && !capabilities.stream().anyMatch(cap -> null != cap && ConnectionOptions.FLUSH_OFFSET_CALLBACK.equals(cap.getId()))) {
+		if (!offsetCallbackEnable) {
 			return;
 		}
 		TapConnectionContext connectionContext = getConnectorNode().getConnectorContext();
@@ -245,13 +247,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (callbackOffset instanceof TapCallbackOffset) {
 				TapCallbackOffset tapOffset = (TapCallbackOffset) callbackOffset;
 
-				Object batchOffset = tapOffset.get("batchOffset");
-				Object streamOffset = tapOffset.get("streamOffset");
-				String tableId = (String) tapOffset.get("tableId");
-				String syncStage = (String) tapOffset.get("syncStage");
-				Long sourceTime = (Long) tapOffset.get("sourceTime");
-				Long eventTime = (Long) tapOffset.get("eventTime");
-				Object nodeIds = tapOffset.get("nodeIds");
+				Object batchOffset = tapOffset.get(KEY_BATCH_OFFSET);
+				Object streamOffset = tapOffset.get(KEY_STREAM_OFFSET);
+				String tableId = (String) tapOffset.get(KEY_TABLE_ID);
+				String syncStage = (String) tapOffset.get(KEY_SYNC_STAGE);
+				Long sourceTime = (Long) tapOffset.get(KEY_SOURCE_TIME);
+				Long eventTime = (Long) tapOffset.get(KEY_EVENT_TIME);
+				Object nodeIds = tapOffset.get(KEY_NODE_IDS);
 
 				// 构建 TapdataEvent
 				TapdataEvent tapdataEvent = new TapdataEvent();
@@ -1526,6 +1528,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
+	protected void initOffsetCallbackEnable() {
+		if (null == dataProcessorContext.getConnections()) {
+			return;
+		}
+		List<Capability> capabilities = dataProcessorContext.getConnections().getCapabilities();
+		if (CollectionUtils.isNotEmpty(capabilities) && capabilities.stream().anyMatch(cap -> null != cap && ConnectionOptions.FLUSH_OFFSET_CALLBACK.equals(cap.getId()))) {
+			offsetCallbackEnable = true;
+		}
+	}
+
     protected void replaceIllegalDateWithNullIfNeed(TapRecordEvent event) {
         boolean containsIllegalDate = event.getContainsIllegalDate();
         if (containsIllegalDate && !illegalDateAcceptable) {
@@ -1675,8 +1687,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
 			}
 		} else {
-			List<Capability> capabilities = dataProcessorContext.getConnections().getCapabilities();
-			if (CollectionUtils.isNotEmpty(capabilities) && capabilities.stream().anyMatch(cap -> null != cap && ConnectionOptions.FLUSH_OFFSET_CALLBACK.equals(cap.getId()))) {
+			if (offsetCallbackEnable) {
 				return;
 			}
 			else {
