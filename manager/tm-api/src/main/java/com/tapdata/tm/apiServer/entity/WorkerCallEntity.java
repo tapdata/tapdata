@@ -45,9 +45,13 @@ public class WorkerCallEntity extends BaseEntity {
     private Double rps;
 
     /**
+     * @deprecated unused
+     * */
+    private List<?> delays;
+    /**
      * Delay list at current time granularity, in milliseconds
      */
-    private List<Map<String, Number>> delays;
+    private List<Map<String, Number>> delayList;
     /**
      * P50=median at current time granularity, 50% of request delays are below this value, in milliseconds
      */
