@@ -5871,7 +5871,7 @@ public class TaskServiceImpl extends TaskService{
 
     @Override
     public CheckTaskMemoryResult checkTaskMemoryHeap(TaskDto taskDto, boolean isRedistribute,UserDetail userDetail){
-        if(taskDto.getType().equals(TaskDto.TYPE_CDC)
+        if( (null != taskDto.getType() && taskDto.getType().equals(TaskDto.TYPE_CDC))
                 || (null != taskDto.getAttrs() && taskDto.getAttrs().containsKey("syncProgress"))
                 || !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC))return null;
         DAG dag = taskDto.getDag();
@@ -5892,14 +5892,16 @@ public class TaskServiceImpl extends TaskService{
             if(node instanceof DataParentNode<?> dataParentNode){
                 Map<String,Long> tableMap = new HashMap<>();
                 List<MetadataInstancesDto>  metadataInstancesDtoList = metadataInstancesService.findByNodeId(node.getId(),userDetail);
-                metadataInstancesDtoList.forEach(metadataInstancesDto -> {
-                    if(org.apache.commons.collections4.MapUtils.isNotEmpty(metadataInstancesDto.getTableAttr()) && metadataInstancesDto.getTableAttr().containsKey("avgObjSize")){
-                        Integer avgSize = (Integer) metadataInstancesDto.getTableAttr().get("avgObjSize");
-                        if(null != avgSize){
-                            tableMap.put(metadataInstancesDto.getOriginalName(),Long.valueOf(avgSize));
+                if(CollectionUtils.isNotEmpty(metadataInstancesDtoList)){
+                    metadataInstancesDtoList.forEach(metadataInstancesDto -> {
+                        if(org.apache.commons.collections4.MapUtils.isNotEmpty(metadataInstancesDto.getTableAttr()) && metadataInstancesDto.getTableAttr().containsKey("avgObjSize")){
+                            Integer avgSize = (Integer) metadataInstancesDto.getTableAttr().get("avgObjSize");
+                            if(null != avgSize){
+                                tableMap.put(metadataInstancesDto.getOriginalName(),Long.valueOf(avgSize));
+                            }
                         }
-                    }
-                });
+                    });
+                }
                 if(org.apache.commons.collections4.MapUtils.isNotEmpty(tableMap)){
                     CheckTaskMemoryParam checkTaskMemoryParam = CheckTaskMemoryParam.builder()
                             .connectionId(dataParentNode.getConnectionId())
