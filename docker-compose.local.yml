@@ -11,6 +11,7 @@ services:
       - sh
       - -c
       - |
+        echo '
         if [ ! -f /opt/keyfile/mongodb-keyfile ]; then
           echo "Generating keyfile..."
           openssl rand -base64 756 > /opt/keyfile/mongodb-keyfile
@@ -21,6 +22,7 @@ services:
           chown 999:999 /opt/keyfile/mongodb-keyfile
         fi
         exec /usr/local/bin/docker-entrypoint.sh "$@"
+        ' | tr -d '\r' | sh -s -- "$@"
       - --
     command: ["--replSet", "rs0", "--bind_ip_all", "--auth", "--keyFile", "/opt/keyfile/mongodb-keyfile"]
     ports:
@@ -44,7 +46,13 @@ services:
       target: tm
     ports:
       - "${TM_PORT:-3030}:3030"
-    command: ["sh", "bin/start_with_register.sh"]
+    command: 
+      - sh
+      - -c
+      - |
+        tr -d '\r' < bin/start_with_register.sh > /tmp/start_with_register.sh
+        chmod +x /tmp/start_with_register.sh
+        /tmp/start_with_register.sh
     depends_on:
       mongo:
         condition: service_healthy
@@ -70,6 +78,13 @@ services:
       context: ..
       dockerfile: tapdata/Dockerfile
       target: engine
+    command: 
+      - sh
+      - -c
+      - |
+        tr -d '\r' < bin/register_and_start.sh > /tmp/register_and_start.sh
+        chmod +x /tmp/register_and_start.sh
+        sh /tmp/register_and_start.sh
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
