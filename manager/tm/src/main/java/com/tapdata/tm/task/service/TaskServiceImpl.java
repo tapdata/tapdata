@@ -4504,11 +4504,6 @@ public class TaskServiceImpl extends TaskService{
         if(null != taskDto.getDag() && CollectionUtils.isNotEmpty(taskDto.getDag().getTargetNodes())) {
             metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(taskDto.getDag().getTargetNodes().get(0).getId(), taskDto.getId().toHexString(), user,false);
         }
-        CheckTaskMemoryResult checkTaskMemoryResult = checkTaskMemoryHeap(taskDto, false, user);
-        if (null != checkTaskMemoryResult && !checkTaskMemoryResult.getIsSafe()) {
-            String message = String.format("High OOM risk detected. The current Batch Size is %s with an Avg Data Size of %s, but Available Memory is only %s.", checkTaskMemoryResult.getBatchSize(), checkTaskMemoryResult.getAvgSize(), checkTaskMemoryResult.getRealFree());
-            monitoringLogsService.startTaskErrorLog(taskDto, user, message, Level.WARN);
-        }
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             for (int i = 1; i < 6; i++) {
                 TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
@@ -4630,7 +4625,7 @@ public class TaskServiceImpl extends TaskService{
                     .set(RESTART_FLAG, false)
                     .set(STOP_RETRY_TIMES, 0);
             update(query, set, user);
-            taskScheduleService.scheduling(taskDto, user);
+            taskScheduleService.scheduling(taskDto, user,false);
         } finally {
             lock.unlock();
             if (!lock.isLocked()) {
@@ -5875,7 +5870,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     @Override
-    public CheckTaskMemoryResult checkTaskMemoryHeap(TaskDto taskDto, boolean isManual,UserDetail userDetail){
+    public CheckTaskMemoryResult checkTaskMemoryHeap(TaskDto taskDto, boolean isRedistribute,UserDetail userDetail){
         if(taskDto.getType().equals(TaskDto.TYPE_CDC)
                 || (null != taskDto.getAttrs() && taskDto.getAttrs().containsKey("syncProgress"))
                 || !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC))return null;
@@ -5919,18 +5914,14 @@ public class TaskServiceImpl extends TaskService{
         });
         if(CollectionUtils.isEmpty(checkTaskMemoryParams))return CheckTaskMemoryResult.safe();;
         CheckTaskMemoryResult result;
-        if(taskDto.getAgentId() == null){
+        if(isRedistribute || !Boolean.TRUE.equals(taskDto.getCheckMemoryHeap())){
             taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);
-        }else{
-            try{
-                checkEngineStatus(taskDto, userDetail);
-            }catch (BizException bizException){
-                taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);
-            }
         }
         if(taskDto.getAgentId() == null){
            throw new BizException("Agent.Not.Found");
         }
+        taskDto.setCheckMemoryHeap(true);
+        update(Query.query(Criteria.where("_id").is(taskDto.getId())),Update.update("agentId",taskDto.getAgentId()).set("checkMemoryHeap",true));
         try {
             result = callEngineRpc(taskDto.getAgentId(),CheckTaskMemoryResult.class,"CheckTaskMemoryHeapService","checkTaskMemoryHeap",new Object[]{checkTaskMemoryParams});
         } catch (Throwable e) {
