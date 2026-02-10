@@ -1,7 +1,8 @@
 services:
   mongo:
-    image: mongo:5.0
+    image: mongo:6.0
     container_name: tapdata-mongo
+    hostname: tapdata-mongo
     restart: always
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
@@ -21,19 +22,19 @@ services:
           chmod 400 /opt/keyfile/mongodb-keyfile
           chown 999:999 /opt/keyfile/mongodb-keyfile
         fi
-        exec /usr/local/bin/docker-entrypoint.sh "$@"
-        ' | tr -d '\r' | sh -s -- "$@"
+        exec /usr/local/bin/docker-entrypoint.sh "$$@"
+        ' | tr -d '\r' | sh -s -- "$$@"
       - --
     command: ["--replSet", "rs0", "--bind_ip_all", "--auth", "--keyFile", "/opt/keyfile/mongodb-keyfile"]
     ports:
       - "${MONGO_PORT:-27017}:27017"
     volumes:
-      - mongo_data:/data/db
-      - ../data/keyfile:/opt/keyfile
+      - mongo_data_local:/data/db
+      - mongo_keyfile_local:/opt/keyfile
     networks:
       - tapdata-net
     healthcheck:
-      test: ["CMD", "mongo", "--eval", "rs.status().ok || rs.initiate()"]
+      test: ["CMD", "mongosh", "-u", "${MONGO_INITDB_ROOT_USERNAME:-admin}", "-p", "${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}", "--authenticationDatabase", "admin", "--host", "127.0.0.1", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'tapdata-mongo:27017'}]}) }"]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -50,9 +51,11 @@ services:
       - sh
       - -c
       - |
-        tr -d '\r' < bin/start_with_register.sh > /tmp/start_with_register.sh
+        echo '
+        tr -d "\r" < bin/start_with_register.sh > /tmp/start_with_register.sh
         chmod +x /tmp/start_with_register.sh
         /tmp/start_with_register.sh
+        ' | tr -d '\r' | sh
     depends_on:
       mongo:
         condition: service_healthy
@@ -82,9 +85,11 @@ services:
       - sh
       - -c
       - |
-        tr -d '\r' < bin/register_and_start.sh > /tmp/register_and_start.sh
+        echo '
+        tr -d "\r" < bin/register_and_start.sh > /tmp/register_and_start.sh
         chmod +x /tmp/register_and_start.sh
         sh /tmp/register_and_start.sh
+        ' | tr -d '\r' | sh
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -124,7 +129,8 @@ services:
       - ./odh/web/server.js:/app/server.js
 
 volumes:
-  mongo_data:
+  mongo_data_local:
+  mongo_keyfile_local:
 
 networks:
   tapdata-net:
