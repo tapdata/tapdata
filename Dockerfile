@@ -90,10 +90,10 @@ RUN sed -i '/<repositories>/,/<\/repositories>/d' tapdata-connectors/pom.xml || 
 # Download dependencies (Cached Layer)
 WORKDIR /app/tapdata
 # Using --fail-never to ignore reactor resolution errors during pre-download
-RUN mvn dependency:go-offline -pl !tapdata-test -P idaas,not_encrypt -T 2C -B --fail-never || true
+RUN mvn dependency:go-offline -pl !tapdata-test -P idaas,not_encrypt -T 1C -B --fail-never || true
 
 WORKDIR /app/tapdata-connectors
-RUN mvn dependency:go-offline -pl connectors/mongodb-connector -am -T 2C -B --fail-never || true
+RUN mvn dependency:go-offline -pl connectors/mongodb-connector -am -T 1C -B --fail-never || true
 
 # Copy the entire project (source code) - This layer changes frequently
 WORKDIR /app
@@ -103,11 +103,12 @@ COPY tapdata-connectors/ tapdata-connectors/
 # Build Tapdata (Manager, Engine, CLI)
 WORKDIR /app/tapdata
 # Use -pl !tapdata-test to build all modules except test
-RUN mvn clean install -pl !tapdata-test -P idaas,not_encrypt -DskipTests -T 2C -B
+RUN mvn clean install -pl !tapdata-test -P idaas,not_encrypt -DskipTests -T 1C -B
 
 # Build mongodb-connector
 WORKDIR /app/tapdata-connectors
-RUN mvn clean install -pl connectors/mongodb-connector -am -DskipTests -T 2C -B
+RUN mvn clean install -pl connectors-common/connector-core -am -DskipTests -T 1C -B
+RUN mvn clean install -pl connectors/mongodb-connector -am -DskipTests -T 1C -B
 
 # Stage 2: TM Service
 FROM eclipse-temurin:17-jdk-jammy AS tm

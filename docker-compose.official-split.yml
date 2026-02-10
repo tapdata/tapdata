@@ -10,7 +10,7 @@ services:
         mkdir -p /tapdata/data/logs /tapdata/data/db
         mongod --dbpath=/tapdata/data/db/ --replSet=rs0 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log
     environment:
-      - dbMem=1
+      - dbMem=2
     volumes:
       - ./data/db:/tapdata/data/db
     ports:
@@ -36,7 +36,7 @@ services:
           tar -xzf connectors/dist.tar.gz -C connectors/
         fi
         mkdir -p logs
-        java -Xmx4g -jar -Dserver.port=3030 -server components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 --spring.data.mongodb.obs.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 --spring.data.mongodb.log.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 > logs/tm.log 2>&1 &
+        java -Xms4g -Xmx4g -jar -Dserver.port=3030 -server components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 --spring.data.mongodb.obs.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 --spring.data.mongodb.log.uri=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0 > logs/tm.log 2>&1 &
         TM_PID=$!
         echo "Waiting for TM to start..."
         until curl -s http://localhost:3030/api/ > /dev/null; do
@@ -44,16 +44,16 @@ services:
           echo "Waiting for TM..."
         done
         echo "Registering connectors..."
-        java -jar lib/pdk-deploy.jar register -a 3324cfdf-7d3e-4792-bd32-571638d4562f -t http://localhost:3030 connectors/dist
+        java -jar lib/pdk-deploy.jar register -a 3324cfdf-7d3e-4792-bd32-571638d4562f -t http://localhost:3030 connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar
         echo "Registration complete. Tailing TM logs..."
         tail -f logs/tm.log &
         wait $TM_PID
     depends_on:
       - mongo
     ports:
-      - "3030:3030"
+      - "8080:3030"
     environment:
-      - managerMem=2g
+      - managerMem=4g
       - tm_port=3030
       - MONGO_URI=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0
     networks:
@@ -64,7 +64,7 @@ services:
     container_name: tapdata-engine-official
     working_dir: /tapdata/apps
     # Run only Engine Jar
-    command: ["java", "-Xmx4g", "-jar", "components/tapdata-agent.jar"]
+    command: ["java", "-Xms4g", "-Xmx4g", "-jar", "components/tapdata-agent.jar"]
     depends_on:
       - tm
     environment:
@@ -73,7 +73,7 @@ services:
       - backend_url=http://tapdata-tm-official:3030/api/
       - MONGO_URI=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0
       - TAPDATA_MONGO_URI=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0
-      - engineMem=2g
+      - engineMem=4g
     networks:
       - tapdata-net
 

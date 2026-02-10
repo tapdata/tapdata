@@ -10,6 +10,8 @@
 # =================================================================================
 
 set -e
+export NODE_ENV=community
+export VUE_APP_MODE=community
 
 # --- Function to check and install Maven (Requirement: Script Check) ---
 check_maven_env() {

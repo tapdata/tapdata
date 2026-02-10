@@ -1,6 +1,7 @@
 #!/bin/bash
 # Wrapper script to automatically run environment checks before any command (defaulting to docker-compose up -d)
-
+export NODE_ENV=community
+export VUE_APP_MODE=community
 # Get the directory of the script
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
