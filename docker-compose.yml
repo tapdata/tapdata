@@ -37,7 +37,7 @@ services:
       - |
         echo '
         mkdir -p logs
-        java -Xms4g -Xmx4g -jar -Dserver.port=${TM_PORT:-3000} -server components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=mongodb://tapdata-mongo-official:${MONGO_PORT:-27017}/tapdata?replicaSet=rs0 --spring.data.mongodb.obs.uri=mongodb://tapdata-mongo-official:${MONGO_PORT:-27017}/tapdata?replicaSet=rs0 --spring.data.mongodb.log.uri=mongodb://tapdata-mongo-official:${MONGO_PORT:-27017}/tapdata?replicaSet=rs0 > logs/tm.log 2>&1 &
+        java -Xms4g -Xmx4g -Dserver.port=${TM_PORT:-3000} -server -jar components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=mongodb://tapdata-mongo-official:${MONGO_PORT:-27017}/tapdata?replicaSet=rs0 --spring.data.mongodb.obs.uri=mongodb://tapdata-mongo-official:${MONGO_PORT:-27017}/tapdata?replicaSet=rs0 --spring.data.mongodb.log.uri=mongodb://tapdata-mongo-official:${MONGO_PORT:-27017}/tapdata?replicaSet=rs0 > logs/tm.log 2>&1 &
         TM_PID=$$!
         tail -f logs/tm.log &
         wait $$TM_PID

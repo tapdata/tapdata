@@ -13,7 +13,7 @@ echo "TM is ready"
 echo "Registering mongodb-connector..."
 # pdk.jar requires java 8+ (which we have)
 # Usage: java -jar pdk.jar register -t <tm_url> <jar_file>
-java -jar /app/pdk/pdk.jar register -t http://tm:${TM_PORT:-3000} /app/pdk/mongodb-connector.jar
+java -jar /app/pdk/pdk.jar register -t http://tm:${TM_PORT:-3000} /app/pdk/dist/mongodb-connector.jar
 
 echo "Registration complete. Starting Engine..."
 
