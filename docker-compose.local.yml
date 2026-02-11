@@ -1,6 +1,6 @@
 services:
   mongo:
-    image: mongo:5.0
+    image: mongo:6.0
     container_name: tapdata-mongo
     hostname: tapdata-mongo
     restart: always
@@ -29,12 +29,12 @@ services:
     ports:
       - "${MONGO_PORT:-27017}:27017"
     volumes:
-      - mongo_data:/data/db
-      - ../data/keyfile:/opt/keyfile
+      - mongo_data_local:/data/db
+      - mongo_keyfile_local:/opt/keyfile
     networks:
       - tapdata-net
     healthcheck:
-      test: ["CMD", "mongo", "--host", "127.0.0.1", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'tapdata-mongo:27017'}]}) }"]
+      test: ["CMD", "mongo", "-u", "${MONGO_INITDB_ROOT_USERNAME:-admin}", "-p", "${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}", "--authenticationDatabase", "admin", "--host", "127.0.0.1", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'tapdata-mongo:27017'}]}) }"]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -129,7 +129,8 @@ services:
       - ./odh/web/server.js:/app/server.js
 
 volumes:
-  mongo_data:
+  mongo_data_local:
+  mongo_keyfile_local:
 
 networks:
   tapdata-net:
