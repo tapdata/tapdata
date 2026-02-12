@@ -19,7 +19,7 @@ ENGINE_PID=$!
 
 echo "Waiting for TM to start..."
 # Connect to TM service (hostname: tm)
-until curl -s http://tm:${TM_PORT:-3000}/api/ > /dev/null; do
+until curl -s http://tm:3000/api/ > /dev/null; do
   sleep 5
   echo "Waiting for TM..."
 done
@@ -27,7 +27,7 @@ done
 echo "Registering connectors..."
 # Local build has pdk.jar in /app/pdk/ and connectors in /app/pdk/dist/
 if [ -f "/app/pdk/pdk.jar" ] && [ -d "/app/pdk/dist" ]; then
-    java -jar /app/pdk/pdk.jar register -a 3324cfdf-7d3e-4792-bd32-571638d4562f -t http://tm:${TM_PORT:-3000} /app/pdk/dist
+    java -jar /app/pdk/pdk.jar register -a 3324cfdf-7d3e-4792-bd32-571638d4562f -t http://tm:3000 /app/pdk/dist
 else
     echo "Warning: pdk.jar or connectors dist not found in /app/pdk/, skipping registration"
 fi

@@ -5,9 +5,6 @@ set -e
 # Handle signal
 trap 'kill $(jobs -p)' EXIT
 
-# TM_PORT default 3000
-TM_PORT=${TM_PORT:-3000}
-
 mkdir -p logs
 touch logs/tm.log
 
@@ -17,7 +14,7 @@ JAVA_OPTS=${JAVA_OPTS:-"-Xmx4g"}
 
 # Start TM
 # Note: Ensure all required JVM options (add-opens, etc.) are included in JAVA_OPTS or added here if missing from env
-java $JAVA_OPTS -jar -Dserver.port=${TM_PORT} -server lib/tm.jar \
+java $JAVA_OPTS -jar -Dserver.port=3000 -server lib/tm.jar \
   --spring.config.additional-location=file:conf/ \
   --logging.config=file:conf/logback.xml \
   --spring.data.mongodb.default.uri="${SPRING_DATA_MONGODB_URI}" \
