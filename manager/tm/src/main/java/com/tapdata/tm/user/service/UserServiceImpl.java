@@ -976,6 +976,8 @@ public class UserServiceImpl extends UserService{
             env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
             env.put(Context.PROVIDER_URL, ldapUrl);
             env.put(Context.SECURITY_AUTHENTICATION, "simple");
+            // Enable LDAP referral following to handle multi-domain environments
+            env.put(Context.REFERRAL, "follow");
             if (!bindDn.contains("@") && StringUtils.isNotBlank(baseDN)) {
                 String domain = convertBaseDnToDomain(baseDN);
                 bindDn = bindDn + "@" + domain;
