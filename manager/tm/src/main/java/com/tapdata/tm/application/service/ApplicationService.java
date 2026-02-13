@@ -6,6 +6,7 @@ import com.tapdata.tm.application.repository.ApplicationRepository;
 import com.tapdata.tm.application.vo.ModulePermissionVo;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.config.security.UserDetail;
@@ -18,6 +19,7 @@ import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -61,8 +63,30 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
         return pageApplications;
     }
 
+    public long countOfClientId(String clientId, ObjectId recordId) {
+        if (StringUtils.isBlank(clientId)) {
+            return 0;
+        }
+        Criteria criteria = Criteria.where("clientId").is(clientId.trim())
+                .and("is_deleted").ne(true);
+        if (null != recordId) {
+            criteria.and("_id").ne(recordId);
+        }
+        Query query = new Query(criteria);
+        return count(query);
+    }
+
     public ApplicationDto updateById(ApplicationDto applicationDto, UserDetail userDetail) {
         String id = applicationDto.getId().toString();
+        if (null != applicationDto.getClientId()) {
+            long count = countOfClientId(applicationDto.getClientId(), applicationDto.getId());
+            if (count > 0) {
+                throw new BizException("api.server.client.id.exists", applicationDto.getClientId());
+            }
+        }
+        if (null != applicationDto.getClientId() && StringUtils.isBlank(applicationDto.getClientId())) {
+            throw new BizException("api.server.client.id.empty");
+        }
         Query query = Query.query(Criteria.where("id").is(id));
         if (userDetail.isRoot() && !userDetail.isFreeAuth()) {
             update(query, applicationDto);
