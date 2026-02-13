@@ -13,6 +13,7 @@ import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.*;
@@ -22,6 +23,8 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.lineage.analyzer.AnalyzerService;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
@@ -33,9 +36,6 @@ import com.tapdata.tm.commons.task.dto.MergeTablePropertiesInfo;
 import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerDto;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -101,7 +101,6 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -7454,5 +7453,249 @@ class TaskServiceImplTest {
             return graph;
         }
     }
+
+
+    @Nested
+    @DisplayName("TaskServiceImpl.checkTaskMemoryHeap 方法测试")
+    class CheckTaskMemoryHeapTest {
+        private TaskServiceImpl taskService;
+        private MetadataInstancesServiceImpl metadataInstancesServiceImpl;
+        private TaskScheduleService taskScheduleService;
+        private UserDetail userDetail;
+
+        @BeforeEach
+        void setUp() {
+            taskService = mock(TaskServiceImpl.class);
+            metadataInstancesServiceImpl = mock(MetadataInstancesServiceImpl.class);
+            taskScheduleService = mock(TaskScheduleService.class);
+            userDetail = mock(UserDetail.class);
+            ReflectionTestUtils.setField(taskService, "metadataInstancesService", metadataInstancesServiceImpl);
+            ReflectionTestUtils.setField(taskService, "taskScheduleService", taskScheduleService);
+        }
+
+        @Test
+        @DisplayName("CDC 类型任务返回 null")
+        void testCdcTypeReturnsNull() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("cdc");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("attrs 包含 syncProgress 时返回 null")
+        void testHasSyncProgressReturnsNull() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("syncProgress", new HashMap<>());
+            taskDto.setAttrs(attrs);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("syncType 不是 migrate 或 sync 时返回 null")
+        void testInvalidSyncTypeReturnsNull() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType("logCollector");
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("DAG 为 null 时返回 safe")
+        void testDagNullReturnsSafe() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            taskDto.setDag(null);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("DAG nodes 为空时返回 safe")
+        void testDagEmptyNodesReturnsSafe() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            DAG dag = mock(DAG.class);
+            when(dag.getNodes()).thenReturn(Collections.emptyList());
+            taskDto.setDag(dag);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("source 节点无 DataParentNode 时 checkTaskMemoryParams 为空返回 safe")
+        void testNoDataParentNodeReturnsSafe() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            DAG dag = mock(DAG.class);
+            Node nonDataNode = mock(Node.class);
+            when(dag.getNodes()).thenReturn(Collections.singletonList(nonDataNode));
+            when(dag.getSources()).thenReturn(Collections.singletonList(nonDataNode));
+            when(dag.getTargetDataParentNode()).thenReturn(new LinkedList<>());
+            taskDto.setDag(dag);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("metadata 无 tableAttr 时 tableMap 为空返回 safe")
+        void testNoTableAttrReturnsSafe() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            meta.setTableAttr(null);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("agentId 为 null 且 cloudTaskLimitNum 后仍为 null 时抛出 BizException")
+        void testAgentIdNullThrowsBizException() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            taskDto.setAgentId(null);
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            assertThrows(BizException.class, () -> taskService.checkTaskMemoryHeap(taskDto, false, userDetail));
+        }
+
+        @Test
+        @DisplayName("agentId 不为 null，checkEngineStatus 正常，callEngineRpc 返回结果")
+        void testNormalFlowReturnsResult() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSize();
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertEquals(expected, result);
+        }
+
+        @Test
+        @DisplayName("agentId 不为 null，checkEngineStatus 抛 BizException 后走 cloudTaskLimitNum")
+        void testCheckEngineStatusThrowsBizException() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doThrow(new BizException("Agent.Not.Found")).when(taskService).checkEngineStatus(any(), any());
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            verify(taskScheduleService).cloudTaskLimitNum(any(), any(), eq(false));
+            assertEquals(expected, result);
+        }
+
+        @Test
+        @DisplayName("callEngineRpc 抛异常时返回 safe")
+        void testCallEngineRpcExceptionReturnsSafe() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenThrow(new RuntimeException("RPC failed"));
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("target 节点 writeBatchSize 为 null 时使用默认值 100")
+        void testTargetWriteBatchSizeNull() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1", null);
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+        }
+
+        @Test
+        @DisplayName("tableAttr 中 avgObjSize 为 null 时不加入 tableMap")
+        void testAvgObjSizeNullSkipped() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            Map<String, Object> tableAttr = new HashMap<>();
+            tableAttr.put("avgObjSize", null);
+            meta.setTableAttr(tableAttr);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        private TaskDto buildTaskDtoWithSourceNode(String agentId) {
+            return buildTaskDtoWithSourceNode(agentId, 200);
+        }
+
+        private TaskDto buildTaskDtoWithSourceNode(String agentId, Integer targetWriteBatchSize) {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            taskDto.setAgentId(agentId);
+
+            DatabaseNode sourceNode = mock(DatabaseNode.class);
+            when(sourceNode.getId()).thenReturn("source-node-1");
+            when(sourceNode.getConnectionId()).thenReturn("conn-1");
+            when(sourceNode.getReadBatchSize()).thenReturn(500);
+
+            DatabaseNode targetNode = mock(DatabaseNode.class);
+            when(targetNode.getWriteBatchSize()).thenReturn(targetWriteBatchSize);
+
+            DAG dag = mock(DAG.class);
+            when(dag.getNodes()).thenReturn(Arrays.asList(sourceNode, targetNode));
+            when(dag.getSources()).thenReturn(Collections.singletonList(sourceNode));
+            LinkedList<DataParentNode> targetDataParentNodes = new LinkedList<>();
+            targetDataParentNodes.add(targetNode);
+            when(dag.getTargetDataParentNode()).thenReturn(targetDataParentNodes);
+            LinkedList<Node> successors = new LinkedList<>();
+            successors.add(targetNode);
+            when(dag.getSuccessorsRecursive("source-node-1")).thenReturn(successors);
+            taskDto.setDag(dag);
+            return taskDto;
+        }
+
+        private void mockMetadataWithAvgObjSize() {
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            Map<String, Object> tableAttr = new HashMap<>();
+            tableAttr.put("avgObjSize", 256);
+            meta.setTableAttr(tableAttr);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+        }
+    }
+
 
 }

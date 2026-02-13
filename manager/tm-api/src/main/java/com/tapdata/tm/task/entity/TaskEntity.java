@@ -313,6 +313,8 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      */
     private Map<String, Object> metricInfo;
 
+    private Boolean checkMemoryHeap;
+
     public String getAccessNodeProcessId() {
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
             return accessNodeProcessId;

@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
@@ -1539,5 +1540,15 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> saveMergeTableCacheInfo(@PathVariable("id") String id) {
         taskService.saveMergeTableCacheInfo(id);
         return success();
+    }
+
+    @Operation(summary = "任务启动检查内存")
+    @GetMapping("/checkTaskMemoryHeap/{id}")
+    public ResponseMessage<CheckTaskMemoryResult> checkTaskMemoryHeap(@PathVariable("id") String id) {
+        TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(id));
+        if(taskDto == null){
+            throw new BizException("Task.NotFound");
+        }
+        return success(taskService.checkTaskMemoryHeap(taskDto,true,getLoginUser()));
     }
 }
