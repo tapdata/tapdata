@@ -1,6 +1,5 @@
 package com.tapdata.tm.apiCalls.service;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCollection;
@@ -902,6 +901,25 @@ class ApiCallServiceTest {
             when(mongoTemplate.findById("id", ApiCallEntity.class)).thenReturn(entity);
             when(modulesService.findById(any(ObjectId.class), any(UserDetail.class))).thenReturn(modulesDto);
             ApiCallDetailVo apiCallDetailVo = apiCallService.findById("id", mock);
+            Assertions.assertNotNull(apiCallDetailVo);
+        }
+    }
+
+    @Nested
+    class mapToApiCallDetailVoTest {
+        ApiCallService service;
+        @BeforeEach
+        void init() {
+            service = mock(ApiCallService.class);
+            when(service.mapToApiCallDetailVo(any(ApiCallDataVo.class))).thenCallRealMethod();
+        }
+        @Test
+        void testNormal() {
+            ApiCallDataVo apiCallDataVo = new ApiCallDataVo();
+            apiCallDataVo.setId(new ObjectId());
+            apiCallDataVo.setReqTime(System.currentTimeMillis());
+            apiCallDataVo.setSpeed(1000L);
+            ApiCallDetailVo apiCallDetailVo = service.mapToApiCallDetailVo(apiCallDataVo);
             Assertions.assertNotNull(apiCallDetailVo);
         }
     }
