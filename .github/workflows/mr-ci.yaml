@@ -143,7 +143,7 @@ jobs:
       - name: Patch Maven Dependens
         run: |
           echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@192.168.1.184:873/data/enterprise-temp/tapdata/ /root/.m2/
+          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@fileserver.tapdata.io:873/data/enterprise-temp/tapdata/ /root/.m2/
       - name: Build Tapdata - And Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
