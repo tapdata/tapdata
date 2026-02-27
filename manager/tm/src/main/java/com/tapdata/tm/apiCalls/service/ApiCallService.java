@@ -139,6 +139,9 @@ public class ApiCallService {
             apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
             apiCallDetailVo.setApiId(null);
         }
+        if (null != apiCallEntity) {
+            apiCallDetailVo.setFailed(!apiCallEntity.isSucceed());
+        }
         return apiCallDetailVo;
     }
 
@@ -405,7 +408,7 @@ public class ApiCallService {
         item.setReqTime(new Date(e.getReqTime()));
         item.setCreateAt(e.getApiCreateAt());
         item.setMethod(e.getMethod());
-        item.setFailed(e.isSucceed());
+        item.setFailed(!e.isSucceed());
         item.setApiPath(e.getReqPath());
         return item;
     }
