@@ -238,7 +238,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		initSyncPartitionTableEnable();
 	}
 
-	private void initFlushOffsetConsumer() {
+	protected void initFlushOffsetConsumer() {
 		if (!offsetCallbackEnable) {
 			return;
 		}
@@ -1700,7 +1700,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private boolean flushOffsetCallback(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
+	protected boolean flushOffsetCallback(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
 		if (null == tapdataEvent.getSyncStage()) return false;
 		if (null == tapdataEvent.getBatchOffset() && null == tapdataEvent.getStreamOffset()) return false;
 		if (SyncStage.CDC == tapdataEvent.getSyncStage() && null == tapdataEvent.getSourceTime()) return false;
