@@ -67,7 +67,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setApiId(info.getString("allPathId"));
         item.setLatency(ApiMetricsCompressValueUtil.getNum(info, "latency"));
         item.setCode(info.getString("code"));
-        item.setFailed(!info.getBoolean("succeed"));
+        item.setFailed(!Optional.ofNullable(info.getBoolean("succeed")).orElse("200".equals(info.getString("code"))));
         item.setHttpStatus(info.getString("httpStatus"));
         item.setReqTime(info.getLong("reqTime"));
         item.setResTime(info.getLong("resTime"));

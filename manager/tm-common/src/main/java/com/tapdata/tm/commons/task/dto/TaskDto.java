@@ -251,6 +251,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      * */
     private Boolean autoIncrementalBatchSize;
 
+    private Boolean checkMemoryHeap;
+
 
     public DAG getDag() {
         if (dag != null) {

@@ -6,6 +6,7 @@ import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.application.vo.ModulePermissionVo;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.oauth2.service.MongoRegisteredClientRepository;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,6 +51,12 @@ public class ApplicationController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<ApplicationDto> save(@RequestBody ApplicationDto applicationDto) {
+        if (null != applicationDto && StringUtils.isNotBlank(applicationDto.getClientId())) {
+            long count = applicationService.countOfClientId(applicationDto.getClientId(), null);
+            if (count > 0) {
+                throw new BizException("api.server.client.id.exists", applicationDto.getClientId());
+            }
+        }
         applicationDto.setId(null);
 //        ObjectId objectId = new ObjectId();
 //        metadataDefinition.setId(objectId);
@@ -81,7 +88,10 @@ public class ApplicationController extends BaseController {
         }
 
         ApplicationDto dto = applicationService.save(applicationDto, getLoginUser());
-        dto.setClientId(dto.getId().toHexString());
+        // 只有当 clientId 为空时，才设置为 id 的十六进制字符串
+        if (StringUtils.isBlank(dto.getClientId())) {
+            dto.setClientId(dto.getId().toHexString());
+        }
         applicationService.updateById(dto, getLoginUser());
         return success(dto);
     }
