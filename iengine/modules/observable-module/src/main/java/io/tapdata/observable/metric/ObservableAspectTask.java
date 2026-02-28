@@ -42,9 +42,9 @@ public class ObservableAspectTask extends AspectTask {
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
 	protected TaskSampleHandler taskSampleHandler;
-	private Map<String, TableSampleHandler> tableSampleHandlers;
-	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
-	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;
+	private final Map<String, TableSampleHandler> tableSampleHandlers = new ConcurrentHashMap<>();
+	private final Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new ConcurrentHashMap<>();
+	private final Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers = new ConcurrentHashMap<>();
 	private static final String TAG = ObservableAspectTask.class.getSimpleName();
 
 	public ObservableAspectTask() {
@@ -138,22 +138,16 @@ public class ObservableAspectTask extends AspectTask {
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
 		pipelineDelay.clear(stopAspect.getTask().getId().toHexString());
-		if (null != tableSampleHandlers) {
-			for (TableSampleHandler handler : tableSampleHandlers.values()) {
-				handler.close();
-			}
+		for (TableSampleHandler handler : tableSampleHandlers.values()) {
+			handler.close();
 		}
 
-		if (null != dataNodeSampleHandlers) {
-			for (DataNodeSampleHandler handler : dataNodeSampleHandlers.values()) {
-				handler.close();
-			}
+		for (DataNodeSampleHandler handler : dataNodeSampleHandlers.values()) {
+			handler.close();
 		}
 
-		if (null != processorNodeSampleHandlers) {
-			for (ProcessorNodeSampleHandler handler : processorNodeSampleHandlers.values()) {
-				handler.close();
-			}
+		for (ProcessorNodeSampleHandler handler : processorNodeSampleHandlers.values()) {
+			handler.close();
 		}
 
 		closeCompletableFuture();
@@ -163,9 +157,6 @@ public class ObservableAspectTask extends AspectTask {
 	// data node related
 
 	public Void handleDataNodeInit(DataNodeInitAspect aspect) {
-		if (null == dataNodeSampleHandlers) {
-			dataNodeSampleHandlers = new HashMap<>();
-		}
 		Node<?> node = aspect.getDataProcessorContext().getNode();
 		if (node instanceof TableNode && ((TableNode) node).isIgnoreMetrics()) {
 			return null;
@@ -226,9 +217,6 @@ public class ObservableAspectTask extends AspectTask {
 					taskSampleHandler.addTable(table);
 				}
 				aspect.tableCountConsumer((table, cnt) -> {
-					if (null == tableSampleHandlers) {
-						tableSampleHandlers = new HashMap<>();
-					}
 					TableSampleHandler handler = new TableSampleHandler(task, table, cnt, taskRetrievedTableValues.getOrDefault(table, new HashMap<>()), BigDecimal.ZERO);
 					tableSampleHandlers.put(table, handler);
 					handler.init();
@@ -570,9 +558,6 @@ public class ObservableAspectTask extends AspectTask {
 	// processor node related
 
 	public Void handleProcessorNodeInit(ProcessorNodeInitAspect aspect) {
-		if (null == processorNodeSampleHandlers) {
-			processorNodeSampleHandlers = new HashMap<>();
-		}
 		Node<?> node = aspect.getProcessorBaseContext().getNode();
 		ProcessorNodeSampleHandler handler = new ProcessorNodeSampleHandler(task, node);
 		processorNodeSampleHandlers.put(node.getId(), handler);
