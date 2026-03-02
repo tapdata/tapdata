@@ -38,10 +38,13 @@ public class WebSocketManager {
 
 	private static final Map<String, ReturnCallback<?>> resultCallbacks = new ConcurrentHashMap<>();
 
+	private static final Map<String, Object> sessionSendLocks = new ConcurrentHashMap<>();
+
 	public static void addSession(WebSocketInfo webSocketInfo){
 		if (webSocketInfo != null && webSocketInfo.getSession() != null && StringUtils.isNotBlank(webSocketInfo.getId())){
 			if (!containsSessionId(webSocketInfo.getId())){
 				wsCache.put(webSocketInfo.getId(), webSocketInfo);
+				sessionSendLocks.computeIfAbsent(webSocketInfo.getId(), key -> new Object());
 			}
 		}else {
 			log.warn("Websocket cache add seesion failed, id can not be blank");
@@ -106,6 +109,7 @@ public class WebSocketManager {
 	public static void removeSession(String id){
 		if (StringUtils.isNotBlank(id)){
 			wsCache.remove(id);
+			sessionSendLocks.remove(id);
 //			LogsHandler.removeSession(id);
 			WatchHandler.removeSession(id);
 			NotificationHandler.removeSession(id);
@@ -139,7 +143,7 @@ public class WebSocketManager {
 			WebSocketSession session = sessionInfo.getSession();
 			message = formatMessageIfNeed(message, session);
 			log.debug("WebSocket send message, userId {},id {}, message {}", sessionInfo.getUserId(), id, message);
-			sessionInfo.getSession().sendMessage(new TextMessage(message));
+			sendMessageWithLock(sessionInfo, message);
 		}else{
 			log.warn("Can not send message,session does not exist, id: {}", id);
 		}
@@ -240,10 +244,31 @@ public class WebSocketManager {
 		if(containsSessionId(id)){
 			WebSocketInfo webSocketInfo = getSessionById(id);
 			if (webSocketInfo != null){
-				webSocketInfo.getSession().sendMessage(new TextMessage(message));
+				sendMessageWithLock(webSocketInfo, message);
 			}
 		}else{
 			log.warn("Can not send message,session does not exist, id: {}", id);
+		}
+	}
+
+	private static void sendMessageWithLock(WebSocketInfo webSocketInfo, String message) throws IOException {
+		WebSocketSession session = webSocketInfo.getSession();
+		if (session == null) {
+			return;
+		}
+
+		String sessionId = webSocketInfo.getId();
+		if (StringUtils.isBlank(sessionId)) {
+			log.warn("Can not send message, session is not found, id: {}", sessionId);
+			return;
+		}
+		Object sendLock = sessionSendLocks.computeIfAbsent(sessionId, key -> new Object());
+		synchronized (sendLock) {
+			if (!session.isOpen()) {
+				log.warn("Can not send message, session is closed, id: {}", sessionId);
+				return;
+			}
+			session.sendMessage(new TextMessage(message));
 		}
 	}
 
