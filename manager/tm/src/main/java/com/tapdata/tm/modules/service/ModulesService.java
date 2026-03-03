@@ -32,6 +32,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -59,6 +60,7 @@ import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.modules.dto.ModulesUpAndLoadDto;
 import com.tapdata.tm.modules.entity.ModulesEntity;
+import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.util.MongoQueryValidator;
@@ -389,9 +391,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	public boolean nameExists(ObjectId apiId, String name) {
-		Query query = Query.query(Criteria.where("name").is(name).and("is_deleted").ne(true));
+		Query query = Query.query(Criteria.where(ModulesField.NAME.field()).is(name)
+				.and(ModulesField.IS_DELETED.field()).ne(true));
 		if (null != apiId) {
-			query.addCriteria(Criteria.where("_id").ne(apiId));
+			query.addCriteria(Criteria.where(BaseEntityFields._ID.field()).ne(apiId));
 		}
 		return count(query) > 0L;
 	}
