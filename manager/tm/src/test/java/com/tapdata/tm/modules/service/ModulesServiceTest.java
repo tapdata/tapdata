@@ -1,7 +1,6 @@
 package com.tapdata.tm.modules.service;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -41,7 +40,6 @@ import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
-import com.tapdata.tm.worker.dto.ApiWorkerInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -227,10 +225,7 @@ class ModulesServiceTest {
 		void test1() {
 			String name = "test";
 			when(modulesDto.getName()).thenReturn(name);
-			List<ModulesDto> modules = new ArrayList<>();
-			modules.add(mock(ModulesDto.class));
-			modules.add(mock(ModulesDto.class));
-			doReturn(modules).when(modulesService).findByName(name);
+			doReturn(true).when(modulesService).nameExists(null, name);
 			assertThrows(BizException.class, () -> modulesService.save(modulesDto, userDetail));
 		}
 
@@ -239,8 +234,7 @@ class ModulesServiceTest {
 		void test2() {
 			String name = "test";
 			when(modulesDto.getName()).thenReturn(name);
-			List<ModulesDto> modules = new ArrayList<>();
-			doReturn(modules).when(modulesService).findByName(name);
+			doReturn(false).when(modulesService).nameExists(null, name);
 			doCallRealMethod().when(modulesService).save(modulesDto, userDetail);
 			when(modulesRepository.save(any(), any())).thenReturn(mock(ModulesEntity.class));
 			modulesService.save(modulesDto, userDetail);
@@ -1515,7 +1509,7 @@ class ModulesServiceTest {
             // Setup
             doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
             doReturn(1L).when(modulesService).updateByWhere(any(Query.class), eq(moduleDto), eq(user));
-
+			existingModule.setStatus(ModuleStatusEnum.PENDING.getValue());
             // Execute
             modulesService.handleReplaceMode(moduleDto, existingModule, user, conMap);
 
@@ -1800,6 +1794,56 @@ class ModulesServiceTest {
             boolean result = modulesService.checkConnectionIdDuplicate( moduleDto, conMap);
 
             // Verify
+            assertFalse(result);
+        }
+    }
+
+    @Nested
+    class NameExistsTest {
+        @BeforeEach
+        void setUp() {
+            modulesService = spy(modulesService);
+        }
+
+        @Test
+        void testNameExistsWithNullApiIdAndNameExists() {
+            String name = "testModule";
+            doReturn(1L).when(modulesService).count(any(Query.class));
+
+            boolean result = modulesService.nameExists(null, name);
+
+            assertTrue(result);
+        }
+
+        @Test
+        void testNameExistsWithNullApiIdAndNameNotExists() {
+            String name = "testModule";
+            doReturn(0L).when(modulesService).count(any(Query.class));
+
+            boolean result = modulesService.nameExists(null, name);
+
+            assertFalse(result);
+        }
+
+        @Test
+        void testNameExistsWithApiIdAndNameExists() {
+            ObjectId apiId = new ObjectId();
+            String name = "testModule";
+            doReturn(1L).when(modulesService).count(any(Query.class));
+
+            boolean result = modulesService.nameExists(apiId, name);
+
+            assertTrue(result);
+        }
+
+        @Test
+        void testNameExistsWithApiIdAndNameNotExists() {
+            ObjectId apiId = new ObjectId();
+            String name = "testModule";
+            doReturn(0L).when(modulesService).count(any(Query.class));
+
+            boolean result = modulesService.nameExists(apiId, name);
+
             assertFalse(result);
         }
     }
