@@ -257,7 +257,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 //            throw new BizException("Modules.Connection.Null");
 //        }
 		validCustomWhereIfNeed(modulesDto.getPaths());
-		if (findByName(modulesDto.getName()).size() > 1)
+		if (nameExists(null, modulesDto.getName()))
 			throw new BizException("Modules.Name.Existed");
 		modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
 		modulesDto.setLastUpdAt(new Date());
@@ -312,7 +312,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			throw new BizException("generating status can't release");
 		//点击生成按钮 才校验(撤销发布等不校验)
 		if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
-			if (findByName(modulesDto.getName()).size() > 1)
+			if (nameExists(dto.getId(), modulesDto.getName()))
 				throw new BizException("Modules.Name.Existed");
 			if (isBasePathAndVersionRepeat(id, modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()))
 				throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
@@ -377,11 +377,23 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 
+	/**
+	 * @deprecated
+	 * */
+	@Deprecated(since = "release-v4.13")
 	public List<ModulesDto> findByName(String name) {
 		Query query = Query.query(Criteria.where("name").is(name).and("is_deleted").ne(true));
 		List<ModulesDto> modulesDtoList = findAll(query);
 		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
+	}
+
+	public boolean nameExists(ObjectId apiId, String name) {
+		Query query = Query.query(Criteria.where("name").is(name).and("is_deleted").ne(true));
+		if (null != apiId) {
+			query.addCriteria(Criteria.where("_id").ne(apiId));
+		}
+		return count(query) > 0L;
 	}
 
 	/**
@@ -1403,7 +1415,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 * @return
 	 */
 	public ModulesDto generate(ModulesDto modulesDto, UserDetail userDetail) {
-		if (findByName(modulesDto.getName()).size() > 1) {
+		if (nameExists(modulesDto.getId(), modulesDto.getName())) {
 			throw new BizException("Modules.Name.Existed");
 		}
 		if (isBasePathAndVersionRepeat(modulesDto.getId(), modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
