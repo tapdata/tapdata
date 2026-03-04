@@ -920,6 +920,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		syncProgress.setSyncStage(SyncStage.CDC.name());
 	}
 
+	protected void reportStreamReadBatchSize() {
+		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
+	}
+
 	@SneakyThrows
 	protected void doNormalCDC() {
 		if (!isRunning()) {
@@ -954,7 +958,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			logger.error("Unknown stream read consumer");
 			return;
 		}
-		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
+		reportStreamReadBatchSize();
 
 		if (null != anyError) {
 			obsLogger.trace("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
