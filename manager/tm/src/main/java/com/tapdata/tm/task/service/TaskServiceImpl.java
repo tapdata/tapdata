@@ -5472,7 +5472,7 @@ public class TaskServiceImpl extends TaskService{
         List<MergeTablePropertiesInfo> mergeTablePropertiesInfos = new ArrayList<>();
         if(dag.getNode(nodeId) instanceof MergeTableNode mergeTableNode){
             if(StringUtils.isBlank(mergeTableNode.getExternalStorageId()))return new ArrayList<>();
-            ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(mergeTableNode.getExternalStorageId()));
+            ExternalStorageDto externalStorageDto = externalStorageService.findNotCheckById(mergeTableNode.getExternalStorageId());
             if(null == externalStorageDto)return new ArrayList<>();
             Map<String, List<MergeTableProperties>> lookupMap = new HashMap<>();
             MergeTablePropertiesUtil.initLookupMergeProperties(mergeTableNode.getMergeProperties(),lookupMap);

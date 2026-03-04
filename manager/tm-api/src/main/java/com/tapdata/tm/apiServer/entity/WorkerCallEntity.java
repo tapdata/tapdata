@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiServer.entity;
 
+import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.base.entity.Entity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -16,7 +17,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("ApiCallInWorker")
-public class WorkerCallEntity extends Entity {
+public class WorkerCallEntity extends BaseEntity {
 
     /**
      * ApiServer ID

@@ -478,6 +478,11 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	}
 
 	@Override
+	protected void reportStreamReadBatchSize() {
+		//do nothing
+	}
+
+	@Override
 	protected StreamReadConsumer generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
 		return StreamReadConsumer.create(this::handleStreamEventsReceivedDuringPartition).stateListener((oldState, newState) -> {
 			if (StreamReadConsumer.STATE_STREAM_READ_ENDED != newState) {
