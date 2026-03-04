@@ -344,7 +344,7 @@ public class HotLoadConnectorTester {
         TapConnector connectorInstance = createConnectorInstance(connectorClass, connectionConfig);
 
         // 创建连接上下文
-        TapConnectionContext connectionContext = new TapConnectionContext(null, connectionConfig, null, new TapLog());
+        TapConnectionContext connectionContext = new TapConnectionContext(null, connectionConfig, null, null, new TapLog());
 
         // 创建连接器功能注册器
         ConnectorFunctions connectorFunctions = new ConnectorFunctions();
@@ -520,7 +520,7 @@ public class HotLoadConnectorTester {
         ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
         // 创建连接器上下文
         TapConnectorContext connectorContext = new TapConnectorContext(
-                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+                null, connectorInfo.getConnectionConfig(), null, null, new TapLog()
         );
         connectorContext.setStateMap(stateMap);
         try {
@@ -611,7 +611,7 @@ public class HotLoadConnectorTester {
         PerformanceResult result = new PerformanceResult("StreamRead");
         ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
         TapConnectorContext connectorContext = new TapConnectorContext(
-                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+                null, connectorInfo.getConnectionConfig(), null, null, new TapLog()
         );
         connectorContext.setStateMap(stateMap);
         connectorContext.setTableMap(new KVReadOnlyMap<>() {
@@ -755,7 +755,7 @@ public class HotLoadConnectorTester {
         PerformanceResult result = new PerformanceResult("WriteRecord");
         ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
         TapConnectorContext connectorContext = new TapConnectorContext(
-                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+                null, connectorInfo.getConnectionConfig(), null, null, new TapLog()
         );
         connectorContext.setStateMap(stateMap);
         try {
@@ -1196,7 +1196,7 @@ public class HotLoadConnectorTester {
 
         // 从连接器上下文获取规范
         TapConnectorContext connectorContext = new TapConnectorContext(
-                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+                null, connectorInfo.getConnectionConfig(), null, null, new TapLog()
         );
 
         // 获取连接器的数据类型映射规范

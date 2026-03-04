@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
@@ -44,6 +45,7 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.group.service.GroupInfoService;
 import io.github.openlg.graphlib.Graph;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -102,6 +104,7 @@ public class TaskController extends BaseController {
     private UserService userService;
     private TaskErrorEventService taskErrorEventService;
     private CpuMemoryService cpuMemoryService;
+    private GroupInfoService groupInfoService;
 
 		private <T> T dataPermissionUnAuth() {
 			throw new RuntimeException("Un auth");
@@ -472,7 +475,9 @@ public class TaskController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        taskService.remove(MongoUtils.toObjectId(id), getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        taskService.remove(MongoUtils.toObjectId(id), userDetail);
+        groupInfoService.removeResourceReferences(Collections.singletonList(id), userDetail);
         return success();
     }
 
@@ -943,6 +948,18 @@ public class TaskController extends BaseController {
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Delete,
 				() -> taskService.batchDelete(taskObjectIds, userDetail, request, response)
 			);
+			List<String> removedTaskIds = taskIds;
+			if (CollectionUtils.isNotEmpty(responseMessages)) {
+				List<String> okIds = responseMessages.stream()
+					.filter(message -> ResponseMessage.OK.equals(message.getCode()))
+					.map(MutiResponseMessage::getId)
+					.filter(StringUtils::isNotBlank)
+					.collect(Collectors.toList());
+				if (CollectionUtils.isNotEmpty(okIds)) {
+					removedTaskIds = okIds;
+				}
+			}
+			groupInfoService.removeResourceReferences(removedTaskIds, userDetail);
 			return success(responseMessages);
 		}
 
@@ -1523,5 +1540,15 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> saveMergeTableCacheInfo(@PathVariable("id") String id) {
         taskService.saveMergeTableCacheInfo(id);
         return success();
+    }
+
+    @Operation(summary = "任务启动检查内存")
+    @GetMapping("/checkTaskMemoryHeap/{id}")
+    public ResponseMessage<CheckTaskMemoryResult> checkTaskMemoryHeap(@PathVariable("id") String id) {
+        TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(id));
+        if(taskDto == null){
+            throw new BizException("Task.NotFound");
+        }
+        return success(taskService.checkTaskMemoryHeap(taskDto,true,getLoginUser()));
     }
 }

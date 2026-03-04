@@ -137,7 +137,7 @@ public class TaskRestartSchedule {
                 StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
                 if (stateMachineResult.isOk()) {
                     transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                    taskScheduleService.scheduling(taskDto, user);
+                    taskScheduleService.scheduling(taskDto, user,true);
                 }
             }
         }
@@ -239,7 +239,7 @@ public class TaskRestartSchedule {
                 stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             } else {
                 transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                taskScheduleService.scheduling(taskDto, user);
+                taskScheduleService.scheduling(taskDto, user,true);
             }
         }
     }
@@ -272,7 +272,7 @@ public class TaskRestartSchedule {
                     asyncTaskWarnLog(taskDto, user, "In the process of rescheduling tasks, the scheduling engine is {0}."
                         , agentId
                     );
-                    taskScheduleService.scheduling(taskDto, user);
+                    taskScheduleService.scheduling(taskDto, user,true);
                 } catch (Exception e) {
                     monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
                     throw e;

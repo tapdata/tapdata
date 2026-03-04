@@ -17,6 +17,7 @@ import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.dataflow.batch.BatchOffset;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -31,7 +32,9 @@ import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.event.TapCallbackOffset;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -84,6 +87,7 @@ import lombok.SneakyThrows;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
@@ -2744,6 +2748,329 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).buildSourceConnectorNodeMap(tapdataEvent);
 			hazelcastTargetPdkBaseNode.buildSourceConnectorNodeMap(tapdataEvent);
 			assertTrue(hazelcastTargetPdkBaseNode.sourceConnectorNodeMap.isEmpty());
+		}
+	}
+
+	@Nested
+	@DisplayName("Method initFlushOffsetConsumer test")
+	class InitFlushOffsetConsumerTest {
+		private TapConnectorContext connectionContext;
+		private ConnectorNode connectorNode;
+
+		@BeforeEach
+		void setUp() {
+			processorBaseContext = mock(ProcessorBaseContext.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
+			connectionContext = mock(TapConnectorContext.class);
+			connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			when(connectorNode.getConnectorContext()).thenReturn(connectionContext);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initFlushOffsetConsumer();
+		}
+
+		@Test
+		@DisplayName("test when offsetCallbackEnable is false")
+		void testOffsetCallbackDisabled() {
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "offsetCallbackEnable", false);
+
+			hazelcastTargetPdkBaseNode.initFlushOffsetConsumer();
+
+			verify(connectionContext, times(0)).setFlushOffsetCallback(any());
+		}
+
+		@Test
+		@DisplayName("test when offsetCallbackEnable is true and callback is invoked")
+		void testOffsetCallbackEnabled() throws Exception {
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "offsetCallbackEnable", true);
+
+			Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
+			SyncProgress syncProgress = new SyncProgress();
+			syncProgressMap.put("sourceNodeId,targetNodeId", syncProgress);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "syncProgressMap", syncProgressMap);
+
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn("targetNodeId");
+			when(processorBaseContext.getNode()).thenReturn(node);
+
+			when(hazelcastTargetPdkBaseNode.flushOffsetCallback(any(), any())).thenReturn(true);
+
+			ArgumentCaptor<Consumer> callbackCaptor = ArgumentCaptor.forClass(Consumer.class);
+
+			hazelcastTargetPdkBaseNode.initFlushOffsetConsumer();
+
+			verify(connectionContext, times(1)).setFlushOffsetCallback(callbackCaptor.capture());
+
+			TapCallbackOffset tapOffset = new TapCallbackOffset();
+			tapOffset.put("batchOffset", 100L);
+			tapOffset.put("streamOffset", 200L);
+			tapOffset.put("tableId", "test_table");
+			tapOffset.put("syncStage", "CDC");
+			tapOffset.put("sourceTime", 1000L);
+			tapOffset.put("eventTime", 2000L);
+			tapOffset.put("nodeIds", Arrays.asList("sourceNodeId", "targetNodeId"));
+
+			Consumer<Object> callback = callbackCaptor.getValue();
+			callback.accept(tapOffset);
+
+			verify(hazelcastTargetPdkBaseNode, times(1)).flushOffsetCallback(any(TapdataEvent.class), eq(syncProgress));
+		}
+
+		@Test
+		@DisplayName("test callback with null syncStage")
+		void testCallbackWithNullSyncStage() {
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "offsetCallbackEnable", true);
+
+			Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "syncProgressMap", syncProgressMap);
+
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn("targetNodeId");
+			when(processorBaseContext.getNode()).thenReturn(node);
+
+			when(hazelcastTargetPdkBaseNode.flushOffsetCallback(any(), any())).thenReturn(true);
+
+			ArgumentCaptor<Consumer> callbackCaptor = ArgumentCaptor.forClass(Consumer.class);
+
+			hazelcastTargetPdkBaseNode.initFlushOffsetConsumer();
+			verify(connectionContext).setFlushOffsetCallback(callbackCaptor.capture());
+
+			TapCallbackOffset tapOffset = new TapCallbackOffset();
+			tapOffset.put("tableId", "test_table");
+
+			assertDoesNotThrow(() -> callbackCaptor.getValue().accept(tapOffset));
+		}
+
+		@Test
+		@DisplayName("test callback with empty nodeIds")
+		void testCallbackWithEmptyNodeIds() {
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "offsetCallbackEnable", true);
+
+			Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "syncProgressMap", syncProgressMap);
+
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn("targetNodeId");
+			when(processorBaseContext.getNode()).thenReturn(node);
+
+			when(hazelcastTargetPdkBaseNode.flushOffsetCallback(any(), any())).thenReturn(true);
+
+			ArgumentCaptor<Consumer> callbackCaptor = ArgumentCaptor.forClass(Consumer.class);
+
+			hazelcastTargetPdkBaseNode.initFlushOffsetConsumer();
+			verify(connectionContext).setFlushOffsetCallback(callbackCaptor.capture());
+
+			TapCallbackOffset tapOffset = new TapCallbackOffset();
+			tapOffset.put("nodeIds", Collections.emptyList());
+
+			assertDoesNotThrow(() -> callbackCaptor.getValue().accept(tapOffset));
+			verify(hazelcastTargetPdkBaseNode, times(1)).flushOffsetCallback(any(), any());
+		}
+	}
+
+	@Nested
+	@DisplayName("Method flushOffsetCallback test")
+	class FlushOffsetCallbackTest {
+		private TapdataEvent tapdataEvent;
+		private SyncProgress syncProgress;
+		private TapRecordEvent tapRecordEvent;
+		private AtomicBoolean flushOffset;
+
+		@BeforeEach
+		void setUp() {
+			tapdataEvent = mock(TapdataEvent.class);
+			syncProgress = mock(SyncProgress.class);
+			tapRecordEvent = mock(TapRecordEvent.class);
+			flushOffset = new AtomicBoolean(false);
+
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", flushOffset);
+			when(hazelcastTargetPdkBaseNode.flushOffsetCallback(any(TapdataEvent.class), any(SyncProgress.class)))
+					.thenCallRealMethod();
+		}
+
+		@Test
+		@DisplayName("test when syncStage is null")
+		void testSyncStageIsNull() {
+			when(tapdataEvent.getSyncStage()).thenReturn(null);
+
+			boolean result = hazelcastTargetPdkBaseNode.flushOffsetCallback(tapdataEvent, syncProgress);
+
+			assertFalse(result);
+			verify(syncProgress, times(0)).setBatchOffsetObj(any());
+			verify(syncProgress, times(0)).setStreamOffsetObj(any());
+			assertFalse(flushOffset.get());
+		}
+
+		@Test
+		@DisplayName("test when both batchOffset and streamOffset are null")
+		void testBothOffsetsAreNull() {
+			when(tapdataEvent.getSyncStage()).thenReturn(SyncStage.INITIAL_SYNC);
+			when(tapdataEvent.getBatchOffset()).thenReturn(null);
+			when(tapdataEvent.getStreamOffset()).thenReturn(null);
+
+			boolean result = hazelcastTargetPdkBaseNode.flushOffsetCallback(tapdataEvent, syncProgress);
+
+			assertFalse(result);
+			verify(syncProgress, times(0)).setBatchOffsetObj(any());
+			verify(syncProgress, times(0)).setStreamOffsetObj(any());
+			assertFalse(flushOffset.get());
+		}
+
+		@Test
+		@DisplayName("test CDC stage without sourceTime")
+		void testCdcStageWithoutSourceTime() {
+			when(tapdataEvent.getSyncStage()).thenReturn(SyncStage.CDC);
+			when(tapdataEvent.getBatchOffset()).thenReturn(100L);
+			when(tapdataEvent.getSourceTime()).thenReturn(null);
+
+			boolean result = hazelcastTargetPdkBaseNode.flushOffsetCallback(tapdataEvent, syncProgress);
+
+			assertFalse(result);
+			verify(syncProgress, times(0)).setBatchOffsetObj(any());
+			assertFalse(flushOffset.get());
+		}
+
+		@Test
+		@DisplayName("test with batchOffset and TapRecordEvent")
+		void testBatchOffsetWithTapRecordEvent() {
+			when(tapdataEvent.getSyncStage()).thenReturn(SyncStage.INITIAL_SYNC);
+			when(tapdataEvent.getBatchOffset()).thenReturn(100L);
+			when(tapdataEvent.getStreamOffset()).thenReturn(null);
+			when(tapdataEvent.getTapEvent()).thenReturn(tapRecordEvent);
+			when(tapRecordEvent.getTableId()).thenReturn("test_table");
+			when(tapRecordEvent.getReferenceTime()).thenReturn(2000L);
+			when(tapdataEvent.getSourceTime()).thenReturn(1000L);
+			when(tapdataEvent.getType()).thenReturn(SyncProgress.Type.NORMAL);
+
+			Map<String, Object> batchOffsetMap = new ConcurrentHashMap<>();
+			when(syncProgress.getBatchOffsetObj()).thenReturn(batchOffsetMap);
+			doNothing().when(syncProgress).setSyncStage(anyString());
+			doNothing().when(syncProgress).setSourceTime(anyLong());
+			doNothing().when(syncProgress).setEventTime(anyLong());
+			doNothing().when(syncProgress).setType(SyncProgress.Type.NORMAL);
+
+			boolean result = hazelcastTargetPdkBaseNode.flushOffsetCallback(tapdataEvent, syncProgress);
+
+			assertFalse(result);
+			assertEquals(100L, batchOffsetMap.get("test_table"));
+			verify(syncProgress, times(1)).setSyncStage("INITIAL_SYNC");
+			verify(syncProgress, times(1)).setSourceTime(1000L);
+			verify(syncProgress, times(1)).setEventTime(2000L);
+			verify(syncProgress, times(1)).setType(SyncProgress.Type.NORMAL);
+			assertTrue(flushOffset.get());
+		}
+
+		@Test
+		@DisplayName("test with batchOffset but not TapRecordEvent")
+		void testBatchOffsetWithoutTapRecordEvent() {
+			when(tapdataEvent.getSyncStage()).thenReturn(SyncStage.INITIAL_SYNC);
+			when(tapdataEvent.getBatchOffset()).thenReturn(100L);
+			when(tapdataEvent.getStreamOffset()).thenReturn(null);
+			when(tapdataEvent.getTapEvent()).thenReturn(mock(TapDDLEvent.class));
+			when(tapdataEvent.getSourceTime()).thenReturn(1000L);
+			when(tapdataEvent.getType()).thenReturn(SyncProgress.Type.NORMAL);
+
+			doNothing().when(syncProgress).setBatchOffsetObj(any());
+			doNothing().when(syncProgress).setSyncStage(anyString());
+			doNothing().when(syncProgress).setSourceTime(anyLong());
+			doNothing().when(syncProgress).setType(SyncProgress.Type.NORMAL);
+
+			boolean result = hazelcastTargetPdkBaseNode.flushOffsetCallback(tapdataEvent, syncProgress);
+
+			assertFalse(result);
+			verify(syncProgress, times(1)).setBatchOffsetObj(100L);
+			verify(syncProgress, times(1)).setSyncStage("INITIAL_SYNC");
+			verify(syncProgress, times(1)).setSourceTime(1000L);
+			verify(syncProgress, times(1)).setType(SyncProgress.Type.NORMAL);
+			assertTrue(flushOffset.get());
+		}
+
+		@Test
+		@DisplayName("test with streamOffset")
+		void testWithStreamOffset() {
+			when(tapdataEvent.getSyncStage()).thenReturn(SyncStage.CDC);
+			when(tapdataEvent.getBatchOffset()).thenReturn(null);
+			when(tapdataEvent.getStreamOffset()).thenReturn("stream_offset_123");
+			when(tapdataEvent.getSourceTime()).thenReturn(1000L);
+			when(tapdataEvent.getType()).thenReturn(SyncProgress.Type.NORMAL);
+			when(tapdataEvent.getTapEvent()).thenReturn(tapRecordEvent);
+			when(tapRecordEvent.getReferenceTime()).thenReturn(2000L);
+
+			doNothing().when(syncProgress).setStreamOffsetObj(any());
+			doNothing().when(syncProgress).setSyncStage(anyString());
+			doNothing().when(syncProgress).setSourceTime(anyLong());
+			doNothing().when(syncProgress).setEventTime(anyLong());
+			doNothing().when(syncProgress).setType(SyncProgress.Type.NORMAL);
+
+			boolean result = hazelcastTargetPdkBaseNode.flushOffsetCallback(tapdataEvent, syncProgress);
+
+			assertFalse(result);
+			verify(syncProgress, times(1)).setStreamOffsetObj("stream_offset_123");
+			verify(syncProgress, times(1)).setSyncStage("CDC");
+			verify(syncProgress, times(1)).setSourceTime(1000L);
+			verify(syncProgress, times(1)).setEventTime(2000L);
+			verify(syncProgress, times(1)).setType(SyncProgress.Type.NORMAL);
+			assertTrue(flushOffset.get());
+		}
+
+		@Test
+		@DisplayName("test with both batchOffset and streamOffset")
+		void testWithBothOffsets() {
+			when(tapdataEvent.getSyncStage()).thenReturn(SyncStage.CDC);
+			when(tapdataEvent.getBatchOffset()).thenReturn(100L);
+			when(tapdataEvent.getStreamOffset()).thenReturn("stream_offset_456");
+			when(tapdataEvent.getSourceTime()).thenReturn(1500L);
+			when(tapdataEvent.getType()).thenReturn(SyncProgress.Type.NORMAL);
+			when(tapdataEvent.getTapEvent()).thenReturn(tapRecordEvent);
+			when(tapRecordEvent.getTableId()).thenReturn("test_table_2");
+			when(tapRecordEvent.getReferenceTime()).thenReturn(2500L);
+
+			Map<String, Object> batchOffsetMap = new ConcurrentHashMap<>();
+			when(syncProgress.getBatchOffsetObj()).thenReturn(batchOffsetMap);
+			doNothing().when(syncProgress).setStreamOffsetObj(any());
+			doNothing().when(syncProgress).setSyncStage(anyString());
+			doNothing().when(syncProgress).setSourceTime(anyLong());
+			doNothing().when(syncProgress).setEventTime(anyLong());
+			doNothing().when(syncProgress).setType(SyncProgress.Type.NORMAL);
+
+			boolean result = hazelcastTargetPdkBaseNode.flushOffsetCallback(tapdataEvent, syncProgress);
+
+			assertFalse(result);
+			assertEquals(100L, batchOffsetMap.get("test_table_2"));
+			verify(syncProgress, times(1)).setStreamOffsetObj("stream_offset_456");
+			verify(syncProgress, times(1)).setSyncStage("CDC");
+			verify(syncProgress, times(1)).setSourceTime(1500L);
+			verify(syncProgress, times(1)).setEventTime(2500L);
+			verify(syncProgress, times(1)).setType(SyncProgress.Type.NORMAL);
+			assertTrue(flushOffset.get());
+		}
+
+		@Test
+		@DisplayName("test with batchOffset but batchOffsetObj is not Map")
+		void testBatchOffsetObjNotMap() {
+			when(tapdataEvent.getSyncStage()).thenReturn(SyncStage.INITIAL_SYNC);
+			when(tapdataEvent.getBatchOffset()).thenReturn(200L);
+			when(tapdataEvent.getStreamOffset()).thenReturn(null);
+			when(tapdataEvent.getTapEvent()).thenReturn(tapRecordEvent);
+			when(tapdataEvent.getSourceTime()).thenReturn(1000L);
+			when(tapdataEvent.getType()).thenReturn(SyncProgress.Type.NORMAL);
+			when(tapRecordEvent.getReferenceTime()).thenReturn(2000L);
+
+			when(syncProgress.getBatchOffsetObj()).thenReturn("not_a_map");
+			doNothing().when(syncProgress).setBatchOffsetObj(any());
+			doNothing().when(syncProgress).setSyncStage(anyString());
+			doNothing().when(syncProgress).setSourceTime(anyLong());
+			doNothing().when(syncProgress).setEventTime(anyLong());
+			doNothing().when(syncProgress).setType(SyncProgress.Type.NORMAL);
+
+			boolean result = hazelcastTargetPdkBaseNode.flushOffsetCallback(tapdataEvent, syncProgress);
+
+			assertFalse(result);
+			verify(syncProgress, times(1)).setBatchOffsetObj(200L);
+			verify(syncProgress, times(1)).setSyncStage("INITIAL_SYNC");
+			verify(syncProgress, times(1)).setSourceTime(1000L);
+			verify(syncProgress, times(1)).setEventTime(2000L);
+			verify(syncProgress, times(1)).setType(SyncProgress.Type.NORMAL);
+			assertTrue(flushOffset.get());
 		}
 	}
 

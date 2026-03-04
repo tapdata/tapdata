@@ -28,18 +28,17 @@
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>5.5.1</mongo.version>
-		<tapdata-api.version>2.0.5-SNAPSHOT</tapdata-api.version>
-		<tapdata-pdk-api.version>2.0.5-SNAPSHOT</tapdata-pdk-api.version>
-		<tapdata-common.version>2.5-SNAPSHOT</tapdata-common.version>
-		<tapdata-common.version>2.5-SNAPSHOT</tapdata-common.version>
-		<modules-api.version>2.5-SNAPSHOT</modules-api.version>
+		<tapdata-api.version>2.0.6-SNAPSHOT</tapdata-api.version>
+		<tapdata-pdk-api.version>2.0.6-SNAPSHOT</tapdata-pdk-api.version>
+		<tapdata-common.version>2.6-SNAPSHOT</tapdata-common.version>
+		<modules-api.version>2.6-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
 		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
 		<mongodb-storage-module.version>${modules-api.version}</mongodb-storage-module.version>
 		<tcm.artifactId>tcm</tcm.artifactId>
 		<tcm.module>tcm-module</tcm.module>
-		<tapdata-pdk-runner.version>2.5-SNAPSHOT</tapdata-pdk-runner.version>
+		<tapdata-pdk-runner.version>2.6-SNAPSHOT</tapdata-pdk-runner.version>
 		<commons-net.version>3.11.1</commons-net.version>
 		<gson.version>2.12.1</gson.version>
 		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
@@ -49,7 +48,9 @@
 		<spring-framework.version>6.2.11</spring-framework.version>
 		<spring-security.version>6.5.4</spring-security.version>
 		<hutool.version>5.8.40</hutool.version>
-	</properties>
+        <github-api.version>1.330</github-api.version>
+        <jgit.version>7.5.0.202512021534-r</jgit.version>
+    </properties>
 
 	<modules>
 		<module>tm-common</module>
@@ -202,6 +203,19 @@
 				<artifactId>hutool-extra</artifactId>
 				<version>${hutool.version}</version>
 			</dependency>
+
+            <dependency>
+                <groupId>org.kohsuke</groupId>
+                <artifactId>github-api</artifactId>
+                <version>${github-api.version}</version>
+                <scope>compile</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.eclipse.jgit</groupId>
+                <artifactId>org.eclipse.jgit</artifactId>
+                <version>${jgit.version}</version>
+            </dependency>
 		</dependencies>
 	</dependencyManagement>
 	<repositories>

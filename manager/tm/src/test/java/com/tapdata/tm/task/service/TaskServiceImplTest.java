@@ -13,6 +13,7 @@ import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.*;
@@ -22,6 +23,8 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.lineage.analyzer.AnalyzerService;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
@@ -33,9 +36,6 @@ import com.tapdata.tm.commons.task.dto.MergeTablePropertiesInfo;
 import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerDto;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -101,7 +101,6 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -759,6 +758,7 @@ class TaskServiceImplTest {
                 when(taskDto.getCrontabExpressionFlag()).thenReturn(true);
                 doCallRealMethod().when(taskService).updateById(taskDto, user);
                 doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+                doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
                 assertThrows(BizException.class, ()->taskService.updateById(taskDto, user));
             }
         }
@@ -813,6 +813,7 @@ class TaskServiceImplTest {
             when(taskDto.getId()).thenReturn(null);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+            doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).create(taskDto, user);
         }
@@ -840,6 +841,7 @@ class TaskServiceImplTest {
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+            doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
             verify(transformSchemaService,times(1)).transformSchema(any(),any(),any());
@@ -867,6 +869,7 @@ class TaskServiceImplTest {
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+            doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
             verify(transformSchemaAsyncService,times(1)).transformSchema(any(DAG.class),any(),any());
@@ -941,14 +944,14 @@ class TaskServiceImplTest {
             // Setup
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(existingTask);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
-            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
-            verify(taskService, times(1)).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            verify(taskService, times(1)).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
@@ -958,11 +961,11 @@ class TaskServiceImplTest {
             importMode = ImportModeEnum.IMPORT_AS_COPY;
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(eq(taskDto), eq(user), any(), eq(conMap), eq(nodeMap), eq(taskMap));
@@ -975,11 +978,11 @@ class TaskServiceImplTest {
             importMode = ImportModeEnum.CANCEL_IMPORT;
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(existingTask);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
             assertThrows(BizException.class, () -> {
-                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             });
         }
 
@@ -993,11 +996,11 @@ class TaskServiceImplTest {
             when(taskService.findOne(nameQuery)).thenReturn(null);
             when(taskService.checkConnectionIdDuplicate(taskDto, conMap)).thenReturn(true);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
             assertThrows(BizException.class, () -> {
-                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             });
         }
     }
@@ -1042,18 +1045,20 @@ class TaskServiceImplTest {
             when(taskDto.getDag()).thenReturn(dag);
             when(taskDto.getId()).thenReturn(new ObjectId());
             when(dag.validate()).thenReturn(new HashMap<>());
+            when(taskDto.getStatus()).thenReturn("wait_start");
 
-            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
             doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
-            doReturn(taskDto).when(taskService).confirmById(taskDto, user, true, true);
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(updateResult.getModifiedCount()).thenReturn(1L);
+            doReturn(updateResult).when(taskService).updateById(any(), any(), any(Boolean.class));
 
             // Execute
-            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
 
             // Verify
             verify(taskDto, times(1)).setId(existingId);
             verify(taskService, times(1)).updateConnectionIds(taskDto, conMap);
-            verify(taskService, times(1)).confirmById(taskDto, user, true, true);
         }
 
         @Test
@@ -1068,12 +1073,12 @@ class TaskServiceImplTest {
             validationErrors.put("error", Arrays.asList(new Message()));
             when(dag.validate()).thenReturn(validationErrors);
 
-            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
             doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
             doReturn(taskDto).when(taskService).updateById(taskDto, user);
 
             // Execute
-            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
 
             // Verify
             verify(taskService, times(1)).updateById(taskDto, user);
@@ -1084,11 +1089,11 @@ class TaskServiceImplTest {
         @DisplayName("test handleReplaceMode without existing task")
         void testHandleReplaceModeWithoutExistingTask() {
             // Setup
-            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap);
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
             doNothing().when(taskService).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
 
             // Execute
-            taskService.handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap);
+            taskService.handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
@@ -1666,13 +1671,13 @@ class TaskServiceImplTest {
         @DisplayName("test batchImport with empty task list")
         void testBatchImportWithEmptyTaskList() {
             // Setup
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should complete without errors
-            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
             verify(taskService, never()).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
         }
 
@@ -1684,10 +1689,10 @@ class TaskServiceImplTest {
             when(taskDto.getName()).thenReturn(null);
             taskDtos.add(taskDto);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should skip processing this task
             verify(taskService, never()).findOne(any(Query.class));
@@ -1701,10 +1706,10 @@ class TaskServiceImplTest {
             when(taskDto.getName()).thenReturn("");
             taskDtos.add(taskDto);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should skip processing this task
             verify(taskService, never()).findOne(any(Query.class));
@@ -1722,14 +1727,14 @@ class TaskServiceImplTest {
             nameQuery.fields().include("_id", "user_id", "name");
             when(taskService.findOne(nameQuery)).thenReturn(null);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap);
-            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap, Collections.emptyList());
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
-            verify(taskService, times(1)).handleReplaceMode(eq(taskDto), eq(null), eq(user), eq(new ArrayList<>()), eq(conMap), eq(nodeMap), eq(taskMap));
+            verify(taskService, times(1)).handleReplaceMode(eq(taskDto), eq(null), eq(user), eq(new ArrayList<>()), eq(conMap), eq(nodeMap), eq(taskMap),any());
         }
 
         @Test
@@ -1744,11 +1749,11 @@ class TaskServiceImplTest {
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
             when(taskService.checkConnectionIdDuplicate(taskDto, conMap)).thenReturn(false);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
@@ -1775,12 +1780,12 @@ class TaskServiceImplTest {
                     taskService.handleImportAsCopyMode(taskDto, user, new ArrayList<>(), conMap, nodeMap, taskMap);
                 }
                 return null;
-            }).when(taskService).batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap);
+            }).when(taskService).batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(eq(taskDto), eq(user), any(), eq(conMap), eq(nodeMap), eq(taskMap));
@@ -7448,5 +7453,249 @@ class TaskServiceImplTest {
             return graph;
         }
     }
+
+
+    @Nested
+    @DisplayName("TaskServiceImpl.checkTaskMemoryHeap 方法测试")
+    class CheckTaskMemoryHeapTest {
+        private TaskServiceImpl taskService;
+        private MetadataInstancesServiceImpl metadataInstancesServiceImpl;
+        private TaskScheduleService taskScheduleService;
+        private UserDetail userDetail;
+
+        @BeforeEach
+        void setUp() {
+            taskService = mock(TaskServiceImpl.class);
+            metadataInstancesServiceImpl = mock(MetadataInstancesServiceImpl.class);
+            taskScheduleService = mock(TaskScheduleService.class);
+            userDetail = mock(UserDetail.class);
+            ReflectionTestUtils.setField(taskService, "metadataInstancesService", metadataInstancesServiceImpl);
+            ReflectionTestUtils.setField(taskService, "taskScheduleService", taskScheduleService);
+        }
+
+        @Test
+        @DisplayName("CDC 类型任务返回 null")
+        void testCdcTypeReturnsNull() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("cdc");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("attrs 包含 syncProgress 时返回 null")
+        void testHasSyncProgressReturnsNull() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("syncProgress", new HashMap<>());
+            taskDto.setAttrs(attrs);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("syncType 不是 migrate 或 sync 时返回 null")
+        void testInvalidSyncTypeReturnsNull() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType("logCollector");
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("DAG 为 null 时返回 safe")
+        void testDagNullReturnsSafe() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            taskDto.setDag(null);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("DAG nodes 为空时返回 safe")
+        void testDagEmptyNodesReturnsSafe() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            DAG dag = mock(DAG.class);
+            when(dag.getNodes()).thenReturn(Collections.emptyList());
+            taskDto.setDag(dag);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("source 节点无 DataParentNode 时 checkTaskMemoryParams 为空返回 safe")
+        void testNoDataParentNodeReturnsSafe() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            DAG dag = mock(DAG.class);
+            Node nonDataNode = mock(Node.class);
+            when(dag.getNodes()).thenReturn(Collections.singletonList(nonDataNode));
+            when(dag.getSources()).thenReturn(Collections.singletonList(nonDataNode));
+            when(dag.getTargetDataParentNode()).thenReturn(new LinkedList<>());
+            taskDto.setDag(dag);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("metadata 无 tableAttr 时 tableMap 为空返回 safe")
+        void testNoTableAttrReturnsSafe() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            meta.setTableAttr(null);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("agentId 为 null 且 cloudTaskLimitNum 后仍为 null 时抛出 BizException")
+        void testAgentIdNullThrowsBizException() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            taskDto.setAgentId(null);
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            assertThrows(BizException.class, () -> taskService.checkTaskMemoryHeap(taskDto, false, userDetail));
+        }
+
+        @Test
+        @DisplayName("agentId 不为 null，checkEngineStatus 正常，callEngineRpc 返回结果")
+        void testNormalFlowReturnsResult() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSize();
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertEquals(expected, result);
+        }
+
+        @Test
+        @DisplayName("agentId 不为 null，checkEngineStatus 抛 BizException 后走 cloudTaskLimitNum")
+        void testCheckEngineStatusThrowsBizException() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doThrow(new BizException("Agent.Not.Found")).when(taskService).checkEngineStatus(any(), any());
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            verify(taskScheduleService).cloudTaskLimitNum(any(), any(), eq(false));
+            assertEquals(expected, result);
+        }
+
+        @Test
+        @DisplayName("callEngineRpc 抛异常时返回 safe")
+        void testCallEngineRpcExceptionReturnsSafe() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenThrow(new RuntimeException("RPC failed"));
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("target 节点 writeBatchSize 为 null 时使用默认值 100")
+        void testTargetWriteBatchSizeNull() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1", null);
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+        }
+
+        @Test
+        @DisplayName("tableAttr 中 avgObjSize 为 null 时不加入 tableMap")
+        void testAvgObjSizeNullSkipped() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            Map<String, Object> tableAttr = new HashMap<>();
+            tableAttr.put("avgObjSize", null);
+            meta.setTableAttr(tableAttr);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        private TaskDto buildTaskDtoWithSourceNode(String agentId) {
+            return buildTaskDtoWithSourceNode(agentId, 200);
+        }
+
+        private TaskDto buildTaskDtoWithSourceNode(String agentId, Integer targetWriteBatchSize) {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            taskDto.setAgentId(agentId);
+
+            DatabaseNode sourceNode = mock(DatabaseNode.class);
+            when(sourceNode.getId()).thenReturn("source-node-1");
+            when(sourceNode.getConnectionId()).thenReturn("conn-1");
+            when(sourceNode.getReadBatchSize()).thenReturn(500);
+
+            DatabaseNode targetNode = mock(DatabaseNode.class);
+            when(targetNode.getWriteBatchSize()).thenReturn(targetWriteBatchSize);
+
+            DAG dag = mock(DAG.class);
+            when(dag.getNodes()).thenReturn(Arrays.asList(sourceNode, targetNode));
+            when(dag.getSources()).thenReturn(Collections.singletonList(sourceNode));
+            LinkedList<DataParentNode> targetDataParentNodes = new LinkedList<>();
+            targetDataParentNodes.add(targetNode);
+            when(dag.getTargetDataParentNode()).thenReturn(targetDataParentNodes);
+            LinkedList<Node> successors = new LinkedList<>();
+            successors.add(targetNode);
+            when(dag.getSuccessorsRecursive("source-node-1")).thenReturn(successors);
+            taskDto.setDag(dag);
+            return taskDto;
+        }
+
+        private void mockMetadataWithAvgObjSize() {
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            Map<String, Object> tableAttr = new HashMap<>();
+            tableAttr.put("avgObjSize", 256);
+            meta.setTableAttr(tableAttr);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+        }
+    }
+
 
 }

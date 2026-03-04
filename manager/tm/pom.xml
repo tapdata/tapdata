@@ -662,7 +662,17 @@
 			<artifactId>mcp-tap-server</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-		<!---->
+
+        <dependency>
+            <groupId>org.kohsuke</groupId>
+            <artifactId>github-api</artifactId>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+        </dependency>
 	</dependencies>
 
 	<build>
@@ -710,6 +720,7 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
 <!--					<fork>true</fork>-->
+					<mainClass>com.tapdata.tm.TMApplication</mainClass>
 					<classifier>exec</classifier>
 					<!--<executable>true</executable>-->
 					<!--<outputDirectory>${project.basedir}/../dist/${project.name}-${project.version}-${profile.active}/lib/</outputDirectory>-->
@@ -719,8 +730,8 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
-					<source>8</source>
-					<target>8</target>
+					<source>17</source>
+					<target>17</target>
 				</configuration>
 			</plugin>
 			<!--在这里修改版本-->
