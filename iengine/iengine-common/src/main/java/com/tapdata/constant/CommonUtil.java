@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
@@ -142,15 +143,27 @@ public class CommonUtil {
 	public static boolean compareInstant(Instant val1, Instant val2, boolean ignoreTimePrecision, String roundingMode) {
 		Instant instant1 = val1;
 		Instant instant2 = val2;
-
 		if (ignoreTimePrecision) {
+			boolean secondAndNanoZero1 =
+					instant1.getEpochSecond() % 60 == 0
+							&& instant1.getNano() == 0;
+
+			boolean secondAndNanoZero2 =
+					instant2.getEpochSecond() % 60 == 0
+							&& instant2.getNano() == 0;
+
+			if (secondAndNanoZero1 || secondAndNanoZero2) {
+				Instant norm1 = instant1.truncatedTo(ChronoUnit.MINUTES);
+				Instant norm2 = instant2.truncatedTo(ChronoUnit.MINUTES);
+				return !norm1.equals(norm2);
+			}
 			int precision1 = CommonUtil.getValPrecision(instant1);
 			int precision2 = CommonUtil.getValPrecision(instant2);
 			int minPrecision = Math.min(precision1, precision2);
 			Instant norm1 = CommonUtil.normalizePrecision(instant1, minPrecision, roundingMode);
 			Instant norm2 = CommonUtil.normalizePrecision(instant2, minPrecision, roundingMode);
 			long diffMillis = Math.abs(Duration.between(norm1, norm2).toMillis());
-			return diffMillis > 3;
+			return diffMillis > 5;
 		}
 		return !instant1.equals(instant2);
 	}
