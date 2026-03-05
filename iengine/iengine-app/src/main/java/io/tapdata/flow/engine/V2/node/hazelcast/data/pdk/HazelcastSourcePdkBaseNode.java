@@ -1415,6 +1415,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 handleSchemaChange(tapEvent);
             }
         }
+        CpuMemoryCollector.listening(getNode().getId(), tapdataEvent);
         return tapdataEvent;
     }
 
