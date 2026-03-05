@@ -1,18 +1,27 @@
 package com.tapdata.tm.ws.endpoint;
 
+import com.tapdata.tm.ws.dto.WebSocketInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
+import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WebSocketManagerTest {
@@ -44,6 +53,66 @@ public class WebSocketManagerTest {
             when(headers.get("cookie")).thenReturn(cookieString);
             String actual = WebSocketManager.formatMessageIfNeed(message, session);
             assertTrue(actual.contains("连接主机和端口失败"));
+        }
+    }
+
+    @Nested
+    class sendMessageConcurrency {
+        @BeforeEach
+        void beforeEach() {
+            WebSocketManager.getConnectCount().clear();
+        }
+
+        @Test
+        @DisplayName("sendMessage should serialize writes on the same session")
+        void shouldSerializeSendMessageOnSameSession() throws Exception {
+            String id = "session-id";
+            WebSocketSession session = mock(WebSocketSession.class);
+            when(session.isOpen()).thenReturn(true);
+            AtomicInteger inFlight = new AtomicInteger(0);
+            CountDownLatch firstSendEntered = new CountDownLatch(1);
+            CountDownLatch releaseFirstSend = new CountDownLatch(1);
+
+            doAnswer(invocation -> {
+                int current = inFlight.incrementAndGet();
+                firstSendEntered.countDown();
+                if (current > 1) {
+                    inFlight.decrementAndGet();
+                    throw new IllegalStateException("TEXT_PARTIAL_WRITING");
+                }
+                try {
+                    releaseFirstSend.await(1, TimeUnit.SECONDS);
+                } finally {
+                    inFlight.decrementAndGet();
+                }
+                return null;
+            }).when(session).sendMessage(any(TextMessage.class));
+
+            WebSocketInfo webSocketInfo = new WebSocketInfo(id, id, null, null, session, null);
+            WebSocketManager.addSession(webSocketInfo);
+
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            Future<Void> first = executor.submit(() -> {
+                WebSocketManager.sendMessage(id, "message-1");
+                return null;
+            });
+
+            assertTrue(firstSendEntered.await(1, TimeUnit.SECONDS));
+
+            Future<Void> second = executor.submit(() -> {
+                WebSocketManager.sendMessage(id, "message-2");
+                return null;
+            });
+
+            // Let the second call contend with the first one if no serialization exists.
+            Thread.sleep(100);
+            releaseFirstSend.countDown();
+
+            assertDoesNotThrow(() -> first.get(2, TimeUnit.SECONDS));
+            assertDoesNotThrow(() -> second.get(2, TimeUnit.SECONDS));
+            executor.shutdownNow();
+
+            verify(session, times(2)).sendMessage(any(TextMessage.class));
         }
     }
 }
