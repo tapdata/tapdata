@@ -14,6 +14,10 @@ public class Usage {
         return cpuUsage;
     }
 
+    public Double getCpuUsageCore() {
+        return cpuUsage / Runtime.getRuntime().availableProcessors();
+    }
+
     public void setCpuUsage(Double cpuUsage) {
         this.cpuUsage = cpuUsage;
     }
