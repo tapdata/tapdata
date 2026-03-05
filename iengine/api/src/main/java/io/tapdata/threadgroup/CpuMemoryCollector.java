@@ -56,15 +56,15 @@ public class CpuMemoryCollector {
             r -> new Thread(r, "CpuMemoryCollector"));
     public static final ThreadCPUMonitor THREAD_CPU_TIME = new ThreadCPUMonitor();
     public static final CpuMemoryCollector COLLECTOR = new CpuMemoryCollector();
-    final Map<String, String> taskWithNode = new HashMap<>(16);
-    final Map<String, WeakReference<TaskDto>> taskDtoMap = new HashMap<>(16);
+    final Map<String, String> taskWithNode = new ConcurrentHashMap<>(16);
+    final Map<String, WeakReference<TaskDto>> taskDtoMap = new ConcurrentHashMap<>(16);
 
-    final Map<String, FixedConcurrentHashMap<WeakReference<Object>, Long>> weakReferenceMap = new HashMap<>(16);
-    final Map<String, ReferenceQueue<Object>> referenceQueue = new HashMap<>();
+    final Map<String, FixedConcurrentHashMap<WeakReference<Object>, Long>> weakReferenceMap = new ConcurrentHashMap<>(16);
+    final Map<String, ReferenceQueue<Object>> referenceQueue = new ConcurrentHashMap<>();
 
     final Map<String, CopyOnWriteArrayList<WeakReference<ThreadFactory>>> threadGroupMap = new ConcurrentHashMap<>(16);
 
-    final Map<String, AtomicBoolean> cleaned = new HashMap<>();
+    final Map<String, AtomicBoolean> cleaned = new ConcurrentHashMap<>();
     private volatile boolean doCollect = true;
 
     public static void switchChange(boolean val) {
@@ -127,10 +127,9 @@ public class CpuMemoryCollector {
 
     void startClean(String taskId) {
         AtomicBoolean cleanTag = COLLECTOR.cleaned.computeIfAbsent(taskId, k -> new AtomicBoolean(false));
-        if (cleanTag.get()) {
+        if (!cleanTag.compareAndSet(false, true)) {
             return;
         }
-        cleanTag.compareAndSet(false, true);
         EXECUTOR_SERVICE.submit(() -> {
             try {
                 while (COLLECTOR.cleaned.containsKey(taskId) && cleanTag.get()) {
@@ -148,7 +147,9 @@ public class CpuMemoryCollector {
                         WeakReference<Object> pull;
                         do {
                             pull = (WeakReference<Object>) taskReferenceQueue.remove(500L);
-                            weakReferenceLongHashMap.remove(pull);
+                            if (null != pull) {
+                                weakReferenceLongHashMap.remove(pull);
+                            }
                         } while (null != pull && cleanTag.get());
                     } catch (IllegalArgumentException e) {
                         //ignore
@@ -251,13 +252,14 @@ public class CpuMemoryCollector {
     void eachTaskOnce(FixedConcurrentHashMap<WeakReference<Object>, Long> weakReferences, Usage usage) {
         Iterator<Map.Entry<WeakReference<Object>, Long>> iterator = weakReferences.entrySet().iterator();
         List<WeakReference<Object>> toUpdate = new ArrayList<>();
+        List<WeakReference<Object>> toRemove = new ArrayList<>();
         Map<WeakReference<Object>, Long> updates = new HashMap<>();
         while (iterator.hasNext()) {
             Map.Entry<WeakReference<Object>, Long> entry = iterator.next();
             WeakReference<Object> weakRef = entry.getKey();
             Object obj = weakRef.get();
             if (obj == null) {
-                iterator.remove();
+                toRemove.add(weakRef);
                 continue;
             }
             Long size = entry.getValue();
@@ -267,6 +269,9 @@ public class CpuMemoryCollector {
             } else {
                 usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + size);
             }
+        }
+        for (WeakReference<Object> weakRef : toRemove) {
+            weakReferences.remove(weakRef);
         }
         for (WeakReference<Object> weakRef : toUpdate) {
             ignore(() -> {

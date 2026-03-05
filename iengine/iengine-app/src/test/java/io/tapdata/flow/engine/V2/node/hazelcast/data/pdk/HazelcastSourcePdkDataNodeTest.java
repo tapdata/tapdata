@@ -67,6 +67,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustStage.TaskInfo;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.BatchAcceptor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
+import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -106,6 +107,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -1933,6 +1935,10 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         @DisplayName("test generateStreamReadConsumer")
         @Test
         void test1() throws InterruptedException {
+            try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+                cm.when(() -> CpuMemoryCollector.listening(any(), any())).thenAnswer(invocation -> {
+                    return null;
+                });
             PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
             ConnectorNode connectorNode = mock(ConnectorNode.class);
             when(hazelcastSourcePdkDataNode.isRunning()).thenReturn(true);
@@ -1946,11 +1952,14 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             tapUpdateRecordEvent.setTableId("testTableId");
             tapUpdateRecordEvent.setTime(System.currentTimeMillis());
             tapEvents.add(tapUpdateRecordEvent);
+            Node node = mock(TableNode.class);
+            when(node.getId()).thenReturn(new ObjectId().toHexString());
+            when(hazelcastSourcePdkDataNode.getNode()).thenReturn(node);
             doCallRealMethod().when(hazelcastSourcePdkDataNode).generateStreamReadConsumer(any(), any());
             StreamReadConsumer streamReadConsumer = (StreamReadConsumer) hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode, pdkMethodInvoker);
             streamReadConsumer.accept(tapEvents, null);
             verify(cdcDelay, times(1)).filterAndCalcDelay(any(), any());
-        }
+        }}
     }
 
     @Nested

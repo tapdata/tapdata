@@ -15,6 +15,9 @@ public class Usage {
     }
 
     public Double getCpuUsageCore() {
+        if (null == cpuUsage) {
+            return null;
+        }
         return cpuUsage / Runtime.getRuntime().availableProcessors();
     }
 
