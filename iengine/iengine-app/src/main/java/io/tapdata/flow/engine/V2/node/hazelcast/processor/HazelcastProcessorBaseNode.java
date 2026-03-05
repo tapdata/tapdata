@@ -33,6 +33,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -173,6 +174,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	protected void enqueue(List<TapdataEvent> tapdataEvents) {
 		if (null == tapdataEvents) return;
+		CpuMemoryCollector.listening(getNode().getId(), tapdataEvents);
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
 			handleTransformToTapValueResult(tapdataEvent);
 			while (isRunning()) {

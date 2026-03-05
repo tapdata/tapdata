@@ -123,6 +123,7 @@ import io.tapdata.pdk.core.utils.RetryUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.task.skiperrortable.SkipErrorTableException;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -596,6 +597,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                             try {
                                 BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
                                     if (events != null && !events.isEmpty()) {
+										CpuMemoryCollector.listening(getNode().getId(), events);
                                         if (skipErrorTable.isSkipped(tableName))
                                             throw new SkipErrorTableException(tableName);
 
@@ -1112,6 +1114,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					}
 				}
 				if (events != null && !events.isEmpty()) {
+					CpuMemoryCollector.listening(getNode().getId(), events);
 					List<TapEvent> finalEvents = events;
 					Optional.ofNullable(this.streamReadBatchSizeConsumer).ifPresent(e -> e.accept(finalEvents));
 					HandlerUtil.sampleMemoryToTapEvent(events);
