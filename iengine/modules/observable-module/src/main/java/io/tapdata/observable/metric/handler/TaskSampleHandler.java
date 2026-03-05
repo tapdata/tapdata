@@ -439,7 +439,7 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     public Void handleCpuMemUsage(CpuMemUsageAspect aspect) {
-        taskCpuUsage.set(aspect.getUsage().getCpuUsage());
+        taskCpuUsage.set(aspect.getUsage().getCpuUsageCore());
         taskMemUsage.set(aspect.getUsage().getHeapMemoryUsage());
         return null;
     }

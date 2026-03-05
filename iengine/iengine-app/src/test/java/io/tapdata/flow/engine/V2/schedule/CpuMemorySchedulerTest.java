@@ -186,4 +186,9 @@ class CpuMemorySchedulerTest {
             }
         }
     }
+
+    @Test
+    void test() {
+
+    }
 }
