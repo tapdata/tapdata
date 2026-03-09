@@ -104,13 +104,31 @@ public class FileGroupTransferStrategy implements GroupTransferStrategy {
                     list.add(new TaskUpAndLoadDto(entryName, bytes));
                     payloads.put(entryName, list);
                 } else if(entryName.endsWith(".json")) {
-                    // JSON文件按原逻辑解析
+                    // JSON文件：按文件名映射到对应的资源类型 key，支持新旧格式
                     List<TaskUpAndLoadDto> list = parseTaskUpAndLoadList(bytes);
-                    payloads.put(entryName, list);
+                    String mappedKey = mapToPayloadKey(entryName);
+                    payloads.computeIfAbsent(mappedKey, k -> new ArrayList<>()).addAll(list);
                 }
             }
         }
         return payloads;
+    }
+
+    /**
+     * 将导入的文件名映射到内部资源类型 key。
+     * 兼容新格式（{projectName}_xxx.json）和旧格式（xxx.json）。
+     */
+    protected String mapToPayloadKey(String entryName) {
+        if (entryName.endsWith("_Connection_Config.json") || entryName.endsWith("_Connection_Metadata.json")) {
+            return "Connection.json";
+        }
+        if (entryName.endsWith("_MigrateTask.json")) return "MigrateTask.json";
+        if (entryName.endsWith("_SyncTask.json"))    return "SyncTask.json";
+        if (entryName.endsWith("_ValidateTask.json")) return "InspectTask.json";
+        if (entryName.endsWith("_Module.json"))       return "Module.json";
+        if (entryName.endsWith("_ShareCache.json"))   return "ShareCache.json";
+        // MetadataDefinition.json 和 GroupInfo.json 以及旧格式文件直接使用原文件名
+        return entryName;
     }
 
     /**

@@ -291,15 +291,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         recordDto = groupInfoRecordService.save(recordDto, user);
 
         // 构建导出文件内容
-        Map<String, byte[]> contents = new LinkedHashMap<>();
-        contents.put("GroupInfo.json", Objects.requireNonNull(JsonUtil.toJsonUseJackson(groupInfoPayload))
-                .getBytes(StandardCharsets.UTF_8));
-
-        for (Map.Entry<String, List<TaskUpAndLoadDto>> entry : payloadsByType.entrySet()) {
-            contents.put(ResourceType.getResourceName(entry.getKey()),
-                    Objects.requireNonNull(JsonUtil.toJsonUseJackson(entry.getValue()))
-                            .getBytes(StandardCharsets.UTF_8));
-        }
+        String projectName = buildProjectName(groupInfos);
+        Map<String, byte[]> contents = buildExportContents(projectName, groupInfoPayload, payloadsByType);
 
         log.info("Start exporting groups, groupCount={}, user={}", groupInfos.size(), user.getUsername());
 
@@ -339,7 +332,12 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 			if (strategy == null) {
 				throw new BizException("GroupInfo.TransferStrategy.NotFound");
 			}
-			strategy.exportGroups(new GroupExportRequest(response, contents, name, groupInfos.get(0), exportGroupRequest.getGitTag(), recordDto));
+			strategy.exportGroups(new GroupExportRequest(response, contents, name, groupInfos.get(0),
+						exportGroupRequest.getGitTag(),
+						exportGroupRequest.getGitBranchName(),
+						exportGroupRequest.getGitPrTitle(),
+						exportGroupRequest.getGitPrDescription(),
+						recordDto));
 			updateRecordStatus(recordDto.getId(), GroupInfoRecordDto.STATUS_COMPLETED, null,
 					recordDto.getDetails(), user);
 			if (groupTransferType.equals(GroupTransferType.GIT)) {
@@ -918,6 +916,73 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return dataSourceService.findAllByIds(new ArrayList<>(connectionIds));
     }
 
+    private String buildProjectName(List<GroupInfoDto> groupInfos) {
+        if (CollectionUtils.size(groupInfos) == 1) {
+            GroupInfoDto groupInfo = groupInfos.get(0);
+            if (groupInfo != null && StringUtils.isNotBlank(groupInfo.getName())) {
+                return groupInfo.getName();
+            }
+        }
+        return GroupConstants.BATCH_EXPORT_FILE_PREFIX;
+    }
+
+    private Map<String, byte[]> buildExportContents(String projectName,
+            List<TaskUpAndLoadDto> groupInfoPayload,
+            Map<String, List<TaskUpAndLoadDto>> payloadsByType) {
+        Map<String, byte[]> contents = new LinkedHashMap<>();
+
+        // GroupInfo.json — 无前缀
+        contents.put("GroupInfo.json", toJsonBytes(groupInfoPayload));
+
+        // Connection 拆成 Config 和 Metadata 两个文件
+        List<TaskUpAndLoadDto> connectionPayload = payloadsByType.getOrDefault(
+                ResourceType.CONNECTION.name(), Collections.emptyList());
+        List<TaskUpAndLoadDto> configItems = new ArrayList<>();
+        List<TaskUpAndLoadDto> metadataItems = new ArrayList<>();
+        for (TaskUpAndLoadDto item : connectionPayload) {
+            if (GroupConstants.COLLECTION_METADATA_INSTANCES.equals(item.getCollectionName())) {
+                metadataItems.add(item);
+            } else {
+                configItems.add(item);
+            }
+        }
+        if (!configItems.isEmpty()) {
+            contents.put(projectName + "_Connection_Config.json", toJsonBytes(configItems));
+        }
+        if (!metadataItems.isEmpty()) {
+            contents.put(projectName + "_Connection_Metadata.json", toJsonBytes(metadataItems));
+        }
+
+        // 其他资源类型：加项目名前缀，InspectTask 改名 ValidateTask
+        for (Map.Entry<String, List<TaskUpAndLoadDto>> entry : payloadsByType.entrySet()) {
+            String resourceType = entry.getKey();
+            if (ResourceType.CONNECTION.name().equals(resourceType)) {
+                continue; // 已单独处理
+            }
+            if (entry.getValue().isEmpty()) {
+                continue;
+            }
+            String fileName = switch (resourceType) {
+                case "MIGRATE_TASK" -> projectName + "_MigrateTask.json";
+                case "SYNC_TASK" -> projectName + "_SyncTask.json";
+                case "INSPECT_TASK" -> projectName + "_ValidateTask.json";
+                case "MODULE" -> projectName + "_Module.json";
+                case "SHARE_CACHE" -> projectName + "_ShareCache.json";
+                case "METADATA_DEFINITION" -> "MetadataDefinition.json";
+                default -> ResourceType.getResourceName(resourceType);
+            };
+            if (fileName != null) {
+                contents.put(fileName, toJsonBytes(entry.getValue()));
+            }
+        }
+
+        return contents;
+    }
+
+    private byte[] toJsonBytes(Object obj) {
+        return Objects.requireNonNull(JsonUtil.toJsonUseJackson(obj)).getBytes(StandardCharsets.UTF_8);
+    }
+
     protected String buildGroupExportFileName(List<GroupInfoDto> groupInfos, String yyyymmdd) {
         if (CollectionUtils.size(groupInfos) == 1) {
             GroupInfoDto groupInfo = groupInfos.get(0);
@@ -1055,6 +1120,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 			throw new UnsupportedOperationException(gitInfo.toString());
 		}
 	}
+
     protected void checkTags(Map<ResourceType, Map<String, ?>> resourceMapsByType,Map<String,String> tagMap){
         for (Map.Entry<ResourceType, Map<String, ?>> entry : resourceMapsByType.entrySet()) {
             if(ResourceType.hasTags(entry.getKey())){
