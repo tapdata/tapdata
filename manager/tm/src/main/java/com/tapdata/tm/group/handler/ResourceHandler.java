@@ -34,6 +34,16 @@ import java.util.*;
 public interface ResourceHandler {
 
     /**
+     * 需要脱敏的标准化 apiServerKey 集合，跨所有数据源一致
+     */
+    Set<String> SENSITIVE_API_KEYS = Set.of(
+            "database_host",
+            "database_port",
+            "database_username",
+            "database_password"
+    );
+
+    /**
      * 获取当前处理器支持的资源类型
      * 
      * @return 资源类型
@@ -129,6 +139,7 @@ public interface ResourceHandler {
                     .findByPdkHash(dataSourceConnectionDto.getPdkHash(), Integer.MAX_VALUE, user);
             if (definition != null) {
                 dataSourceConnectionDto.setDefinitionPdkAPIVersion(definition.getPdkAPIVersion());
+                maskSensitiveConfigFields(dataSourceConnectionDto, definition);
             }
 
             // 收集元数据
@@ -227,6 +238,70 @@ public interface ResourceHandler {
             }
 
         }
+    }
+
+    /**
+     * 根据 DataSourceDefinitionDto 中的 apiServerKey 定义，找到 DataSourceConnectionDto.config
+     * 里对应的路径并清空值。只处理 SENSITIVE_API_KEYS 中声明的标准化 apiServerKey。
+     */
+    private static void maskSensitiveConfigFields(DataSourceConnectionDto conn,
+            DataSourceDefinitionDto definition) {
+        Map<String, Object> config = conn.getConfig();
+        if (MapUtils.isEmpty(config) || definition == null) {
+            return;
+        }
+        LinkedHashMap<String, Object> properties = definition.getProperties();
+        if (properties == null) {
+            return;
+        }
+        Object connection = properties.get("connection");
+        if (!(connection instanceof Map)) {
+            return;
+        }
+        Object connectionProperties = ((Map<?, ?>) connection).get("properties");
+        if (!(connectionProperties instanceof Map)) {
+            return;
+        }
+        // BFS 遍历 connection.properties，找到 apiServerKey 命中敏感集合的字段路径
+        // 字段路径（如 "host"、"ssl.password"）即是 config 中的 key，直接删除对应值
+        Deque<Object[]> queue = new ArrayDeque<>();
+        queue.add(new Object[]{connectionProperties, ""});
+        while (!queue.isEmpty()) {
+            Object[] node = queue.poll();
+            Map<String, Object> props = (Map<String, Object>) node[0];
+            String prefix = (String) node[1];
+            for (Map.Entry<String, Object> entry : props.entrySet()) {
+                if (!(entry.getValue() instanceof Map)) {
+                    continue;
+                }
+                Map<String, Object> meta = (Map<String, Object>) entry.getValue();
+                String configPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+                Object apiServerKey = meta.get("apiServerKey");
+                if (apiServerKey instanceof String && SENSITIVE_API_KEYS.contains(apiServerKey)) {
+                    removeNestedValue(config, configPath);
+                }
+                Object childProperties = meta.get("properties");
+                if (childProperties instanceof Map) {
+                    queue.add(new Object[]{childProperties, configPath});
+                }
+            }
+        }
+    }
+
+    /**
+     * 从 config map 中按点号分隔的路径删除对应值（支持嵌套路径，如 "ssl.password"）
+     */
+    private static void removeNestedValue(Map<String, Object> config, String path) {
+        String[] parts = path.split("\\.");
+        Map<String, Object> current = config;
+        for (int i = 0; i < parts.length - 1; i++) {
+            Object next = current.get(parts[i]);
+            if (!(next instanceof Map)) {
+                return;
+            }
+            current = (Map<String, Object>) next;
+        }
+        current.remove(parts[parts.length - 1]);
     }
 
 }
