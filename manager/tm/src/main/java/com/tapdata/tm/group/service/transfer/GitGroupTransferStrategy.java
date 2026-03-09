@@ -68,6 +68,11 @@ public class GitGroupTransferStrategy implements GroupTransferStrategy {
 			throw new BizException("Git.Export.GroupName.Required");
 		}
 
+		String branchName = request.getGitBranchName();
+		if (StringUtils.isBlank(branchName)) {
+			throw new BizException("Git.Export.BranchName.Required");
+		}
+
 		File localRepoDir = null;
 		try {
 			// Get GitService through router
@@ -94,12 +99,18 @@ public class GitGroupTransferStrategy implements GroupTransferStrategy {
 			localRepoDir = recordStep(request, "Create Local Temp Directory",
 					() -> createLocalTempDirectory(repoUrl), null);
 
-			// Clone repository
+			// Clone repository (clones the default/base branch)
 			File finalLocalRepoDir = localRepoDir;
 			recordStep(request, "Clone Repository", () -> {
 				gitService.cloneRepo(gitInfo, finalLocalRepoDir.getAbsolutePath());
 				return null;
 			}, repoUrl + " -> " + finalLocalRepoDir.getAbsolutePath());
+
+			// Create and checkout new branch
+			recordStep(request, "Create Branch: " + branchName, () -> {
+				gitService.createBranch(finalLocalRepoDir.getAbsolutePath(), branchName);
+				return null;
+			}, "Branch: " + branchName);
 
 			// Create export subdirectory
 			String exportDirName = groupName + "_tapdata_export";
@@ -126,26 +137,33 @@ public class GitGroupTransferStrategy implements GroupTransferStrategy {
 			Status status = recordStep(request, "Check Git Status",
 					() -> gitService.getStatus(finalLocalRepoDir.getAbsolutePath()),
 					finalLocalRepoDir.getAbsolutePath(),
-				this::buildStatusDetails);
+					this::buildStatusDetails);
 
 			if (status.isClean()) {
-				log.info("No changes to commit for group {}, skipping commit, push and tag operations", groupName);
-				// Record the skip step as successful
-				recordStep(request, "Skip Commit/Push/Tag", () -> null,
-					"No changes detected in working directory, skipping subsequent operations");
+				log.info("No changes to commit for group {}, skipping commit, push and PR operations", groupName);
+				recordStep(request, "Skip Commit/Push/PR", () -> null,
+						"No changes detected in working directory, skipping subsequent operations");
 			} else {
-				// Commit changes with status information
+				// Commit changes
 				String commitMessage = buildCommitMessage(groupName, contents, status);
 				recordStep(request, "Commit Changes", () -> {
 					gitService.commit(gitInfo, finalLocalRepoDir.getAbsolutePath(), commitMessage);
 					return null;
 				}, "Commit message:\n" + commitMessage);
 
-				// Push changes
-				recordStep(request, "Push to Remote", () -> {
-					gitService.push(gitInfo, finalLocalRepoDir.getAbsolutePath());
+				// Push the new branch to remote
+				recordStep(request, "Push Branch: " + branchName, () -> {
+					gitService.push(gitInfo, finalLocalRepoDir.getAbsolutePath(), branchName);
 					return null;
-				}, repoUrl);
+				}, repoUrl + " branch: " + branchName);
+
+				// Create pull request
+				String prTitle = request.getGitPrTitle();
+				String prDescription = request.getGitPrDescription();
+				recordStep(request, "Create Pull Request", () -> {
+					String prUrl = gitService.createPullRequest(gitInfo, branchName, prTitle, prDescription);
+					return prUrl;
+				}, "Branch: " + branchName + " -> " + (StringUtils.isNotBlank(gitInfo.getBranch()) ? gitInfo.getBranch() : "default"));
 
 				// Create tag if specified
 				if (StringUtils.isNotBlank(gitTag)) {

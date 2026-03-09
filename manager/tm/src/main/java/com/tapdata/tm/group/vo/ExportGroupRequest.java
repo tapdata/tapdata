@@ -18,4 +18,7 @@ public class ExportGroupRequest {
 	private GroupTransferType groupTransferType = GroupTransferType.FILE;
 	private Map<String, List<String>> groupResetTask;
 	private String gitTag;
+	private String gitBranchName;
+	private String gitPrTitle;
+	private String gitPrDescription;
 }
