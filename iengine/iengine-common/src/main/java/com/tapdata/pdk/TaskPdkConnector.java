@@ -70,15 +70,17 @@ public class TaskPdkConnector {
             DataParentNode<?> dataParentNode = (DataParentNode<?>) node;
             String connectionId = dataParentNode.getConnectionId();
             Map<String, Object> nodeConfig = null;
+            Map<String, Map<String, Object>> tableNodeConfig = null;
             if (node instanceof DatabaseNode) {
                 nodeConfig = ((DatabaseNode) node).getNodeConfig();
+                tableNodeConfig = ((DatabaseNode) node).getTableNodeConfig();
             } else if (node instanceof TableNode) {
                 nodeConfig = ((TableNode) node).getNodeConfig();
             }
             Connections connections = getConnections(connectionId);
             if (null != connections) {
                 DatabaseTypeEnum.DatabaseType sourceDatabaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-                return TaskNodePdkConnector.create(clientMongoOperator, taskId, node, associateId, connections, sourceDatabaseType, taskConfig.getTaskRetryConfig(),nodeConfig);
+                return TaskNodePdkConnector.create(clientMongoOperator, taskId, node, associateId, connections, sourceDatabaseType, taskConfig.getTaskRetryConfig(), nodeConfig, tableNodeConfig);
             }
         }
         return null;

@@ -78,6 +78,7 @@ public class TaskNodePdkConnector implements IPdkConnector {
         , DatabaseTypeEnum.DatabaseType databaseType
         , TaskRetryConfig taskRetryConfig
         , Map<String,Object> nodeConfig
+        , Map<String,Map<String, Object>> tableNodeConfig
     ) {
         this.nodeConfig = nodeConfig;
         this.connections = connections;
@@ -92,6 +93,7 @@ public class TaskNodePdkConnector implements IPdkConnector {
             associateId,
             connections.getConfig(),
             nodeConfig,
+            tableNodeConfig,
             createPdkTableMap(getNodeId()),
             createPdkStateMap(getNodeId()),
             createGlobalStateMap(),
@@ -273,7 +275,8 @@ public class TaskNodePdkConnector implements IPdkConnector {
         , DatabaseTypeEnum.DatabaseType databaseType
         , TaskRetryConfig taskRetryConfig
         , Map<String,Object> nodeConfig
+        , Map<String,Map<String, Object>> tableNodeConfig
     ) {
-        return new TaskNodePdkConnector(clientMongoOperator, taskId, node, associateId, connections, databaseType, taskRetryConfig,nodeConfig);
+        return new TaskNodePdkConnector(clientMongoOperator, taskId, node, associateId, connections, databaseType, taskRetryConfig, nodeConfig, tableNodeConfig);
     }
 }
