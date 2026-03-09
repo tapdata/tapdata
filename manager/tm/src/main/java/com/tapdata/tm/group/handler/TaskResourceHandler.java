@@ -62,6 +62,9 @@ public class TaskResourceHandler implements ResourceHandler {
     private InspectService inspectService;
 
     @Autowired
+    private InspectResourceHandler inspectResourceHandler;
+
+    @Autowired
     private ExternalStorageService externalStorageService;
 
     @Autowired
@@ -78,7 +81,7 @@ public class TaskResourceHandler implements ResourceHandler {
 
     /**
      * 带参构造函数，支持指定的任务类型
-     * 
+     *
      * @param resourceType 资源类型（MIGRATE_TASK 或 SYNC_TASK）
      */
     public TaskResourceHandler(ResourceType resourceType) {
@@ -316,13 +319,11 @@ public class TaskResourceHandler implements ResourceHandler {
                 .findByTaskIdList(tasks.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList()));
         if (CollectionUtils.isNotEmpty(inspectDtoList)) {
             inspectDtoList.forEach(inspectDto -> {
-                if(CollectionUtils.isNotEmpty(inspectDto.getListtags())){
+                if (CollectionUtils.isNotEmpty(inspectDto.getListtags())) {
                     tagIds.addAll(inspectDto.getListtags().stream().map(tag -> MongoUtils.toObjectId(tag.getId())).toList());
                 }
             });
-            List<TaskUpAndLoadDto> payload = new ArrayList<>(inspectDtoList.stream()
-                    .map(t -> new TaskUpAndLoadDto(GroupConstants.COLLECTION_INSPECT, JsonUtil.toJsonUseJackson(t)))
-                    .toList());
+            List<TaskUpAndLoadDto> payload = inspectResourceHandler.buildExportPayload(inspectDtoList, user);
             payloadsByType.computeIfAbsent(ResourceType.INSPECT_TASK.name(), k -> new ArrayList<>()).addAll(payload);
         }
 
