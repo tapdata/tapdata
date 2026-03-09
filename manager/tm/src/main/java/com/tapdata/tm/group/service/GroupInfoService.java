@@ -158,6 +158,56 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 }
             }
         }
+        // 查找 MIGRATE_TASK 和 SYNC_TASK 关联的校验任务，添加到 resourceItemList
+        Set<String> taskIds = new HashSet<>();
+        for (GroupInfoDto groupInfoDto : groupInfoDtoPage.getItems()) {
+            if (CollectionUtils.isNotEmpty(groupInfoDto.getResourceItemList())) {
+                for (ResourceItem item : groupInfoDto.getResourceItemList()) {
+                    if (item != null && item.getId() != null &&
+                            (ResourceType.MIGRATE_TASK.equals(item.getType()) || ResourceType.SYNC_TASK.equals(item.getType()))) {
+                        taskIds.add(item.getId());
+                    }
+                }
+            }
+        }
+        if (CollectionUtils.isNotEmpty(taskIds)) {
+            List<InspectDto> relatedInspects = inspectService.findByTaskIdList(new ArrayList<>(taskIds));
+            if (CollectionUtils.isNotEmpty(relatedInspects)) {
+                Map<String, List<InspectDto>> inspectsByFlowId = relatedInspects.stream()
+                        .filter(i -> i.getFlowId() != null && i.getId() != null)
+                        .collect(Collectors.groupingBy(InspectDto::getFlowId));
+                for (GroupInfoDto groupInfoDto : groupInfoDtoPage.getItems()) {
+                    if (CollectionUtils.isEmpty(groupInfoDto.getResourceItemList())) {
+                        continue;
+                    }
+                    Set<String> existingInspectIds = groupInfoDto.getResourceItemList().stream()
+                            .filter(item -> item != null && ResourceType.INSPECT_TASK.equals(item.getType()) && item.getId() != null)
+                            .map(ResourceItem::getId)
+                            .collect(Collectors.toSet());
+                    List<ResourceItem> newItems = new ArrayList<>();
+                    for (ResourceItem item : groupInfoDto.getResourceItemList()) {
+                        if (item == null || item.getId() == null) continue;
+                        if (!ResourceType.MIGRATE_TASK.equals(item.getType()) && !ResourceType.SYNC_TASK.equals(item.getType())) continue;
+                        List<InspectDto> inspects = inspectsByFlowId.get(item.getId());
+                        if (CollectionUtils.isEmpty(inspects)) continue;
+                        for (InspectDto inspectDto : inspects) {
+                            String inspectId = inspectDto.getId().toHexString();
+                            if (!existingInspectIds.contains(inspectId)) {
+                                ResourceItem newItem = new ResourceItem();
+                                newItem.setId(inspectId);
+                                newItem.setType(ResourceType.INSPECT_TASK);
+                                newItem.setName(inspectDto.getName());
+                                newItems.add(newItem);
+                                existingInspectIds.add(inspectId);
+                            }
+                        }
+                    }
+                    if (CollectionUtils.isNotEmpty(newItems)) {
+                        groupInfoDto.getResourceItemList().addAll(newItems);
+                    }
+                }
+            }
+        }
         return groupInfoDtoPage;
     }
 
