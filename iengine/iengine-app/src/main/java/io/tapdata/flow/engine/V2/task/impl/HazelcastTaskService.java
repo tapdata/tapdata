@@ -457,6 +457,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				Connections finalConnection = connection;
 				DatabaseTypeEnum.DatabaseType finalDatabaseType = databaseType;
 				TapTableMap<String, TapTable> finalTapTableMap = tapTableMap;
+				boolean hasViews = hasView(nodes);
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					HazelcastBaseNode hazelcastBaseNode;
 					try {
@@ -474,6 +475,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 								.withTapTableMap(finalTapTableMap)
 								.withTaskConfig(taskConfig)
 								.withOpen(open)
+								.withHasViews(hasViews)
 						);
 						CpuMemoryCollector.listening(node.getId(), hazelcastBaseNode);
 					} catch (Exception e) {
@@ -608,6 +610,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		final TapTableMap<String, TapTable> tapTableMap = createNodeEntity.getTapTableMap();
 		final TaskConfig taskConfig = createNodeEntity.getTaskConfig();
 		final boolean open = createNodeEntity.isOpen();
+		final boolean hasViews = createNodeEntity.isHasViews();
 		List<RelateDataBaseTable> nodeSchemas = new ArrayList<>();
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA) &&
 				(node instanceof ProcessorNode || node instanceof MigrateProcessorNode) && node.disabledNode()) {
@@ -627,6 +630,16 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		final String type = node.getType();
 		final NodeTypeEnum nodeTypeEnum = NodeTypeEnum.get(type);
 		boolean previewTask = taskDto.isPreviewTask();
+		if (hasViews && NodeTypeEnum.DATABASE != nodeTypeEnum && NodeTypeEnum.TABLE != nodeTypeEnum) {
+			return new HazelcastBlank(
+					DataProcessorContext.newBuilder()
+							.withTaskDto(taskDto)
+							.withNode(node)
+							.withTapTableMap(tapTableMap)
+							.withTaskConfig(taskConfig)
+							.build()
+			);
+		}
 		switch (nodeTypeEnum) {
 			case DATABASE:
 			case TABLE:
@@ -1057,6 +1070,18 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		return hazelcastNode;
 	}
 
+	boolean hasView(List<Node> nodes) {
+		return nodes.stream()
+				.filter(n -> n instanceof DataParentNode<?>)
+				.filter(n -> n instanceof TableNode)
+				.filter(n -> {
+					TableNode dp = (TableNode) n;
+					Map<String, Object> nodeConfig = dp.getNodeConfig();
+					Object materAble = nodeConfig.get("materAble");
+					return materAble instanceof Boolean && (Boolean) materAble;
+				}).count() > 0L;
+	}
+
 	private void handleEdge(
 			DAG dag,
 			List<Edge> edges,
@@ -1320,6 +1345,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		TapTableMap<String, TapTable> tapTableMap;
 		TaskConfig taskConfig;
 		boolean open;
+		boolean hasViews;
 
 		public CreateNodeEntity() {
 			//do nothing
@@ -1374,6 +1400,10 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		}
 		CreateNodeEntity withOpen(boolean open) {
 			this.open = open;
+			return this;
+		}
+		CreateNodeEntity withHasViews(boolean hasViews) {
+			this.hasViews = hasViews;
 			return this;
 		}
 	}
