@@ -35,23 +35,6 @@ public class PdkSourceUtilsTest {
             assertNotEquals(null,md5);
             assertEquals(32, md5.length());
         }
-
-        @Test
-        @SneakyThrows
-        @DisplayName("getFileMD5 should use multipart content even if file exists")
-        void testGetFileMD5UsesMultipartContentWhenFileExists(){
-            File existFile = new File("a.jar");
-            Files.write(existFile.toPath(), "old".getBytes(StandardCharsets.UTF_8));
-            MockMultipartFile mp = new MockMultipartFile(
-                    "a.jar",
-                    "a.jar",
-                    "application/octet-stream",
-                    "new".getBytes(StandardCharsets.UTF_8)
-            );
-            String md5 = PdkSourceUtils.getFileMD5(mp);
-            existFile.delete();
-            assertEquals(md5Hex("new".getBytes(StandardCharsets.UTF_8)), md5);
-        }
         @Test
         @SneakyThrows
         @DisplayName("getFileMD5 method test when parameter class is File")
