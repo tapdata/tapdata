@@ -277,6 +277,7 @@
 					<configuration>
 						<testFailureIgnore>true</testFailureIgnore>
 						<argLine>
+							-Xmx2g
 							--add-opens=java.base/java.lang=ALL-UNNAMED
 							--add-opens=java.base/java.util=ALL-UNNAMED
 							--add-opens=java.base/java.security=ALL-UNNAMED
