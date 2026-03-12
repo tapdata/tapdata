@@ -22,6 +22,7 @@ class AuthorizationConfigTest {
         void testNormal() {
             SettingsService settingsService = mock(SettingsService.class);
             AuthorizationConfig config = mock(AuthorizationConfig.class);
+            ReflectionTestUtils.setField(config, "settingsService", settingsService);
             JwtClaimsSet.Builder builder = mock(JwtClaimsSet.Builder.class);
             when(builder.claim(anyString(), anyString())).thenReturn(builder);
             doCallRealMethod().when(config).useClusterId(any(JwtClaimsSet.Builder.class));
@@ -41,10 +42,11 @@ class AuthorizationConfigTest {
         }
         @Test
         void testNormal1() {
-            Settings cluster = mock(Settings.class);
-            when(cluster.getId()).thenReturn("cluster");
+            Settings cluster = new Settings();
+            cluster.setId("cluster");
             SettingsService settingsService = mock(SettingsService.class);
             AuthorizationConfig config = mock(AuthorizationConfig.class);
+            ReflectionTestUtils.setField(config, "settingsService", settingsService);
             doCallRealMethod().when(config).useClusterId(any(JwtClaimsSet.Builder.class));
             JwtClaimsSet.Builder builder = mock(JwtClaimsSet.Builder.class);
             when(builder.claim(anyString(), anyString())).thenReturn(builder);
@@ -59,6 +61,7 @@ class AuthorizationConfigTest {
             when(cluster.getId()).thenReturn(null);
             SettingsService settingsService = mock(SettingsService.class);
             AuthorizationConfig config = mock(AuthorizationConfig.class);
+            ReflectionTestUtils.setField(config, "settingsService", settingsService);
             doCallRealMethod().when(config).useClusterId(any(JwtClaimsSet.Builder.class));
             JwtClaimsSet.Builder builder = mock(JwtClaimsSet.Builder.class);
             when(builder.claim(anyString(), anyString())).thenReturn(builder);
