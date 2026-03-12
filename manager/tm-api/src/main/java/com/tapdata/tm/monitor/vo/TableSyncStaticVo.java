@@ -17,6 +17,15 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TableSyncStaticVo {
+
+    public interface FullSyncStatus {
+        String DONE = "DONE"; // 完成
+        String NOT_START = "NOT_START"; // 未同步
+        String COUNTING = "COUNTING"; // 统计中
+        String ING = "ING"; // 同步中
+        String ERROR_SKIPPED = "ERROR_SKIPPED"; // 错误跳过
+    }
+
     @Schema(description = "任务记录id")
     private String id;
     @Schema(description = "源表名")
@@ -27,6 +36,6 @@ public class TableSyncStaticVo {
     private String constructSyncSatus;
     @Schema(description = "数据同步")
     private BigDecimal syncRate;
-    @Schema(description = "全量同步状态 NOSTART:未同步 PAUSE:已停止 DONE:已完成 ING:同步中")
+    @Schema(description = "全量同步状态 NOT_START:未同步 PAUSE:已停止 DONE:已完成 ING:同步中 COUNTING:统计中 ERROR_SKIPPED:错误表跳过")
     private String fullSyncStatus;
 }

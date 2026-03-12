@@ -281,4 +281,24 @@ public class FileService {
             waitingDeleteFileRepository.deleteById(waitingDeleteFile.getId());
         });
     }
+
+    public void viewImg1(byte[] bytes, HttpServletResponse response, String fileName) {
+
+        try (OutputStream out = response.getOutputStream()) {
+            if (StringUtils.isBlank(fileName)) {
+                fileName = "task.json.gz";
+            }
+            String codeFileName = URLEncoder.encode(fileName, "UTF-8");
+
+            response.setHeader("Content-disposition", "inline; filename=" + codeFileName);
+            response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+            //response here is the HttpServletResponse object
+            response.setContentLength(bytes.length);
+            out.write(bytes);
+            /** 采用压缩方式，则需注释调这段代码-结束 **/
+            out.flush();
+        } catch (Exception e) {
+            log.error("viewImg1 error {}", ThrowableUtils.getStackTraceByPn(e));
+        }
+    }
 }

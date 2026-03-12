@@ -209,6 +209,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                         return true;
                     case SkipData:
                         return true;
+                    // case SkipTableForMigrateSnapshot:
+                    // 此配置将复制任务的全量同步「跳过错误表」功能配置合并
+                    // 其逻辑不在 SkipErrorEventAspectTask 中处理
+                    // 请参考: io.tapdata.task.skiperrortable.ISkipErrorTable
                     default:
                         return false;
                 }

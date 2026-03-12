@@ -54,7 +54,11 @@ public class FieldProcessUtil {
 
 		if (deleteAllFields) {
 			Map<String, Object> rollbackRemoveRecord = new HashMap<>();
-			rollbackRemoveFields.forEach(f -> rollbackRemoveRecord.put(f, MapUtilV2.getValueByKeyV2(data, f)));
+			rollbackRemoveFields.forEach(f -> {
+				Object value = MapUtilV2.getValueByKey(data, f);
+				if (value instanceof NotExistsNode) return;
+				rollbackRemoveRecord.put(f, value);
+			});
 			data.clear();
 			for (Map.Entry<String, Object> entry : rollbackRemoveRecord.entrySet()) {
 				MapUtilV2.putValueInMap(data, entry.getKey(), entry.getValue());

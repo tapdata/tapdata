@@ -8,6 +8,7 @@ import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -17,6 +18,7 @@ import com.tapdata.tm.monitor.constant.Granularity;
 import com.tapdata.tm.monitor.constant.KeyWords;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.entity.TDigestEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
@@ -77,13 +79,26 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
-    public static final String REPLICATE_LAG = "replicateLag";
-    public static final String TASK_ID = "taskId";
-    public static final String TAGS_TASK_ID = "tags.taskId";
-    public static final String TAGS_TASK_RECORD_ID = "tags.taskRecordId";
-    public static final String TAGS_TYPE = "tags.type";
-    public static final String TABLE = "table";
-    public static final String TAGS_TABLE = "tags.table";
+    public static final String SAMPLE_TYPE_TABLE = MetricCons.SampleType.TABLE.code();
+    public static final String SAMPLE_TYPE_TASK = MetricCons.SampleType.TASK.code();
+
+    public static final String FIELD_TAGS_TYPE = MetricCons.Tags.F_TYPE;
+    public static final String FIELD_TAGS_TABLE = MetricCons.Tags.F_TABLE;
+    public static final String FIELD_TAGS_TASK_ID = MetricCons.Tags.F_TASK_ID;
+    public static final String FIELD_TAGS_TASK_RECORD_ID = MetricCons.Tags.F_TASK_RECORD_ID;
+    public static final String FIELD_SS_VS_REPLICATE_LAG = MetricCons.SS.VS.F_REPLICATE_LAG;
+    public static final String FIELD_SS_VS_CURR_EVENT_TS = MetricCons.SS.VS.F_CURR_EVENT_TS;
+
+    public static final String PATH_TAGS_TASK_ID = MetricCons.Tags.path(FIELD_TAGS_TASK_ID);
+    public static final String PATH_TAGS_TASK_RECORD_ID = MetricCons.Tags.path(FIELD_TAGS_TASK_RECORD_ID);
+    public static final String PATH_TAGS_TYPE = MetricCons.Tags.path(FIELD_TAGS_TYPE);
+    public static final String PATH_TAGS_NODE_ID = MetricCons.Tags.path(MetricCons.Tags.F_NODE_ID);
+    public static final String PATH_TAGS_TABLE = MetricCons.Tags.path(FIELD_TAGS_TABLE);
+
+    public static final String PATH_SS_DATE = MetricCons.SS.path(Sample.FIELD_DATE);
+    public static final String PATH_SS_VS_INPUT_QPS = MetricCons.SS.VS.path(MetricCons.SS.VS.F_INPUT_QPS);
+    public static final String PATH_SS_VS_SNAPSHOT_SYNC_RATE = MetricCons.SS.VS.path(MetricCons.SS.VS.F_SNAPSHOT_SYNC_RATE);
+
     private final MongoTemplate mongoOperations;
     private final MetadataInstancesService metadataInstancesService;
     private final TaskService taskService;
@@ -110,21 +125,19 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         BulkOperations bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
         DateTime date = DateUtil.date();
         for (SampleRequest singleSampleRequest : sampleRequestList) {
-            Criteria criteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+            Criteria criteria = Criteria.where(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
             Map<String, String> tags = singleSampleRequest.getTags();
-            if (null == tags || 0 == tags.size()) {
+            if (null == tags || tags.isEmpty()) {
                 continue;
             }
 
             Date theDate = TimeUtil.cleanTimeAfterMinute(date);
-            if (!TABLE.equals(tags.get("type"))) {
-                criteria.and(MeasurementEntity.FIELD_DATE).is(theDate);
+            if (!SAMPLE_TYPE_TABLE.equals(tags.get(FIELD_TAGS_TYPE))) {
+                criteria.and(MetricCons.F_DATE).is(theDate);
             }
 
-            for (Map.Entry<String, String> entry : tags.entrySet()) {
-                criteria.and(MeasurementEntity.FIELD_TAGS + "." + entry.getKey()).is(entry.getValue());
-            }
+            addTags2Criteria(criteria, tags);
 
             Date second = TimeUtil.cleanTimeAfterSecond(date);
             AtomicReference<Sample> requestSample = new AtomicReference<>(singleSampleRequest.getSample());
@@ -139,24 +152,24 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             upd.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
 
             Update update = new Update()
-                    .min(MeasurementEntity.FIELD_FIRST, requestSample.get().getDate())
-                    .max(MeasurementEntity.FIELD_LAST, requestSample.get().getDate());
-            if (TABLE.equals(tags.get("type"))) {
-                update.set(MeasurementEntity.FIELD_SAMPLES, Collections.singletonList(sampleMap));
-                update.set(MeasurementEntity.FIELD_DATE, theDate);
+                    .min(MetricCons.F_FIRST, requestSample.get().getDate())
+                    .max(MetricCons.F_LAST, requestSample.get().getDate());
+            if (SAMPLE_TYPE_TABLE.equals(tags.get(FIELD_TAGS_TYPE))) {
+                update.set(MetricCons.F_SAMPLES, Collections.singletonList(sampleMap));
+                update.set(MetricCons.F_DATE, theDate);
             } else {
-                update.push(MeasurementEntity.FIELD_SAMPLES, upd);
+                update.push(MetricCons.F_SAMPLES, upd);
             }
 
             bulkOperations.upsert(query, update);
-            if ("task".equals(tags.get("type"))) {
-                Map<String, Object> vs = (Map) sampleMap.get("vs");
-                Object replicateLag = Optional.ofNullable(vs.get(REPLICATE_LAG)).orElse(0);
-                Long taskDelayTime = taskDelayTimeMap.get(tags.get(TASK_ID));
+            if (SAMPLE_TYPE_TASK.equals(tags.get(FIELD_TAGS_TYPE))) {
+                Map<String, Object> vs = (Map) sampleMap.get(Sample.FIELD_VALUES);
+                Object replicateLag = Optional.ofNullable(vs.get(FIELD_SS_VS_REPLICATE_LAG)).orElse(0);
+                Long taskDelayTime = taskDelayTimeMap.get(tags.get(FIELD_TAGS_TASK_ID));
                 long delayTime = Long.parseLong(replicateLag.toString());
                 if (null == taskDelayTime || taskDelayTime != delayTime){
-                    taskDelayTimeMap.put(tags.get(TASK_ID), delayTime);
-                    taskService.updateDelayTime(new ObjectId(tags.get(TASK_ID)), delayTime);
+                    taskDelayTimeMap.put(tags.get(FIELD_TAGS_TASK_ID), delayTime);
+                    taskService.updateDelayTime(new ObjectId(tags.get(FIELD_TAGS_TASK_ID)), delayTime);
                 }
             }
         }
@@ -164,9 +177,6 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         bulkOperations.execute();
     }
 
-    private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
-    private static final String FIELD_FORMAT = String.format("%s.%s.%%s",
-            MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_VALUES);
     private static final String INSTANT_PADDING_LEFT = "left";
     private static final String INSTANT_PADDING_RIGHT = "right";
     private static final String INSTANT_PADDING_LEFT_AND_RIGHT = "leftAndRight";
@@ -218,7 +228,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                         }
                     }
                     timeline = getTimeline(start, end, timelineInterval);
-                    Map<String, List<Sample>> continuousSamples = getContinuousSamples(querySample, start, end, granularity);
+                    Map<String, MeasurementEntity>  continuousSamples = getContinuousSamples(querySample, start, end, granularity);
 
                     // calculate the last point value
                     if (!granularity.equals(Granularity.GRANULARITY_MINUTE)) {
@@ -228,38 +238,44 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                             if (current > timeline.get(idx-1) && current <= timeline.get(idx)) {
                                 long time = timeline.get(idx);
                                 // get the sample data in [start, end)
-                                Criteria criteria = Criteria.where(MeasurementEntity.FIELD_DATE).gte(new Date(time)).lt(new Date(time + timelineInterval));
-                                criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(previousGranularity);
-                                for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
-                                    criteria.and(String.format(TAG_FORMAT, entry.getKey())).is(entry.getValue());
-                                }
+                                Criteria criteria = Criteria.where(MetricCons.F_DATE).gte(new Date(time)).lt(new Date(time + timelineInterval));
+                                criteria.and(MetricCons.F_GRANULARITY).is(previousGranularity);
+                                addTags2Criteria(criteria, querySample.getTags());
 
                                 List<String> includedFields = new ArrayList<>();
-                                includedFields.add(MeasurementEntity.FIELD_DATE);
-                                includedFields.add(MeasurementEntity.FIELD_TAGS);
+                                includedFields.add(MetricCons.F_DATE);
+                                includedFields.add(MetricCons.F_TAGS);
+                                includedFields.add(MetricCons.F_GRANULARITY);
+                                includedFields.add(MetricCons.F_DIGEST);
+                                includedFields.add(MetricCons.SS.F_DATE);
                                 for (String field : querySample.getFields()) {
-                                    includedFields.add(String.format(FIELD_FORMAT, field));
+                                    String keyPath = MetricCons.SS.VS.path(field);
+                                    includedFields.add(keyPath);
                                 }
 
                                 Query query = new Query(criteria);
                                 query.fields().include(includedFields.toArray(new String[]{}));
-                                query.with(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
+                                query.with(Sort.by(MetricCons.F_DATE).ascending());
 
                                 List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
                                 for (MeasurementEntity entity : measurementEntities) {
                                     String hash = hashTag(entity.getTags());
-                                    continuousSamples.putIfAbsent(hash, new ArrayList<>());
+                                    continuousSamples.putIfAbsent(hash, new MeasurementEntity(new ArrayList<>(),new ArrayList<>()));
                                     Sample sample = new Sample();
                                     sample.setDate(new Date(timeline.get(idx)));
                                     sample.setVs(entity.averageValues());
-                                    continuousSamples.get(hash).add(sample);
+                                    TDigestEntity tDigestEntity = new TDigestEntity();
+                                    tDigestEntity.setDate(new Date(timeline.get(idx)));
+                                    tDigestEntity.setDigest(entity.getDigestBytes());
+                                    continuousSamples.get(hash).getSamples().add(sample);
+                                    continuousSamples.get(hash).getDigest().add(tDigestEntity);
                                 }
                                 break;
                             }
                         }
                     }
 
-                    List<Map<String, Object>> formatContinuousSamples = formatContinuousSamples(continuousSamples, timeline, timelineInterval);
+                    List<Map<String, Object>> formatContinuousSamples = formatContinuousSamples(granularity,continuousSamples, timeline, timelineInterval);
                     uniqueData.addAll(formatContinuousSamples);
                     break;
             }
@@ -302,7 +318,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             return data;
         }
 
-        Criteria criteria = Criteria.where(MeasurementEntity.FIELD_DATE);
+        Criteria criteria = Criteria.where(MetricCons.F_DATE);
 
         boolean typeIsTask = false;
         boolean typeIsNode = false;
@@ -310,36 +326,35 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         String taskId = "";
         String taskRecordId = "";
         for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
-            String format = String.format(TAG_FORMAT, entry.getKey());
+            String key = entry.getKey();
             String value = entry.getValue();
-            criteria.and(format).is(value);
-            if (format.equals(TAGS_TYPE)) {
-                if ("task".equals(value)) {
-                    typeIsTask = true;
-                } else if ("engine".equals(value)) {
-                    typeIsEngine = true;
-                }else if("node".equals(value)){
-                    typeIsNode = true;
+            addTags2Criteria(criteria, key, value);
+
+            switch (key) {
+                case FIELD_TAGS_TYPE -> {
+                    if (MetricCons.SampleType.TASK.check(value)) {
+                        typeIsTask = true;
+                    } else if (MetricCons.SampleType.ENGINE.check(value)) {
+                        typeIsEngine = true;
+                    } else if (MetricCons.SampleType.NODE.check(value)) {
+                        typeIsNode = true;
+                    }
                 }
-            }
-            if (format.equals(TAGS_TASK_ID)) {
-                taskId = value;
-            }
-            if (format.equals(TAGS_TASK_RECORD_ID)) {
-                taskRecordId = value;
+                case FIELD_TAGS_TASK_ID -> taskId = value;
+                case FIELD_TAGS_TASK_RECORD_ID -> taskRecordId = value;
             }
         }
 
-			long fixTimes = 0;
-			String granularity = Granularity.GRANULARITY_MINUTE;
+        long fixTimes = 0;
+        String granularity = Granularity.GRANULARITY_MINUTE;
         AtomicReference<Date> startDate = new AtomicReference<>();
         AtomicReference<Date>  endDate = new AtomicReference<>();
         if (start != null) {
-					fixTimes = Granularity.calculateGranularityStart(granularity, start) - start;
-					startDate.set(new Date(start + fixTimes));
+            fixTimes = Granularity.calculateGranularityStart(granularity, start) - start;
+            startDate.set(new Date(start + fixTimes));
         }
         if (end != null) {
-					endDate.set(new Date(end - fixTimes));
+            endDate.set(new Date(end - fixTimes));
         }
 
         if (typeIsTask && StringUtils.isNotBlank(taskId) && (ObjectUtils.anyNull(start, end) || Objects.equals(start, end))) {
@@ -364,17 +379,17 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
         criteria = criteria.gte(startDate.get()).lte(endDate.get());
-        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
+        criteria.and(MetricCons.F_GRANULARITY).is(granularity);
         SortOperation sort;
         long time;
         boolean asc;
         if (padding.equals(INSTANT_PADDING_LEFT)) {
             time = startDate.get().getTime();
-            sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
+            sort = Aggregation.sort(Sort.by(MetricCons.F_DATE).ascending());
             asc = true;
         } else {
             time = endDate.get().getTime();
-            sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending());
+            sort = Aggregation.sort(Sort.by(MetricCons.F_DATE).descending());
             asc = false;
         }
 
@@ -384,10 +399,10 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             @Override
             public Document toDocument(AggregationOperationContext context) {
                 Document projectFields = new Document();
-                projectFields.put(MeasurementEntity.FIELD_ID,"$"+MeasurementEntity.FIELD_TAGS);
-                projectFields.put(MeasurementEntity.FIELD_DATE,1);
-                projectFields.put(MeasurementEntity.FIELD_TAGS,1);
-                projectFields.put(MeasurementEntity.FIELD_SAMPLES,1);
+                projectFields.put(MetricCons.F_ID, " $" + MetricCons.F_TAGS);
+                projectFields.put(MetricCons.F_DATE,1);
+                projectFields.put(MetricCons.F_TAGS,1);
+                projectFields.put(MetricCons.F_SAMPLES,1);
                 return new Document("$project", projectFields);
             }
         };
@@ -398,7 +413,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         } else {
             if(typeIsNode){
                 //After sorting, group according to nodeId and get the first latest data.
-                GroupOperation groupOperation = Aggregation.group("tags.nodeId").first("$$ROOT").as("firstRecord");;
+                GroupOperation groupOperation = Aggregation.group(PATH_TAGS_NODE_ID).first("$$ROOT").as("firstRecord");;
                 aggregation = Aggregation.newAggregation(match, sort,groupOperation,Aggregation.replaceRoot().withValueOf("$firstRecord") ,projectionOperation);
             }else {
                 aggregation = Aggregation.newAggregation(match, sort, limitOperation, projectionOperation);
@@ -425,12 +440,12 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
 
             if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
-                Number currentEventTimestamp = values.get("currentEventTimestamp");
-                Number snapshotStartAt = values.get("snapshotStartAt");
+                Number currentEventTimestamp = values.get(FIELD_SS_VS_CURR_EVENT_TS);
+                Number snapshotStartAt = values.get(MetricCons.SS.VS.F_SNAPSHOT_START_AT);
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
                 if (Objects.isNull(currentEventTimestamp) && Objects.nonNull(snapshotStartAt)) {
                     Number maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAt.longValue());
-                    values.put(REPLICATE_LAG, maxRep);
+                    values.put(FIELD_SS_VS_REPLICATE_LAG, maxRep);
                 }
 
             }
@@ -472,16 +487,13 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
     protected Double getTaskLastFiveMinutesQps(Map<String, String> tags) {
         Criteria criteria = new Criteria();
-        tags.forEach((k, v) -> {
-            String format = String.format(TAG_FORMAT, k);
-            criteria.and(format).is(v);
-        });
-        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+        addTags2Criteria(criteria, tags);
+        criteria.and(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
         MatchOperation match = Aggregation.match(criteria);
-        SortOperation sort = Aggregation.sort(Sort.by(Sort.Direction.DESC, "date"));
+        SortOperation sort = Aggregation.sort(Sort.by(Sort.Direction.DESC, MetricCons.F_DATE));
         LimitOperation limit = Aggregation.limit(5);
-        UnwindOperation unwind = Aggregation.unwind("ss", false);
-        GroupOperation group = Aggregation.group().avg("ss.vs.inputQps").as("qps");
+        UnwindOperation unwind = Aggregation.unwind(MetricCons.F_SAMPLES, false);
+        GroupOperation group = Aggregation.group().avg(PATH_SS_VS_INPUT_QPS).as("qps");
         Aggregation aggregation = Aggregation.newAggregation(match, sort, limit, unwind, group);
         aggregation.withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
         List<Map> mappedResults = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, Map.class).getMappedResults();
@@ -534,44 +546,47 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         return data;
     }
 
-    protected Map<String, List<Sample>> getContinuousSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end,String granularity) {
-        Map<String, List<Sample>> data = new HashMap<>();
+    protected Map<String, MeasurementEntity> getContinuousSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end,String granularity) {
+        Map<String, MeasurementEntity>data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
                 MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS)) {
             return data;
         }
 
-        Criteria criteria = Criteria.where(String.format("%s.%s", MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_DATE))
+        Criteria criteria = Criteria.where(PATH_SS_DATE)
                 .gte(new Date(start))
                 .lte(new Date(end));
-        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.calculateReasonableGranularity(start, end));
-        for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
-            criteria.and(String.format(TAG_FORMAT, entry.getKey())).is(entry.getValue());
-        }
+        criteria.and(MetricCons.F_GRANULARITY).is(Granularity.calculateReasonableGranularity(start, end));
+        addTags2Criteria(criteria, querySample.getTags());
 
         List<String> includedFields = new ArrayList<>();
-        includedFields.add(MeasurementEntity.FIELD_TAGS);
-        includedFields.add(String.format("%s.%s", MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_DATE));
+        includedFields.add(MetricCons.F_TAGS);
+        includedFields.add(PATH_SS_DATE);
         if (!granularity.equals(Granularity.GRANULARITY_MINUTE)) {
-            querySample.getFields().add(MeasurementEntity.MAX_INPUT_QPS);
-            querySample.getFields().add(MeasurementEntity.MAX_OUTPUT_QPS);
-            querySample.getFields().add(MeasurementEntity.MAX_INPUT_SIZE_QPS);
-            querySample.getFields().add(MeasurementEntity.MAX_OUTPUT_SIZE_QPS);
+            querySample.getFields().add(MetricCons.SS.VS.F_MAX_INPUT_QPS);
+            querySample.getFields().add(MetricCons.SS.VS.F_MAX_OUTPUT_QPS);
+            querySample.getFields().add(MetricCons.SS.VS.F_MAX_INPUT_SIZE_QPS);
+            querySample.getFields().add(MetricCons.SS.VS.F_MAX_OUTPUT_SIZE_QPS);
+            includedFields.add(MetricCons.F_DIGEST);
         }
         for (String field : querySample.getFields()) {
-            includedFields.add(String.format(FIELD_FORMAT, field));
+            String keyPath = MetricCons.SS.VS.path(field);
+            includedFields.add(keyPath);
         }
 
         Query query = new Query(criteria);
         query.fields().include(includedFields.toArray(new String[]{}));
-        query.with(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
+        query.with(Sort.by(MetricCons.F_DATE).ascending());
         List<MeasurementEntity> entities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
         for (MeasurementEntity entity : entities) {
             String hash = hashTag(entity.getTags());
             if (!data.containsKey(hash)) {
-                data.put(hash, new ArrayList<>());
+                data.put(hash, new MeasurementEntity(new ArrayList<>(),new ArrayList<>()));
             }
-            data.get(hash).addAll(entity.getSamples());
+            data.get(hash).getSamples().addAll(entity.getSamples());
+            if(Granularity.isCalculateQuantiles(granularity) && null != entity.getDigest()){
+                data.get(hash).getDigest().addAll(entity.getDigest());
+            }
         }
 
         return data;
@@ -602,23 +617,25 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         for(Map.Entry<String, Sample> entry: singleSamples.entrySet()) {
             Map<String, String> tags = reverseHashTag(entry.getKey());
             Map<String, Object> values = new HashMap<>(entry.getValue().getVs());
-            values.put("tags", tags);
+            values.put(MetricCons.F_TAGS, tags);
             data.add(values);
         }
 
         return data;
     }
 
-    private  List<Map<String, Object>> formatContinuousSamples(Map<String, List<Sample>> continuousSamples, List<Long> timeline, long interval) {
+    private  List<Map<String, Object>> formatContinuousSamples(String granularity , Map<String,MeasurementEntity>  continuousSamples, List<Long> timeline, long interval) {
         List<Map<String, Object>> data = new ArrayList<>();
-        for (Map.Entry<String, List<Sample>> entry : continuousSamples.entrySet()) {
+        for (Map.Entry<String, MeasurementEntity> entry : continuousSamples.entrySet()) {
             Map<String, String> tags = reverseHashTag(entry.getKey());
             Map<String, Number[]> values = new HashMap<>();
 
-            List<Sample> samples = entry.getValue().stream().sorted(Comparator.comparing(Sample::getDate)).collect(Collectors.toList());
+            List<Sample> samples = entry.getValue().getSamples().stream().sorted(Comparator.comparing(Sample::getDate)).collect(Collectors.toList());
+            List<TDigestEntity> digests = entry.getValue().getDigest().stream().sorted(Comparator.comparing(TDigestEntity::getDate)).collect(Collectors.toList());
 
             int timeLineIdx = 0;
             int sampleIdx1 = 0;
+            Map<Integer,Sample> finalSample = new HashMap<>();
             while (timeLineIdx < timeline.size() && sampleIdx1 < samples.size()) {
                 Sample sample1 = samples.get(sampleIdx1);
                 long time1 = sample1.getDate().getTime();
@@ -650,10 +667,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 // |________*__|__________|__________|
                 //             t1          t2          t3
                 // the s1 is in the ranging area of t1, so set data of s1 to t1 temporarily.
-                for(String key : sample1.getVs().keySet()) {
-                    values.putIfAbsent(key, new Number[timeline.size()]);
-                    values.get(key)[timeLineIdx] = sample1.getVs().get(key);
-                }
+                finalSample.put(timeLineIdx,sample1);
 
                 //         s1   s2
                 //         \/   \/
@@ -679,10 +693,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     }
 
                     // set the new value into array, only if the gap is smaller than the former one
-                    for(String key : sample2.getVs().keySet()) {
-                        values.putIfAbsent(key, new Number[timeline.size()]);
-                        values.get(key)[timeLineIdx] = sample2.getVs().get(key);
-                    }
+                    finalSample.put(timeLineIdx,sample2);
                     // got a new value, use the new gap to compare
                     gap1 = gap2;
 
@@ -699,6 +710,14 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 }
                 timeLineIdx += 1;
                 sampleIdx1 = sampleIdx2;
+            }
+
+            Granularity.quantileCalculation(granularity,finalSample.values().stream().toList(),digests);
+            for (Map.Entry<Integer,Sample> sampleEntry: finalSample.entrySet()){
+                for(String key : sampleEntry.getValue().getVs().keySet()) {
+                    values.putIfAbsent(key, new Number[timeline.size()]);
+                    values.get(key)[sampleEntry.getKey()] = sampleEntry.getValue().getVs().get(key);
+                }
             }
 
             // 补充null数据，取null上一个点的数据
@@ -721,7 +740,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
 
             Map<String, Object> single = new HashMap<>(values);
-            single.put("tags", tags);
+            single.put(MetricCons.F_TAGS, tags);
             data.add(single);
         }
 
@@ -783,20 +802,20 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
         // get the sample data in [start, end)
-        Criteria criteria = Criteria.where(MeasurementEntity.FIELD_DATE).gte(new Date(start)).lt(new Date(end));
-        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
-        for (Map.Entry<String, String> entry : queryTags.entrySet()) {
-            criteria.and(String.format(TAG_FORMAT, entry.getKey())).is(entry.getValue());
-        }
+        Criteria criteria = Criteria.where(MetricCons.F_DATE).gte(new Date(start)).lt(new Date(end));
+        criteria.and(MetricCons.F_GRANULARITY).is(granularity);
+        addTags2Criteria(criteria, queryTags);
 
         List<String> includedFields = new ArrayList<>();
-        includedFields.add(MeasurementEntity.FIELD_DATE);
-        includedFields.add(MeasurementEntity.FIELD_TAGS);
-        includedFields.add(MeasurementEntity.FIELD_SAMPLES);
+        includedFields.add(MetricCons.F_DATE);
+        includedFields.add(MetricCons.F_TAGS);
+        includedFields.add(MetricCons.F_SAMPLES);
+        includedFields.add(MetricCons.F_DIGEST);
+        includedFields.add(MetricCons.F_GRANULARITY);
 
         Query query = new Query(criteria);
         query.fields().include(includedFields.toArray(new String[]{}));
-        query.with(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
+        query.with(Sort.by(MetricCons.F_DATE).ascending());
 
         Map<String, List<MeasurementEntity>> tagEntities = new HashMap<>();
         for (MeasurementEntity entity : mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME)) {
@@ -821,6 +840,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 Long first = null, last = null;
                 List<MeasurementEntity> entities = entry.getValue();
                 List<Map<String, Object>> samples = new ArrayList<>();
+                List<Map<String, Object>> digests = new ArrayList<>();
                 // the last value should not be included, it should be [start, end)
                 for (long time = innerStart; time < innerEnd && idx < entry.getValue().size(); time += interval) {
                     MeasurementEntity entity = entities.get(idx);
@@ -839,7 +859,10 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     nextGranularitySample.setDate(new Date(time));
                     nextGranularitySample.setVs(entity.averageValues());
                     samples.add(nextGranularitySample.toMap());
-
+                    TDigestEntity nextGranularityDigest = new TDigestEntity();
+                    nextGranularityDigest.setDate(new Date(time));
+                    nextGranularityDigest.setDigest(entity.getDigestBytes());
+                    digests.add(nextGranularityDigest.toMap());
                     idx += 1;
                 }
 
@@ -849,9 +872,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
                 Date nextGranularityDate = Granularity.calculateGranularityDate(nextGranularity, new Date(innerStart));
 
-                Criteria upsertCriteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(nextGranularity);
-                upsertCriteria.and(MeasurementEntity.FIELD_TAGS).is(reverseHashTag(entry.getKey()));
-                upsertCriteria.and(MeasurementEntity.FIELD_DATE).is(nextGranularityDate);
+                Criteria upsertCriteria = Criteria.where(MetricCons.F_GRANULARITY).is(nextGranularity);
+                upsertCriteria.and(MetricCons.F_TAGS).is(reverseHashTag(entry.getKey()));
+                upsertCriteria.and(MetricCons.F_DATE).is(nextGranularityDate);
 
                 Document ss = new Document();
                 ss.put("$each", samples);
@@ -861,10 +884,14 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 // affect the data since the generated value will always be the same.
                 ss.put("$slice", 200);
                 ss.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
-                Update update = new Update().push(MeasurementEntity.FIELD_SAMPLES, ss)
-                        .min(MeasurementEntity.FIELD_FIRST, new Date(first))
-                        .max(MeasurementEntity.FIELD_LAST, new Date(last));
-
+                Document digest = new Document();
+                digest.put("$each", digests);
+                digest.put("$slice", 200);
+                digest.put("$sort", new Document().append(TDigestEntity.FIELD_DATE, -1));
+                Update update = new Update().push(MetricCons.F_SAMPLES, ss)
+                        .push(MetricCons.F_DIGEST, digest)
+                        .min(MetricCons.F_FIRST, new Date(first))
+                        .max(MetricCons.F_LAST, new Date(last));
                 if (null == bulkOperations) {
                     bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
                 }
@@ -882,7 +909,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         if (StringUtils.isEmpty(taskId)) {
             return;
         }
-        Query query = Query.query(Criteria.where(TAGS_TASK_ID).is(taskId));
+        Query query = Query.query(Criteria.where(PATH_TAGS_TASK_ID).is(taskId));
         DeleteResult result = mongoOperations.remove(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
 
         log.info(" taskId :{}  删除了 {} 条记录", taskId, JsonUtil.toJson(result));
@@ -890,12 +917,10 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
     @Override
     public Long[] countEventByTaskRecord(String taskId, String taskRecordId) {
-        Query query = new Query(Criteria.where(TAGS_TASK_ID).is(taskId)
-                .and(TAGS_TASK_RECORD_ID).is(taskRecordId)
-                .and(TAGS_TYPE).is("task")
-                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
-                .and(MeasurementEntity.FIELD_DATE).lte(new Date()));
-        query.with(Sort.by(MeasurementEntity.FIELD_DATE).descending());
+        Criteria criteria = createMinuteCriteria(taskId, taskRecordId, SAMPLE_TYPE_TASK)
+            .and(MetricCons.F_DATE).lte(new Date());
+        Query query = new Query(criteria);
+        query.with(Sort.by(MetricCons.F_DATE).descending());
         MeasurementEntity measurementEntity = mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
         if (null == measurementEntity || null == measurementEntity.getSamples() || measurementEntity.getSamples().isEmpty()) {
             return null;
@@ -905,16 +930,18 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         // inputInsertTotal + inputUpdateTotal + inputDeleteTotal + inputDdlTotal + inputOthersTotal
         AtomicReference<Long> inputTotal = new AtomicReference<>(0L);
         AtomicReference<Long> outputTotal = new AtomicReference<>(0L);
-        List<String> calList = Lists.of("inputDdlTotal",
-                "inputDeleteTotal",
-                "inputInsertTotal",
-                "inputOthersTotal",
-                "inputUpdateTotal",
-                "outputDdlTotal",
-                "outputDeleteTotal",
-                "outputInsertTotal",
-                "outputOthersTotal",
-                "outputUpdateTotal");
+        List<String> calList = Lists.of(
+            MetricCons.SS.VS.F_INPUT_DDL_TOTAL,
+                MetricCons.SS.VS.F_INPUT_DELETE_TOTAL,
+                MetricCons.SS.VS.F_INPUT_INSERT_TOTAL,
+                MetricCons.SS.VS.F_INPUT_OTHERS_TOTAL,
+                MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL,
+                MetricCons.SS.VS.F_OUTPUT_DDL_TOTAL,
+                MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL,
+                MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL,
+                MetricCons.SS.VS.F_OUTPUT_OTHERS_TOTAL,
+                MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL
+        );
         vs.forEach((k, v) -> {
             if (calList.contains(k)) {
                 Long value = Objects.nonNull(v) ? v.longValue() : 0;
@@ -938,19 +965,15 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             return runTables;
         }
 
-        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskId)
-                .and(TAGS_TASK_RECORD_ID).is(taskRecordId)
-                .and(TAGS_TYPE).is(TABLE)
-                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
-
+        Criteria criteria = createMinuteCriteria(taskId, taskRecordId, SAMPLE_TYPE_TABLE);
         Query query = new Query(criteria);
-        query.fields().include(TAGS_TABLE);
+        query.fields().include(PATH_TAGS_TABLE);
         List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
         if (CollectionUtils.isNotEmpty(measurementEntities)) {
             for (MeasurementEntity measurementEntity : measurementEntities) {
                 Map<String, String> tags = measurementEntity.getTags();
-                if (tags != null && tags.get(TABLE) != null) {
-                    runTables.add(tags.get(TABLE));
+                if (tags != null && tags.get(SAMPLE_TYPE_TABLE) != null) {
+                    runTables.add(tags.get(SAMPLE_TYPE_TABLE));
                 }
             }
         }
@@ -962,21 +985,32 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     public Page<TableSyncStaticVo> querySyncStatic(TableSyncStaticDto dto, UserDetail userDetail) {
         String taskRecordId = dto.getTaskRecordId();
 
-        Query taskQuery = new Query(Criteria.where("taskRecordId").is(taskRecordId));
+        Query taskQuery = new Query(Criteria.where(FIELD_TAGS_TASK_RECORD_ID).is(taskRecordId));
         TaskDto taskDto = taskService.findOne(taskQuery, userDetail);
         if (taskDto == null) {
             return new Page<>(0, Lists.of());
         }
 
+        String taskId = taskDto.getId().toString();
         boolean hasTableRenameNode = false;
         if (CollectionUtils.isNotEmpty(taskDto.getDag().getNodes())) {
             hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
         }
 
-        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskDto.getId().toHexString())
-                .and(TAGS_TASK_RECORD_ID).is(taskRecordId)
-                .and(TAGS_TYPE).is(TABLE)
-                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+        Criteria criteria = createMinuteCriteria(taskId, taskRecordId, SAMPLE_TYPE_TABLE);
+
+        Boolean skipErrorTable = dto.getSkipErrorTable();
+        if (null != skipErrorTable) {
+            String field = MetricCons.SS.VS.path(MetricCons.SS.VS.F_SNAPSHOT_ERROR_SKIPPED);
+            if (skipErrorTable) {
+                criteria = criteria.and(field).is(1);
+            } else {
+                criteria = criteria.orOperator(
+                    Criteria.where(field).exists(false),
+                    Criteria.where(field).is(0)
+                );
+            }
+        }
 
         querySyncByTableName(dto,criteria);
 
@@ -990,7 +1024,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             return new Page<>(0, Collections.emptyList());
         }
 
-        query.with(Sort.by(Sort.Direction.DESC, "ss.vs.snapshotSyncRate"));
+        query.with(Sort.by(Sort.Direction.DESC, PATH_SS_VS_SNAPSHOT_SYNC_RATE));
         query.with(tmPageable);
         List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
 
@@ -1000,7 +1034,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         if (hasTableRenameNode) {
             DatabaseNode targetNode = taskDto.getDag().getTargetNode().getLast();
             List<MetadataInstancesDto> metas = metadataInstancesService.findBySourceIdAndTableNameList(targetNode.getConnectionId(),
-                    null, userDetail, taskDto.getId().toHexString());
+                    null, userDetail, taskId);
             // filter by nodeId ,old data nodeId will null
             // get table origin name and target name
             tableNameMap.set(metas.stream()
@@ -1029,7 +1063,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
         List<TableSyncStaticVo> result = new ArrayList<>();
         for (MeasurementEntity measurementEntity : measurementEntities) {
-            String originTable = measurementEntity.getTags().get(TABLE);
+            String originTable = measurementEntity.getTags().get(SAMPLE_TYPE_TABLE);
             AtomicReference<String> originTableName = new AtomicReference<>();
             boolean finalHasTableRenameNode = hasTableRenameNode;
             List<TableNode> finalCollect = collect;
@@ -1050,11 +1084,11 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
             Map<String, Number> vs = samples.get(0).getVs();
             AtomicLong snapshotInsertRowTotal = new AtomicLong(0L);
-            Optional.ofNullable(vs.getOrDefault("snapshotInsertRowTotal", 0)).ifPresent(number -> snapshotInsertRowTotal.set(number.longValue()));
+            Optional.ofNullable(vs.getOrDefault(MetricCons.SS.VS.F_SNAPSHOT_INSERT_ROW_TOTAL, 0)).ifPresent(number -> snapshotInsertRowTotal.set(number.longValue()));
             AtomicLong snapshotRowTotal = new AtomicLong(0L);
-            Optional.ofNullable(vs.getOrDefault("snapshotRowTotal", 0)).ifPresent(number -> snapshotRowTotal.set(number.longValue()));
+            Optional.ofNullable(vs.getOrDefault(MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL, 0)).ifPresent(number -> snapshotRowTotal.set(number.longValue()));
 
-            Number snapshotSyncRate = vs.get("snapshotSyncRate");
+            Number snapshotSyncRate = vs.get(MetricCons.SS.VS.F_SNAPSHOT_SYNC_RATE);
             BigDecimal syncRate;
             if (snapshotRowTotal.get() == -1L && snapshotInsertRowTotal.get() > 0L) {
                 syncRate = new BigDecimal(-1);
@@ -1067,15 +1101,20 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
 
             String fullSyncStatus;
-            if (syncRate.compareTo(BigDecimal.ONE) >= 0) {
-                fullSyncStatus = "DONE";
+            if (Optional.ofNullable(vs.get(MetricCons.SS.VS.F_SNAPSHOT_ERROR_SKIPPED))
+                .map(Number::intValue)
+                .map(i -> 1 == i)
+                .orElse(false)) {
+                fullSyncStatus = TableSyncStaticVo.FullSyncStatus.ERROR_SKIPPED;
+            } else if (syncRate.compareTo(BigDecimal.ONE) >= 0) {
+                fullSyncStatus = TableSyncStaticVo.FullSyncStatus.DONE;
                 syncRate = BigDecimal.ONE;
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
-                fullSyncStatus = "NOT_START";
+                fullSyncStatus = TableSyncStaticVo.FullSyncStatus.NOT_START;
             } else if (syncRate.intValue() == -1) {
-                fullSyncStatus = "COUNTING";
+                fullSyncStatus = TableSyncStaticVo.FullSyncStatus.COUNTING;
             } else {
-                fullSyncStatus = "ING";
+                fullSyncStatus = TableSyncStaticVo.FullSyncStatus.ING;
             }
 
             TableSyncStaticVo vo = new TableSyncStaticVo();
@@ -1092,7 +1131,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
         fixSyncRate(result, taskDto);
         return new Page<>(count, result.stream()
-                .sorted(Comparator.comparing(TableSyncStaticVo::getSyncRate).reversed())
+//                .sorted(Comparator.comparing(TableSyncStaticVo::getSyncRate).reversed())
                 .collect(Collectors.toList()));
     }
 
@@ -1102,25 +1141,25 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         // task is initial_sync and status is complete, than fix sync rate, Do this for now, and then adjust accordingly
         if (KeyWords.INITIAL_SYNC.equalsIgnoreCase(type) && KeyWords.COMPLETE.equalsIgnoreCase(status)) {
             tableSyncStaticVos.forEach(t -> {
-                t.setFullSyncStatus(KeyWords.DONE);
-                t.setSyncRate(BigDecimal.ONE);
+                if (!TableSyncStaticVo.FullSyncStatus.ERROR_SKIPPED.equals(t.getFullSyncStatus())) {
+                    t.setFullSyncStatus(TableSyncStaticVo.FullSyncStatus.DONE);
+                    t.setSyncRate(BigDecimal.ONE);
+                }
             });
         }
     }
 
     public void querySyncByTableName(TableSyncStaticDto dto, Criteria criteria){
         if(StringUtils.isNotBlank(dto.getTableName())){
-            criteria.and(TAGS_TABLE).regex(dto.getTableName());
+            criteria.and(PATH_TAGS_TABLE).regex(dto.getTableName());
         }
     }
 
 	@Override
     public List<SyncStatusStatisticsVo> queryTableSyncStatusStatistics(SyncStatusStatisticsParam param) {
+        Criteria criteria = createMinuteCriteria(param.getTaskId(), param.getTaskRecordId(), SAMPLE_TYPE_TABLE);
 		AggregationResults<SyncStatusStatisticsVo> aggregationResults = mongoOperations.aggregate(Aggregation.newAggregation(
-			Aggregation.match(Criteria.where(TAGS_TASK_ID).is(param.getTaskId())
-				.and(TAGS_TASK_RECORD_ID).is(param.getTaskRecordId())
-				.and(TAGS_TYPE).is(TABLE)
-				.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)),
+			Aggregation.match(criteria),
 			Aggregation.unwind("$ss"),
 			Aggregation.project(Fields.from(
 				Fields.field("syncTotal", "$ss.vs.snapshotInsertRowTotal"),
@@ -1142,25 +1181,25 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
      */
     @Override
     public MeasurementEntity findLastMinuteByTaskId(String taskId) {
-        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskId)
-                .and("grnty").is("minute")
-                .and(TAGS_TYPE).is("task");
+        Criteria criteria = Criteria.where(PATH_TAGS_TASK_ID).is(taskId)
+                .and(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
+                .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK);
 
         Query query = new Query(criteria);
-        query.fields().include("ss", "tags");
-        query.with(Sort.by("date").descending());
+        query.fields().include(MetricCons.F_SAMPLES, MetricCons.F_TAGS);
+        query.with(Sort.by(MetricCons.F_DATE).descending());
         return mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
     }
 
 
     @Override
     public void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto) {
-        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskId)
-                .and("grnty").is("minute")
-                .and(TAGS_TYPE).is("task");
+        Criteria criteria = Criteria.where(PATH_TAGS_TASK_ID).is(taskId)
+                .and(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
+                .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK);
         Query query = new Query(criteria);
-        query.fields().include("ss", "tags");
-        query.with(Sort.by("last").descending());
+        query.fields().include(MetricCons.F_SAMPLES, MetricCons.F_TAGS);
+        query.with(Sort.by(MetricCons.F_LAST).descending());
         MeasurementEntity measurementEntity = mongoOperations.findOne(query, MeasurementEntity.class, "AgentMeasurementV2");
         if (measurementEntity == null) {
             return;
@@ -1170,12 +1209,12 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             Sample sample = samples.get(0);
             Long cdcDelayTime = null;
             Date lastData = null;
-            if (sample.getVs().get(REPLICATE_LAG) != null) {
-                cdcDelayTime = Long.valueOf(sample.getVs().get(REPLICATE_LAG).toString());
+            if (sample.getVs().get(FIELD_SS_VS_REPLICATE_LAG) != null) {
+                cdcDelayTime = Long.valueOf(sample.getVs().get(FIELD_SS_VS_REPLICATE_LAG).toString());
             }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            if (sample.getVs().get("currentEventTimestamp") != null) {
-                long LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
+            if (sample.getVs().get(FIELD_SS_VS_CURR_EVENT_TS) != null) {
+                long LastDataChangeTime = sample.getVs().get(FIELD_SS_VS_CURR_EVENT_TS).longValue();
                 if (LastDataChangeTime != 0) {
                     lastData = new Date(LastDataChangeTime);
                 }
@@ -1187,13 +1226,29 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
     @Override
     public void cleanRemovedTableMeasurement(String taskId, String taskRecordId, String tableName) {
-        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskId)
-                .and(TAGS_TASK_RECORD_ID).is(taskRecordId)
-                .and(TAGS_TYPE).is(TABLE)
-                .and(TAGS_TABLE).is(tableName)
-                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+        Criteria criteria = createMinuteCriteria(taskId, taskRecordId, SAMPLE_TYPE_TABLE)
+            .and(FIELD_TAGS_TABLE).is(tableName);
 
         Query query = new Query(criteria);
         mongoOperations.remove(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
     }
+
+    protected Criteria createMinuteCriteria(String taskId, String taskRecordId, String sampleType) {
+        return Criteria.where(PATH_TAGS_TASK_ID).is(taskId)
+            .and(PATH_TAGS_TASK_RECORD_ID).is(taskRecordId)
+            .and(PATH_TAGS_TYPE).is(sampleType)
+            .and(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+    }
+
+    protected void addTags2Criteria(Criteria criteria, Map<String, String> tags) {
+        for (Map.Entry<String, String> entry : tags.entrySet()) {
+            addTags2Criteria(criteria, entry.getKey(), entry.getValue());
+        }
+    }
+
+    protected void addTags2Criteria(Criteria criteria, String key, String value) {
+        String keyPath = MetricCons.Tags.path(key);
+        criteria.and(keyPath).is(value);
+    }
 }
+

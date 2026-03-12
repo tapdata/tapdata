@@ -2,8 +2,8 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.micrometer.core.instrument.Metrics;
 import io.tapdata.aspect.BatchSizeAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.executor.ExecutorsManager;
@@ -14,8 +14,6 @@ import io.tapdata.common.sample.sampler.NumberSampler;
 import io.tapdata.common.sample.sampler.WriteCostAvgSampler;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.firedome.MultiTaggedGauge;
-import io.tapdata.firedome.PrometheusName;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -48,18 +46,18 @@ import java.util.concurrent.atomic.AtomicReference;
 public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	private final Logger logger = LogManager.getLogger(DataNodeSampleHandler.class);
 
-	static final String TABLE_TOTAL = "tableTotal";
-	static final String SNAPSHOT_TABLE_TOTAL = "snapshotTableTotal";
-	static final String SNAPSHOT_START_AT = "snapshotStartAt";
-	static final String SNAPSHOT_DONE_AT = "snapshotDoneAt";
-	static final String SNAPSHOT_ROW_TOTAL = "snapshotRowTotal";
-	static final String SNAPSHOT_INSERT_ROW_TOTAL = "snapshotInsertRowTotal";
-	static final String SNAPSHOT_SOURCE_READ_TIME_COST_AVG = "snapshotSourceReadTimeCostAvg";
-	static final String INCR_SOURCE_READ_TIME_COST_AVG = "incrementalSourceReadTimeCostAvg";
-	static final String TARGET_WRITE_TIME_COST_AVG = "targetWriteTimeCostAvg";
-	static final String CURR_SNAPSHOT_TABLE = "currentSnapshotTable";
-	static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL = "currentSnapshotTableRowTotal";
-	static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL = "currentSnapshotTableInsertRowTotal";
+	static final String TABLE_TOTAL = MetricCons.SS.VS.F_TABLE_TOTAL;
+	static final String SNAPSHOT_TABLE_TOTAL = MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL;
+	static final String SNAPSHOT_START_AT = MetricCons.SS.VS.F_SNAPSHOT_START_AT;
+	static final String SNAPSHOT_DONE_AT = MetricCons.SS.VS.F_SNAPSHOT_DONE_AT;
+	static final String SNAPSHOT_ROW_TOTAL = MetricCons.SS.VS.F_SNAPSHOT_ROW_TOTAL;
+	static final String SNAPSHOT_INSERT_ROW_TOTAL = MetricCons.SS.VS.F_SNAPSHOT_INSERT_ROW_TOTAL;
+	static final String SNAPSHOT_SOURCE_READ_TIME_COST_AVG = MetricCons.SS.VS.F_SNAPSHOT_SOURCE_READ_TIME_COST_AVG;
+	static final String INCR_SOURCE_READ_TIME_COST_AVG = MetricCons.SS.VS.F_INCR_SOURCE_READ_TIME_COST_AVG;
+	static final String TARGET_WRITE_TIME_COST_AVG = MetricCons.SS.VS.F_TARGET_WRITE_TIME_COST_AVG;
+	static final String CURR_SNAPSHOT_TABLE = MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE;
+	static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL = MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE_ROW_TOTAL;
+	static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL = MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL;
 	public DataNodeSampleHandler(TaskDto task, Node<?> node) {
 		super(task, node);
 	}
@@ -165,8 +163,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 			}
 			return currentSnapshotTableInsertRowTotal;
 		});
-		collector.addSampler(Constants.BATCH_READ_SIZE, () -> batchReadSize.get());
-		collector.addSampler(Constants.INTERVAL_MS, () -> intervalMs.get());
+		collector.addSampler(MetricCons.SS.VS.F_BATCH_READ_SIZE, () -> batchReadSize.get());
+		collector.addSampler(MetricCons.SS.VS.F_BATCH_READ_TIMEOUT_MS, () -> intervalMs.get());
 	}
 
 	public void addTable(String... tables) {

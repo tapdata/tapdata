@@ -81,7 +81,7 @@ public class TaskRestartScheduleTest {
             taskRestartSchedule.waitRunTask();
 
             verify(stateMachineService, times(1)).executeAboutTask(any(TaskDto.class), any(DataFlowEvent.class), any(UserDetail.class));
-            verify(taskScheduleService, times(1)).scheduling(any(), any());
+            verify(taskScheduleService, times(1)).scheduling(any(), any(),any());
         }
 
         @Test

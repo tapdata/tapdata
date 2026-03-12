@@ -653,6 +653,55 @@ class SchemaUtilsTest {
             assertEquals("field1", result.get(0).getColumnName());
         }
 
+        @Test
+        @DisplayName("Should detect primaryKeyInconsistency fields")
+        void testCompareSchema_PrimaryKeyInconsistencyFields() {
+            // Given
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}",true));
+            sourceFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
+
+            targetFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}",true));
+
+            // When
+            List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
+
+            // Then
+            assertNotNull(result);
+            assertEquals(2, result.size());
+
+            for (DifferenceField diff : result) {
+                assertEquals(DifferenceTypeEnum.PrimaryKeyInconsistency, diff.getType());
+                assertNotNull(diff.getSourceField());
+            }
+        }
+
+        @Test
+        @DisplayName("Should detect primaryKeyInconsistency fields")
+        void testCompareSchema_PrimaryKeyInconsistencyFields_primaryKeyIsNull() {
+            // Given
+            Field field1 = createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}");
+            field1.setPrimaryKey(null);
+            sourceFields.add(field1);
+            sourceFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
+            Field field2 = createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}");
+            field2.setPrimaryKey(null);
+            targetFields.add(field2);
+            targetFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}",true));
+
+            // When
+            List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
+
+            // Then
+            assertNotNull(result);
+            assertEquals(1, result.size());
+
+            for (DifferenceField diff : result) {
+                assertEquals(DifferenceTypeEnum.PrimaryKeyInconsistency, diff.getType());
+                assertNotNull(diff.getSourceField());
+            }
+        }
+
         /**
          * Helper method to create a Field with specified properties
          */
@@ -661,6 +710,16 @@ class SchemaUtilsTest {
             field.setFieldName(fieldName);
             field.setDataType(dataType);
             field.setTapType(tapType);
+            field.setPrimaryKey(false);
+            return field;
+        }
+
+        private Field createField(String fieldName, String dataType, String tapType, boolean primaryKey) {
+            Field field = new Field();
+            field.setFieldName(fieldName);
+            field.setDataType(dataType);
+            field.setTapType(tapType);
+            field.setPrimaryKey(primaryKey);
             return field;
         }
     }

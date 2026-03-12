@@ -33,6 +33,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -173,6 +174,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	protected void enqueue(List<TapdataEvent> tapdataEvents) {
 		if (null == tapdataEvents) return;
+		CpuMemoryCollector.listening(getNode().getId(), tapdataEvents);
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
 			handleTransformToTapValueResult(tapdataEvent);
 			while (isRunning()) {
@@ -761,17 +763,17 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		String op = TapEventUtil.getOp(tapEvent);
 		ProcessContext processContext = new ProcessContext(op, tableName, null, null, null, tapdataEvent.getOffset());
 
-		Long referenceTime = ((TapRecordEvent) tapEvent).getReferenceTime();
-		long eventTime = referenceTime == null ? 0 : referenceTime;
-		processContext.setEventTime(eventTime);
-		processContext.setTs(eventTime);
+		long eventOpTs = Optional.ofNullable(((TapRecordEvent) tapEvent).getReferenceTime()).orElse(0L);
+		long eventReadTs = Optional.ofNullable(tapEvent.getTime()).orElse(0L);
+		processContext.setEventTime(eventOpTs);
+		processContext.setTs(eventReadTs);
 		SyncStage syncStage = tapdataEvent.getSyncStage();
 		processContext.setType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
 		processContext.setSyncType(getProcessorBaseContext().getTaskDto().getSyncType());
 
 		ProcessContextEvent processContextEvent = processContext.getEvent();
 		if (processContextEvent == null) {
-			processContextEvent = new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime);
+		processContextEvent = new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventOpTs);
 		}
 		if (null != before) {
 			processContextEvent.setBefore(before);

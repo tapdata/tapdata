@@ -1,5 +1,6 @@
 package com.tapdata.constant;
 
+import com.tapdata.tm.utils.TrustAllX509TrustManager;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -15,10 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.security.KeyFactory;
-import java.security.KeyStore;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
+import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -42,6 +40,21 @@ public class SSLUtil {
 				trustManagers,
 				null);
 
+		return sslContext;
+	}
+
+	public static SSLContext createSSLContext(){
+		SSLContext sslContext = null;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
+		}
+		try {
+			sslContext.init(null, new TrustManager[]{ new TrustAllX509TrustManager()}, new SecureRandom());
+		} catch (KeyManagementException e) {
+			throw new RuntimeException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
+		}
 		return sslContext;
 	}
 

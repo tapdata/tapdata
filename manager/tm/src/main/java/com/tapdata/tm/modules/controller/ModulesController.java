@@ -12,6 +12,7 @@ import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.group.service.GroupInfoService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,6 +27,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 
 
 /**
@@ -43,6 +45,8 @@ public class ModulesController extends BaseController {
   @Autowired
   private MetadataDefinitionService metadataDefinitionService;
 
+  @Autowired
+  private GroupInfoService groupInfoService;
 
 
   @Operation(summary = "新增module")
@@ -144,6 +148,7 @@ public class ModulesController extends BaseController {
   @DeleteMapping("{id}")
   public ResponseMessage<Void> delete(@PathVariable("id") String id) {
     modulesService.deleteLogicsById(id);
+    groupInfoService.removeResourceReferences(Collections.singletonList(id), getLoginUser());
     return success();
   }
 

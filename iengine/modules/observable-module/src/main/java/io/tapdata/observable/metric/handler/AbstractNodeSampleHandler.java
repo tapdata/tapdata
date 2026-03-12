@@ -1,6 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.common.sample.sampler.*;
@@ -76,50 +77,50 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
 	@Override
 	List<String> samples() {
 		return Arrays.asList(
-				Constants.CURR_EVENT_TS,
-				Constants.INPUT_SIZE_QPS,
-				Constants.OUTPUT_SIZE_QPS,
-				Constants.QPS_TYPE,
-				Constants.INPUT_DDL_TOTAL,
-				Constants.INPUT_INSERT_TOTAL,
-				Constants.INPUT_UPDATE_TOTAL,
-				Constants.INPUT_DELETE_TOTAL,
-				Constants.INPUT_OTHERS_TOTAL,
-				Constants.OUTPUT_DDL_TOTAL,
-				Constants.OUTPUT_INSERT_TOTAL,
-				Constants.OUTPUT_UPDATE_TOTAL,
-				Constants.OUTPUT_DELETE_TOTAL,
-				Constants.OUTPUT_OTHERS_TOTAL,
-				Constants.INPUT_QPS,
-				Constants.OUTPUT_QPS,
-				Constants.TIME_COST_AVG,
-				Constants.REPLICATE_LAG,
-				Constants.CURR_EVENT_TS
+				MetricCons.SS.VS.F_CURR_EVENT_TS,
+				MetricCons.SS.VS.F_INPUT_SIZE_QPS,
+				MetricCons.SS.VS.F_OUTPUT_SIZE_QPS,
+				MetricCons.SS.VS.F_QPS_TYPE,
+				MetricCons.SS.VS.F_INPUT_DDL_TOTAL,
+				MetricCons.SS.VS.F_INPUT_INSERT_TOTAL,
+				MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL,
+				MetricCons.SS.VS.F_INPUT_DELETE_TOTAL,
+				MetricCons.SS.VS.F_INPUT_OTHERS_TOTAL,
+				MetricCons.SS.VS.F_OUTPUT_DDL_TOTAL,
+				MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL,
+				MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL,
+				MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL,
+				MetricCons.SS.VS.F_OUTPUT_OTHERS_TOTAL,
+				MetricCons.SS.VS.F_INPUT_QPS,
+				MetricCons.SS.VS.F_OUTPUT_QPS,
+				MetricCons.SS.VS.F_TIME_COST_AVG,
+				MetricCons.SS.VS.F_REPLICATE_LAG,
+				MetricCons.SS.VS.F_CURR_EVENT_TS
 		);
 	}
 
 	void doInit(Map<String, Number> values) {
 		super.doInit(values);
 		initPrometheusReporter();
-		inputDdlCounter = getCounterSampler(values, Constants.INPUT_DDL_TOTAL);
-		inputInsertCounter = getCounterSampler(values, Constants.INPUT_INSERT_TOTAL);
-		inputUpdateCounter = getCounterSampler(values, Constants.INPUT_UPDATE_TOTAL);
-		inputDeleteCounter = getCounterSampler(values, Constants.INPUT_DELETE_TOTAL);
-		inputOthersCounter = getCounterSampler(values, Constants.INPUT_OTHERS_TOTAL);
+		inputDdlCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_DDL_TOTAL);
+		inputInsertCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_INSERT_TOTAL);
+		inputUpdateCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_UPDATE_TOTAL);
+		inputDeleteCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_DELETE_TOTAL);
+		inputOthersCounter = getCounterSampler(values, MetricCons.SS.VS.F_INPUT_OTHERS_TOTAL);
 
-		outputDdlCounter = getCounterSampler(values, Constants.OUTPUT_DDL_TOTAL);
-		outputInsertCounter = getCounterSampler(values, Constants.OUTPUT_INSERT_TOTAL);
-		outputUpdateCounter = getCounterSampler(values, Constants.OUTPUT_UPDATE_TOTAL);
-		outputDeleteCounter = getCounterSampler(values, Constants.OUTPUT_DELETE_TOTAL);
-		outputOthersCounter = getCounterSampler(values, Constants.OUTPUT_OTHERS_TOTAL);
+		outputDdlCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_DDL_TOTAL);
+		outputInsertCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_INSERT_TOTAL);
+		outputUpdateCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_UPDATE_TOTAL);
+		outputDeleteCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_DELETE_TOTAL);
+		outputOthersCounter = getCounterSampler(values, MetricCons.SS.VS.F_OUTPUT_OTHERS_TOTAL);
 
-		inputSpeed = collector.getSpeedSampler(Constants.INPUT_QPS);
-		outputSpeed = collector.getSpeedSampler(Constants.OUTPUT_QPS);
+		inputSpeed = collector.getSpeedSampler(MetricCons.SS.VS.F_INPUT_QPS);
+		outputSpeed = collector.getSpeedSampler(MetricCons.SS.VS.F_OUTPUT_QPS);
 
-		Number currentEventTimestampInitial = values.getOrDefault(Constants.CURR_EVENT_TS, null);
-		currentEventTimestamp = collector.getNumberCollector(Constants.CURR_EVENT_TS, Long.class,
+		Number currentEventTimestampInitial = values.getOrDefault(MetricCons.SS.VS.F_CURR_EVENT_TS, null);
+		currentEventTimestamp = collector.getNumberCollector(MetricCons.SS.VS.F_CURR_EVENT_TS, Long.class,
 				null == currentEventTimestampInitial ? null : currentEventTimestampInitial.longValue());
-		replicateLag = collector.getResetSampler(Constants.REPLICATE_LAG);
+		replicateLag = collector.getResetSampler(MetricCons.SS.VS.F_REPLICATE_LAG);
 	}
 
 

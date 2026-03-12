@@ -266,7 +266,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				throw new IllegalArgumentException("After the master-slave merges nodes, the connection Python node is not supported. Please change to the Enhanced JS node.");
 			} else if (successors.stream().anyMatch(n -> n instanceof CustomProcessorNode)) {
 				throw new IllegalArgumentException("After the master-slave merges nodes, the connection Custom processor node is not supported. Please change to the Enhanced JS node.");
-			} else if (successors.stream().anyMatch(n -> n instanceof JsProcessorNode && ProcessorNodeType.Standard_JS.contrast(Optional.ofNullable(((JsProcessorNode) n).getJsType()).orElse(ProcessorNodeType.DEFAULT.type())))) {
+			} else if (successors.stream().anyMatch(JsProcessorNode.class::isInstance)) {
 				throw new IllegalArgumentException("After the master-slave merges nodes, the connection standard js type is not supported. Please change the standard js to the default.");
 			}
 			return true;
@@ -400,7 +400,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				TableNode tableNode = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node, tapTableMapHashMap);
-				CpuMemoryCollector.listening(node.getId(), tapTableMap);
+				CpuMemoryCollector.listeningTables(node.getId(), tapTableMap);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
@@ -1197,7 +1197,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 
 	protected void checkMergeTaskReBuildCache(TaskDto taskDto) {
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
-		if (null == dag || !dag.isMergeTableDag() || (taskDto.isInitialSyncTask() && !taskDto.hasSyncProgress())){
+		if (null == dag || !dag.isMergeTableDag()){
 			return;
 		}
 		List<Node> nodes = taskDto.getDag().getNodes();

@@ -9,6 +9,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.commons.task.dto.CheckTaskMemoryResult;
 import com.tapdata.tm.commons.task.dto.DataSyncMq;
 import com.tapdata.tm.commons.task.dto.TaskCollectionObjDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -66,8 +67,15 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     private AgentGroupService agentGroupService;
 
     @Override
-    public void scheduling(TaskDto taskDto, UserDetail user) {
-
+    public void scheduling(TaskDto taskDto, UserDetail user,Boolean isReStart) {
+        FunctionUtils.ignoreAnyError(() -> {
+            CheckTaskMemoryResult checkTaskMemoryResult = taskService.checkTaskMemoryHeap(taskDto, isReStart, user);
+            if (null != checkTaskMemoryResult && !checkTaskMemoryResult.getIsSafe()) {
+                String message = String.format("Potential memory risk detected.The current task may require more resources than available.The current Batch Size is %s with an Avg Data Size of %s, but Available Memory is only %s."
+                        , checkTaskMemoryResult.getBatchSize(), checkTaskMemoryResult.getAvgSize(), checkTaskMemoryResult.getRealFree());
+                monitoringLogsService.startTaskErrorLog(taskDto, user, message, Level.WARN);
+            }
+        });
         CalculationEngineVo calculationEngineVo = cloudTaskLimitNum(taskDto, user, false);
         UserDetail finalUser = user;
         FunctionUtils.ignoreAnyError(() -> {
@@ -91,6 +99,9 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
         Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId()).set("last_updated", now);
+        if(Boolean.TRUE.equals(taskDto.getCheckMemoryHeap())){
+            waitRunUpdate.set("checkMemoryHeap", false);
+        }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_SUCCESS, user);
 
@@ -168,7 +179,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
                 long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48) * 1000 : 108000;
 
-                if (workerDto.getPingTime() < heartExpire) {
+                if (workerDto.getPingTime() < heartExpire || Boolean.TRUE.equals(taskDto.getCheckMemoryHeap())){
                     needCalculateAgent.set(false);
                 }
             }

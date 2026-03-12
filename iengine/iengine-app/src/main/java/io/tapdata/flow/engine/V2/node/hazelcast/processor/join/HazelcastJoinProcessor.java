@@ -284,7 +284,6 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 					final TapRecordEvent deleteEvent = generateDeleteEventForModifyJoinKey(joinEvent);
 					if (deleteEvent != null) {
 						TapdataEvent deleteTapdataEvent = new TapdataEvent();
-						CpuMemoryCollector.listening(getNode().getId(), deleteTapdataEvent);
 						deleteTapdataEvent.setTapEvent(deleteEvent);
 						deleteTapdataEvent.setSyncStage(tapdataEvent.getSyncStage());
 						tapdataEvents.add(deleteTapdataEvent);
@@ -292,7 +291,6 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 				}
 
 				TapdataEvent joinTapdataEvent = new TapdataEvent();
-				CpuMemoryCollector.listening(getNode().getId(), joinTapdataEvent);
 				joinTapdataEvent.setTapEvent(joinEvent);
 				joinTapdataEvent.setSyncStage(tapdataEvent.getSyncStage());
 				tapdataEvents.add(joinTapdataEvent);
@@ -301,6 +299,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 				if (logger.isDebugEnabled()) {
 					logger.debug("join node [id: {}, name: {}] join results {}", node.getId(), node.getName(), tapdataEvents);
 				}
+				CpuMemoryCollector.listening(getNode().getId(), tapdataEvents);
 				tapdataEvents.forEach(event -> consumer.accept(event, null));
 			}
 		}

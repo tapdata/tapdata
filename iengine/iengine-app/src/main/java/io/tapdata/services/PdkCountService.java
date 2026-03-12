@@ -50,7 +50,7 @@ public class PdkCountService {
 			}
 			try {
 				TableInfo tableInfo = getTableInfoFunction.getTableInfo(connectorNode.get().getConnectorContext(), tableName);
-				return pdkCountEntity.success(tableInfo.getNumOfRows());
+				return pdkCountEntity.success(tableInfo.getNumOfRows(),tableInfo.getAvgObjSize());
 			} catch (Throwable e) {
 				return new PdkCountEntity().failed(new RuntimeException(String.format("Call get table info function failed, table name: %s", tableName), e));
 			}
@@ -61,7 +61,7 @@ public class PdkCountService {
 			}
 			try {
 				long count = batchCountFunction.count(connectorNode.get().getConnectorContext(), new TapTable(tableName));
-				return pdkCountEntity.success(count);
+				return pdkCountEntity.success(count,null);
 			} catch (Throwable e) {
 				return new PdkCountEntity().failed(new RuntimeException(String.format("Call count table function failed, table name: %s", tableName), e));
 			}

@@ -1,6 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 
@@ -18,7 +19,7 @@ public class ProcessorNodeSampleHandler extends AbstractNodeSampleHandler {
     @Override
     void doInit(Map<String, Number> values) {
         super.doInit(values);
-        timeCostAverage = collector.getAverageSampler(Constants.TIME_COST_AVG,
+        timeCostAverage = collector.getAverageSampler(MetricCons.SS.VS.F_TIME_COST_AVG,
                 timeCostAvgGauge,
                 nodeId, nodeName, "processor", taskId, taskName, taskType);
     }

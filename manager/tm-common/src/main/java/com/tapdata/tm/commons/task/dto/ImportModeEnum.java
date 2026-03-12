@@ -26,7 +26,12 @@ public enum ImportModeEnum {
     /**
      * 使用现有连接，任务冲突则替换任务
      */
-    REUSE_EXISTING("reuse_existing");
+    REUSE_EXISTING("reuse_existing"),
+
+    /**
+     * 分组导入：任务重命名备份后导入新任务，模块冲突跳过
+     */
+    GROUP_IMPORT("group_import");
 
 
 

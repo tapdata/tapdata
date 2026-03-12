@@ -11,6 +11,7 @@ import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
@@ -50,10 +51,13 @@ public class MeasureAOP {
 //    private final InspectService inspectService;
     private final Map<String, Map<String, AtomicInteger>> obsMap = Maps.newConcurrentMap();
 
-    private final String TASK_ID = "taskId";
-
-    private final String CURRENT_EVENT_TIMESTAMP = "currentEventTimestamp";
-    private static final String SNAPSHOT_DONE_AT = "snapshotDoneAt";
+    private static final String FIELD_TAGS_TYPE = MetricCons.Tags.F_TYPE;
+    private static final String FIELD_TAGS_TASK_ID = MetricCons.Tags.F_TASK_ID;
+    private static final String FIELD_TAGS_NODE_ID = MetricCons.Tags.F_NODE_ID;
+    private static final String FIELD_SS_VS_REPLICATE_LAG = MetricCons.SS.VS.F_REPLICATE_LAG;
+    private static final String FIELD_SS_VS_CURR_EVENT_TS = MetricCons.SS.VS.F_CURR_EVENT_TS;
+    private static final String FIELD_SS_VS_SNAPSHOT_START_AT = MetricCons.SS.VS.F_SNAPSHOT_START_AT;
+    private static final String FIELD_SS_VS_SNAPSHOT_DONE_AT = MetricCons.SS.VS.F_SNAPSHOT_DONE_AT;
 
     public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService,AlarmSettingService alarmSettingService) {
         this.taskService = taskService;
@@ -66,13 +70,13 @@ public class MeasureAOP {
     @AfterReturning("execution(* com.tapdata.tm.monitor.service.MeasurementServiceV2.addAgentMeasurement(..))")
     public void addAgentMeasurement(JoinPoint joinPoint) {
         List<SampleRequest> samples = (List<SampleRequest>) joinPoint.getArgs()[0];
-        Set<String> taskIds = samples.stream().filter(sampleRequest -> sampleRequest.getTags().containsKey(TASK_ID)).map(sampleRequest -> sampleRequest.getTags().get(TASK_ID)).collect(Collectors.toSet());
+        Set<String> taskIds = samples.stream().filter(sampleRequest -> sampleRequest.getTags().containsKey(FIELD_TAGS_TASK_ID)).map(sampleRequest -> sampleRequest.getTags().get(FIELD_TAGS_TASK_ID)).collect(Collectors.toSet());
         Map<String, TaskDto> taskDtoMap = new HashMap<>();
         Map<String, UserDetail> userDetailMap = new HashMap<>();
         Map<String, List<AlarmSettingDto>> alarmSettingMap = new HashMap<>();
         if(CollectionUtils.isNotEmpty(taskIds)){
             taskIds.forEach(taskId -> {
-                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name",CURRENT_EVENT_TIMESTAMP,"alarmSettings","alarmRules",SNAPSHOT_DONE_AT,"status");
+                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name", FIELD_SS_VS_CURR_EVENT_TS,"alarmSettings","alarmRules", FIELD_SS_VS_SNAPSHOT_DONE_AT,"status");
                 taskDtoMap.put(taskId, taskDto);
             });
             taskDtoMap.values().forEach(taskDto -> {
@@ -83,8 +87,8 @@ public class MeasureAOP {
             });
         }
         samples.forEach(sampleRequest -> {
-            String type = sampleRequest.getTags().get("type");
-            String taskId = sampleRequest.getTags().get(TASK_ID);
+            String type = sampleRequest.getTags().get(FIELD_TAGS_TYPE);
+            String taskId = sampleRequest.getTags().get(FIELD_TAGS_TASK_ID);
             Map<String, Number> vs = sampleRequest.getSample().getVs();
 
             if (StringUtils.isNotBlank(taskId)) {
@@ -93,20 +97,20 @@ public class MeasureAOP {
                 Map<String, List<AlarmRuleDto>> ruleMap = alarmService.getAlarmRuleDtos(taskDto);
                 if (null != ruleMap && !ruleMap.isEmpty()) {
                     UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
-                    if ("task".equals(type)) {
+                    if (MetricCons.SampleType.TASK.check(type)) {
 
                         boolean checkOpen =alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, alarmSettingMap.get(userDetail.getUserId()));
                         if (checkOpen) {
                             Optional.ofNullable(ruleMap.get(taskId)).ifPresent(rules -> {
                                 Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
                                 if (!collect.isEmpty()) {
-                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get("replicateLag"), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get(FIELD_SS_VS_REPLICATE_LAG), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
                                 }
                             });
                         }
                         setTaskSnapshotDate(vs, taskId, taskDto, userDetail);
-                    } else if ("node".equals(type)) {
-                        String nodeId = sampleRequest.getTags().get("nodeId");
+                    } else if (MetricCons.SampleType.NODE.check(type)) {
+                        String nodeId = sampleRequest.getTags().get(FIELD_TAGS_NODE_ID);
                         Optional.ofNullable(ruleMap.get(nodeId)).ifPresent(rules -> {
                             Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
                             if (!collect.isEmpty()) {
@@ -141,8 +145,8 @@ public class MeasureAOP {
 
     protected void setTaskSnapshotDate(Map<String, Number> vs, String taskId, TaskDto taskDto, UserDetail userDetail) {
         String now = DateUtil.now();
-        Number snapshotStartAt = vs.get("snapshotStartAt");
-        Number snapshotDoneAt = vs.get(SNAPSHOT_DONE_AT);
+        Number snapshotStartAt = vs.get(FIELD_SS_VS_SNAPSHOT_START_AT);
+        Number snapshotDoneAt = vs.get(FIELD_SS_VS_SNAPSHOT_DONE_AT);
         String alarmDate = DateUtil.now();
         boolean checkFullOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_FULL_COMPLETE, null, userDetail);
         if (checkFullOpen && Objects.isNull(taskDto.getSnapshotDoneAt()) && Objects.nonNull(snapshotStartAt) && Objects.nonNull(snapshotDoneAt) && TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
@@ -173,7 +177,7 @@ public class MeasureAOP {
 
         }
 
-        Number currentEventTimestamp = vs.get(CURRENT_EVENT_TIMESTAMP);
+        Number currentEventTimestamp = vs.get(FIELD_SS_VS_CURR_EVENT_TS);
         boolean checkCdcOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_START, null, userDetail);
         if (checkCdcOpen && Objects.isNull(taskDto.getCurrentEventTimestamp()) && Objects.nonNull(currentEventTimestamp) && currentEventTimestamp.longValue() > 0L  && TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
             Map<String, Object> param = Maps.newHashMap();
@@ -193,11 +197,11 @@ public class MeasureAOP {
         Update update = new Update();
 
         if (Objects.nonNull(snapshotDoneAt) && !snapshotDoneAt.equals(taskDto.getSnapshotDoneAt())) {
-            update.set(SNAPSHOT_DONE_AT, snapshotDoneAt);
+            update.set(FIELD_SS_VS_SNAPSHOT_DONE_AT, snapshotDoneAt);
         }
         if (Objects.nonNull(currentEventTimestamp) && !currentEventTimestamp.equals(taskDto.getCurrentEventTimestamp())
                 && !currentEventTimestamp.equals(0)) {
-            update.set(CURRENT_EVENT_TIMESTAMP, currentEventTimestamp);
+            update.set(FIELD_SS_VS_CURR_EVENT_TS, currentEventTimestamp);
         }
 
         if (update.getUpdateObject().size() > 0) {
@@ -410,18 +414,18 @@ public class MeasureAOP {
         String[] result = null;
         if (alarmKeyEnum == AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME) {
             if (source) {
-                result = new String[]{AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.name(), "snapshotSourceReadTimeCostAvg",
+                result = new String[]{AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.name(), MetricCons.SS.VS.F_SNAPSHOT_SOURCE_READ_TIME_COST_AVG,
                         "DATANODE_AVERAGE_HANDLE_CONSUME_START",
                         "DATANODE_AVERAGE_HANDLE_CONSUME_ALWAYS",
                         "DATANODE_AVERAGE_HANDLE_CONSUME_RECOVER"};
             } else {
-                result = new String[]{AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.name(), "targetWriteTimeCostAvg",
+                result = new String[]{AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.name(), MetricCons.SS.VS.F_TARGET_WRITE_TIME_COST_AVG,
                         "TARGET_AVERAGE_HANDLE_CONSUME_START",
                         "TARGET_AVERAGE_HANDLE_CONSUME_ALWAYS",
                         "TARGET_AVERAGE_HANDLE_CONSUME_RECOVER"};
             }
         } else if (alarmKeyEnum == AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME) {
-            result = new String[]{AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME.name(), "timeCostAvg",
+            result = new String[]{AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME.name(), MetricCons.SS.VS.F_TIME_COST_AVG,
                     "PROCESSNODE_AVERAGE_HANDLE_CONSUME_START",
                     "PROCESSNODE_AVERAGE_HANDLE_CONSUME_ALWAYS",
                     "PROCESSNODE_AVERAGE_HANDLE_CONSUME_RECOVER"};

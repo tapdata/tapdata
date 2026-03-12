@@ -104,6 +104,7 @@ class BatchUpCheckerTest {
             );
 
             doCallRealMethod().when(batchUpChecker).checkDataSourceConnection(connections, user);
+            doCallRealMethod().when(batchUpChecker).checkDataSourceConnection(connections, user, false);
         }
         void assertVerify(int getName, int getDatabaseType, int getDefinitionPdkAPIVersion,
                           int findDataSourceDefinitionByDataSourceConnectionDto,

@@ -15,7 +15,7 @@ public class MeasurementServiceV2ImplTest {
 
         @Test
         void testTableNameIsNotNull(){
-            TableSyncStaticDto tableSyncStaticDto = new TableSyncStaticDto("test",1,20,"test");
+            TableSyncStaticDto tableSyncStaticDto = new TableSyncStaticDto("test",1,20,"test", null);
             Criteria criteria = new Criteria();
             doCallRealMethod().when(measurementServiceV2).querySyncByTableName(any(),any());
             measurementServiceV2.querySyncByTableName(tableSyncStaticDto,criteria);
@@ -24,7 +24,7 @@ public class MeasurementServiceV2ImplTest {
 
         @Test
         void testTableNameIsNull(){
-            TableSyncStaticDto tableSyncStaticDto = new TableSyncStaticDto("test",1,20,null);
+            TableSyncStaticDto tableSyncStaticDto = new TableSyncStaticDto("test",1,20,null, null);
             Criteria criteria = new Criteria();
             doCallRealMethod().when(measurementServiceV2).querySyncByTableName(any(),any());
             measurementServiceV2.querySyncByTableName(tableSyncStaticDto,criteria);

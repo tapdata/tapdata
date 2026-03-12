@@ -689,6 +689,19 @@ class PdkStateMapTest {
 
 		@Test
 		@SneakyThrows
+		@DisplayName("Clear method test")
+		void testClearWhenNullPointerException() {
+			Logger logger = mock(Logger.class);
+			ReflectionTestUtils.setField(mockPdkStateMap, "logger", logger);
+			doThrow(new NullPointerException("test exception")).when(documentIMap).clear();
+			doCallRealMethod().when(mockPdkStateMap).clear();
+			mockPdkStateMap.clear();
+			verify(documentIMap, times(1)).clear();
+			verify(logger, times(1)).warn(anyString(), anyString());
+		}
+
+		@Test
+		@SneakyThrows
 		@DisplayName("Reset method test")
 		void testReset() {
 			doCallRealMethod().when(mockPdkStateMap).reset();

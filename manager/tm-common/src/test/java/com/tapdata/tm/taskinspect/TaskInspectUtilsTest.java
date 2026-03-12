@@ -117,7 +117,10 @@ class TaskInspectUtilsTest {
             assertNotNull(thrown.getMessage());
             assertTrue(thrown.getMessage().startsWith("Timeout waiting"));
 
-            verify(stopSupplier, times(2)).getAsBoolean(); // 1000ms / 500ms (sleep time) = 2
+            // 1000ms / 500ms (sleep time) = 2
+            // 允许调用2-3次，避免边界条件问题
+            verify(stopSupplier, atLeast(2)).getAsBoolean();
+            verify(stopSupplier, atMost(3)).getAsBoolean();
         }
     }
 

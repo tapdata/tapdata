@@ -316,6 +316,75 @@ class MetadataInstancesCompareServiceImplTest {
             assertNotNull(result);
             assertTrue(result.getCompareDtos().getItems().isEmpty());
         }
+
+        @Test
+        @DisplayName("Should return compare result with pagination")
+        void testGetMetadataInstancesCompareResult_SuccessWithPrimaryKeyInconsistency() {
+            // Given
+            String tableFilter = "test";
+            int page = 1;
+            int pageSize = 10;
+
+            List<MetadataInstancesCompareDto> compareDtos = createMockCompareDtos();
+            List<MetadataInstancesCompareDto> applyDtos = createMockApplyDtos();
+
+            MetadataInstancesCompareDto metadataInstancesCompareStatus = MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId);
+            metadataInstancesCompareStatus.setStatus(MetadataInstancesCompareDto.STATUS_DONE);
+            doReturn(metadataInstancesCompareStatus).when(service).findOne(any(Query.class));
+            doReturn(compareDtos).when(service).geMetadataInstancesCompareDtoByType(anyString(),any(),any(),any(),any());
+            doReturn(applyDtos).when(service).findAll(any(Query.class));
+            doAnswer(answer ->{
+                Query query = answer.getArgument(0);
+                assertTrue(query.getQueryObject().toString().contains("$elemMatch"));
+                return 1L;
+            }).when(service).count(any(Query.class));
+
+            // When
+            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize,Arrays.asList(DifferenceTypeEnum.PrimaryKeyInconsistency.name()));
+
+            // Then
+            assertNotNull(result);
+            assertNotNull(result.getCompareDtos());
+            assertNotNull(result.getInvalidApplyDtos());
+            assertEquals(2, result.getCompareDtos().getItems().size());
+
+            verify(service, times(3)).findAll(any(Query.class));
+        }
+
+
+        @Test
+        @DisplayName("Should return compare result with pagination")
+        void testGetMetadataInstancesCompareResult_SuccessWithTypes() {
+            // Given
+            String tableFilter = "test";
+            int page = 1;
+            int pageSize = 10;
+
+            List<MetadataInstancesCompareDto> compareDtos = createMockCompareDtos();
+            List<MetadataInstancesCompareDto> applyDtos = createMockApplyDtos();
+
+            MetadataInstancesCompareDto metadataInstancesCompareStatus = MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId);
+            metadataInstancesCompareStatus.setStatus(MetadataInstancesCompareDto.STATUS_DONE);
+            doReturn(metadataInstancesCompareStatus).when(service).findOne(any(Query.class));
+            doReturn(compareDtos).when(service).geMetadataInstancesCompareDtoByType(anyString(),any(),any(),any(),any());
+            doReturn(applyDtos).when(service).findAll(any(Query.class));
+            doAnswer(answer ->{
+                Query query = answer.getArgument(0);
+                assertFalse(query.getQueryObject().toString().contains("$elemMatch"));
+                return 1L;
+            }).when(service).count(any(Query.class));
+
+            // When
+            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize,Arrays.asList(DifferenceTypeEnum.Different.name()));
+
+            // Then
+            assertNotNull(result);
+            assertNotNull(result.getCompareDtos());
+            assertNotNull(result.getInvalidApplyDtos());
+            assertEquals(2, result.getCompareDtos().getItems().size());
+
+            verify(service, times(3)).findAll(any(Query.class));
+        }
     }
 
     @Nested
@@ -615,6 +684,7 @@ class MetadataInstancesCompareServiceImplTest {
         field.setFieldName(fieldName);
         field.setDataType(dataType);
         field.setTapType("TapString");
+        field.setPrimaryKey(Boolean.FALSE);
         return field;
     }
 
@@ -834,6 +904,34 @@ class MetadataInstancesCompareServiceImplTest {
             assertNotNull(result);
             assertTrue(result.isEmpty());
         }
+
+        @Test
+        @DisplayName("Should return filtered results with pagination")
+        void testGeMetadataInstancesCompareDtoByTypePrimaryKeyInconsistency_WithPagination() {
+            // Given
+            List<String> types = Arrays.asList("PrimaryKeyInconsistency", "Missing");
+            String tableFilter = "test";
+            int page = 1;
+            int pageSize = 10;
+
+            List<MetadataInstancesCompareDto> expectedResults = createMockCompareDtos();
+            AggregationResults<MetadataInstancesCompareDto> aggregationResults = mock(AggregationResults.class);
+            when(aggregationResults.getMappedResults()).thenReturn(expectedResults);
+            when(repository.getMongoOperations().aggregate(any(Aggregation.class), eq("MetadataInstancesCompare"), eq(MetadataInstancesCompareDto.class)))
+                    .thenAnswer(answer ->{
+                        Aggregation aggregation = answer.getArgument(0);
+                        assertTrue(aggregation.toString().contains("isPrimaryKey"));
+                        return aggregationResults;
+                    });
+
+            // When
+            List<MetadataInstancesCompareDto> result = service.geMetadataInstancesCompareDtoByType(nodeId, page, pageSize, types, tableFilter);
+
+            // Then
+            assertNotNull(result);
+            assertEquals(expectedResults.size(), result.size());
+            verify(repository.getMongoOperations()).aggregate(any(Aggregation.class), eq("MetadataInstancesCompare"), eq(MetadataInstancesCompareDto.class));
+        }
     }
 
     @Nested
@@ -892,6 +990,7 @@ class MetadataInstancesCompareServiceImplTest {
             assertNotNull(result);
             verify(service, never()).geMetadataInstancesCompareDtoByType(anyString(), anyInt(), anyInt(), anyList(), anyString());
         }
+
     }
 
     @Nested

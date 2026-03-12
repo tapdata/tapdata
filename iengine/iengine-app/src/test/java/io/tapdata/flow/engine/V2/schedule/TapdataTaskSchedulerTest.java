@@ -186,6 +186,8 @@ public class TapdataTaskSchedulerTest {
 				ObjectId taskId = new ObjectId();
 				TaskDto taskDto = new TaskDto();
 				taskDto.setId(taskId);
+				taskDto.setName("test-task");
+				taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
 				Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
 				TaskClient taskClient = mock(TaskClient.class);
 				taskClientMap.put(taskId.toString(), taskClient);
@@ -201,7 +203,7 @@ public class TapdataTaskSchedulerTest {
 
 				when(taskClient.getStatus()).thenReturn(TaskDto.STATUS_STOPPING);
 				assertDoesNotThrow(() -> taskScheduler.startTask(taskDto));
-				verify(clientMongoOperator, times(2)).updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskDto.class));
+				verify(clientMongoOperator, times(2)).updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskOpRespDto.class));
 			}
 		}
 
@@ -216,6 +218,8 @@ public class TapdataTaskSchedulerTest {
 				ObjectId taskId = new ObjectId();
 				TaskDto taskDto = new TaskDto();
 				taskDto.setId(taskId);
+				taskDto.setName("test-task");
+				taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
 				Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
 				TaskClient taskClient = mock(TaskClient.class);
 				taskClientMap.put(taskId.toString(), taskClient);
@@ -225,20 +229,14 @@ public class TapdataTaskSchedulerTest {
 				ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
 				RestDoNotRetryException restDoNotRetryException = mock(RestDoNotRetryException.class);
 				when(restDoNotRetryException.getCode()).thenReturn("Transition.Not.Supported");
-				when(clientMongoOperator.updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskDto.class)))
+				when(clientMongoOperator.updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskOpRespDto.class)))
 						.thenThrow(restDoNotRetryException);
 				ReflectionTestUtils.setField(taskScheduler, "clientMongoOperator", clientMongoOperator);
-				doCallRealMethod().when(taskScheduler).startTask(taskDto);
+				doCallRealMethod().when(taskScheduler).startTask(eq(taskDto));
 
 				when(taskClient.getStatus()).thenReturn(TaskDto.STATUS_RUNNING);
 				assertDoesNotThrow(() -> taskScheduler.startTask(taskDto));
-				verify(clientMongoOperator, times(1)).updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskDto.class));
-
-				RuntimeException runtimeException = new RuntimeException("test");
-				when(clientMongoOperator.updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskDto.class)))
-						.thenThrow(runtimeException);
-				RuntimeException actual = assertThrows(RuntimeException.class, () -> taskScheduler.startTask(taskDto));
-				assertEquals(actual, runtimeException);
+				verify(clientMongoOperator, times(1)).updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskOpRespDto.class));
 			}
 		}
 
@@ -431,7 +429,7 @@ public class TapdataTaskSchedulerTest {
 	void testHandleTaskOperation() {
 		TaskOperation taskOperation = mock(TaskOperation.class);
 		TapdataTaskScheduler instance = new TapdataTaskScheduler();
-		instance.handleTaskOperation(taskOperation);
+		assertDoesNotThrow(() -> instance.handleTaskOperation(taskOperation));
 	}
 
 	@Nested

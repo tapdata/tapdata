@@ -264,7 +264,11 @@ public class PdkStateMap extends CleanRuleKVMap {
 	@SneakyThrows
 	@Override
 	public void clear() {
-		constructIMap.clear();
+		try {
+			constructIMap.clear();
+		} catch (NullPointerException e) {
+			logger.warn("Ignore the error as the resource is already cleaned up, failed to clear state map due to null resource. Error: {}", e.getMessage());
+		}
 	}
 
 	@SneakyThrows

@@ -19,7 +19,9 @@ import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
@@ -399,6 +401,277 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 			ObsLogger log = processorBaseNode.getScriptObsLogger();
 			Assertions.assertNotNull(log);
 
+		}
+	}
+
+	@Nested
+	@DisplayName("getTapEvent method test")
+	class GetTapEventTest {
+
+		@Test
+		@DisplayName("test getTapEvent when op is same as original event - should return original event")
+		void testGetTapEventWhenOpIsSame() throws Exception {
+			// Arrange
+			TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create();
+			insertEvent.setTableId("test_table");
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("name", "test");
+			insertEvent.setAfter(after);
+
+			String op = "i"; // INSERT operation
+			Map<String, Object> before = null;
+
+			// Act
+			TapEvent result = ReflectionTestUtils.invokeMethod(
+					hazelcastJavaScriptProcessorNode,
+					"getTapEvent",
+					insertEvent,
+					op,
+					before
+			);
+
+			// Assert
+			assertNotNull(result);
+			assertSame(insertEvent, result, "Should return the same event when op matches");
+		}
+
+		@Test
+		@DisplayName("test getTapEvent when converting INSERT to UPDATE")
+		void testGetTapEventConvertInsertToUpdate() throws Exception {
+			// Arrange
+			TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create();
+			insertEvent.setTableId("test_table");
+			insertEvent.setReferenceTime(System.currentTimeMillis());
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("name", "test");
+			insertEvent.setAfter(after);
+
+			String op = "u"; // UPDATE operation
+			Map<String, Object> before = new HashMap<>();
+			before.put("id", 1);
+			before.put("name", "old_name");
+
+			// Act
+			TapEvent result = ReflectionTestUtils.invokeMethod(
+					hazelcastJavaScriptProcessorNode,
+					"getTapEvent",
+					insertEvent,
+					op,
+					before
+			);
+
+			// Assert
+			assertNotNull(result);
+			assertTrue(result instanceof TapUpdateRecordEvent, "Should convert to TapUpdateRecordEvent");
+			TapUpdateRecordEvent updateEvent = (TapUpdateRecordEvent) result;
+			assertEquals("test_table", updateEvent.getTableId());
+			assertEquals(before, updateEvent.getBefore(), "Before map should be set from parameter");
+			assertNotNull(updateEvent.getReferenceTime(), "Should clone properties from original event");
+		}
+
+		@Test
+		@DisplayName("test getTapEvent when converting UPDATE to INSERT")
+		void testGetTapEventConvertUpdateToInsert() throws Exception {
+			// Arrange
+			TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create();
+			updateEvent.setTableId("test_table");
+			updateEvent.setReferenceTime(System.currentTimeMillis());
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("name", "new_name");
+			updateEvent.setAfter(after);
+			Map<String, Object> before = new HashMap<>();
+			before.put("id", 1);
+			before.put("name", "old_name");
+			updateEvent.setBefore(before);
+
+			String op = "i"; // INSERT operation
+			Map<String, Object> contextBefore = null;
+
+			// Act
+			TapEvent result = ReflectionTestUtils.invokeMethod(
+					hazelcastJavaScriptProcessorNode,
+					"getTapEvent",
+					updateEvent,
+					op,
+					contextBefore
+			);
+
+			// Assert
+			assertNotNull(result);
+			assertTrue(result instanceof TapInsertRecordEvent, "Should convert to TapInsertRecordEvent");
+			TapInsertRecordEvent insertEvent = (TapInsertRecordEvent) result;
+			assertEquals("test_table", insertEvent.getTableId());
+			assertNotNull(insertEvent.getReferenceTime(), "Should clone properties from original event");
+		}
+
+		@Test
+		@DisplayName("test getTapEvent when converting UPDATE to DELETE")
+		void testGetTapEventConvertUpdateToDelete() throws Exception {
+			// Arrange
+			TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create();
+			updateEvent.setTableId("test_table");
+			updateEvent.setReferenceTime(System.currentTimeMillis());
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("name", "new_name");
+			updateEvent.setAfter(after);
+			Map<String, Object> before = new HashMap<>();
+			before.put("id", 1);
+			before.put("name", "old_name");
+			updateEvent.setBefore(before);
+
+			String op = "d"; // DELETE operation
+			Map<String, Object> contextBefore = null;
+
+			// Act
+			TapEvent result = ReflectionTestUtils.invokeMethod(
+					hazelcastJavaScriptProcessorNode,
+					"getTapEvent",
+					updateEvent,
+					op,
+					contextBefore
+			);
+
+			// Assert
+			assertNotNull(result);
+			assertTrue(result instanceof TapDeleteRecordEvent, "Should convert to TapDeleteRecordEvent");
+			TapDeleteRecordEvent deleteEvent = (TapDeleteRecordEvent) result;
+			assertEquals("test_table", deleteEvent.getTableId());
+			assertNotNull(deleteEvent.getReferenceTime(), "Should clone properties from original event");
+		}
+
+		@Test
+		@DisplayName("test getTapEvent when converting DELETE to INSERT")
+		void testGetTapEventConvertDeleteToInsert() throws Exception {
+			// Arrange
+			TapDeleteRecordEvent deleteEvent = TapDeleteRecordEvent.create();
+			deleteEvent.setTableId("test_table");
+			deleteEvent.setReferenceTime(System.currentTimeMillis());
+			Map<String, Object> before = new HashMap<>();
+			before.put("id", 1);
+			before.put("name", "deleted_name");
+			deleteEvent.setBefore(before);
+
+			String op = "i"; // INSERT operation
+			Map<String, Object> contextBefore = null;
+
+			// Act
+			TapEvent result = ReflectionTestUtils.invokeMethod(
+					hazelcastJavaScriptProcessorNode,
+					"getTapEvent",
+					deleteEvent,
+					op,
+					contextBefore
+			);
+
+			// Assert
+			assertNotNull(result);
+			assertTrue(result instanceof TapInsertRecordEvent, "Should convert to TapInsertRecordEvent");
+			TapInsertRecordEvent insertEvent = (TapInsertRecordEvent) result;
+			assertEquals("test_table", insertEvent.getTableId());
+			assertNotNull(insertEvent.getReferenceTime(), "Should clone properties from original event");
+		}
+
+		@Test
+		@DisplayName("test getTapEvent when converting non-INSERT to UPDATE with before data")
+		void testGetTapEventConvertToUpdateWithBeforeFromContext() throws Exception {
+			// Arrange
+			TapDeleteRecordEvent deleteEvent = TapDeleteRecordEvent.create();
+			deleteEvent.setTableId("test_table");
+			deleteEvent.setReferenceTime(System.currentTimeMillis());
+			Map<String, Object> before = new HashMap<>();
+			before.put("id", 1);
+			before.put("name", "deleted_name");
+			deleteEvent.setBefore(before);
+
+			String op = "u"; // UPDATE operation
+			Map<String, Object> contextBefore = new HashMap<>();
+			contextBefore.put("id", 1);
+			contextBefore.put("name", "context_before_name");
+
+			// Act
+			TapEvent result = ReflectionTestUtils.invokeMethod(
+					hazelcastJavaScriptProcessorNode,
+					"getTapEvent",
+					deleteEvent,
+					op,
+					contextBefore
+			);
+
+			// Assert
+			assertNotNull(result);
+			assertTrue(result instanceof TapUpdateRecordEvent, "Should convert to TapUpdateRecordEvent");
+			TapUpdateRecordEvent updateEvent = (TapUpdateRecordEvent) result;
+			assertEquals("test_table", updateEvent.getTableId());
+			assertEquals(contextBefore, updateEvent.getAfter(), "After should be set from context before when original is not INSERT");
+			assertNotNull(updateEvent.getReferenceTime(), "Should clone properties from original event");
+		}
+
+		@Test
+		@DisplayName("test getTapEvent with unsupported operation type - should throw exception")
+		void testGetTapEventWithUnsupportedOperation() {
+			// Arrange
+			TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create();
+			insertEvent.setTableId("test_table");
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			insertEvent.setAfter(after);
+
+			String op = "invalid_op"; // Invalid operation
+			Map<String, Object> before = null;
+
+			// Act & Assert
+			IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+				ReflectionTestUtils.invokeMethod(
+						hazelcastJavaScriptProcessorNode,
+						"getTapEvent",
+						insertEvent,
+						op,
+						before
+				);
+			});
+
+			assertTrue(exception.getMessage().contains("Unsupported operation type"),
+					"Should throw exception with unsupported operation message");
+		}
+
+		@Test
+		@DisplayName("test getTapEvent preserves event properties after conversion")
+		void testGetTapEventPreservesEventProperties() throws Exception {
+			// Arrange
+			TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create();
+			insertEvent.setTableId("test_table");
+			long referenceTime = System.currentTimeMillis();
+			insertEvent.setReferenceTime(referenceTime);
+			Map<String, Object> info = new HashMap<>();
+			info.put("source", "mysql");
+			insertEvent.setInfo(info);
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			insertEvent.setAfter(after);
+
+			String op = "d"; // DELETE operation
+			Map<String, Object> before = null;
+
+			// Act
+			TapEvent result = ReflectionTestUtils.invokeMethod(
+					hazelcastJavaScriptProcessorNode,
+					"getTapEvent",
+					insertEvent,
+					op,
+					before
+			);
+
+			// Assert
+			assertNotNull(result);
+			assertTrue(result instanceof TapDeleteRecordEvent, "Should convert to TapDeleteRecordEvent");
+			TapDeleteRecordEvent deleteEvent = (TapDeleteRecordEvent) result;
+			assertEquals("test_table", deleteEvent.getTableId(), "Should preserve table ID");
+			assertEquals(referenceTime, deleteEvent.getReferenceTime(), "Should preserve reference time");
+			assertEquals(info, deleteEvent.getInfo(), "Should preserve info map");
 		}
 	}
 }

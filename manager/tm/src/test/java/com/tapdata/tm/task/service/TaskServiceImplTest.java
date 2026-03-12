@@ -13,6 +13,7 @@ import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.*;
@@ -22,16 +23,19 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+import com.tapdata.tm.lineage.analyzer.AnalyzerService;
+import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
+import com.tapdata.tm.lineage.entity.LineageType;
+import com.tapdata.tm.utils.MergeTablePropertiesUtil;
 
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.MergeTablePropertiesInfo;
 import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerDto;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -97,13 +101,13 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -754,6 +758,7 @@ class TaskServiceImplTest {
                 when(taskDto.getCrontabExpressionFlag()).thenReturn(true);
                 doCallRealMethod().when(taskService).updateById(taskDto, user);
                 doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+                doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
                 assertThrows(BizException.class, ()->taskService.updateById(taskDto, user));
             }
         }
@@ -808,6 +813,7 @@ class TaskServiceImplTest {
             when(taskDto.getId()).thenReturn(null);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+            doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).create(taskDto, user);
         }
@@ -835,6 +841,7 @@ class TaskServiceImplTest {
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+            doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
             verify(transformSchemaService,times(1)).transformSchema(any(),any(),any());
@@ -862,6 +869,7 @@ class TaskServiceImplTest {
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             doCallRealMethod().when(taskService).updateById(taskDto, user,false);
+            doCallRealMethod().when(taskService).checkTask(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
             verify(transformSchemaAsyncService,times(1)).transformSchema(any(DAG.class),any(),any());
@@ -936,14 +944,14 @@ class TaskServiceImplTest {
             // Setup
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(existingTask);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
-            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
-            verify(taskService, times(1)).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            verify(taskService, times(1)).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
@@ -953,11 +961,11 @@ class TaskServiceImplTest {
             importMode = ImportModeEnum.IMPORT_AS_COPY;
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(eq(taskDto), eq(user), any(), eq(conMap), eq(nodeMap), eq(taskMap));
@@ -970,11 +978,11 @@ class TaskServiceImplTest {
             importMode = ImportModeEnum.CANCEL_IMPORT;
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(existingTask);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
             assertThrows(BizException.class, () -> {
-                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             });
         }
 
@@ -988,11 +996,11 @@ class TaskServiceImplTest {
             when(taskService.findOne(nameQuery)).thenReturn(null);
             when(taskService.checkConnectionIdDuplicate(taskDto, conMap)).thenReturn(true);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
             assertThrows(BizException.class, () -> {
-                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             });
         }
     }
@@ -1037,18 +1045,20 @@ class TaskServiceImplTest {
             when(taskDto.getDag()).thenReturn(dag);
             when(taskDto.getId()).thenReturn(new ObjectId());
             when(dag.validate()).thenReturn(new HashMap<>());
+            when(taskDto.getStatus()).thenReturn("wait_start");
 
-            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
             doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
-            doReturn(taskDto).when(taskService).confirmById(taskDto, user, true, true);
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(updateResult.getModifiedCount()).thenReturn(1L);
+            doReturn(updateResult).when(taskService).updateById(any(), any(), any(Boolean.class));
 
             // Execute
-            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
 
             // Verify
             verify(taskDto, times(1)).setId(existingId);
             verify(taskService, times(1)).updateConnectionIds(taskDto, conMap);
-            verify(taskService, times(1)).confirmById(taskDto, user, true, true);
         }
 
         @Test
@@ -1063,12 +1073,12 @@ class TaskServiceImplTest {
             validationErrors.put("error", Arrays.asList(new Message()));
             when(dag.validate()).thenReturn(validationErrors);
 
-            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
             doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
             doReturn(taskDto).when(taskService).updateById(taskDto, user);
 
             // Execute
-            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
 
             // Verify
             verify(taskService, times(1)).updateById(taskDto, user);
@@ -1079,11 +1089,11 @@ class TaskServiceImplTest {
         @DisplayName("test handleReplaceMode without existing task")
         void testHandleReplaceModeWithoutExistingTask() {
             // Setup
-            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap);
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
             doNothing().when(taskService).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
 
             // Execute
-            taskService.handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap);
+            taskService.handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap,new HashMap<>());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
@@ -1226,6 +1236,167 @@ class TaskServiceImplTest {
             verify(taskService, times(1)).updateById(taskDto, user);
             verify(taskService, never()).confirmById(any(), any(), anyBoolean(), anyBoolean());
         }
+        @Test
+        @DisplayName("test handleImportAsCopyMode with MergeTableNode")
+        void testHandleImportAsCopyModeWithMergeTableNode() {
+            DatabaseNode sourceNode1 = new DatabaseNode();
+            String sourceNodeId1 = UUID.randomUUID().toString();
+            sourceNode1.setId(sourceNodeId1);
+            DatabaseNode sourceNode2 = new DatabaseNode();
+            String sourceNodeId2 = UUID.randomUUID().toString();
+            sourceNode2.setId(sourceNodeId2);
+            DatabaseNode sourceNode3 = new DatabaseNode();
+            String sourceNodeId3 = UUID.randomUUID().toString();
+            sourceNode3.setId(sourceNodeId3);
+
+
+            MergeTableNode mergeTableNode = new MergeTableNode();
+            mergeTableNode.setId(UUID.randomUUID().toString());
+
+            MergeTableProperties parentProperty = new MergeTableProperties();
+            parentProperty.setId(sourceNodeId1);
+
+            MergeTableProperties childProperty1 = new MergeTableProperties();
+            childProperty1.setId(sourceNodeId2);
+
+            MergeTableProperties childProperty2 = new MergeTableProperties();
+            childProperty2.setId(sourceNodeId3);
+
+            List<MergeTableProperties> children = new ArrayList<>();
+            children.add(childProperty1);
+            children.add(childProperty2);
+            parentProperty.setChildren(children);
+
+            List<MergeTableProperties> mergeProperties = new ArrayList<>();
+            mergeProperties.add(parentProperty);
+            mergeTableNode.setMergeProperties(mergeProperties);
+
+            nodes.add(sourceNode1);
+            nodes.add(sourceNode2);
+            nodes.add(sourceNode3);
+            nodes.add(mergeTableNode);
+
+            Edge edge = new Edge("edge1", "source1", "mergeNode1");
+            edges.add(edge);
+
+            Dag dagDto = new Dag();
+            dagDto.setNodes(nodes);
+            dagDto.setEdges(edges);
+            taskDto.setDag(DAG.build(dagDto));
+
+            ObjectId taskId = new ObjectId();
+            ObjectId existingId = new ObjectId();
+            when(taskDto.getId()).thenReturn(taskId);
+            when(existingTaskById.getId()).thenReturn(existingId);
+
+            Query idQuery = new Query(Criteria.where("_id").is(taskId).and("is_deleted").ne(true));
+            idQuery.fields().include("_id", "user_id", "name");
+            when(taskService.findOne(idQuery)).thenReturn(existingTaskById);
+            when(taskService.checkTaskNameNotError(anyString(), any(UserDetail.class), any())).thenReturn(false);
+            doNothing().when(taskService).updateConnectionIds(any(TaskDto.class), any(Map.class));
+
+            TaskEntity taskEntity = new TaskEntity();
+            taskEntity.setId(new ObjectId());
+            when(repository.importEntity(any(TaskEntity.class), any(UserDetail.class))).thenReturn(taskEntity);
+            when(taskService.convertToEntity(eq(TaskEntity.class), any(TaskDto.class))).thenReturn(taskEntity);
+            when(taskService.convertToDto(any(TaskEntity.class), eq(TaskDto.class))).thenReturn(taskDto);
+
+            when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(TaskEntity.class)))
+                    .thenReturn(mock(UpdateResult.class));
+            doReturn(new TaskDto()).when(taskService).confirmById(any(TaskDto.class), any(UserDetail.class), anyBoolean(), anyBoolean());
+
+            doCallRealMethod().when(taskService).handleImportAsCopyMode(
+                    any(TaskDto.class), any(UserDetail.class), any(List.class),
+                    any(Map.class), any(Map.class), any(Map.class)
+            );
+
+            taskService.handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+
+            MergeTableNode resultNode = (MergeTableNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof MergeTableNode).findFirst().get();
+            List<MergeTableProperties> resultProperties = resultNode.getMergeProperties();
+
+            assertNotNull(resultProperties);
+            assertEquals(1, resultProperties.size());
+
+            MergeTableProperties resultParent = resultProperties.get(0);
+            assertNotNull(resultParent.getId());
+            assertNotEquals(sourceNodeId1, resultParent.getId());
+
+            List<MergeTableProperties> resultChildren = resultParent.getChildren();
+            assertNotNull(resultChildren);
+            assertEquals(2, resultChildren.size());
+            assertNotEquals(sourceNodeId2, resultChildren.get(0).getId());
+            assertNotEquals(sourceNodeId3, resultChildren.get(1).getId());
+
+            verify(taskService, times(1)).confirmById(any(TaskDto.class), any(UserDetail.class), eq(true), eq(true));
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyMode with JoinProcessorNode")
+        void testHandleImportAsCopyModeWithJoinProcessorNode() {
+            DatabaseNode sourceNode1 = new DatabaseNode();
+            String sourceNodeId1 = UUID.randomUUID().toString();
+            sourceNode1.setId(sourceNodeId1);
+            DatabaseNode sourceNode2 = new DatabaseNode();
+            String sourceNodeId2 = UUID.randomUUID().toString();
+            sourceNode2.setId(sourceNodeId2);
+            JoinProcessorNode joinProcessorNode = new JoinProcessorNode();
+            joinProcessorNode.setId(UUID.randomUUID().toString());
+            joinProcessorNode.setLeftNodeId(sourceNodeId1);
+            joinProcessorNode.setRightNodeId(sourceNodeId2);
+
+
+            nodes.add(sourceNode1);
+            nodes.add(sourceNode2);
+            nodes.add(joinProcessorNode);
+
+            Edge edge1 = new Edge("edge1", "leftNode1", "joinNode1");
+            Edge edge2 = new Edge("edge2", "rightNode1", "joinNode1");
+            edges.add(edge1);
+            edges.add(edge2);
+
+            Dag dagDto = new Dag();
+            dagDto.setNodes(nodes);
+            dagDto.setEdges(edges);
+            taskDto.setDag(DAG.build(dagDto));
+            ObjectId taskId = new ObjectId();
+            ObjectId existingId = new ObjectId();
+            when(taskDto.getId()).thenReturn(taskId);
+            when(existingTaskById.getId()).thenReturn(existingId);
+
+            Query idQuery = new Query(Criteria.where("_id").is(taskId).and("is_deleted").ne(true));
+            idQuery.fields().include("_id", "user_id", "name");
+            when(taskService.findOne(idQuery)).thenReturn(existingTaskById);
+            when(taskService.checkTaskNameNotError(anyString(), any(UserDetail.class), any())).thenReturn(false);
+            doNothing().when(taskService).updateConnectionIds(any(TaskDto.class), any(Map.class));
+
+            TaskEntity taskEntity = new TaskEntity();
+            taskEntity.setId(new ObjectId());
+            when(repository.importEntity(any(TaskEntity.class), any(UserDetail.class))).thenReturn(taskEntity);
+            when(taskService.convertToEntity(eq(TaskEntity.class), any(TaskDto.class))).thenReturn(taskEntity);
+            when(taskService.convertToDto(any(TaskEntity.class), eq(TaskDto.class))).thenReturn(taskDto);
+
+            when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(TaskEntity.class)))
+                    .thenReturn(mock(UpdateResult.class));
+            doReturn(new TaskDto()).when(taskService).confirmById(any(TaskDto.class), any(UserDetail.class), anyBoolean(), anyBoolean());
+
+            doCallRealMethod().when(taskService).handleImportAsCopyMode(
+                    any(TaskDto.class), any(UserDetail.class), any(List.class),
+                    any(Map.class), any(Map.class), any(Map.class)
+            );
+
+            taskService.handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+
+            JoinProcessorNode resultNode = (JoinProcessorNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof JoinProcessorNode).findFirst().get();
+
+            assertNotNull(resultNode.getLeftNodeId());
+            assertNotNull(resultNode.getRightNodeId());
+            assertNotEquals(sourceNodeId1, resultNode.getLeftNodeId());
+            assertNotEquals(sourceNodeId2, resultNode.getRightNodeId());
+
+            verify(taskService, times(1)).confirmById(any(TaskDto.class), any(UserDetail.class), eq(true), eq(true));
+        }
+
     }
 
     @Nested
@@ -1500,13 +1671,13 @@ class TaskServiceImplTest {
         @DisplayName("test batchImport with empty task list")
         void testBatchImportWithEmptyTaskList() {
             // Setup
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should complete without errors
-            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
             verify(taskService, never()).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
         }
 
@@ -1518,10 +1689,10 @@ class TaskServiceImplTest {
             when(taskDto.getName()).thenReturn(null);
             taskDtos.add(taskDto);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should skip processing this task
             verify(taskService, never()).findOne(any(Query.class));
@@ -1535,10 +1706,10 @@ class TaskServiceImplTest {
             when(taskDto.getName()).thenReturn("");
             taskDtos.add(taskDto);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify - should skip processing this task
             verify(taskService, never()).findOne(any(Query.class));
@@ -1556,14 +1727,14 @@ class TaskServiceImplTest {
             nameQuery.fields().include("_id", "user_id", "name");
             when(taskService.findOne(nameQuery)).thenReturn(null);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap);
-            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap, Collections.emptyList());
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
-            verify(taskService, times(1)).handleReplaceMode(eq(taskDto), eq(null), eq(user), eq(new ArrayList<>()), eq(conMap), eq(nodeMap), eq(taskMap));
+            verify(taskService, times(1)).handleReplaceMode(eq(taskDto), eq(null), eq(user), eq(new ArrayList<>()), eq(conMap), eq(nodeMap), eq(taskMap),any());
         }
 
         @Test
@@ -1578,11 +1749,11 @@ class TaskServiceImplTest {
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
             when(taskService.checkConnectionIdDuplicate(taskDto, conMap)).thenReturn(false);
 
-            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
             doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
@@ -1609,12 +1780,12 @@ class TaskServiceImplTest {
                     taskService.handleImportAsCopyMode(taskDto, user, new ArrayList<>(), conMap, nodeMap, taskMap);
                 }
                 return null;
-            }).when(taskService).batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap);
+            }).when(taskService).batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
 
             // Execute
-            taskService.batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap);
+            taskService.batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
             // Verify
             verify(taskService, times(1)).handleImportAsCopyMode(eq(taskDto), eq(user), any(), eq(conMap), eq(nodeMap), eq(taskMap));
@@ -6589,7 +6760,7 @@ class TaskServiceImplTest {
 
             doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
             doReturn(true).when(taskService).checkMergeTableTask(taskDto);
-            when(externalStorageService.findById(any())).thenReturn(externalStorageDto);
+            when(externalStorageService.findNotCheckById(any())).thenReturn(externalStorageDto);
 
             // Mock callEngineRpc返回
             DataMap dataMap = new DataMap();
@@ -6665,7 +6836,7 @@ class TaskServiceImplTest {
 
             doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
             doReturn(true).when(taskService).checkMergeTableTask(taskDto);
-            when(externalStorageService.findById(any())).thenReturn(externalStorageDto);
+            when(externalStorageService.findNotCheckById(any())).thenReturn(externalStorageDto);
 
             // Mock callEngineRpc返回
             DataMap dataMap = new DataMap();
@@ -6738,7 +6909,7 @@ class TaskServiceImplTest {
 
             doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
             doReturn(true).when(taskService).checkMergeTableTask(taskDto);
-            when(externalStorageService.findById(any())).thenReturn(externalStorageDto);
+            when(externalStorageService.findNotCheckById(any())).thenReturn(externalStorageDto);
 
             // Mock callEngineRpc返回
             DataMap dataMap = new DataMap();
@@ -6851,4 +7022,680 @@ class TaskServiceImplTest {
             assertEquals(databaseNodeConnectionId, targetConnectionIds.get(1));
         }
     }
+    @Nested
+    class TaskServiceImplGetTableStatusMaxDelayTest {
+
+        private TaskServiceImpl taskService;
+
+        private TaskRepository taskRepository;
+
+        private MeasurementServiceV2 measurementServiceV2;
+
+        private AnalyzerService analyzerService;
+
+        private UserDetail userDetail;
+
+        private String connectionId = "test-connection-id";
+        private String tableName = "test-table";
+
+        @BeforeEach
+        void setUp() {
+            taskRepository = mock(TaskRepository.class);
+            measurementServiceV2 = mock(MeasurementServiceV2.class);
+            analyzerService = mock(AnalyzerService.class);
+            userDetail = mock(UserDetail.class);
+            taskService = spy(new TaskServiceImpl(taskRepository));
+            ReflectionTestUtils.setField(taskService, "measurementServiceV2", measurementServiceV2);
+            ReflectionTestUtils.setField(taskService, "analyzerService", analyzerService);
+
+            // Mock common methods
+            doReturn(Collections.emptyList()).when(taskService).findAll(any(Query.class));
+            doReturn(true).when(taskService).judgeTargetNode(any(), anyString());
+            doReturn(true).when(taskService).judgeTargetInspect(anyString(), anyString(), any());
+        }
+
+        @Nested
+        @DisplayName("Single Path Delay Calculation")
+        class SinglePathDelayTests {
+
+            @Test
+            @DisplayName("Should calculate delay for single task in path")
+            void testSingleTaskDelay() throws Exception {
+                // Given
+                ObjectId taskId = new ObjectId();
+                Long expectedDelay = 1000L;
+
+                TaskDto runningTask = createRunningTask(taskId);
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithSinglePath(taskId.toHexString());
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                // Mock measurement service to set delay
+                doAnswer(invocation -> {
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    dto.setCdcDelayTime(expectedDelay);
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(TableStatusEnum.STATUS_NORMAL.getValue(), result.getStatus());
+                assertEquals(expectedDelay, result.getCdcDelayTime());
+                assertEquals(1, result.getUpstreamTableStatus().size());
+                assertTrue(result.getUpstreamTableStatus().get(0).getOnDelayPath());
+            }
+
+            @Test
+            @DisplayName("Should calculate delay for multiple tasks in single path")
+            void testMultipleTasksInSinglePath() throws Exception {
+                // Given
+                String task1Id = "task-1";
+                String task2Id = "task-2";
+                String task3Id = "task-3";
+                Long delay1 = 500L;
+                Long delay2 = 800L;
+                Long delay3 = 300L;
+                Long expectedTotalDelay = delay1 + delay2 + delay3; // 1600L
+                ObjectId taskId1 = new ObjectId();
+                TaskDto runningTask = createRunningTask(taskId1);
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithMultipleTasksInPath(task1Id, task2Id, task3Id);
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                // Mock measurement service for each task
+                doAnswer(invocation -> {
+                    String taskId = invocation.getArgument(0);
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    if (task1Id.equals(taskId)) {
+                        dto.setCdcDelayTime(delay1);
+                    } else if (task2Id.equals(taskId)) {
+                        dto.setCdcDelayTime(delay2);
+                    } else if (task3Id.equals(taskId)) {
+                        dto.setCdcDelayTime(delay3);
+                    }
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(expectedTotalDelay, result.getCdcDelayTime());
+                assertEquals(3, result.getUpstreamTableStatus().size());
+
+                // All tasks should be on delay path
+                long tasksOnDelayPath = result.getUpstreamTableStatus().stream()
+                        .filter(dto -> Boolean.TRUE.equals(dto.getOnDelayPath()))
+                        .count();
+                assertEquals(3, tasksOnDelayPath);
+            }
+        }
+
+        @Nested
+        @DisplayName("Multiple Paths Delay Calculation")
+        class MultiplePathsDelayTests {
+
+            @Test
+            @DisplayName("Should select path with maximum total delay")
+            void testMaximumDelayPathSelection() throws Exception {
+                // Given
+                // Path 1: task1 (500ms) -> task2 (300ms) = 800ms total
+                // Path 2: task3 (1000ms) -> task4 (500ms) = 1500ms total (maximum)
+                // Path 3: task5 (400ms) = 400ms total
+                ObjectId taskId1 = new ObjectId();
+                TaskDto runningTask = createRunningTask(taskId1);
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithMultiplePaths();
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                Map<String, Long> delayMap = new HashMap<>();
+                delayMap.put("task-1", 500L);
+                delayMap.put("task-2", 300L);
+                delayMap.put("task-3", 1000L);
+                delayMap.put("task-4", 500L);
+                delayMap.put("task-5", 400L);
+
+                doAnswer(invocation -> {
+                    String taskId = invocation.getArgument(0);
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    dto.setCdcDelayTime(delayMap.get(taskId));
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(1500L, result.getCdcDelayTime()); // Maximum path delay
+
+                // Only tasks in path 2 should be marked as on delay path
+                List<TableStatusInfoDto> upstreamTasks = result.getUpstreamTableStatus();
+                assertEquals(5, upstreamTasks.size());
+
+                long tasksOnDelayPath = upstreamTasks.stream()
+                        .filter(dto -> Boolean.TRUE.equals(dto.getOnDelayPath()))
+                        .count();
+                assertEquals(2, tasksOnDelayPath); // task-3 and task-4
+
+                // Verify task-3 and task-4 are on delay path
+                assertTrue(upstreamTasks.stream()
+                        .anyMatch(dto -> "task-3".equals(dto.getTaskId()) && Boolean.TRUE.equals(dto.getOnDelayPath())));
+                assertTrue(upstreamTasks.stream()
+                        .anyMatch(dto -> "task-4".equals(dto.getTaskId()) && Boolean.TRUE.equals(dto.getOnDelayPath())));
+            }
+
+            @Test
+            @DisplayName("Should handle paths with null delay values")
+            void testPathsWithNullDelays() throws Exception {
+                // Given
+                // Path 1: task1 (null) -> task2 (500ms) = 500ms
+                // Path 2: task3 (1000ms) -> task4 (null) = 1000ms (maximum)
+
+                TaskDto runningTask = createRunningTask(new ObjectId());
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithTwoPaths("task-1", "task-2", "task-3", "task-4");
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                doAnswer(invocation -> {
+                    String taskId = invocation.getArgument(0);
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    if ("task-2".equals(taskId)) {
+                        dto.setCdcDelayTime(500L);
+                    } else if ("task-3".equals(taskId)) {
+                        dto.setCdcDelayTime(1000L);
+                    }
+                    // task-1 and task-4 will have null delay
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(1000L, result.getCdcDelayTime());
+            }
+        }
+
+        @Nested
+        @DisplayName("Edge Cases")
+        class EdgeCaseTests {
+
+            @Test
+            @DisplayName("Should handle zero delay")
+            void testZeroDelay() throws Exception {
+                // Given
+                ObjectId taskId = new ObjectId();
+                TaskDto runningTask = createRunningTask(taskId);
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithSinglePath(taskId.toHexString());
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                doAnswer(invocation -> {
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    dto.setCdcDelayTime(0L);
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(0L, result.getCdcDelayTime());
+            }
+
+            @Test
+            @DisplayName("Should handle all paths with null delays")
+            void testAllPathsWithNullDelays() throws Exception {
+                // Given
+                TaskDto runningTask = createRunningTask(new ObjectId());
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithMultiplePaths();
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                // All tasks return null delay
+                doNothing().when(measurementServiceV2).queryTableMeasurement(anyString(), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                assertEquals(0L, result.getCdcDelayTime()); // Default to 0 when all null
+            }
+
+            @Test
+            @DisplayName("Should cache delay values for same task appearing multiple times")
+            void testDelayCaching() throws Exception {
+                // Given - task-1 appears in multiple paths
+                String sharedTaskId = "task-1";
+                Long sharedDelay = 1000L;
+
+                TaskDto runningTask = createRunningTask(new ObjectId());
+                Graph<Node, io.github.openlg.graphlib.Edge> graph = createGraphWithSharedTask(sharedTaskId);
+
+                doReturn(Collections.singletonList(runningTask)).when(taskService).findAll(any(Query.class));
+                doReturn(graph).when(analyzerService).analyzeTable(connectionId, tableName, LineageType.UPSTREAM);
+
+                doAnswer(invocation -> {
+                    TableStatusInfoDto dto = invocation.getArgument(1);
+                    dto.setCdcDelayTime(sharedDelay);
+                    return null;
+                }).when(measurementServiceV2).queryTableMeasurement(eq(sharedTaskId), any(TableStatusInfoDto.class));
+
+                // When
+                TableStatusInfoDto result = taskService.getTableStatus(connectionId, tableName, userDetail);
+
+                // Then
+                assertNotNull(result);
+                // Verify queryTableMeasurement is called only once for the shared task
+                verify(measurementServiceV2, times(1)).queryTableMeasurement(eq(sharedTaskId), any(TableStatusInfoDto.class));
+            }
+        }
+
+        // Helper methods to create test data
+
+        private TaskDto createRunningTask(ObjectId taskId) {
+            TaskDto task = new TaskDto();
+            task.setId(taskId);
+            task.setName("Task " + taskId);
+            task.setStatus(TaskDto.STATUS_RUNNING);
+            return task;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithSinglePath(String taskId) {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            // Mock DFS traversal
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                LineageTask task = new LineageTask(taskId, "Task " + taskId, null, "sync", TaskDto.STATUS_RUNNING, new Date());
+                edgePath.add(task);
+                result.add(new LinkedList<>(edgePath));
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithMultipleTasksInPath(String task1Id, String task2Id, String task3Id) {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                // Create a path with three tasks
+                LineageTask task1 = new LineageTask(task1Id, "Task " + task1Id, null, "sync", TaskDto.STATUS_RUNNING, new Date());
+                LineageTask task2 = new LineageTask(task2Id, "Task " + task2Id, null, "sync", TaskDto.STATUS_RUNNING, new Date());
+                LineageTask task3 = new LineageTask(task3Id, "Task " + task3Id, null, "sync", TaskDto.STATUS_RUNNING, new Date());
+
+                edgePath.add(task1);
+                edgePath.add(task2);
+                edgePath.add(task3);
+                result.add(new LinkedList<>(edgePath));
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithMultiplePaths() {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                // Path 1: task1 -> task2
+                LinkedList<LineageTask> path1 = new LinkedList<>();
+                path1.add(new LineageTask("task-1", "Task 1", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                path1.add(new LineageTask("task-2", "Task 2", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path1);
+
+                // Path 2: task3 -> task4
+                LinkedList<LineageTask> path2 = new LinkedList<>();
+                path2.add(new LineageTask("task-3", "Task 3", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                path2.add(new LineageTask("task-4", "Task 4", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path2);
+
+                // Path 3: task5
+                LinkedList<LineageTask> path3 = new LinkedList<>();
+                path3.add(new LineageTask("task-5", "Task 5", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path3);
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithTwoPaths(String task1Id, String task2Id, String task3Id, String task4Id) {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                // Path 1
+                LinkedList<LineageTask> path1 = new LinkedList<>();
+                path1.add(new LineageTask(task1Id, "Task " + task1Id, null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                path1.add(new LineageTask(task2Id, "Task " + task2Id, null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path1);
+
+                // Path 2
+                LinkedList<LineageTask> path2 = new LinkedList<>();
+                path2.add(new LineageTask(task3Id, "Task " + task3Id, null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                path2.add(new LineageTask(task4Id, "Task " + task4Id, null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path2);
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+
+        private Graph<Node, io.github.openlg.graphlib.Edge> createGraphWithSharedTask(String sharedTaskId) {
+            Graph<Node, io.github.openlg.graphlib.Edge> graph = mock(Graph.class);
+            Set<String> sources = new HashSet<>();
+            sources.add("source-1");
+            when(graph.getSources()).thenReturn(sources);
+
+            doAnswer(invocation -> {
+                LinkedList<LineageTask> edgePath = invocation.getArgument(2);
+                List<LinkedList<LineageTask>> result = invocation.getArgument(3);
+
+                LineageTask sharedTask = new LineageTask(sharedTaskId, "Shared Task", null, "sync", TaskDto.STATUS_RUNNING, new Date());
+
+                // Path 1: shared task -> task2
+                LinkedList<LineageTask> path1 = new LinkedList<>();
+                path1.add(sharedTask);
+                path1.add(new LineageTask("task-2", "Task 2", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path1);
+
+                // Path 2: shared task -> task3
+                LinkedList<LineageTask> path2 = new LinkedList<>();
+                path2.add(sharedTask);
+                path2.add(new LineageTask("task-3", "Task 3", null, "sync", TaskDto.STATUS_RUNNING, new Date()));
+                result.add(path2);
+
+                return null;
+            }).when(taskService).dfsEdge(any(), any(), any(), any());
+
+            return graph;
+        }
+    }
+
+
+    @Nested
+    @DisplayName("TaskServiceImpl.checkTaskMemoryHeap 方法测试")
+    class CheckTaskMemoryHeapTest {
+        private TaskServiceImpl taskService;
+        private MetadataInstancesServiceImpl metadataInstancesServiceImpl;
+        private TaskScheduleService taskScheduleService;
+        private UserDetail userDetail;
+
+        @BeforeEach
+        void setUp() {
+            taskService = mock(TaskServiceImpl.class);
+            metadataInstancesServiceImpl = mock(MetadataInstancesServiceImpl.class);
+            taskScheduleService = mock(TaskScheduleService.class);
+            userDetail = mock(UserDetail.class);
+            ReflectionTestUtils.setField(taskService, "metadataInstancesService", metadataInstancesServiceImpl);
+            ReflectionTestUtils.setField(taskService, "taskScheduleService", taskScheduleService);
+        }
+
+        @Test
+        @DisplayName("CDC 类型任务返回 null")
+        void testCdcTypeReturnsNull() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("cdc");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("attrs 包含 syncProgress 时返回 null")
+        void testHasSyncProgressReturnsNull() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("syncProgress", new HashMap<>());
+            taskDto.setAttrs(attrs);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("syncType 不是 migrate 或 sync 时返回 null")
+        void testInvalidSyncTypeReturnsNull() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType("logCollector");
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("DAG 为 null 时返回 safe")
+        void testDagNullReturnsSafe() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            taskDto.setDag(null);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("DAG nodes 为空时返回 safe")
+        void testDagEmptyNodesReturnsSafe() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            DAG dag = mock(DAG.class);
+            when(dag.getNodes()).thenReturn(Collections.emptyList());
+            taskDto.setDag(dag);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("source 节点无 DataParentNode 时 checkTaskMemoryParams 为空返回 safe")
+        void testNoDataParentNodeReturnsSafe() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            DAG dag = mock(DAG.class);
+            Node nonDataNode = mock(Node.class);
+            when(dag.getNodes()).thenReturn(Collections.singletonList(nonDataNode));
+            when(dag.getSources()).thenReturn(Collections.singletonList(nonDataNode));
+            when(dag.getTargetDataParentNode()).thenReturn(new LinkedList<>());
+            taskDto.setDag(dag);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("metadata 无 tableAttr 时 tableMap 为空返回 safe")
+        void testNoTableAttrReturnsSafe() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            meta.setTableAttr(null);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("agentId 为 null 且 cloudTaskLimitNum 后仍为 null 时抛出 BizException")
+        void testAgentIdNullThrowsBizException() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            taskDto.setAgentId(null);
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            assertThrows(BizException.class, () -> taskService.checkTaskMemoryHeap(taskDto, false, userDetail));
+        }
+
+        @Test
+        @DisplayName("agentId 不为 null，checkEngineStatus 正常，callEngineRpc 返回结果")
+        void testNormalFlowReturnsResult() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSize();
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertEquals(expected, result);
+        }
+
+        @Test
+        @DisplayName("agentId 不为 null，checkEngineStatus 抛 BizException 后走 cloudTaskLimitNum")
+        void testCheckEngineStatusThrowsBizException() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doThrow(new BizException("Agent.Not.Found")).when(taskService).checkEngineStatus(any(), any());
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            verify(taskScheduleService).cloudTaskLimitNum(any(), any(), eq(false));
+            assertEquals(expected, result);
+        }
+
+        @Test
+        @DisplayName("callEngineRpc 抛异常时返回 safe")
+        void testCallEngineRpcExceptionReturnsSafe() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenThrow(new RuntimeException("RPC failed"));
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        @Test
+        @DisplayName("target 节点 writeBatchSize 为 null 时使用默认值 100")
+        void testTargetWriteBatchSizeNull() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1", null);
+            mockMetadataWithAvgObjSize();
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+        }
+
+        @Test
+        @DisplayName("tableAttr 中 avgObjSize 为 null 时不加入 tableMap")
+        void testAvgObjSizeNullSkipped() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            Map<String, Object> tableAttr = new HashMap<>();
+            tableAttr.put("avgObjSize", null);
+            meta.setTableAttr(tableAttr);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        private TaskDto buildTaskDtoWithSourceNode(String agentId) {
+            return buildTaskDtoWithSourceNode(agentId, 200);
+        }
+
+        private TaskDto buildTaskDtoWithSourceNode(String agentId, Integer targetWriteBatchSize) {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setType("initial_sync");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            taskDto.setAgentId(agentId);
+
+            DatabaseNode sourceNode = mock(DatabaseNode.class);
+            when(sourceNode.getId()).thenReturn("source-node-1");
+            when(sourceNode.getConnectionId()).thenReturn("conn-1");
+            when(sourceNode.getReadBatchSize()).thenReturn(500);
+
+            DatabaseNode targetNode = mock(DatabaseNode.class);
+            when(targetNode.getWriteBatchSize()).thenReturn(targetWriteBatchSize);
+
+            DAG dag = mock(DAG.class);
+            when(dag.getNodes()).thenReturn(Arrays.asList(sourceNode, targetNode));
+            when(dag.getSources()).thenReturn(Collections.singletonList(sourceNode));
+            LinkedList<DataParentNode> targetDataParentNodes = new LinkedList<>();
+            targetDataParentNodes.add(targetNode);
+            when(dag.getTargetDataParentNode()).thenReturn(targetDataParentNodes);
+            LinkedList<Node> successors = new LinkedList<>();
+            successors.add(targetNode);
+            when(dag.getSuccessorsRecursive("source-node-1")).thenReturn(successors);
+            taskDto.setDag(dag);
+            return taskDto;
+        }
+
+        private void mockMetadataWithAvgObjSize() {
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            Map<String, Object> tableAttr = new HashMap<>();
+            tableAttr.put("avgObjSize", 256);
+            meta.setTableAttr(tableAttr);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+        }
+    }
+
+
 }
