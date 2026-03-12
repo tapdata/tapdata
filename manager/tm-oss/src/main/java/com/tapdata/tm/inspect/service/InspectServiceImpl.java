@@ -153,8 +153,9 @@ public class InspectServiceImpl extends InspectService {
     public void importTask(MultipartFile file, String taskId, UserDetail userDetail) {
         throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
+
     @Override
-    public void importTaskByGroup(List<InspectDto> inspectDtoList, Map<String, String> taskMap, Map<String, DataSourceConnectionDto> conMap, UserDetail userDetail) {
+    public void importTaskByGroup(List<InspectDto> inspectDtoList, Map<String, String> taskMap, Map<String, String> taskIdToNameMap, Map<String, DataSourceConnectionDto> conMap, UserDetail userDetail) {
         throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
