@@ -63,6 +63,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.multipart.MultipartFile;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 
@@ -77,6 +80,40 @@ import org.springframework.data.mongodb.core.query.Update;
 @Slf4j
 @Setter(onMethod_ = { @Autowired })
 public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity, ObjectId, GroupInfoRepository> {
+
+    /**
+     * 用于导出文件的 Jackson ObjectMapper：
+     * - INDENT_OUTPUT：格式化缩进，便于人工阅读和 diff
+     * - SORT_PROPERTIES_ALPHABETICALLY + ORDER_MAP_ENTRIES_BY_KEYS：键排序固定，
+     *   保证同样内容每次序列化结果一致，PR diff 只体现真实变更
+     */
+    private static final ObjectMapper EXPORT_MAPPER = new ObjectMapper()
+            .enable(SerializationFeature.INDENT_OUTPUT)
+            .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
+            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+
+    /** 导出连接时需剔除的运行时/环境状态字段 */
+    private static final Set<String> CONNECTION_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
+            "loadSchemaField", "loadSchemaTime", "testTime", "transformed"
+    ));
+
+    /** 导出任务时需剔除的运行时状态字段 */
+    private static final Set<String> TASK_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
+            "currentEventTimestamp", "delayTime", "lastStartDate", "last_updated", "taskRecordId"
+    ));
+
+    /** 导出校验任务时需剔除的字段（空值无意义字段） */
+    private static final Set<String> INSPECT_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
+            "byFirstCheckId"
+    ));
+
+    /**
+     * BaseDto 中属于运行时环境的字段，嵌套子文档（如 gitInfo）导出时同样剔除，
+     * 防止 MongoDB subdocument 的 id / 时间戳在每次保存后引起 PR diff 噪音。
+     */
+    private static final Set<String> BASE_DTO_VOLATILE_FIELDS = new HashSet<>(Arrays.asList(
+            "id", "customId", "createTime", "last_updated", "user_id", "lastUpdBy", "createUser", "permissionActions"
+    ));
 
     public GroupInfoService(@NotNull GroupInfoRepository repository) {
         super(repository, GroupInfoDto.class, GroupInfoEntity.class);
@@ -286,7 +323,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 payloadsByType.put(entry.getKey().name(), payload);
             }
         }
-        List<TaskUpAndLoadDto> groupInfoPayload = buildGroupInfoPayload(groupInfos);
+        // 构建资源 id → name 映射，用于在 GroupInfo 的 resourceItemList 中补充资源名称
+        Map<String, String> resourceIdToName = buildResourceIdToNameMap(payloadsByType);
+        List<TaskUpAndLoadDto> groupInfoPayload = buildGroupInfoPayload(groupInfos, resourceIdToName);
 
         // 构建导出记录
         String yyyymmdd = DateUtil.today().replaceAll("-", "");
@@ -429,9 +468,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     // ====================== Split Import APIs (async) ======================
 
-    public ObjectId importConnections(MultipartFile file, ImportModeEnum importMode,
-            UserDetail user, MultipartFile vaultFile) throws IOException {
+    public GroupImportResult importConnections(MultipartFile file, ImportModeEnum importMode,
+            UserDetail user, MultipartFile vaultFile, boolean sync) throws IOException {
         Map<String, List<TaskUpAndLoadDto>> payloads = parseImportPayloads(file);
+        ResourceDiff diff = buildConnectionDiff(payloads, user);
         String fileName = file.getOriginalFilename();
         // 优先使用单独上传的 vault 文件；若未传，则尝试从 tar 包内的 vault.json 读取
         Map<String, String> vaultSecrets = parseVaultFile(vaultFile);
@@ -442,34 +482,35 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         recordDto.setProgress(0);
         recordDto = groupInfoRecordService.save(recordDto, user);
         ObjectId recordId = recordDto.getId();
-        GroupInfoService self = SpringContextHelper.getBean(GroupInfoService.class);
-        self.executeImportConnectionsAsync(payloads, importMode != null ? importMode : ImportModeEnum.GROUP_IMPORT, user, recordId, vaultSecrets);
-        return recordId;
+        ImportModeEnum effectiveMode = importMode != null ? importMode : ImportModeEnum.GROUP_IMPORT;
+        if (sync) {
+            // 直接调用，绕过 Spring AOP 代理，@Async 不生效，同步执行
+            executeImportConnectionsAsync(payloads, effectiveMode, user, recordId, vaultSecrets);
+        } else {
+            GroupInfoService self = SpringContextHelper.getBean(GroupInfoService.class);
+            self.executeImportConnectionsAsync(payloads, effectiveMode, user, recordId, vaultSecrets);
+        }
+        return new GroupImportResult(recordId.toHexString(), diff);
     }
 
-    public ObjectId importTasksByNames(MultipartFile file, List<String> names,
-            ImportModeEnum importMode, UserDetail user) throws IOException {
+
+    public GroupImportResult importTasks(MultipartFile file, ImportModeEnum importMode, UserDetail user,
+            boolean sync) throws IOException {
         Map<String, List<TaskUpAndLoadDto>> payloads = parseImportPayloads(file);
+        ResourceDiff diff = buildTaskDiff(payloads, user);
         String fileName = file.getOriginalFilename();
         GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, new ArrayList<>(), fileName);
         recordDto.setProgress(0);
         recordDto = groupInfoRecordService.save(recordDto, user);
         ObjectId recordId = recordDto.getId();
-        GroupInfoService self = SpringContextHelper.getBean(GroupInfoService.class);
-        self.executeImportTasksAsync(payloads, names, importMode != null ? importMode : ImportModeEnum.GROUP_IMPORT, user, recordId);
-        return recordId;
-    }
-
-    public ObjectId importTasks(MultipartFile file, ImportModeEnum importMode, UserDetail user) throws IOException {
-        Map<String, List<TaskUpAndLoadDto>> payloads = parseImportPayloads(file);
-        String fileName = file.getOriginalFilename();
-        GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, new ArrayList<>(), fileName);
-        recordDto.setProgress(0);
-        recordDto = groupInfoRecordService.save(recordDto, user);
-        ObjectId recordId = recordDto.getId();
-        GroupInfoService self = SpringContextHelper.getBean(GroupInfoService.class);
-        self.executeImportTasksStandaloneAsync(payloads, importMode != null ? importMode : ImportModeEnum.GROUP_IMPORT, user, recordId);
-        return recordId;
+        ImportModeEnum effectiveMode = importMode != null ? importMode : ImportModeEnum.GROUP_IMPORT;
+        if (sync) {
+            executeImportTasksStandaloneAsync(payloads, effectiveMode, user, recordId);
+        } else {
+            GroupInfoService self = SpringContextHelper.getBean(GroupInfoService.class);
+            self.executeImportTasksStandaloneAsync(payloads, effectiveMode, user, recordId);
+        }
+        return new GroupImportResult(recordId.toHexString(), diff);
     }
 
     public ObjectId importApisByNames(MultipartFile file, List<String> names,
@@ -485,16 +526,134 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return recordId;
     }
 
-    public ObjectId importApis(MultipartFile file, ImportModeEnum importMode, UserDetail user) throws IOException {
+    public GroupImportResult importApis(MultipartFile file, ImportModeEnum importMode, UserDetail user,
+            boolean sync) throws IOException {
         Map<String, List<TaskUpAndLoadDto>> payloads = parseImportPayloads(file);
+        ResourceDiff diff = buildApiDiff(payloads, user);
         String fileName = file.getOriginalFilename();
         GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, new ArrayList<>(), fileName);
         recordDto.setProgress(0);
         recordDto = groupInfoRecordService.save(recordDto, user);
         ObjectId recordId = recordDto.getId();
-        GroupInfoService self = SpringContextHelper.getBean(GroupInfoService.class);
-        self.executeImportApisStandaloneAsync(payloads, importMode != null ? importMode : ImportModeEnum.REPLACE, user, recordId);
+        ImportModeEnum effectiveMode = importMode != null ? importMode : ImportModeEnum.REPLACE;
+        if (sync) {
+            executeImportApisStandaloneAsync(payloads, effectiveMode, user, recordId);
+        } else {
+            GroupInfoService self = SpringContextHelper.getBean(GroupInfoService.class);
+            self.executeImportApisStandaloneAsync(payloads, effectiveMode, user, recordId);
+        }
+        return new GroupImportResult(recordId.toHexString(), diff);
+    }
+
+    /**
+     * 同步导入 GroupInfo：从文件（tar 或 json）中解析 GroupInfo.json，
+     * 按资源类型+名称在 DB 中查找当前资源 ID，然后以 name 为 key upsert 各分组。
+     */
+    public ObjectId importGroupInfo(MultipartFile file, ImportModeEnum importMode, UserDetail user) throws IOException {
+        Map<String, List<TaskUpAndLoadDto>> payloads = parseImportPayloads(file);
+        String fileName = file.getOriginalFilename();
+
+        List<TaskUpAndLoadDto> groupPayload = payloads.getOrDefault("GroupInfo.json", Collections.emptyList());
+        List<GroupInfoDto> groupInfos = new ArrayList<>();
+        collectGroupInfoPayload(groupPayload, groupInfos);
+
+        if (CollectionUtils.isEmpty(groupInfos)) {
+            throw new BizException("GroupInfo.Not.Found");
+        }
+
+        GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, new ArrayList<>(), fileName);
+        recordDto.setProgress(0);
+        recordDto = groupInfoRecordService.save(recordDto, user);
+        ObjectId recordId = recordDto.getId();
+
+        try {
+            for (GroupInfoDto groupInfo : groupInfos) {
+                List<ResourceItem> resolved = resolveResourceItemIds(groupInfo.getResourceItemList(), user);
+                groupInfo.setResourceItemList(resolved);
+                groupInfo.setCreateUser(null);
+                groupInfo.setCustomId(null);
+                groupInfo.setLastUpdBy(null);
+                groupInfo.setUserId(null);
+                groupInfo.setId(null);
+                upsertByWhere(Where.where("name", groupInfo.getName()), groupInfo, user);
+            }
+            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
+        } catch (Exception e) {
+            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, ExceptionUtils.getMessage(e), new ArrayList<>(), user);
+            throw e;
+        }
         return recordId;
+    }
+
+    /**
+     * 根据资源类型+名称在 DB 中查找当前资源 ID，返回解析后的 ResourceItem 列表。
+     * 若 name 字段为空则保留原 id 不变。
+     */
+    private List<ResourceItem> resolveResourceItemIds(List<ResourceItem> items, UserDetail user) {
+        if (CollectionUtils.isEmpty(items)) {
+            return new ArrayList<>();
+        }
+
+        // Collect names per type
+        Set<String> taskNames = new HashSet<>();
+        Set<String> connNames = new HashSet<>();
+        Set<String> moduleNames = new HashSet<>();
+        Set<String> inspectNames = new HashSet<>();
+        for (ResourceItem item : items) {
+            if (item == null || item.getType() == null || StringUtils.isBlank(item.getName())) continue;
+            switch (item.getType()) {
+                case MIGRATE_TASK, SYNC_TASK, SHARE_CACHE -> taskNames.add(item.getName());
+                case CONNECTION -> connNames.add(item.getName());
+                case MODULE -> moduleNames.add(item.getName());
+                case INSPECT_TASK -> inspectNames.add(item.getName());
+                default -> {}
+            }
+        }
+
+        // Query DB for each type and build name→id maps
+        Map<String, String> taskNameToId = new HashMap<>();
+        if (!taskNames.isEmpty()) {
+            taskService.findAllDto(new Query(Criteria.where("name").in(taskNames).and("is_deleted").ne(true)), user)
+                    .forEach(t -> taskNameToId.putIfAbsent(t.getName(), t.getId().toHexString()));
+        }
+        Map<String, String> connNameToId = new HashMap<>();
+        if (!connNames.isEmpty()) {
+            dataSourceService.findAllDto(new Query(Criteria.where("name").in(connNames).and("is_deleted").ne(true)), user)
+                    .forEach(c -> connNameToId.putIfAbsent(c.getName(), c.getId().toHexString()));
+        }
+        Map<String, String> moduleNameToId = new HashMap<>();
+        if (!moduleNames.isEmpty()) {
+            modulesService.findAllDto(new Query(Criteria.where("name").in(moduleNames).and("is_deleted").ne(true)), user)
+                    .forEach(m -> moduleNameToId.putIfAbsent(m.getName(), m.getId().toHexString()));
+        }
+        Map<String, String> inspectNameToId = new HashMap<>();
+        for (String name : inspectNames) {
+            List<InspectDto> found = inspectService.findByName(name);
+            if (CollectionUtils.isNotEmpty(found) && found.get(0).getId() != null) {
+                inspectNameToId.putIfAbsent(name, found.get(0).getId().toHexString());
+            }
+        }
+
+        // Resolve each item
+        List<ResourceItem> resolved = new ArrayList<>();
+        for (ResourceItem item : items) {
+            if (item == null || item.getType() == null) continue;
+            ResourceItem copy = new ResourceItem();
+            copy.setType(item.getType());
+            String resolvedId = null;
+            if (StringUtils.isNotBlank(item.getName())) {
+                resolvedId = switch (item.getType()) {
+                    case MIGRATE_TASK, SYNC_TASK, SHARE_CACHE -> taskNameToId.get(item.getName());
+                    case CONNECTION -> connNameToId.get(item.getName());
+                    case MODULE -> moduleNameToId.get(item.getName());
+                    case INSPECT_TASK -> inspectNameToId.get(item.getName());
+                    default -> null;
+                };
+            }
+            copy.setId(StringUtils.isNotBlank(resolvedId) ? resolvedId : item.getId());
+            resolved.add(copy);
+        }
+        return resolved;
     }
 
     @Async
@@ -538,6 +697,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             log.error("Async import connections failed, recordId={}, error={}",
                     recordId, ThrowableUtils.getStackTraceByPn(e));
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, ExceptionUtils.getStackTrace(e), new ArrayList<>(), user);
+            // 同步调用时（this 直接调用，绕过 @Async 代理）异常会传播给 HTTP 调用方；
+            // 异步调用时（经由 Spring proxy）异常由 AsyncUncaughtExceptionHandler 静默处理。
+            throw new BizException("Group.Import.Failed", e.getMessage());
         }
     }
 
@@ -663,6 +825,22 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 return;
             }
 
+            // 导入 API 分组（MetadataDefinition）—— 左侧目录树的数据来源
+            String metaDefFilename = ResourceType.getResourceName(ResourceType.METADATA_DEFINITION.name());
+            List<TaskUpAndLoadDto> metaDefPayload = payloads.getOrDefault(metaDefFilename, Collections.emptyList());
+            List<MetadataDefinitionDto> metadataDefinitions = new ArrayList<>();
+            for (TaskUpAndLoadDto item : metaDefPayload) {
+                if (StringUtils.isBlank(item.getJson())) continue;
+                if (GroupConstants.METADATA_DEFINITION.equals(item.getCollectionName())) {
+                    MetadataDefinitionDto dto = JsonUtil.parseJsonUseJackson(item.getJson(), MetadataDefinitionDto.class);
+                    if (dto != null) metadataDefinitions.add(dto);
+                }
+            }
+            if (!metadataDefinitions.isEmpty()) {
+                metadataDefinitionService.batchImport(metadataDefinitions, user);
+                log.info("Imported {} MetadataDefinition entries, recordId={}", metadataDefinitions.size(), recordId);
+            }
+
             // 通过 diff 确定哪些 API 有变更（新增 + 有内容变化），只对这些进行导入
             ResourceDiff diff = buildApiDiff(payloads, user);
             Set<String> changedNames = new HashSet<>();
@@ -689,10 +867,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         } catch (Exception e) {
             log.error("Async import apis failed, recordId={}", recordId, e);
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, ExceptionUtils.getMessage(e), new ArrayList<>(), user);
+            throw new BizException("Group.Import.Failed", e.getMessage());
         }
     }
 
-//    @Async
+    @Async
     public void executeImportTasksStandaloneAsync(Map<String, List<TaskUpAndLoadDto>> payloads,
             ImportModeEnum importMode, UserDetail user, ObjectId recordId) {
         log.info("Async import tasks standalone started, recordId={}", recordId);
@@ -821,6 +1000,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         } catch (Exception e) {
             log.error("Async import tasks standalone failed, recordId={}", recordId, e);
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, ExceptionUtils.getMessage(e), new ArrayList<>(), user);
+            throw new BizException("Group.Import.Failed", e.getMessage());
         }
     }
 
@@ -957,6 +1137,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         addFieldChange(changes, "database_type", existingConn.getDatabase_type(), fileConn.getDatabase_type());
         addFieldChange(changes, "loadAllTables", existingConn.getLoadAllTables(), fileConn.getLoadAllTables());
         addFieldChange(changes, "openTableExcludeFilter", existingConn.getOpenTableExcludeFilter(), fileConn.getOpenTableExcludeFilter());
+        addFieldChange(changes, "shareCdcEnable", existingConn.getShareCdcEnable(), fileConn.getShareCdcEnable());
         Map<String, Object> fileConfig = normalizeConfigForComparison(fileConn.getConfig());
         Map<String, Object> existingConfig = normalizeConfigForComparison(existingConn.getConfig());
         if (!configMapsEqual(fileConfig, existingConfig)) {
@@ -1587,7 +1768,33 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return new ArrayList<>(resetTaskIds);
     }
 
-    protected List<TaskUpAndLoadDto> buildGroupInfoPayload(List<GroupInfoDto> groupInfos) {
+    /**
+     * 从各类型资源的导出 payload 中提取 id → name 映射。
+     * 只处理主资源文档（Task / Connection / Modules / Inspect），跳过元数据等附属条目。
+     */
+    private Map<String, String> buildResourceIdToNameMap(Map<String, List<TaskUpAndLoadDto>> payloadsByType) {
+        Map<String, String> idToName = new HashMap<>();
+        Set<String> mainCollections = new HashSet<>(Arrays.asList(
+                GroupConstants.COLLECTION_TASK,
+                GroupConstants.COLLECTION_CONNECTION,
+                GroupConstants.COLLECTION_MODULES,
+                GroupConstants.COLLECTION_INSPECT
+        ));
+        for (List<TaskUpAndLoadDto> items : payloadsByType.values()) {
+            for (TaskUpAndLoadDto item : items) {
+                if (item.getJson() == null || !mainCollections.contains(item.getCollectionName())) continue;
+                String id = extractIdFromJson(item.getJson());
+                String name = extractNameFromJson(item.getJson());
+                if (StringUtils.isNotBlank(id) && StringUtils.isNotBlank(name)) {
+                    idToName.put(id, name);
+                }
+            }
+        }
+        return idToName;
+    }
+
+    protected List<TaskUpAndLoadDto> buildGroupInfoPayload(List<GroupInfoDto> groupInfos,
+                                                           Map<String, String> resourceIdToName) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         if (CollectionUtils.isEmpty(groupInfos)) {
             return payload;
@@ -1602,6 +1809,15 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 groupInfoCopy.setCustomId(null);
                 groupInfoCopy.setLastUpdBy(null);
                 groupInfoCopy.setUserId(null);
+
+                // Populate resource names for migration convenience
+                if (CollectionUtils.isNotEmpty(groupInfoCopy.getResourceItemList()) && !resourceIdToName.isEmpty()) {
+                    for (ResourceItem item : groupInfoCopy.getResourceItemList()) {
+                        if (item.getId() != null) {
+                            item.setName(resourceIdToName.get(item.getId()));
+                        }
+                    }
+                }
 
                 // Remove sensitive token information from gitInfo before export
                 // to prevent GitHub Push Protection from blocking the push
@@ -1881,11 +2097,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         // GroupInfo.json — 根目录，无子目录
         contents.put("GroupInfo.json", toJsonBytes(groupInfoPayload));
 
-        // MetadataDefinition.json — 根目录
+        // API/MetadataDefinition.json — API 子目录
         List<TaskUpAndLoadDto> metadataDefPayload = payloadsByType.getOrDefault(
                 ResourceType.METADATA_DEFINITION.name(), Collections.emptyList());
         if (!metadataDefPayload.isEmpty()) {
-            contents.put("MetadataDefinition.json", toJsonBytes(metadataDefPayload));
+            contents.put("API/MetadataDefinition.json", toJsonBytes(metadataDefPayload));
         }
 
         // Connection/ — 每个连接独立 Config 和 Metadata 文件
@@ -1910,12 +2126,12 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             contents.put("Task/" + sanitizeFileName(name) + "_ValidateTask.json", toJsonBytes(List.of(item)));
         }
 
-        // API/Modules/ — 每个模块独立文件
+        // API/ — 每个模块独立文件
         for (TaskUpAndLoadDto item : payloadsByType.getOrDefault(ResourceType.MODULE.name(), Collections.emptyList())) {
             if (!GroupConstants.COLLECTION_MODULES.equals(item.getCollectionName())) continue;
             String name = extractNameFromJson(item.getJson());
             if (StringUtils.isBlank(name)) continue;
-            contents.put("API/Modules/" + sanitizeFileName(name) + "_Module.json", toJsonBytes(List.of(item)));
+            contents.put("API/" + sanitizeFileName(name) + "_Module.json", toJsonBytes(List.of(item)));
         }
 
         return contents;
@@ -2036,8 +2252,62 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return name.replaceAll("[/\\\\:*?\"<>|]", "_").trim();
     }
 
-    private byte[] toJsonBytes(Object obj) {
-        return Objects.requireNonNull(JsonUtil.toJsonUseJackson(obj)).getBytes(StandardCharsets.UTF_8);
+    /**
+     * 将 TaskUpAndLoadDto 列表序列化为格式化 JSON 字节数组。
+     * 每个 item 的 json 字段（原始转义字符串）会被反序列化为嵌套对象后再输出，
+     * 避免 PR diff 中出现大量转义字符，且配合 EXPORT_MAPPER 的字段排序保证 diff 稳定。
+     */
+    private byte[] toJsonBytes(List<TaskUpAndLoadDto> items) {
+        try {
+            List<Map<String, Object>> expanded = new ArrayList<>(items.size());
+            for (TaskUpAndLoadDto item : items) {
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("collectionName", item.getCollectionName());
+                if (item.getJson() != null) {
+                    map.put("json", parseAndStripExportJson(item.getCollectionName(), item.getJson()));
+                }
+                expanded.add(map);
+            }
+            return EXPORT_MAPPER.writeValueAsBytes(expanded);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize export content to JSON", e);
+        }
+    }
+
+    /**
+     * 将 json 字符串解析为对象，并按集合类型剔除不应导出的运行时状态字段。
+     * 解析失败时返回原始字符串（兜底）。
+     */
+    @SuppressWarnings("unchecked")
+    private Object parseAndStripExportJson(String collectionName, String json) {
+        try {
+            Object parsed = EXPORT_MAPPER.readValue(json, Object.class);
+            if (!(parsed instanceof Map)) return parsed;
+            Map<String, Object> doc = (Map<String, Object>) parsed;
+            if (GroupConstants.COLLECTION_CONNECTION.equals(collectionName)) {
+                CONNECTION_EXPORT_EXCLUDED_FIELDS.forEach(doc::remove);
+            } else if (GroupConstants.COLLECTION_TASK.equals(collectionName)) {
+                TASK_EXPORT_EXCLUDED_FIELDS.forEach(doc::remove);
+            } else if (GroupConstants.COLLECTION_INSPECT.equals(collectionName)) {
+                // 剔除空值无意义字段
+                INSPECT_EXPORT_EXCLUDED_FIELDS.forEach(doc::remove);
+            } else if (GroupConstants.COLLECTION_GROUP_INFO.equals(collectionName)) {
+                // GroupInfo 顶层：剔除 id（跨环境后会变）及时间戳（每次保存都会变）
+                doc.remove("id");
+                doc.remove("last_updated");
+                doc.remove("createTime");
+                // gitInfo 是 GroupGitInfoDto（extends BaseDto），其内嵌 id / 时间戳字段
+                // 在每次修改 gitInfo 后会重新生成，需要整体剔除，只保留有效配置字段
+                Object gitInfoObj = doc.get("gitInfo");
+                if (gitInfoObj instanceof Map) {
+                    Map<String, Object> gitInfo = (Map<String, Object>) gitInfoObj;
+                    BASE_DTO_VOLATILE_FIELDS.forEach(gitInfo::remove);
+                }
+            }
+            return doc;
+        } catch (Exception ignored) {
+            return json;
+        }
     }
 
     protected String buildGroupExportFileName(List<GroupInfoDto> groupInfos, String yyyymmdd) {

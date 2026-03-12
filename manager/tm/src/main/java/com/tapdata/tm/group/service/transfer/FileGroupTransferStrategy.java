@@ -162,10 +162,13 @@ public class FileGroupTransferStrategy implements GroupTransferStrategy {
         if (entryName.endsWith("_MigrateTask.json")) return "MigrateTask.json";
         if (entryName.endsWith("_SyncTask.json"))    return "SyncTask.json";
         if (entryName.endsWith("_ValidateTask.json")) return "InspectTask.json";
-        if (entryName.endsWith("_Module.json"))       return "Module.json";
-        if (entryName.endsWith("_ShareCache.json"))   return "ShareCache.json";
-        // MetadataDefinition.json 和 GroupInfo.json 以及旧格式文件直接使用原文件名
-        return entryName;
+        if (entryName.endsWith("_Module.json"))         return "Module.json";
+        if (entryName.endsWith("_ShareCache.json"))     return "ShareCache.json";
+        // 兼容 MetadataDefinition.json 位于根目录（旧格式）或 API/ 子目录（新格式）
+        if (entryName.endsWith("MetadataDefinition.json")) return "MetadataDefinition.json";
+        // GroupInfo.json 以及其他旧格式文件使用 baseName（兼容 tar 中含路径前缀的情况）
+        return entryName.contains("/")
+                ? entryName.substring(entryName.lastIndexOf('/') + 1) : entryName;
     }
 
     /**
@@ -183,13 +186,39 @@ public class FileGroupTransferStrategy implements GroupTransferStrategy {
         if (bytes == null || bytes.length == 0) {
             return new ArrayList<>();
         }
-        String json = new String(bytes, StandardCharsets.UTF_8);
-        if (StringUtils.isBlank(json)) {
+        String jsonStr = new String(bytes, StandardCharsets.UTF_8);
+        if (StringUtils.isBlank(jsonStr)) {
             return new ArrayList<>();
         }
-        List<TaskUpAndLoadDto> list = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<TaskUpAndLoadDto>>() {
-        });
-        return list == null ? new ArrayList<>() : list;
+        // 兼容两种格式：
+        // 旧格式：json 字段是转义的 JSON 字符串
+        // 新格式（pretty-print 导出）：json 字段是嵌套对象，Jackson 无法直接反序列化为 String
+        // 统一先解析为 List<Map>，再手动构建 TaskUpAndLoadDto
+        try {
+            List<Map<String, Object>> rawList = JsonUtil.parseJsonUseJackson(
+                    jsonStr, new TypeReference<List<Map<String, Object>>>() {});
+            if (rawList == null) {
+                return new ArrayList<>();
+            }
+            List<TaskUpAndLoadDto> result = new ArrayList<>();
+            for (Map<String, Object> raw : rawList) {
+                String collectionName = (String) raw.get("collectionName");
+                Object jsonValue = raw.get("json");
+                String itemJson;
+                if (jsonValue instanceof String) {
+                    itemJson = (String) jsonValue;
+                } else if (jsonValue != null) {
+                    // 新格式：json 字段是嵌套对象，序列化回字符串
+                    itemJson = JsonUtil.toJsonUseJackson(jsonValue);
+                } else {
+                    itemJson = null;
+                }
+                result.add(new TaskUpAndLoadDto(collectionName, itemJson));
+            }
+            return result;
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
     }
 
     protected void addContentToTar(TarArchiveOutputStream taos, Map<String, byte[]> contents) throws IOException {
