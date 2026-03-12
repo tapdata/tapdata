@@ -501,15 +501,14 @@ public class ObservableAspectTask extends AspectTask {
 										String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
 										if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
 											return handlers.values().stream().findFirst();
-										} else {
-											LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
+										} else if (node instanceof DatabaseNode databaseNode) {
+											LinkedHashMap<String, String> tableNameRelation = databaseNode.getSyncObjects().get(0).getTableNameRelation();
 											String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
 											if (handlers.containsKey(targetTableName)) {
 												return Optional.ofNullable(handlers.get(targetTableName));
 											}
-											return Optional.ofNullable(handlers.get(table));
-
 										}
+                                        return Optional.ofNullable(handlers.get(table));
 									})
 									.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
 
