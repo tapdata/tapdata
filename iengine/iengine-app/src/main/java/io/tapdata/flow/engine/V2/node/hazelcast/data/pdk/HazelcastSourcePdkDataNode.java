@@ -149,6 +149,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -187,6 +188,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	private SyncProgress.Type syncProgressType = SyncProgress.Type.NORMAL;
     private final ISkipErrorTable skipErrorTable;
     protected boolean needAdjustBatchSize;
+	private final ReentrantLock eventsLock = new ReentrantLock(true);
 
     private Consumer<List<TapEvent>> streamReadBatchSizeConsumer;
 
@@ -632,8 +634,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                                             AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
 
                                         if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-                                            tapdataEvents.forEach(this::enqueue);
-
+											eventsLock.lock();
+											try {
+												tapdataEvents.forEach(this::enqueue);
+											} finally {
+												eventsLock.unlock();
+											}
                                             if (batchReadFuncAspect != null)
                                                 AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
                                         }
