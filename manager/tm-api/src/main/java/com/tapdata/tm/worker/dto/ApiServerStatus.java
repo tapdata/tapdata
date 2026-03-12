@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -46,4 +48,20 @@ public class ApiServerStatus {
     private Boolean updateCpuMem;
 
     Long auditLogPushMaxDelay;
+
+    public void setWorkers(List<ApiServerWorkerInfo> workers) {
+        if (workers == null) {
+            this.workers = new HashMap<>();
+            return;
+        }
+        Map<String, ApiServerWorkerInfo> newWorkers = new HashMap<>();
+        for (ApiServerWorkerInfo worker : workers) {
+            newWorkers.put(worker.getOid(), worker);
+        }
+        setWorkers(newWorkers);
+    }
+
+    public void setWorkers(Map<String, ApiServerWorkerInfo> workers) {
+        this.workers = workers;
+    }
 }
