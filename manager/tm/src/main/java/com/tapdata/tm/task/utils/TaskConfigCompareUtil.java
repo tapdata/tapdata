@@ -2,10 +2,13 @@ package com.tapdata.tm.task.utils;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.group.vo.FieldChange;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
@@ -172,7 +175,7 @@ public class TaskConfigCompareUtil {
         config.put("type", task.getType());
         config.put("syncType", task.getSyncType());
         config.put("deduplicWriteMode", task.getDeduplicWriteMode());
-        config.put("dag", task.getDag());
+        config.put("dag", normalizeDagForComparison(task.getDag()));
         config.put("syncPoints", task.getSyncPoints());
 
         // 运行参数与调优
@@ -252,6 +255,194 @@ public class TaskConfigCompareUtil {
      */
     public static List<String> getConfigFields() {
         return new ArrayList<>(CONFIG_FIELDS);
+    }
+
+    /**
+     * 返回两个任务之间详细的字段级变更列表。
+     * 每个 {@link FieldChange} 包含字段路径、DB 中的旧值（from）、导入文件中的新值（to）。
+     * DAG 内部按节点展开，路径格式为 {@code dag.nodes.{nodeName}.{field}}。
+     */
+    public static List<FieldChange> getDetailedChanges(TaskDto importTask, TaskDto existingTask) {
+        List<FieldChange> changes = new ArrayList<>();
+        if (importTask == null || existingTask == null) return changes;
+        try {
+            Map<String, Object> importConfig = extractConfigFields(importTask);
+            Map<String, Object> existingConfig = extractConfigFields(existingTask);
+            for (String field : CONFIG_FIELDS) {
+                if ("dag".equals(field)) continue; // DAG 单独展开
+                Object importVal = importConfig.get(field);
+                Object existingVal = existingConfig.get(field);
+                if (!isFieldEqual(importVal, existingVal)) {
+                    changes.add(new FieldChange(field, existingVal, importVal));
+                }
+            }
+            changes.addAll(getDagDetailedChanges(importTask.getDag(), existingTask.getDag()));
+        } catch (Exception e) {
+            log.error("Failed to get detailed task changes", e);
+        }
+        return changes;
+    }
+
+    /**
+     * 对两个 DAG 做节点级详细对比。
+     * 节点按 name 匹配，输出字段路径格式为 {@code dag.nodes.{nodeName}.{field}}。
+     * DAG 顶层的非节点字段路径格式为 {@code dag.{field}}。
+     */
+    @SuppressWarnings("unchecked")
+    private static List<FieldChange> getDagDetailedChanges(DAG importDag, DAG existingDag) {
+        List<FieldChange> changes = new ArrayList<>();
+        if (importDag == null && existingDag == null) return changes;
+        if (importDag == null || existingDag == null) {
+            changes.add(new FieldChange("dag", existingDag, importDag));
+            return changes;
+        }
+        Map<String, Object> importMap = normalizeDagForComparison(importDag);
+        Map<String, Object> existingMap = normalizeDagForComparison(existingDag);
+        if (importMap == null || existingMap == null) return changes;
+
+        // 节点级对比（以 nodes 主列表为准，其他派生视图忽略避免重复）
+        List<Map<String, Object>> importNodes = castNodeList(importMap.get("nodes"));
+        List<Map<String, Object>> existingNodes = castNodeList(existingMap.get("nodes"));
+        Map<String, Map<String, Object>> importByName = indexByName(importNodes);
+        Map<String, Map<String, Object>> existingByName = indexByName(existingNodes);
+        Set<String> allNames = new LinkedHashSet<>(importByName.keySet());
+        allNames.addAll(existingByName.keySet());
+
+        for (String nodeName : allNames) {
+            Map<String, Object> iNode = importByName.get(nodeName);
+            Map<String, Object> eNode = existingByName.get(nodeName);
+            String prefix = "dag.nodes." + nodeName + ".";
+            if (iNode == null) {
+                changes.add(new FieldChange("dag.nodes." + nodeName, eNode, null));
+            } else if (eNode == null) {
+                changes.add(new FieldChange("dag.nodes." + nodeName, null, iNode));
+            } else {
+                Set<String> allFields = new LinkedHashSet<>(iNode.keySet());
+                allFields.addAll(eNode.keySet());
+                for (String f : allFields) {
+                    compareAndAdd(changes, prefix + f, eNode.get(f), iNode.get(f));
+                }
+            }
+        }
+
+        // DAG 顶层非节点字段对比
+        Set<String> skipKeys = new HashSet<>(DAG_NODE_LIST_KEYS);
+        Set<String> allDagKeys = new LinkedHashSet<>(importMap.keySet());
+        allDagKeys.addAll(existingMap.keySet());
+        for (String key : allDagKeys) {
+            if (skipKeys.contains(key)) continue;
+            compareAndAdd(changes, "dag." + key, existingMap.get(key), importMap.get(key));
+        }
+        return changes;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> castNodeList(Object raw) {
+        if (raw instanceof List) return (List<Map<String, Object>>) raw;
+        return Collections.emptyList();
+    }
+
+    private static Map<String, Map<String, Object>> indexByName(List<Map<String, Object>> nodes) {
+        Map<String, Map<String, Object>> map = new LinkedHashMap<>();
+        for (Map<String, Object> node : nodes) {
+            Object name = node.get("name");
+            if (name != null) map.putIfAbsent(name.toString(), node);
+        }
+        return map;
+    }
+
+    private static void compareAndAdd(List<FieldChange> changes, String path, Object from, Object to) {
+        try {
+            String fJson = OBJECT_MAPPER.writeValueAsString(from);
+            String tJson = OBJECT_MAPPER.writeValueAsString(to);
+            if (!Objects.equals(fJson, tJson)) changes.add(new FieldChange(path, from, to));
+        } catch (JsonProcessingException e) {
+            if (!Objects.equals(from, to)) changes.add(new FieldChange(path, from, to));
+        }
+    }
+
+    /**
+     * DAG 序列化后包含的所有节点列表字段，均需做节点内部规范化。
+     */
+    private static final Set<String> DAG_NODE_LIST_KEYS = new HashSet<>(Arrays.asList(
+            "nodes",
+            "sourceNode", "targetNode",
+            "sourceNodes", "targetNodes",
+            "sources", "targets",
+            "sourceDataParentNode", "targetDataParentNode",
+            "allTypeTargetNodes", "cacheNode"
+    ));
+
+    /**
+     * 节点内部需要移除的环境相关字段（导入后会重新生成或重新映射）。
+     * 包含：
+     * - 环境 ID 类：id、connectionId、externalStorageId、taskId
+     * - 运行时布局：attrs、externalStorageName
+     * - 推演状态类：transformed、isTransformed、schemaTransformerStatus、inputSchema、outputSchema
+     */
+    private static final Set<String> NODE_VOLATILE_FIELDS = new HashSet<>(Arrays.asList(
+            // 环境 ID / 引用
+            "id", "connectionId", "taskId",
+            "externalStorageId", "externalStorageName",
+            // 运行时布局
+            "attrs",
+            // Schema 推演状态（每次推演后会变，不属于业务配置）
+            "transformed", "isTransformed",
+            "schemaTransformerStatus",
+            "inputSchema", "outputSchema",
+            // 派生/冗余字段（由 tableNames/syncObjects 计算而来，或与之重复）
+            "sourceNodeTableNames", "syncObjects"
+    ));
+
+    /**
+     * 对 DAG 进行规范化处理，移除环境相关的易变字段，保留业务逻辑字段，用于跨环境配置对比。
+     * <ul>
+     *   <li>DAG 顶层移除：{@code taskId}、{@code ownerId}、{@code edges}（edges 中的 source/target 全是节点 ID，无对比价值）</li>
+     *   <li>所有节点列表中每个节点移除：{@code id}、{@code connectionId}、{@code attrs}、
+     *       {@code externalStorageId}、{@code externalStorageName}</li>
+     *   <li>{@code nodes} 按 {@code name} 排序，保证对比顺序稳定</li>
+     * </ul>
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> normalizeDagForComparison(DAG dag) {
+        if (dag == null) {
+            return null;
+        }
+        try {
+            Map<String, Object> dagMap = OBJECT_MAPPER.convertValue(dag, new TypeReference<Map<String, Object>>() {});
+            if (dagMap == null) {
+                return null;
+            }
+
+            // 移除 DAG 顶层的环境相关字段
+            dagMap.remove("taskId");
+            dagMap.remove("ownerId");
+            // edges 完全移除：source/target 全是节点 ID，导入后全部重新生成
+            dagMap.remove("edges");
+
+            // 规范化所有节点列表
+            for (String key : DAG_NODE_LIST_KEYS) {
+                Object raw = dagMap.get(key);
+                if (!(raw instanceof List)) continue;
+                List<Map<String, Object>> nodeList = (List<Map<String, Object>>) raw;
+                for (Map<String, Object> node : nodeList) {
+                    NODE_VOLATILE_FIELDS.forEach(node::remove);
+                }
+                // nodes 是主列表，按 name 排序保证稳定性
+                if ("nodes".equals(key)) {
+                    nodeList.sort(Comparator.comparing(
+                            n -> n.getOrDefault("name", "").toString(),
+                            Comparator.nullsFirst(Comparator.naturalOrder())
+                    ));
+                }
+                dagMap.put(key, nodeList);
+            }
+
+            return dagMap;
+        } catch (Exception e) {
+            log.warn("Failed to normalize DAG for comparison, fallback to raw DAG", e);
+            return OBJECT_MAPPER.convertValue(dag, new TypeReference<Map<String, Object>>() {});
+        }
     }
 }
 

@@ -53,6 +53,11 @@ public final class GroupConstants {
      */
     public static final String METADATA_DEFINITION = "MetadataDefinition";
 
+    /**
+     * Vault 敏感信息文件名
+     */
+    public static final String VAULT_FILE = "vault.json";
+
     // ==================== 敏感字段列表 ====================
 
     /**

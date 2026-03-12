@@ -313,6 +313,12 @@ public class GitGroupTransferStrategy implements GroupTransferStrategy {
 
 			File file = new File(exportDir, fileName);
 
+			// Create parent directories for subdirectory structure (e.g. Connection/, Task/, API/Modules/)
+			File parentDir = file.getParentFile();
+			if (!parentDir.exists() && !parentDir.mkdirs()) {
+				log.warn("Failed to create directory: {}", parentDir.getAbsolutePath());
+			}
+
 			// Delete existing file if present to ensure overwrite
 			if (file.exists()) {
 				if (!file.delete()) {

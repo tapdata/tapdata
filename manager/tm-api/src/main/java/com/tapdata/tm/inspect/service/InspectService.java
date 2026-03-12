@@ -98,7 +98,7 @@ public abstract class InspectService extends BaseService<InspectDto, InspectEnti
 
     public abstract void importTask(MultipartFile file, String taskId,UserDetail userDetail);
 
-    public abstract void importTaskByGroup(List<InspectDto> inspectDtoList, Map<String, String> taskMap, Map<String, DataSourceConnectionDto> conMap, UserDetail userDetail);
+    public abstract void importTaskByGroup(List<InspectDto> inspectDtoList, Map<String, String> taskMap, Map<String, String> taskIdToNameMap, Map<String, DataSourceConnectionDto> conMap, UserDetail userDetail);
 
 
 }

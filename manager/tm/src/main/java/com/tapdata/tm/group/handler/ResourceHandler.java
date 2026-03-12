@@ -1,6 +1,8 @@
 package com.tapdata.tm.group.handler;
 
 import cn.hutool.extra.spring.SpringUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -33,6 +35,8 @@ import java.util.*;
  */
 public interface ResourceHandler {
 
+    Logger log = LoggerFactory.getLogger(ResourceHandler.class);
+
     /**
      * 需要脱敏的标准化 apiServerKey 集合，跨所有数据源一致
      */
@@ -41,6 +45,28 @@ public interface ResourceHandler {
             "database_port",
             "database_username",
             "database_password"
+    );
+
+    /**
+     * vault.json 字段后缀 -> 标准化 apiServerKey 的映射
+     * 对应 vault key 格式：{connectionName}_{suffix}
+     */
+    Map<String, String> VAULT_SUFFIX_TO_API_KEY = Map.of(
+            "host",     "database_host",
+            "port",     "database_port",
+            "user",     "database_username",
+            "password", "database_password"
+    );
+
+    /**
+     * 当 schema BFS 无法找到 apiServerKey 映射时，使用 fallback 默认 config key。
+     * vault suffix -> 默认 config key（直接写入 config 根级别）
+     */
+    Map<String, String> VAULT_SUFFIX_FALLBACK_CONFIG_KEY = Map.of(
+            "host",     "host",
+            "port",     "port",
+            "user",     "username",
+            "password", "password"
     );
 
     /**
@@ -133,6 +159,10 @@ public interface ResourceHandler {
             dataSourceConnectionDto.setCustomId(null);
             dataSourceConnectionDto.setLastUpdBy(null);
             dataSourceConnectionDto.setUserId(null);
+            // 移除环境相关字段，避免跨环境导入时产生误差
+            if (dataSourceConnectionDto.getConfig() != null) {
+                dataSourceConnectionDto.getConfig().remove("datasourceInstanceId");
+            }
             DataSourceDefinitionService dataSourceDefinitionService = SpringUtil
                     .getBean(DataSourceDefinitionService.class);
             DataSourceDefinitionDto definition = dataSourceDefinitionService
@@ -286,6 +316,123 @@ public interface ResourceHandler {
                 }
             }
         }
+    }
+
+    /**
+     * maskSensitiveConfigFields 的逆操作：将 vault.json 中的敏感信息注入连接的 config。
+     * BFS 遍历 definition schema，找到各敏感 apiServerKey 对应的 config 路径，
+     * 按 "{connectionName}_{vaultSuffix}" 格式查找 vault 值并写入。
+     */
+    static void injectVaultSecretsToConnection(DataSourceConnectionDto conn,
+            Map<String, String> vaultSecrets, DataSourceDefinitionDto definition) {
+        if (conn == null || MapUtils.isEmpty(vaultSecrets)) {
+            return;
+        }
+        String connectionName = conn.getName();
+        if (StringUtils.isBlank(connectionName)) {
+            log.warn("Vault inject skipped: connection name is blank");
+            return;
+        }
+        Map<String, Object> config = conn.getConfig();
+        if (config == null) {
+            config = new LinkedHashMap<>();
+            conn.setConfig(config);
+        }
+        final Map<String, Object> finalConfig = config;
+
+        // 通过 definition schema BFS 找到 apiServerKey 对应的 config 路径
+        Map<String, String> apiKeyToConfigPath = new LinkedHashMap<>();
+        if (definition != null) {
+            LinkedHashMap<String, Object> properties = definition.getProperties();
+            Object connection = properties != null ? properties.get("connection") : null;
+            Object connectionProperties = (connection instanceof Map)
+                    ? ((Map<?, ?>) connection).get("properties") : null;
+            if (connectionProperties instanceof Map) {
+                Deque<Object[]> queue = new ArrayDeque<>();
+                queue.add(new Object[]{connectionProperties, ""});
+                while (!queue.isEmpty()) {
+                    Object[] node = queue.poll();
+                    Map<String, Object> props = (Map<String, Object>) node[0];
+                    String prefix = (String) node[1];
+                    for (Map.Entry<String, Object> entry : props.entrySet()) {
+                        if (!(entry.getValue() instanceof Map)) {
+                            continue;
+                        }
+                        Map<String, Object> meta = (Map<String, Object>) entry.getValue();
+                        String configPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+                        Object apiServerKey = meta.get("apiServerKey");
+                        if (apiServerKey instanceof String && VAULT_SUFFIX_TO_API_KEY.containsValue(apiServerKey)) {
+                            apiKeyToConfigPath.put((String) apiServerKey, configPath);
+                        }
+                        Object childProperties = meta.get("properties");
+                        if (childProperties instanceof Map) {
+                            queue.add(new Object[]{childProperties, configPath});
+                        }
+                    }
+                }
+            } else {
+                log.warn("Vault inject: definition schema missing 'connection.properties' for connection '{}', pdkType={}",
+                        connectionName, conn.getDatabase_type());
+            }
+        } else {
+            log.warn("Vault inject: definition is null for connection '{}', pdkHash={}",
+                    connectionName, conn.getPdkHash());
+        }
+
+        log.info("Vault inject: connection='{}', apiKeyToConfigPath={}", connectionName, apiKeyToConfigPath);
+
+        // 按 vault key 格式 "{connectionName}_{suffix}" 查找并注入
+        // 若 schema BFS 找不到 configPath，退而使用 fallback 默认 config key
+        VAULT_SUFFIX_TO_API_KEY.forEach((vaultSuffix, apiKey) -> {
+            // 先精确匹配，再扫描 vault 找前缀匹配连接名的 key（兼容连接名含空格等差异）
+            String vaultKey = findVaultKey(vaultSecrets, connectionName, vaultSuffix);
+            if (vaultKey == null) {
+                log.debug("Vault inject: no vault key for connection='{}', suffix='{}'", connectionName, vaultSuffix);
+                return;
+            }
+            String value = vaultSecrets.get(vaultKey);
+            String configPath = apiKeyToConfigPath.get(apiKey);
+            if (configPath == null) {
+                configPath = VAULT_SUFFIX_FALLBACK_CONFIG_KEY.get(vaultSuffix);
+                log.warn("Vault inject: no schema configPath for apiKey='{}', using fallback configPath='{}' (vaultKey='{}')",
+                        apiKey, configPath, vaultKey);
+            }
+            if (configPath == null) {
+                log.warn("Vault inject: no configPath (schema or fallback) for apiKey='{}' (vaultKey='{}'), skipping", apiKey, vaultKey);
+                return;
+            }
+            // port 字段需写入数字类型
+            Object configValue = "port".equals(vaultSuffix) ? Integer.parseInt(value) : value;
+            log.info("Vault inject: connection='{}', configPath='{}' <- vaultKey='{}', value={}", connectionName, configPath, vaultKey, configValue);
+            setNestedValue(finalConfig, configPath, configValue);
+        });
+    }
+
+    /**
+     * 在 vaultSecrets 中查找与连接名和字段匹配的 vault key。
+     * vault key 格式：{team}_{hospital}_{db_type}_{connectionName}_{field}
+     * 匹配条件：key 以 "_{connectionName}_{suffix}" 结尾
+     */
+    private static String findVaultKey(Map<String, String> vaultSecrets, String connectionName, String suffix) {
+        String tail = "_" + connectionName + "_" + suffix;
+        for (String key : vaultSecrets.keySet()) {
+            if (key.endsWith(tail)) {
+                return key;
+            }
+        }
+        return null;
+    }
+
+/**
+     * 在 config map 中按点号分隔的路径写入值（支持嵌套路径，如 "ssl.password"）
+     */
+    private static void setNestedValue(Map<String, Object> config, String path, Object value) {
+        String[] parts = path.split("\\.");
+        Map<String, Object> current = config;
+        for (int i = 0; i < parts.length - 1; i++) {
+            current = (Map<String, Object>) current.computeIfAbsent(parts[i], k -> new LinkedHashMap<>());
+        }
+        current.put(parts[parts.length - 1], value);
     }
 
     /**

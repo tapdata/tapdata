@@ -11,6 +11,8 @@ import com.tapdata.tm.group.service.GroupInfoService;
 import com.tapdata.tm.group.service.GroupInfoRecordService;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.group.vo.ExportGroupRequest;
+import com.tapdata.tm.group.vo.GroupPreviewResult;
+import com.tapdata.tm.group.vo.ResourceDiff;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,6 +26,7 @@ import org.springframework.http.MediaType;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -121,4 +124,72 @@ public class GroupInfoController extends BaseController {
 	public ResponseMessage<String> lastestGitTag(@PathVariable String id) {
 		return success(groupInfoService.lastestTagName(id));
 	}
+
+    // ====================== Preview APIs ======================
+
+    @Operation(summary = "对比导入文件与当前系统的全量变更")
+    @PostMapping(path = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<GroupPreviewResult> previewImport(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewImport(file, getLoginUser()));
+    }
+
+    @Operation(summary = "对比连接变更")
+    @PostMapping(path = "/preview/connections", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewConnections(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewConnections(file, getLoginUser()));
+    }
+
+    @Operation(summary = "对比任务变更")
+    @PostMapping(path = "/preview/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewTasks(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewTasks(file, getLoginUser()));
+    }
+
+    @Operation(summary = "对比API(模块)变更")
+    @PostMapping(path = "/preview/apis", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewApis(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewApis(file, getLoginUser()));
+    }
+
+    // ====================== Split Import APIs ======================
+
+    @Operation(summary = "导入连接，返回记录ID")
+    @PostMapping(path = "/import/connections", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<Map<String, String>> importConnections(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "REPLACE") String importMode,
+            @RequestParam(value = "vault", required = false) MultipartFile vaultFile)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        ObjectId recordId = groupInfoService.importConnections(file, importModeEnum, getLoginUser(), vaultFile);
+        Map<String, String> result = new HashMap<>();
+        result.put("recordId", recordId.toHexString());
+        return success(result);
+    }
+
+    @Operation(summary = "导入任务，返回记录ID")
+    @PostMapping(path = "/import/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<Map<String, String>> importTasks(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        ObjectId recordId = groupInfoService.importTasks(file, importModeEnum, getLoginUser());
+        Map<String, String> result = new HashMap<>();
+        result.put("recordId", recordId.toHexString());
+        return success(result);
+    }
+
+    @Operation(summary = "导入API(模块)，返回记录ID")
+    @PostMapping(path = "/import/apis", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<Map<String, String>> importApis(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        ObjectId recordId = groupInfoService.importApis(file, importModeEnum, getLoginUser());
+        Map<String, String> result = new HashMap<>();
+        result.put("recordId", recordId.toHexString());
+        return success(result);
+    }
 }
