@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.InputStream;
@@ -33,7 +32,7 @@ public class PdkSourceUtilsTest {
             existFile.createNewFile();
             FileItem fileItem = mock(FileItem.class);
             when(fileItem.getFieldName()).thenReturn("a.jar");
-            MockMultipartFile mp = new MockMultipartFile("a.jar",fileItem.getInputStream());
+            MockMultipartFile mp = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
             String md5 = PdkSourceUtils.getFileMD5(mp);
             existFile.delete();
             assertNotEquals(null,md5);
@@ -60,7 +59,7 @@ public class PdkSourceUtilsTest {
             existFile.createNewFile();
             FileItem fileItem = mock(FileItem.class);
             when(fileItem.getFieldName()).thenReturn("a.jar");
-            MockMultipartFile mp = new MockMultipartFile("a.jar",fileItem.getInputStream());
+            MockMultipartFile mp = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
             String md5 = PdkSourceUtils.calcFileMD5(mp);
             existFile.delete();
             assertNotEquals(null,md5);
@@ -130,7 +129,7 @@ public class PdkSourceUtilsTest {
             AtomicBoolean needDeleteFile = new AtomicBoolean(false);
             FileItem fileItem = mock(FileItem.class);
             when(fileItem.getFieldName()).thenReturn("a.jar");
-            MockMultipartFile originFile = new MockMultipartFile("a.jar",fileItem.getInputStream());
+            MockMultipartFile originFile = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
             PdkSourceUtils.transformToFile(originFile, (k, v)->{
                 file.set((File) k);
                 needDeleteFile.set((Boolean) v);
@@ -147,7 +146,7 @@ public class PdkSourceUtilsTest {
             AtomicBoolean needDeleteFile = new AtomicBoolean(false);
             FileItem fileItem = mock(FileItem.class);
             when(fileItem.getFieldName()).thenReturn("a.jar");
-            MockMultipartFile originFile = new MockMultipartFile("a.jar",fileItem.getInputStream());
+            MockMultipartFile originFile = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
             PdkSourceUtils.transformToFile(originFile, (k, v)->{
                 file.set((File) k);
                 needDeleteFile.set((Boolean) v);
