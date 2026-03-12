@@ -139,6 +139,10 @@ public class ProxyController extends BaseController {
 		}
 		String wsPath = loginProxyDto.getService() + "/" + MD5.create().digestHex(loginProxyDto.getClientId());
 		loginProxyResponseDto.setWsPath(isCloud ? "console/tm/" + wsPath : wsPath);
+		int proxyPort = CommonUtils.getPropertyInt("tapdata_websocket_proxy_port",0);
+		if(proxyPort != 0){
+			loginProxyResponseDto.setWsProxyPort(proxyPort);
+		}
 		return success(loginProxyResponseDto);
 	}
 
