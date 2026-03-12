@@ -1729,6 +1729,8 @@ class AgentGroupServiceTest {
             when(agentGroupService.getProcessNodeListByGroupId(groupIds, userDetail)).thenCallRealMethod();
             when(agentGroupService.findCriteria(groupIds)).thenReturn(criteria);
             when(agentGroupService.findAll(query, userDetail)).thenReturn(all);
+            when(settingsService.isCloud()).thenReturn(Boolean.TRUE);
+            ReflectionTestUtils.setField(agentGroupService, "settingsService", settingsService);
         }
 
         void assertVerify(int exceptedSize, int queryTimes, int findCriteriaTimes, int findAllTimes, int getAgentIdsTimes) {
