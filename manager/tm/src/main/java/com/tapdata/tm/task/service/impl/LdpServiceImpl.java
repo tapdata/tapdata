@@ -1407,7 +1407,7 @@ public class LdpServiceImpl implements LdpService {
 		if (processIds.isEmpty()) {
 			return null;
 		}
-		List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
+		List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(connectionDto);
 		if (!AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())
                 || CollectionUtils.isEmpty(processNodeListWithGroup)) {
 			return processIds.get(0);

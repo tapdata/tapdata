@@ -142,7 +142,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     public void scheduleFailed(TaskDto taskDto, UserDetail user) {
         log.warn("No available agent found, task name = {}", taskDto.getName());
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-        List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+        List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(taskDto);
         if (AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())
                 && CollectionUtils.isNotEmpty(processNodeListWithGroup)) {
             throw new BizException("Task.SpecifyAgentOffline", processNodeListWithGroup.get(0));
@@ -173,7 +173,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 }
             }
         });
-        List<String> accessNodeProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+        List<String> accessNodeProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto);
         if (needCalculateAgent.get()) {
             if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
                     && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {

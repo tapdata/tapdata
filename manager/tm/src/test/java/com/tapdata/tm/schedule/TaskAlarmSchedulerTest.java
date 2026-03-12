@@ -82,7 +82,7 @@ class TaskAlarmSchedulerTest {
             Assertions.assertNotNull(list);
             verify(workerService, times(findAvailableAgent)).findAvailableAgentBySystem(userDetail);
             verify(taskDto, times(getAccessNodeType)).getAccessNodeType();
-            verify(agentGroupService, times(typeTimes)).getProcessNodeListWithGroup(taskDto, userDetail);
+            verify(agentGroupService, times(typeTimes)).getProcessNodeListWithGroup(taskDto);
             verify(worker, times(typeTimes*workerList.size())).getProcessId();
         }
 

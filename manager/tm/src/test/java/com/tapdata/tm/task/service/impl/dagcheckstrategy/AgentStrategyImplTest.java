@@ -59,7 +59,7 @@ class AgentStrategyImplTest {
             when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
             when(workerService.findAvailableAgent(userDetail)).thenReturn(availableAgent);
 
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail)).thenReturn(processNodeListWithGroup);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(processNodeListWithGroup);
             when(workerService.findAvailableAgentByAccessNode(userDetail, processNodeListWithGroup)).thenReturn(availableAgent);
             when(availableAgent.isEmpty()).thenReturn(false);
 
@@ -73,7 +73,7 @@ class AgentStrategyImplTest {
             verify(taskDto, times(1)).getAccessNodeType();
             verify(workerService, times(1)).findAvailableAgent(userDetail);
 
-            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(taskDto, userDetail);
+            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(0)).findAvailableAgentByAccessNode(userDetail, processNodeListWithGroup);
             verify(availableAgent, times(0)).isEmpty();
         }
@@ -86,7 +86,7 @@ class AgentStrategyImplTest {
             verify(taskDto, times(1)).getAccessNodeType();
             verify(workerService, times(0)).findAvailableAgent(userDetail);
 
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, userDetail);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(1)).findAvailableAgentByAccessNode(userDetail, processNodeListWithGroup);
             verify(availableAgent, times(1)).isEmpty();
         }
@@ -100,7 +100,7 @@ class AgentStrategyImplTest {
             verify(taskDto, times(1)).getAccessNodeType();
             verify(workerService, times(0)).findAvailableAgent(userDetail);
 
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, userDetail);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(1)).findAvailableAgentByAccessNode(userDetail, processNodeListWithGroup);
             verify(availableAgent, times(1)).isEmpty();
         }
@@ -114,7 +114,7 @@ class AgentStrategyImplTest {
             verify(taskDto, times(1)).getAccessNodeType();
             verify(workerService, times(0)).findAvailableAgent(userDetail);
 
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, userDetail);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(1)).findAvailableAgentByAccessNode(userDetail, processNodeListWithGroup);
             verify(availableAgent, times(0)).isEmpty();
         }

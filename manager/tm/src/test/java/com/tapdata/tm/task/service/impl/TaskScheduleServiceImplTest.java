@@ -67,7 +67,7 @@ class TaskScheduleServiceImplTest {
             when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
 
             when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user)).thenReturn(mock(StateMachineResult.class));
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(processNodeListWithGroup);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(processNodeListWithGroup);
 
             doCallRealMethod().when(taskScheduleService).scheduleFailed(taskDto, user);
         }
@@ -81,7 +81,7 @@ class TaskScheduleServiceImplTest {
             verify(taskDto, times(1)).getName();
             verify(taskDto, times(1)).getAccessNodeType();
             verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
         }
 
         @Test
@@ -94,7 +94,7 @@ class TaskScheduleServiceImplTest {
             verify(taskDto, times(1)).getName();
             verify(taskDto, times(1)).getAccessNodeType();
             verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
         }
 
         @Test
@@ -107,7 +107,7 @@ class TaskScheduleServiceImplTest {
             verify(taskDto, times(1)).getName();
             verify(taskDto, times(1)).getAccessNodeType();
             verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
         }
     }
 }

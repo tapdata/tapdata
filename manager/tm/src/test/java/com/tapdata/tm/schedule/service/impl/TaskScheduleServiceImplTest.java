@@ -138,7 +138,7 @@ public class TaskScheduleServiceImplTest {
             worker2.setProcessId("worker_test2");
             availableAgent.add(worker1);
             availableAgent.add(worker2);
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(Arrays.asList("worker_test1","worker_test2"));
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(Arrays.asList("worker_test1","worker_test2"));
             when(workerService.findAvailableAgentByAccessNode(any(),anyList())).thenReturn(availableAgent);
             when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenAnswer(invocationOnMock -> {
                 TaskDto result = invocationOnMock.getArgument(0);
@@ -158,7 +158,7 @@ public class TaskScheduleServiceImplTest {
             worker2.setProcessId("worker_test2");
             availableAgent.add(worker1);
             availableAgent.add(worker2);
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(Arrays.asList("worker_test1","worker_test2"));
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(Arrays.asList("worker_test1","worker_test2"));
             when(workerService.findAvailableAgentByAccessNode(any(),anyList())).thenReturn(availableAgent);
             when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenAnswer(invocationOnMock -> {
                 TaskDto result = invocationOnMock.getArgument(0);

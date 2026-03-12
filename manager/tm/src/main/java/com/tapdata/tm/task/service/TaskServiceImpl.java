@@ -962,7 +962,7 @@ public class TaskServiceImpl extends TaskService{
     public void checkEngineStatus(TaskDto taskDto, UserDetail user) {
         String errCode = "Agent.Not.Found";
         String accessNodeType = taskDto.getAccessNodeType();
-        List<String> taskProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+        List<String> taskProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto);
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType) && taskProcessIdList.isEmpty()) {
             throw new BizException(errCode);
         }
@@ -1030,7 +1030,7 @@ public class TaskServiceImpl extends TaskService{
             return true;
         }
         if (AccessNodeTypeEnum.isUserManually(accessNodeType)) {
-            List<String> connectionProcessIds = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
+            List<String> connectionProcessIds = agentGroupService.getProcessNodeListWithGroup(connectionDto);
             connectionProcessIds.removeAll(taskProcessIdList);
             if (!StringUtils.equalsIgnoreCase(taskDto.getAccessNodeType(), accessNodeType)
                     || !connectionProcessIds.isEmpty()) {
@@ -4148,7 +4148,7 @@ public class TaskServiceImpl extends TaskService{
 
     protected boolean findProcessNodeListWithGroup(TaskDto taskDto, List<String> accessNodeProcessIdList, UserDetail user) {
         try {
-            List<String> list = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+            List<String> list = agentGroupService.getProcessNodeListWithGroup(taskDto);
             if (CollectionUtils.isNotEmpty(list)) {
                 accessNodeProcessIdList.addAll(list);
             }

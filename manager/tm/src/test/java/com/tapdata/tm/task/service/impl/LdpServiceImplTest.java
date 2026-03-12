@@ -90,14 +90,14 @@ class LdpServiceImplTest {
             connectionDto = mock(DataSourceConnectionDto.class);
             when(connectionDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
 
-            when(agentGroupService.getProcessNodeListWithGroup(connectionDto, user)).thenReturn(processNodeListWithGroup);
+            when(agentGroupService.getProcessNodeListWithGroup(connectionDto)).thenReturn(processNodeListWithGroup);
             when(workerService.findAvailableAgent(user)).thenReturn(availableAgent);
 
             when(ldpService.findAgent(connectionDto, user)).thenCallRealMethod();
         }
         String assertVerify(int getProcessIdTimes, int getProcessNodeListWithGroupTimes, int getAccessNodeTypeTimes) {
             String agent = ldpService.findAgent(connectionDto, user);
-            verify(agentGroupService, times(getProcessNodeListWithGroupTimes)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(agentGroupService, times(getProcessNodeListWithGroupTimes)).getProcessNodeListWithGroup(connectionDto);
             verify(connectionDto, times(getAccessNodeTypeTimes)).getAccessNodeType();
             verify(workerService, times(1)).findAvailableAgent(user);
             verify(worker, times(getProcessIdTimes)).getProcessId();
@@ -138,7 +138,7 @@ class LdpServiceImplTest {
         }
         @Test
         void testProcessNodeListWithGroupIsEmpty() {
-            when(agentGroupService.getProcessNodeListWithGroup(connectionDto, user)).thenReturn(new ArrayList<>());
+            when(agentGroupService.getProcessNodeListWithGroup(connectionDto)).thenReturn(new ArrayList<>());
             String nodeId = assertVerify(1, 1, 1);
             assertEquals("id", nodeId);
         }

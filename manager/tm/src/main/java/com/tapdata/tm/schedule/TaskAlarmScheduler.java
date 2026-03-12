@@ -164,7 +164,7 @@ public class TaskAlarmScheduler {
             return workerList;
         }
         if (AccessNodeTypeEnum.isManually(data.getAccessNodeType())) {
-            List<String> processIdList = agentGroupService.getProcessNodeListWithGroup(data, userDetail);
+            List<String> processIdList = agentGroupService.getProcessNodeListWithGroup(data);
             workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
         }
         return workerList;

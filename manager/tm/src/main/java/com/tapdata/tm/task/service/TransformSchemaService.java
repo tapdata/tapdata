@@ -543,7 +543,7 @@ public class TransformSchemaService {
         List<Worker> availableAgent;
         if (org.apache.commons.lang3.StringUtils.isNotBlank(taskDto.getAccessNodeType())
                 && AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())) {
-            availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(taskDto, user));
+            availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(taskDto));
         } else {
             availableAgent = workerService.findAvailableAgent(user);
         }

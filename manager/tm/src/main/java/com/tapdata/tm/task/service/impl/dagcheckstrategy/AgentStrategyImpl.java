@@ -73,7 +73,7 @@ public class AgentStrategyImpl implements DagLogStrategy {
             availableAgent = workerService.findAvailableAgent(userDetail);
             agent.set(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.getName());
         } else {
-            List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail);
+            List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(taskDto);
             availableAgent = workerService.findAvailableAgentByAccessNode(userDetail, processNodeListWithGroup);
             if (null != availableAgent && !availableAgent.isEmpty()) {
                 agent.set(processNodeListWithGroup.get(0));

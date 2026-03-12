@@ -83,7 +83,7 @@ class TaskNodeServiceImplTest {
             when(worker.getProcessId()).thenReturn("id");
             workers.add(worker);
 
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail)).thenReturn(nodeList);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(nodeList);
             when(workerService.findAvailableAgentByAccessNode(userDetail, nodeList)).thenReturn(workers);
             doNothing().when(messageQueueService).sendMessage(any(MessageQueueDto.class));
             doCallRealMethod().when(taskNodeService).sendMessageAfterFindAgent(taskDto, taskDtoCopy, userDetail);
@@ -92,7 +92,7 @@ class TaskNodeServiceImplTest {
         @Test
         void testNormal() {
             Assertions.assertDoesNotThrow(() -> taskNodeService.sendMessageAfterFindAgent(taskDto, taskDtoCopy, userDetail));
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, userDetail);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(1)).findAvailableAgentByAccessNode(userDetail, nodeList);
             verify(worker, times(1)).getProcessId();
             verify(messageQueueService, times(1)).sendMessage(any(MessageQueueDto.class));
@@ -101,7 +101,7 @@ class TaskNodeServiceImplTest {
         void testNotAnyWorkers() {
             workers.remove(0);
             Assertions.assertThrows(BizException.class, () -> taskNodeService.sendMessageAfterFindAgent(taskDto, taskDtoCopy, userDetail));
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, userDetail);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(1)).findAvailableAgentByAccessNode(userDetail, nodeList);
             verify(worker, times(0)).getProcessId();
             verify(messageQueueService, times(0)).sendMessage(any(MessageQueueDto.class));

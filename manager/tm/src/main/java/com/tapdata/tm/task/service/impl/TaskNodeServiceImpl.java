@@ -815,7 +815,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     protected void sendMessageAfterFindAgent(TaskDto taskDto, TaskDto taskDtoCopy, UserDetail userDetail) {
-        List<String> nodeList = agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail);
+        List<String> nodeList = agentGroupService.getProcessNodeListWithGroup(taskDto);
         List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, nodeList);
         if (CollectionUtils.isEmpty(workers)) {
             throw new BizException("no agent");

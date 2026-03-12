@@ -483,12 +483,12 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      *  - 如果AccessNodeType==MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP，则先查询使用当前分组的引擎列表后返回、
      *  - 如果不是，则直接TaskDto.getAccessNodeProcessIdList()返回
      * */
-    public List<String> getProcessNodeListWithGroup(TaskDto taskDto, UserDetail userDetail) {
+    public List<String> getProcessNodeListWithGroup(TaskDto taskDto) {
         String accessNodeType = taskDto.getAccessNodeType();
         if (!AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
             return taskDto.getAccessNodeProcessIdList();
         }
-        List<String> processNodeList = getGroupProcessNodeList(accessNodeType, taskDto.getAccessNodeProcessId(), userDetail);
+        List<String> processNodeList = getGroupProcessNodeList(accessNodeType, taskDto.getAccessNodeProcessId(), null);
         taskDto.setAccessNodeProcessIdList(processNodeList);
         return processNodeList;
     }
@@ -498,11 +498,11 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      *  - 如果AccessNodeType==MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP，则先查询使用当前分组的引擎列表后返回、
      *  - 如果不是，则直接 DataSourceConnectionDto.getAccessNodeProcessIdList() 返回
      * */
-    public List<String> getProcessNodeListWithGroup(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
+    public List<String> getProcessNodeListWithGroup(DataSourceConnectionDto connectionDto) {
         if (!AccessNodeTypeEnum.isGroupManually(connectionDto.getAccessNodeType())) {
             return connectionDto.getAccessNodeProcessIdList();
         }
-        return getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
+        return getDataSourceConnectionProcessNodeList(connectionDto, null);
     }
 
     /**
@@ -560,7 +560,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         }
         Criteria criteria = findCriteria(groupIds);
         Query query = Query.query(criteria);
-        List<AgentGroupEntity> all = findAll(query, userDetail);
+        List<AgentGroupEntity> all = userDetail != null ? findAll(query, userDetail) : findAllEntity(query);
         if (CollectionUtils.isEmpty(all)) {
             //找不到当前标签
             throw new BizException(AgentGroupTag.GROUP_NOT_FUND, groupIds.toString());

@@ -1305,7 +1305,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         List<Worker> availableAgent;
         if (StringUtils.isNotEmpty(connectionDto.getAccessNodeType())
                 && AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())) {
-            availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(connectionDto, user));
+            availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(connectionDto));
             List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
             if(StringUtils.isNotEmpty(connectionDto.getPriorityProcessId()) && processIds.contains(connectionDto.getPriorityProcessId())){
                 availableAgent = availableAgent.stream().filter(worker -> worker.getProcessId().equals(connectionDto.getPriorityProcessId())).collect(Collectors.toList());
@@ -2431,7 +2431,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             List<Worker> availableAgent;
             if (StringUtils.isNotEmpty(connectionDto.getAccessNodeType())
                     && AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())) {
-                availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(connectionDto, user));
+                availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(connectionDto));
                 List<String> processIds = availableAgent.stream().map(Worker::getProcessId).toList();
                 if(StringUtils.isNotEmpty(connectionDto.getPriorityProcessId()) && processIds.contains(connectionDto.getPriorityProcessId())){
                     availableAgent = availableAgent.stream().filter(worker -> worker.getProcessId().equals(connectionDto.getPriorityProcessId())).collect(Collectors.toList());

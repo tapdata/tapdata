@@ -333,7 +333,7 @@ class TaskServiceImplTest {
             when(taskService.contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message)).thenReturn(false);
 
             connectionProcessIds = mock(List.class);
-            when(agentGroupService.getProcessNodeListWithGroup(connectionDto, user)).thenReturn(connectionProcessIds);
+            when(agentGroupService.getProcessNodeListWithGroup(connectionDto)).thenReturn(connectionProcessIds);
             when(connectionProcessIds.removeAll(taskProcessIdList)).thenReturn(false);
 
             when(taskDto.getAccessNodeType()).thenReturn(taskType);
@@ -352,7 +352,7 @@ class TaskServiceImplTest {
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(connectionDto);
             verify(connectionProcessIds, times(1)).removeAll(taskProcessIdList);
             verify(taskDto, times(1)).getAccessNodeType();
             verify(connectionProcessIds, times(1)).isEmpty();
@@ -368,7 +368,7 @@ class TaskServiceImplTest {
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(connectionDto);
             verify(connectionProcessIds, times(1)).removeAll(taskProcessIdList);
             verify(taskDto, times(1)).getAccessNodeType();
             verify(connectionProcessIds, times(0)).isEmpty();
@@ -383,7 +383,7 @@ class TaskServiceImplTest {
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(connectionDto);
             verify(connectionProcessIds, times(1)).removeAll(taskProcessIdList);
             verify(taskDto, times(1)).getAccessNodeType();
             verify(connectionProcessIds, times(1)).isEmpty();
@@ -400,7 +400,7 @@ class TaskServiceImplTest {
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(0)).getId();
             verify(taskService, times(0)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
-            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(connectionDto);
             verify(connectionProcessIds, times(0)).removeAll(taskProcessIdList);
             verify(taskDto, times(0)).getAccessNodeType();
             verify(connectionProcessIds, times(0)).isEmpty();
@@ -415,7 +415,7 @@ class TaskServiceImplTest {
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
-            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(connectionDto);
             verify(connectionProcessIds, times(0)).removeAll(taskProcessIdList);
             verify(taskDto, times(0)).getAccessNodeType();
             verify(connectionProcessIds, times(0)).isEmpty();
@@ -432,7 +432,7 @@ class TaskServiceImplTest {
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
-            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(connectionDto);
             verify(connectionProcessIds, times(0)).removeAll(taskProcessIdList);
             verify(taskDto, times(0)).getAccessNodeType();
             verify(connectionProcessIds, times(0)).isEmpty();
@@ -452,7 +452,7 @@ class TaskServiceImplTest {
             availableAgentByAccessNode = mock(List.class);
 
             when(taskProcessIdList.isEmpty()).thenReturn(false);
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(taskProcessIdList);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(taskProcessIdList);
             when(workerService.findAvailableAgentByAccessNode(user, taskProcessIdList)).thenReturn(availableAgentByAccessNode);
             when(availableAgentByAccessNode.isEmpty()).thenReturn(false);
 
@@ -463,7 +463,7 @@ class TaskServiceImplTest {
             when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
             Assertions.assertDoesNotThrow(() -> taskService.checkEngineStatus(taskDto, user));
             verify(taskProcessIdList, times(1)).isEmpty();
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(1)).findAvailableAgentByAccessNode(user, taskProcessIdList);
             verify(availableAgentByAccessNode, times(1)).isEmpty();
             verify(taskDto, times(1)).getAccessNodeType();
@@ -474,7 +474,7 @@ class TaskServiceImplTest {
             when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
             Assertions.assertThrows(BizException.class, () -> taskService.checkEngineStatus(taskDto, user));
             verify(taskProcessIdList, times(1)).isEmpty();
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(0)).findAvailableAgentByAccessNode(user, taskProcessIdList);
             verify(availableAgentByAccessNode, times(0)).isEmpty();
             verify(taskDto, times(1)).getAccessNodeType();
@@ -485,7 +485,7 @@ class TaskServiceImplTest {
             when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
             Assertions.assertThrows(BizException.class, () -> taskService.checkEngineStatus(taskDto, user));
             verify(taskProcessIdList, times(0)).isEmpty();
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(1)).findAvailableAgentByAccessNode(user, taskProcessIdList);
             verify(availableAgentByAccessNode, times(1)).isEmpty();
             verify(taskDto, times(1)).getAccessNodeType();
@@ -495,7 +495,7 @@ class TaskServiceImplTest {
             when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
             Assertions.assertDoesNotThrow(() -> taskService.checkEngineStatus(taskDto, user));
             verify(taskProcessIdList, times(0)).isEmpty();
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto);
             verify(workerService, times(1)).findAvailableAgentByAccessNode(user, taskProcessIdList);
             verify(availableAgentByAccessNode, times(1)).isEmpty();
             verify(taskDto, times(1)).getAccessNodeType();
@@ -511,7 +511,7 @@ class TaskServiceImplTest {
         void init() {
             accessNodeProcessIdList = mock(List.class);
             list = mock(List.class);
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(list);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(list);
             when(list.isEmpty()).thenReturn(false);
             when(accessNodeProcessIdList.addAll(list)).thenReturn(true);
             when(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user)).thenCallRealMethod();
@@ -532,7 +532,7 @@ class TaskServiceImplTest {
 
         @Test
         void testThrow() {
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenAnswer(a -> {
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenAnswer(a -> {
                 throw new BizException("Failed");
             });
             Assertions.assertThrows(BizException.class, () -> taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
@@ -542,7 +542,7 @@ class TaskServiceImplTest {
         @Test
         void testThrowV2() {
             when(list.isEmpty()).thenReturn(false);
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenAnswer(a -> {
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenAnswer(a -> {
                 throw new BizException("group.agent.not.available");
             });
             Assertions.assertTrue(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
@@ -2035,7 +2035,7 @@ class TaskServiceImplTest {
             when(dataSourceService.findInfoByConnectionIdList(anyList())).thenReturn(dataSourceConnectionList);
             List<String> connectionProcessIds = new ArrayList<>();
             connectionProcessIds.add("111");
-            when(agentGroupService.getProcessNodeListWithGroup(connectionDto,user)).thenReturn(connectionProcessIds);
+            when(agentGroupService.getProcessNodeListWithGroup(connectionDto)).thenReturn(connectionProcessIds);
             assertThrows(BizException.class,()->taskService.checkDagAgentConflict(taskDto,user,showListMsg));
         }
         @Test
@@ -2056,7 +2056,7 @@ class TaskServiceImplTest {
             when(dataSourceService.findInfoByConnectionIdList(anyList())).thenReturn(dataSourceConnectionList);
             List<String> connectionProcessIds = new ArrayList<>();
             connectionProcessIds.add("111");
-            when(agentGroupService.getProcessNodeListWithGroup(connectionDto,user)).thenReturn(connectionProcessIds);
+            when(agentGroupService.getProcessNodeListWithGroup(connectionDto)).thenReturn(connectionProcessIds);
             assertThrows(BizException.class,()->taskService.checkDagAgentConflict(taskDto,user,showListMsg));
         }
     }
@@ -3292,7 +3292,7 @@ class TaskServiceImplTest {
             List<String> idList = new ArrayList<>();
             idList.add("111");
             doCallRealMethod().when(taskService).findProcessNodeListWithGroup(any(TaskDto.class),anyList(),any(UserDetail.class));
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto,user)).thenReturn(idList);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(idList);
             when(worker.getProcessId()).thenReturn("111");
             boolean actual = taskService.findAgent(taskDto, user);
             assertEquals(false,actual);
@@ -3306,7 +3306,7 @@ class TaskServiceImplTest {
             List<String> idList = new ArrayList<>();
             idList.add("111");
             doCallRealMethod().when(taskService).findProcessNodeListWithGroup(any(TaskDto.class),anyList(),any(UserDetail.class));
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto,user)).thenReturn(idList);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(idList);
             when(worker.getProcessId()).thenReturn("222");
             boolean actual = taskService.findAgent(taskDto, user);
             assertEquals(true,actual);

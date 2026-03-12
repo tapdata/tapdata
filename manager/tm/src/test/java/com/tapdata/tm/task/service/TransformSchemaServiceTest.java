@@ -210,7 +210,7 @@ class TransformSchemaServiceTest {
             availableAgent = new ArrayList<>();
             availableAgent.add(worker);
             when(worker.getProcessId()).thenReturn("id");
-            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(mock(List.class));
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenReturn(mock(List.class));
             when(workerService.findAvailableAgentByAccessNode(any(UserDetail.class), anyList())).thenReturn(availableAgent);
             when(workerService.findAvailableAgent(user)).thenReturn(availableAgent);
         }
@@ -233,7 +233,7 @@ class TransformSchemaServiceTest {
                 verify(wsMessageDto, times(definitionDtoMapTimes)).getDefinitionDtoMap();
                 verify(dataSourceDefinitionDto, times(setProperties * definitionDtoMap.size())).setProperties(null);
                 verify(taskDto, times(getAccessNodeType)).getAccessNodeType();
-                verify(agentGroupService, times(getProcessNodeListWithGroup)).getProcessNodeListWithGroup(taskDto, user);
+                verify(agentGroupService, times(getProcessNodeListWithGroup)).getProcessNodeListWithGroup(taskDto);
                 verify(workerService, times(findAvailableAgentByAccessNode)).findAvailableAgentByAccessNode(any(UserDetail.class), anyList());
                 verify(workerService, times(findAvailableAgent)).findAvailableAgent(user);
                 verify(worker, times(getProcessId)).getProcessId();

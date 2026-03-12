@@ -1530,15 +1530,15 @@ class AgentGroupServiceTest {
                 when(taskDto.getAccessNodeProcessId()).thenReturn("id");
                 when(taskDto.getAccessNodeProcessIdList()).thenReturn(processNodeList);
                 doNothing().when(taskDto).setAccessNodeProcessIdList(processNodeList);
-                when(agentGroupService.getGroupProcessNodeList("type", "id", userDetail)).thenReturn(processNodeList);
-                when(agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail)).thenCallRealMethod();
+                when(agentGroupService.getGroupProcessNodeList("type", "id", null)).thenReturn(processNodeList);
+                when(agentGroupService.getProcessNodeListWithGroup(taskDto)).thenCallRealMethod();
             }
             @Test
             void testNormal() {
-                Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail));
+                Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(taskDto));
                 verify(taskDto, times(1)).getAccessNodeType();
                 verify(taskDto, times(1)).getAccessNodeProcessId();
-                verify(agentGroupService, times(1)).getGroupProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", userDetail);
+                verify(agentGroupService, times(1)).getGroupProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", null);
                 verify(taskDto, times(0)).getAccessNodeProcessIdList();
                 verify(taskDto, times(1)).setAccessNodeProcessIdList(anyList());
             }
@@ -1547,10 +1547,10 @@ class AgentGroupServiceTest {
             void testNotByGroup() {
                 when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
                 when(processNodeList.isEmpty()).thenReturn(true);
-                Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail));
+                Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(taskDto));
                 verify(taskDto, times(1)).getAccessNodeType();
                 verify(taskDto, times(0)).getAccessNodeProcessId();
-                verify(agentGroupService, times(0)).getGroupProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", userDetail);
+                verify(agentGroupService, times(0)).getGroupProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", null);
                 verify(taskDto, times(1)).getAccessNodeProcessIdList();
                 verify(taskDto, times(0)).setAccessNodeProcessIdList(processNodeList);
             }
@@ -1563,22 +1563,22 @@ class AgentGroupServiceTest {
                 connectionDto = mock(DataSourceConnectionDto.class);
                 when(connectionDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
                 when(connectionDto.getAccessNodeProcessIdList()).thenReturn(processNodeList);
-                when(agentGroupService.getDataSourceConnectionProcessNodeList(connectionDto, userDetail)).thenReturn(processNodeList);
-                when(agentGroupService.getProcessNodeListWithGroup(connectionDto, userDetail)).thenCallRealMethod();
+                when(agentGroupService.getDataSourceConnectionProcessNodeList(connectionDto, null)).thenReturn(processNodeList);
+                when(agentGroupService.getProcessNodeListWithGroup(connectionDto)).thenCallRealMethod();
             }
             @Test
             void testNormal() {
-                Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(connectionDto, userDetail));
+                Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(connectionDto));
                 verify(connectionDto, times(0)).getAccessNodeProcessIdList();
                 verify(processNodeList, times(0)).isEmpty();
-                verify(agentGroupService, times(1)).getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
+                verify(agentGroupService, times(1)).getDataSourceConnectionProcessNodeList(connectionDto, null);
             }
 
             @Test
             void testNotByGroup() {
                 when(connectionDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
                 when(processNodeList.isEmpty()).thenReturn(true);
-                Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(connectionDto, userDetail));
+                Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(connectionDto));
                 verify(connectionDto, times(1)).getAccessNodeProcessIdList();
                 verify(processNodeList, times(0)).isEmpty();
                 verify(agentGroupService, times(0)).getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
