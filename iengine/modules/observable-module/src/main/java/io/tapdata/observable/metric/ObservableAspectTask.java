@@ -5,6 +5,7 @@ import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.aspect.*;
@@ -502,12 +503,19 @@ public class ObservableAspectTask extends AspectTask {
 										if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
 											return handlers.values().stream().findFirst();
 										} else if (node instanceof DatabaseNode databaseNode) {
-											LinkedHashMap<String, String> tableNameRelation = databaseNode.getSyncObjects().get(0).getTableNameRelation();
-											String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
-											if (handlers.containsKey(targetTableName)) {
-												return Optional.ofNullable(handlers.get(targetTableName));
-											}
-										}
+                                            String targetTableName = Optional.ofNullable(databaseNode.getSyncObjects())
+                                                .map(list -> {
+                                                    if (list.isEmpty()) return null;
+                                                    return list.get(0);
+                                                }).map(SyncObjects::getTableNameRelation)
+                                                .map(tableNameRelation -> {
+                                                    return HashBiMap.create(tableNameRelation).inverse().get(table);
+                                                })
+                                                .orElse(null);
+                                            if (handlers.containsKey(targetTableName)) {
+                                                return Optional.ofNullable(handlers.get(targetTableName));
+                                            }
+                                        }
                                         return Optional.ofNullable(handlers.get(table));
 									})
 									.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
