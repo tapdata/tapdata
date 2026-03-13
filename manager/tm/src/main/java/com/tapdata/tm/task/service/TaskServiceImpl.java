@@ -5873,7 +5873,7 @@ public class TaskServiceImpl extends TaskService{
     public CheckTaskMemoryResult checkTaskMemoryHeap(TaskDto taskDto, boolean isRedistribute,UserDetail userDetail){
         if( (null != taskDto.getType() && taskDto.getType().equals(TaskDto.TYPE_CDC))
                 || (null != taskDto.getAttrs() && taskDto.getAttrs().containsKey("syncProgress"))
-                || !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC))return null;
+                || !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC))return CheckTaskMemoryResult.safe();
         DAG dag = taskDto.getDag();
         if(null == dag || CollectionUtils.isEmpty(dag.getNodes())){
             return CheckTaskMemoryResult.safe();

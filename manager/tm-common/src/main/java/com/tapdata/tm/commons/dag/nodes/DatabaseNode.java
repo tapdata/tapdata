@@ -85,6 +85,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     private Map<String, Object> nodeConfig;
 
+    private Map<String, Map<String, Object>> tableNodeConfig;
+
     private Map<String, List<String>> updateConditionFieldMap;
 
     /**
