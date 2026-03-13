@@ -219,6 +219,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				tapInsertRecordEvent.setAfter(after);
 				tapdataEvent.setExactlyOnceWriteCache(tapInsertRecordEvent);
 				tapdataEvents.add(tapdataEvent);
+				List<TapEvent> tapEvents=new ArrayList<>();
 				ConnectorNode connectorNode = mock(ConnectorNode.class);
 				when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
 				ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
@@ -228,8 +229,11 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				when(hazelcastTargetPdkDataNode.createPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
 				doCallRealMethod().when(pdkMethodInvoker).runnable(any());
 				doCallRealMethod().when(pdkMethodInvoker).getRunnable();
-				doCallRealMethod().when(hazelcastTargetPdkDataNode).processExactlyOnceWriteCache(tapdataEvents);
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).processExactlyOnceWriteCache(tapdataEvents, tapEvents);
 				doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
+				doNothing().when(hazelcastTargetPdkDataNode).transactionBegin();
+				doNothing().when(hazelcastTargetPdkDataNode).processEvents(any());
+				doNothing().when(hazelcastTargetPdkDataNode).transactionRollback();
 				try(MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class);){
 					pdkInvocationMonitorMockedStatic.when(()->{PDKInvocationMonitor.invoke(any(),any(),any());}).thenAnswer((invocationOnMock -> {
 						PDKMethodInvoker argument = (PDKMethodInvoker) invocationOnMock.getArgument(2);
@@ -238,7 +242,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 						assertEquals(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED,tapCodeException.getCode());
 						return null;
 					}));
-					hazelcastTargetPdkDataNode.processExactlyOnceWriteCache(tapdataEvents);
+					hazelcastTargetPdkDataNode.processExactlyOnceWriteCache(tapdataEvents, tapEvents);
 				}
 			}
 			class mockWriteFunction implements WriteRecordFunction{

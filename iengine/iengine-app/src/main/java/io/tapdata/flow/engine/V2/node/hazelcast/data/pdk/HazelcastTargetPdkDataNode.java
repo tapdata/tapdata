@@ -1271,7 +1271,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents) {
+	void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents) {
 		ConnectorNode connectorNode = getConnectorNode();
 		if (null == connectorNode) {
 			return;
@@ -1285,6 +1285,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
 				pdkMethodInvoker.runnable(() -> {
 							try {
+								transactionBegin();
+								processEvents(tapEvents);
 								writeRecordFunction.writeRecord(
 										connectorNode.getConnectorContext(),
 										tapRecordEvents,
@@ -1297,7 +1299,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 												throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
 											}
 										});
+								transactionCommit();
 							} catch (Exception e) {
+								transactionRollback();
 								throwTapCodeException(e,new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED));
 							}
 						}
