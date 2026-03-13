@@ -1107,15 +1107,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     private void processEventsWithExactlyOnceCheck(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
-            try {
-                transactionBegin();
-                processEvents(tapEvents);
-                processExactlyOnceWriteCache(tapdataEvents);
-                transactionCommit();
-            } catch (Exception e) {
-                transactionRollback();
-                throw e;
-            }
+            processExactlyOnceWriteCache(tapdataEvents,tapEvents);
         } else {
             processEvents(tapEvents);
         }
@@ -2015,7 +2007,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         startTransactionMap.put(Thread.currentThread().getName(), false);
     }
 
-    void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents) {
+    void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents,List<TapEvent> tapEvents) {
         throw new UnsupportedOperationException();
     }
 
