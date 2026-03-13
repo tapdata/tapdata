@@ -243,12 +243,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		connectorCapabilities = ConnectorCapabilities.create();
 		initDmlPolicy(node, connectorCapabilities);
 		Map<String, Object> nodeConfig = generateNodeConfig(node, taskDto);
+		Map<String, Map<String, Object>> tableNodeConfig = generateTableNodeConfig(node);
 		ConnectorNode connectorNode = PdkUtil.createNode(taskDto.getId().toHexString(),
 				databaseType,
 				clientMongoOperator,
 				generateNodePdkAssociateId(dataProcessorContext),
 				connectionConfig,
 				nodeConfig,
+				tableNodeConfig,
 				pdkTableMap,
 				pdkStateMap,
 				globalStateMap,
@@ -297,6 +299,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		oldVersionTimezone = CommonUtils.getPropertyBool(OLD_VERSION_TIME_ZONE_PROP_KEY, oldVersionTimezone);
 		nodeConfig.put(OLD_VERSION_TIMEZONE, oldVersionTimezone);
 		return nodeConfig;
+	}
+
+	protected Map<String, Map<String, Object>> generateTableNodeConfig(Node<?> node) {
+		Map<String, Map<String, Object>> tableNodeConfig = null;
+		if (node instanceof DatabaseNode) {
+			tableNodeConfig = ((DatabaseNode) node).getTableNodeConfig();
+		}
+		return tableNodeConfig;
 	}
 
 	protected void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
