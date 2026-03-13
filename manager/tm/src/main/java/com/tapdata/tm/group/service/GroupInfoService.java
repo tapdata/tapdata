@@ -92,6 +92,15 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
             .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 
+    /**
+     * 用于对比差异的 ObjectMapper：字段名字母排序 + 忽略 null 值，
+     * 确保文件侧（NON_NULL 导出，无 null 字段）与 DB 侧（含 null 字段）在对比前归一化一致。
+     */
+    private static final ObjectMapper COMPARISON_MAPPER = new ObjectMapper()
+            .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
+            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+            .setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
+
     /** 导出连接时需剔除的运行时/环境状态字段 */
     private static final Set<String> CONNECTION_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
             "loadSchemaField", "loadSchemaTime", "testTime", "transformed"
@@ -684,6 +693,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_FAILED, ExceptionUtils.getMessage(e), null, user);
                 throw new RuntimeException(e);
             }
+            // 导入 MetadataDefinition（标签），并更新 connections 的 listtags ID 映射
+            Map<String, String> tagMap = importMetadataDefinitionsAndGetTagMap(payloads, user);
+            if (!tagMap.isEmpty()) {
+                Map<ResourceType, Map<String, ?>> connResourceMap = new LinkedHashMap<>();
+                connResourceMap.put(ResourceType.CONNECTION, connections);
+                checkTags(connResourceMap, tagMap);
+            }
             if (!vaultSecrets.isEmpty()) {
                 log.info("Vault secrets found, injecting into {} connections", connections.size());
                 injectVaultSecrets(connections, vaultSecrets, user);
@@ -825,21 +841,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 return;
             }
 
-            // 导入 API 分组（MetadataDefinition）—— 左侧目录树的数据来源
-            String metaDefFilename = ResourceType.getResourceName(ResourceType.METADATA_DEFINITION.name());
-            List<TaskUpAndLoadDto> metaDefPayload = payloads.getOrDefault(metaDefFilename, Collections.emptyList());
-            List<MetadataDefinitionDto> metadataDefinitions = new ArrayList<>();
-            for (TaskUpAndLoadDto item : metaDefPayload) {
-                if (StringUtils.isBlank(item.getJson())) continue;
-                if (GroupConstants.METADATA_DEFINITION.equals(item.getCollectionName())) {
-                    MetadataDefinitionDto dto = JsonUtil.parseJsonUseJackson(item.getJson(), MetadataDefinitionDto.class);
-                    if (dto != null) metadataDefinitions.add(dto);
-                }
-            }
-            if (!metadataDefinitions.isEmpty()) {
-                metadataDefinitionService.batchImport(metadataDefinitions, user);
-                log.info("Imported {} MetadataDefinition entries, recordId={}", metadataDefinitions.size(), recordId);
-            }
+            // 导入 API 分组（MetadataDefinition），同时更新 modules 的 listtags ID 映射
+            Map<String, String> tagMap = importMetadataDefinitionsAndGetTagMap(payloads, user);
+            checkTags(resourceMapsByType, tagMap);
 
             // 通过 diff 确定哪些 API 有变更（新增 + 有内容变化），只对这些进行导入
             ResourceDiff diff = buildApiDiff(payloads, user);
@@ -891,6 +895,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     metadataByType.put(type, metadata);
                 }
             }
+
+            // 导入 MetadataDefinition（标签），并用 tagIdMap 更新任务的 listtags
+            Map<String, String> tagMap = importMetadataDefinitionsAndGetTagMap(payloads, user);
+            checkTags(resourceMapsByType, tagMap);
 
             // diff: 只对有变更（add + update）的任务操作，状态字段不参与对比
             ResourceDiff diff = buildTaskDiff(payloads, user);
@@ -1281,7 +1289,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         addFieldChangeJson(changes, "limit", existingInspect.getLimit(), fileInspect.getLimit());
         addFieldChange(changes, "enabled", existingInspect.getEnabled(), fileInspect.getEnabled());
         addFieldChange(changes, "roundingMode", existingInspect.getRoundingMode(), fileInspect.getRoundingMode());
-        addFieldChange(changes, "byFirstCheckId", existingInspect.getByFirstCheckId(), fileInspect.getByFirstCheckId());
+        // byFirstCheckId 是跨环境迁移后无意义的关联字段，不参与对比
         addFieldChange(changes, "browserTimezoneOffset", existingInspect.getBrowserTimezoneOffset(), fileInspect.getBrowserTimezoneOffset());
         addFieldChange(changes, "cdcDuration", existingInspect.getCdcDuration(), fileInspect.getCdcDuration());
         addFieldChange(changes, "checkTableThreadNum", existingInspect.getCheckTableThreadNum(), fileInspect.getCheckTableThreadNum());
@@ -1452,8 +1460,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         allKeys.addAll(existingMap.keySet());
         for (String key : allKeys) {
             try {
-                String jsonA = JsonUtil.toJsonUseJackson(fileMap.get(key));
-                String jsonB = JsonUtil.toJsonUseJackson(existingMap.get(key));
+                // 使用 COMPARISON_MAPPER（字段名字母排序 + 忽略 null），消除 key 顺序和 null 字段差异导致的误判
+                String jsonA = COMPARISON_MAPPER.writeValueAsString(fileMap.get(key));
+                String jsonB = COMPARISON_MAPPER.writeValueAsString(existingMap.get(key));
                 if (!Objects.equals(jsonA, jsonB)) changes.add(new FieldChange(key, existingMap.get(key), fileMap.get(key)));
             } catch (Exception e) {
                 if (!Objects.equals(fileMap.get(key), existingMap.get(key)))
@@ -1809,6 +1818,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 groupInfoCopy.setCustomId(null);
                 groupInfoCopy.setLastUpdBy(null);
                 groupInfoCopy.setUserId(null);
+                // 跨环境后 id 会变，时间戳每次保存都会变，导出时剔除以避免 PR diff 噪音
+                groupInfoCopy.setId(null);
+                groupInfoCopy.setLastUpdAt(null);
+                groupInfoCopy.setCreateAt(null);
 
                 // Populate resource names for migration convenience
                 if (CollectionUtils.isNotEmpty(groupInfoCopy.getResourceItemList()) && !resourceIdToName.isEmpty()) {
@@ -2452,6 +2465,29 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 			throw new UnsupportedOperationException(gitInfo.toString());
 		}
 	}
+
+    /**
+     * 从 payloads 中解析 MetadataDefinition，导入并返回 tagIdMap（旧ID → 新ID）。
+     */
+    private Map<String, String> importMetadataDefinitionsAndGetTagMap(
+            Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
+        String metaDefFilename = ResourceType.getResourceName(ResourceType.METADATA_DEFINITION.name());
+        List<TaskUpAndLoadDto> metaDefPayload = payloads.getOrDefault(metaDefFilename, Collections.emptyList());
+        List<MetadataDefinitionDto> metadataDefinitions = new ArrayList<>();
+        for (TaskUpAndLoadDto item : metaDefPayload) {
+            if (StringUtils.isBlank(item.getJson())) continue;
+            if (GroupConstants.METADATA_DEFINITION.equals(item.getCollectionName())) {
+                MetadataDefinitionDto dto = JsonUtil.parseJsonUseJackson(item.getJson(), MetadataDefinitionDto.class);
+                if (dto != null) metadataDefinitions.add(dto);
+            }
+        }
+        if (metadataDefinitions.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> tagMap = metadataDefinitionService.batchImport(metadataDefinitions, user);
+        log.info("Imported {} MetadataDefinition entries", metadataDefinitions.size());
+        return tagMap != null ? tagMap : Collections.emptyMap();
+    }
 
     protected void checkTags(Map<ResourceType, Map<String, ?>> resourceMapsByType,Map<String,String> tagMap){
         for (Map.Entry<ResourceType, Map<String, ?>> entry : resourceMapsByType.entrySet()) {

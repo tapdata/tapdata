@@ -105,6 +105,8 @@ public class InspectResourceHandler implements ResourceHandler {
         inspectDto.setPlatformInfo(null);
         inspectDto.setCreateAt(null);
         inspectDto.setCreateUser(null);
+        // 清理空值无意义字段（跨环境迁移时无用）
+        inspectDto.setByFirstCheckId(null);
 
     }
 
