@@ -44,7 +44,8 @@ public interface ResourceHandler {
             "database_host",
             "database_port",
             "database_username",
-            "database_password"
+            "database_password",
+            "database_uri"
     );
 
     /**
@@ -55,7 +56,8 @@ public interface ResourceHandler {
             "host",     "database_host",
             "port",     "database_port",
             "user",     "database_username",
-            "password", "database_password"
+            "password", "database_password",
+            "uri",      "database_uri"
     );
 
     /**
@@ -71,14 +73,14 @@ public interface ResourceHandler {
 
     /**
      * 获取当前处理器支持的资源类型
-     * 
+     *
      * @return 资源类型
      */
     ResourceType getResourceType();
 
     /**
      * 根据 ID 列表加载资源
-     * 
+     *
      * @param ids  资源 ID 列表
      * @param user 用户信息
      * @return 资源对象列表
@@ -87,7 +89,7 @@ public interface ResourceHandler {
 
     /**
      * 构建资源的导出数据
-     * 
+     *
      * @param resources 资源列表
      * @param user      用户信息
      * @return 导出数据 payload 列表
@@ -96,7 +98,7 @@ public interface ResourceHandler {
 
     /**
      * 从导入的 payload 中收集资源和元数据
-     * 
+     *
      * @param payload      导入的 payload 列表
      * @param resourceMap  资源映射表（key 为资源 ID 或 name，value 为资源对象）
      * @param metadataList 元数据列表
@@ -113,7 +115,7 @@ public interface ResourceHandler {
 
     /**
      * 查找重名的资源
-     * 
+     *
      * @param resources 待检查的资源列表
      * @param user      用户信息
      * @return 重名资源映射（key 为资源名称，value 为重复标记）
@@ -122,7 +124,7 @@ public interface ResourceHandler {
 
     /**
      * 解析资源名称
-     * 
+     *
      * @param resourceId  资源 ID
      * @param resourceMap 资源映射表
      * @return 资源名称，如果未找到返回 null
@@ -414,9 +416,9 @@ public interface ResourceHandler {
      * 匹配条件：key 以 "_{connectionName}_{suffix}" 结尾
      */
     private static String findVaultKey(Map<String, String> vaultSecrets, String connectionName, String suffix) {
-        String tail = "_" + connectionName + "_" + suffix;
+        String tail = (connectionName + "_" + suffix).toLowerCase(Locale.ROOT);
         for (String key : vaultSecrets.keySet()) {
-            if (key.endsWith(tail)) {
+            if (key.toLowerCase(Locale.ROOT).endsWith(tail)) {
                 return key;
             }
         }
