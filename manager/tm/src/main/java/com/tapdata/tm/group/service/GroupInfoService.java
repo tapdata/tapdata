@@ -895,6 +895,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     metadataByType.put(type, metadata);
                 }
             }
+            // CONNECTION 没有专用 handler，通过任意已注册 handler 的 collectPayloadRelatedResources 解析连接数据
+            resourceHandlerRegistry.getAllHandlers().stream().findFirst().ifPresent(
+                    h -> h.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType, user));
 
             // 导入 MetadataDefinition（标签），并用 tagIdMap 更新任务的 listtags
             Map<String, String> tagMap = importMetadataDefinitionsAndGetTagMap(payloads, user);
@@ -937,10 +940,38 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 }
             }
 
+            // 用 payload 中连接的名称查询 DB 里已存在的连接，建立 旧ID -> 新连接DTO 的映射
+            // GROUP_IMPORT 场景下连接不会重新导入，但任务节点上的 connectionId 是导出时的旧 ID，需要映射到目标环境的新 ID
+            Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
+            Map<String, DataSourceConnectionDto> payloadConnections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
+                    .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
+            if (!payloadConnections.isEmpty()) {
+                List<String> connectionNames = payloadConnections.values().stream()
+                        .map(DataSourceConnectionDto::getName)
+                        .filter(StringUtils::isNotBlank)
+                        .distinct()
+                        .collect(Collectors.toList());
+                List<DataSourceConnectionDto> existingConnections = dataSourceService.findAllDto(
+                        new Query(Criteria.where("name").in(connectionNames).and("is_deleted").ne(true)), user);
+                Map<String, DataSourceConnectionDto> nameToExisting = existingConnections.stream()
+                        .collect(Collectors.toMap(DataSourceConnectionDto::getName, c -> c, (a, b) -> a));
+                for (Map.Entry<String, DataSourceConnectionDto> entry : payloadConnections.entrySet()) {
+                    String oldId = entry.getKey();
+                    String name = entry.getValue().getName();
+                    DataSourceConnectionDto existing = nameToExisting.get(name);
+                    if (existing != null) {
+                        conMap.put(oldId, existing);
+                        log.info("conMap built: oldId={}, name={}, newId={}", oldId, name, existing.getId());
+                    } else {
+                        log.warn("conMap build: connection '{}' (oldId={}) not found in DB, tasks referencing it may fail", name, oldId);
+                    }
+                }
+                log.info("conMap built from payload connections, payload size={}, matched={}", payloadConnections.size(), conMap.size());
+            }
+
             // 导入变更的普通任务
             Map<String, String> taskIdMap = new HashMap<>();
             Map<String, String> nodeIdMap = new HashMap<>();
-            Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
             if (!toImportTasks.isEmpty()) {
                 taskService.batchImport(toImportTasks, user, importMode, new ArrayList<>(), conMap, taskIdMap, nodeIdMap, new ArrayList<>());
                 List<MetadataInstancesDto> taskMetadata = new ArrayList<>();
@@ -989,6 +1020,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
             if (!toImportInspects.isEmpty()) {
                 Map<String, String> taskIdToNameMap = buildTaskIdToNameMap(migrateTasks, syncTasks);
+                // 打印 conMap 内容，key=导出时旧连接ID，value=导入后新连接ID/名称，用于排查 inspect 数据源找不到的问题
+                if (log.isDebugEnabled()) {
+                    conMap.forEach((oldId, dto) -> log.debug(
+                            "conMap entry: oldId={}, newId={}, name={}",
+                            oldId, dto != null ? dto.getId() : "null", dto != null ? dto.getName() : "null"));
+                } else {
+                    log.info("conMap size={}, keys={}", conMap.size(), conMap.keySet());
+                }
                 inspectService.importTaskByGroup(toImportInspects, taskIdMap, taskIdToNameMap, conMap, user);
                 log.info("Inspect task import completed, count={}", toImportInspects.size());
             }
