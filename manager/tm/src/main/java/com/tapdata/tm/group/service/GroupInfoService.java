@@ -277,7 +277,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         try {
             Query query = new Query();
             Criteria resourceCriteria = Criteria.where("resourceItemList._id").in(cleanedIds);
-            query.addCriteria(resourceCriteria);;
+            query.addCriteria(resourceCriteria);
             Update update = new Update()
                     .pull("resourceItemList", new Document("_id", new Document("$in", cleanedIds)));
             update(query, update, userDetail);
@@ -332,6 +332,26 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 payloadsByType.put(entry.getKey().name(), payload);
             }
         }
+        // 导出连接关联的模型元数据（database 级别 + table/collection 级别，不含任务派生的模型）
+        Set<String> exportConnectionIds = new HashSet<>();
+        for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
+            ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
+            if (handler != null) {
+                handler.loadConnections(entry.getValue()).stream()
+                        .filter(c -> c.getId() != null)
+                        .forEach(c -> exportConnectionIds.add(c.getId().toHexString()));
+            }
+        }
+        if (!exportConnectionIds.isEmpty()) {
+            List<TaskUpAndLoadDto> connMetadataPayload = buildConnectionMetadataPayload(exportConnectionIds, user);
+            if (!connMetadataPayload.isEmpty()) {
+                payloadsByType.computeIfAbsent(ResourceType.CONNECTION.name(), k -> new ArrayList<>())
+                        .addAll(connMetadataPayload);
+                log.info("Exported connection metadata, connectionCount={}, metadataCount={}",
+                        exportConnectionIds.size(), connMetadataPayload.size());
+            }
+        }
+
         // 构建资源 id → name 映射，用于在 GroupInfo 的 resourceItemList 中补充资源名称
         Map<String, String> resourceIdToName = buildResourceIdToNameMap(payloadsByType);
         List<TaskUpAndLoadDto> groupInfoPayload = buildGroupInfoPayload(groupInfos, resourceIdToName);
@@ -853,6 +873,38 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             log.info("Async import apis: add={}, update={}, total changed={}, recordId={}",
                     diff.getAdd().size(), diff.getUpdate().size(), changedNames.size(), recordId);
 
+            // CONNECTION 没有专用 handler，通过任意已注册 handler 的 collectPayloadRelatedResources 解析连接数据
+            resourceHandlerRegistry.getAllHandlers().stream().findFirst().ifPresent(
+                    h -> h.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType, user));
+
+            // 用 payload 中连接的名称查询 DB 里已存在的连接，建立 旧ID -> 新连接DTO 的映射
+            Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
+            Map<String, DataSourceConnectionDto> payloadConnections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
+                    .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
+            if (!payloadConnections.isEmpty()) {
+                List<String> connectionNames = payloadConnections.values().stream()
+                        .map(DataSourceConnectionDto::getName)
+                        .filter(StringUtils::isNotBlank)
+                        .distinct()
+                        .collect(Collectors.toList());
+                List<DataSourceConnectionDto> existingConnections = dataSourceService.findAllDto(
+                        new Query(Criteria.where("name").in(connectionNames).and("is_deleted").ne(true)), user);
+                Map<String, DataSourceConnectionDto> nameToExisting = existingConnections.stream()
+                        .collect(Collectors.toMap(DataSourceConnectionDto::getName, c -> c, (a, b) -> a));
+                for (Map.Entry<String, DataSourceConnectionDto> entry : payloadConnections.entrySet()) {
+                    String oldId = entry.getKey();
+                    String name = entry.getValue().getName();
+                    DataSourceConnectionDto existing = nameToExisting.get(name);
+                    if (existing != null) {
+                        conMap.put(oldId, existing);
+                        log.info("conMap built (api): oldId={}, name={}, newId={}", oldId, name, existing.getId());
+                    } else {
+                        log.warn("conMap build (api): connection '{}' (oldId={}) not found in DB", name, oldId);
+                    }
+                }
+                log.info("conMap built from payload connections (api), payload size={}, matched={}", payloadConnections.size(), conMap.size());
+            }
+
             // 只导入有变更的 modules
             List<ModulesDto> toImport = allModules.values().stream()
                     .filter(m -> changedNames.contains(m.getName()))
@@ -860,10 +912,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
             if (CollectionUtils.isNotEmpty(toImport)) {
                 // handleReplaceMode 内部处理：若已有 API 状态为 active → 先 unpublish → 覆盖内容 → republish
-                modulesService.batchImport(toImport, user, importMode, new HashMap<>(), null);
+                modulesService.batchImport(toImport, user, importMode, conMap, null);
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
-                        user, new HashMap<>(), null, null);
+                        user, conMap, null, null);
             }
 
             log.info("Async import apis completed, recordId={}, imported={}", recordId, toImport.size());
@@ -1817,6 +1869,39 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     }
 
     /**
+     * 查询连接关联的模型元数据（database 级别 + table/collection 等级别），序列化为导出 payload。
+     * taskId 为空的条目为连接原始模型，区别于任务节点派生的模型（后者由 TaskResourceHandler 导出）。
+     */
+    private List<TaskUpAndLoadDto> buildConnectionMetadataPayload(Collection<String> connectionIds, UserDetail user) {
+        List<TaskUpAndLoadDto> payload = new ArrayList<>();
+        for (String connectionId : connectionIds) {
+            try {
+                // database 级别已由 buildConnectionPayload 导出，这里只补充 table/collection/view 等具体表结构
+                // taskId 为空：连接原始模型；排除任务派生的模型（任务节点模型已由 TaskResourceHandler 导出）
+                Query tableQuery = new Query(
+                        Criteria.where("source._id").is(connectionId)
+                                .and("metaType").ne("database")
+                                .and("taskId").exists(false)
+                                .and("is_deleted").ne(true));
+                List<MetadataInstancesDto> tableMeta = metadataInstancesService.findAllDto(tableQuery, user);
+                for (MetadataInstancesDto meta : tableMeta) {
+                    meta.setCreateUser(null);
+                    meta.setCustomId(null);
+                    meta.setLastUpdBy(null);
+                    meta.setUserId(null);
+                    payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_METADATA_INSTANCES,
+                            JsonUtil.toJsonUseJackson(meta)));
+                }
+                log.debug("buildConnectionMetadataPayload: connectionId={}, tableCount={}",
+                        connectionId, tableMeta.size());
+            } catch (Exception e) {
+                log.error("buildConnectionMetadataPayload: failed for connectionId={}", connectionId, e);
+            }
+        }
+        return payload;
+    }
+
+    /**
      * 从各类型资源的导出 payload 中提取 id → name 映射。
      * 只处理主资源文档（Task / Connection / Modules / Inspect），跳过元数据等附属条目。
      */
@@ -2212,12 +2297,12 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
         }
 
-        // 第二次遍历：按 datasourceInstanceId 将元数据分组到各连接
+        // 第二次遍历：按 source._id 将元数据分组到各连接（source._id 存储的是连接 ID）
         Map<String, List<TaskUpAndLoadDto>> metadataByConnName = new LinkedHashMap<>();
         for (TaskUpAndLoadDto item : payload) {
             if (GroupConstants.COLLECTION_METADATA_INSTANCES.equals(item.getCollectionName())) {
-                String dsId = extractFieldFromJson(item.getJson(), "datasourceInstanceId");
-                String connName = connIdToName.get(dsId);
+                String sourceId = extractNestedFieldFromJson(item.getJson(), "source", "_id");
+                String connName = connIdToName.get(sourceId);
                 if (connName != null) {
                     metadataByConnName.computeIfAbsent(connName, k -> new ArrayList<>()).add(item);
                 }
@@ -2291,6 +2376,23 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Map<String, Object> map = JsonUtil.parseJsonUseJackson(json, new TypeReference<>() {});
             if (map == null) return null;
             Object val = map.get(field);
+            if (val instanceof String s) return s;
+            return val != null ? val.toString() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /** 从 JSON 中提取嵌套字段值，例如 extractNestedFieldFromJson(json, "source", "_id") */
+    @SuppressWarnings("unchecked")
+    private String extractNestedFieldFromJson(String json, String parentField, String childField) {
+        if (StringUtils.isBlank(json)) return null;
+        try {
+            Map<String, Object> map = JsonUtil.parseJsonUseJackson(json, new TypeReference<>() {});
+            if (map == null) return null;
+            Object parent = map.get(parentField);
+            if (!(parent instanceof Map)) return null;
+            Object val = ((Map<String, Object>) parent).get(childField);
             if (val instanceof String s) return s;
             return val != null ? val.toString() : null;
         } catch (Exception ignored) {
