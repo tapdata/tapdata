@@ -432,6 +432,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 			} else {
 				log.error("Group export failed, groupCount={}, error={}", groupInfos.size(),
 						ThrowableUtils.getStackTraceByPn(e));
+				if (e instanceof BizException) {
+					throw (BizException) e;
+				}
+				throw new BizException("Group.Export.Error", e.getMessage());
 			}
 		}
 	}
@@ -1239,8 +1243,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         addFieldChange(changes, "shareCdcEnable", existingConn.getShareCdcEnable(), fileConn.getShareCdcEnable());
         Map<String, Object> fileConfig = normalizeConfigForComparison(fileConn.getConfig());
         Map<String, Object> existingConfig = normalizeConfigForComparison(existingConn.getConfig());
-        if (!configMapsEqual(fileConfig, existingConfig)) {
-            changes.add(new FieldChange("config", existingConfig, fileConfig));
+        // 只比较文件中存在的字段：导出时被清除的字段（如 uri/密码等）不在文件中，导入时也不会变动，不应视为差异
+        Map<String, Object> existingConfigFiltered = filterToFileKeys(fileConfig, existingConfig);
+        if (!configMapsEqual(fileConfig, existingConfigFiltered)) {
+            changes.add(new FieldChange("config", existingConfigFiltered, fileConfig));
         }
         return changes;
     }
@@ -1255,6 +1261,21 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         Map<String, Object> copy = new HashMap<>(config);
         CONFIG_ENV_EXCLUDED_FIELDS.forEach(copy::remove);
         return copy;
+    }
+
+    /**
+     * 从 existingConfig 中只保留 fileConfig 中存在的 key。
+     * 文件中没有的字段说明导出时被剔除（如 uri、加密密码等），导入时不会覆盖，不应参与 diff 比较。
+     */
+    private Map<String, Object> filterToFileKeys(Map<String, Object> fileConfig, Map<String, Object> existingConfig) {
+        if (fileConfig == null || existingConfig == null) return existingConfig;
+        Map<String, Object> filtered = new HashMap<>();
+        for (String key : fileConfig.keySet()) {
+            if (existingConfig.containsKey(key)) {
+                filtered.put(key, existingConfig.get(key));
+            }
+        }
+        return filtered;
     }
 
     private boolean configMapsEqual(Map<String, Object> a, Map<String, Object> b) {
