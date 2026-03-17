@@ -11,7 +11,9 @@ import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.dto.ResourceType;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
@@ -80,6 +82,18 @@ public class ModuleResourceHandler implements ResourceHandler {
             modulesDto.setLastUpdBy(null);
             modulesDto.setUserId(null);
             modulesDto.setStatus(null);
+            if (CollectionUtils.isNotEmpty(modulesDto.getFields())) {
+                modulesDto.getFields().sort(Comparator.comparing(
+                        Field::getFieldName, Comparator.nullsLast(Comparator.naturalOrder())));
+            }
+            if (CollectionUtils.isNotEmpty(modulesDto.getPaths())) {
+                for (Path path : modulesDto.getPaths()) {
+                    if (CollectionUtils.isNotEmpty(path.getFields())) {
+                        path.getFields().sort(Comparator.comparing(
+                                Field::getFieldName, Comparator.nullsLast(Comparator.naturalOrder())));
+                    }
+                }
+            }
             payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_MODULES, JsonUtil.toJsonUseJackson(modulesDto)));
         }
         return payload;

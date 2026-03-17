@@ -322,8 +322,13 @@ public interface ResourceHandler {
 
     /**
      * maskSensitiveConfigFields 的逆操作：将 vault.json 中的敏感信息注入连接的 config。
-     * BFS 遍历 definition schema，找到各敏感 apiServerKey 对应的 config 路径，
-     * 按 "{connectionName}_{vaultSuffix}" 格式查找 vault 值并写入。
+     *
+     * 注入优先级：
+     * 1. password：直接查找 {connName}_password，按 schema 路径写入
+     * 2. uri：查找 {connName}_uri
+     *    - 若 schema 中存在 database_uri（如 MongoDB）→ 整体直接写入 uri 字段
+     *    - 否则 → 按 "host:port/username" 格式解析，拆分写入 host/port/username
+     * 3. url（仅当 vault 中无 uri 时）：查找 {connName}_url，同样按 "host:port/username" 解析写入
      */
     static void injectVaultSecretsToConnection(DataSourceConnectionDto conn,
             Map<String, String> vaultSecrets, DataSourceDefinitionDto definition) {
@@ -342,7 +347,7 @@ public interface ResourceHandler {
         }
         final Map<String, Object> finalConfig = config;
 
-        // 通过 definition schema BFS 找到 apiServerKey 对应的 config 路径
+        // BFS 遍历 definition schema，找到各 apiServerKey 对应的 config 路径
         Map<String, String> apiKeyToConfigPath = new LinkedHashMap<>();
         if (definition != null) {
             LinkedHashMap<String, Object> properties = definition.getProperties();
@@ -357,9 +362,7 @@ public interface ResourceHandler {
                     Map<String, Object> props = (Map<String, Object>) node[0];
                     String prefix = (String) node[1];
                     for (Map.Entry<String, Object> entry : props.entrySet()) {
-                        if (!(entry.getValue() instanceof Map)) {
-                            continue;
-                        }
+                        if (!(entry.getValue() instanceof Map)) continue;
                         Map<String, Object> meta = (Map<String, Object>) entry.getValue();
                         String configPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
                         Object apiServerKey = meta.get("apiServerKey");
@@ -380,61 +383,113 @@ public interface ResourceHandler {
             log.warn("Vault inject: definition is null for connection '{}', pdkHash={}",
                     connectionName, conn.getPdkHash());
         }
-
         log.info("Vault inject: connection='{}', apiKeyToConfigPath={}", connectionName, apiKeyToConfigPath);
 
-        // 按 vault key 格式 "{connectionName}_{suffix}" 查找并注入
-        // 若 schema BFS 找不到 configPath，退而使用 fallback 默认 config key
-        Set<String> injectedSuffixes = new HashSet<>();
-        VAULT_SUFFIX_TO_API_KEY.forEach((vaultSuffix, apiKey) -> {
-            String vaultKey = findVaultKey(vaultSecrets, connectionName, vaultSuffix);
-            if (vaultKey == null) {
-                log.debug("Vault inject: no vault key for connection='{}', suffix='{}'", connectionName, vaultSuffix);
-                return;
-            }
-            String value = vaultSecrets.get(vaultKey);
-            String configPath = apiKeyToConfigPath.get(apiKey);
-            if (configPath == null) {
-                configPath = VAULT_SUFFIX_FALLBACK_CONFIG_KEY.get(vaultSuffix);
-                log.warn("Vault inject: no schema configPath for apiKey='{}', using fallback configPath='{}' (vaultKey='{}')",
-                        apiKey, configPath, vaultKey);
-            }
-            if (configPath == null) {
-                log.warn("Vault inject: no configPath (schema or fallback) for apiKey='{}' (vaultKey='{}'), skipping", apiKey, vaultKey);
-                return;
-            }
-            Object configValue = "port".equals(vaultSuffix) ? Integer.parseInt(value) : value;
-            log.info("Vault inject: connection='{}', configPath='{}' <- vaultKey='{}', value={}", connectionName, configPath, vaultKey, configValue);
-            setNestedValue(finalConfig, configPath, configValue);
-            injectedSuffixes.add(vaultSuffix);
-        });
-
-        // Fallback：host/port/user 未从 vault 直接注入时，尝试从 uri 解析并补充。
-        // 若连接器 schema 中存在 database_uri（如 MongoDB），URI 已在第一轮整体注入，无需拆分。
-        List<String> missingFields = List.of("host", "port", "user").stream()
-                .filter(s -> !injectedSuffixes.contains(s))
-                .collect(java.util.stream.Collectors.toList());
-        if (!missingFields.isEmpty() && !apiKeyToConfigPath.containsKey("database_uri")) {
-            String uriVaultKey = findVaultKey(vaultSecrets, connectionName, "uri");
-            if (uriVaultKey != null) {
-                String uriValue = vaultSecrets.get(uriVaultKey);
-                Map<String, Object> uriComponents = parseUriComponents(uriValue);
-                log.info("Vault inject (uri fallback): connection='{}', uri='{}', parsed={}", connectionName, uriValue, uriComponents);
-                for (String vaultSuffix : missingFields) {
-                    Object val = uriComponents.get(vaultSuffix);
-                    if (val == null) continue;
-                    String apiKey  = VAULT_SUFFIX_TO_API_KEY.get(vaultSuffix);
-                    String configPath = apiKeyToConfigPath.get(apiKey);
-                    if (configPath == null) configPath = VAULT_SUFFIX_FALLBACK_CONFIG_KEY.get(vaultSuffix);
-                    if (configPath == null) {
-                        log.warn("Vault inject (uri fallback): no configPath for suffix='{}', skipping", vaultSuffix);
-                        continue;
-                    }
-                    log.info("Vault inject (uri fallback): connection='{}', configPath='{}' <- {}", connectionName, configPath, val);
-                    setNestedValue(finalConfig, configPath, val);
-                }
-            }
+        // Step 1：注入 password（未在 vault 中找到则抛异常）
+        String passwordVaultKey = findVaultKey(vaultSecrets, connectionName, "password");
+        if (passwordVaultKey == null) {
+            throw new IllegalArgumentException(
+                    "Vault inject: password not found in vault for connection='" + connectionName + "'");
         }
+        injectSingleField(finalConfig, vaultSecrets, connectionName, "password", apiKeyToConfigPath);
+
+        // Step 2：优先查找 {connName}_uri
+        String uriVaultKey = findVaultKey(vaultSecrets, connectionName, "uri");
+        if (uriVaultKey != null) {
+            String uriValue = vaultSecrets.get(uriVaultKey);
+            if (apiKeyToConfigPath.containsKey("database_uri")) {
+                // 连接器支持 database_uri（如 MongoDB）→ 整体直接写入
+                String configPath = apiKeyToConfigPath.get("database_uri");
+                log.info("Vault inject: connection='{}', configPath='{}' <- uri (direct)", connectionName, configPath);
+                setNestedValue(finalConfig, configPath, uriValue);
+            } else {
+                // 不支持 database_uri → 解析 host:port/username 分别写入
+                log.info("Vault inject: connection='{}', no database_uri in schema, parsing uri='{}'", connectionName, uriValue);
+                injectFromUriString(finalConfig, uriValue, connectionName, "uri", apiKeyToConfigPath);
+            }
+            return;
+        }
+
+        // Step 3：schema 要求 database_uri 但 vault 中无 uri 条目 → 抛异常
+        if (apiKeyToConfigPath.containsKey("database_uri")) {
+            throw new IllegalArgumentException(
+                    "Vault inject: connection='" + connectionName + "' requires database_uri but no '"
+                            + connectionName + "_uri' key found in vault");
+        }
+
+        // Step 4：vault 中无 uri，退而查找 {connName}_url，同样解析写入
+        String urlVaultKey = findVaultKey(vaultSecrets, connectionName, "url");
+        if (urlVaultKey != null) {
+            String urlValue = vaultSecrets.get(urlVaultKey);
+            log.info("Vault inject: connection='{}', no uri in vault, falling back to url='{}'", connectionName, urlValue);
+            injectFromUriString(finalConfig, urlValue, connectionName, "url", apiKeyToConfigPath);
+        } else {
+            throw new IllegalArgumentException(
+                    "Vault inject: connection='" + connectionName + "' has no uri/url in vault, cannot inject host/port/username");
+        }
+    }
+
+    /**
+     * 注入单个字段（password 等），schema BFS 找不到时用 fallback config key。
+     */
+    private static void injectSingleField(Map<String, Object> config, Map<String, String> vaultSecrets,
+            String connectionName, String vaultSuffix, Map<String, String> apiKeyToConfigPath) {
+        String vaultKey = findVaultKey(vaultSecrets, connectionName, vaultSuffix);
+        if (vaultKey == null) {
+            log.debug("Vault inject: no vault key for connection='{}', suffix='{}'", connectionName, vaultSuffix);
+            return;
+        }
+        String value = vaultSecrets.get(vaultKey);
+        String apiKey = VAULT_SUFFIX_TO_API_KEY.get(vaultSuffix);
+        String configPath = apiKeyToConfigPath.get(apiKey);
+        if (configPath == null) {
+            configPath = VAULT_SUFFIX_FALLBACK_CONFIG_KEY.get(vaultSuffix);
+            log.warn("Vault inject: no schema configPath for apiKey='{}', using fallback='{}'", apiKey, configPath);
+        }
+        if (configPath == null) {
+            log.warn("Vault inject: no configPath for suffix='{}', skipping", vaultSuffix);
+            return;
+        }
+        log.info("Vault inject: connection='{}', configPath='{}' <- vaultKey='{}'", connectionName, configPath, vaultKey);
+        setNestedValue(config, configPath, value);
+    }
+
+    /**
+     * 将 URI/URL 字符串按 "host:port/username" 格式解析，分别写入 host、port、username 的 config 路径。
+     * 若任意一项解析不到则抛出异常。
+     */
+    private static void injectFromUriString(Map<String, Object> config, String uriStr,
+            String connectionName, String sourceLabel, Map<String, String> apiKeyToConfigPath) {
+        Map<String, Object> components = parseUriComponents(uriStr);
+        log.info("Vault inject ({}): connection='{}', parsed components={}", sourceLabel, connectionName, components);
+
+        List<String> missing = new ArrayList<>();
+        if (components.get("host") == null) missing.add("host");
+        if (components.get("port") == null) missing.add("port");
+        if (components.get("user") == null) missing.add("username");
+        if (!missing.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Vault inject: connection='" + connectionName + "', " + sourceLabel + "='" + uriStr
+                            + "', missing components: " + missing);
+        }
+
+        injectParsedField(config, connectionName, "host", components.get("host"), apiKeyToConfigPath);
+        injectParsedField(config, connectionName, "port", components.get("port"), apiKeyToConfigPath);
+        injectParsedField(config, connectionName, "user", components.get("user"), apiKeyToConfigPath);
+    }
+
+    private static void injectParsedField(Map<String, Object> config, String connectionName,
+            String vaultSuffix, Object value, Map<String, String> apiKeyToConfigPath) {
+        if (value == null) return;
+        String apiKey = VAULT_SUFFIX_TO_API_KEY.get(vaultSuffix);
+        String configPath = apiKeyToConfigPath.get(apiKey);
+        if (configPath == null) configPath = VAULT_SUFFIX_FALLBACK_CONFIG_KEY.get(vaultSuffix);
+        if (configPath == null) {
+            log.warn("Vault inject: no configPath for suffix='{}', skipping", vaultSuffix);
+            return;
+        }
+        log.info("Vault inject: connection='{}', configPath='{}' <- {} (parsed)", connectionName, configPath, value);
+        setNestedValue(config, configPath, value);
     }
 
     /**
