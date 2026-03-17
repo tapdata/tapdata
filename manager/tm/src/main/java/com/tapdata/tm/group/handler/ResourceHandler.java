@@ -385,8 +385,8 @@ public interface ResourceHandler {
 
         // 按 vault key 格式 "{connectionName}_{suffix}" 查找并注入
         // 若 schema BFS 找不到 configPath，退而使用 fallback 默认 config key
+        Set<String> injectedSuffixes = new HashSet<>();
         VAULT_SUFFIX_TO_API_KEY.forEach((vaultSuffix, apiKey) -> {
-            // 先精确匹配，再扫描 vault 找前缀匹配连接名的 key（兼容连接名含空格等差异）
             String vaultKey = findVaultKey(vaultSecrets, connectionName, vaultSuffix);
             if (vaultKey == null) {
                 log.debug("Vault inject: no vault key for connection='{}', suffix='{}'", connectionName, vaultSuffix);
@@ -403,11 +403,77 @@ public interface ResourceHandler {
                 log.warn("Vault inject: no configPath (schema or fallback) for apiKey='{}' (vaultKey='{}'), skipping", apiKey, vaultKey);
                 return;
             }
-            // port 字段需写入数字类型
             Object configValue = "port".equals(vaultSuffix) ? Integer.parseInt(value) : value;
             log.info("Vault inject: connection='{}', configPath='{}' <- vaultKey='{}', value={}", connectionName, configPath, vaultKey, configValue);
             setNestedValue(finalConfig, configPath, configValue);
+            injectedSuffixes.add(vaultSuffix);
         });
+
+        // Fallback：host/port/user 未从 vault 直接注入时，尝试从 uri 解析并补充。
+        // 若连接器 schema 中存在 database_uri（如 MongoDB），URI 已在第一轮整体注入，无需拆分。
+        List<String> missingFields = List.of("host", "port", "user").stream()
+                .filter(s -> !injectedSuffixes.contains(s))
+                .collect(java.util.stream.Collectors.toList());
+        if (!missingFields.isEmpty() && !apiKeyToConfigPath.containsKey("database_uri")) {
+            String uriVaultKey = findVaultKey(vaultSecrets, connectionName, "uri");
+            if (uriVaultKey != null) {
+                String uriValue = vaultSecrets.get(uriVaultKey);
+                Map<String, Object> uriComponents = parseUriComponents(uriValue);
+                log.info("Vault inject (uri fallback): connection='{}', uri='{}', parsed={}", connectionName, uriValue, uriComponents);
+                for (String vaultSuffix : missingFields) {
+                    Object val = uriComponents.get(vaultSuffix);
+                    if (val == null) continue;
+                    String apiKey  = VAULT_SUFFIX_TO_API_KEY.get(vaultSuffix);
+                    String configPath = apiKeyToConfigPath.get(apiKey);
+                    if (configPath == null) configPath = VAULT_SUFFIX_FALLBACK_CONFIG_KEY.get(vaultSuffix);
+                    if (configPath == null) {
+                        log.warn("Vault inject (uri fallback): no configPath for suffix='{}', skipping", vaultSuffix);
+                        continue;
+                    }
+                    log.info("Vault inject (uri fallback): connection='{}', configPath='{}' <- {}", connectionName, configPath, val);
+                    setNestedValue(finalConfig, configPath, val);
+                }
+            }
+        }
+    }
+
+    /**
+     * 解析 URI 字符串，提取 host、port、user（username）。
+     * 支持标准格式：scheme://user:password@host:port/db
+     * 支持简化格式：host:port/username（无 scheme、无密码）
+     */
+    private static Map<String, Object> parseUriComponents(String uriStr) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (StringUtils.isBlank(uriStr)) return result;
+        try {
+            // 无 scheme 时补一个虚拟 scheme，使 java.net.URI 能正常解析
+            String toParse = uriStr.contains("://") ? uriStr : "dummy://" + uriStr;
+            java.net.URI uri = new java.net.URI(toParse);
+
+            String host = uri.getHost();
+            int    port = uri.getPort();
+            String userInfo = uri.getUserInfo();
+            String path     = uri.getPath();
+
+            if (StringUtils.isNotBlank(host)) result.put("host", host);
+            if (port > 0)                      result.put("port", port);
+
+            // username 优先从 userInfo 取（user:password@host 格式），
+            // 其次从 path 首段取（host:port/username 格式，如 localhost:8080/user）
+            if (StringUtils.isNotBlank(userInfo)) {
+                int colonIdx = userInfo.indexOf(':');
+                String username = colonIdx > 0 ? userInfo.substring(0, colonIdx) : userInfo;
+                if (StringUtils.isNotBlank(username)) result.put("user", username);
+            } else if (StringUtils.isNotBlank(path) && path.length() > 1) {
+                String segment = path.startsWith("/") ? path.substring(1) : path;
+                int slashIdx = segment.indexOf('/');
+                if (slashIdx > 0) segment = segment.substring(0, slashIdx);
+                if (StringUtils.isNotBlank(segment)) result.put("user", segment);
+            }
+        } catch (Exception e) {
+            log.warn("Vault inject: failed to parse URI components from '{}': {}", uriStr, e.getMessage());
+        }
+        return result;
     }
 
     /**
