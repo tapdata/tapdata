@@ -98,6 +98,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -2468,8 +2469,13 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 		@Test
 		void testNewPartitionTable() throws Throwable {
+			try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+				cm.when(() -> CpuMemoryCollector.listening(anyString(), any())).thenAnswer(a -> null);
 			List<TapTable> tapTables = new ArrayList<>();
 			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
+			Node node = mock(DatabaseNode.class);
+			when(node.getId()).thenReturn(new ObjectId().toHexString());
+			when(spySourcePdkBaseNod.getNode()).thenReturn(node);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
 			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
 			TapNodeSpecification spec = new TapNodeSpecification();
@@ -2544,11 +2550,16 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals(1, spySourcePdkBaseNod.newTables.size());
 			Assertions.assertEquals("test_1", spySourcePdkBaseNod.newTables.get(0));
 
-		}
+		}}
 		@Test
 		void testLoggedTables() throws Throwable {
+			try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+				cm.when(() -> CpuMemoryCollector.listening(anyString(), any())).thenAnswer(a -> null);
 			List<TapTable> tapTables = new ArrayList<>();
 			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
+			Node node = mock(DatabaseNode.class);
+			when(node.getId()).thenReturn(new ObjectId().toHexString());
+			when(spySourcePdkBaseNod.getNode()).thenReturn(node);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
 			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
 			TapNodeSpecification spec = new TapNodeSpecification();
@@ -2625,10 +2636,12 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals(1, spySourcePdkBaseNod.newTables.size());
 			Assertions.assertEquals("test_1", spySourcePdkBaseNod.newTables.get(0));
 
-		}
+		}}
 
 		@Test
 		void testFilterTableByNoPrimaryKeyWithHasKeys() throws Throwable {
+			try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+				cm.when(() -> CpuMemoryCollector.listening(anyString(), any())).thenAnswer(a -> null);
 			List<TapTable> tapTables = new ArrayList<>();
 			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
@@ -2712,10 +2725,12 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals(1, spySourcePdkBaseNod.newTables.size());
 			Assertions.assertEquals("test_1", spySourcePdkBaseNod.newTables.get(0));
 
-		}
+		}}
 
 		@Test
 		void testFilterTableByNoPrimaryKeyWithNoKeys() throws Throwable {
+			try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+				cm.when(() -> CpuMemoryCollector.listening(anyString(), any())).thenAnswer(a -> null);
 			List<TapTable> tapTables = new ArrayList<>();
 			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
@@ -2798,95 +2813,103 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertNotNull(spySourcePdkBaseNod.newTables);
 			Assertions.assertEquals(0, spySourcePdkBaseNod.newTables.size());
 		}
+			}
+
 
 		@Test
 		void testFilterTableByNoPrimaryKeyWithOnlyPrimaryKey() throws Throwable {
-			List<TapTable> tapTables = new ArrayList<>();
-			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
-			ConnectorNode connectorNode = mock(ConnectorNode.class);
-			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
-			TapNodeSpecification spec = new TapNodeSpecification();
-			spec.setDataTypesMap(new DefaultExpressionMatchingMap(new HashMap<>()));
-			when(connectorContext.getSpecification()).thenReturn(spec);
-			KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
-				@Override
-				public TapTable get(String key) {
-					return tapTables.stream().filter(t -> t.getId().equals(key)).findFirst().orElse(null);
-				}
-			};
-			when(connectorContext.getTableMap()).thenReturn(tableMap);
-			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
-			doAnswer(answer -> {
-				Runnable runnable = answer.getArgument(0);
-				runnable.run();
-				return null;
-			}).when(connectorNode).applyClassLoaderContext(any());
-			TapConnector connector = mock(TapConnector.class);
-			doAnswer(answer -> {
-				Consumer<List<TapTable>> consumer = answer.getArgument(3);
+			try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+				cm.when(() -> CpuMemoryCollector.listening(anyString(), any())).thenAnswer(a -> null);
+				List<TapTable> tapTables = new ArrayList<>();
+				HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+				TapNodeSpecification spec = new TapNodeSpecification();
+				spec.setDataTypesMap(new DefaultExpressionMatchingMap(new HashMap<>()));
+				when(connectorContext.getSpecification()).thenReturn(spec);
+				KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+					@Override
+					public TapTable get(String key) {
+						return tapTables.stream().filter(t -> t.getId().equals(key)).findFirst().orElse(null);
+					}
+				};
+				when(connectorContext.getTableMap()).thenReturn(tableMap);
+				when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+				doAnswer(answer -> {
+					Runnable runnable = answer.getArgument(0);
+					runnable.run();
+					return null;
+				}).when(connectorNode).applyClassLoaderContext(any());
+				TapConnector connector = mock(TapConnector.class);
+				doAnswer(answer -> {
+					Consumer<List<TapTable>> consumer = answer.getArgument(3);
 
-				TapTable table = new TapTable();
-				table.setId("test");
-				table.setName("test");
-				table.setPartitionMasterTableId("test");
-				table.setPartitionInfo(new TapPartition());
-				table.setNameFieldMap(new LinkedHashMap<>());
-				table.getNameFieldMap().put("id", new TapField("id", "integer"));
-				table.getNameFieldMap().put("name", new TapField("id", "string"));
-				TapIndex index = new TapIndex();
-				index.setUnique(true);
-				table.setIndexList(Arrays.asList(index));
-				tapTables.add(table);
-				table = new TapTable();
-				table.setId("test_1");
-				table.setName("test_1");
-				table.setPartitionMasterTableId("test");
-				table.setPartitionInfo(new TapPartition());
-				table.setNameFieldMap(new LinkedHashMap<>());
-				table.getNameFieldMap().put("id", new TapField("id", "integer"));
-				table.getNameFieldMap().put("name", new TapField("id", "string"));
-				table.setIndexList(Arrays.asList(index));
-				tapTables.add(table);
-				consumer.accept(tapTables);
-				return null;
-			}).
-					when(connector).discoverSchema(any(), anyList(), anyInt(), any());
-			when(connectorNode.getConnector()).thenReturn(connector);
-			when(spySourcePdkBaseNod.getConnectorNode()).thenReturn(connectorNode);
-			DatabaseNode node = new DatabaseNode();
-			node.setMigrateTableSelectType("expression");
-			node.setNoPrimaryKeyTableSelectType("OnlyPrimaryKey");
-			when(spySourcePdkBaseNod.getNode()).thenReturn((Node)node);
+					TapTable table = new TapTable();
+					table.setId("test");
+					table.setName("test");
+					table.setPartitionMasterTableId("test");
+					table.setPartitionInfo(new TapPartition());
+					table.setNameFieldMap(new LinkedHashMap<>());
+					table.getNameFieldMap().put("id", new TapField("id", "integer"));
+					table.getNameFieldMap().put("name", new TapField("id", "string"));
+					TapIndex index = new TapIndex();
+					index.setUnique(true);
+					table.setIndexList(Arrays.asList(index));
+					tapTables.add(table);
+					table = new TapTable();
+					table.setId("test_1");
+					table.setName("test_1");
+					table.setPartitionMasterTableId("test");
+					table.setPartitionInfo(new TapPartition());
+					table.setNameFieldMap(new LinkedHashMap<>());
+					table.getNameFieldMap().put("id", new TapField("id", "integer"));
+					table.getNameFieldMap().put("name", new TapField("id", "string"));
+					table.setIndexList(Arrays.asList(index));
+					tapTables.add(table);
+					consumer.accept(tapTables);
+					return null;
+				}).
+						when(connector).discoverSchema(any(), anyList(), anyInt(), any());
+				when(connectorNode.getConnector()).thenReturn(connector);
+				when(spySourcePdkBaseNod.getConnectorNode()).thenReturn(connectorNode);
+				DatabaseNode node = new DatabaseNode();
+				node.setMigrateTableSelectType("expression");
+				node.setNoPrimaryKeyTableSelectType("OnlyPrimaryKey");
+				when(spySourcePdkBaseNod.getNode()).thenReturn((Node) node);
 
-			when(spySourcePdkBaseNod.wrapTapdataEvent(any(TapEvent.class), any(SyncStage.class), any(), anyBoolean())).thenAnswer(answer -> {
-				TapEvent tapEvent = answer.getArgument(0);
-				TapdataEvent event = new TapdataEvent();
-				event.setTapEvent(tapEvent);
-				return event;
-			});
-			doNothing().when(spySourcePdkBaseNod).enqueue(any(TapdataEvent.class));
-			JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
-			when(jetJobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
-			ReflectionTestUtils.setField(sourcePdkBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
+				when(spySourcePdkBaseNod.wrapTapdataEvent(any(TapEvent.class), any(SyncStage.class), any(), anyBoolean())).thenAnswer(answer -> {
+					TapEvent tapEvent = answer.getArgument(0);
+					TapdataEvent event = new TapdataEvent();
+					event.setTapEvent(tapEvent);
+					return event;
+				});
+				doNothing().when(spySourcePdkBaseNod).enqueue(any(TapdataEvent.class));
+				JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+				when(jetJobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
+				ReflectionTestUtils.setField(sourcePdkBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
 
-			List<String> tables = new ArrayList<>();
-			tables.add("test");
+				List<String> tables = new ArrayList<>();
+				tables.add("test");
 
-			spySourcePdkBaseNod.running.set(true);
-			spySourcePdkBaseNod.syncSourcePartitionTableEnable = false;
-			spySourcePdkBaseNod.syncProgress = new SyncProgress();
-			spySourcePdkBaseNod.syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
-			spySourcePdkBaseNod.newTables = new CopyOnWriteArrayList<>();
-			spySourcePdkBaseNod.endSnapshotLoop = new AtomicBoolean(false);
-			ReflectionTestUtils.setField(spySourcePdkBaseNod.noPrimaryKeyVirtualField, "addTable", (Consumer<TapTable>) tapTable -> {});
-			spySourcePdkBaseNod.handleNewTables(tables);
+				spySourcePdkBaseNod.running.set(true);
+				spySourcePdkBaseNod.syncSourcePartitionTableEnable = false;
+				spySourcePdkBaseNod.syncProgress = new SyncProgress();
+				spySourcePdkBaseNod.syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+				spySourcePdkBaseNod.newTables = new CopyOnWriteArrayList<>();
+				spySourcePdkBaseNod.endSnapshotLoop = new AtomicBoolean(false);
+				ReflectionTestUtils.setField(spySourcePdkBaseNod.noPrimaryKeyVirtualField, "addTable", (Consumer<TapTable>) tapTable -> {
+				});
+				spySourcePdkBaseNod.handleNewTables(tables);
 
-			Assertions.assertNotNull(spySourcePdkBaseNod.newTables);
-			Assertions.assertEquals(0, spySourcePdkBaseNod.newTables.size());
+				Assertions.assertNotNull(spySourcePdkBaseNod.newTables);
+				Assertions.assertEquals(0, spySourcePdkBaseNod.newTables.size());
+			}
 		}
 
 		@Test
 		void testFilterTableByNoPrimaryKeyWithOnlyUniqueIndex() throws Throwable {
+			try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+				cm.when(() -> CpuMemoryCollector.listening(anyString(), any())).thenAnswer(a -> null);
 			List<TapTable> tapTables = new ArrayList<>();
 			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
@@ -2971,7 +2994,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals(1, spySourcePdkBaseNod.newTables.size());
 			Assertions.assertEquals("test_1", spySourcePdkBaseNod.newTables.get(0));
 
-		}
+		}}
 	}
 
 	@Nested

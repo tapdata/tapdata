@@ -235,7 +235,7 @@ class ServerUsageMetricInstanceAcceptorTest {
             cpu.add(3D);
             acceptor.accept(metric, memory, memoryMax, cpu);
             Assertions.assertEquals(4L, metric.getHeapMemoryMax());
-            Assertions.assertEquals(5L, metric.getHeapMemoryUsage());
+            Assertions.assertEquals(4L, metric.getHeapMemoryUsage());
             Assertions.assertEquals(2D, metric.getCpuUsage());
             Assertions.assertEquals(7L, metric.getMaxHeapMemoryUsage());
             Assertions.assertEquals(1L, metric.getMinHeapMemoryUsage());

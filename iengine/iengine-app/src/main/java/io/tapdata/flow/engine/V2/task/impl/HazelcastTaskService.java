@@ -400,7 +400,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				TableNode tableNode = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node, tapTableMapHashMap);
-				CpuMemoryCollector.listening(node.getId(), tapTableMap);
+				CpuMemoryCollector.listeningTables(node.getId(), tapTableMap);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)

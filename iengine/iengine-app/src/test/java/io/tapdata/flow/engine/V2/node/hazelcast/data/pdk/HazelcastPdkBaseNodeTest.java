@@ -484,6 +484,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void setUp(){
 			hazelcastPdkBaseNode = mock(HazelcastPdkBaseNode.class);
 			when(hazelcastPdkBaseNode.generateNodeConfig(any(Node.class), any(TaskDto.class))).thenCallRealMethod();
+			when(hazelcastPdkBaseNode.generateTableNodeConfig(any(Node.class))).thenCallRealMethod();
 		}
 
 		@Test
@@ -507,12 +508,18 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> nodeConfig = TapSimplify.map(TapSimplify.entry("key", "value"));
 			DatabaseNode node1 = new DatabaseNode();
 			node1.setNodeConfig(null);
+			node1.setTableNodeConfig(null);
 			DatabaseNode node2 = new DatabaseNode();
 			node2.setNodeConfig(nodeConfig);
+			Map<String, Map<String, Object>> tableNodeConfig = new HashMap<>();
+			tableNodeConfig.put("table", nodeConfig);
+			node2.setTableNodeConfig(tableNodeConfig);
 			taskDto.setDoubleActive(true);
 			Assertions.assertEquals(5, hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).size());
+			Assertions.assertNull(hazelcastPdkBaseNode.generateTableNodeConfig(node1));
 			Assertions.assertTrue(hazelcastPdkBaseNode.generateNodeConfig(node1, taskDto).containsKey("doubleActive"));
 			Assertions.assertEquals(6, hazelcastPdkBaseNode.generateNodeConfig(node2, taskDto).size());
+			Assertions.assertEquals(1, hazelcastPdkBaseNode.generateTableNodeConfig(node2).size());
 		}
 
 		@Test

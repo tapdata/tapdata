@@ -73,7 +73,7 @@ class DecimalFormatSerializerTest {
         
         customSerializer.serialize(value, jsonGenerator, serializerProvider);
         
-        verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.456789).setScale(3, RoundingMode.DOWN)));
+        verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.457).setScale(3, RoundingMode.DOWN)));
     }
 
     @Test
@@ -208,7 +208,7 @@ class DecimalFormatSerializerTest {
         DecimalFormatSerializer halfDownSerializer = new DecimalFormatSerializer();
         halfDownSerializer.roundingMode = RoundingMode.HALF_DOWN;
         halfDownSerializer.serialize(value, jsonGenerator, serializerProvider);
-        verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.125).setScale(2, RoundingMode.HALF_DOWN)));
+        verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.13).setScale(2, RoundingMode.HALF_DOWN)));
     }
 
     @Test

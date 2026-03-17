@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * @author jackin
@@ -184,6 +185,7 @@ public class PdkUtil {
 				associateId,
 				connectionConfig,
 				null,
+				null,
 				pdkTableMap,
 				pdkStateMap,
 				globalStateMap,
@@ -200,6 +202,7 @@ public class PdkUtil {
 			String associateId,
 			Map<String, Object> connectionConfig,
 			Map<String, Object> nodeConfig,
+			Map<String, Map<String, Object>> tableNodeConfig,
 			KVReadOnlyMap<TapTable> pdkTableMap,
 			PdkStateMap pdkStateMap,
 			PdkStateMap globalStateMap,
@@ -209,7 +212,7 @@ public class PdkUtil {
 	) {
 		return createNode(
 				dagId, databaseType, clientMongoOperator, associateId,
-				connectionConfig, nodeConfig, pdkTableMap, pdkStateMap,
+				connectionConfig, nodeConfig, tableNodeConfig, pdkTableMap, pdkStateMap,
 				globalStateMap, connectorCapabilities, configContext, log, null
 		);
 	}
@@ -221,6 +224,7 @@ public class PdkUtil {
 			String associateId,
 			Map<String, Object> connectionConfig,
 			Map<String, Object> nodeConfig,
+			Map<String, Map<String, Object>> tableNodeConfig,
 			KVReadOnlyMap<TapTable> pdkTableMap,
 			PdkStateMap pdkStateMap,
 			PdkStateMap globalStateMap,
@@ -253,6 +257,9 @@ public class PdkUtil {
 				connectorBuilder.withNodeConfig(new DataMap() {{
 					putAll(nodeConfig);
 				}});
+			}
+			if (MapUtils.isNotEmpty(tableNodeConfig)) {
+				connectorBuilder.withTableNodeConfig(tableNodeConfig.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> DataMap.create(e.getValue()))));
 			}
 			if (null != connectorCapabilities) {
 				connectorBuilder.withConnectorCapabilities(connectorCapabilities);

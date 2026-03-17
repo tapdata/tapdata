@@ -61,6 +61,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.Getter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -745,6 +746,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	void processEvents(List<TapEvent> tapEvents) {
+		CpuMemoryCollector.listening(getNode().getId(), tapEvents);
 		TapEvent foundDDLEvent = tapEvents.stream().filter(e -> e instanceof TapDDLEvent).findFirst().orElse(null);
 		if (null == foundDDLEvent && isWriteGroupByTableEnable()) {
 			Map<String, List<TapEvent>> dmlEventsGroupByTableId = new HashMap<>();
@@ -1055,6 +1057,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	protected void writeRecord(List<TapEvent> events) {
+		CpuMemoryCollector.listening(getNode().getId(), events);
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
 		TapRecordEvent firstEvent = tapRecordEvents.get(0);

@@ -278,6 +278,8 @@ public class HazelcastTaskServiceTest {
         @SneakyThrows
         @DisplayName("test createNode method for hazelcast target pdk data node")
         void testCreateNode23() {
+            try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)){
+            cm.when(() -> CpuMemoryCollector.listening(anyString(), any())).thenAnswer(a -> null);
             when(node.getType()).thenReturn("table");
             when(connection.getPdkType()).thenReturn("pdk");
             ReadPartitionOptions readPartitionOptions = mock(ReadPartitionOptions.class);
@@ -287,7 +289,7 @@ public class HazelcastTaskServiceTest {
             when(taskDto.getType()).thenReturn("cdc");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastTargetPdkDataNode.class, actual.getClass());
-        }
+        }}
 
         @Test
         @SneakyThrows
@@ -334,7 +336,9 @@ public class HazelcastTaskServiceTest {
         void testCreateNode5() {
             node = mock(CacheNode.class);
             try (MockedStatic<ExternalStorageUtil> mb = Mockito
-                    .mockStatic(ExternalStorageUtil.class)) {
+                    .mockStatic(ExternalStorageUtil.class);
+                 MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+                cm.when(() -> CpuMemoryCollector.listening(anyString(), any())).thenAnswer(a -> null);
                 mb.when(() -> ExternalStorageUtil.getExternalStorage(node)).thenReturn(mock(ExternalStorageDto.class));
                 try (MockedStatic<HazelcastUtil> hazelcastUtilMockedStatic = Mockito
                         .mockStatic(HazelcastUtil.class)) {
@@ -375,6 +379,8 @@ public class HazelcastTaskServiceTest {
         @SneakyThrows
         @DisplayName("test createNode method for auto inspect node")
         void testCreateNode6() {
+            try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)){
+            cm.when(() -> CpuMemoryCollector.listening(anyString(), any())).thenAnswer(a -> null);
             node = mock(AutoInspectNode.class);
             when(((AutoInspectNode) node).getToNode()).thenReturn(mock(DatabaseNode.class));
             when(node.getType()).thenReturn("auto_inspect");
@@ -382,7 +388,7 @@ public class HazelcastTaskServiceTest {
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastTargetPdkAutoInspectNode.class, actual.getClass());
-        }
+        }}
 
         @Test
         @SneakyThrows
