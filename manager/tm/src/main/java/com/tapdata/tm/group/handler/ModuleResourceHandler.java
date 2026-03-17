@@ -70,7 +70,7 @@ public class ModuleResourceHandler implements ResourceHandler {
             return payload;
         }
 
-        
+
         List<ModulesDto> modules = (List<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
@@ -79,13 +79,14 @@ public class ModuleResourceHandler implements ResourceHandler {
             modulesDto.setCustomId(null);
             modulesDto.setLastUpdBy(null);
             modulesDto.setUserId(null);
+            modulesDto.setStatus(null);
             payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_MODULES, JsonUtil.toJsonUseJackson(modulesDto)));
         }
         return payload;
     }
 
     @Override
-    
+
     public void collectPayload(List<TaskUpAndLoadDto> payload, Map<String, ?> resourceMap,
             List<MetadataInstancesDto> metadataList) {
         if (CollectionUtils.isEmpty(payload)) {
@@ -122,7 +123,7 @@ public class ModuleResourceHandler implements ResourceHandler {
             return new ArrayList<>();
         }
 
-        
+
         List<ModulesDto> modules = (List<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
@@ -141,7 +142,7 @@ public class ModuleResourceHandler implements ResourceHandler {
     public Map<String, String> findDuplicateNames(Iterable<?> resources, UserDetail user) {
         Map<String, String> duplicates = new HashMap<>();
 
-        
+
         Iterable<ModulesDto> modules = (Iterable<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {

@@ -101,6 +101,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
             .setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
 
+    /** 所有集合通用的时间戳/操作人字段，每次保存都会变，导出时统一剔除避免 PR diff 噪音 */
+    private static final Set<String> COMMON_VOLATILE_FIELDS = new HashSet<>(Arrays.asList(
+            "last_updated", "lastUpdate", "last_user_name"
+    ));
+
     /** 导出连接时需剔除的运行时/环境状态字段 */
     private static final Set<String> CONNECTION_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
             "loadSchemaField", "loadSchemaTime", "testTime", "transformed"
@@ -108,7 +113,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     /** 导出任务时需剔除的运行时状态字段 */
     private static final Set<String> TASK_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
-            "currentEventTimestamp", "delayTime", "lastStartDate", "last_updated", "taskRecordId"
+            "currentEventTimestamp", "delayTime", "lastStartDate", "taskRecordId"
     ));
 
     /** 导出校验任务时需剔除的字段（空值无意义字段） */
@@ -1567,21 +1572,123 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         if (fileMap == null && existingMap == null) return Collections.emptyList();
         if (fileMap == null || existingMap == null) return Collections.singletonList(new FieldChange("*", existingMap, fileMap));
         List<FieldChange> changes = new ArrayList<>();
-        Set<String> allKeys = new HashSet<>();
+        Set<String> allKeys = new LinkedHashSet<>();
         allKeys.addAll(fileMap.keySet());
         allKeys.addAll(existingMap.keySet());
         for (String key : allKeys) {
-            try {
-                // 使用 COMPARISON_MAPPER（字段名字母排序 + 忽略 null），消除 key 顺序和 null 字段差异导致的误判
-                String jsonA = COMPARISON_MAPPER.writeValueAsString(fileMap.get(key));
-                String jsonB = COMPARISON_MAPPER.writeValueAsString(existingMap.get(key));
-                if (!Objects.equals(jsonA, jsonB)) changes.add(new FieldChange(key, existingMap.get(key), fileMap.get(key)));
-            } catch (Exception e) {
-                if (!Objects.equals(fileMap.get(key), existingMap.get(key)))
-                    changes.add(new FieldChange(key, existingMap.get(key), fileMap.get(key)));
-            }
+            deepDiff(changes, key, existingMap.get(key), fileMap.get(key));
         }
         return changes;
+    }
+
+    /**
+     * 通用递归 diff，三段式逻辑：
+     *   ① JSON 归一化比较 → 相等直接 return（early-exit，避免不必要的递归）
+     *   ② 收集这一层所有 key 及两侧的 value，合并成 pairs
+     *   ③ 对每个 pair 递归调用自身
+     *
+     * 支持类型：
+     *   - Map  → 以 key 为路径递归，路径格式 "parent.child"
+     *   - List → 按路径配置表查找 keyField 做 keyed diff，
+     *            配置表中不存在的路径则按下标，路径格式 "parent[keyVal]" 或 "parent[0]"
+     *   - 叶子 → 直接记录 FieldChange
+     *
+     * 数组 key 配置表：路径中 [*] 匹配任意 keyed 段，显式声明各数组使用哪个字段作标识符。
+     * 注意：_id 不可用作 key，跨环境导入后两侧 _id 不同。
+     */
+    private static final Map<String, String> ARRAY_KEY_CONFIG = Map.of(
+            "fields",                        "field_name",
+            "paths",                         "name",
+            "paths[*].fields",               "field_name",
+            "paths[*].availableQueryField",  "field_name",
+            "paths[*].requiredQueryField",   "field_name"
+    );
+
+    @SuppressWarnings("unchecked")
+    private void deepDiff(List<FieldChange> changes, String path, Object existing, Object file) {
+        // ① JSON 归一化比较：相等则剪枝，不再往下递归
+        if (jsonEqual(existing, file)) return;
+
+        if (existing instanceof Map && file instanceof Map) {
+            Map<String, Object> existingMap = (Map<String, Object>) existing;
+            Map<String, Object> fileMap     = (Map<String, Object>) file;
+
+            // ② 收集这一层所有 key → (existing值, file值) 的 pairs
+            Map<String, Object[]> pairs = new LinkedHashMap<>();
+            existingMap.forEach((k, v) -> pairs.computeIfAbsent(k, x -> new Object[2])[0] = v);
+            fileMap.forEach((k, v)     -> pairs.computeIfAbsent(k, x -> new Object[2])[1] = v);
+
+            // ③ 对每个 pair 递归
+            pairs.forEach((k, pair) -> deepDiff(changes, path + "." + k, pair[0], pair[1]));
+
+        } else if (existing instanceof List && file instanceof List) {
+            List<Map<String, Object>> existingList = toMapList(existing);
+            List<Map<String, Object>> fileList     = toMapList(file);
+            String keyField = ARRAY_KEY_CONFIG.get(normalizePathForConfig(path));
+
+            if (keyField != null) {
+                // ② 收集 keyed pairs：以配置表指定的字段为标识符
+                Map<String, Object[]> pairs = new LinkedHashMap<>();
+                existingList.forEach(item -> {
+                    Object k = item.get(keyField);
+                    if (k != null) pairs.computeIfAbsent(k.toString(), x -> new Object[2])[0] = item;
+                });
+                fileList.forEach(item -> {
+                    Object k = item.get(keyField);
+                    if (k != null) pairs.computeIfAbsent(k.toString(), x -> new Object[2])[1] = item;
+                });
+                // ③ 对每个 pair 递归
+                pairs.forEach((k, pair) -> deepDiff(changes, path + "[" + k + "]", pair[0], pair[1]));
+            } else {
+                // ② 按下标收集 pairs（该路径不在配置表中）
+                List<?> existingL = (List<?>) existing;
+                List<?> fileL     = (List<?>) file;
+                int maxLen = Math.max(existingL.size(), fileL.size());
+                // ③ 对每个下标递归
+                for (int i = 0; i < maxLen; i++) {
+                    deepDiff(changes, path + "[" + i + "]",
+                            i < existingL.size() ? existingL.get(i) : null,
+                            i < fileL.size()     ? fileL.get(i)     : null);
+                }
+            }
+        } else {
+            // 叶子节点（或两侧类型不同）：经过 ① 已确认不相等，直接记录
+            changes.add(new FieldChange(path, existing, file));
+        }
+    }
+
+    /**
+     * 将实际运行路径（如 "paths.[customerQuery].fields"）归一化为配置表的 key
+     * （如 "paths.[*].fields"），方法是把 "[具体值]" 替换为 "[*]"。
+     */
+    private String normalizePathForConfig(String path) {
+        return path.replaceAll("\\[([^*\\]]+)]", "[*]");
+    }
+
+    /**
+     * 用 COMPARISON_MAPPER 对两个值做 JSON 归一化序列化后比较。
+     * COMPARISON_MAPPER 会忽略 null 字段、对 key 排序，消除序列化顺序差异导致的误判。
+     * 序列化失败时返回 false（保守策略：继续往下对比，不漏报差异）。
+     */
+    private boolean jsonEqual(Object a, Object b) {
+        try {
+            return Objects.equals(
+                    COMPARISON_MAPPER.writeValueAsString(a),
+                    COMPARISON_MAPPER.writeValueAsString(b));
+        } catch (Exception e) {
+            log.warn("deepDiff: JSON serialization failed for path comparison, falling back to structural diff", e);
+            return false;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> toMapList(Object obj) {
+        if (!(obj instanceof List)) return Collections.emptyList();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object item : (List<?>) obj) {
+            if (item instanceof Map) result.add((Map<String, Object>) item);
+        }
+        return result;
     }
 
     private String extractNameFromJson(String json) {
@@ -2459,26 +2566,24 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Object parsed = EXPORT_MAPPER.readValue(json, Object.class);
             if (!(parsed instanceof Map)) return parsed;
             Map<String, Object> doc = (Map<String, Object>) parsed;
+            // 各集合独有的剔除逻辑
             if (GroupConstants.COLLECTION_CONNECTION.equals(collectionName)) {
                 CONNECTION_EXPORT_EXCLUDED_FIELDS.forEach(doc::remove);
             } else if (GroupConstants.COLLECTION_TASK.equals(collectionName)) {
                 TASK_EXPORT_EXCLUDED_FIELDS.forEach(doc::remove);
             } else if (GroupConstants.COLLECTION_INSPECT.equals(collectionName)) {
-                // 剔除空值无意义字段
                 INSPECT_EXPORT_EXCLUDED_FIELDS.forEach(doc::remove);
             } else if (GroupConstants.COLLECTION_GROUP_INFO.equals(collectionName)) {
-                // GroupInfo 顶层：剔除 id（跨环境后会变）及时间戳（每次保存都会变）
                 doc.remove("id");
-                doc.remove("last_updated");
                 doc.remove("createTime");
-                // gitInfo 是 GroupGitInfoDto（extends BaseDto），其内嵌 id / 时间戳字段
-                // 在每次修改 gitInfo 后会重新生成，需要整体剔除，只保留有效配置字段
                 Object gitInfoObj = doc.get("gitInfo");
                 if (gitInfoObj instanceof Map) {
                     Map<String, Object> gitInfo = (Map<String, Object>) gitInfoObj;
                     BASE_DTO_VOLATILE_FIELDS.forEach(gitInfo::remove);
                 }
             }
+            // 通用时间戳/操作人字段：所有集合类型统一剔除
+            COMMON_VOLATILE_FIELDS.forEach(doc::remove);
             return doc;
         } catch (Exception ignored) {
             return json;
