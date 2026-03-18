@@ -1669,16 +1669,25 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      * 用 COMPARISON_MAPPER 对两个值做 JSON 归一化序列化后比较。
      * COMPARISON_MAPPER 会忽略 null 字段、对 key 排序，消除序列化顺序差异导致的误判。
      * 序列化失败时返回 false（保守策略：继续往下对比，不漏报差异）。
+     * 空字符串与 null 视为相等（导出时字符串字段可能为 "" 而 DB 侧为 null）。
      */
     private boolean jsonEqual(Object a, Object b) {
+        Object normA = normalizeEmptyString(a);
+        Object normB = normalizeEmptyString(b);
+        if (normA == null && normB == null) return true;
         try {
             return Objects.equals(
-                    COMPARISON_MAPPER.writeValueAsString(a),
-                    COMPARISON_MAPPER.writeValueAsString(b));
+                    COMPARISON_MAPPER.writeValueAsString(normA),
+                    COMPARISON_MAPPER.writeValueAsString(normB));
         } catch (Exception e) {
             log.warn("deepDiff: JSON serialization failed for path comparison, falling back to structural diff", e);
             return false;
         }
+    }
+
+    /** 将空字符串归一化为 null，使空字符串与 null 在对比时视为相等 */
+    private static Object normalizeEmptyString(Object v) {
+        return (v instanceof String && ((String) v).isEmpty()) ? null : v;
     }
 
     @SuppressWarnings("unchecked")

@@ -385,13 +385,18 @@ public interface ResourceHandler {
         }
         log.info("Vault inject: connection='{}', apiKeyToConfigPath={}", connectionName, apiKeyToConfigPath);
 
-        // Step 1：注入 password（未在 vault 中找到则抛异常）
-        String passwordVaultKey = findVaultKey(vaultSecrets, connectionName, "password");
-        if (passwordVaultKey == null) {
-            throw new IllegalArgumentException(
-                    "Vault inject: password not found in vault for connection='" + connectionName + "'");
+        // Step 1：注入 password
+        // 若 schema 含 database_uri（如 MongoDB），密码已包含在 URI 中，无需单独注入 password
+        if (apiKeyToConfigPath.containsKey("database_uri")) {
+            log.info("Vault inject: connection='{}', database_uri schema detected, skipping standalone password injection", connectionName);
+        } else {
+            String passwordVaultKey = findVaultKey(vaultSecrets, connectionName, "password");
+            if (passwordVaultKey == null) {
+                throw new IllegalArgumentException(
+                        "Vault inject: password not found in vault for connection='" + connectionName + "'");
+            }
+            injectSingleField(finalConfig, vaultSecrets, connectionName, "password", apiKeyToConfigPath);
         }
-        injectSingleField(finalConfig, vaultSecrets, connectionName, "password", apiKeyToConfigPath);
 
         // Step 2：优先查找 {connName}_uri
         String uriVaultKey = findVaultKey(vaultSecrets, connectionName, "uri");
