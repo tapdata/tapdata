@@ -10,6 +10,7 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -733,6 +734,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 log.info("Vault secrets found, injecting into {} connections", connections.size());
                 injectVaultSecrets(connections, vaultSecrets, user);
             }
+            refreshImportLastUpdate(connections.values(), connectionMetadata);
             Map<String, DataSourceConnectionDto> conMap = dataSourceService.batchImport(
                     new ArrayList<>(connections.values()), user, ImportModeEnum.REPLACE);
             metadataInstancesService.batchImport(connectionMetadata, user, conMap, new HashMap<>(), new HashMap<>());
@@ -789,14 +791,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Map<String, String> taskIdMap = new HashMap<>();
             Map<String, String> nodeIdMap = new HashMap<>();
             if (CollectionUtils.isNotEmpty(allTasks)) {
+                refreshBaseDtoLastUpdate(allTasks);
                 taskService.batchImport(allTasks, user, importMode, new ArrayList<>(), conMap, taskIdMap, nodeIdMap, new ArrayList<>());
                 List<MetadataInstancesDto> allTaskMetadata = new ArrayList<>();
                 allTaskMetadata.addAll(metadataByType.getOrDefault(ResourceType.MIGRATE_TASK, Collections.emptyList()));
                 allTaskMetadata.addAll(metadataByType.getOrDefault(ResourceType.SYNC_TASK, Collections.emptyList()));
                 allTaskMetadata.addAll(metadataByType.getOrDefault(ResourceType.SHARE_CACHE, Collections.emptyList()));
+                refreshMetadataLastUpdate(allTaskMetadata);
                 metadataInstancesService.batchImport(allTaskMetadata, user, conMap, taskIdMap, nodeIdMap);
             }
             if (MapUtils.isNotEmpty(inspectTasks)) {
+                refreshBaseDtoLastUpdate(inspectTasks.values());
                 Map<String, String> taskIdToNameMap = buildTaskIdToNameMap(migrateTasks, syncTasks);
                 inspectService.importTaskByGroup(new ArrayList<>(inspectTasks.values()), taskIdMap, taskIdToNameMap, conMap, user);
             }
@@ -831,7 +836,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 modules.entrySet().removeIf(e -> !names.contains(e.getValue().getName()));
             }
             if (MapUtils.isNotEmpty(modules)) {
+                refreshModuleLastUpdate(modules.values());
                 modulesService.batchImport(new ArrayList<>(modules.values()), user, importMode, new HashMap<>(), null);
+                refreshMetadataLastUpdate(metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()));
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, new HashMap<>(), null, null);
@@ -921,7 +928,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
             if (CollectionUtils.isNotEmpty(toImport)) {
                 // handleReplaceMode 内部处理：若已有 API 状态为 active → 先 unpublish → 覆盖内容 → republish
+                refreshModuleLastUpdate(toImport);
                 modulesService.batchImport(toImport, user, importMode, conMap, null);
+                refreshMetadataLastUpdate(metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()));
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, conMap, null, null);
@@ -1034,11 +1043,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Map<String, String> taskIdMap = new HashMap<>();
             Map<String, String> nodeIdMap = new HashMap<>();
             if (!toImportTasks.isEmpty()) {
+                refreshBaseDtoLastUpdate(toImportTasks);
                 taskService.batchImport(toImportTasks, user, importMode, new ArrayList<>(), conMap, taskIdMap, nodeIdMap, new ArrayList<>());
                 List<MetadataInstancesDto> taskMetadata = new ArrayList<>();
                 taskMetadata.addAll(metadataByType.getOrDefault(ResourceType.MIGRATE_TASK, Collections.emptyList()));
                 taskMetadata.addAll(metadataByType.getOrDefault(ResourceType.SYNC_TASK, Collections.emptyList()));
                 taskMetadata.addAll(metadataByType.getOrDefault(ResourceType.SHARE_CACHE, Collections.emptyList()));
+                refreshMetadataLastUpdate(taskMetadata);
                 metadataInstancesService.batchImport(taskMetadata, user, conMap, taskIdMap, nodeIdMap);
                 log.info("Task import completed, count={}", toImportTasks.size());
             }
@@ -1080,6 +1091,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
 
             if (!toImportInspects.isEmpty()) {
+                refreshBaseDtoLastUpdate(toImportInspects);
                 Map<String, String> taskIdToNameMap = buildTaskIdToNameMap(migrateTasks, syncTasks);
                 // 打印 conMap 内容，key=导出时旧连接ID，value=导入后新连接ID/名称，用于排查 inspect 数据源找不到的问题
                 if (log.isDebugEnabled()) {
@@ -1790,6 +1802,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             List<MetadataInstancesDto> connectionMetadata = metadataByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyList());
+            refreshImportLastUpdate(connections.values(), connectionMetadata);
             conMap = dataSourceService.batchImport(new ArrayList<>(connections.values()), user, importMode);
             metadataInstancesService.batchImport(connectionMetadata, user, conMap, new HashMap<>(),
                     new HashMap<>());
@@ -1814,6 +1827,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Map<String,Object> moduleImportResult;
             if (CollectionUtils.isNotEmpty(allTasks)) {
                 List<String> resetTaskList = collectResetTaskList(groupInfos);
+                refreshBaseDtoLastUpdate(allTasks);
                 taskImportResult = taskService.batchImport(allTasks, user, importMode, new ArrayList<>(), conMap, taskIdMap,
                         nodeIdMap, resetTaskList);
                 List<MetadataInstancesDto> allTaskMetadata = new ArrayList<>();
@@ -1823,6 +1837,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                         .addAll(metadataByType.getOrDefault(ResourceType.SYNC_TASK, Collections.emptyList()));
                 allTaskMetadata
                         .addAll(metadataByType.getOrDefault(ResourceType.SHARE_CACHE, Collections.emptyList()));
+                refreshMetadataLastUpdate(allTaskMetadata);
                 metadataInstancesService.batchImport(allTaskMetadata, user, conMap, taskIdMap, nodeIdMap);
                 log.info("Task resources import completed, taskCount={}, metadataCount={}",
                         allTasks.size(), allTaskMetadata.size());
@@ -1836,6 +1851,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Map<String, InspectDto> inspectTasks = (Map<String, InspectDto>) resourceMapsByType
                     .getOrDefault(ResourceType.INSPECT_TASK, Collections.emptyMap());
             if (MapUtils.isNotEmpty(inspectTasks)) {
+                refreshBaseDtoLastUpdate(inspectTasks.values());
                 Map<String, String> taskIdToNameMap = buildTaskIdToNameMap(migrateTasks, syncTasks);
                 inspectService.importTaskByGroup(new ArrayList<>(inspectTasks.values()), taskIdMap, taskIdToNameMap, conMap, user);
                 log.info("Inspect tasks import completed, inspectTaskCount={}", inspectTasks.size());
@@ -1847,7 +1863,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Map<String, ModulesDto> modules = (Map<String, ModulesDto>) resourceMapsByType
                     .getOrDefault(ResourceType.MODULE, Collections.emptyMap());
             if (MapUtils.isNotEmpty(modules)) {
+                refreshModuleLastUpdate(modules.values());
                 moduleImportResult = modulesService.batchImport(new ArrayList<>(modules.values()), user, importMode, conMap, null);
+                refreshMetadataLastUpdate(metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()));
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, conMap, null, null);
@@ -1898,6 +1916,46 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
         Map<String, String> secrets = JsonUtil.parseJsonUseJackson(json, new TypeReference<Map<String, String>>() {});
         return secrets != null ? secrets : Collections.emptyMap();
+    }
+
+    private void refreshImportLastUpdate(Collection<DataSourceConnectionDto> connections,
+            Collection<MetadataInstancesDto> metadataInstances) {
+        long currentTime = System.currentTimeMillis();
+        if (CollectionUtils.isNotEmpty(connections)) {
+            connections.stream().filter(Objects::nonNull).forEach(connection -> connection.setLastUpdate(currentTime));
+        }
+        refreshMetadataLastUpdate(metadataInstances, currentTime);
+    }
+
+    private void refreshMetadataLastUpdate(Collection<MetadataInstancesDto> metadataInstances) {
+        refreshMetadataLastUpdate(metadataInstances, System.currentTimeMillis());
+    }
+
+    private void refreshMetadataLastUpdate(Collection<MetadataInstancesDto> metadataInstances, long currentTime) {
+        if (CollectionUtils.isEmpty(metadataInstances)) {
+            return;
+        }
+        metadataInstances.stream().filter(Objects::nonNull).forEach(metadata -> metadata.setLastUpdate(currentTime));
+    }
+
+    private void refreshBaseDtoLastUpdate(Collection<? extends BaseDto> dtos) {
+        refreshBaseDtoLastUpdate(dtos, System.currentTimeMillis());
+    }
+
+    private void refreshBaseDtoLastUpdate(Collection<? extends BaseDto> dtos, long currentTime) {
+        if (CollectionUtils.isEmpty(dtos)) {
+            return;
+        }
+        dtos.stream().filter(Objects::nonNull).forEach(dto -> dto.setLastUpdAt(new Date(currentTime)));
+    }
+
+    private void refreshModuleLastUpdate(Collection<ModulesDto> modules) {
+        long currentTime = System.currentTimeMillis();
+        refreshBaseDtoLastUpdate(modules, currentTime);
+        if (CollectionUtils.isEmpty(modules)) {
+            return;
+        }
+        modules.stream().filter(Objects::nonNull).forEach(module -> module.setLast_updated(new Date(currentTime)));
     }
 
     /**
