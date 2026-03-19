@@ -468,7 +468,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
                 .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getProcessId()))
                 .collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a));
         Criteria criteria = findCriteria(null);
-        List<AgentGroupEntity> entities = findAll(Query.query(criteria), loginUser);
+        List<AgentGroupEntity> entities = settingsService.isCloud() ? findAll(Query.query(criteria), loginUser) : findAllEntity(Query.query(criteria));
         List<AccessNodeInfo> groupAgentList = entities.stream()
                 .filter(Objects::nonNull)
                 .sorted(agentGroupUtil::sortAgentGroup)
