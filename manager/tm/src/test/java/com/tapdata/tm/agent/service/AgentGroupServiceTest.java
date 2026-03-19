@@ -1411,7 +1411,7 @@ class AgentGroupServiceTest {
 
             when(settingsService.isCloud()).thenReturn(false);
             when(agentGroupService.findCriteria(null)).thenReturn(criteria);
-            when(agentGroupService.findAll(any(Query.class), any(UserDetail.class))).thenReturn(entities);
+            when(agentGroupService.findAllEntity(any(Query.class))).thenReturn(entities);
 
             when(agentGroupService.filterGroupList(info, userDetail)).thenCallRealMethod();
         }
@@ -1423,7 +1423,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1437,7 +1437,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(0)).getProcessId();
             verify(agentGroupService, times(0)).findCriteria(null);
-            verify(agentGroupService, times(0)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(0)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(0)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1451,7 +1451,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(0)).getProcessId();
             verify(agentGroupService, times(0)).findCriteria(null);
-            verify(agentGroupService, times(0)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(0)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(0)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1464,7 +1464,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1477,7 +1477,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1490,7 +1490,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1503,7 +1503,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(1)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
