@@ -51,6 +51,9 @@ public class ModulesDto extends BaseDto {
 
     private String path;
 
+    /**
+     * @see com.tapdata.tm.module.enums.ApiType
+     * */
     @NotBlank
     private String apiType;
 
