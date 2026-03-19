@@ -150,7 +150,7 @@ public class WorkerServiceImpl extends WorkerService{
                 return repository.findAll(Query.query(criteria), userDetail);
             }
         } else {
-            return repository.findAll(Query.query(criteria), userDetail);
+            return repository.findAll(Query.query(criteria));
         }
     }
 
