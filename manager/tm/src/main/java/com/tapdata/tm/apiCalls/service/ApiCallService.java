@@ -752,6 +752,41 @@ public class ApiCallService {
         encryptionIfNeed(open, apiCallDetailVo, moduleDto);
     }
 
+    protected boolean encryptionCustomFields(boolean open, Map<String, List<String>> fieldEncryptionRule, ApiCallDetailVo apiCallDetailVo) {
+        if (org.springframework.util.CollectionUtils.isEmpty(fieldEncryptionRule)) {
+            return false;
+        }
+        Set<String> ruleIds = new HashSet<>();
+        fieldEncryptionRule.forEach((k, v) -> ruleIds.addAll(v));
+        if (!CollectionUtils.isEmpty(ruleIds)) {
+            List<TextEncryptionRuleDto> ruleDto = ruleService.getById(ruleIds);
+            if (!CollectionUtils.isEmpty(ruleDto)) {
+                Map<String, TextEncryptionRuleDto> collect = ruleDto.stream()
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toMap(
+                                e -> e.getId().toHexString(),
+                                e -> e,
+                                (e1, e2) -> e2
+                        ));
+                Set<String> fields = fieldEncryptionRule.keySet();
+                Map<String, List<TextEncryptionRuleDto>> ruleMap = new HashMap<>();
+                for (String field : fields) {
+                    Optional.ofNullable(fieldEncryptionRule.get(field))
+                            .ifPresent(ks -> ruleMap.put(field, ks.stream()
+                                    .map(collect::get)
+                                    .filter(Objects::nonNull).toList()
+                            ));
+                }
+                String query = apiCallDetailVo.getQuery();
+                String body = apiCallDetailVo.getBody();
+                apiCallDetailVo.setQuery(parseCustomParam(open, query, ruleMap));
+                apiCallDetailVo.setBody(parseCustomParam(open, body, ruleMap));
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected void encryptionIfNeed(Boolean open, ApiCallDetailVo apiCallDetailVo, ModulesDto moduleDto) {
         Map<String, List<String>> fieldEncryptionRule = apiCallDetailVo.getFieldEncryptionRule();
         if (null == fieldEncryptionRule) {
@@ -776,35 +811,7 @@ public class ApiCallService {
         }
         String query = apiCallDetailVo.getQuery();
         String body = apiCallDetailVo.getBody();
-        boolean encryption = false;
-        if (!org.springframework.util.CollectionUtils.isEmpty(fieldEncryptionRule)) {
-            Set<String> ruleIds = new HashSet<>();
-            fieldEncryptionRule.forEach((k, v) -> ruleIds.addAll(v));
-            if (!CollectionUtils.isEmpty(ruleIds)) {
-                List<TextEncryptionRuleDto> ruleDto = ruleService.getById(ruleIds);
-                if (!CollectionUtils.isEmpty(ruleDto)) {
-                    Map<String, TextEncryptionRuleDto> collect = ruleDto.stream()
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toMap(
-                                    e -> e.getId().toHexString(),
-                                    e -> e,
-                                    (e1, e2) -> e2
-                            ));
-                    Set<String> fields = fieldEncryptionRule.keySet();
-                    Map<String, List<TextEncryptionRuleDto>> ruleMap = new HashMap<>();
-                    for (String field : fields) {
-                        Optional.ofNullable(fieldEncryptionRule.get(field))
-                                .ifPresent(ks -> ruleMap.put(field, ks.stream()
-                                        .map(collect::get)
-                                        .filter(Objects::nonNull).toList()
-                                ));
-                    }
-                    apiCallDetailVo.setQuery(parseCustomParam(open, query, ruleMap));
-                    apiCallDetailVo.setBody(parseCustomParam(open, body, ruleMap));
-                    encryption = true;
-                }
-            }
-        }
+        boolean encryption = encryptionCustomFields(open, fieldEncryptionRule, apiCallDetailVo);
         if (!encryption) {
             Map<String, Param> paramMap = new HashMap<>();
             if (StringUtils.isNotBlank(apiCallDetailVo.getApiId())) {
