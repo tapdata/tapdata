@@ -7474,18 +7474,19 @@ class TaskServiceImplTest {
         }
 
         @Test
-        @DisplayName("CDC 类型任务返回 null")
+        @DisplayName("CDC 类型任务返回 safe")
         void testCdcTypeReturnsNull() {
             TaskDto taskDto = new TaskDto();
             taskDto.setType("cdc");
             taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
             doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
             CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
-            assertNull(result);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
         }
 
         @Test
-        @DisplayName("attrs 包含 syncProgress 时返回 null")
+        @DisplayName("attrs 包含 syncProgress 时返回 safe")
         void testHasSyncProgressReturnsNull() {
             TaskDto taskDto = new TaskDto();
             taskDto.setType("initial_sync");
@@ -7495,18 +7496,20 @@ class TaskServiceImplTest {
             taskDto.setAttrs(attrs);
             doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
             CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
-            assertNull(result);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
         }
 
         @Test
-        @DisplayName("syncType 不是 migrate 或 sync 时返回 null")
+        @DisplayName("syncType 不是 migrate 或 sync 时返回 safe")
         void testInvalidSyncTypeReturnsNull() {
             TaskDto taskDto = new TaskDto();
             taskDto.setType("initial_sync");
             taskDto.setSyncType("logCollector");
             doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
             CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
-            assertNull(result);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
         }
 
         @Test
