@@ -64,6 +64,7 @@ import com.tapdata.tm.modules.dto.ModulesUpAndLoadDto;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.modules.param.ApiDetailParam;
+import com.tapdata.tm.modules.param.UpdateEncryptionParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.util.MongoQueryValidator;
 import com.tapdata.tm.modules.vo.ApiDefinitionVo;
@@ -188,6 +189,25 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				});
 		modulesDetailVo.setConnection(connectionId);
 		return modulesDetailVo;
+	}
+
+	public void updateParamEncryption(UpdateEncryptionParam param, UserDetail user) {
+		if (StringUtils.isBlank(param.getApiId())) {
+			throw new BizException("api.call.metric.process.id.required");
+		}
+		ObjectId apiId = MongoUtils.toObjectId(param.getApiId());
+		if (apiId == null) {
+			throw new BizException("api.call.metric.server.not.found", param.getApiId());
+		}
+		if (CollectionUtils.isEmpty(param.getPaths())) {
+			log.debug("Not any update param encryption paths need to save, {}", param.getApiId());
+			return;
+		}
+		repository.update(
+				Query.query(Criteria.where(BaseEntityFields._ID.field()).is(apiId)),
+				Update.update(ModulesField.PATHS.field(), param.getPaths()),
+				user
+		);
 	}
 
     public Page findModules(Filter filter, UserDetail userDetail) {
