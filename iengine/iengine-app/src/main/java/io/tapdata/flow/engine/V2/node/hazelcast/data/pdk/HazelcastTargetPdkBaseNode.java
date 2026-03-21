@@ -44,6 +44,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapCallbackOffset;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.ControlEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -1664,7 +1665,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (null == tapdataEvent.getSyncStage()) return;
             syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
         } else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-            if (null == tapdataEvent.getSyncStage() || offsetCallbackEnable) return;
+			if (null == tapdataEvent.getSyncStage() || offsetCallbackEnable) {
+				if (tapdataEvent.getTapEvent() instanceof ControlEvent) {
+					boolean success = sendControl((ControlEvent) tapdataEvent.getTapEvent());
+					if (!success) {
+						return;
+					}
+				}
+			}
             syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
             if (null != tapdataEvent.getStreamOffset()) {
                 syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
@@ -1690,6 +1698,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (syncProgress.getSyncStage() == null) {
 			obsLogger.warn(String.format("Found sync stage is null when flush sync progress, event: %s[%s]", tapdataEvent, tapdataEvent.getClass().getName()));
 		}
+	}
+
+	protected boolean sendControl(ControlEvent event) {
+		SendControlFunction sendControlFunction = getConnectorNode().getConnectorFunctions().getSendControlFunction();
+		if (null == sendControlFunction) {
+			return false;
+		}
+		AtomicBoolean sendSuccess = new AtomicBoolean(true);
+		try {
+			sendControlFunction.sendControl(getConnectorNode().getConnectorContext(), Collections.singletonList(event), result -> {
+				if (!result.isSuccess()) {
+					sendSuccess.set(false);
+				}
+			});
+		} catch (Throwable e) {
+			sendSuccess.set(false);
+		}
+		return sendSuccess.get();
 	}
 
 	protected boolean flushOffsetCallback(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
