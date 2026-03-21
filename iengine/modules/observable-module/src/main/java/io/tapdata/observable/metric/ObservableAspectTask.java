@@ -508,11 +508,9 @@ public class ObservableAspectTask extends AspectTask {
                                                     if (list.isEmpty()) return null;
                                                     return list.get(0);
                                                 }).map(SyncObjects::getTableNameRelation)
-                                                .map(tableNameRelation -> {
-                                                    return HashBiMap.create(tableNameRelation).inverse().get(table);
-                                                })
+                                                .map(tableNameRelation -> HashBiMap.create(tableNameRelation).get(table))
                                                 .orElse(null);
-                                            if (handlers.containsKey(targetTableName)) {
+                                            if (targetTableName != null && handlers.containsKey(targetTableName)) {
                                                 return Optional.ofNullable(handlers.get(targetTableName));
                                             }
                                         }
