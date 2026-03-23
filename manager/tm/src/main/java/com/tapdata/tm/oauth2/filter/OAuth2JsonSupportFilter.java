@@ -1,6 +1,7 @@
 package com.tapdata.tm.oauth2.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tapdata.tm.config.security.JsonToFormRequestWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.util.LinkedMultiValueMap;
@@ -48,12 +49,8 @@ public class OAuth2JsonSupportFilter implements Filter {
             log.debug("Converting JSON request to form-urlencoded format");
             
             try {
-                // 读取原始请求体
-                byte[] body = StreamUtils.copyToByteArray(httpRequest.getInputStream());
-                String jsonBody = new String(body, StandardCharsets.UTF_8);
-                
                 // 解析JSON
-                Map<String, Object> jsonMap = objectMapper.readValue(jsonBody, Map.class);
+                Map<String, Object> jsonMap = readBody(httpRequest);
 
                 // 验证必需参数
                 if (!jsonMap.containsKey("grant_type")) {
@@ -90,6 +87,18 @@ public class OAuth2JsonSupportFilter implements Filter {
             // 对于form-urlencoded或其他格式，直接传递
             chain.doFilter(request, response);
         }
+    }
+
+    protected Map<String, Object> readBody(HttpServletRequest request) throws IOException {
+        Map<String, Object> body;
+        if (request instanceof JsonToFormRequestWrapper jtfr) {
+            body = new HashMap<>(jtfr.originBody());
+        } else {
+            byte[] bodyByte = StreamUtils.copyToByteArray(request.getInputStream());
+            String jsonBody = new String(bodyByte, StandardCharsets.UTF_8);
+            body = objectMapper.readValue(jsonBody, Map.class);
+        }
+        return body;
     }
     
     /**
