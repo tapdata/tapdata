@@ -3093,7 +3093,6 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			processorBaseContext = mock(ProcessorBaseContext.class);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
 			when(processorBaseContext.getNode()).thenReturn(node);
-			when(hazelcastTargetPdkBaseNode.sendControl((HeartbeatEvent)tapdataEvent.getTapEvent())).thenReturn(true);
 			AtomicBoolean flushOffset = new AtomicBoolean(false);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", flushOffset);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
