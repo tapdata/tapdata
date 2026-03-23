@@ -44,6 +44,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapCallbackOffset;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -1664,7 +1665,29 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (null == tapdataEvent.getSyncStage()) return;
             syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
         } else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-            if (null == tapdataEvent.getSyncStage() || offsetCallbackEnable) return;
+			if (null == tapdataEvent.getSyncStage() || offsetCallbackEnable) {
+				try {
+					ProcessControlFunction processControlFunction = getConnectorNode().getConnectorFunctions().getProcessControlFunction();
+					if (null == processControlFunction) {
+						return;
+					}
+					HeartbeatEvent event;
+					if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
+						event = (HeartbeatEvent) tapdataEvent.getTapEvent();
+					} else {
+						event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
+					}
+					event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
+					event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
+					event.addInfo("syncStage", tapdataEvent.getSyncStage());
+					event.addInfo("sourceTime", tapdataEvent.getSourceTime());
+					event.addInfo("nodeIds", tapdataEvent.getNodeIds());
+					processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
+					return;
+				} catch (Throwable throwable) {
+					errorHandle(throwable);
+				}
+			}
             syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
             if (null != tapdataEvent.getStreamOffset()) {
                 syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
