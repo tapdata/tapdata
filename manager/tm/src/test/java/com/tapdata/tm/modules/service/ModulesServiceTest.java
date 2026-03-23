@@ -31,8 +31,11 @@ import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.module.dto.PathSetting;
 import com.tapdata.tm.modules.entity.ModulesEntity;
+import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.module.dto.TextEncryption;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
+import com.tapdata.tm.modules.param.UpdateEncryptionParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
@@ -49,6 +52,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.ZoneId;
@@ -59,6 +63,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.never;
@@ -1849,6 +1854,515 @@ class ModulesServiceTest {
             boolean result = modulesService.nameExists(apiId, name);
 
             assertFalse(result);
+        }
+    }
+
+    @Nested
+    @DisplayName("Method updateParamEncryption test")
+    class UpdateParamEncryptionTest {
+        UserDetail userDetail;
+        UpdateEncryptionParam param;
+
+        @BeforeEach
+        void setUp() {
+            userDetail = mock(UserDetail.class);
+            param = new UpdateEncryptionParam();
+        }
+
+        @Test
+        @DisplayName("test apiId is blank - should throw BizException")
+        void testApiIdIsBlank() {
+            param.setApiId("");
+            BizException exception = assertThrows(BizException.class,
+                    () -> modulesService.updateParamEncryption(param, userDetail));
+            assertEquals("api.call.metric.process.id.required", exception.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("test apiId is null - should throw BizException")
+        void testApiIdIsNull() {
+            param.setApiId(null);
+            BizException exception = assertThrows(BizException.class,
+                    () -> modulesService.updateParamEncryption(param, userDetail));
+            assertEquals("api.call.metric.process.id.required", exception.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("test apiId is invalid ObjectId - should throw BizException")
+        void testApiIdIsInvalidObjectId() {
+            param.setApiId("invalid-object-id");
+            BizException exception = assertThrows(BizException.class,
+                    () -> modulesService.updateParamEncryption(param, userDetail));
+            assertEquals("api.call.metric.server.not.found", exception.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("test paths is empty - should return without update")
+        void testPathsIsEmpty() {
+            param.setApiId(new ObjectId().toHexString());
+            param.setPaths(new ArrayList<>());
+            assertDoesNotThrow(() -> modulesService.updateParamEncryption(param, userDetail));
+            verify(modulesRepository, never()).update(any(Query.class), any(Update.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("test paths is null - should return without update")
+        void testPathsIsNull() {
+            param.setApiId(new ObjectId().toHexString());
+            param.setPaths(null);
+            assertDoesNotThrow(() -> modulesService.updateParamEncryption(param, userDetail));
+            verify(modulesRepository, never()).update(any(Query.class), any(Update.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("test normal update - should call repository update")
+        void testNormalUpdate() {
+            ObjectId apiId = new ObjectId();
+            param.setApiId(apiId.toHexString());
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            path.setName("testPath");
+            paths.add(path);
+            param.setPaths(paths);
+
+            assertDoesNotThrow(() -> modulesService.updateParamEncryption(param, userDetail));
+            verify(modulesRepository, times(1)).update(any(Query.class), any(Update.class), eq(userDetail));
+        }
+    }
+
+    @Nested
+    @DisplayName("Method withUnPublishApi test")
+    class WithUnPublishApiTest {
+        @BeforeEach
+        void setUp() {
+            modulesService = spy(modulesService);
+        }
+
+        @Test
+        @DisplayName("test with publish apis and pending apis")
+        void testWithPublishApisAndPendingApis() {
+            List<ModulesDto> publishApis = new ArrayList<>();
+            ModulesDto activeApi = new ModulesDto();
+            activeApi.setId(new ObjectId());
+            activeApi.setName("activeApi");
+            activeApi.setApiVersion("v1");
+            activeApi.setPrefix("api");
+            activeApi.setBasePath("test");
+            publishApis.add(activeApi);
+
+            List<ModulesDto> pendingApis = new ArrayList<>();
+            ModulesDto pendingApi = new ModulesDto();
+            pendingApi.setId(new ObjectId());
+            pendingApi.setName("pendingApi");
+            pendingApi.setApiVersion("v2");
+            pendingApi.setPrefix("api");
+            pendingApi.setBasePath("pending");
+            pendingApis.add(pendingApi);
+
+            doReturn(pendingApis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
+
+            List<ApiDefinitionVo.ApiInfo> result = modulesService.withUnPublishApi(publishApis);
+
+            assertNotNull(result);
+            assertEquals(2, result.size());
+            assertTrue(result.get(0).isPublish());
+            assertFalse(result.get(1).isPublish());
+        }
+
+        @Test
+        @DisplayName("test with empty publish apis")
+        void testWithEmptyPublishApis() {
+            List<ModulesDto> publishApis = new ArrayList<>();
+            List<ModulesDto> pendingApis = new ArrayList<>();
+            ModulesDto pendingApi = new ModulesDto();
+            pendingApi.setId(new ObjectId());
+            pendingApi.setName("pendingApi");
+            pendingApis.add(pendingApi);
+
+            doReturn(pendingApis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
+
+            List<ApiDefinitionVo.ApiInfo> result = modulesService.withUnPublishApi(publishApis);
+
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertFalse(result.get(0).isPublish());
+        }
+
+        @Test
+        @DisplayName("test with empty pending apis")
+        void testWithEmptyPendingApis() {
+            List<ModulesDto> publishApis = new ArrayList<>();
+            ModulesDto activeApi = new ModulesDto();
+            activeApi.setId(new ObjectId());
+            activeApi.setName("activeApi");
+            publishApis.add(activeApi);
+
+            doReturn(new ArrayList<>()).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
+
+            List<ApiDefinitionVo.ApiInfo> result = modulesService.withUnPublishApi(publishApis);
+
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertTrue(result.get(0).isPublish());
+        }
+
+        @Test
+        @DisplayName("test with both empty")
+        void testWithBothEmpty() {
+            List<ModulesDto> publishApis = new ArrayList<>();
+            doReturn(new ArrayList<>()).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
+
+            List<ApiDefinitionVo.ApiInfo> result = modulesService.withUnPublishApi(publishApis);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method withEncryptionRule test")
+    class WithEncryptionRuleTest {
+        @Test
+        @DisplayName("test with empty apis list")
+        void testWithEmptyApisList() {
+            List<ModulesDto> apis = new ArrayList<>();
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, never()).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test with null api in list")
+        void testWithNullApiInList() {
+            List<ModulesDto> apis = new ArrayList<>();
+            apis.add(null);
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, never()).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test with api having null paths")
+        void testWithApiHavingNullPaths() {
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            api.setPaths(null);
+            apis.add(api);
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, never()).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test with api having empty paths")
+        void testWithApiHavingEmptyPaths() {
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            api.setPaths(new ArrayList<>());
+            apis.add(api);
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, never()).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test with path having null params")
+        void testWithPathHavingNullParams() {
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            path.setParams(null);
+            paths.add(path);
+            api.setPaths(paths);
+            apis.add(api);
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, never()).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test with path having empty params")
+        void testWithPathHavingEmptyParams() {
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            path.setParams(new ArrayList<>());
+            paths.add(path);
+            api.setPaths(paths);
+            apis.add(api);
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, never()).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test with param having empty textEncryptionRuleIds")
+        void testWithParamHavingEmptyTextEncryptionRuleIds() {
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            List<Param> params = new ArrayList<>();
+            Param param = new Param();
+            param.setTextEncryptionRuleIds(new ArrayList<>());
+            params.add(param);
+            path.setParams(params);
+            paths.add(path);
+            api.setPaths(paths);
+            apis.add(api);
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, never()).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test with ruleDto returns empty")
+        void testWithRuleDtoReturnsEmpty() {
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            List<Param> params = new ArrayList<>();
+            Param param = new Param();
+            param.setTextEncryptionRuleIds(Lists.newArrayList("ruleId1"));
+            params.add(param);
+            path.setParams(params);
+            paths.add(path);
+            api.setPaths(paths);
+            apis.add(api);
+
+            when(textEncryptionRuleService.getById(anySet())).thenReturn(new ArrayList<>());
+
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, times(1)).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test with ruleDto returns null")
+        void testWithRuleDtoReturnsNull() {
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            List<Param> params = new ArrayList<>();
+            Param param = new Param();
+            param.setTextEncryptionRuleIds(Lists.newArrayList("ruleId1"));
+            params.add(param);
+            path.setParams(params);
+            paths.add(path);
+            api.setPaths(paths);
+            apis.add(api);
+
+            when(textEncryptionRuleService.getById(anySet())).thenReturn(null);
+
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, times(1)).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test normal process with valid rules")
+        void testNormalProcessWithValidRules() {
+            ObjectId ruleId = new ObjectId();
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            List<Param> params = new ArrayList<>();
+            Param param = new Param();
+            param.setTextEncryptionRuleIds(Lists.newArrayList(ruleId.toHexString()));
+            params.add(param);
+            path.setParams(params);
+            paths.add(path);
+            api.setPaths(paths);
+            apis.add(api);
+
+            List<TextEncryptionRuleDto> ruleDtos = new ArrayList<>();
+            TextEncryptionRuleDto ruleDto = new TextEncryptionRuleDto();
+            ruleDto.setId(ruleId);
+            ruleDto.setRegex("\\d+");
+            ruleDto.setOutputChar("*");
+            ruleDto.setOutputType(1);
+            ruleDto.setOutputCount(5);
+            ruleDtos.add(ruleDto);
+
+            when(textEncryptionRuleService.getById(anySet())).thenReturn(ruleDtos);
+
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, times(1)).getById(anySet());
+            assertNotNull(param.getTextEncryptionRule());
+            assertEquals(1, param.getTextEncryptionRule().size());
+            assertNull(param.getTextEncryptionRuleIds());
+        }
+
+        @Test
+        @DisplayName("test with null path in paths list")
+        void testWithNullPathInPathsList() {
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            paths.add(null);
+            api.setPaths(paths);
+            apis.add(api);
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            verify(textEncryptionRuleService, never()).getById(anySet());
+        }
+
+        @Test
+        @DisplayName("test with ruleDto having null id")
+        void testWithRuleDtoHavingNullId() {
+            ObjectId ruleId = new ObjectId();
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            List<Param> params = new ArrayList<>();
+            Param param = new Param();
+            param.setTextEncryptionRuleIds(Lists.newArrayList(ruleId.toHexString()));
+            params.add(param);
+            path.setParams(params);
+            paths.add(path);
+            api.setPaths(paths);
+            apis.add(api);
+
+            List<TextEncryptionRuleDto> ruleDtos = new ArrayList<>();
+            TextEncryptionRuleDto ruleDto = new TextEncryptionRuleDto();
+            ruleDto.setId(null);
+            ruleDtos.add(ruleDto);
+
+            when(textEncryptionRuleService.getById(anySet())).thenReturn(ruleDtos);
+
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            assertTrue(param.getTextEncryptionRule().isEmpty());
+        }
+
+        @Test
+        @DisplayName("test with null ruleDto in list")
+        void testWithNullRuleDtoInList() {
+            ObjectId ruleId = new ObjectId();
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            List<Param> params = new ArrayList<>();
+            Param param = new Param();
+            param.setTextEncryptionRuleIds(Lists.newArrayList(ruleId.toHexString()));
+            params.add(param);
+            path.setParams(params);
+            paths.add(path);
+            api.setPaths(paths);
+            apis.add(api);
+
+            List<TextEncryptionRuleDto> ruleDtos = new ArrayList<>();
+            ruleDtos.add(null);
+
+            when(textEncryptionRuleService.getById(anySet())).thenReturn(ruleDtos);
+
+            assertDoesNotThrow(() -> modulesService.withEncryptionRule(apis));
+            assertTrue(param.getTextEncryptionRule().isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method toTextEncryption test")
+    class ToTextEncryptionTest {
+        @Test
+        @DisplayName("test normal conversion")
+        void testNormalConversion() {
+            ObjectId ruleId = new ObjectId();
+            TextEncryptionRuleDto from = new TextEncryptionRuleDto();
+            from.setId(ruleId);
+            from.setRegex("\\d{4}");
+            from.setOutputChar("*");
+            from.setOutputType(1);
+            from.setOutputCount(4);
+
+            TextEncryption result = modulesService.toTextEncryption(from);
+
+            assertNotNull(result);
+            assertEquals(ruleId.toHexString(), result.getId());
+            assertEquals("\\d{4}", result.getRegex());
+            assertEquals("*", result.getOutputChar());
+            assertEquals(1, result.getOutputType());
+            assertEquals(4, result.getOutputCount());
+        }
+
+        @Test
+        @DisplayName("test with null regex")
+        void testWithNullRegex() {
+            ObjectId ruleId = new ObjectId();
+            TextEncryptionRuleDto from = new TextEncryptionRuleDto();
+            from.setId(ruleId);
+            from.setRegex(null);
+            from.setOutputChar("#");
+            from.setOutputType(2);
+            from.setOutputCount(3);
+
+            TextEncryption result = modulesService.toTextEncryption(from);
+
+            assertNotNull(result);
+            assertEquals(ruleId.toHexString(), result.getId());
+            assertNull(result.getRegex());
+            assertEquals("#", result.getOutputChar());
+            assertEquals(2, result.getOutputType());
+            assertEquals(3, result.getOutputCount());
+        }
+
+        @Test
+        @DisplayName("test with null outputChar")
+        void testWithNullOutputChar() {
+            ObjectId ruleId = new ObjectId();
+            TextEncryptionRuleDto from = new TextEncryptionRuleDto();
+            from.setId(ruleId);
+            from.setRegex("[a-z]+");
+            from.setOutputChar(null);
+            from.setOutputType(0);
+            from.setOutputCount(null);
+
+            TextEncryption result = modulesService.toTextEncryption(from);
+
+            assertNotNull(result);
+            assertEquals(ruleId.toHexString(), result.getId());
+            assertEquals("[a-z]+", result.getRegex());
+            assertNull(result.getOutputChar());
+            assertEquals(0, result.getOutputType());
+            assertNull(result.getOutputCount());
+        }
+
+        @Test
+        @DisplayName("test with all null values except id")
+        void testWithAllNullValuesExceptId() {
+            ObjectId ruleId = new ObjectId();
+            TextEncryptionRuleDto from = new TextEncryptionRuleDto();
+            from.setId(ruleId);
+            from.setRegex(null);
+            from.setOutputChar(null);
+            from.setOutputType(null);
+            from.setOutputCount(null);
+
+            TextEncryption result = modulesService.toTextEncryption(from);
+
+            assertNotNull(result);
+            assertEquals(ruleId.toHexString(), result.getId());
+            assertNull(result.getRegex());
+            assertNull(result.getOutputChar());
+            assertNull(result.getOutputType());
+            assertNull(result.getOutputCount());
+        }
+
+        @Test
+        @DisplayName("test with empty string values")
+        void testWithEmptyStringValues() {
+            ObjectId ruleId = new ObjectId();
+            TextEncryptionRuleDto from = new TextEncryptionRuleDto();
+            from.setId(ruleId);
+            from.setRegex("");
+            from.setOutputChar("");
+            from.setOutputType(0);
+            from.setOutputCount(0);
+
+            TextEncryption result = modulesService.toTextEncryption(from);
+
+            assertNotNull(result);
+            assertEquals(ruleId.toHexString(), result.getId());
+            assertEquals("", result.getRegex());
+            assertEquals("", result.getOutputChar());
+            assertEquals(0, result.getOutputType());
+            assertEquals(0, result.getOutputCount());
         }
     }
 }
