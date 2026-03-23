@@ -3123,7 +3123,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", flushOffset);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
 			hazelcastTargetPdkBaseNode.flushSyncProgressMap(tapdataEvent);
-			assertFalse(flushOffset.get());
+			assertTrue(flushOffset.get());
 		}
 	}
 

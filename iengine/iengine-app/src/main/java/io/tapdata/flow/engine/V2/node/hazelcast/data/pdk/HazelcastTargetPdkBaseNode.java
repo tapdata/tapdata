@@ -44,7 +44,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapCallbackOffset;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.control.ControlEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -1666,11 +1666,26 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
         } else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
 			if (null == tapdataEvent.getSyncStage() || offsetCallbackEnable) {
-				if (tapdataEvent.getTapEvent() instanceof ControlEvent) {
-					boolean success = sendControl((ControlEvent) tapdataEvent.getTapEvent());
-					if (!success) {
+				try {
+					ProcessControlFunction processControlFunction = getConnectorNode().getConnectorFunctions().getProcessControlFunction();
+					if (null == processControlFunction) {
 						return;
 					}
+					HeartbeatEvent event;
+					if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
+						event = (HeartbeatEvent) tapdataEvent.getTapEvent();
+					} else {
+						event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
+					}
+					event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
+					event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
+					event.addInfo("syncStage", tapdataEvent.getSyncStage());
+					event.addInfo("sourceTime", tapdataEvent.getSourceTime());
+					event.addInfo("nodeIds", tapdataEvent.getNodeIds());
+					processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
+					return;
+				} catch (Throwable throwable) {
+					errorHandle(throwable);
 				}
 			}
             syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
@@ -1698,24 +1713,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (syncProgress.getSyncStage() == null) {
 			obsLogger.warn(String.format("Found sync stage is null when flush sync progress, event: %s[%s]", tapdataEvent, tapdataEvent.getClass().getName()));
 		}
-	}
-
-	protected boolean sendControl(ControlEvent event) {
-		SendControlFunction sendControlFunction = getConnectorNode().getConnectorFunctions().getSendControlFunction();
-		if (null == sendControlFunction) {
-			return false;
-		}
-		AtomicBoolean sendSuccess = new AtomicBoolean(true);
-		try {
-			sendControlFunction.sendControl(getConnectorNode().getConnectorContext(), Collections.singletonList(event), result -> {
-				if (!result.isSuccess()) {
-					sendSuccess.set(false);
-				}
-			});
-		} catch (Throwable e) {
-			sendSuccess.set(false);
-		}
-		return sendSuccess.get();
 	}
 
 	protected boolean flushOffsetCallback(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
