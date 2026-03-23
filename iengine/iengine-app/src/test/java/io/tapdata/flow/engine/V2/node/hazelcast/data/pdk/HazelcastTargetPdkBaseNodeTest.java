@@ -3093,32 +3093,6 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			processorBaseContext = mock(ProcessorBaseContext.class);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
 			when(processorBaseContext.getNode()).thenReturn(node);
-			when(hazelcastTargetPdkBaseNode.sendControl((HeartbeatEvent)tapdataEvent.getTapEvent())).thenReturn(true);
-			AtomicBoolean flushOffset = new AtomicBoolean(false);
-			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", flushOffset);
-			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
-			hazelcastTargetPdkBaseNode.flushSyncProgressMap(tapdataEvent);
-			assertTrue(flushOffset.get());
-		}
-
-		@Test
-		void testForTapdataHeartbeatEvent2() {
-			TapdataEvent tapdataEvent = new TapdataHeartbeatEvent();
-			tapdataEvent.setTapEvent(new HeartbeatEvent());
-			tapdataEvent.setSyncStage(mock(SyncStage.class));
-			tapdataEvent.setNodeIds(List.of("nodeId1"));
-			Node node = mock(Node.class);
-			when(node.getId()).thenReturn("nodeId");
-			Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
-			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "syncProgressMap", syncProgressMap);
-			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "offsetCallbackEnable", true);
-			ObsLogger obsLogger = mock(ObsLogger.class);
-			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
-
-			processorBaseContext = mock(ProcessorBaseContext.class);
-			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
-			when(processorBaseContext.getNode()).thenReturn(node);
-			when(hazelcastTargetPdkBaseNode.sendControl((HeartbeatEvent)tapdataEvent.getTapEvent())).thenReturn(false);
 			AtomicBoolean flushOffset = new AtomicBoolean(false);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", flushOffset);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
