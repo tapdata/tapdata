@@ -622,11 +622,7 @@ public class UserServiceImpl extends UserService{
 			}
 		});
 
-		biConsumer.accept(dto.getAdds(), (permissions, wholeRoleMappingDtos, roleId) -> {
-			// 只添加用户指定的权限，不自动添加子权限
-			List<RoleMappingDto> addRoleMappingDtos = dto.getAdds().stream()
-							.filter(r -> r.getRoleId().equals(roleId))
-							.collect(Collectors.toList());
+		biConsumer.accept(dto.getAdds(), (permissions, addRoleMappingDtos, roleId) -> {
 			if (CollectionUtils.isNotEmpty(addRoleMappingDtos)) {
 				//去重
 				List<Criteria> queryExistsCriteriaList = addRoleMappingDtos.stream()
