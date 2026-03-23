@@ -128,8 +128,12 @@ public class ApiCallService {
             modulesDto = modulesService.findById(apiId, loginUser);
             if (null != modulesDto) {
                 apiCallDetailVo.setName(modulesDto.getName());
-                apiCallDetailVo.setApiId(apiCallEntity.getAllPathId());
-                apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
+                Optional.of(apiCallEntity)
+                        .map(ApiCallEntity::getAllPathId)
+                        .ifPresent(apiCallDetailVo::setApiId);
+                Optional.of(apiCallEntity)
+                        .map(ApiCallEntity::getReq_path)
+                        .ifPresent(apiCallDetailVo::setApiPath);
             }
         } else if (null != apiCallEntity) {
             apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
@@ -757,7 +761,9 @@ public class ApiCallService {
             return false;
         }
         Set<String> ruleIds = new HashSet<>();
-        fieldEncryptionRule.forEach((k, v) -> ruleIds.addAll(v));
+        fieldEncryptionRule.forEach((k, v) ->
+            v.stream().filter(StringUtils::isNotBlank).forEach(ruleIds::add)
+        );
         if (!CollectionUtils.isEmpty(ruleIds)) {
             List<TextEncryptionRuleDto> ruleDto = ruleService.getById(ruleIds);
             if (!CollectionUtils.isEmpty(ruleDto)) {
