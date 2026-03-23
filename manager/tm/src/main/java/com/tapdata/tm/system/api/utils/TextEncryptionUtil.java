@@ -7,6 +7,7 @@ import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.enums.OutputType;
 import com.tapdata.tm.system.api.vo.DebugVo;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.CollectionUtils;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -126,6 +127,22 @@ public class TextEncryptionUtil {
             } else {
                 data.put(key, PARAM_REPLACE_CHAR);
             }
+        }
+        return data;
+    }
+
+    public static Map<String, Object> encryptionCustomerField(Map<String, Object> data, Map<String, List<TextEncryptionRuleDto>> rules) {
+        final List<String> keys = new ArrayList<>(data.keySet());
+        for (String key : keys) {
+            if (SYSTEM_FIELDS.contains(key)) {
+                continue;
+            }
+            Object value = data.get(key);
+            List<TextEncryptionRuleDto> textEncryptionRules = rules.get(key);
+            if (CollectionUtils.isEmpty(textEncryptionRules)) {
+                continue;
+            }
+            data.put(key, mapFieldValue(textEncryptionRules, value));
         }
         return data;
     }

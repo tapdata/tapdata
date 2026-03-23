@@ -1,7 +1,9 @@
 package com.tapdata.tm.apiServer.entity;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.worker.dto.WorkersDeserializer;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.bson.types.ObjectId;
@@ -47,10 +49,12 @@ public class WorkerCallEntity extends BaseEntity {
     /**
      * @deprecated unused
      * */
+    @JsonDeserialize(using = DelayDeserializer.class)
     private List<?> delays;
     /**
      * Delay list at current time granularity, in milliseconds
      */
+    @JsonDeserialize(using = DelayDeserializer.class)
     private List<Map<String, Number>> delayList;
     /**
      * P50=median at current time granularity, 50% of request delays are below this value, in milliseconds
