@@ -2,6 +2,7 @@ package com.tapdata.tm.user.service;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Permission.dto.PermissionDto;
+import com.tapdata.tm.Permission.entity.PermissionEntity;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -867,6 +868,74 @@ public class UserServiceImplTest {
     @Nested
     class updatePermissionRoleMappingTest {
         @Test
+        void testDeleteTopPermissionChildShouldNotDeleteParent() {
+            ObjectId roleId = new ObjectId();
+            UpdatePermissionRoleMappingDto dto = new UpdatePermissionRoleMappingDto();
+            dto.setAdds(Collections.emptyList());
+            dto.setDeletes(Collections.singletonList(new RoleMappingDto("PERMISSION", "v2_data_replication_creation", roleId)));
+
+            PermissionEntity creation = new PermissionEntity();
+            creation.setName("v2_data_replication_creation");
+            creation.setParentId("v2_data_replication");
+
+            when(permissionService.find(any())).thenReturn(
+                    Collections.singletonList(creation),
+                    Collections.emptyList(),
+                    Collections.singletonList(creation)
+            );
+            when(roleMappingService.count(any(Query.class))).thenReturn(0L);
+
+            UserDetail userDetail = mock(UserDetail.class);
+            doCallRealMethod().when(userService).updatePermissionRoleMapping(dto, userDetail);
+
+            userService.updatePermissionRoleMapping(dto, userDetail);
+
+            verify(roleMappingService, new Times(1)).deleteAll(any(Query.class));
+        }
+
+        @Test
+        void testDeleteNonTopPermissionChildShouldDeleteParent() {
+            ObjectId roleId = new ObjectId();
+            UpdatePermissionRoleMappingDto dto = new UpdatePermissionRoleMappingDto();
+            dto.setAdds(Collections.emptyList());
+            dto.setDeletes(Collections.singletonList(new RoleMappingDto("PERMISSION", "custom_child_permission", roleId)));
+
+            PermissionEntity child = new PermissionEntity();
+            child.setName("custom_child_permission");
+            child.setParentId("custom_parent_permission");
+
+            when(permissionService.find(any())).thenReturn(
+                    Collections.singletonList(child),
+                    Collections.emptyList(),
+                    Collections.singletonList(child)
+            );
+            when(roleMappingService.count(any(Query.class))).thenReturn(0L);
+
+            UserDetail userDetail = mock(UserDetail.class);
+            doCallRealMethod().when(userService).updatePermissionRoleMapping(dto, userDetail);
+
+            userService.updatePermissionRoleMapping(dto, userDetail);
+
+            verify(roleMappingService, new Times(2)).deleteAll(any(Query.class));
+        }
+
+        @Test
+        void testAddsAndDeletesShouldBothWriteLogs() {
+            UpdatePermissionRoleMappingDto dto = new UpdatePermissionRoleMappingDto();
+            ObjectId roleId = new ObjectId();
+            dto.setAdds(Collections.singletonList(new RoleMappingDto("PERMISSION", "111", roleId)));
+            dto.setDeletes(Collections.singletonList(new RoleMappingDto("PERMISSION", "222", roleId)));
+
+            UserDetail userDetail = mock(UserDetail.class);
+            doCallRealMethod().when(userService).updatePermissionRoleMapping(dto, userDetail);
+
+            userService.updatePermissionRoleMapping(dto, userDetail);
+
+            verify(roleMappingService, new Times(1)).addUserLogIfNeed(dto.getAdds(), userDetail);
+            verify(roleMappingService, new Times(1)).addUserLogIfNeed(dto.getDeletes(), userDetail);
+        }
+
+        @Test
         void testAdds() {
             UpdatePermissionRoleMappingDto dto = new UpdatePermissionRoleMappingDto();
             List<RoleMappingDto> adds = new ArrayList<>();
@@ -1013,4 +1082,3 @@ public class UserServiceImplTest {
         }
     }
 }
-
