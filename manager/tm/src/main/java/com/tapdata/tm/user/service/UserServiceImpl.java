@@ -85,6 +85,11 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Component
 @Slf4j
 public class UserServiceImpl extends UserService{
+    /**
+     * 权限过滤关键字：包含这些关键字的子权限不会被自动添加，需要用户手动指定
+     */
+    private static final List<String> EXCLUDED_PERMISSION_KEYWORDS = List.of("import", "export", "all_data", "copy", "creation");
+
     public UserServiceImpl(@NonNull UserRepository repository) {
         super(repository);
     }
@@ -587,6 +592,8 @@ public class UserServiceImpl extends UserService{
         return keyPath;
     }
 	public void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail) {
+		List<RoleMappingDto> adds = Optional.ofNullable(dto.getAdds()).orElse(Collections.emptyList());
+		List<RoleMappingDto> deletes = Optional.ofNullable(dto.getDeletes()).orElse(Collections.emptyList());
 		BiConsumer<List<RoleMappingDto>, Bi3Consumer<List<PermissionEntity>, List<RoleMappingDto>, ObjectId>> biConsumer = (roleMappingDtos, consumer) -> {
 			if (CollectionUtils.isNotEmpty(roleMappingDtos)) {
 				Map<ObjectId, List<RoleMappingDto>> roleMappingByRoleIdMap = roleMappingDtos.stream().collect(Collectors.groupingBy(RoleMappingDto::getRoleId));
@@ -602,7 +609,7 @@ public class UserServiceImpl extends UserService{
 			}
 		};
 
-		biConsumer.accept(dto.getDeletes(), (permissions, deleteRoleMappingDtos, roleId) -> {
+		biConsumer.accept(deletes, (permissions, deleteRoleMappingDtos, roleId) -> {
 			List<Criteria> deleteCriteriaList = deleteRoleMappingDtos.stream()
 							.map(delete -> Criteria.where("roleId").is(delete.getRoleId())
 											.and("principalId").is(delete.getPrincipalId())
@@ -622,11 +629,16 @@ public class UserServiceImpl extends UserService{
 			}
 		});
 
-		biConsumer.accept(dto.getAdds(), (permissions, wholeRoleMappingDtos, roleId) -> {
+		biConsumer.accept(adds, (permissions, wholeRoleMappingDtos, roleId) -> {
 			// 只添加用户指定的权限，不自动添加子权限
-			List<RoleMappingDto> addRoleMappingDtos = dto.getAdds().stream()
+            List<RoleMappingDto> filterWholeRoleMappingDtos = wholeRoleMappingDtos.stream()
+                .filter(roleMappingDto -> EXCLUDED_PERMISSION_KEYWORDS.stream()
+                    .noneMatch(keyword -> roleMappingDto.getPrincipalId().contains(keyword)))
+                .toList();
+			List<RoleMappingDto> addRoleMappingDtos = adds.stream()
 							.filter(r -> r.getRoleId().equals(roleId))
 							.collect(Collectors.toList());
+            addRoleMappingDtos.addAll(filterWholeRoleMappingDtos);
 			if (CollectionUtils.isNotEmpty(addRoleMappingDtos)) {
 				//去重
 				List<Criteria> queryExistsCriteriaList = addRoleMappingDtos.stream()
@@ -660,16 +672,19 @@ public class UserServiceImpl extends UserService{
 				}
 			}
 		});
-        if (dto.getAdds().size() > 0) {
-            roleMappingService.addUserLogIfNeed(dto.getAdds(), userDetail);
-        } else if (dto.getDeletes().size() > 0) {
-            roleMappingService.addUserLogIfNeed(dto.getDeletes(), userDetail);
+        if (CollectionUtils.isNotEmpty(adds)) {
+            roleMappingService.addUserLogIfNeed(adds, userDetail);
+        }
+        if (CollectionUtils.isNotEmpty(deletes)) {
+            roleMappingService.addUserLogIfNeed(deletes, userDetail);
         }
     }
     @NotNull
     private List<RoleMappingDto> getTodoParentRoleMappingDtos(ObjectId roleId, List<PermissionEntity> permissions) {
         List<RoleMappingDto> todoParentRoleMappingDtos = new ArrayList<>();
-        Set<String> parentPermissionCodes = getParentPermissionCodes(permissions);
+        Set<String> parentPermissionCodes = getParentPermissionCodes(permissions).stream()
+                .filter(code -> !topPermissionCodes.contains(code))
+                .collect(Collectors.toSet());
         for (String parentPermissionCode : parentPermissionCodes) {
             List<PermissionEntity> allChildPermissions = getChildPermissionsByCodes(Collections.singleton(parentPermissionCode));
             List<Criteria> queryChildCriteriaList = allChildPermissions.stream().map(p -> Criteria.where("roleId").is(roleId)
