@@ -9,11 +9,37 @@ until curl -s http://tm:3000/api/ > /dev/null; do
 done
 echo "TM is ready"
 
-# Register mongodb-connector
-echo "Registering mongodb-connector..."
-# pdk.jar requires java 8+ (which we have)
-# Usage: java -jar pdk.jar register -t <tm_url> <jar_file>
-java -jar /app/pdk/pdk.jar register -t http://tm:3000 /app/pdk/dist/mongodb-connector.jar
+CONNECTOR_IDS="${TAP_CONNECTORS:-${TM_CONNECTORS:-}}"
+
+register_jar() {
+  local jar="$1"
+  echo "Registering $(basename "$jar")..."
+  java -jar /app/pdk/pdk.jar register -t http://tm:3000 "$jar"
+}
+
+if [ -n "$CONNECTOR_IDS" ]; then
+  IFS=',' read -r -a IDS <<< "$CONNECTOR_IDS"
+  for raw in "${IDS[@]}"; do
+    id="$(printf '%s' "$raw" | tr -d '[:space:]')"
+    [ -z "$id" ] && continue
+    jar="/app/pdk/dist/${id}-connector.jar"
+    if [ -f "$jar" ]; then
+      register_jar "$jar"
+    else
+      echo "Skip ${id}-connector: JAR not found at ${jar}"
+    fi
+  done
+else
+  shopt -s nullglob
+  jars=(/app/pdk/dist/*-connector.jar)
+  if [ ${#jars[@]} -eq 0 ]; then
+    echo "No connector jars found under /app/pdk/dist"
+  else
+    for jar in "${jars[@]}"; do
+      register_jar "$jar"
+    done
+  fi
+fi
 
 echo "Registration complete. Starting Engine..."
 
