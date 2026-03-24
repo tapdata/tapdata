@@ -63,6 +63,7 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
     public abstract String isSsl();
     public abstract String getCaPath();
     public abstract String getKeyPath();
+    public abstract String getSslPass();
 
     public abstract void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail);
 
