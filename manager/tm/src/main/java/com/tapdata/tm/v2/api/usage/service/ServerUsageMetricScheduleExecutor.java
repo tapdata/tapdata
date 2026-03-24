@@ -119,8 +119,10 @@ public class ServerUsageMetricScheduleExecutor {
     private Query buildDefaultQuery(ServerUsageMetric entity) {
         Criteria criteria = Criteria.where(ServerUsageField.LAST_UPDATE_TIME.field()).is(entity.getLastUpdateTime())
                 .and(ServerUsageMetricField.TIME_GRANULARITY.field()).is(entity.getTimeGranularity())
-                .and(ServerUsageField.PROCESS_ID.field()).is(entity.getProcessId())
-                .and(ServerUsageField.WORK_OID.field()).is(entity.getWorkOid());
+                .and(ServerUsageField.PROCESS_ID.field()).is(entity.getProcessId());
+        if (ServerUsage.ProcessType.API_SERVER_WORKER.getType() == entity.getProcessType()) {
+            criteria.and(ServerUsageField.WORK_OID.field()).is(entity.getWorkOid());
+        }
         return Query.query(criteria);
     }
 
