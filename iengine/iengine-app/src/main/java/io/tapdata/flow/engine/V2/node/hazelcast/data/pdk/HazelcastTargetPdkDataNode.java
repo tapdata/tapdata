@@ -746,6 +746,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	void processEvents(List<TapEvent> tapEvents) {
+		processEvents(tapEvents,true);
+	}
+
+	protected void processEvents(List<TapEvent> tapEvents,Boolean isRetry) {
 		CpuMemoryCollector.listening(getNode().getId(), tapEvents);
 		TapEvent foundDDLEvent = tapEvents.stream().filter(e -> e instanceof TapDDLEvent).findFirst().orElse(null);
 		if (null == foundDDLEvent && isWriteGroupByTableEnable()) {
@@ -757,7 +761,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					tapRecordEvents.add(tapEvent);
 				}
 			}
-			dmlEventsGroupByTableId.forEach((tableId, tapRecordEvents)-> writeRecord(tapRecordEvents));
+			dmlEventsGroupByTableId.forEach((tableId, tapRecordEvents)-> writeRecord(tapRecordEvents, isRetry));
 			if (obsLogger.isDebugEnabled()) {
 				StringBuilder logStr = new StringBuilder("Target dispatch record events\n");
 				dmlEventsGroupByTableId.forEach((k, v) -> logStr.append(" - ").append(k).append(": ").append(v.size()).append("\n"));
@@ -775,7 +779,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					events -> {
 						TapEvent firstEvent = events.get(0);
 						if (firstEvent instanceof TapRecordEvent) {
-							writeRecord(events);
+							writeRecord(events, isRetry);
 						} else if (firstEvent instanceof TapDDLEvent) {
 							writeDDL(events);
 						}
@@ -1056,7 +1060,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return true;
 	}
 
-	protected void writeRecord(List<TapEvent> events) {
+	protected void writeRecord(List<TapEvent> events, boolean isRetry) {
 		CpuMemoryCollector.listening(getNode().getId(), events);
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
@@ -1077,7 +1081,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			removeNotSupportFields(t, tapTable.getId());
 		});
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
-		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		PDKMethodInvoker pdkMethodInvoker = isRetry ? createPdkMethodInvoker() : null;
 		if (writeRecordFunction != null) {
 			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 			try {
@@ -1105,10 +1109,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							.connectorContext(getConnectorNode().getConnectorContext())
 							.dataProcessorContext(dataProcessorContext)
 							.start();
-				}, writeRecordFuncAspect ->
-						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
-								pdkMethodInvoker.runnable(
-										() -> {
+				}, writeRecordFuncAspect -> {
+						CommonUtils.AnyError writeRunnable = () -> {
 											ConnectorNode connectorNode = getConnectorNode();
 											if (null == connectorNode) {
 												throw new NodeException("Node is stopped, need to exit write_record").context(getDataProcessorContext());
@@ -1149,7 +1151,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 														);
 														return null;
 													}));
-											if (!pdkMethodInvoker.isEnableSkipErrorEvent()) {
+											if (pdkMethodInvoker == null || !pdkMethodInvoker.isEnableSkipErrorEvent()) {
 												try {
 													writePolicyService.writeRecordWithPolicyControl(
 															tapTable.getId(),
@@ -1193,12 +1195,20 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													}
 												}
 											}
-										}
-								)
-						));
+										};
+						if (isRetry) {
+							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
+									pdkMethodInvoker.runnable(writeRunnable));
+						} else {
+							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
+									writeRunnable, TAG);
+						}
+				});
                 syncMetricCollector.log(tapRecordEvents);
 			} finally {
-				removePdkMethodInvoker(pdkMethodInvoker);
+				if (pdkMethodInvoker != null) {
+					removePdkMethodInvoker(pdkMethodInvoker);
+				}
 			}
 		} else {
 			throw new TapCodeException(TaskTargetProcessorExCode_15.WRITE_RECORD_PDK_NONSUPPORT, String.format("PDK connector id: %s", getConnectorNode().getConnectorContext().getSpecification().getId()));
@@ -1286,7 +1296,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				pdkMethodInvoker.runnable(() -> {
 							try {
 								transactionBegin();
-								processEvents(tapEvents);
+								processEvents(tapEvents,false);
 								writeRecordFunction.writeRecord(
 										connectorNode.getConnectorContext(),
 										tapRecordEvents,
