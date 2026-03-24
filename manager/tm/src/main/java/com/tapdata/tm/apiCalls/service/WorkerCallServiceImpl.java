@@ -373,7 +373,6 @@ public class WorkerCallServiceImpl implements WorkerCallService {
 
     private Query buildDefaultQuery(WorkerCallEntity entity) {
         Criteria criteria = Criteria.where(Tag.TIME_START).is(entity.getTimeStart())
-                .and(Tag.DELETE).is(entity.getDelete())
                 .and(Tag.TIME_GRANULARITY).is(entity.getTimeGranularity())
                 .and(Tag.PROCESS_ID).is(entity.getProcessId())
                 .and(Tag.API_ID).is(entity.getApiId())

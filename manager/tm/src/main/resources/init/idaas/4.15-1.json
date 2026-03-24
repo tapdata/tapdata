@@ -1,0 +1,45 @@
+[
+  {
+    "createIndexes": "ApiCallInWorker",
+    "indexes": [
+      {
+        "key": {
+          "timeStart": 1,
+          "timeGranularity": 1,
+          "processId": 1,
+          "apiId": 1,
+          "workOid": 1
+        },
+        "name": "api_worker_call_metric_query_index",
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Workers",
+    "indexes": [
+      {
+        "key": {
+          "process_id": 1,
+          "worker_type": 1,
+          "delete": 1
+        },
+        "name": "update_worker_status_index",
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ServerUsageMetric",
+    "indexes": [
+      {
+        "key": {
+          "timeGranularity": 1,
+          "time": -1
+        },
+        "name": "query_last_one_server_usage_metric_index",
+        "background": true
+      }
+    ]
+  }
+]

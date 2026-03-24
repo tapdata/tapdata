@@ -74,7 +74,7 @@ public class ServerUsageMetricScheduleExecutor {
     }
 
     Long lastOne() {
-        Query query = Query.query(Criteria.where(ServerUsageMetricField.TIME_GRANULARITY.field()).is(TimeGranularity.HOUR.getSeconds()));
+        Query query = Query.query(Criteria.where(ServerUsageMetricField.TIME_GRANULARITY.field()).is(TimeGranularity.HOUR.getType()));
         query.with(Sort.by(Sort.Order.desc(ServerUsageField.LAST_UPDATE_TIME.field()))).limit(1);
         ServerUsageMetric lastOne = mongoTemplate.findOne(query, ServerUsageMetric.class);
         if (null != lastOne) {
@@ -119,8 +119,10 @@ public class ServerUsageMetricScheduleExecutor {
     private Query buildDefaultQuery(ServerUsageMetric entity) {
         Criteria criteria = Criteria.where(ServerUsageField.LAST_UPDATE_TIME.field()).is(entity.getLastUpdateTime())
                 .and(ServerUsageMetricField.TIME_GRANULARITY.field()).is(entity.getTimeGranularity())
-                .and(ServerUsageField.PROCESS_ID.field()).is(entity.getProcessId())
-                .and(ServerUsageField.WORK_OID.field()).is(entity.getWorkOid());
+                .and(ServerUsageField.PROCESS_ID.field()).is(entity.getProcessId());
+        if (ServerUsage.ProcessType.API_SERVER_WORKER.getType() == entity.getProcessType()) {
+            criteria.and(ServerUsageField.WORK_OID.field()).is(entity.getWorkOid());
+        }
         return Query.query(criteria);
     }
 
