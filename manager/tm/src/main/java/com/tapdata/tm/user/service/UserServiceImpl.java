@@ -103,6 +103,8 @@ public class UserServiceImpl extends UserService{
     private String caPath;
     @Value("${spring.data.mongodb.keyPath}")
     private String keyPath;
+    @Value("${spring.data.mongodb.sslPass}")
+    private String sslPass;
     @Autowired
     TcmService tcmService;
 
@@ -590,6 +592,10 @@ public class UserServiceImpl extends UserService{
 
     public String getKeyPath() {
         return keyPath;
+    }
+
+    public String getSslPass() {
+        return sslPass;
     }
 	public void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail) {
 		List<RoleMappingDto> adds = Optional.ofNullable(dto.getAdds()).orElse(Collections.emptyList());
