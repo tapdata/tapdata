@@ -1774,7 +1774,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				modulesDto.setConnection(dataSourceCon.getId());
 				modulesDto.setDataSource(dataSourceCon.getId().toString());
 				modulesDto.setConnectionName(dataSourceCon.getName());
-				modulesDto.setConnectionType(dataSourceCon.getConnection_type());
+				modulesDto.setConnectionType(dataSourceCon.getDatabase_type());
 			}
 		}
 	}

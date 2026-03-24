@@ -146,6 +146,18 @@ public class GroupInfoController extends BaseController {
         return success(groupInfoService.previewTasks(file, getLoginUser()));
     }
 
+    @Operation(summary = "对比迁移任务变更")
+    @PostMapping(path = "/preview/migrate/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewMigrateTasks(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewMigrateTasks(file, getLoginUser()));
+    }
+
+    @Operation(summary = "对比同步任务变更")
+    @PostMapping(path = "/preview/sync/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewSyncTasks(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewSyncTasks(file, getLoginUser()));
+    }
+
     @Operation(summary = "对比API(模块)变更")
     @PostMapping(path = "/preview/apis", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<ResourceDiff> previewApis(@RequestParam("file") MultipartFile file) throws IOException {
@@ -175,6 +187,28 @@ public class GroupInfoController extends BaseController {
             throws IOException {
         ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
         return success(groupInfoService.importTasks(file, importModeEnum, getLoginUser(), sync));
+    }
+
+    @Operation(summary = "导入迁移任务")
+    @PostMapping(path = "/import/migrate/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<GroupImportResult> importMigrateTasks(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        return success(groupInfoService.importMigrateTasks(file, importModeEnum, getLoginUser(), sync));
+    }
+
+    @Operation(summary = "导入同步任务")
+    @PostMapping(path = "/import/sync/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<GroupImportResult> importSyncTasks(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        return success(groupInfoService.importSyncTasks(file, importModeEnum, getLoginUser(), sync));
     }
 
     @Operation(summary = "同步导入GroupInfo，返回记录ID")

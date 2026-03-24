@@ -7,10 +7,14 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.group.vo.DagChangeDetail;
 import com.tapdata.tm.group.vo.FieldChange;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.Field;
 import java.util.*;
 
 /**
@@ -58,12 +62,6 @@ public class TaskConfigCompareUtil {
             "isSchedule",                   // 是否为调度任务
             "crontabExpression",            // crontab表达式
             "crontabExpressionFlag",        // crontab表达式开关
-
-            // 告警与通知 (Alerting & Notification)
-            "alarmRules",                   // 告警规则
-            "alarmSettings",                // 告警设置
-            "emailReceivers",               // 邮件接收人列表
-            "notifyTypes",                  // 通知设置
 
             // 高级配置 (Advanced Settings)
             "shareCache",                   // 共享缓存
@@ -258,11 +256,14 @@ public class TaskConfigCompareUtil {
     }
 
     /**
-     * 返回两个任务之间详细的字段级变更列表。
+     * 返回两个任务之间详细的字段级变更列表，同时填充 DAG 分类变更详情。
      * 每个 {@link FieldChange} 包含字段路径、DB 中的旧值（from）、导入文件中的新值（to）。
      * DAG 内部按节点展开，路径格式为 {@code dag.nodes.{nodeName}.{field}}。
+     *
+     * @param dagChangeDetailOut 可选输出参数，非 null 时会按类型分类填充 DAG 变更
      */
-    public static List<FieldChange> getDetailedChanges(TaskDto importTask, TaskDto existingTask) {
+    public static List<FieldChange> getDetailedChanges(TaskDto importTask, TaskDto existingTask,
+                                                       DagChangeDetail dagChangeDetailOut) {
         List<FieldChange> changes = new ArrayList<>();
         if (importTask == null || existingTask == null) return changes;
         try {
@@ -276,7 +277,19 @@ public class TaskConfigCompareUtil {
                     changes.add(new FieldChange(field, existingVal, importVal));
                 }
             }
-            changes.addAll(getDagDetailedChanges(importTask.getDag(), existingTask.getDag()));
+            List<FieldChange> dagChanges = getDagDetailedChanges(importTask.getDag(), existingTask.getDag());
+            if (dagChangeDetailOut != null) {
+                categorizeDagChanges(dagChanges, dagChangeDetailOut);
+                // 未被分类的 DAG 变更（如整个 DAG 为 null 时 field="dag"）仍加入 changes
+                for (FieldChange c : dagChanges) {
+                    String f = c.getField();
+                    if (!f.startsWith("dag.nodes.") && !f.startsWith("dag.edges.")) {
+                        changes.add(c);
+                    }
+                }
+            } else {
+                changes.addAll(dagChanges);
+            }
         } catch (Exception e) {
             log.error("Failed to get detailed task changes", e);
         }
@@ -284,9 +297,36 @@ public class TaskConfigCompareUtil {
     }
 
     /**
-     * 对两个 DAG 做节点级详细对比。
-     * 节点按 name 匹配，输出字段路径格式为 {@code dag.nodes.{nodeName}.{field}}。
-     * DAG 顶层的非节点字段路径格式为 {@code dag.{field}}。
+     * 将 DAG 变更列表按路径分类到 DagChangeDetail 的五个列表中。
+     */
+    private static void categorizeDagChanges(List<FieldChange> dagChanges, DagChangeDetail detail) {
+        for (FieldChange change : dagChanges) {
+            String path = change.getField();
+            if (path.startsWith("dag.edges.")) {
+                if (change.getFrom() == null) {
+                    detail.getEdgeAdditions().add(change);
+                } else if (change.getTo() == null) {
+                    detail.getEdgeRemovals().add(change);
+                }
+            } else if (path.startsWith("dag.nodes.")) {
+                String afterPrefix = path.substring("dag.nodes.".length());
+                if (!afterPrefix.contains(".")) {
+                    if (change.getFrom() == null) {
+                        detail.getNodeAdditions().add(change);
+                    } else if (change.getTo() == null) {
+                        detail.getNodeRemovals().add(change);
+                    }
+                } else {
+                    detail.getNodeConfigChanges().add(change);
+                }
+            }
+        }
+    }
+
+    /**
+     * 对两个 DAG 做节点级和连线级详细对比。
+     * 节点按 id 匹配，使用白名单（@EqField 注解）提取字段。
+     * 连线直接使用节点 ID 比对，输出路径格式为 {@code dag.edges.sourceId->targetId}。
      */
     @SuppressWarnings("unchecked")
     private static List<FieldChange> getDagDetailedChanges(DAG importDag, DAG existingDag) {
@@ -296,26 +336,22 @@ public class TaskConfigCompareUtil {
             changes.add(new FieldChange("dag", existingDag, importDag));
             return changes;
         }
-        Map<String, Object> importMap = normalizeDagForComparison(importDag);
-        Map<String, Object> existingMap = normalizeDagForComparison(existingDag);
-        if (importMap == null || existingMap == null) return changes;
 
-        // 节点级对比（以 nodes 主列表为准，其他派生视图忽略避免重复）
-        List<Map<String, Object>> importNodes = castNodeList(importMap.get("nodes"));
-        List<Map<String, Object>> existingNodes = castNodeList(existingMap.get("nodes"));
-        Map<String, Map<String, Object>> importByName = indexByName(importNodes);
-        Map<String, Map<String, Object>> existingByName = indexByName(existingNodes);
-        Set<String> allNames = new LinkedHashSet<>(importByName.keySet());
-        allNames.addAll(existingByName.keySet());
+        // 提取白名单字段用于节点比对（按 id 索引）
+        Map<String, Map<String, Object>> importNodesById = extractNodeEqFieldsById(importDag);
+        Map<String, Map<String, Object>> existingNodesById = extractNodeEqFieldsById(existingDag);
 
-        for (String nodeName : allNames) {
-            Map<String, Object> iNode = importByName.get(nodeName);
-            Map<String, Object> eNode = existingByName.get(nodeName);
-            String prefix = "dag.nodes." + nodeName + ".";
+        Set<String> allIds = new LinkedHashSet<>(importNodesById.keySet());
+        allIds.addAll(existingNodesById.keySet());
+
+        for (String nodeId : allIds) {
+            Map<String, Object> iNode = importNodesById.get(nodeId);
+            Map<String, Object> eNode = existingNodesById.get(nodeId);
+            String prefix = "dag.nodes." + nodeId + ".";
             if (iNode == null) {
-                changes.add(new FieldChange("dag.nodes." + nodeName, eNode, null));
+                changes.add(new FieldChange("dag.nodes." + nodeId, eNode, null));
             } else if (eNode == null) {
-                changes.add(new FieldChange("dag.nodes." + nodeName, null, iNode));
+                changes.add(new FieldChange("dag.nodes." + nodeId, null, iNode));
             } else {
                 Set<String> allFields = new LinkedHashSet<>(iNode.keySet());
                 allFields.addAll(eNode.keySet());
@@ -325,83 +361,297 @@ public class TaskConfigCompareUtil {
             }
         }
 
-        // DAG 顶层非节点字段对比
-        Set<String> skipKeys = new HashSet<>(DAG_NODE_LIST_KEYS);
-        Set<String> allDagKeys = new LinkedHashSet<>(importMap.keySet());
-        allDagKeys.addAll(existingMap.keySet());
-        for (String key : allDagKeys) {
-            if (skipKeys.contains(key)) continue;
-            compareAndAdd(changes, "dag." + key, existingMap.get(key), importMap.get(key));
+        // Edge 比对
+        Set<String> importEdges = extractEdgeSet(importDag);
+        Set<String> existingEdges = extractEdgeSet(existingDag);
+
+        for (String edge : importEdges) {
+            if (!existingEdges.contains(edge)) {
+                changes.add(new FieldChange("dag.edges." + edge, null, edge));
+            }
         }
+        for (String edge : existingEdges) {
+            if (!importEdges.contains(edge)) {
+                changes.add(new FieldChange("dag.edges." + edge, edge, null));
+            }
+        }
+
         return changes;
     }
 
-    @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> castNodeList(Object raw) {
-        if (raw instanceof List) return (List<Map<String, Object>>) raw;
-        return Collections.emptyList();
+    /**
+     * 从 DAG 的所有节点中，使用 @EqField 注解白名单提取字段，按 id 索引。
+     * 额外包含 id、name 和 type 字段用于节点识别。
+     */
+    private static Map<String, Map<String, Object>> extractNodeEqFieldsById(DAG dag) {
+        Map<String, Map<String, Object>> result = new LinkedHashMap<>();
+        if (dag == null) return result;
+        List<Node> nodes = dag.getNodes();
+        if (nodes == null) return result;
+
+        for (Node<?> node : nodes) {
+            Map<String, Object> fields = extractEqFields(node);
+            String id = node.getId();
+            if (id != null) {
+                result.putIfAbsent(id, fields);
+            }
+        }
+        return result;
     }
 
-    private static Map<String, Map<String, Object>> indexByName(List<Map<String, Object>> nodes) {
-        Map<String, Map<String, Object>> map = new LinkedHashMap<>();
-        for (Map<String, Object> node : nodes) {
-            Object name = node.get("name");
-            if (name != null) map.putIfAbsent(name.toString(), node);
+    /**
+     * 反射遍历节点对象的类继承链（至 Object.class 为止），
+     * 只提取 @EqField 标注的字段值，加上 id、name 和 type 用于识别。
+     * 返回 Map&lt;String, Object&gt;
+     */
+    static Map<String, Object> extractEqFields(Object node) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (node == null) return result;
+
+        // 添加识别字段
+        if (node instanceof Node) {
+            Node<?> n = (Node<?>) node;
+            result.put("id", n.getId());
+            result.put("name", n.getName());
+            result.put("type", n.getType());
         }
-        return map;
+
+        Class<?> clazz = node.getClass();
+        for (; clazz != null && clazz != Object.class; clazz = clazz.getSuperclass()) {
+            for (Field field : clazz.getDeclaredFields()) {
+                EqField annotation = field.getAnnotation(EqField.class);
+                if (annotation != null) {
+                    String fieldName = field.getName();
+                    // 跳过已添加的识别字段
+                    if ("id".equals(fieldName) || "name".equals(fieldName) || "type".equals(fieldName)) {
+                        continue;
+                    }
+                    try {
+                        field.setAccessible(true);
+                        Object value = field.get(node);
+                        if (value != null) {
+                            result.put(fieldName, value);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to access field {} on {}: {}", fieldName, node.getClass().getSimpleName(), e.getMessage());
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 从 DAG 中提取 edge 集合，直接使用节点 ID，格式为 "sourceId->targetId"。
+     */
+    private static Set<String> extractEdgeSet(DAG dag) {
+        Set<String> edgeSet = new LinkedHashSet<>();
+        if (dag == null) return edgeSet;
+
+        List<com.tapdata.tm.commons.dag.Edge> edges = dag.getEdges();
+        if (edges != null) {
+            for (com.tapdata.tm.commons.dag.Edge edge : edges) {
+                edgeSet.add(edge.getSource() + "->" + edge.getTarget());
+            }
+        }
+        return edgeSet;
     }
 
     private static void compareAndAdd(List<FieldChange> changes, String path, Object from, Object to) {
         try {
             String fJson = OBJECT_MAPPER.writeValueAsString(from);
             String tJson = OBJECT_MAPPER.writeValueAsString(to);
-            if (!Objects.equals(fJson, tJson)) changes.add(new FieldChange(path, from, to));
+            if (!Objects.equals(fJson, tJson)) {
+                if (from instanceof List && to instanceof List) {
+                    compareListAndAdd(changes, path, (List<?>) from, (List<?>) to);
+                } else {
+                    changes.add(new FieldChange(path, from, to));
+                }
+            }
         } catch (JsonProcessingException e) {
             if (!Objects.equals(from, to)) changes.add(new FieldChange(path, from, to));
         }
     }
 
     /**
-     * DAG 序列化后包含的所有节点列表字段，均需做节点内部规范化。
+     * 对两个 List 进行元素级比对。
+     * - 简单类型 (String, Number, Boolean) 列表：视为集合，报告 added/removed
+     * - 复杂对象列表：先 JSON 完全匹配去重，再按标识字段匹配做字段级 diff
      */
-    private static final Set<String> DAG_NODE_LIST_KEYS = new HashSet<>(Arrays.asList(
-            "nodes",
-            "sourceNode", "targetNode",
-            "sourceNodes", "targetNodes",
-            "sources", "targets",
-            "sourceDataParentNode", "targetDataParentNode",
-            "allTypeTargetNodes", "cacheNode"
-    ));
+    @SuppressWarnings("unchecked")
+    private static void compareListAndAdd(List<FieldChange> changes, String path,
+                                           List<?> fromList, List<?> toList) {
+        if (fromList.isEmpty() && toList.isEmpty()) return;
+
+        // Determine if this is a simple-type list
+        boolean isSimple = isSimpleTypeList(fromList) && isSimpleTypeList(toList);
+
+        if (isSimple) {
+            compareSimpleListAndAdd(changes, path, fromList, toList);
+        } else {
+            compareComplexListAndAdd(changes, path, fromList, toList);
+        }
+    }
+
+    private static boolean isSimpleTypeList(List<?> list) {
+        if (list.isEmpty()) return true;
+        Object first = list.get(0);
+        return first instanceof String || first instanceof Number || first instanceof Boolean;
+    }
 
     /**
-     * 节点内部需要移除的环境相关字段（导入后会重新生成或重新映射）。
-     * 包含：
-     * - 环境 ID 类：id、connectionId、externalStorageId、taskId
-     * - 运行时布局：attrs、externalStorageName
-     * - 推演状态类：transformed、isTransformed、schemaTransformerStatus、inputSchema、outputSchema
+     * 简单类型列表比对：视为集合，报告 added/removed 元素
      */
-    private static final Set<String> NODE_VOLATILE_FIELDS = new HashSet<>(Arrays.asList(
-            // 环境 ID / 引用
-            "id", "connectionId", "taskId",
-            "externalStorageId", "externalStorageName",
-            // 运行时布局
-            "attrs",
-            // Schema 推演状态（每次推演后会变，不属于业务配置）
-            "transformed", "isTransformed",
-            "schemaTransformerStatus",
-            "inputSchema", "outputSchema",
-            // 派生/冗余字段（由 tableNames/syncObjects 计算而来，或与之重复）
-            "sourceNodeTableNames", "syncObjects"
-    ));
+    private static void compareSimpleListAndAdd(List<FieldChange> changes, String path,
+                                                 List<?> fromList, List<?> toList) {
+        Set<String> fromSet = new LinkedHashSet<>();
+        Set<String> toSet = new LinkedHashSet<>();
+        for (Object o : fromList) fromSet.add(String.valueOf(o));
+        for (Object o : toList) toSet.add(String.valueOf(o));
+
+        List<String> removed = new ArrayList<>();
+        for (String s : fromSet) {
+            if (!toSet.contains(s)) removed.add(s);
+        }
+        List<String> added = new ArrayList<>();
+        for (String s : toSet) {
+            if (!fromSet.contains(s)) added.add(s);
+        }
+
+        if (!removed.isEmpty() || !added.isEmpty()) {
+            changes.add(new FieldChange(path,
+                    removed.isEmpty() ? null : removed,
+                    added.isEmpty() ? null : added));
+        }
+    }
 
     /**
-     * 对 DAG 进行规范化处理，移除环境相关的易变字段，保留业务逻辑字段，用于跨环境配置对比。
-     * <ul>
-     *   <li>DAG 顶层移除：{@code taskId}、{@code ownerId}、{@code edges}（edges 中的 source/target 全是节点 ID，无对比价值）</li>
-     *   <li>所有节点列表中每个节点移除：{@code id}、{@code connectionId}、{@code attrs}、
-     *       {@code externalStorageId}、{@code externalStorageName}</li>
-     *   <li>{@code nodes} 按 {@code name} 排序，保证对比顺序稳定</li>
-     * </ul>
+     * 复杂对象列表比对：先完全匹配去重，再按标识字段匹配做字段级 diff
+     */
+    @SuppressWarnings("unchecked")
+    private static void compareComplexListAndAdd(List<FieldChange> changes, String path,
+                                                  List<?> fromList, List<?> toList) {
+        try {
+            // Convert elements to Map representations
+            List<Map<String, Object>> fromMaps = new ArrayList<>();
+            List<Map<String, Object>> toMaps = new ArrayList<>();
+            for (Object o : fromList) {
+                fromMaps.add(OBJECT_MAPPER.convertValue(o, new TypeReference<Map<String, Object>>() {}));
+            }
+            for (Object o : toList) {
+                toMaps.add(OBJECT_MAPPER.convertValue(o, new TypeReference<Map<String, Object>>() {}));
+            }
+
+            // Step 1: Remove exact matches (by JSON string)
+            List<Map<String, Object>> unmatchedFrom = new ArrayList<>();
+            List<Boolean> toMatched = new ArrayList<>();
+            for (int i = 0; i < toMaps.size(); i++) toMatched.add(false);
+
+            for (Map<String, Object> fMap : fromMaps) {
+                String fJson = OBJECT_MAPPER.writeValueAsString(fMap);
+                boolean found = false;
+                for (int j = 0; j < toMaps.size(); j++) {
+                    if (!toMatched.get(j)) {
+                        String tJson = OBJECT_MAPPER.writeValueAsString(toMaps.get(j));
+                        if (fJson.equals(tJson)) {
+                            toMatched.set(j, true);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (!found) unmatchedFrom.add(fMap);
+            }
+
+            List<Map<String, Object>> unmatchedTo = new ArrayList<>();
+            for (int j = 0; j < toMaps.size(); j++) {
+                if (!toMatched.get(j)) unmatchedTo.add(toMaps.get(j));
+            }
+
+            if (unmatchedFrom.isEmpty() && unmatchedTo.isEmpty()) return;
+
+            // Step 2: Try matching by identity key
+            Map<String, Map<String, Object>> fromByKey = new LinkedHashMap<>();
+            Map<String, Map<String, Object>> toByKey = new LinkedHashMap<>();
+            boolean keyUsable = true;
+
+            for (Map<String, Object> m : unmatchedFrom) {
+                String key = tryExtractKey(m);
+                if (key == null || fromByKey.containsKey(key)) { keyUsable = false; break; }
+                fromByKey.put(key, m);
+            }
+            if (keyUsable) {
+                for (Map<String, Object> m : unmatchedTo) {
+                    String key = tryExtractKey(m);
+                    if (key == null || toByKey.containsKey(key)) { keyUsable = false; break; }
+                    toByKey.put(key, m);
+                }
+            }
+
+            if (keyUsable) {
+                // Match by key and diff fields
+                Set<String> allKeys = new LinkedHashSet<>(fromByKey.keySet());
+                allKeys.addAll(toByKey.keySet());
+
+                for (String key : allKeys) {
+                    Map<String, Object> fMap = fromByKey.get(key);
+                    Map<String, Object> tMap = toByKey.get(key);
+                    String elemPath = path + "[" + key + "]";
+                    if (fMap == null) {
+                        changes.add(new FieldChange(elemPath, null, tMap));
+                    } else if (tMap == null) {
+                        changes.add(new FieldChange(elemPath, fMap, null));
+                    } else {
+                        // Field-level diff
+                        Set<String> allFields = new LinkedHashSet<>(fMap.keySet());
+                        allFields.addAll(tMap.keySet());
+                        for (String f : allFields) {
+                            compareAndAdd(changes, elemPath + "." + f, fMap.get(f), tMap.get(f));
+                        }
+                    }
+                }
+            } else {
+                // Fallback: use index-based matching
+                int maxLen = Math.max(unmatchedFrom.size(), unmatchedTo.size());
+                for (int i = 0; i < maxLen; i++) {
+                    Map<String, Object> fMap = i < unmatchedFrom.size() ? unmatchedFrom.get(i) : null;
+                    Map<String, Object> tMap = i < unmatchedTo.size() ? unmatchedTo.get(i) : null;
+                    String elemPath = path + "[" + i + "]";
+                    if (fMap == null) {
+                        changes.add(new FieldChange(elemPath, null, tMap));
+                    } else if (tMap == null) {
+                        changes.add(new FieldChange(elemPath, fMap, null));
+                    } else {
+                        Set<String> allFields = new LinkedHashSet<>(fMap.keySet());
+                        allFields.addAll(tMap.keySet());
+                        for (String f : allFields) {
+                            compareAndAdd(changes, elemPath + "." + f, fMap.get(f), tMap.get(f));
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Fallback: record as whole-list change
+            changes.add(new FieldChange(path, fromList, toList));
+        }
+    }
+
+    /**
+     * 尝试从 Map 中提取标识字段值，用于元素匹配
+     */
+    private static String tryExtractKey(Map<String, Object> element) {
+        for (String keyField : Arrays.asList("id", "field", "tableName")) {
+            Object val = element.get(keyField);
+            if (val != null && !val.toString().isEmpty()) {
+                return val.toString();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 对 DAG 进行规范化处理，使用白名单模式（@EqField 注解）提取节点字段，
+     * 保留 edges（使用节点 ID），用于跨环境配置对比。
      */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> normalizeDagForComparison(DAG dag) {
@@ -409,34 +659,38 @@ public class TaskConfigCompareUtil {
             return null;
         }
         try {
-            Map<String, Object> dagMap = OBJECT_MAPPER.convertValue(dag, new TypeReference<Map<String, Object>>() {});
-            if (dagMap == null) {
-                return null;
-            }
+            Map<String, Object> dagMap = new LinkedHashMap<>();
 
-            // 移除 DAG 顶层的环境相关字段
-            dagMap.remove("taskId");
-            dagMap.remove("ownerId");
-            // edges 完全移除：source/target 全是节点 ID，导入后全部重新生成
-            dagMap.remove("edges");
-
-            // 规范化所有节点列表
-            for (String key : DAG_NODE_LIST_KEYS) {
-                Object raw = dagMap.get(key);
-                if (!(raw instanceof List)) continue;
-                List<Map<String, Object>> nodeList = (List<Map<String, Object>>) raw;
-                for (Map<String, Object> node : nodeList) {
-                    NODE_VOLATILE_FIELDS.forEach(node::remove);
+            // 使用白名单提取节点字段
+            List<Map<String, Object>> normalizedNodes = new ArrayList<>();
+            List<Node> nodes = dag.getNodes();
+            if (nodes != null) {
+                for (Node<?> node : nodes) {
+                    normalizedNodes.add(extractEqFields(node));
                 }
-                // nodes 是主列表，按 name 排序保证稳定性
-                if ("nodes".equals(key)) {
-                    nodeList.sort(Comparator.comparing(
-                            n -> n.getOrDefault("name", "").toString(),
-                            Comparator.nullsFirst(Comparator.naturalOrder())
-                    ));
-                }
-                dagMap.put(key, nodeList);
+                // 按 id 排序保证稳定性
+                normalizedNodes.sort(Comparator.comparing(
+                        n -> n.getOrDefault("id", "").toString(),
+                        Comparator.nullsFirst(Comparator.naturalOrder())
+                ));
             }
+            dagMap.put("nodes", normalizedNodes);
+
+            // 规范化 edges：直接使用节点 ID，只保留 source/target
+            List<Map<String, String>> normalizedEdges = new ArrayList<>();
+            Set<String> edgeSet = extractEdgeSet(dag);
+            for (String edge : edgeSet) {
+                String[] parts = edge.split("->");
+                if (parts.length == 2) {
+                    Map<String, String> edgeMap = new LinkedHashMap<>();
+                    edgeMap.put("source", parts[0]);
+                    edgeMap.put("target", parts[1]);
+                    normalizedEdges.add(edgeMap);
+                }
+            }
+            normalizedEdges.sort(Comparator.comparing((Map<String, String> e) -> e.get("source"))
+                    .thenComparing(e -> e.get("target")));
+            dagMap.put("edges", normalizedEdges);
 
             return dagMap;
         } catch (Exception e) {
@@ -445,4 +699,3 @@ public class TaskConfigCompareUtil {
         }
     }
 }
-

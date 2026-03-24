@@ -195,9 +195,15 @@ public class FileGroupTransferStrategy implements GroupTransferStrategy {
         // 新格式（pretty-print 导出）：json 字段是嵌套对象，Jackson 无法直接反序列化为 String
         // 统一先解析为 List<Map>，再手动构建 TaskUpAndLoadDto
         try {
-            List<Map<String, Object>> rawList = JsonUtil.parseJsonUseJackson(
-                    jsonStr, new TypeReference<List<Map<String, Object>>>() {});
-            if (rawList == null) {
+			List<Map<String, Object>> rawList;
+			try {
+				rawList = JsonUtil.parseJsonUseJackson(
+						jsonStr, new TypeReference<>() {
+						});
+			} catch (Exception e) {
+                return new ArrayList<>();
+			}
+			if (rawList == null) {
                 return new ArrayList<>();
             }
             List<TaskUpAndLoadDto> result = new ArrayList<>();

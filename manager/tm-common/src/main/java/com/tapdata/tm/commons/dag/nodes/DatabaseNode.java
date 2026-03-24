@@ -24,6 +24,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import com.tapdata.tm.commons.dag.EqField;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
@@ -51,13 +52,17 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 @Slf4j
 public class DatabaseNode extends DataParentNode<List<Schema>> {
 
+    @EqField
     private Boolean dataQualityTag;
     private Integer distance;
     private Boolean freeTransform;
     private List<String> inputLanes;
     private List<String> outputLanes;
+    @EqField
     private String existDataProcessMode = "keepData";
+    @EqField
     private String dropType;
+    @EqField
     private Integer readCdcInterval;
     private List<FieldProcess> fieldProcess;
 
@@ -70,30 +75,39 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private List<TableOperation> tableOperations;
 
     //包含的表名，用于数据挖掘，在加载schema的时候存入
+    @EqField
     private List<String> tableNames;
 
     private Integer rows;
 
     // 复制任务 1.all 2.custom => 1.all => custom 2.expression
+    @EqField
     private String migrateTableSelectType;
     /**
      * migrateTableSelectType=expression的正则表达式
      */
+    @EqField
     private String tableExpression;
 	// 无主键表处理方式：HasKeys|NoKeys|All，默认：All
+	@EqField
 	private String noPrimaryKeyTableSelectType;
 
+    @EqField
     private Map<String, Object> nodeConfig;
 
+    @EqField
     private Map<String, List<String>> updateConditionFieldMap;
 
     /**
      * multi thread table reading when doing data replica
      */
+    @EqField
     private boolean enableConcurrentRead;
+    @EqField
     private int concurrentReadThreadNumber;
 
     /** 目标是否开启按表分桶写入 */
+    @EqField
     private Boolean writeWithGroupByTableEnable;
 
     public static final String SELF_TYPE = "database";

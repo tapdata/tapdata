@@ -1,5 +1,6 @@
 package com.tapdata.tm.group.service;
 
+import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -12,6 +13,11 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
@@ -47,7 +53,6 @@ import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
-import com.tapdata.tm.utils.ExcelUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.Setter;
@@ -109,12 +114,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     /** 导出连接时需剔除的运行时/环境状态字段 */
     private static final Set<String> CONNECTION_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
-            "loadSchemaField", "loadSchemaTime", "testTime", "transformed"
+            "loadSchemaField", "loadSchemaTime", "testTime", "transformed", "alarmInfo", "status"
     ));
 
     /** 导出任务时需剔除的运行时状态字段 */
     private static final Set<String> TASK_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
-            "currentEventTimestamp", "delayTime", "lastStartDate", "taskRecordId"
+            "currentEventTimestamp", "delayTime", "lastStartDate", "taskRecordId, editVersion",
+			"pageVersion", "transformUuid", "transformed", "taskRecordId"
     ));
 
     /** 导出校验任务时需剔除的字段（空值无意义字段） */
@@ -501,6 +507,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return buildTaskDiff(parseImportPayloads(file), user);
     }
 
+    public ResourceDiff previewMigrateTasks(MultipartFile file, UserDetail user) throws IOException {
+        return buildTaskDiff(filterPayloadsByTaskType(parseImportPayloads(file), "MigrateTask.json"), user);
+    }
+
+    public ResourceDiff previewSyncTasks(MultipartFile file, UserDetail user) throws IOException {
+        return buildTaskDiff(filterPayloadsByTaskType(parseImportPayloads(file), "SyncTask.json"), user);
+    }
+
     public ResourceDiff previewApis(MultipartFile file, UserDetail user) throws IOException {
         return buildApiDiff(parseImportPayloads(file), user);
     }
@@ -535,9 +549,24 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     public GroupImportResult importTasks(MultipartFile file, ImportModeEnum importMode, UserDetail user,
             boolean sync) throws IOException {
-        Map<String, List<TaskUpAndLoadDto>> payloads = parseImportPayloads(file);
+        return doImportTasks(parseImportPayloads(file), file.getOriginalFilename(), importMode, user, sync);
+    }
+
+    public GroupImportResult importMigrateTasks(MultipartFile file, ImportModeEnum importMode, UserDetail user,
+            boolean sync) throws IOException {
+        return doImportTasks(filterPayloadsByTaskType(parseImportPayloads(file), "MigrateTask.json"),
+                file.getOriginalFilename(), importMode, user, sync);
+    }
+
+    public GroupImportResult importSyncTasks(MultipartFile file, ImportModeEnum importMode, UserDetail user,
+            boolean sync) throws IOException {
+        return doImportTasks(filterPayloadsByTaskType(parseImportPayloads(file), "SyncTask.json"),
+                file.getOriginalFilename(), importMode, user, sync);
+    }
+
+    private GroupImportResult doImportTasks(Map<String, List<TaskUpAndLoadDto>> payloads,
+            String fileName, ImportModeEnum importMode, UserDetail user, boolean sync) {
         ResourceDiff diff = buildTaskDiff(payloads, user);
-        String fileName = file.getOriginalFilename();
         GroupInfoRecordDto recordDto = buildRecord(GroupInfoRecordDto.TYPE_IMPORT, user, new ArrayList<>(), fileName);
         recordDto.setProgress(0);
         recordDto = groupInfoRecordService.save(recordDto, user);
@@ -1214,6 +1243,36 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return strategy.parseImportPayloads(file);
     }
 
+    /** 连接比对重要字段（精确比对+记录 from/to）。config 全量比对不依赖此列表 */
+    private static final List<String> CONNECTION_IMPORTANT_FIELDS = Arrays.asList(
+            "connection_type",          // Source/Target/Source&Target
+            "shareCdcEnable",           // 共享CDC开关
+            "accessNodeType",           // 分配引擎模式
+            "accessNodeProcessIdList",  // 分配引擎列表
+            "heartbeatEnable",          // 是否开启心跳功能
+            "schemaUpdateHour",         // 自动定时加载schema
+            "openTableExcludeFilter",   // 是否开启表名过滤
+            "table_filter",             // 包含表
+            "tableExcludeFilter"        // 排除表
+    );
+
+    /** 顶层字段名到 getter 的反射式访问 */
+    private static Object getTopLevelFieldValue(DataSourceConnectionDto conn, String field) {
+        if (conn == null || field == null) return null;
+        return switch (field) {
+            case "connection_type" -> conn.getConnection_type();
+            case "shareCdcEnable" -> conn.getShareCdcEnable();
+            case "accessNodeType" -> conn.getAccessNodeType();
+            case "accessNodeProcessIdList" -> conn.getAccessNodeProcessIdList();
+            case "heartbeatEnable" -> conn.getHeartbeatEnable();
+            case "schemaUpdateHour" -> conn.getSchemaUpdateHour();
+            case "openTableExcludeFilter" -> conn.getOpenTableExcludeFilter();
+            case "table_filter" -> conn.getTable_filter();
+            case "tableExcludeFilter" -> conn.getTableExcludeFilter();
+            default -> null;
+        };
+    }
+
     private ResourceDiff buildConnectionDiff(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
         ResourceDiff diff = new ResourceDiff();
         List<TaskUpAndLoadDto> connPayload = payloads.getOrDefault("Connection.json", Collections.emptyList());
@@ -1234,45 +1293,156 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 .findAllDto(new Query(Criteria.where("name").in(fileConnsByName.keySet()).and("is_deleted").ne(true)), user)
                 .stream().collect(Collectors.toMap(DataSourceConnectionDto::getName, c -> c, (a, b) -> a));
 
+        // Batch-query definitions by pdkHash
+        Set<String> pdkHashes = new HashSet<>();
+        fileConnsByName.values().forEach(c -> { if (c.getPdkHash() != null) pdkHashes.add(c.getPdkHash()); });
+        existingByName.values().forEach(c -> { if (c.getPdkHash() != null) pdkHashes.add(c.getPdkHash()); });
+        Map<String, DataSourceDefinitionDto> defByPdkHash = pdkHashes.isEmpty()
+                ? Collections.emptyMap()
+                : dataSourceDefinitionService.findByPdkHashList(pdkHashes, user)
+                    .stream().collect(Collectors.toMap(
+                        DataSourceDefinitionDto::getPdkHash, d -> d, (a, b) -> a));
+
+        // Inject vault secrets into file connections before comparison
+        Map<String, String> vaultSecrets = parseVaultSecrets(payloads);
+        if (MapUtils.isNotEmpty(vaultSecrets)) {
+            for (DataSourceConnectionDto fileConn : fileConnsByName.values()) {
+                try {
+                    String pdkHash = fileConn.getPdkHash();
+                    DataSourceDefinitionDto def = pdkHash != null ? defByPdkHash.get(pdkHash) : null;
+                    ResourceHandler.injectVaultSecretsToConnection(fileConn, vaultSecrets, def);
+                } catch (Exception e) {
+                    log.warn("Vault inject failed for connection '{}' during diff, skipping: {}",
+                            fileConn.getName(), e.getMessage());
+                }
+            }
+        }
+
         for (Map.Entry<String, DataSourceConnectionDto> entry : fileConnsByName.entrySet()) {
             String name = entry.getKey();
             DataSourceConnectionDto fileConn = entry.getValue();
             DataSourceConnectionDto existingConn = existingByName.get(name);
             if (existingConn == null) {
-                diff.getAdd().add(new ResourceDiffItem(name, null));
+                ResourceDiffItem item = new ResourceDiffItem(name, null);
+                item.setDatabaseType(fileConn.getDatabase_type());
+                item.setConnectionType(fileConn.getConnection_type());
+                diff.getAdd().add(item);
             } else {
+                // Resolve definition (prefer existing connection's pdkHash, fallback to file's)
+                String pdkHash = existingConn.getPdkHash() != null ? existingConn.getPdkHash() : fileConn.getPdkHash();
+                DataSourceDefinitionDto definition = pdkHash != null ? defByPdkHash.get(pdkHash) : null;
+
                 List<FieldChange> changes = getConnectionChangedFields(fileConn, existingConn);
                 if (!changes.isEmpty()) {
-                    diff.getUpdate().add(new ResourceDiffItem(name, null, changes));
+                    ResourceDiffItem item = new ResourceDiffItem(name, null, changes);
+                    // Build fieldLabels from spec.json
+                    if (definition != null) {
+                        Map<String, String> configPathToLabel = ResourceHandler.buildConfigPathToLabelMap(definition);
+                        Map<String, String> fieldLabels = new HashMap<>();
+                        for (FieldChange change : changes) {
+                            String fieldName = change.getField();
+                            if (fieldName.startsWith("config.")) {
+                                String configKey = fieldName.substring("config.".length());
+                                String label = configPathToLabel.get(configKey);
+                                if (label != null) fieldLabels.put(fieldName, label);
+                            }
+                        }
+                        if (!fieldLabels.isEmpty()) item.setFieldLabels(fieldLabels);
+                    }
+                    diff.getUpdate().add(item);
                 }
-                // config equal → no change, skip
             }
         }
         return diff;
     }
 
-    private List<FieldChange> getConnectionChangedFields(DataSourceConnectionDto fileConn, DataSourceConnectionDto existingConn) {
+    private List<FieldChange> getConnectionChangedFields(
+            DataSourceConnectionDto fileConn,
+            DataSourceConnectionDto existingConn) {
         List<FieldChange> changes = new ArrayList<>();
-        addFieldChange(changes, "connection_type", existingConn.getConnection_type(), fileConn.getConnection_type());
-        addFieldChange(changes, "database_type", existingConn.getDatabase_type(), fileConn.getDatabase_type());
-        addFieldChange(changes, "loadAllTables", existingConn.getLoadAllTables(), fileConn.getLoadAllTables());
-        addFieldChange(changes, "openTableExcludeFilter", existingConn.getOpenTableExcludeFilter(), fileConn.getOpenTableExcludeFilter());
-        addFieldChange(changes, "shareCdcEnable", existingConn.getShareCdcEnable(), fileConn.getShareCdcEnable());
+
+        // 1. 顶层字段比对
+        for (String field : CONNECTION_IMPORTANT_FIELDS) {
+            Object from = getTopLevelFieldValue(existingConn, field);
+            Object to = getTopLevelFieldValue(fileConn, field);
+            addFieldChange(changes, field, from, to);
+        }
+
+        // 2. Config 全字段精确比对
         Map<String, Object> fileConfig = normalizeConfigForComparison(fileConn.getConfig());
         Map<String, Object> existingConfig = normalizeConfigForComparison(existingConn.getConfig());
-        // 只比较文件中存在的字段：导出时被清除的字段（如 uri/密码等）不在文件中，导入时也不会变动，不应视为差异
         Map<String, Object> existingConfigFiltered = filterToFileKeys(fileConfig, existingConfig);
-        if (!configMapsEqual(fileConfig, existingConfigFiltered)) {
-            changes.add(new FieldChange("config", existingConfigFiltered, fileConfig));
+
+        Set<String> allConfigKeys = new LinkedHashSet<>();
+        if (fileConfig != null) allConfigKeys.addAll(fileConfig.keySet());
+        if (existingConfigFiltered != null) allConfigKeys.addAll(existingConfigFiltered.keySet());
+
+        for (String configPath : allConfigKeys) {
+            Object from = existingConfigFiltered != null ? existingConfigFiltered.get(configPath) : null;
+            Object to = fileConfig != null ? fileConfig.get(configPath) : null;
+            if (jsonEqual(from, to)) continue;
+
+            if (MASKED_DISPLAY_API_KEYS.contains(configPath)) {
+                changes.add(new FieldChange("config." + configPath, "******", "******"));
+            } else if (URI_DISPLAY_API_KEYS.contains(configPath)) {
+                changes.add(new FieldChange("config." + configPath, maskUriValue(from), maskUriValue(to)));
+            } else {
+                changes.add(new FieldChange("config." + configPath, from, to));
+            }
         }
+
         return changes;
     }
+
 
     private void addFieldChange(List<FieldChange> changes, String field, Object from, Object to) {
         if (!Objects.equals(from, to)) changes.add(new FieldChange(field, from, to));
     }
 
-    /** 移除 config 中环境相关字段，返回用于对比的副本 */
+    /** 需要完全 mask 展示值的 apiServerKey（密码类字段） */
+    private static final Set<String> MASKED_DISPLAY_API_KEYS = Set.of(
+            "database_password"
+    );
+
+    /** 需要智能 mask 的 URI 类 apiServerKey：MongoDB URI 只 mask 密码部分，其他 URI 全部 mask */
+    private static final Set<String> URI_DISPLAY_API_KEYS = Set.of(
+            "database_uri"
+    );
+
+    /**
+     * 对 URI 值进行智能 mask：
+     * <ul>
+     *   <li>尝试用 MongoDB {@link ConnectionString} 解析，成功则只将密码替换为 ******</li>
+     *   <li>解析失败（非 MongoDB URI）则整个值替换为 ******</li>
+     *   <li>null 值返回 null</li>
+     * </ul>
+     */
+    static Object maskUriValue(Object value) {
+        if (value == null) return null;
+        String uri = String.valueOf(value);
+        try {
+            ConnectionString cs = new ConnectionString(uri);
+            char[] pwd = cs.getPassword();
+            if (pwd != null && pwd.length > 0) {
+                String username = cs.getUsername();
+                // 在原始 URI 中定位 username: 和 @ 之间的部分（即 URL 编码的密码），替换为 ******
+                String prefix = username + ":";
+                int credStart = uri.indexOf("//") + 2;
+                int pwdStart = uri.indexOf(prefix, credStart) + prefix.length();
+                int pwdEnd = uri.indexOf("@", pwdStart);
+                if (pwdStart > prefix.length() && pwdEnd > pwdStart) {
+                    return uri.substring(0, pwdStart) + "******" + uri.substring(pwdEnd);
+                }
+            }
+            // MongoDB URI 但没有密码，原样返回
+            return uri;
+        } catch (Exception e) {
+            // 非 MongoDB URI，全部 mask
+            return "******";
+        }
+    }
+
+    /** 移除 config 中环境相关字段，返回用于对比的副本。敏感字段保留以参与比对。 */
     private Map<String, Object> normalizeConfigForComparison(Map<String, Object> config) {
         if (config == null) return null;
         Map<String, Object> copy = new HashMap<>(config);
@@ -1293,19 +1463,6 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
         }
         return filtered;
-    }
-
-    private boolean configMapsEqual(Map<String, Object> a, Map<String, Object> b) {
-        if (a == null && b == null) return true;
-        if (a == null || b == null) return false;
-        try {
-            String jsonA = JsonUtil.toJsonUseJackson(new TreeMap<>(a));
-            String jsonB = JsonUtil.toJsonUseJackson(new TreeMap<>(b));
-            return Objects.equals(jsonA, jsonB);
-        } catch (Exception e) {
-            log.warn("Failed to compare connection config maps", e);
-            return false;
-        }
     }
 
     private DataSourceConnectionDto parseConnectionDto(String json) {
@@ -1352,15 +1509,23 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 String type = entry.getValue();
                 TaskDto existingTask = existingByName.get(fileTask.getName());
                 if (existingTask == null) {
-                    diff.getAdd().add(new ResourceDiffItem(fileTask.getName(), type));
+                    ResourceDiffItem item = new ResourceDiffItem(fileTask.getName(), type);
+                    item.setSyncType(fileTask.getType());
+                    item.setTableMapping(extractTableMapping(fileTask));
+                    diff.getAdd().add(item);
                 } else {
                     // normalize ownerId (same as checkTaskConfig) before comparing
                     if (fileTask.getDag() != null) {
                         fileTask.getDag().setOwnerId(null);
                     }
-                    List<FieldChange> changes = TaskConfigCompareUtil.getDetailedChanges(fileTask, existingTask);
-                    if (!changes.isEmpty()) {
-                        diff.getUpdate().add(new ResourceDiffItem(fileTask.getName(), type, changes));
+                    DagChangeDetail dagChangeDetail = new DagChangeDetail();
+                    List<FieldChange> changes = TaskConfigCompareUtil.getDetailedChanges(fileTask, existingTask, dagChangeDetail);
+                    if (!changes.isEmpty() || dagChangeDetail.hasChanges()) {
+                        ResourceDiffItem diffItem = new ResourceDiffItem(fileTask.getName(), type, changes);
+                        if (dagChangeDetail.hasChanges()) {
+                            diffItem.setDagChangeDetail(dagChangeDetail);
+                        }
+                        diff.getUpdate().add(diffItem);
                     }
                     // config equal → no change, skip
                 }
@@ -1385,6 +1550,113 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
 
         return diff;
+    }
+
+    private LinkedHashMap<String, String> extractTableMapping(TaskDto task) {
+        LinkedHashMap<String, String> mapping = new LinkedHashMap<>();
+        DAG dag = task.getDag();
+        if (dag == null) return mapping;
+
+        String syncType = task.getSyncType();
+        if ("migrate".equals(syncType)) {
+            List<Node> targets = dag.getTargets();
+            if (targets != null) {
+                for (Node target : targets) {
+                    if (target instanceof DatabaseNode) {
+                        DatabaseNode dbNode = (DatabaseNode) target;
+                        List<SyncObjects> syncObjects = dbNode.getSyncObjects();
+                        if (syncObjects != null) {
+                            for (SyncObjects so : syncObjects) {
+                                if ("table".equals(so.getType())) {
+                                    LinkedHashMap<String, String> relation = so.getTableNameRelation();
+                                    if (relation != null) {
+                                        mapping.putAll(relation);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else if ("sync".equals(syncType)) {
+            List<Node> targets = dag.getTargets();
+            if (targets != null) {
+                for (Node target : targets) {
+                    if (target instanceof TableNode) {
+                        String targetTableName = ((TableNode) target).getTableName();
+                        List<TableNode> sourceNodes = dag.getSourceTableNodes(target.getId());
+                        if (sourceNodes != null && !sourceNodes.isEmpty()) {
+                            for (TableNode src : sourceNodes) {
+                                mapping.put(src.getTableName(), targetTableName);
+                            }
+                        } else {
+                            List<Node> sources = dag.getSources();
+                            if (sources != null) {
+                                for (Node source : sources) {
+                                    if (source instanceof TableNode) {
+                                        mapping.put(((TableNode) source).getTableName(), targetTableName);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return mapping;
+    }
+
+    private Map<String, List<TaskUpAndLoadDto>> filterPayloadsByTaskType(
+            Map<String, List<TaskUpAndLoadDto>> payloads, String taskTypeKey) {
+        Map<String, List<TaskUpAndLoadDto>> filtered = new HashMap<>(payloads);
+
+        // 1. Build oldTaskId → taskName from all task payloads
+        Map<String, String> allTaskIdToName = new HashMap<>();
+        for (String key : List.of("MigrateTask.json", "SyncTask.json")) {
+            for (TaskUpAndLoadDto item : payloads.getOrDefault(key, Collections.emptyList())) {
+                if (GroupConstants.COLLECTION_TASK.equals(item.getCollectionName())) {
+                    TaskDto dto = parseTaskDto(item.getJson());
+                    if (dto != null && dto.getId() != null && StringUtils.isNotBlank(dto.getName())) {
+                        allTaskIdToName.put(dto.getId().toHexString(), dto.getName());
+                    }
+                }
+            }
+        }
+
+        // 2. Collect target type task names
+        Set<String> targetTaskNames = new HashSet<>();
+        for (TaskUpAndLoadDto item : payloads.getOrDefault(taskTypeKey, Collections.emptyList())) {
+            if (GroupConstants.COLLECTION_TASK.equals(item.getCollectionName())) {
+                TaskDto dto = parseTaskDto(item.getJson());
+                if (dto != null && StringUtils.isNotBlank(dto.getName())) {
+                    targetTaskNames.add(dto.getName());
+                }
+            }
+        }
+
+        // 3. Remove the other task type
+        if ("MigrateTask.json".equals(taskTypeKey)) {
+            filtered.remove("SyncTask.json");
+        } else {
+            filtered.remove("MigrateTask.json");
+        }
+
+        // 4. Filter InspectTask: keep only inspects whose flowId maps to a target type task
+        List<TaskUpAndLoadDto> allInspects = filtered.getOrDefault("InspectTask.json", Collections.emptyList());
+        if (!allInspects.isEmpty()) {
+            List<TaskUpAndLoadDto> filteredInspects = allInspects.stream()
+                    .filter(item -> {
+                        if (!GroupConstants.COLLECTION_INSPECT.equals(item.getCollectionName())) return false;
+                        InspectDto inspect = parseInspectDto(item.getJson());
+                        if (inspect == null || StringUtils.isBlank(inspect.getFlowId())) return false;
+                        String taskName = allTaskIdToName.get(inspect.getFlowId());
+                        return taskName != null && targetTaskNames.contains(taskName);
+                    })
+                    .collect(Collectors.toList());
+            filtered.put("InspectTask.json", filteredInspects);
+        }
+
+        return filtered;
     }
 
     private TaskDto parseTaskDto(String json) {
@@ -1506,13 +1778,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             "createUser", "lastUpdBy", "status", "isDeleted"
     ));
 
-    /**
-     * 连接 config 对比时忽略的字段：环境相关（host/port/账密/实例ID等）
-     * 这些字段因部署环境不同而异，不属于业务配置差异
-     */
-    private static final Set<String> CONFIG_ENV_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
-            "host", "port", "id", "password", "user", "username", "datasourceInstanceId"
-    ));
+    private static final Set<String> CONFIG_ENV_EXCLUDED_FIELDS = Collections.emptySet();
 
     private ResourceDiff buildApiDiff(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
         ResourceDiff diff = new ResourceDiff();
@@ -1538,7 +1804,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             Map<String, Object> fileNormalized = entry.getValue();
             ModulesDto existingModule = existingByName.get(name);
             if (existingModule == null) {
-                diff.getAdd().add(new ResourceDiffItem(name, null));
+                ResourceDiffItem item = new ResourceDiffItem(name, null);
+                item.setApiPath((String) fileNormalized.get("path"));
+                item.setApiConnectionName((String) fileNormalized.get("connectionName"));
+                item.setApiTableName((String) fileNormalized.get("tableName"));
+                diff.getAdd().add(item);
             } else {
                 Map<String, Object> existingNormalized = normalizeModuleForComparison(JsonUtil.toJsonUseJackson(existingModule));
                 List<FieldChange> changedFields = getModuleChangedFields(fileNormalized, existingNormalized);

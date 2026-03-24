@@ -273,6 +273,137 @@ public interface ResourceHandler {
     }
 
     /**
+     * BFS 遍历 definition.properties.connection.properties，
+     * 返回 configPath -> apiServerKey 映射。
+     * 如果 definition 为 null 或 schema 结构不匹配则返回空 map。
+     */
+    static Map<String, String> buildConfigPathToApiKeyMap(DataSourceDefinitionDto definition) {
+        Map<String, String> result = new LinkedHashMap<>();
+        Map<String, Object> connectionProperties = getConnectionProperties(definition);
+        if (connectionProperties == null) return result;
+
+        Deque<Object[]> queue = new ArrayDeque<>();
+        queue.add(new Object[]{connectionProperties, ""});
+        while (!queue.isEmpty()) {
+            Object[] node = queue.poll();
+            Map<String, Object> props = (Map<String, Object>) node[0];
+            String prefix = (String) node[1];
+            for (Map.Entry<String, Object> entry : props.entrySet()) {
+                if (!(entry.getValue() instanceof Map)) continue;
+                Map<String, Object> meta = (Map<String, Object>) entry.getValue();
+                String configPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+                Object apiServerKey = meta.get("apiServerKey");
+                if (apiServerKey instanceof String) {
+                    result.put(configPath, (String) apiServerKey);
+                }
+                Object childProperties = meta.get("properties");
+                if (childProperties instanceof Map) {
+                    queue.add(new Object[]{childProperties, configPath});
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * BFS 遍历 definition.properties.connection.properties，
+     * 返回 configPath -> spec.json title 映射（英文标签）。
+     */
+    static Map<String, String> buildConfigPathToLabelMap(DataSourceDefinitionDto definition) {
+        Map<String, String> result = new LinkedHashMap<>();
+        Map<String, Object> connectionProperties = getConnectionProperties(definition);
+        if (connectionProperties == null) return result;
+
+        // Prepare English translation map from definition messages
+        Map<String, Object> enMessages = null;
+        if (definition.getMessages() != null) {
+            Object langMap = definition.getMessages().get("en_US");
+            if (langMap instanceof Map) {
+                enMessages = (Map<String, Object>) langMap;
+            }
+        }
+
+        Deque<Object[]> queue = new ArrayDeque<>();
+        queue.add(new Object[]{connectionProperties, ""});
+        while (!queue.isEmpty()) {
+            Object[] node = queue.poll();
+            Map<String, Object> props = (Map<String, Object>) node[0];
+            String prefix = (String) node[1];
+            for (Map.Entry<String, Object> entry : props.entrySet()) {
+                if (!(entry.getValue() instanceof Map)) continue;
+                Map<String, Object> meta = (Map<String, Object>) entry.getValue();
+                String configPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+                Object title = meta.get("title");
+                if (title instanceof String && !((String) title).isBlank()) {
+                    String resolved = resolveI18nPlaceholder((String) title, enMessages);
+                    if (resolved != null) {
+                        result.put(configPath, resolved);
+                    }
+                }
+                Object childProperties = meta.get("properties");
+                if (childProperties instanceof Map) {
+                    queue.add(new Object[]{childProperties, configPath});
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Resolve ${key} placeholders in a title string using the provided translation map.
+     * Returns null if the placeholder cannot be resolved (translation missing).
+     */
+    private static String resolveI18nPlaceholder(String title, Map<String, Object> langMessages) {
+        if (title == null || !title.contains("${")) {
+            return title;
+        }
+        if (langMessages == null) {
+            return null;
+        }
+        String resolved = title;
+        int start;
+        while ((start = resolved.indexOf("${")) >= 0) {
+            int end = resolved.indexOf("}", start);
+            if (end < 0) break;
+            String key = resolved.substring(start + 2, end);
+            Object value = langMessages.get(key);
+            if (value instanceof String) {
+                resolved = resolved.substring(0, start) + value + resolved.substring(end + 1);
+            } else {
+                return null;
+            }
+        }
+        return resolved;
+    }
+
+    /**
+     * 从 definition 中提取 connection.properties 节点，BFS 工具方法的公共前置。
+     */
+    private static Map<String, Object> getConnectionProperties(DataSourceDefinitionDto definition) {
+        if (definition == null) return null;
+        LinkedHashMap<String, Object> properties = definition.getProperties();
+        if (properties == null) return null;
+        Object connection = properties.get("connection");
+        if (!(connection instanceof Map)) return null;
+        Object connectionProperties = ((Map<?, ?>) connection).get("properties");
+        return (connectionProperties instanceof Map) ? (Map<String, Object>) connectionProperties : null;
+    }
+
+    /**
+     * 返回 definition 中标记为敏感的 config path 集合（apiServerKey 在 SENSITIVE_API_KEYS 中的路径）。
+     */
+    static Set<String> getMaskedConfigPaths(DataSourceDefinitionDto definition) {
+        Set<String> paths = new HashSet<>();
+        Map<String, String> pathToApiKey = buildConfigPathToApiKeyMap(definition);
+        for (Map.Entry<String, String> entry : pathToApiKey.entrySet()) {
+            if (SENSITIVE_API_KEYS.contains(entry.getValue())) {
+                paths.add(entry.getKey());
+            }
+        }
+        return paths;
+    }
+
+    /**
      * 根据 DataSourceDefinitionDto 中的 apiServerKey 定义，找到 DataSourceConnectionDto.config
      * 里对应的路径并清空值。只处理 SENSITIVE_API_KEYS 中声明的标准化 apiServerKey。
      */
@@ -282,41 +413,9 @@ public interface ResourceHandler {
         if (MapUtils.isEmpty(config) || definition == null) {
             return;
         }
-        LinkedHashMap<String, Object> properties = definition.getProperties();
-        if (properties == null) {
-            return;
-        }
-        Object connection = properties.get("connection");
-        if (!(connection instanceof Map)) {
-            return;
-        }
-        Object connectionProperties = ((Map<?, ?>) connection).get("properties");
-        if (!(connectionProperties instanceof Map)) {
-            return;
-        }
-        // BFS 遍历 connection.properties，找到 apiServerKey 命中敏感集合的字段路径
-        // 字段路径（如 "host"、"ssl.password"）即是 config 中的 key，直接删除对应值
-        Deque<Object[]> queue = new ArrayDeque<>();
-        queue.add(new Object[]{connectionProperties, ""});
-        while (!queue.isEmpty()) {
-            Object[] node = queue.poll();
-            Map<String, Object> props = (Map<String, Object>) node[0];
-            String prefix = (String) node[1];
-            for (Map.Entry<String, Object> entry : props.entrySet()) {
-                if (!(entry.getValue() instanceof Map)) {
-                    continue;
-                }
-                Map<String, Object> meta = (Map<String, Object>) entry.getValue();
-                String configPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
-                Object apiServerKey = meta.get("apiServerKey");
-                if (apiServerKey instanceof String && SENSITIVE_API_KEYS.contains(apiServerKey)) {
-                    removeNestedValue(config, configPath);
-                }
-                Object childProperties = meta.get("properties");
-                if (childProperties instanceof Map) {
-                    queue.add(new Object[]{childProperties, configPath});
-                }
-            }
+        Set<String> maskedPaths = getMaskedConfigPaths(definition);
+        for (String path : maskedPaths) {
+            removeNestedValue(config, path);
         }
     }
 
@@ -347,37 +446,18 @@ public interface ResourceHandler {
         }
         final Map<String, Object> finalConfig = config;
 
-        // BFS 遍历 definition schema，找到各 apiServerKey 对应的 config 路径
+        // 使用 BFS 工具方法获取 apiServerKey -> configPath 映射
         Map<String, String> apiKeyToConfigPath = new LinkedHashMap<>();
         if (definition != null) {
-            LinkedHashMap<String, Object> properties = definition.getProperties();
-            Object connection = properties != null ? properties.get("connection") : null;
-            Object connectionProperties = (connection instanceof Map)
-                    ? ((Map<?, ?>) connection).get("properties") : null;
-            if (connectionProperties instanceof Map) {
-                Deque<Object[]> queue = new ArrayDeque<>();
-                queue.add(new Object[]{connectionProperties, ""});
-                while (!queue.isEmpty()) {
-                    Object[] node = queue.poll();
-                    Map<String, Object> props = (Map<String, Object>) node[0];
-                    String prefix = (String) node[1];
-                    for (Map.Entry<String, Object> entry : props.entrySet()) {
-                        if (!(entry.getValue() instanceof Map)) continue;
-                        Map<String, Object> meta = (Map<String, Object>) entry.getValue();
-                        String configPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
-                        Object apiServerKey = meta.get("apiServerKey");
-                        if (apiServerKey instanceof String && VAULT_SUFFIX_TO_API_KEY.containsValue(apiServerKey)) {
-                            apiKeyToConfigPath.put((String) apiServerKey, configPath);
-                        }
-                        Object childProperties = meta.get("properties");
-                        if (childProperties instanceof Map) {
-                            queue.add(new Object[]{childProperties, configPath});
-                        }
-                    }
-                }
-            } else {
+            Map<String, String> pathToApiKey = buildConfigPathToApiKeyMap(definition);
+            if (pathToApiKey.isEmpty()) {
                 log.warn("Vault inject: definition schema missing 'connection.properties' for connection '{}', pdkType={}",
                         connectionName, conn.getDatabase_type());
+            }
+            for (Map.Entry<String, String> entry : pathToApiKey.entrySet()) {
+                if (VAULT_SUFFIX_TO_API_KEY.containsValue(entry.getValue())) {
+                    apiKeyToConfigPath.put(entry.getValue(), entry.getKey());
+                }
             }
         } else {
             log.warn("Vault inject: definition is null for connection '{}', pdkHash={}",
@@ -385,52 +465,108 @@ public interface ResourceHandler {
         }
         log.info("Vault inject: connection='{}', apiKeyToConfigPath={}", connectionName, apiKeyToConfigPath);
 
-        // Step 1：注入 password
-        // 若 schema 含 database_uri（如 MongoDB），密码已包含在 URI 中，无需单独注入 password
-        if (apiKeyToConfigPath.containsKey("database_uri")) {
-            log.info("Vault inject: connection='{}', database_uri schema detected, skipping standalone password injection", connectionName);
-        } else {
-            String passwordVaultKey = findVaultKey(vaultSecrets, connectionName, "password");
-            if (passwordVaultKey == null) {
-                throw new IllegalArgumentException(
-                        "Vault inject: password not found in vault for connection='" + connectionName + "'");
-            }
-            injectSingleField(finalConfig, vaultSecrets, connectionName, "password", apiKeyToConfigPath);
-        }
+        boolean hasDatabaseUri = apiKeyToConfigPath.containsKey("database_uri");
 
-        // Step 2：优先查找 {connName}_uri
+        // 优先级1：查找 {connectionName}_uri
         String uriVaultKey = findVaultKey(vaultSecrets, connectionName, "uri");
         if (uriVaultKey != null) {
             String uriValue = vaultSecrets.get(uriVaultKey);
-            if (apiKeyToConfigPath.containsKey("database_uri")) {
-                // 连接器支持 database_uri（如 MongoDB）→ 整体直接写入
+            if (hasDatabaseUri) {
                 String configPath = apiKeyToConfigPath.get("database_uri");
                 log.info("Vault inject: connection='{}', configPath='{}' <- uri (direct)", connectionName, configPath);
                 setNestedValue(finalConfig, configPath, uriValue);
             } else {
-                // 不支持 database_uri → 解析 host:port/username 分别写入
                 log.info("Vault inject: connection='{}', no database_uri in schema, parsing uri='{}'", connectionName, uriValue);
                 injectFromUriString(finalConfig, uriValue, connectionName, "uri", apiKeyToConfigPath);
             }
             return;
         }
 
-        // Step 3：schema 要求 database_uri 但 vault 中无 uri 条目 → 抛异常
-        if (apiKeyToConfigPath.containsKey("database_uri")) {
-            throw new IllegalArgumentException(
-                    "Vault inject: connection='" + connectionName + "' requires database_uri but no '"
-                            + connectionName + "_uri' key found in vault");
+        // 优先级2：查找 {connectionName}_url + _user + _password
+        String[] resolved = resolveVaultStrategy(vaultSecrets, connectionName);
+        if (resolved != null) {
+            log.info("Vault inject: connection='{}', resolved with prefix='{}'", connectionName, connectionName);
+            applyResolvedVaultValues(finalConfig, vaultSecrets, resolved, connectionName, apiKeyToConfigPath, hasDatabaseUri);
+            return;
         }
 
-        // Step 4：vault 中无 uri，退而查找 {connName}_url，同样解析写入
-        String urlVaultKey = findVaultKey(vaultSecrets, connectionName, "url");
-        if (urlVaultKey != null) {
-            String urlValue = vaultSecrets.get(urlVaultKey);
-            log.info("Vault inject: connection='{}', no uri in vault, falling back to url='{}'", connectionName, urlValue);
-            injectFromUriString(finalConfig, urlValue, connectionName, "url", apiKeyToConfigPath);
-        } else {
-            throw new IllegalArgumentException(
-                    "Vault inject: connection='" + connectionName + "' has no uri/url in vault, cannot inject host/port/username");
+        // 优先级3：截取连接名后查找
+        String truncated = truncateName(connectionName);
+        if (truncated != null) {
+            resolved = resolveVaultStrategy(vaultSecrets, truncated);
+            if (resolved != null) {
+                log.info("Vault inject: connection='{}', resolved with truncated prefix='{}'", connectionName, truncated);
+                applyResolvedVaultValues(finalConfig, vaultSecrets, resolved, connectionName, apiKeyToConfigPath, hasDatabaseUri);
+                return;
+            }
+        }
+
+        // 优先级4：使用 default 前缀查找
+        resolved = resolveVaultStrategy(vaultSecrets, "default");
+        if (resolved != null) {
+            log.info("Vault inject: connection='{}', resolved with prefix='default'", connectionName);
+            applyResolvedVaultValues(finalConfig, vaultSecrets, resolved, connectionName, apiKeyToConfigPath, hasDatabaseUri);
+            return;
+        }
+
+        // 优先级5：所有策略均未命中，报错退出
+        throw new IllegalArgumentException(
+                "Vault inject: connection='" + connectionName + "' has no matching vault keys (tried: "
+                        + connectionName + ", " + (truncated != null ? truncated : "<no truncation>") + ", default)");
+    }
+
+    /**
+     * 在 vaultSecrets 中查找 {prefix}_url、{prefix}_user、{prefix}_password 三个 key。
+     * 三个都找到则返回 [urlKey, userKey, passwordKey]，否则返回 null。
+     */
+    private static String[] resolveVaultStrategy(Map<String, String> vaultSecrets, String prefix) {
+        String urlKey = findVaultKey(vaultSecrets, prefix, "url");
+        String userKey = findVaultKey(vaultSecrets, prefix, "user");
+        String passwordKey = findVaultKey(vaultSecrets, prefix, "password");
+        if (urlKey != null && userKey != null && passwordKey != null) {
+            return new String[]{urlKey, userKey, passwordKey};
+        }
+        return null;
+    }
+
+    /**
+     * 将 resolveVaultStrategy 找到的 url/user/password vault key 注入 config。
+     */
+    private static void applyResolvedVaultValues(Map<String, Object> finalConfig, Map<String, String> vaultSecrets,
+            String[] resolvedKeys, String connectionName, Map<String, String> apiKeyToConfigPath, boolean hasDatabaseUri) {
+        String urlValue = vaultSecrets.get(resolvedKeys[0]);
+        String userValue = vaultSecrets.get(resolvedKeys[1]);
+        String passwordValue = vaultSecrets.get(resolvedKeys[2]);
+
+        // 注入 password
+        String pwApiKey = VAULT_SUFFIX_TO_API_KEY.get("password");
+        String pwConfigPath = apiKeyToConfigPath.get(pwApiKey);
+        if (pwConfigPath == null) pwConfigPath = VAULT_SUFFIX_FALLBACK_CONFIG_KEY.get("password");
+        if (pwConfigPath != null) {
+            log.info("Vault inject: connection='{}', configPath='{}' <- password", connectionName, pwConfigPath);
+            setNestedValue(finalConfig, pwConfigPath, passwordValue);
+        }
+
+        // 注入 user
+        String userApiKey = VAULT_SUFFIX_TO_API_KEY.get("user");
+        String userConfigPath = apiKeyToConfigPath.get(userApiKey);
+        if (userConfigPath == null) userConfigPath = VAULT_SUFFIX_FALLBACK_CONFIG_KEY.get("user");
+        if (userConfigPath != null) {
+            log.info("Vault inject: connection='{}', configPath='{}' <- user", connectionName, userConfigPath);
+            setNestedValue(finalConfig, userConfigPath, userValue);
+        }
+
+        // 注入 url → 解析为 host:port 写入（user 已单独注入，仅提取 host/port）
+        if (hasDatabaseUri) {
+            log.warn("Vault inject: connection='{}', has database_uri schema but resolved via url strategy", connectionName);
+        }
+        log.info("Vault inject: connection='{}', parsing url='{}' for host/port", connectionName, urlValue);
+        Map<String, Object> components = parseUriComponents(urlValue);
+        if (components.get("host") != null) {
+            injectParsedField(finalConfig, connectionName, "host", components.get("host"), apiKeyToConfigPath);
+        }
+        if (components.get("port") != null) {
+            injectParsedField(finalConfig, connectionName, "port", components.get("port"), apiKeyToConfigPath);
         }
     }
 
@@ -537,21 +673,46 @@ public interface ResourceHandler {
     }
 
     /**
-     * 在 vaultSecrets 中查找与连接名和字段匹配的 vault key。
-     * vault key 格式：{team}_{hospital}_{db_type}_{connectionName}_{field}
-     * 匹配条件：key 以 "_{connectionName}_{suffix}" 结尾
+     * 在 vaultSecrets 中精确查找 key = "{prefix}_{suffix}"（忽略大小写）。
      */
-    private static String findVaultKey(Map<String, String> vaultSecrets, String connectionName, String suffix) {
-        String tail = (connectionName + "_" + suffix).toLowerCase(Locale.ROOT);
+    private static String findVaultKey(Map<String, String> vaultSecrets, String prefix, String suffix) {
+        String target = (prefix + "_" + suffix).toLowerCase(Locale.ROOT);
         for (String key : vaultSecrets.keySet()) {
-            if (key.toLowerCase(Locale.ROOT).endsWith(tail)) {
+            if (key.toLowerCase(Locale.ROOT).equals(target)) {
                 return key;
             }
         }
         return null;
     }
 
-/**
+    /**
+     * 截取连接名第二个下划线之前的部分。
+     * 例如：TMH_PG_HPI → TMH_PG；ABC_DEF → null（只有一个下划线）；ABCDEF → null（无下划线）
+     */
+    static String truncateName(String name) {
+        if (name == null) return null;
+        int first = name.indexOf('_');
+        if (first < 0) return null;
+        int second = name.indexOf('_', first + 1);
+        if (second < 0) return null;
+        return name.substring(0, second);
+    }
+
+    /**
+     * 从 config map 中按点号分隔的路径读取值（支持嵌套路径，如 "ssl.password"）
+     */
+    static Object getNestedValue(Map<String, Object> config, String path) {
+        if (config == null || path == null) return null;
+        String[] parts = path.split("\\.");
+        Object current = config;
+        for (String part : parts) {
+            if (!(current instanceof Map)) return null;
+            current = ((Map<String, Object>) current).get(part);
+        }
+        return current;
+    }
+
+    /**
      * 在 config map 中按点号分隔的路径写入值（支持嵌套路径，如 "ssl.password"）
      */
     private static void setNestedValue(Map<String, Object> config, String path, Object value) {
@@ -566,7 +727,7 @@ public interface ResourceHandler {
     /**
      * 从 config map 中按点号分隔的路径删除对应值（支持嵌套路径，如 "ssl.password"）
      */
-    private static void removeNestedValue(Map<String, Object> config, String path) {
+    static void removeNestedValue(Map<String, Object> config, String path) {
         String[] parts = path.split("\\.");
         Map<String, Object> current = config;
         for (int i = 0; i < parts.length - 1; i++) {
