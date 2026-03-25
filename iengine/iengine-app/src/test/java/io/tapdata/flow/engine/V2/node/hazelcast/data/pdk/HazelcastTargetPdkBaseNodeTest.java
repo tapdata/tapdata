@@ -1534,10 +1534,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> testAfterData = new HashMap<>();
 			tapEvents.add(TapInsertRecordEvent.create().table(testTableName).after(testAfterData));
 			hazelcastTargetPdkBaseNode.processTapEvents(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
-			verify(hazelcastTargetPdkBaseNode, times(1)).transactionBegin();
-			verify(hazelcastTargetPdkBaseNode, times(1)).processEvents(any());
-			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any());
-			verify(hazelcastTargetPdkBaseNode, times(1)).transactionCommit();
+			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any(),any());
 		}
 
 		@Test
@@ -1549,14 +1546,12 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			doAnswer(invocationOnMock -> {
 				throw new RuntimeException("test");
-			}).when(hazelcastTargetPdkBaseNode).processEvents(any());
+			}).when(hazelcastTargetPdkBaseNode).processExactlyOnceWriteCache(any(), any());
 
 			assertThrows(RuntimeException.class, () -> {
 				hazelcastTargetPdkBaseNode.processTapEvents(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
 			});
-			verify(hazelcastTargetPdkBaseNode, times(1)).transactionBegin();
-			verify(hazelcastTargetPdkBaseNode, times(1)).processEvents(any());
-			verify(hazelcastTargetPdkBaseNode, times(1)).transactionRollback();
+			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any(), any());
 		}
 	}
 
