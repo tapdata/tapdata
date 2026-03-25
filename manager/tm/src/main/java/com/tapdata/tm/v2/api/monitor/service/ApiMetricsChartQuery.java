@@ -320,6 +320,21 @@ public class ApiMetricsChartQuery {
         item.setQueryFrom(param.getQueryStart());
         item.setQueryEnd(param.getQueryEnd());
         item.setGranularity(param.getGranularity().getType());
+        item.setServerPingStatus(serverRealStatus(item));
+    }
+
+    protected String serverRealStatus(ServerItem item) {
+        String serverStatus = item.getServerStatus();
+        String serverPingStatus = item.getServerPingStatus();
+        Long serverPingTime = item.getServerPingTime();
+        if (null == serverPingTime) {
+            return Optional.ofNullable(serverStatus).orElse("stopped");
+        }
+        //API reports status once every 5 seconds
+        if (serverPingTime > (System.currentTimeMillis() - 10_000L) && StringUtils.isNotBlank(serverStatus)) {
+            return serverStatus;
+        }
+        return serverPingStatus;
     }
 
     protected Worker findServerById(String serverId) {

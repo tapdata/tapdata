@@ -35,6 +35,7 @@ import com.tapdata.tm.worker.repository.WorkerRepository;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -50,6 +51,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -952,6 +954,220 @@ class ApiMetricsChartQueryTest {
         void testWithSetIgnoreIds() {
             Map<String, Worker> result = apiMetricsChartQuery.activeWorkers(new HashSet<>(Arrays.asList("server1", "server2")));
             assertNotNull(result);
+        }
+    }
+
+    @Nested
+    @DisplayName("serverRealStatus Tests")
+    class ServerRealStatusTest {
+
+        @BeforeEach
+        void setUp() {
+            when(apiMetricsChartQuery.serverRealStatus(any(ServerItem.class))).thenCallRealMethod();
+        }
+
+        @Test
+        @DisplayName("Should return 'stopped' when serverPingTime is null")
+        void testServerPingTimeIsNull() {
+            // Given
+            ServerItem item = new ServerItem();
+            item.setServerStatus("running");
+            item.setServerPingStatus("active");
+            item.setServerPingTime(null);
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("running", result);
+        }
+
+        @Test
+        @DisplayName("Should return serverStatus when serverPingTime is within 10 seconds and serverStatus is not blank")
+        void testRecentPingTimeWithValidServerStatus() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 5000L); // 5 seconds ago
+            item.setServerStatus("running");
+            item.setServerPingStatus("active");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("running", result);
+        }
+
+        @Test
+        @DisplayName("Should return serverStatus when serverPingTime is exactly at 10 second boundary")
+        void testPingTimeAtBoundary() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 10000L); // Just under 10 seconds
+            item.setServerStatus("running");
+            item.setServerPingStatus("stopped");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("stopped", result);
+        }
+
+        @Test
+        @DisplayName("Should return serverPingStatus when serverPingTime is older than 10 seconds")
+        void testOldPingTime() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 15000L); // 15 seconds ago
+            item.setServerStatus("running");
+            item.setServerPingStatus("stopped");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("stopped", result);
+        }
+
+        @Test
+        @DisplayName("Should return serverPingStatus when serverStatus is blank even with recent ping")
+        void testRecentPingTimeWithBlankServerStatus() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 5000L);
+            item.setServerStatus(""); // blank
+            item.setServerPingStatus("active");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("active", result);
+        }
+
+        @Test
+        @DisplayName("Should return serverPingStatus when serverStatus is null even with recent ping")
+        void testRecentPingTimeWithNullServerStatus() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 5000L);
+            item.setServerStatus(null);
+            item.setServerPingStatus("active");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("active", result);
+        }
+
+        @Test
+        @DisplayName("Should return 'stopped' when serverPingTime is null and serverStatus is null")
+        void testAllNullValues() {
+            // Given
+            ServerItem item = new ServerItem();
+            item.setServerPingTime(null);
+            item.setServerStatus(null);
+            item.setServerPingStatus("active");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("stopped", result);
+        }
+
+        @Test
+        @DisplayName("Should return serverPingStatus when serverPingTime is old and serverStatus is valid")
+        void testOldPingTimeWithValidServerStatus() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 20000L); // 20 seconds ago
+            item.setServerStatus("running");
+            item.setServerPingStatus("error");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("error", result);
+        }
+
+        @Test
+        @DisplayName("Should handle whitespace-only serverStatus as blank")
+        void testWhitespaceServerStatus() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 5000L);
+            item.setServerStatus("   "); // whitespace only
+            item.setServerPingStatus("active");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("active", result);
+        }
+
+        @Test
+        @DisplayName("Should return serverPingStatus when both serverStatus and serverPingStatus are null")
+        void testBothStatusesNull() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 15000L);
+            item.setServerStatus(null);
+            item.setServerPingStatus(null);
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("Should prioritize serverStatus over serverPingStatus when conditions are met")
+        void testPriorityOfServerStatus() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 1000L); // 1 second ago
+            item.setServerStatus("healthy");
+            item.setServerPingStatus("unhealthy");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            assertEquals("healthy", result);
+            assertNotEquals("unhealthy", result);
+        }
+
+        @Test
+        @DisplayName("Should handle edge case with serverPingTime exactly 10 seconds old")
+        void testExactly10SecondsOld() {
+            // Given
+            ServerItem item = new ServerItem();
+            long currentTime = System.currentTimeMillis();
+            item.setServerPingTime(currentTime - 10000L); // Exactly 10 seconds
+            item.setServerStatus("running");
+            item.setServerPingStatus("stopped");
+
+            // When
+            String result = apiMetricsChartQuery.serverRealStatus(item);
+
+            // Then
+            // Should return serverPingStatus because condition is > not >=
+            assertEquals("stopped", result);
         }
     }
 
