@@ -39,6 +39,7 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.ApplicationConfig;
@@ -51,6 +52,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.module.entity.Path;
+import com.tapdata.tm.module.enums.ApiType;
 import com.tapdata.tm.module.enums.ParamTypeEnum;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
@@ -62,6 +64,7 @@ import com.tapdata.tm.modules.dto.ModulesUpAndLoadDto;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.modules.param.ApiDetailParam;
+import com.tapdata.tm.modules.param.UpdateEncryptionParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.util.MongoQueryValidator;
 import com.tapdata.tm.modules.vo.ApiDefinitionVo;
@@ -73,10 +76,10 @@ import com.tapdata.tm.modules.vo.ModulesListVo;
 import com.tapdata.tm.modules.vo.PreviewVo;
 import com.tapdata.tm.modules.vo.RankListsVo;
 import com.tapdata.tm.modules.vo.Source;
+import com.tapdata.tm.module.dto.TextEncryption;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
-import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.FunctionUtils;
@@ -188,6 +191,25 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return modulesDetailVo;
 	}
 
+	public void updateParamEncryption(UpdateEncryptionParam param, UserDetail user) {
+		if (StringUtils.isBlank(param.getApiId())) {
+			throw new BizException("api.call.metric.process.id.required");
+		}
+		ObjectId apiId = MongoUtils.toObjectId(param.getApiId());
+		if (apiId == null) {
+			throw new BizException("api.call.metric.server.not.found", param.getApiId());
+		}
+		if (CollectionUtils.isEmpty(param.getPaths())) {
+			log.debug("Not any update param encryption paths need to save, {}", param.getApiId());
+			return;
+		}
+		repository.update(
+				Query.query(Criteria.where(BaseEntityFields._ID.field()).is(apiId)),
+				Update.update(ModulesField.PATHS.field(), param.getPaths()),
+				user
+		);
+	}
+
     public Page findModules(Filter filter, UserDetail userDetail) {
         // 不需要设定 fields
         filter.setFields(null);
@@ -257,7 +279,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 //        if (null == modulesDto.getDataSource()) {
 //            throw new BizException("Modules.Connection.Null");
 //        }
-		validCustomWhereIfNeed(modulesDto.getPaths());
+		if (ApiType.CUSTOMER_QUERY.getType().equals(modulesDto.getApiType())) {
+			validCustomWhereIfNeed(modulesDto.getPaths());
+		}
 		if (nameExists(null, modulesDto.getName()))
 			throw new BizException("Modules.Name.Existed");
 		modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
@@ -295,7 +319,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 
 	public ModulesDto updateModuleById(ModulesDto modulesDto, UserDetail userDetail) {
-		validCustomWhereIfNeed(modulesDto.getPaths());
+		if (ApiType.CUSTOMER_QUERY.getType().equals(modulesDto.getApiType())) {
+			validCustomWhereIfNeed(modulesDto.getPaths());
+		}
 		Where where = new Where();
 		where.put("id", modulesDto.getId().toString());
 
@@ -547,6 +573,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			}
 			apiDefinitionVo.setConnections(connectionVos);
 			apiDefinitionVo.setApis(apis);
+			withEncryptionRule(apis);
 		}
 		textEncryptionRule(apiDefinitionVo);
 		apiDefinitionVo.setApiInfo(withUnPublishApi(apis));
@@ -561,6 +588,50 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		List<ModulesDto> apis = (List<ModulesDto>) findAllActiveApi(ModuleStatusEnum.PENDING);
 		append(apiInfo, apis, ModuleStatusEnum.PENDING);
 		return apiInfo;
+	}
+
+	public void withEncryptionRule(List<ModulesDto> apis) {
+		Set<String> ruleIds = new HashSet<>();
+		apis.stream()
+				.filter(Objects::nonNull)
+				.map(ModulesDto::getPaths)
+				.filter(CollectionUtils::isNotEmpty)
+				.forEach(ps -> ps.stream()
+						.filter(Objects::nonNull)
+						.filter(p -> CollectionUtils.isNotEmpty(p.getParams()))
+						.forEach(p -> p.getParams().stream()
+								.map(Param::getTextEncryptionRuleIds)
+								.filter(CollectionUtils::isNotEmpty)
+								.forEach(ruleIds::addAll)));
+		if (ruleIds.isEmpty()) {
+			return;
+		}
+		List<TextEncryptionRuleDto> ruleDto = textEncryptionRuleService.getById(ruleIds);
+		if (CollectionUtils.isEmpty(ruleDto)) {
+			return;
+		}
+		Map<String, TextEncryption> textEncryptionMap = ruleDto.stream()
+				.filter(Objects::nonNull)
+				.filter(e -> Objects.nonNull(e.getId()))
+				.collect(Collectors.toMap(e -> e.getId().toHexString(), this::toTextEncryption, (e1, e2) -> e2));
+		apis.stream()
+				.filter(Objects::nonNull)
+				.map(ModulesDto::getPaths)
+				.filter(CollectionUtils::isNotEmpty)
+				.forEach(ps -> ps.stream()
+						.filter(Objects::nonNull)
+						.filter(p -> CollectionUtils.isNotEmpty(p.getParams()))
+						.forEach(p -> p.getParams().forEach(param -> TextEncryption.textEncryptionFromId(param, textEncryptionMap))));
+	}
+
+	public TextEncryption toTextEncryption(TextEncryptionRuleDto from) {
+		TextEncryption textEncryption = new TextEncryption();
+		textEncryption.setId(from.getId().toHexString());
+		textEncryption.setRegex(from.getRegex());
+		textEncryption.setOutputChar(from.getOutputChar());
+		textEncryption.setOutputType(from.getOutputType());
+		textEncryption.setOutputCount(from.getOutputCount());
+		return textEncryption;
 	}
 
 	public void append(List<ApiDefinitionVo.ApiInfo> apiInfo, List<ModulesDto> apis, ModuleStatusEnum status) {
