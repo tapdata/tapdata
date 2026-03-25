@@ -125,4 +125,6 @@ public class ApiCallDto extends BaseDto {
      * @see ApiCallEntity.HttpStatusType
      * */
     private String httpStatus;
+
+    private Map<String, List<String>> fieldEncryptionRule;
 }
