@@ -112,6 +112,8 @@ public class ConnectorManager {
 
 	private String sslPEM;
 
+	private String sslPass;
+
 	private String mongodbConnParams;
 
 	private List<String> baseURLs;
@@ -664,7 +666,7 @@ public class ConnectorManager {
 		String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
 		List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
 
-		return SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
+		return SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, sslPass);
 	}
 
 	/**
@@ -1761,6 +1763,10 @@ public class ConnectorManager {
 		String sslCertKey = CommonUtils.getenv("MONGO_SSL_CERT_KEY");
 		if (StringUtils.isNotBlank(sslCertKey)) {
 			this.sslPEM = sslCertKey;
+		}
+		String sslPass = CommonUtils.getenv("MONGO_SSL_PASS");
+		if (StringUtils.isNotBlank(sslPass)) {
+			this.sslPass = sslPass;
 		}
 
 		String cloud_accessCode = CommonUtils.getenv("cloud_accessCode");
