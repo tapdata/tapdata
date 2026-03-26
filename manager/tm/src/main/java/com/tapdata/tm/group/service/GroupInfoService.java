@@ -198,17 +198,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 		Set<ResourceType> exclusiveTypes = EnumSet.of(
 				ResourceType.MIGRATE_TASK, ResourceType.SYNC_TASK, ResourceType.MODULE);
 
-		List<String> resourceIds = dto.getResourceItemList().stream()
+		// 保留 id -> type 映射，供后续查名称时判断用哪个服务
+		Map<String, ResourceType> idToType = dto.getResourceItemList().stream()
 				.filter(item -> item != null && exclusiveTypes.contains(item.getType())
 						&& StringUtils.isNotBlank(item.getId()))
-				.map(ResourceItem::getId)
-				.collect(Collectors.toList());
+				.collect(Collectors.toMap(ResourceItem::getId, ResourceItem::getType, (a, b) -> a));
 
-		if (resourceIds.isEmpty()) {
+		if (idToType.isEmpty()) {
 			return;
 		}
 
-		Criteria criteria = Criteria.where("resourceItemList.id").in(resourceIds)
+		Criteria criteria = Criteria.where("resourceItemList.id").in(idToType.keySet())
 				.and("is_deleted").ne(true);
 		if (excludeGroupId != null) {
 			criteria = criteria.and("_id").ne(excludeGroupId);
@@ -225,12 +225,34 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 				.map(ResourceItem::getId)
 				.collect(Collectors.toSet());
 
-		String conflictResourceId = resourceIds.stream()
+		String conflictResourceId = idToType.keySet().stream()
 				.filter(conflictGroupResourceIds::contains)
 				.findFirst()
 				.orElse("unknown");
 
-		throw new BizException("Group.Resource.AlreadyInGroup", conflictResourceId, conflictGroup.getName());
+		// 查询冲突资源的名称，给出更友好的错误提示
+		String resourceName = resolveResourceName(conflictResourceId, idToType.get(conflictResourceId));
+
+		throw new BizException("Group.Resource.AlreadyInGroup", resourceName, conflictGroup.getName());
+	}
+
+	private String resolveResourceName(String resourceId, ResourceType type) {
+		try {
+			if (type == ResourceType.MODULE) {
+				List<ModulesDto> modules = modulesService.findAllModulesByIds(List.of(resourceId));
+				if (CollectionUtils.isNotEmpty(modules) && StringUtils.isNotBlank(modules.get(0).getName())) {
+					return modules.get(0).getName() + "(" + resourceId + ")";
+				}
+			} else if (type == ResourceType.MIGRATE_TASK || type == ResourceType.SYNC_TASK) {
+				List<TaskDto> tasks = taskService.findAllTasksByIds(List.of(resourceId));
+				if (CollectionUtils.isNotEmpty(tasks) && StringUtils.isNotBlank(tasks.get(0).getName())) {
+					return tasks.get(0).getName() + "(" + resourceId + ")";
+				}
+			}
+		} catch (Exception e) {
+			log.warn("Failed to resolve resource name for id={}, type={}", resourceId, type, e);
+		}
+		return resourceId;
 	}
 
 	public Page<GroupInfoDto> groupList(Filter filter, UserDetail userDetail) {
