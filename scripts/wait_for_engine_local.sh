@@ -27,7 +27,31 @@ done
 echo "Registering connectors..."
 # Local build has pdk.jar in /app/pdk/ and connectors in /app/pdk/dist/
 if [ -f "/app/pdk/pdk.jar" ] && [ -d "/app/pdk/dist" ]; then
-    java -jar /app/pdk/pdk.jar register -a 3324cfdf-7d3e-4792-bd32-571638d4562f -t http://tm:3000 /app/pdk/dist
+    TM_URL=${TM_URL:-http://tm:3000}
+    AGENT_ID=${ENGINE_AGENT_ID:-3324cfdf-7d3e-4792-bd32-571638d4562f}
+    CONNECTOR_IDS=${TAP_CONNECTORS:-${TM_CONNECTORS:-}}
+
+    echo "TM_URL=$TM_URL"
+    echo "ENGINE_AGENT_ID=$AGENT_ID"
+    echo "TAP_CONNECTORS=$CONNECTOR_IDS"
+    echo "Use command to register connector: java -jar /app/pdk/pdk.jar register -a <agent_id> -t <tm_url> /app/pdk/dist/<connector-id>-connector.jar"
+
+    if [ -n "$CONNECTOR_IDS" ]; then
+      echo "$CONNECTOR_IDS" | tr ',' '\n' | while read -r raw; do
+        id=$(printf '%s' "$raw" | tr -d '[:space:]')
+        [ -z "$id" ] && continue
+        jar="/app/pdk/dist/${id}-connector.jar"
+        if [ -f "$jar" ]; then
+          echo "Registering ${id}-connector..."
+          java -jar /app/pdk/pdk.jar register -a "$AGENT_ID" -t "$TM_URL" "$jar"
+        else
+          echo "Skip ${id}-connector: JAR not found at ${jar}"
+        fi
+      done
+    else
+      echo "No TAP_CONNECTORS provided, registering all jars under /app/pdk/dist"
+      java -jar /app/pdk/pdk.jar register -a "$AGENT_ID" -t "$TM_URL" /app/pdk/dist
+    fi
 else
     echo "Warning: pdk.jar or connectors dist not found in /app/pdk/, skipping registration"
 fi
