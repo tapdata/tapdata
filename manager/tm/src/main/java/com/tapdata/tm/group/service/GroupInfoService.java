@@ -3188,4 +3188,112 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     }
 
+    public Page<TaskWithGroupVo> getTasksWithGroupInfo(Filter filter, UserDetail userDetail) {
+        Page<TaskDto> taskPage = taskService.find(filter, userDetail);
+        List<TaskDto> tasks = taskPage.getItems();
+        if (CollectionUtils.isEmpty(tasks)) {
+            Page<TaskWithGroupVo> result = new Page<>();
+            result.setTotal(taskPage.getTotal());
+            result.setItems(Collections.emptyList());
+            return result;
+        }
+
+        List<String> taskIds = tasks.stream()
+                .filter(t -> t.getId() != null)
+                .map(t -> t.getId().toHexString())
+                .collect(Collectors.toList());
+
+        Map<String, GroupInfoDto> taskIdToGroup = buildResourceIdToGroupMap(taskIds);
+
+        List<TaskWithGroupVo> voList = tasks.stream().map(task -> {
+            TaskWithGroupVo vo = BeanUtil.deepClone(task, TaskWithGroupVo.class);
+            if (task.getId() != null) {
+                GroupInfoDto group = taskIdToGroup.get(task.getId().toHexString());
+                if (group != null) {
+                    vo.setGroupId(group.getId() != null ? group.getId().toHexString() : null);
+                    vo.setGroupName(group.getName());
+                }
+            }
+            return vo;
+        }).collect(Collectors.toList());
+
+        Page<TaskWithGroupVo> result = new Page<>();
+        result.setTotal(taskPage.getTotal());
+        result.setItems(voList);
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Page<ModuleWithGroupVo> getApisWithGroupInfo(Filter filter, UserDetail userDetail) {
+        Page rawPage = modulesService.findModules(filter, userDetail);
+        List<?> items = rawPage.getItems();
+        if (CollectionUtils.isEmpty(items)) {
+            Page<ModuleWithGroupVo> result = new Page<>();
+            result.setTotal(rawPage.getTotal());
+            result.setItems(Collections.emptyList());
+            return result;
+        }
+
+        // 单次遍历：cast + 收集 ID + 构建 VO 列表
+        List<com.tapdata.tm.modules.vo.ModulesListVo> modules = new ArrayList<>(items.size());
+        List<String> moduleIds = new ArrayList<>(items.size());
+        for (Object item : items) {
+            if (item instanceof com.tapdata.tm.modules.vo.ModulesListVo) {
+                com.tapdata.tm.modules.vo.ModulesListVo module = (com.tapdata.tm.modules.vo.ModulesListVo) item;
+                modules.add(module);
+                if (module.getId() != null) {
+                    moduleIds.add(module.getId());
+                }
+            }
+        }
+
+        Map<String, GroupInfoDto> moduleIdToGroup = buildResourceIdToGroupMap(moduleIds);
+
+        List<ModuleWithGroupVo> voList = new ArrayList<>(modules.size());
+        for (com.tapdata.tm.modules.vo.ModulesListVo module : modules) {
+            ModuleWithGroupVo vo = BeanUtil.deepClone(module, ModuleWithGroupVo.class);
+            String id = module.getId();
+            if (id != null) {
+                GroupInfoDto group = moduleIdToGroup.get(id);
+                if (group != null) {
+                    vo.setGroupId(group.getId() != null ? group.getId().toHexString() : null);
+                    vo.setGroupName(group.getName());
+                }
+            }
+            voList.add(vo);
+        }
+
+        Page<ModuleWithGroupVo> result = new Page<>();
+        result.setTotal(rawPage.getTotal());
+        result.setItems(voList);
+        return result;
+    }
+
+    private Map<String, GroupInfoDto> buildResourceIdToGroupMap(List<String> resourceIds) {
+        if (CollectionUtils.isEmpty(resourceIds)) {
+            return Collections.emptyMap();
+        }
+        // 转为 Set 避免内层 contains 的 O(n) 查找
+        Set<String> resourceIdSet = new HashSet<>(resourceIds);
+        Criteria criteria = Criteria.where("resourceItemList.id").in(resourceIdSet)
+                .and("is_deleted").ne(true);
+        // 只投影必要字段，减少 MongoDB 传输数据量
+        Query query = new Query(criteria);
+        query.fields().include("name").include("resourceItemList");
+        List<GroupInfoDto> groups = findAll(query);
+        Map<String, GroupInfoDto> map = new HashMap<>();
+        if (CollectionUtils.isNotEmpty(groups)) {
+            for (GroupInfoDto group : groups) {
+                if (CollectionUtils.isNotEmpty(group.getResourceItemList())) {
+                    for (ResourceItem item : group.getResourceItemList()) {
+                        if (item != null && item.getId() != null && resourceIdSet.contains(item.getId())) {
+                            map.put(item.getId(), group);
+                        }
+                    }
+                }
+            }
+        }
+        return map;
+    }
+
 }

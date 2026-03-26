@@ -13,7 +13,9 @@ import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.group.vo.ExportGroupRequest;
 import com.tapdata.tm.group.vo.GroupImportResult;
 import com.tapdata.tm.group.vo.GroupPreviewResult;
+import com.tapdata.tm.group.vo.ModuleWithGroupVo;
 import com.tapdata.tm.group.vo.ResourceDiff;
+import com.tapdata.tm.group.vo.TaskWithGroupVo;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
@@ -233,5 +235,23 @@ public class GroupInfoController extends BaseController {
             throws IOException {
         ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
         return success(groupInfoService.importApis(file, importModeEnum, getLoginUser(), sync));
+    }
+
+    @Operation(summary = "获取包含分组信息的任务列表")
+    @GetMapping("/tasks")
+    public ResponseMessage<Page<TaskWithGroupVo>> tasks(
+            @RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) filter = new Filter();
+        return success(groupInfoService.getTasksWithGroupInfo(filter, getLoginUser()));
+    }
+
+    @Operation(summary = "获取包含分组信息的API列表")
+    @GetMapping("/apis")
+    public ResponseMessage<Page<ModuleWithGroupVo>> apis(
+            @RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) filter = new Filter();
+        return success(groupInfoService.getApisWithGroupInfo(filter, getLoginUser()));
     }
 }
