@@ -1702,9 +1702,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 		syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
-		if (syncProgress.getSyncStage() == null) {
-			obsLogger.warn(String.format("Found sync stage is null when flush sync progress, event: %s[%s]", tapdataEvent, tapdataEvent.getClass().getName()));
-		}
 	}
 
 	protected boolean flushOffsetCallback(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
