@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.6
 # Build image
 #  - Run command `docker build -t cloud/console:v1 .` in directory tapdata-enterprise-web
 # Usage image

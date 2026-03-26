@@ -22,13 +22,13 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.system.api.utils.TextEncryptionUtil;
 import com.tapdata.tm.utils.EntityUtils;
@@ -89,17 +89,14 @@ public class ApiCallService {
     ModulesService modulesService;
     ApplicationService applicationService;
     ApiCallStatsService apiCallStatsService;
-    protected ApplicationConfig applicationConfig;
-    protected TextEncryptionRuleService ruleService;
-    private RealTimeOfApiResponseSizeAlter realTimeOfApiResponseSizeAlter;
+    TextEncryptionRuleService ruleService;
+    RealTimeOfApiResponseSizeAlter realTimeOfApiResponseSizeAlter;
 
     public ApiCallService() {
     }
 
     public ApiCallEntity findOne(Query query) {
-        return Optional.ofNullable(mongoOperations.findOne(query, ApiCallEntity.class))
-                .map(this::afterFindEntity)
-                .orElse(null);
+        return mongoOperations.findOne(query, ApiCallEntity.class);
     }
 
     public ApiCallDto upsertByWhere(Where where, ApiCallDto metadataDefinition, UserDetail loginUser) {
@@ -114,9 +111,7 @@ public class ApiCallService {
     }
 
     public ApiCallDetailVo findById(String id, UserDetail loginUser) {
-        ApiCallEntity apiCallEntity = Optional.ofNullable(mongoOperations.findById(id, ApiCallEntity.class))
-                .map(this::afterFindEntity)
-                .orElse(null);
+        ApiCallEntity apiCallEntity = mongoOperations.findById(id, ApiCallEntity.class);
         ApiCallDetailVo apiCallDetailVo = BeanUtil.copyProperties(apiCallEntity, ApiCallDetailVo.class);
         apiCallDetailVo.setVisitTotalCount(Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getResRows).orElse(0L));
         double latency = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getLatency).map(Number::doubleValue).orElse(0D);
@@ -128,12 +123,17 @@ public class ApiCallService {
                 .map(ApiCallEntity::getAllPathId)
                 .map(MongoUtils::toObjectId)
                 .orElse(null);
+        ModulesDto modulesDto = null;
         if (apiId != null) {
-            ModulesDto modulesDto = modulesService.findById(apiId, loginUser);
+            modulesDto = modulesService.findById(apiId, loginUser);
             if (null != modulesDto) {
                 apiCallDetailVo.setName(modulesDto.getName());
-                apiCallDetailVo.setApiId(apiCallEntity.getAllPathId());
-                apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
+                Optional.of(apiCallEntity)
+                        .map(ApiCallEntity::getAllPathId)
+                        .ifPresent(apiCallDetailVo::setApiId);
+                Optional.of(apiCallEntity)
+                        .map(ApiCallEntity::getReq_path)
+                        .ifPresent(apiCallDetailVo::setApiPath);
             }
         } else if (null != apiCallEntity) {
             apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
@@ -141,6 +141,7 @@ public class ApiCallService {
         }
         if (null != apiCallEntity) {
             apiCallDetailVo.setFailed(!apiCallEntity.isSucceed());
+            encryptionIfNeed(apiCallDetailVo, modulesDto);
         }
         return apiCallDetailVo;
     }
@@ -185,7 +186,7 @@ public class ApiCallService {
         final Object queryObj = where.get(key);
         if (queryObj instanceof Number iCost) {
             baseCriteria.and(fieldName).is(iCost.longValue());
-        } else if (queryObj instanceof Map<?,?> range) {
+        } else if (queryObj instanceof Map<?, ?> range) {
             if (org.springframework.util.CollectionUtils.isEmpty(range)) {
                 return;
             }
@@ -449,7 +450,7 @@ public class ApiCallService {
         query.with(Sort.by("createTime").descending());
         List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
         apiCallEntityList = mongoOperations.find(query, ApiCallEntity.class);
-        return Optional.of(apiCallEntityList).map(this::afterFindEntity).orElse(null);
+        return apiCallEntityList;
     }
 
 
@@ -465,7 +466,7 @@ public class ApiCallService {
                 .stream().map(ObjectId::toString).collect(Collectors.toList())
                 .stream().distinct().collect(Collectors.toList());
         apiCallEntityList = mongoOperations.find(Query.query(Criteria.where(Tag.ALL_PATH_ID).in(moduleIdList)), ApiCallEntity.class);
-        return Optional.of(apiCallEntityList).map(this::afterFindEntity).orElse(new ArrayList<>());
+        return Optional.of(apiCallEntityList).orElse(new ArrayList<>());
     }
 
     public List<Map<String, String>> findClients(List<String> moduleIdList) {
@@ -750,33 +751,99 @@ public class ApiCallService {
                 .append("minute", "$minute");
     }
 
-    protected ApiCallEntity afterFindEntity(ApiCallEntity entity) {
+    protected void encryptionIfNeed(ApiCallDetailVo apiCallDetailVo, ModulesDto moduleDto) {
         final Boolean open = ruleService.checkAudioSwitchStatus();
-        doAfterOnce(open, entity);
-        return entity;
+        encryptionIfNeed(open, apiCallDetailVo, moduleDto);
     }
 
-    protected void doAfterOnce(Boolean open, ApiCallEntity entity) {
-        Map<String, Param> paramMap = findApiParamTypeMap(MongoUtils.toObjectId(entity.getAllPathId())).get(entity.getAllPathId());
-        String query = entity.getQuery();
-        String body = entity.getBody();
-        entity.setQuery(parse(query, open, paramMap));
-        entity.setBody(parse(body, open, paramMap));
-        entity.setReqParams(null);
-    }
-
-    protected List<ApiCallEntity> afterFindEntity(List<ApiCallEntity> entities) {
-        final List<String> apiIds = entities.stream()
-                .filter(Objects::nonNull)
-                .map(ApiCallEntity::getAllPathId)
-                .filter(Objects::nonNull)
-                .toList();
-        if (apiIds.isEmpty()) {
-            return entities;
+    protected boolean encryptionCustomFields(boolean open, Map<String, List<String>> fieldEncryptionRule, ApiCallDetailVo apiCallDetailVo) {
+        if (org.springframework.util.CollectionUtils.isEmpty(fieldEncryptionRule)) {
+            return false;
         }
-        final Boolean open = ruleService.checkAudioSwitchStatus();
-        entities.forEach(entity -> doAfterOnce(open, entity));
-        return entities;
+        Set<String> ruleIds = new HashSet<>();
+        fieldEncryptionRule.forEach((k, v) ->
+            v.stream().filter(StringUtils::isNotBlank).forEach(ruleIds::add)
+        );
+        if (!CollectionUtils.isEmpty(ruleIds)) {
+            List<TextEncryptionRuleDto> ruleDto = ruleService.getById(ruleIds);
+            if (!CollectionUtils.isEmpty(ruleDto)) {
+                Map<String, TextEncryptionRuleDto> collect = ruleDto.stream()
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toMap(
+                                e -> e.getId().toHexString(),
+                                e -> e,
+                                (e1, e2) -> e2
+                        ));
+                Set<String> fields = fieldEncryptionRule.keySet();
+                Map<String, List<TextEncryptionRuleDto>> ruleMap = new HashMap<>();
+                for (String field : fields) {
+                    Optional.ofNullable(fieldEncryptionRule.get(field))
+                            .ifPresent(ks -> ruleMap.put(field, ks.stream()
+                                    .map(collect::get)
+                                    .filter(Objects::nonNull).toList()
+                            ));
+                }
+                String query = apiCallDetailVo.getQuery();
+                String body = apiCallDetailVo.getBody();
+                apiCallDetailVo.setQuery(parseCustomParam(open, query, ruleMap));
+                apiCallDetailVo.setBody(parseCustomParam(open, body, ruleMap));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected void encryptionIfNeed(Boolean open, ApiCallDetailVo apiCallDetailVo, ModulesDto moduleDto) {
+        Map<String, List<String>> fieldEncryptionRule = apiCallDetailVo.getFieldEncryptionRule();
+        if (null == fieldEncryptionRule) {
+            //Compatible with historical audit log records,
+            // historical audit logs do not have a fieldEncryptionRule attribute and need to be obtained from API configuration
+            Map<String, List<String>> item = new HashMap<>();
+            Optional.ofNullable(moduleDto)
+                    .map(ModulesDto::getPaths)
+                    .filter(CollectionUtils::isNotEmpty)
+                    .map(list -> list.get(0))
+                    .map(Path::getParams)
+                    .ifPresent(ps -> {
+                        for (Param p : ps) {
+                            if (CollectionUtils.isNotEmpty(p.getTextEncryptionRuleIds())){
+                                item.put(p.getName(), p.getTextEncryptionRuleIds());
+                            }
+                        }
+                    });
+            if (!item.isEmpty()) {
+                fieldEncryptionRule = item;
+            }
+        }
+        String query = apiCallDetailVo.getQuery();
+        String body = apiCallDetailVo.getBody();
+        boolean encryption = encryptionCustomFields(open, fieldEncryptionRule, apiCallDetailVo);
+        if (!encryption) {
+            Map<String, Param> paramMap = new HashMap<>();
+            if (StringUtils.isNotBlank(apiCallDetailVo.getApiId())) {
+                paramMap = findApiParamTypeMap(MongoUtils.toObjectId(apiCallDetailVo.getApiId()))
+                        .get(apiCallDetailVo.getApiId());
+            }
+            apiCallDetailVo.setQuery(parse(query, open, paramMap));
+            apiCallDetailVo.setBody(parse(body, open, paramMap));
+        }
+        apiCallDetailVo.setReqParams(null);
+    }
+
+    protected String parseCustomParam(boolean open, String json, Map<String, List<TextEncryptionRuleDto>> fieldEncryptionRule) {
+        if (null == json) {
+            return null;
+        }
+        try {
+            Map<String, Object> map = JSON.parseObject(json, Map.class);
+            if (!Boolean.TRUE.equals(open)) {
+                return JSON.toJSONString(map);
+            }
+            return JSON.toJSONString(TextEncryptionUtil.encryptionCustomerField(map, fieldEncryptionRule));
+        } catch (Exception e) {
+            log.warn("Parse and encryption customer param value failed, can not encrypt by config: {}, json: {}, msg: {}", open, json, e.getMessage());
+            return json;
+        }
     }
 
     protected List<ApiCallDataVo> afterFindDto(List<ApiCallDataVo> entities) {
@@ -797,17 +864,17 @@ public class ApiCallService {
         entities.stream()
                 .filter(Objects::nonNull)
                 .forEach(data -> {
-            String query = data.getQuery();
-            String body = data.getBody();
-            Map<String, Param> paramMap = apiParamTypeMap.get(data.getApiId());
-            data.setQuery(parse(query, open, paramMap));
-            data.setBody(parse(body, open, paramMap));
-            data.setReqParams(null);
-        });
+                    String query = data.getQuery();
+                    String body = data.getBody();
+                    Map<String, Param> paramMap = apiParamTypeMap.get(data.getApiId());
+                    data.setQuery(parse(query, open, paramMap));
+                    data.setBody(parse(body, open, paramMap));
+                    data.setReqParams(null);
+                });
         return entities;
     }
 
-    protected Map<String, Map<String, Param>> findApiParamTypeMap(ObjectId ...apiId) {
+    protected Map<String, Map<String, Param>> findApiParamTypeMap(ObjectId... apiId) {
         if (apiId.length == 0) {
             return new HashMap<>();
         }
@@ -845,7 +912,7 @@ public class ApiCallService {
             return null;
         }
         try {
-            Map<String,Object> map = JSON.parseObject(json, Map.class);
+            Map<String, Object> map = JSON.parseObject(json, Map.class);
             TextEncryptionUtil.formatBefore(map, paramMap);
             if (!Boolean.TRUE.equals(open)) {
                 return JSON.toJSONString(map);

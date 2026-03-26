@@ -1,19 +1,26 @@
 package com.tapdata.tm.oauth2.filter;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tapdata.tm.config.security.JsonToFormRequestWrapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
+import java.util.HashMap;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,14 +33,16 @@ class OAuth2JsonSupportFilterTest {
     private HttpServletResponse response;
     private FilterChain chain;
     private StringWriter responseWriter;
+    ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() throws Exception {
+        objectMapper = new ObjectMapper();
         filter = new OAuth2JsonSupportFilter();
         request = mock(HttpServletRequest.class);
         response = mock(HttpServletResponse.class);
         chain = mock(FilterChain.class);
-        
+        ReflectionTestUtils.setField(filter, "objectMapper", objectMapper);
         responseWriter = new StringWriter();
         when(response.getWriter()).thenReturn(new PrintWriter(responseWriter));
     }
@@ -88,7 +97,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testValidJsonRequest() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\",\"client_secret\":\"test-secret\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -102,7 +111,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testJsonRequestMissingGrantType() throws Exception {
             String jsonBody = "{\"client_id\":\"test-id\",\"client_secret\":\"test-secret\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -119,7 +128,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testClientCredentialsMissingClientId() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_secret\":\"test-secret\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -134,7 +143,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testClientCredentialsMissingClientSecret() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -149,7 +158,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testInvalidJsonFormat() throws Exception {
             String jsonBody = "{invalid json}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -165,7 +174,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testJsonWithNullValues() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\",\"client_secret\":\"test-secret\",\"scope\":null}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -179,7 +188,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testPasswordGrantType() throws Exception {
             String jsonBody = "{\"grant_type\":\"password\",\"username\":\"user\",\"password\":\"pass\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -193,7 +202,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testJsonContentTypeWithCharset() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\",\"client_secret\":\"test-secret\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
@@ -211,7 +220,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testGetContentType() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\",\"client_secret\":\"test-secret\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -219,15 +228,15 @@ class OAuth2JsonSupportFilterTest {
 
             filter.doFilter(request, response, chain);
 
-            verify(chain).doFilter(argThat(req -> 
-                MediaType.APPLICATION_FORM_URLENCODED_VALUE.equals(((HttpServletRequest)req).getContentType())
+            verify(chain).doFilter(argThat(req ->
+                    MediaType.APPLICATION_FORM_URLENCODED_VALUE.equals(((HttpServletRequest)req).getContentType())
             ), eq(response));
         }
 
         @Test
         void testGetParameter() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\",\"client_secret\":\"test-secret\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -238,15 +247,15 @@ class OAuth2JsonSupportFilterTest {
             verify(chain).doFilter(argThat(req -> {
                 HttpServletRequest httpReq = (HttpServletRequest) req;
                 return "client_credentials".equals(httpReq.getParameter("grant_type")) &&
-                       "test-id".equals(httpReq.getParameter("client_id")) &&
-                       "test-secret".equals(httpReq.getParameter("client_secret"));
+                        "test-id".equals(httpReq.getParameter("client_id")) &&
+                        "test-secret".equals(httpReq.getParameter("client_secret"));
             }), eq(response));
         }
 
         @Test
         void testGetParameterMap() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -257,14 +266,14 @@ class OAuth2JsonSupportFilterTest {
             verify(chain, times(0)).doFilter(argThat(req -> {
                 HttpServletRequest httpReq = (HttpServletRequest) req;
                 return httpReq.getParameterMap().containsKey("grant_type") &&
-                       httpReq.getParameterMap().containsKey("client_id");
+                        httpReq.getParameterMap().containsKey("client_id");
             }), eq(response));
         }
 
         @Test
         void testGetParameterNames() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -282,7 +291,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testGetParameterValues() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -300,7 +309,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testGetContentLength() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\",\"client_secret\":\"test-secret\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -308,15 +317,15 @@ class OAuth2JsonSupportFilterTest {
 
             filter.doFilter(request, response, chain);
 
-            verify(chain).doFilter(argThat(req -> 
-                ((HttpServletRequest)req).getContentLength() > 0
+            verify(chain).doFilter(argThat(req ->
+                    ((HttpServletRequest)req).getContentLength() > 0
             ), eq(response));
         }
 
         @Test
         void testGetReader() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\",\"client_secret\":\"test-secret\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -336,7 +345,7 @@ class OAuth2JsonSupportFilterTest {
         @Test
         void testGetInputStream() throws Exception {
             String jsonBody = "{\"grant_type\":\"client_credentials\",\"client_id\":\"test-id\",\"client_secret\":\"test-secret\"}";
-            
+
             when(request.getRequestURI()).thenReturn("/oauth/token");
             when(request.getMethod()).thenReturn("POST");
             when(request.getContentType()).thenReturn(MediaType.APPLICATION_JSON_VALUE);
@@ -357,9 +366,9 @@ class OAuth2JsonSupportFilterTest {
 
     private ServletInputStream createServletInputStream(String content) {
         ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(
-            content.getBytes(StandardCharsets.UTF_8)
+                content.getBytes(StandardCharsets.UTF_8)
         );
-        
+
         return new ServletInputStream() {
             @Override
             public boolean isFinished() {
@@ -380,5 +389,26 @@ class OAuth2JsonSupportFilterTest {
                 return byteArrayInputStream.read();
             }
         };
+    }
+
+    @Nested
+    class readBodyTest {
+        @BeforeEach
+        void init() throws IOException {
+            when(filter.readBody(any(HttpServletRequest.class))).thenCallRealMethod();
+        }
+
+        @Test
+        void testJsonToFormRequestWrapper() {
+            JsonToFormRequestWrapper request = mock(JsonToFormRequestWrapper.class);
+            when(request.originBody()).thenReturn(new HashMap<>());
+            Assertions.assertDoesNotThrow(() -> filter.readBody(request));
+        }
+        @Test
+        void testFormRequestWrapper() throws IOException {
+            HttpServletRequest request = mock(HttpServletRequest.class);
+            when(request.getInputStream()).thenReturn(null);
+            Assertions.assertThrows(JsonMappingException.class, () -> filter.readBody(request));
+        }
     }
 }

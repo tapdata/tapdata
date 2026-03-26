@@ -9,26 +9,29 @@ import java.util.Map;
 import java.util.Enumeration;
 
 public class JsonToFormRequestWrapper extends HttpServletRequestWrapper {
-
-    private final Map<String, String[]> params = new HashMap<>();
+    private final Map<String, String> originBody;
 
     public JsonToFormRequestWrapper(HttpServletRequest request,
                                     Map<String, String> jsonBody) {
         super(request);
-        jsonBody.forEach((k, v) -> params.put(k, new String[]{v}));
+        this.originBody = new HashMap<>(jsonBody);
     }
 
     @Override
     public String getParameter(String name) {
-        String[] values = params.get(name);
-        return values != null ? values[0] : super.getParameter(name);
+        String value = this.originBody.get(name);
+        return value != null ? value : super.getParameter(name);
     }
 
     @Override
     public Map<String, String[]> getParameterMap() {
         Map<String, String[]> all = new HashMap<>(super.getParameterMap());
-        all.putAll(params);
+        this.originBody.forEach((key, value) -> all.put(key, new String[]{value}));
         return all;
+    }
+
+    public Map<String, String> originBody() {
+        return originBody;
     }
 
     @Override

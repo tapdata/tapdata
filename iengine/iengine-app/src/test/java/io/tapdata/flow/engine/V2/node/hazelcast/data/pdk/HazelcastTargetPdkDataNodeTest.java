@@ -106,6 +106,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		void beforeEach() {
 			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "obsLogger", mockObsLogger);
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).processEvents(anyList());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).processEvents(anyList(), nullable(Boolean.class));
             doReturn(true).when(hazelcastTargetPdkDataNode).isWriteGroupByTableEnable();
 		}
 
@@ -127,12 +128,12 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				List list = (List) argument;
 				assertEquals(rows / tableCount, list.size());
 				return null;
-			}).when(hazelcastTargetPdkDataNode).writeRecord(anyList());
+			}).when(hazelcastTargetPdkDataNode).writeRecord(anyList(),anyBoolean());
 				Node node = mock(TableNode.class);
 				when(node.getId()).thenReturn(new ObjectId().toHexString());
 				when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
 			hazelcastTargetPdkDataNode.processEvents(tapEvents);
-			verify(hazelcastTargetPdkDataNode, times(tableCount)).writeRecord(anyList());
+			verify(hazelcastTargetPdkDataNode, times(tableCount)).writeRecord(anyList(),anyBoolean());
 		}}
 		@DisplayName("test write record without tableName")
 		@Test
@@ -144,12 +145,12 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			List<TapEvent> tapEvents=new ArrayList<>();
 			TapUpdateRecordEvent tapEvent=TapUpdateRecordEvent.create();
 			tapEvents.add(tapEvent);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).writeRecord(tapEvents);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).writeRecord(tapEvents,true);
 			Node node = mock(TableNode.class);
 			when(node.getId()).thenReturn(new ObjectId().toHexString());
 			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
-				hazelcastTargetPdkDataNode.writeRecord(tapEvents);
+				hazelcastTargetPdkDataNode.writeRecord(tapEvents,true);
 			});
 			assertEquals(TaskTargetProcessorExCode_15.WRITE_RECORD_GET_TARGET_TABLE_NAME_FAILED,tapCodeException.getCode());
 
@@ -219,6 +220,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				tapInsertRecordEvent.setAfter(after);
 				tapdataEvent.setExactlyOnceWriteCache(tapInsertRecordEvent);
 				tapdataEvents.add(tapdataEvent);
+				List<TapEvent> tapEvents=new ArrayList<>();
 				ConnectorNode connectorNode = mock(ConnectorNode.class);
 				when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
 				ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
@@ -228,8 +230,11 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				when(hazelcastTargetPdkDataNode.createPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
 				doCallRealMethod().when(pdkMethodInvoker).runnable(any());
 				doCallRealMethod().when(pdkMethodInvoker).getRunnable();
-				doCallRealMethod().when(hazelcastTargetPdkDataNode).processExactlyOnceWriteCache(tapdataEvents);
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).processExactlyOnceWriteCache(tapdataEvents, tapEvents);
 				doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
+				doNothing().when(hazelcastTargetPdkDataNode).transactionBegin();
+				doNothing().when(hazelcastTargetPdkDataNode).processEvents(any());
+				doNothing().when(hazelcastTargetPdkDataNode).transactionRollback();
 				try(MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class);){
 					pdkInvocationMonitorMockedStatic.when(()->{PDKInvocationMonitor.invoke(any(),any(),any());}).thenAnswer((invocationOnMock -> {
 						PDKMethodInvoker argument = (PDKMethodInvoker) invocationOnMock.getArgument(2);
@@ -238,7 +243,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 						assertEquals(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED,tapCodeException.getCode());
 						return null;
 					}));
-					hazelcastTargetPdkDataNode.processExactlyOnceWriteCache(tapdataEvents);
+					hazelcastTargetPdkDataNode.processExactlyOnceWriteCache(tapdataEvents, tapEvents);
 				}
 			}
 			class mockWriteFunction implements WriteRecordFunction{
@@ -265,7 +270,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"dataProcessorContext",dataProcessorContext);
 				ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "logger", logger);
 				ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"writePolicyService",writePolicyService);
-				doCallRealMethod().when(hazelcastTargetPdkDataNode).writeRecord(anyList());
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).writeRecord(anyList(),anyBoolean());
 			}
 			@DisplayName("test throw tapBaseException with tableName")
 			@Test
@@ -332,7 +337,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 						return null;
 					}).when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(),any(),any());
 
-					hazelcastTargetPdkDataNode.writeRecord(events);
+					hazelcastTargetPdkDataNode.writeRecord(events,true);
 				}
 			}}
 			@Test
@@ -399,7 +404,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 						return null;
 					}).when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(),any(),any());
 
-					hazelcastTargetPdkDataNode.writeRecord(events);
+					hazelcastTargetPdkDataNode.writeRecord(events,true);
 				}
 			}
 		}}
@@ -1821,7 +1826,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			}).when(spyTargetDataNode).executeDataFuncAspect(any(), any(), any());
 
 			Assertions.assertDoesNotThrow(() -> {
-				spyTargetDataNode.writeRecord(events);
+				spyTargetDataNode.writeRecord(events,true);
 			});
 			verify(syncMetricCollector, times(1)).log(anyList());
 
