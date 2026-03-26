@@ -176,6 +176,7 @@ public class PdkSchemaConvert {
         tapTable.setNameFieldMap(nameFieldMap);
         tapTable.setLastUpdate(schema.getLastUpdate());
         setTapTypeToPdk(tapTable.getPartitionInfo(), tapTable);
+        tapTable.setType(schema.getMetaType());
         return tapTable;
     }
 
@@ -337,8 +338,11 @@ public class PdkSchemaConvert {
         MetadataInstancesDto schema = new MetadataInstancesDto();
         schema.setName(tapTable.getId());
         schema.setOriginalName(tapTable.getName());
-        schema.setMetaType("table");
-
+        if(StringUtils.isNotBlank(tapTable.getType())){
+            schema.setMetaType(tapTable.getType());
+        }else{
+            schema.setMetaType("table");
+        }
         schema.setPdkId(tapTable.getPdkId());
         schema.setPdkGroup(tapTable.getPdkGroup());
         schema.setPdkVersion(tapTable.getPdkVersion());
@@ -496,6 +500,7 @@ public class PdkSchemaConvert {
         }
         schema.setConstraints(tapTable.getConstraintList());
         setTapTypeToPdk(schema.getPartitionInfo(), tapTable);
+        tapTable.setType(schema.getMetaType());
         return schema;
     }
 
@@ -503,8 +508,11 @@ public class PdkSchemaConvert {
         Schema schema = new Schema();
         schema.setName(tapTable.getId());
         schema.setOriginalName(tapTable.getName());
-        schema.setMetaType("table");
-
+        if(StringUtils.isNotBlank(tapTable.getType())){
+            schema.setMetaType(tapTable.getType());
+        }else{
+            schema.setMetaType("table");
+        }
         schema.setPdkId(tapTable.getPdkId());
         schema.setPdkGroup(tapTable.getPdkGroup());
         schema.setPdkVersion(tapTable.getPdkVersion());
