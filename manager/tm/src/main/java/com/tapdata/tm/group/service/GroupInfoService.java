@@ -156,6 +156,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
 		checkGitInfoAndHandleUrl(dto);
+		checkResourceExclusiveness(dto, null);
 	}
 
 	private static void checkGitInfoAndHandleUrl(GroupInfoDto dto) {
@@ -178,7 +179,58 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 	@Override
 	public UpdateResult update(Query query, GroupInfoDto dto) {
 		checkGitInfoAndHandleUrl(dto);
+		checkResourceExclusiveness(dto, dto.getId());
 		return super.update(query, dto);
+	}
+
+	/**
+	 * 校验 resourceItemList 中的 task/api 资源是否已存在于其他 group。
+	 * MIGRATE_TASK、SYNC_TASK、MODULE 同一时刻只能属于一个 group。
+	 *
+	 * @param dto            待保存/更新的 GroupInfoDto
+	 * @param excludeGroupId 更新时传入当前 group ID 以排除自身；创建时传 null
+	 */
+	private void checkResourceExclusiveness(GroupInfoDto dto, ObjectId excludeGroupId) {
+		if (CollectionUtils.isEmpty(dto.getResourceItemList())) {
+			return;
+		}
+
+		Set<ResourceType> exclusiveTypes = EnumSet.of(
+				ResourceType.MIGRATE_TASK, ResourceType.SYNC_TASK, ResourceType.MODULE);
+
+		List<String> resourceIds = dto.getResourceItemList().stream()
+				.filter(item -> item != null && exclusiveTypes.contains(item.getType())
+						&& StringUtils.isNotBlank(item.getId()))
+				.map(ResourceItem::getId)
+				.collect(Collectors.toList());
+
+		if (resourceIds.isEmpty()) {
+			return;
+		}
+
+		Criteria criteria = Criteria.where("resourceItemList.id").in(resourceIds)
+				.and("is_deleted").ne(true);
+		if (excludeGroupId != null) {
+			criteria = criteria.and("_id").ne(excludeGroupId);
+		}
+
+		Query query = new Query(criteria).limit(1);
+		GroupInfoDto conflictGroup = findOne(query);
+		if (conflictGroup == null) {
+			return;
+		}
+
+		Set<String> conflictGroupResourceIds = conflictGroup.getResourceItemList().stream()
+				.filter(item -> item != null && StringUtils.isNotBlank(item.getId()))
+				.map(ResourceItem::getId)
+				.collect(Collectors.toSet());
+
+		String conflictResourceId = resourceIds.stream()
+				.filter(conflictGroupResourceIds::contains)
+				.findFirst()
+				.orElse("unknown");
+
+		throw new BizException("Group.Resource.AlreadyInGroup", conflictResourceId, conflictGroup.getName());
 	}
 
 	public Page<GroupInfoDto> groupList(Filter filter, UserDetail userDetail) {
