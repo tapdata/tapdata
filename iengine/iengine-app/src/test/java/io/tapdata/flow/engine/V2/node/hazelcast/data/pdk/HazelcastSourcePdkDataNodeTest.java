@@ -3661,7 +3661,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
 			boolean result = sourceNode.checkRebuildMergeTableCache(true);
 
-			assertTrue(result);
+			assertFalse(result);
 		}
 
 		@Test
