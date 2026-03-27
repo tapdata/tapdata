@@ -8,6 +8,7 @@ import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.modules.param.UpdateEncryptionParam;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.param.ApiDetailParam;
@@ -135,6 +136,15 @@ public class ModulesController extends BaseController {
   @GetMapping("{id}")
   public ResponseMessage<ModulesDetailVo> findById(@PathVariable("id") String id) {
     return success(modulesService.findById(id));
+  }
+
+  /**
+   * Support dynamic modification of encryption rules: (for web post)
+   * */
+  @PostMapping("update-param-encryption")
+  public ResponseMessage<Void> updateParamEncryption(@RequestBody UpdateEncryptionParam param) {
+    modulesService.updateParamEncryption(param, getLoginUser());
+    return success();
   }
 
 
