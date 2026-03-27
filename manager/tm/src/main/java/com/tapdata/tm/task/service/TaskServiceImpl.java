@@ -4439,7 +4439,7 @@ public class TaskServiceImpl extends TaskService{
         tasksNumBatch.setTaskType(taskType);
         userDataReportService.produceData(tasksNumBatch);
 
-        if (taskDto.getShareCdcEnable() && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
+        if (Boolean.TRUE.equals(taskDto.getShareCdcEnable()) && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
             //如果是共享挖掘任务给一个队列，避免混乱
             lockControlService.logCollectorStartQueue(user);
         }
