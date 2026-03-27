@@ -35,7 +35,7 @@ jobs:
       TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
     steps:
       - name: Checkout Tapdata Opensource
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'tapdata/tapdata'
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
@@ -50,28 +50,28 @@ jobs:
           tag_name="$main_tag-$hex_timestamp"
           echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
       - name: Checkout Tapdata Enterprise Web
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: 'tapdata/tapdata-enterprise-web'
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata-enterprise-web
-          depth: 0
+          fetch-depth: 0
       - name: Checkout Tapdata Enterpris
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: 'tapdata/tapdata-enterprise'
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata-enterprise
-          depth: 0
+          fetch-depth: 0
       - name: Checkout Tapdata Application
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: 'tapdata/tapdata-application'
           ref: "main"
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata-application
       - name: Checkout Tapce
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: 'tapdata/tapce'
           ref: "main"

@@ -30,7 +30,7 @@ jobs:
         run: |
           echo "TAPDATA_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
       - name: Checkout Tapdata Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'tapdata/tapdata'
           ref: ${{ github.ref_name }}
