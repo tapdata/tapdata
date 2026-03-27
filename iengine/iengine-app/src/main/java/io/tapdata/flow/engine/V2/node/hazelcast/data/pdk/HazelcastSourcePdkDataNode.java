@@ -328,9 +328,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				throw e;
 			} finally {
 				if (isRunning()) {
-					if(need2InitialSync(syncProgress)){
-						enqueue(new TapdataCompleteSnapshotEvent());
-					}
 					if(checkRebuildMergeTableCache(false)){
 						SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
 						if(null != snapshotOrderController) {
@@ -340,6 +337,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 						if(getNode() instanceof TableNode tableNode && tableNode.isReFullRun()){
 							enqueue(new TapdataMergeTableCacheRebuildCompleteEvent(tableNode.getMergeTablePropertiesId(), tableNode.getMergeNodeId()));
 						}
+						enqueue(new TapdataCompleteSnapshotEvent());
+					}else if(need2InitialSync(syncProgress)){
+						enqueue(new TapdataCompleteSnapshotEvent());
 					}
 				}
 				Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
@@ -1727,7 +1727,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				if(first){
 					obsLogger.info("No need to rebuild the cache, skip directly, table name: {}", tableNode.getTableName());
 				}
-				return true;
+				return !first;
 			}
 		}
 		return false;
