@@ -44,6 +44,7 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.modules.vo.ModulesListVo;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -3205,17 +3206,20 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
         Map<String, GroupInfoDto> taskIdToGroup = buildResourceIdToGroupMap(taskIds);
 
-        List<TaskWithGroupVo> voList = tasks.stream().map(task -> {
-            TaskWithGroupVo vo = BeanUtil.deepClone(task, TaskWithGroupVo.class);
-            if (task.getId() != null) {
-                GroupInfoDto group = taskIdToGroup.get(task.getId().toHexString());
-                if (group != null) {
-                    vo.setGroupId(group.getId() != null ? group.getId().toHexString() : null);
-                    vo.setGroupName(group.getName());
-                }
-            }
-            return vo;
-        }).collect(Collectors.toList());
+		List<TaskWithGroupVo> voList = tasks.stream().map(task -> {
+			TaskWithGroupVo vo = BeanUtil.deepCloneWithJackson(task, TaskWithGroupVo.class);
+			if (null == vo) {
+				return null;
+			}
+			if (task.getId() != null) {
+				GroupInfoDto group = taskIdToGroup.get(task.getId().toHexString());
+				if (group != null) {
+					vo.setGroupId(group.getId() != null ? group.getId().toHexString() : null);
+					vo.setGroupName(group.getName());
+				}
+			}
+			return vo;
+		}).filter(Objects::nonNull).collect(Collectors.toList());
 
         Page<TaskWithGroupVo> result = new Page<>();
         result.setTotal(taskPage.getTotal());
@@ -3235,12 +3239,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
 
         // 单次遍历：cast + 收集 ID + 构建 VO 列表
-        List<com.tapdata.tm.modules.vo.ModulesListVo> modules = new ArrayList<>(items.size());
+        List<ModulesListVo> modules = new ArrayList<>(items.size());
         List<String> moduleIds = new ArrayList<>(items.size());
         for (Object item : items) {
-            if (item instanceof com.tapdata.tm.modules.vo.ModulesListVo) {
-                com.tapdata.tm.modules.vo.ModulesListVo module = (com.tapdata.tm.modules.vo.ModulesListVo) item;
-                modules.add(module);
+            if (item instanceof ModulesListVo module) {
+				modules.add(module);
                 if (module.getId() != null) {
                     moduleIds.add(module.getId());
                 }
@@ -3250,8 +3253,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         Map<String, GroupInfoDto> moduleIdToGroup = buildResourceIdToGroupMap(moduleIds);
 
         List<ModuleWithGroupVo> voList = new ArrayList<>(modules.size());
-        for (com.tapdata.tm.modules.vo.ModulesListVo module : modules) {
-            ModuleWithGroupVo vo = BeanUtil.deepClone(module, ModuleWithGroupVo.class);
+        for (ModulesListVo module : modules) {
+            ModuleWithGroupVo vo = BeanUtil.deepCloneWithJackson(module, ModuleWithGroupVo.class);
+			if (null == vo) {
+				continue;
+			}
             String id = module.getId();
             if (id != null) {
                 GroupInfoDto group = moduleIdToGroup.get(id);
