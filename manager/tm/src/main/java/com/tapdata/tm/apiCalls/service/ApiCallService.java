@@ -794,27 +794,19 @@ public class ApiCallService {
     }
 
     protected void encryptionIfNeed(Boolean open, ApiCallDetailVo apiCallDetailVo, ModulesDto moduleDto) {
-        Map<String, List<String>> fieldEncryptionRule = apiCallDetailVo.getFieldEncryptionRule();
-        if (null == fieldEncryptionRule) {
-            //Compatible with historical audit log records,
-            // historical audit logs do not have a fieldEncryptionRule attribute and need to be obtained from API configuration
-            Map<String, List<String>> item = new HashMap<>();
-            Optional.ofNullable(moduleDto)
-                    .map(ModulesDto::getPaths)
-                    .filter(CollectionUtils::isNotEmpty)
-                    .map(list -> list.get(0))
-                    .map(Path::getParams)
-                    .ifPresent(ps -> {
-                        for (Param p : ps) {
-                            if (CollectionUtils.isNotEmpty(p.getTextEncryptionRuleIds())){
-                                item.put(p.getName(), p.getTextEncryptionRuleIds());
-                            }
+        Map<String, List<String>> fieldEncryptionRule = new HashMap<>();
+        Optional.ofNullable(moduleDto)
+                .map(ModulesDto::getPaths)
+                .filter(CollectionUtils::isNotEmpty)
+                .map(list -> list.get(0))
+                .map(Path::getParams)
+                .ifPresent(ps -> {
+                    for (Param p : ps) {
+                        if (CollectionUtils.isNotEmpty(p.getTextEncryptionRuleIds())){
+                            fieldEncryptionRule.put(p.getName(), p.getTextEncryptionRuleIds());
                         }
-                    });
-            if (!item.isEmpty()) {
-                fieldEncryptionRule = item;
-            }
-        }
+                    }
+                });
         String query = apiCallDetailVo.getQuery();
         String body = apiCallDetailVo.getBody();
         boolean encryption = encryptionCustomFields(open, fieldEncryptionRule, apiCallDetailVo);
