@@ -26,6 +26,7 @@ spring:
       ssl: ${ssl:false}
       caPath: ${sslCAPath:''}
       keyPath: ${sslCertKeyPath:''}
+      sslPass: ${sslPass:''}
 
   messages:
     encoding: UTF-8

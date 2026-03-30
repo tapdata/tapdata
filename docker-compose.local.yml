@@ -7,7 +7,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}
-      MONGO_INITDB_DATABASE: tapdata
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-tapdata}
     entrypoint:
       - sh
       - -c
@@ -45,6 +45,11 @@ services:
       context: ..
       dockerfile: tapdata/Dockerfile
       target: tm
+      args:
+        MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
+        MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}
+        MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-tapdata}
+        TAP_CONNECTORS: ${TAP_CONNECTORS:-mongodb}
     ports:
       - "${TM_PORT:-3000}:3000"
     command: ["sh", "/tapdata/apps/wait_for_tm_local.sh"]
@@ -61,10 +66,10 @@ services:
       - JAVA_OPTS=${TM_JAVA_OPTS:-"-Xmx4g"}
       - SERVER_PORT=3000
       - TM_HEAP_SIZE=${TM_HEAP_SIZE:-4G}
-      - SPRING_DATA_MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
-      - DEFAULT_MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
-      - OBS_MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
-      - LOG_MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+      - SPRING_DATA_MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
+      - DEFAULT_MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
+      - OBS_MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
+      - LOG_MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
 
   engine:
     container_name: tapdata-engine
@@ -75,6 +80,11 @@ services:
       context: ..
       dockerfile: tapdata/Dockerfile
       target: engine
+      args:
+        MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
+        MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}
+        MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-tapdata}
+        TAP_CONNECTORS: ${TAP_CONNECTORS:-mongodb}
     command: ["sh", "/tapdata/apps/wait_for_engine_local.sh"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -89,11 +99,12 @@ services:
       - engineMem=${ENGINE_HEAP_SIZE:-4G}
       - JAVA_OPTS=${ENGINE_JAVA_OPTS:-"-Xmx4g"}
       - app_type=DAAS
-      - SPRING_DATA_MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
-      - SPRING_DATA_MONGODB_DEFAULT_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
-      - SPRING_DATA_MONGODB_OBS_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
-      - SPRING_DATA_MONGODB_LOG_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
-      - TAPDATA_MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/tapdata?authSource=admin&replicaSet=rs0
+      - TAP_CONNECTORS=${TAP_CONNECTORS:-mongodb}
+      - SPRING_DATA_MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
+      - SPRING_DATA_MONGODB_DEFAULT_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
+      - SPRING_DATA_MONGODB_OBS_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
+      - SPRING_DATA_MONGODB_LOG_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
+      - TAPDATA_MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
 
   web:
     container_name: tapdata-web

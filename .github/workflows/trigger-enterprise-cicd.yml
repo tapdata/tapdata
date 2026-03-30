@@ -26,7 +26,7 @@ jobs:
           echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
           echo "TAG_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
       - name: Checkout Code to Get Author and Message
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Trigger by RestApi
