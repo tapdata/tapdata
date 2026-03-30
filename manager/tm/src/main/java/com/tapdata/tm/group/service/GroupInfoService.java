@@ -113,16 +113,23 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             "last_updated", "lastUpdate", "last_user_name"
     ));
 
-    /** 导出连接时需剔除的运行时/环境状态字段 */
-    private static final Set<String> CONNECTION_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
-            "loadSchemaField", "loadSchemaTime", "testTime", "transformed", "alarmInfo", "status"
-    ));
+	/**
+	 * 导出连接时需剔除的运行时/环境状态字段
+	 */
+	private static final Set<String> CONNECTION_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
+			"loadSchemaField", "loadSchemaTime", "testTime", "transformed", "alarmInfo", "status",
+			"retry", "lastStatus", "nextRetry"
+	));
 
-    /** 导出任务时需剔除的运行时状态字段 */
-    private static final Set<String> TASK_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
-            "currentEventTimestamp", "delayTime", "lastStartDate", "taskRecordId, editVersion",
-			"pageVersion", "transformUuid", "transformed", "taskRecordId"
-    ));
+	/**
+	 * 导出任务时需剔除的运行时状态字段
+	 */
+	private static final Set<String> TASK_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
+			"currentEventTimestamp", "delayTime", "lastStartDate", "taskRecordId", "editVersion",
+			"pageVersion", "transformUuid", "transformed", "skipErrorEvent", "resetFlag", "deleteFlag",
+			"version", "resetTimes", "snapshotDoneAt", "stopedDate", "testTaskId", "transformTaskId", "stopRetryTimes",
+			"functionRetryStatus", "taskRetryStartTime", "shareCdcStop", "shareCdcStopMessage", "errorEvents", "metricInfo"
+	));
 
     /** 导出校验任务时需剔除的字段（空值无意义字段） */
     private static final Set<String> INSPECT_EXPORT_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
