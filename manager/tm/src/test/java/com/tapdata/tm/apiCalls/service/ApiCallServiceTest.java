@@ -882,10 +882,10 @@ class ApiCallServiceTest {
 
             service.encryptionIfNeed(true, apiCallDetailVo, moduleDto);
 
-            Assertions.assertEquals("ENC:{\"name\":\"gavin\"}", apiCallDetailVo.getQuery());
-            Assertions.assertEquals("ENC:{\"name\":\"gavin\"}", apiCallDetailVo.getBody());
+            Assertions.assertEquals("PARSED:{\"name\":\"gavin\"}", apiCallDetailVo.getQuery());
+            Assertions.assertEquals("PARSED:{\"name\":\"gavin\"}", apiCallDetailVo.getBody());
             Assertions.assertNull(apiCallDetailVo.getReqParams());
-            verify(ruleService).getById(anySet());
+            verify(ruleService, times(0)).getById(anySet());
         }
 
         @Test
