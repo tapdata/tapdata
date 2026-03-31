@@ -56,6 +56,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.report.dto.ConfigureSourceBatch;
@@ -109,6 +110,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -2324,6 +2326,16 @@ public class DataSourceServiceImpl extends DataSourceService{
 		}
 		return repository.findById(id, field).map(v ->
 				BeanUtil.copyProperties(v, DataSourceConnectionDto.class)).orElse(null);
+	}
+
+	public Supplier<DataSourceConnectionDto> dataPermissionFindById(ObjectId id, com.tapdata.tm.base.dto.Field fields) {
+		return () -> {
+			if (null != fields) {
+				fields.put("user_id", true);
+				fields.put(DataPermissionHelper.FIELD_NAME, true);
+			}
+			return findById(id, fields);
+		};
 	}
 
     @Override
