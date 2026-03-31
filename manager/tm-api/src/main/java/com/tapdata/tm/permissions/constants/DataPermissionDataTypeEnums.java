@@ -14,6 +14,23 @@ public enum DataPermissionDataTypeEnums implements IDataPermissionAction {
 		DataPermissionActionEnums.View,
 		DataPermissionActionEnums.Edit,
 		DataPermissionActionEnums.Delete
+	), ApiServer(
+		"ApiServer",
+			DataPermissionActionEnums.View,
+		DataPermissionActionEnums.Edit,
+		DataPermissionActionEnums.Delete
+	), Application(
+		"Application",
+			DataPermissionActionEnums.View,
+			DataPermissionActionEnums.Delete,
+		DataPermissionActionEnums.Edit
+	), Modules(
+		"Modules",
+		DataPermissionActionEnums.View,
+		DataPermissionActionEnums.Edit,
+		DataPermissionActionEnums.Publish,
+		DataPermissionActionEnums.Delete,
+		DataPermissionActionEnums.Revoke
 	), Task(
 		"Task",
 		DataPermissionActionEnums.View,

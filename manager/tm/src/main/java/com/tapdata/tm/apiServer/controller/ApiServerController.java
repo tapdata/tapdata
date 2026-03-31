@@ -6,6 +6,11 @@ import com.tapdata.tm.apiServer.dto.ApiServerDto;
 import com.tapdata.tm.apiServer.service.ApiServerService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,11 +24,14 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 
 /**
@@ -38,6 +46,30 @@ public class ApiServerController extends BaseController {
 
     @Autowired
     private ApiServerService apiServerService;
+
+    private <T> T dataPermissionUnAuth() {
+        throw new RuntimeException("Un auth");
+    }
+
+    private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+        return DataPermissionHelper.check(userDetail, DataPermissionMenuEnums.ApiServers, actionEnums, DataPermissionDataTypeEnums.ApiServer, null, supplier, this::dataPermissionUnAuth);
+    }
+
+    private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, String id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+        String signId = id;
+        if (request != null) {
+            signId = Optional.ofNullable(DataPermissionHelper.signDecode(request, id)).orElse(id);
+        }
+        return DataPermissionHelper.checkOfQuery(
+                userDetail,
+                DataPermissionDataTypeEnums.ApiServer,
+                actionEnums,
+                apiServerService.dataPermissionFindById(MongoUtils.toObjectId(signId), new Field()),
+                dto -> DataPermissionMenuEnums.ApiServers,
+                supplier,
+                this::dataPermissionUnAuth
+        );
+    }
 
 
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
@@ -60,7 +92,10 @@ public class ApiServerController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(apiServerService.find(filter,getLoginUser()));
+        Filter finalFilter = filter;
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfMenu(userDetail,DataPermissionActionEnums.View,
+                () -> apiServerService.find(finalFilter, userDetail)));
     }
 
 
@@ -72,17 +107,21 @@ public class ApiServerController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping
-    public ResponseMessage<ApiServerDto> updateById(@RequestBody ApiServerDto metadataDefinition) {
-        return success(apiServerService.updateById(metadataDefinition, getLoginUser()));
+    public ResponseMessage<ApiServerDto> updateById(HttpServletRequest request, @RequestBody ApiServerDto metadataDefinition) {
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(request, userDetail, metadataDefinition.getId().toHexString(), DataPermissionActionEnums.Edit,
+                () -> apiServerService.updateById(metadataDefinition, userDetail)));
     }
 
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
-    public ResponseMessage<ApiServerDto> updateById(@PathVariable("id") String id, @RequestBody ApiServerDto metadataDefinition) {
+    public ResponseMessage<ApiServerDto> updateById(HttpServletRequest request, @PathVariable("id") String id, @RequestBody ApiServerDto metadataDefinition) {
         if (metadataDefinition.getId() == null || !metadataDefinition.getId().toHexString().equals(id)) {
             metadataDefinition.setId(MongoUtils.toObjectId(id));
         }
-        return success(apiServerService.updateById(metadataDefinition, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.Edit,
+                () -> apiServerService.updateById(metadataDefinition, userDetail)));
     }
 
 
@@ -94,10 +133,12 @@ public class ApiServerController extends BaseController {
      */
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
-    public ResponseMessage<ApiServerDto> findById(@PathVariable("id") String id,
+    public ResponseMessage<ApiServerDto> findById(HttpServletRequest request, @PathVariable("id") String id,
                                                     @RequestParam("fields") String fieldsJson) {
         Field fields = parseField(fieldsJson);
-        return success(apiServerService.findById(MongoUtils.toObjectId(id), fields, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.View,
+                () -> apiServerService.findById(MongoUtils.toObjectId(id), fields, userDetail)));
     }
 
 
@@ -109,9 +150,12 @@ public class ApiServerController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
-    public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        apiServerService.deleteLogicsById(id);
-        return success();
+    public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.Delete, () -> {
+            apiServerService.deleteLogicsById(id);
+            return null;
+        }));
     }
 
 
@@ -150,7 +194,10 @@ public class ApiServerController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(apiServerService.findOne(filter, getLoginUser()));
+        Filter finalFilter = filter;
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,
+                () -> apiServerService.findOne(finalFilter, userDetail)));
     }
 
     /**
@@ -163,7 +210,8 @@ public class ApiServerController extends BaseController {
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody ApiServerDto metadataDefinition) {
         Where where = parseWhere(whereJson);
-        long count = apiServerService.updateByWhere(where, metadataDefinition, getLoginUser());
+        long count = dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.Edit,
+                () -> apiServerService.updateByWhere(where, metadataDefinition, getLoginUser()));
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
         return success(countValue);
@@ -179,7 +227,8 @@ public class ApiServerController extends BaseController {
     @PostMapping("upsertWithWhere")
     public ResponseMessage<ApiServerDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody ApiServerDto metadataDefinition) {
         Where where = parseWhere(whereJson);
-        return success(apiServerService.upsertByWhere(where, metadataDefinition, getLoginUser()));
+        return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.Edit,
+                () -> apiServerService.upsertByWhere(where, metadataDefinition, getLoginUser())));
     }
 
 

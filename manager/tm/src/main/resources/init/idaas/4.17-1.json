@@ -1,0 +1,167 @@
+[
+  {
+    "update": "Permission",
+    "updates": [
+      {
+        "q": {
+          "name": "v2_data-server-list_creation"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data-server-list",
+            "description": "创建服务",
+            "name": "v2_data-server-list_creation",
+            "need_permission": true,
+            "order": 1,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_data-server-list_creation"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data-server-list_copy"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data-server-list",
+            "description": "复制服务",
+            "name": "v2_data-server-list_copy",
+            "need_permission": true,
+            "order": 2,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_data-server-list_copy"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data-server-list_import"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data-server-list",
+            "description": "导入服务",
+            "name": "v2_data-server-list_import",
+            "need_permission": true,
+            "order": 3,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_data-server-list_import"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data-server-list_export"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data-server-list",
+            "description": "导出服务",
+            "name": "v2_data-server-list_export",
+            "need_permission": true,
+            "order": 4,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_data-server-list_export"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data-server-list_all_data"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data-server-list",
+            "description": "全部数据授权",
+            "name": "v2_data-server-list_all_data",
+            "need_permission": true,
+            "order": 5,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  },
+  {
+    "insert": "RoleMapping",
+    "documents": [
+      {
+        "principalId": "v2_data-server-list_creation",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server-list_copy",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server-list_import",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server-list_export",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      },
+      {
+        "principalId": "v2_data-server-list_all_data",
+        "principalType": "PERMISSION",
+        "roleId": {
+          "$oid": "5b9a0a383fcba02649524bf1"
+        },
+        "self_only": false
+      }
+    ]
+  }
+]

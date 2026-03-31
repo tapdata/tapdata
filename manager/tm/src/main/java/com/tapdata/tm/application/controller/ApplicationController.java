@@ -7,7 +7,12 @@ import com.tapdata.tm.application.vo.ModulePermissionVo;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.oauth2.service.MongoRegisteredClientRepository;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -16,6 +21,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 
@@ -24,10 +30,13 @@ import org.springframework.security.oauth2.server.authorization.settings.Configu
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 
 /**
@@ -41,6 +50,31 @@ public class ApplicationController extends BaseController {
 
     @Autowired
     private ApplicationService applicationService;
+
+    private <T> T dataPermissionUnAuth() {
+        throw new RuntimeException("Un auth");
+    }
+
+    private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+        return DataPermissionHelper.check(userDetail, DataPermissionMenuEnums.ApiClient, actionEnums, DataPermissionDataTypeEnums.Application, null, supplier, this::dataPermissionUnAuth);
+    }
+
+    private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, String id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+        String signId = id;
+        if (request != null) {
+            signId = Optional.ofNullable(DataPermissionHelper.signDecode(request, id)).orElse(id);
+        }
+        ObjectId applicationId = MongoUtils.toObjectId(signId);
+        return DataPermissionHelper.checkOfQuery(
+                userDetail,
+                DataPermissionDataTypeEnums.Application,
+                actionEnums,
+                applicationService.dataPermissionFindById(applicationId, new Field()),
+                dto -> DataPermissionMenuEnums.ApiClient,
+                supplier,
+                this::dataPermissionUnAuth
+        );
+    }
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -118,7 +152,10 @@ public class ApplicationController extends BaseController {
         document.put("$ne", true);
         where.putIfAbsent("is_deleted", document);
 
-        return success(applicationService.find(filter, getLoginUser()));
+        Filter finalFilter = filter;
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,
+                () -> applicationService.find(finalFilter, userDetail)));
     }
 
 
@@ -130,8 +167,10 @@ public class ApplicationController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping
-    public ResponseMessage<ApplicationDto> updateById(@RequestBody ApplicationDto metadataDefinition) {
-        return success(applicationService.updateById(metadataDefinition, getLoginUser()));
+    public ResponseMessage<ApplicationDto> updateById(HttpServletRequest request, @RequestBody ApplicationDto metadataDefinition) {
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(request, userDetail, metadataDefinition.getId().toHexString(), DataPermissionActionEnums.Edit,
+                () -> applicationService.updateById(metadataDefinition, userDetail)));
     }
 
 
@@ -143,10 +182,12 @@ public class ApplicationController extends BaseController {
      */
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
-    public ResponseMessage<ApplicationDto> findById(@PathVariable("id") String id,
+    public ResponseMessage<ApplicationDto> findById(HttpServletRequest request, @PathVariable("id") String id,
                                                     @RequestParam("fields") String fieldsJson) {
         Field fields = parseField(fieldsJson);
-        return success(applicationService.findById(MongoUtils.toObjectId(id), fields, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.View,
+                () -> applicationService.findById(MongoUtils.toObjectId(id), fields, userDetail)));
     }
 
 
@@ -199,7 +240,10 @@ public class ApplicationController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(applicationService.findOne(filter, getLoginUser()));
+        Filter finalFilter = filter;
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,
+                () -> applicationService.findOne(finalFilter, userDetail)));
     }
 
     /**
@@ -212,7 +256,9 @@ public class ApplicationController extends BaseController {
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody ApplicationDto metadataDefinition) {
         Where where = parseWhere(whereJson);
-        long count = applicationService.updateByWhere(where, metadataDefinition, getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        long count = dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit,
+                () -> applicationService.updateByWhere(where, metadataDefinition, userDetail));
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
         return success(countValue);
@@ -228,7 +274,9 @@ public class ApplicationController extends BaseController {
     @PostMapping("upsertWithWhere")
     public ResponseMessage<ApplicationDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody ApplicationDto metadataDefinition) {
         Where where = parseWhere(whereJson);
-        return success(applicationService.upsertByWhere(where, metadataDefinition, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit,
+                () -> applicationService.upsertByWhere(where, metadataDefinition, userDetail)));
     }
 
     /**
@@ -239,9 +287,10 @@ public class ApplicationController extends BaseController {
      */
     @Operation(summary = "Get modules that the application has permission to access")
     @GetMapping("{id}/modules")
-    public ResponseMessage<List<ModulePermissionVo>> getAccessibleModules(@PathVariable("id") String id) {
-        List<ModulePermissionVo> modules = applicationService.getAccessibleModules(id, getLoginUser());
-        return success(modules);
+    public ResponseMessage<List<ModulePermissionVo>> getAccessibleModules(HttpServletRequest request, @PathVariable("id") String id) {
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(request, userDetail, id, null,
+                () -> applicationService.getAccessibleModules(id, userDetail)));
     }
 
 }
