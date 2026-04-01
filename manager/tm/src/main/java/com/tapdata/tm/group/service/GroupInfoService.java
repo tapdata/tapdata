@@ -82,6 +82,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.mongodb.core.query.Update;
+import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 
 @Service
 @Slf4j
@@ -160,6 +161,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 	private GitServiceRouter gitServiceRouter;
     private MetadataDefinitionService metadataDefinitionService;
     private BatchUpChecker batchUpChecker;
+    private com.tapdata.tm.roleMapping.service.RoleMappingService roleMappingService;
 
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
@@ -450,6 +452,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         Map<String, String> resourceIdToName = buildResourceIdToNameMap(payloadsByType);
         List<TaskUpAndLoadDto> groupInfoPayload = buildGroupInfoPayload(groupInfos, resourceIdToName);
 
+        // 构建用户/角色/权限导出数据
+        Map<String, byte[]> userExportContents = buildUserExportData(groupInfos);
+
         // 构建导出记录
         String yyyymmdd = DateUtil.today().replaceAll("-", "");
         String name = buildGroupExportFileName(groupInfos, yyyymmdd);
@@ -458,7 +463,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         recordDto = groupInfoRecordService.save(recordDto, user);
 
         // 构建导出文件内容
-        Map<String, byte[]> contents = buildExportContents(groupInfoPayload, payloadsByType);
+        Map<String, byte[]> contents = buildExportContents(groupInfoPayload, payloadsByType, userExportContents);
 
         log.info("Start exporting groups, groupCount={}, user={}", groupInfos.size(), user.getUsername());
 
@@ -1325,6 +1330,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return strategy.parseImportPayloads(file);
     }
 
+    /**
+     * 对外暴露的 parseImportPayloads，供 Controller 调用（用于 /import/users 等独立导入接口）。
+     */
+    public Map<String, List<TaskUpAndLoadDto>> parseImportPayloadsPublic(MultipartFile file) throws IOException {
+        return parseImportPayloads(file);
+    }
+
     /** 连接比对重要字段（精确比对+记录 from/to）。config 全量比对不依赖此列表 */
     private static final List<String> CONNECTION_IMPORTANT_FIELDS = Arrays.asList(
             "connection_type",          // Source/Target/Source&Target
@@ -2076,12 +2088,290 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     }
 
     /**
+     * 导入用户/角色/权限数据。
+     * 导入顺序：User → Role → RoleMapping → 更新 user.user_id → 更新 role.user_id → 更新 user.roleusers
+     *
+     * @param payloads 解析后的 tar 文件 payload（包含 Users.json、Roles.json 等 key）
+     * @param user     当前操作用户
+     * @return exportedUserId → currentUserId 的映射（供后续 Connection/Task user_id 替换使用）
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, String> importUserData(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
+        // --- 解析 UserIdEmailMap（exportedUserId → email）---
+        Map<String, String> userIdEmailMap = new LinkedHashMap<>();
+        List<TaskUpAndLoadDto> mapPayload = payloads.getOrDefault(GroupConstants.PAYLOAD_KEY_USER_ID_EMAIL_MAP,
+                Collections.emptyList());
+        if (!mapPayload.isEmpty() && mapPayload.get(0).getJson() != null) {
+            Map<String, String> parsed = JsonUtil.parseJsonUseJackson(mapPayload.get(0).getJson(),
+                    new TypeReference<Map<String, String>>() {});
+            if (parsed != null) {
+                userIdEmailMap.putAll(parsed);
+            }
+        }
+
+        // email → currentUserId（导入后填充）
+        Map<String, String> emailToCurrentUserId = new LinkedHashMap<>();
+        // exportedUserId → currentUserId
+        Map<String, String> userIdMap = new LinkedHashMap<>();
+
+        // --- Step 1: 导入 User（使用原始 Document 操作，确保 password/accesscode 字段正确处理）---
+        List<TaskUpAndLoadDto> usersPayload = payloads.getOrDefault(GroupConstants.PAYLOAD_KEY_USERS,
+                Collections.emptyList());
+        List<Map<String, Object>> exportedUsers = new ArrayList<>();
+        for (TaskUpAndLoadDto item : usersPayload) {
+            if (!GroupConstants.COLLECTION_USER.equals(item.getCollectionName()) || item.getJson() == null) continue;
+            Map<String, Object> userMap = JsonUtil.parseJsonUseJackson(item.getJson(),
+                    new TypeReference<Map<String, Object>>() {});
+            if (userMap == null) continue;
+            exportedUsers.add(userMap);
+            String email = (String) userMap.get("email");
+            if (StringUtils.isBlank(email)) continue;
+
+            try {
+                boolean exists = repository.getMongoOperations().exists(
+                        Query.query(Criteria.where("email").is(email)), "User");
+
+                if (!exists) {
+                    // 新用户：生成 accesscode，设置时间戳，直接插入 Document
+                    Document userDoc = new Document(userMap);
+                    userDoc.put("accesscode", generateAccessCode());
+                    userDoc.put("createTime", new java.util.Date());
+                    userDoc.put("last_updated", new java.util.Date());
+                    repository.getMongoOperations().insert(userDoc, "User");
+                } else {
+                    // 已存在：更新所有字段（包括 password），不更新 accesscode
+                    Update update = new Update();
+                    for (Map.Entry<String, Object> entry : userMap.entrySet()) {
+                        update.set(entry.getKey(), entry.getValue());
+                    }
+                    update.set("last_updated", new java.util.Date());
+                    repository.getMongoOperations().updateFirst(
+                            Query.query(Criteria.where("email").is(email)), update, "User");
+                }
+
+                // 查询导入后的当前 _id
+                Document imported = repository.getMongoOperations().findOne(
+                        Query.query(Criteria.where("email").is(email)), Document.class, "User");
+                if (imported != null && imported.get("_id") instanceof ObjectId) {
+                    emailToCurrentUserId.put(email, ((ObjectId) imported.get("_id")).toHexString());
+                }
+            } catch (Exception e) {
+                log.warn("Failed to import user with email={}: {}", email, e.getMessage());
+            }
+        }
+
+        // 构建 exportedUserId → currentUserId 映射
+        for (Map.Entry<String, String> entry : userIdEmailMap.entrySet()) {
+            String currentId = emailToCurrentUserId.get(entry.getValue());
+            if (currentId != null) {
+                userIdMap.put(entry.getKey(), currentId);
+            }
+        }
+
+        // --- Step 2: 修复 user.user_id（按 createUser 字段找当前环境的创建者 _id，绕过 @SetOnInsert）---
+        for (Map<String, Object> exportedUser : exportedUsers) {
+            String email = (String) exportedUser.get("email");
+            String createUser = (String) exportedUser.get("createUser");
+            if (StringUtils.isBlank(email) || StringUtils.isBlank(createUser)) continue;
+            try {
+                Document creatorDoc = repository.getMongoOperations().findOne(
+                        Query.query(Criteria.where("username").is(createUser)), Document.class, "User");
+                if (creatorDoc != null && creatorDoc.get("_id") instanceof ObjectId) {
+                    String creatorId = ((ObjectId) creatorDoc.get("_id")).toHexString();
+                    repository.getMongoOperations().updateFirst(
+                            Query.query(Criteria.where("email").is(email)),
+                            Update.update("user_id", creatorId),
+                            "User");
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fix user.user_id for email={}: {}", email, e.getMessage());
+            }
+        }
+
+        // --- Step 3: 导入 Role（使用原始 Document 操作）---
+        Map<String, String> roleIdMap = new LinkedHashMap<>(); // exportedRoleId → currentRoleId
+        List<TaskUpAndLoadDto> rolesPayload = payloads.getOrDefault(GroupConstants.PAYLOAD_KEY_ROLES,
+                Collections.emptyList());
+        for (TaskUpAndLoadDto item : rolesPayload) {
+            if (!GroupConstants.COLLECTION_ROLE.equals(item.getCollectionName()) || item.getJson() == null) continue;
+            Map<String, Object> roleMap = JsonUtil.parseJsonUseJackson(item.getJson(),
+                    new TypeReference<Map<String, Object>>() {});
+            if (roleMap == null) continue;
+            String roleName = (String) roleMap.get("name");
+            String originalId = (String) roleMap.get("originalId");
+            String creatorEmail = (String) roleMap.get("userEmail");
+            if (StringUtils.isBlank(roleName)) continue;
+
+            try {
+                // 构建写入 DB 的 Document（去掉辅助字段和元数据字段）
+                Document roleDoc = new Document(roleMap);
+                roleDoc.remove("originalId");   // 辅助字段，不写入 DB
+                roleDoc.remove("userEmail");    // 辅助字段，不写入 DB
+                roleDoc.remove("_id");
+                roleDoc.remove("user_id");
+                roleDoc.remove("createTime");
+                roleDoc.remove("last_updated");
+
+                boolean roleExists = repository.getMongoOperations().exists(
+                        Query.query(Criteria.where("name").is(roleName)), "Role");
+                if (!roleExists) {
+                    roleDoc.put("createTime", new java.util.Date());
+                    roleDoc.put("last_updated", new java.util.Date());
+                    repository.getMongoOperations().insert(roleDoc, "Role");
+                } else {
+                    Update update = new Update();
+                    for (Map.Entry<String, Object> entry : roleDoc.entrySet()) {
+                        update.set(entry.getKey(), entry.getValue());
+                    }
+                    update.set("last_updated", new java.util.Date());
+                    repository.getMongoOperations().updateFirst(
+                            Query.query(Criteria.where("name").is(roleName)), update, "Role");
+                }
+
+                // 查询导入后当前 _id，构建 roleIdMap
+                Document importedRole = repository.getMongoOperations().findOne(
+                        Query.query(Criteria.where("name").is(roleName)), Document.class, "Role");
+                if (importedRole != null && importedRole.get("_id") instanceof ObjectId) {
+                    String currentRoleId = ((ObjectId) importedRole.get("_id")).toHexString();
+                    if (StringUtils.isNotBlank(originalId)) {
+                        roleIdMap.put(originalId, currentRoleId);
+                    }
+                    // 修复 role.user_id（绕过 @SetOnInsert）
+                    if (StringUtils.isNotBlank(creatorEmail)) {
+                        String creatorUserId = emailToCurrentUserId.get(creatorEmail);
+                        if (StringUtils.isNotBlank(creatorUserId)) {
+                            repository.getMongoOperations().updateFirst(
+                                    Query.query(Criteria.where("name").is(roleName)),
+                                    Update.update("user_id", creatorUserId),
+                                    "Role");
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to import role name={}: {}", roleName, e.getMessage());
+            }
+        }
+
+        // --- Step 4: 导入 RoleMapping（principalId/roleId 替换为当前环境 ID）---
+        List<TaskUpAndLoadDto> rmPayload = payloads.getOrDefault(GroupConstants.PAYLOAD_KEY_ROLE_MAPPINGS,
+                Collections.emptyList());
+        List<RoleMappingDto> roleMappingDtos = new ArrayList<>();
+        for (TaskUpAndLoadDto item : rmPayload) {
+            if (!GroupConstants.COLLECTION_ROLE_MAPPING.equals(item.getCollectionName()) || item.getJson() == null) continue;
+            Map<String, Object> rmMap = JsonUtil.parseJsonUseJackson(item.getJson(),
+                    new TypeReference<Map<String, Object>>() {});
+            if (rmMap == null) continue;
+            String principalType = (String) rmMap.get("principalType");
+            String principalId = (String) rmMap.get("principalId");
+            Object roleIdObj = rmMap.get("roleId");
+            if (roleIdObj == null) continue;
+            // roleId 在导出时已转为 hex string
+            String exportedRoleId = roleIdObj instanceof Map
+                    ? (String) ((Map<?, ?>) roleIdObj).get("$oid")
+                    : roleIdObj.toString();
+
+            try {
+                String currentRoleId = roleIdMap.getOrDefault(exportedRoleId, exportedRoleId);
+                String currentPrincipalId = principalId;
+                if ("USER".equals(principalType) && StringUtils.isNotBlank(principalId)) {
+                    currentPrincipalId = userIdMap.getOrDefault(principalId, principalId);
+                }
+
+                RoleMappingDto rmDto = new RoleMappingDto();
+                rmDto.setId(null); // 清空 _id
+                rmDto.setPrincipalType(principalType);
+                rmDto.setPrincipalId(currentPrincipalId);
+                rmDto.setRoleId(new ObjectId(currentRoleId));
+                roleMappingDtos.add(rmDto);
+            } catch (Exception e) {
+                log.warn("Failed to prepare roleMapping principalId={}, roleId={}: {}", principalId, exportedRoleId, e.getMessage());
+            }
+        }
+        if (!roleMappingDtos.isEmpty()) {
+            roleMappingService.updateUserRoleMapping(roleMappingDtos, user);
+        }
+
+        // --- Step 5: 更新 user.roleusers（legacy 字段，用新 roleId 替换旧值）---
+        for (Map<String, Object> exportedUser : exportedUsers) {
+            String email = (String) exportedUser.get("email");
+            Object roleusersObj = exportedUser.get("roleusers");
+            if (StringUtils.isBlank(email) || !(roleusersObj instanceof List)) continue;
+            List<?> oldRoleusers = (List<?>) roleusersObj;
+            if (oldRoleusers.isEmpty()) continue;
+            try {
+                List<String> newRoleusers = oldRoleusers.stream()
+                        .filter(Objects::nonNull)
+                        .map(Object::toString)
+                        .map(oldRoleId -> roleIdMap.getOrDefault(oldRoleId, oldRoleId))
+                        .collect(Collectors.toList());
+                repository.getMongoOperations().updateFirst(
+                        Query.query(Criteria.where("email").is(email)),
+                        Update.update("roleusers", newRoleusers),
+                        "User");
+            } catch (Exception e) {
+                log.warn("Failed to update user.roleusers for email={}: {}", email, e.getMessage());
+            }
+        }
+
+        log.info("User data import completed: users={}, roles={}, roleMappings={}, userIdMap={}",
+                exportedUsers.size(), rolesPayload.size(), roleMappingDtos.size(), userIdMap.size());
+        return userIdMap;
+    }
+
+    /**
+     * 生成 accessCode（32位随机十六进制字符串，与 UserServiceImpl.randomHexString() 保持一致）。
+     */
+    private String generateAccessCode() {
+        return java.util.stream.IntStream.range(0, 8)
+                .mapToObj(i -> Integer.toHexString(
+                        Double.valueOf((1 + Math.random()) * 0x10000).intValue()).substring(1))
+                .collect(Collectors.joining());
+    }
+
+
+    /**
+     * 将 userId 映射应用到 resourceMapsByType 中所有已解析的 BaseDto 对象，
+     * 将导出时的旧 user_id 替换为当前环境中的正确 user_id。
+     */
+    private void applyUserIdMappingToResources(Map<ResourceType, Map<String, ?>> resourceMapsByType,
+            Map<String, String> userIdMap) {
+        if (MapUtils.isEmpty(userIdMap)) return;
+        resourceMapsByType.values().forEach(resourceMap ->
+            resourceMap.values().forEach(dto -> {
+                if (dto instanceof BaseDto) {
+                    String oldUserId = ((BaseDto) dto).getUserId();
+                    if (StringUtils.isNotBlank(oldUserId)) {
+                        String newUserId = userIdMap.get(oldUserId);
+                        if (StringUtils.isNotBlank(newUserId)) {
+                            ((BaseDto) dto).setUserId(newUserId);
+                        }
+                    }
+                }
+            })
+        );
+    }
+
+    /**
      * Execute the actual import process asynchronously.
      */
     @Async
     public void executeImportAsync(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user,
             ImportModeEnum importMode, String fileName, ObjectId recordId) {
         log.info("Async import started, recordId={}, fileName={}", recordId, fileName);
+
+        // Stage 0: 优先导入用户/角色/权限信息，并获取 userId 映射
+        Map<String, String> userIdMap = Collections.emptyMap();
+        if (payloads.containsKey(GroupConstants.PAYLOAD_KEY_USERS)) {
+            log.info("Stage 0: Start importing user/role/permission data");
+            try {
+                userIdMap = importUserData(payloads, user);
+                log.info("Stage 0: User data import completed, userIdMapSize={}", userIdMap.size());
+            } catch (Exception e) {
+                log.warn("Stage 0: User data import failed, continuing without user mapping: {}", e.getMessage());
+                userIdMap = Collections.emptyMap();
+            }
+        }
+        final Map<String, String> finalUserIdMap = userIdMap;
 
         List<TaskUpAndLoadDto> groupPayload = payloads.getOrDefault("GroupInfo.json", Collections.emptyList());
 
@@ -2101,6 +2391,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 metadataByType.put(type, metadata);
                 handler.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType,user);
             }
+        }
+
+        // 将用户 ID 映射应用到所有已解析的资源（Connection、Task、Module、InspectTask）
+        if (!finalUserIdMap.isEmpty()) {
+            applyUserIdMappingToResources(resourceMapsByType, finalUserIdMap);
         }
 
         List<GroupInfoDto> groupInfos = new ArrayList<>();
@@ -2774,8 +3069,220 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return GroupConstants.BATCH_EXPORT_FILE_PREFIX;
     }
 
+    /**
+     * 构建用户/角色/权限导出数据，存放在 User/ 目录下。
+     * 收集范围：groupInfos 中所有 userId 对应的用户及其角色映射。
+     * 导出规则：
+     *  - User：清空 _id、accesscode、user_id、createTime、last_updated；保留 password
+     *  - Role：清空 _id、user_id、createTime、last_updated；额外写入 originalId（供导入映射）和 userEmail（创建者邮箱）
+     *  - RoleMapping：清空 _id；同时导出 principalType=USER 和 principalType=PERMISSION 的记录
+     *  - UserIdEmailMap：旧 userId → email 的辅助映射，供 Connection/Task user_id 转换
+     * 使用原始 Document 查询，保证 password、accesscode 等字段完整性。
+     */
+    private Map<String, byte[]> buildUserExportData(List<GroupInfoDto> groupInfos) {
+        // 1. 收集所有 groupInfo 的 userId
+        Set<String> userIdStrings = groupInfos.stream()
+                .filter(g -> StringUtils.isNotBlank(g.getUserId()))
+                .map(GroupInfoDto::getUserId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (userIdStrings.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // 2. 查询 User 原始文档（含 password、accesscode 等完整字段）
+        List<ObjectId> userObjectIds = userIdStrings.stream()
+                .map(id -> { try { return new ObjectId(id); } catch (Exception e) { return null; } })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        List<Document> userDocs = repository.getMongoOperations()
+                .find(Query.query(Criteria.where("_id").in(userObjectIds)), Document.class, "User");
+        if (userDocs.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // 3. 构建 userId → email 映射（用于 Connection/Task user_id 转换）
+        Map<String, String> userIdEmailMap = new LinkedHashMap<>();
+        for (Document doc : userDocs) {
+            Object idObj = doc.get("_id");
+            String idStr = idObj instanceof ObjectId ? ((ObjectId) idObj).toHexString() : String.valueOf(idObj);
+            String email = doc.getString("email");
+            if (StringUtils.isNotBlank(email)) {
+                userIdEmailMap.put(idStr, email);
+            }
+        }
+
+        // 4. 查询 RoleMapping（principalType=USER，关联导出用户的角色）
+        List<Document> roleMappingDocs = new ArrayList<>(repository.getMongoOperations()
+                .find(Query.query(Criteria.where("principalType").is("USER")
+                        .and("principalId").in(new ArrayList<>(userIdStrings))),
+                        Document.class, "RoleMapping"));
+
+        // 5. 收集 roleIds，查询 Role 原始文档
+        Set<ObjectId> roleIds = new LinkedHashSet<>();
+        for (Document rm : roleMappingDocs) {
+            Object roleIdObj = rm.get("roleId");
+            if (roleIdObj instanceof ObjectId) {
+                roleIds.add((ObjectId) roleIdObj);
+            }
+        }
+        List<Document> roleDocs = roleIds.isEmpty() ? Collections.emptyList()
+                : repository.getMongoOperations()
+                        .find(Query.query(Criteria.where("_id").in(roleIds)), Document.class, "Role");
+
+        // 6. 同时导出 principalType=PERMISSION 的 RoleMapping（角色与权限项的关联）
+        if (!roleIds.isEmpty()) {
+            List<Document> permMappings = repository.getMongoOperations()
+                    .find(Query.query(Criteria.where("principalType").is("PERMISSION")
+                            .and("roleId").in(new ArrayList<>(roleIds))),
+                            Document.class, "RoleMapping");
+            roleMappingDocs.addAll(permMappings);
+        }
+
+        // 7. 构建 User 导出列表（清空 _id、accesscode、user_id、createTime、last_updated；保留 password）
+        List<Map<String, Object>> userExportList = new ArrayList<>();
+        for (Document doc : userDocs) {
+            Map<String, Object> userMap = docToExportMap(doc);
+            userMap.remove("_id");
+            userMap.remove("accesscode");   // MongoDB 实际字段名（小写）
+            userMap.remove("user_id");
+            userMap.remove("createTime");
+            userMap.remove("last_updated");
+            userMap.remove("customId");
+            userMap.remove("lastUpdBy");
+            userExportList.add(userMap);
+        }
+
+        // 8. 构建 Role 导出列表（清空字段，额外添加 originalId 和 userEmail）
+        Map<String, String> roleCreatorEmailCache = new LinkedHashMap<>();
+        List<Map<String, Object>> roleExportList = new ArrayList<>();
+        for (Document doc : roleDocs) {
+            Map<String, Object> roleMap = docToExportMap(doc);
+            // 保存 originalId 供导入时重建 roleId 映射（_id 已从 roleMap 中取出）
+            Object idObj = roleMap.remove("_id");
+            if (idObj != null) {
+                roleMap.put("originalId", idObj.toString());
+            }
+            // 查询创建者邮箱（优先从已知 userIdEmailMap 查，其次查库）
+            String creatorUserId = doc.getString("user_id");
+            String creatorEmail = null;
+            if (StringUtils.isNotBlank(creatorUserId)) {
+                creatorEmail = userIdEmailMap.get(creatorUserId);
+                if (creatorEmail == null) {
+                    creatorEmail = roleCreatorEmailCache.computeIfAbsent(creatorUserId, uid -> {
+                        try {
+                            Document creatorDoc = repository.getMongoOperations().findOne(
+                                    Query.query(Criteria.where("_id").is(new ObjectId(uid))),
+                                    Document.class, "User");
+                            return creatorDoc != null ? creatorDoc.getString("email") : null;
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    });
+                }
+            }
+            roleMap.put("userEmail", creatorEmail);
+            roleMap.remove("user_id");
+            roleMap.remove("createTime");
+            roleMap.remove("last_updated");
+            roleMap.remove("customId");
+            roleMap.remove("lastUpdBy");
+            roleExportList.add(roleMap);
+        }
+
+        // 9. 构建 RoleMapping 导出列表（清空 _id，roleId 转为 hex string）
+        List<Map<String, Object>> roleMappingExportList = new ArrayList<>();
+        for (Document doc : roleMappingDocs) {
+            Map<String, Object> rmMap = docToExportMap(doc);
+            rmMap.remove("_id");
+            rmMap.remove("user_id");
+            rmMap.remove("createTime");
+            rmMap.remove("last_updated");
+            rmMap.remove("customId");
+            rmMap.remove("lastUpdBy");
+            roleMappingExportList.add(rmMap);
+        }
+
+        // 10. 序列化并构建文件内容
+        try {
+            Map<String, byte[]> result = new LinkedHashMap<>();
+            result.put(GroupConstants.USER_EXPORT_USERS_FILE,
+                    toUserExportBytes(GroupConstants.COLLECTION_USER, userExportList));
+            result.put(GroupConstants.USER_EXPORT_ROLES_FILE,
+                    toUserExportBytes(GroupConstants.COLLECTION_ROLE, roleExportList));
+            result.put(GroupConstants.USER_EXPORT_ROLE_MAPPINGS_FILE,
+                    toUserExportBytes(GroupConstants.COLLECTION_ROLE_MAPPING, roleMappingExportList));
+            result.put(GroupConstants.USER_EXPORT_ID_EMAIL_MAP_FILE,
+                    toUserIdEmailMapBytes(userIdEmailMap));
+            log.info("User export data built: users={}, roles={}, roleMappings={}",
+                    userExportList.size(), roleExportList.size(), roleMappingExportList.size());
+            return result;
+        } catch (Exception e) {
+            log.error("Failed to build user export data", e);
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * 将 MongoDB Document 转换为导出用 Map，把所有顶层及列表中的 ObjectId 值转为 hex string。
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> docToExportMap(Document doc) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : doc.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof ObjectId) {
+                result.put(entry.getKey(), ((ObjectId) value).toHexString());
+            } else if (value instanceof List) {
+                List<Object> list = new ArrayList<>();
+                for (Object item : (List<?>) value) {
+                    list.add(item instanceof ObjectId ? ((ObjectId) item).toHexString() : item);
+                }
+                result.put(entry.getKey(), list);
+            } else {
+                result.put(entry.getKey(), value);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 将用户相关数据序列化为 [{collectionName, json}] 格式的字节数组，与其他导出文件格式一致。
+     */
+    private byte[] toUserExportBytes(String collectionName, List<Map<String, Object>> items) {
+        try {
+            List<Map<String, Object>> expanded = new ArrayList<>(items.size());
+            for (Map<String, Object> item : items) {
+                Map<String, Object> wrapper = new LinkedHashMap<>();
+                wrapper.put("collectionName", collectionName);
+                wrapper.put("json", item);
+                expanded.add(wrapper);
+            }
+            return EXPORT_MAPPER.writeValueAsBytes(expanded);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize " + collectionName + " export data", e);
+        }
+    }
+
+    /**
+     * 将 userId→email 映射序列化为 [{collectionName: "UserIdEmailMap", json: {...}}] 格式。
+     */
+    private byte[] toUserIdEmailMapBytes(Map<String, String> map) {
+        try {
+            List<Map<String, Object>> expanded = new ArrayList<>();
+            Map<String, Object> wrapper = new LinkedHashMap<>();
+            wrapper.put("collectionName", GroupConstants.COLLECTION_USER_ID_EMAIL_MAP);
+            wrapper.put("json", map);
+            expanded.add(wrapper);
+            return EXPORT_MAPPER.writeValueAsBytes(expanded);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize UserIdEmailMap export data", e);
+        }
+    }
+
     private Map<String, byte[]> buildExportContents(List<TaskUpAndLoadDto> groupInfoPayload,
-            Map<String, List<TaskUpAndLoadDto>> payloadsByType) {
+            Map<String, List<TaskUpAndLoadDto>> payloadsByType,
+            Map<String, byte[]> userExportContents) {
         Map<String, byte[]> contents = new LinkedHashMap<>();
 
         // GroupInfo.json — 根目录，无子目录
@@ -2816,6 +3323,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             String name = extractNameFromJson(item.getJson());
             if (StringUtils.isBlank(name)) continue;
             contents.put("API/" + sanitizeFileName(name) + "_Module.json", toJsonBytes(List.of(item)));
+        }
+
+        // User/ — 用户/角色/权限信息
+        if (!userExportContents.isEmpty()) {
+            contents.putAll(userExportContents);
         }
 
         return contents;
