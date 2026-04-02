@@ -232,6 +232,16 @@ public class ModulesController extends BaseController {
   public ResponseMessage apiDefinition() {
     return success(modulesService.apiDefinition(getLoginUser()));
   }
+  /**
+   * 用于api-server 服务：更新api的发布状态
+   * @param publishStatus <apiId, statusMsg>
+   * @return
+   */
+  @PostMapping("update-publish-status")
+  public ResponseMessage<Void> updatePublishStatus(@RequestBody Map<String, String> publishStatus) {
+    modulesService.updatePublishMsg(publishStatus);
+    return success();
+  }
 
   @GetMapping("worker-info")
   public ResponseMessage<List<ApiServerWorkerInfo>> getApiWorkerInfo(@RequestParam(value = "workerCount", required = false) Integer workerCount,
