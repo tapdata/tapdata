@@ -102,4 +102,6 @@ public class ModulesEntity extends BaseEntity {
     private List<PathSetting> pathSetting;
 
     ApiAlarmConfig apiAlarmConfig;
+
+    private String publishStatus;
 }

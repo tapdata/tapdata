@@ -12,7 +12,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -46,6 +45,7 @@ import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionServiceImpl;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
@@ -67,6 +67,7 @@ import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.param.UpdateEncryptionParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.util.MongoQueryValidator;
+import com.tapdata.tm.modules.util.MongoUriUtil;
 import com.tapdata.tm.modules.vo.ApiDefinitionVo;
 import com.tapdata.tm.modules.vo.ApiDetailVo;
 import com.tapdata.tm.modules.vo.ApiListVo;
@@ -99,6 +100,8 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.BulkOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -108,7 +111,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -143,6 +145,8 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
+	private static final String URI = "uri";
+	private static final String PROPERTIES = "properties";
 	protected static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
 			"mqQueueString", "mqTopicString", "brokerURL", "mqUsername", "mqPassword", "nameSrvAddr", "ftpHost", "ftpUsername", "ftpPassword",
 			"rawLogServerHost", "databaseName", "username", "user", "password", "sslPass");
@@ -158,6 +162,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private TextEncryptionRuleService textEncryptionRuleService;
 	private WorkerService workerService;
 	private SettingsService settingsService;
+	MongoTemplate mongoOperations;
 
 	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
@@ -486,96 +491,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 * @return
 	 */
 	public ApiDefinitionVo apiDefinition(UserDetail userDetail) {
-		List<ConnectionVo> connectionVos = new ArrayList<>();
 		ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
 		//查找已发布的api
-		List<ModulesDto> apis = findAllActiveApi(ModuleStatusEnum.ACTIVE);
-		if (CollectionUtils.isNotEmpty(apis)) {
-			List<ObjectId> connections = apis.stream().map(ModulesDto::getConnection).collect(Collectors.toList());
-			Query query = Query.query(Criteria.where("id").in(connections));
-			List<DataSourceConnectionDto> dataSourceConnectionDtoList = dataSourceService.findAll(query);
-
-			//设置上pdk的APIserverkey属性
-			for (DataSourceConnectionDto dataSourceConnectionDto : dataSourceConnectionDtoList) {
-
-				Map<String, Object> config = dataSourceConnectionDto.getConfig();
-				if (dataSourceConnectionDto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo")) {
-					if (config.get("uri") == null) {
-						StringBuilder sb = new StringBuilder("mongodb://");
-						if (config.get("user") != null) {
-							String user = (String) config.get("user");
-							String password = (String) config.get("password");
-							try {
-								user = URLEncoder.encode(user, "UTF-8");
-								password = URLEncoder.encode(password, "UTF-8");
-							} catch (Exception e) {
-								throw new BizException("SystemError");
-							}
-							sb.append(user).append(":")
-									.append(password).append("@");
-						}
-						sb.append(config.get("host")).append("/").append(config.get("database"));
-						if (config.get("additionalString") != null) {
-							sb.append("?").append(config.get("additionalString"));
-						}
-
-						config.put("uri", sb.toString());
-					} else {
-						String uri = (String) config.get("uri");
-						ConnectionString connectionString = new ConnectionString(uri);
-						String username = connectionString.getUsername();
-						char[] passwordChar = connectionString.getPassword();
-						String password = null;
-						if (passwordChar != null) {
-							password = new String(passwordChar);
-						}
-
-						try {
-							if (StringUtils.isNotBlank(username)) {
-								String newUsername = URLEncoder.encode(username, "UTF-8");
-								uri = uri.replace(username, newUsername);
-							}
-
-							if (StringUtils.isNotBlank(password)) {
-								String newPassword = URLEncoder.encode(password, "UTF-8");
-								uri = uri.replace(password, newPassword);
-							}
-						} catch (Exception e) {
-							throw new BizException("SystemError");
-						}
-						config.put("uri", uri);
-
-					}
-				}
-				DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail);
-				Map<String, Object> properties = definitionDto.getProperties();
-				LinkedHashMap connection = (LinkedHashMap) properties.get("connection");
-				analyzeApiServerKey(dataSourceConnectionDto, connection, null);
-
-				ConnectionVo connectionVo = cn.hutool.core.bean.BeanUtil.copyProperties(dataSourceConnectionDto, ConnectionVo.class);
-				if (null != connectionVo) {
-					String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
-					connectionVo.setDatabase_password(plainPassword);
-
-					switch (dataSourceConnectionDto.getDatabase_type().toLowerCase(Locale.ROOT)) {
-						case "oracle":
-							if ("SID".equals(config.get("thinType"))) {
-								Optional.ofNullable(config.get("sid")).map(o -> {
-									connectionVo.setDatabase_name(o.toString());
-									return o;
-								});
-							}
-							break;
-						default:
-							break;
-					}
-				}
-				connectionVos.add(connectionVo);
-			}
-			apiDefinitionVo.setConnections(connectionVos);
-			apiDefinitionVo.setApis(apis);
-			withEncryptionRule(apis);
-		}
+		List<ModulesDto> apis = activeApis(apiDefinitionVo, userDetail);
 		textEncryptionRule(apiDefinitionVo);
 		String clusterId = Optional.ofNullable(settingsService.getByKey("cluster")).map(Settings::getId).orElse("");
 		apiDefinitionVo.setClusterId(clusterId);
@@ -583,10 +501,141 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return apiDefinitionVo;
 	}
 
+	protected List<ModulesDto> activeApis(ApiDefinitionVo apiDefinitionVo, UserDetail userDetail) {
+		//find active api
+		List<ModulesDto> apis = findAllActiveApi(ModuleStatusEnum.ACTIVE);
+		if (CollectionUtils.isEmpty(apis)) {
+			return new ArrayList<>();
+		}
+		List<ConnectionVo> connectionVos = new ArrayList<>();
+		Map<ObjectId, List<ModulesDto>> connectionMap = apis.stream().collect(Collectors.groupingBy(ModulesDto::getConnection));
+		Set<ObjectId> connections = connectionMap.keySet();
+		assert !connections.isEmpty();
+		Query query = Query.query(Criteria.where("id").in(connections));
+		List<DataSourceConnectionDto> dataSourceConnectionDtoList = dataSourceService.findAll(query);
+		List<String> databaseTypes = dataSourceConnectionDtoList.stream()
+				.filter(Objects::nonNull)
+				.map(DataSourceConnectionDto::getDatabase_type)
+				.filter(StringUtils::isNotBlank)
+				.distinct()
+				.toList();
+		List<DataSourceDefinitionDto> allDataSourceDefinition = new ArrayList<>();
+		if (CollectionUtils.isNotEmpty(databaseTypes)) {
+			Query queryByDatasourceType = DataSourceDefinitionServiceImpl.getQueryByDatasourceType(databaseTypes, userDetail);
+			queryByDatasourceType.fields().include("type", PROPERTIES);
+			allDataSourceDefinition = dataSourceDefinitionService.findAllDto(queryByDatasourceType, userDetail);
+		}
+		Map<String, Map<String, Object>> dataSourceDefinitionMap = allDataSourceDefinition.stream()
+				.filter(Objects::nonNull)
+				.collect(Collectors.toMap(
+						DataSourceDefinitionDto::getType,
+						DataSourceDefinitionDto::getProperties, (e1, e2) -> e1
+				));
+		Map<String, String> fialedApi = new HashMap<>();
+		//set API server key in api
+		for (DataSourceConnectionDto dataSourceConnectionDto : dataSourceConnectionDtoList) {
+			String connectionId = dataSourceConnectionDto.getId().toHexString();
+			String databaseType = dataSourceConnectionDto.getDatabase_type();
+			Map<String, Object> connectionConfig = dataSourceConnectionDto.getConfig();
+			try {
+				if (databaseType.toLowerCase(Locale.ROOT).contains("mongo")) {
+					connectionConfig.put(URI, parseUri(connectionConfig));
+				}
+				Map<String, Object> properties = dataSourceDefinitionMap.get(databaseType);
+				LinkedHashMap<String, Object> connection = (LinkedHashMap<String, Object>) properties.get("connection");
+				analyzeApiServerKey(dataSourceConnectionDto, connection, null);
+				ConnectionVo connectionVo = cn.hutool.core.bean.BeanUtil.copyProperties(dataSourceConnectionDto, ConnectionVo.class);
+				if (null != connectionVo) {
+					String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
+					connectionVo.setDatabase_password(plainPassword);
+					if ("oracle".equalsIgnoreCase(databaseType) && "SID".equals(connectionConfig.get("thinType"))) {
+						Optional.ofNullable(connectionConfig.get("sid"))
+								.map(Object::toString)
+								.ifPresent(connectionVo::setDatabase_name);
+					}
+				}
+				connectionVos.add(connectionVo);
+			} catch (Exception e) {
+				fialedApi.put(connectionId, e.getMessage());
+			}
+		}
+		apis = updatePublishMsg(apis, fialedApi);
+		apiDefinitionVo.setConnections(connectionVos);
+		apiDefinitionVo.setApis(apis);
+		withEncryptionRule(apis);
+		return apis;
+	}
+
+	protected String parseUri(Map<String, Object> connectionConfig) {
+		String uri = (String) connectionConfig.get(URI);
+		if (uri == null) {
+			uri = MongoUriUtil.uriByParam(connectionConfig);
+		} else {
+			uri = MongoUriUtil.uriByConnectionString(uri);
+		}
+		return uri;
+	}
+
+	public List<ModulesDto> updatePublishMsg(List<ModulesDto> apis, Map<String, String> connectionIdAndStatusMsg) {
+		if (null == connectionIdAndStatusMsg) {
+			connectionIdAndStatusMsg = new HashMap<>();
+		}
+		Map<String, String> apiStatus = new HashMap<>();
+		Map<String, String> finalConnectionIdAndStatusMsg = connectionIdAndStatusMsg;
+		List<ModulesDto> finalApi = apis.stream()
+				.filter(Objects::nonNull)
+				.filter(api -> {
+					boolean normal = !finalConnectionIdAndStatusMsg.containsKey(api.getConnection().toHexString());
+					if (!normal) {
+						apiStatus.put(api.getId().toHexString(), finalConnectionIdAndStatusMsg.get(api.getConnection().toHexString()));
+					} else {
+						apiStatus.put(api.getId().toHexString(), "");
+					}
+					return normal;
+				})
+				.toList();
+		updatePublishMsg(apiStatus);
+		return finalApi;
+	}
+
+	public void updatePublishMsg(Map<String, String> apiStatus) {
+		if (org.springframework.util.CollectionUtils.isEmpty(apiStatus)) {
+			return;
+		}
+		bulkUpsert(apiStatus, this::buildDefaultQuery, this::buildDefaultUpdate);
+	}
+
+	protected void bulkUpsert(Map<String, String> entities,
+						   Function<String, Query> queryBuilder,
+						   Function<String, Update> updateBuilder) {
+		try {
+			BulkOperations bulkOps = mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, ModulesEntity.class);
+			entities.forEach((apiId, status) -> {
+				Query query = queryBuilder.apply(apiId);
+				Update update = updateBuilder.apply(status);
+				bulkOps.upsert(query, update);
+			});
+			bulkOps.execute();
+		} catch (Exception e) {
+			log.error("bulkUpsert ServerUsageMetric error", e);
+		}
+	}
+
+	private Query buildDefaultQuery(String apiId) {
+		Criteria criteria = Criteria.where(BaseEntityFields._ID.field()).is(MongoUtils.toObjectId(apiId));
+		return Query.query(criteria);
+	}
+
+	private Update buildDefaultUpdate(String msg) {
+		Update update = new Update();
+		update.set(ModulesField.PUBLISH_STATUS.field(), msg);
+		return update;
+	}
+
 	public List<ApiDefinitionVo.ApiInfo> withUnPublishApi(List<ModulesDto> publishApis) {
 		List<ApiDefinitionVo.ApiInfo> apiInfo = new ArrayList<>();
 		append(apiInfo, publishApis, ModuleStatusEnum.ACTIVE);
-		List<ModulesDto> apis = (List<ModulesDto>) findAllActiveApi(ModuleStatusEnum.PENDING);
+		List<ModulesDto> apis = findAllActiveApi(ModuleStatusEnum.PENDING);
 		append(apiInfo, apis, ModuleStatusEnum.PENDING);
 		return apiInfo;
 	}
@@ -1159,7 +1208,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 
-	public List findAllActiveApi(ModuleStatusEnum moduleStatusEnum) {
+	public List<ModulesDto> findAllActiveApi(ModuleStatusEnum moduleStatusEnum) {
 		if (null == moduleStatusEnum) {
 			return new ArrayList<>();
 		}
