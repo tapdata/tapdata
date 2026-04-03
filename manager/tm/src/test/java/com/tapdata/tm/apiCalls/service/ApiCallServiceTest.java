@@ -22,13 +22,13 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.Param;
-import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.module.entity.Path;
+import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -47,12 +47,33 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 /**
  * @author samuel
@@ -68,7 +89,6 @@ class ApiCallServiceTest {
     private ModulesService modulesService;
     private ApplicationService applicationService;
     private ApiCallStatsService apiCallStatsService;
-    ApplicationConfig applicationConfig;
     TextEncryptionRuleService ruleService;
     private RealTimeOfApiResponseSizeAlter realTimeOfApiResponseSizeAlter;
 
@@ -77,9 +97,6 @@ class ApiCallServiceTest {
         ruleService = mock(TextEncryptionRuleService.class);
         apiCallService = new ApiCallService();
         apiCallMinuteStatsService = mock(ApiCallMinuteStatsService.class);
-        applicationConfig = mock(ApplicationConfig.class);
-        when(applicationConfig.getAdminAccount()).thenReturn("admin@admin.com");
-        ReflectionTestUtils.setField(apiCallService, "applicationConfig", applicationConfig);
         ReflectionTestUtils.setField(apiCallService, "apiCallMinuteStatsService", apiCallMinuteStatsService);
         mongoTemplate = mock(MongoTemplate.class);
         ReflectionTestUtils.setField(apiCallService, "mongoOperations", mongoTemplate);
@@ -601,102 +618,6 @@ class ApiCallServiceTest {
     }
 
     @Nested
-    class afterFindEntityTest {
-        @Test
-        void testNormal() {
-            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
-            ApiCallEntity entity = new ApiCallEntity();
-            ApiCallEntity apiCallEntity = apiCallService.afterFindEntity(entity);
-            Assertions.assertEquals(entity, apiCallEntity);
-        }
-
-        @Test
-        void testBatchNormal() {
-            List<ApiCallEntity> entities = new ArrayList<>();
-            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
-            ApiCallEntity entity = new ApiCallEntity();
-            entities.add(entity);
-            entity.setAllPathId(new ObjectId().toHexString());
-            List<ApiCallEntity> apiCallEntities = apiCallService.afterFindEntity(entities);
-            Assertions.assertEquals(entities, apiCallEntities);
-        }
-
-        @Test
-        void testBatchNormal2() {
-            List<ApiCallEntity> entities = new ArrayList<>();
-            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
-            List<ApiCallEntity> apiCallEntities = apiCallService.afterFindEntity(entities);
-            Assertions.assertEquals(entities, apiCallEntities);
-        }
-
-        @Test
-        void testBatchNormalafterFindDto() {
-            List<ApiCallDataVo> entities = new ArrayList<>();
-            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
-            ApiCallDataVo entity = new ApiCallDataVo();
-            entities.add(entity);
-            entity.setApiId(new ObjectId().toHexString());
-            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
-            Assertions.assertEquals(entities, apiCallEntities);
-        }
-
-        @Test
-        void testBatchNormalafterFindDtoFalse() {
-            List<ApiCallDataVo> entities = new ArrayList<>();
-            when(ruleService.checkAudioSwitchStatus()).thenReturn(false);
-            ApiCallDataVo entity = new ApiCallDataVo();
-            entities.add(entity);
-            entity.setApiId(new ObjectId().toHexString());
-            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
-            Assertions.assertEquals(entities, apiCallEntities);
-        }
-
-        @Test
-        void testBatchNormalafterFindDtoJsonNotEmpty() {
-            List<ApiCallDataVo> entities = new ArrayList<>();
-            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
-            ApiCallDataVo entity = new ApiCallDataVo();
-            entities.add(entity);
-            entity.setQuery("{\"id\": \"xxkdf\"}");
-            entity.setApiId(new ObjectId().toHexString());
-            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
-            Assertions.assertEquals(entities, apiCallEntities);
-        }
-
-        @Test
-        void testBatchNormalafterFindDtoJsonInvalide() {
-            List<ApiCallDataVo> entities = new ArrayList<>();
-            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
-            ApiCallDataVo entity = new ApiCallDataVo();
-            entities.add(entity);
-            entity.setQuery("{");
-            entity.setApiId(new ObjectId().toHexString());
-            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
-            Assertions.assertEquals(entities, apiCallEntities);
-        }
-
-        @Test
-        void testBatchNormalafterFindDtoJsonInvalide2() {
-            List<ApiCallDataVo> entities = new ArrayList<>();
-            when(ruleService.checkAudioSwitchStatus()).thenReturn(false);
-            ApiCallDataVo entity = new ApiCallDataVo();
-            entities.add(entity);
-            entity.setQuery("{");
-            entity.setApiId(new ObjectId().toHexString());
-            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
-            Assertions.assertEquals(entities, apiCallEntities);
-        }
-
-        @Test
-        void testBatchNormal2afterFindDto() {
-            List<ApiCallDataVo> entities = new ArrayList<>();
-            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
-            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
-            Assertions.assertEquals(entities, apiCallEntities);
-        }
-    }
-
-    @Nested
     class findApiParamTypeMapTest {
         @Test
         void testEmpty() {
@@ -883,7 +804,7 @@ class ApiCallServiceTest {
             UserDetail mock = mock(UserDetail.class);
             String allPathId = new ObjectId().toHexString();
             entity.setAllPathId(allPathId);
-            when(service.afterFindEntity(entity)).thenReturn(entity);
+            doNothing().when(service).encryptionIfNeed(any(ApiCallDetailVo.class), any(ModulesDto.class));
             when(mongoTemplate.findById("id", ApiCallEntity.class)).thenReturn(entity);
             when(modulesService.findById(any(ObjectId.class), any(UserDetail.class))).thenReturn(modulesDto);
             ApiCallDetailVo apiCallDetailVo = service.findById("id", mock);
@@ -897,7 +818,7 @@ class ApiCallServiceTest {
             UserDetail mock = mock(UserDetail.class);
             String allPathId = new ObjectId().toHexString();
             entity.setAllPathId(allPathId);
-            when(service.afterFindEntity(entity)).thenReturn(entity);
+            doNothing().when(service).encryptionIfNeed(any(ApiCallDetailVo.class), any(ModulesDto.class));
             when(mongoTemplate.findById("id", ApiCallEntity.class)).thenReturn(entity);
             when(modulesService.findById(any(ObjectId.class), any(UserDetail.class))).thenReturn(modulesDto);
             ApiCallDetailVo apiCallDetailVo = apiCallService.findById("id", mock);
@@ -921,6 +842,181 @@ class ApiCallServiceTest {
             apiCallDataVo.setSpeed(1000L);
             ApiCallDetailVo apiCallDetailVo = service.mapToApiCallDetailVo(apiCallDataVo);
             Assertions.assertNotNull(apiCallDetailVo);
+        }
+    }
+
+    @Nested
+    class encryptionIfNeedTest {
+        @Test
+        void testConfigFromModuleAndEncryptByRule() {
+            ApiCallService service = mock(ApiCallService.class);
+            doCallRealMethod().when(service).encryptionIfNeed(anyBoolean(), any(ApiCallDetailVo.class), any(ModulesDto.class));
+            ReflectionTestUtils.setField(service, "ruleService", ruleService);
+            ReflectionTestUtils.setField(service, "modulesService", modulesService);
+
+            when(service.parseCustomParam(anyBoolean(), anyString(), any(Map.class)))
+                    .thenAnswer(invocation -> "ENC:" + invocation.getArgument(1));
+            when(service.parse(anyString(), anyBoolean(), any(Map.class)))
+                    .thenAnswer(invocation -> "PARSED:" + invocation.getArgument(0));
+
+            ObjectId ruleObjectId = new ObjectId();
+            String ruleId = ruleObjectId.toHexString();
+            TextEncryptionRuleDto ruleDto = new TextEncryptionRuleDto();
+            ruleDto.setId(ruleObjectId);
+            when(ruleService.getById(anySet())).thenReturn(List.of(ruleDto));
+
+            Param param = new Param();
+            param.setName("name");
+            param.setTextEncryptionRuleIds(List.of(ruleId));
+            Path path = new Path();
+            path.setParams(List.of(param));
+            ModulesDto moduleDto = new ModulesDto();
+            moduleDto.setPaths(List.of(path));
+
+            ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+            apiCallDetailVo.setApiId("");
+            apiCallDetailVo.setFieldEncryptionRule(null);
+            apiCallDetailVo.setQuery("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setBody("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setReqParams("{\"k\":\"v\"}");
+
+            service.encryptionIfNeed(true, apiCallDetailVo, moduleDto);
+
+            Assertions.assertEquals("PARSED:{\"name\":\"gavin\"}", apiCallDetailVo.getQuery());
+            Assertions.assertEquals("PARSED:{\"name\":\"gavin\"}", apiCallDetailVo.getBody());
+            Assertions.assertNull(apiCallDetailVo.getReqParams());
+            verify(ruleService, times(0)).getById(anySet());
+        }
+
+        @Test
+        void testRuleIdsEmptyFallbackToParse() {
+            ApiCallService service = mock(ApiCallService.class);
+            doCallRealMethod().when(service).encryptionIfNeed(anyBoolean(), any(ApiCallDetailVo.class), any(ModulesDto.class));
+            ReflectionTestUtils.setField(service, "ruleService", ruleService);
+            ReflectionTestUtils.setField(service, "modulesService", modulesService);
+
+            when(service.parse(anyString(), anyBoolean(), any(Map.class)))
+                    .thenAnswer(invocation -> "PARSED:" + invocation.getArgument(0));
+
+            ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+            apiCallDetailVo.setApiId("");
+            apiCallDetailVo.setFieldEncryptionRule(Map.of("name", new ArrayList<>()));
+            apiCallDetailVo.setQuery("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setBody("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setReqParams("{\"k\":\"v\"}");
+
+            service.encryptionIfNeed(true, apiCallDetailVo, null);
+
+            Assertions.assertEquals("{\"name\":\"gavin\"}", apiCallDetailVo.getQuery());
+            Assertions.assertEquals("{\"name\":\"gavin\"}", apiCallDetailVo.getBody());
+            verify(ruleService, never()).getById(anySet());
+        }
+
+        @Test
+        void testRuleNotFoundFallbackToParseAndLoadParamMap() {
+            ApiCallService service = mock(ApiCallService.class);
+            doCallRealMethod().when(service).encryptionIfNeed(anyBoolean(), any(ApiCallDetailVo.class), any(ModulesDto.class));
+            ReflectionTestUtils.setField(service, "ruleService", ruleService);
+            ReflectionTestUtils.setField(service, "modulesService", modulesService);
+
+            ObjectId apiObjectId = new ObjectId();
+            String apiId = apiObjectId.toHexString();
+            Map<String, Param> apiParamMap = new HashMap<>();
+            Param param = new Param();
+            param.setName("name");
+            param.setType("string");
+            apiParamMap.put("name", param);
+            when(service.findApiParamTypeMap(any(ObjectId.class))).thenReturn(Map.of(apiId, apiParamMap));
+            when(service.parse(anyString(), anyBoolean(), any(Map.class)))
+                    .thenAnswer(invocation -> {
+                        Map<String, Param> passedParamMap = invocation.getArgument(2);
+                        Assertions.assertSame(apiParamMap, passedParamMap);
+                        return "PARSED:" + invocation.getArgument(0);
+                    });
+
+            when(ruleService.getById(anySet())).thenReturn(List.of());
+
+            ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+            apiCallDetailVo.setApiId(apiId);
+            apiCallDetailVo.setFieldEncryptionRule(Map.of("name", List.of(new ObjectId().toHexString())));
+            apiCallDetailVo.setQuery("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setBody("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setReqParams("{\"k\":\"v\"}");
+
+            service.encryptionIfNeed(true, apiCallDetailVo, null);
+
+            Assertions.assertEquals("{\"name\":\"gavin\"}", apiCallDetailVo.getQuery());
+            Assertions.assertEquals("{\"name\":\"gavin\"}", apiCallDetailVo.getBody());
+            verify(ruleService,times(0)).getById(anySet());
+        }
+
+        @Test
+        void testModuleHasNoRuleConfigFallbackToParse() {
+            ApiCallService service = mock(ApiCallService.class);
+            doCallRealMethod().when(service).encryptionIfNeed(anyBoolean(), any(ApiCallDetailVo.class), any(ModulesDto.class));
+            ReflectionTestUtils.setField(service, "ruleService", ruleService);
+            ReflectionTestUtils.setField(service, "modulesService", modulesService);
+
+            when(service.parse(anyString(), anyBoolean(), any(Map.class)))
+                    .thenAnswer(invocation -> "PARSED:" + invocation.getArgument(0));
+
+            Param param = new Param();
+            param.setName("name");
+            param.setTextEncryptionRuleIds(List.of());
+            Path path = new Path();
+            path.setParams(List.of(param));
+            ModulesDto moduleDto = new ModulesDto();
+            moduleDto.setPaths(List.of(path));
+
+            ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+            apiCallDetailVo.setApiId("");
+            apiCallDetailVo.setFieldEncryptionRule(null);
+            apiCallDetailVo.setQuery("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setBody("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setReqParams("{\"k\":\"v\"}");
+
+            service.encryptionIfNeed(true, apiCallDetailVo, moduleDto);
+
+            Assertions.assertEquals("PARSED:{\"name\":\"gavin\"}", apiCallDetailVo.getQuery());
+            Assertions.assertEquals("PARSED:{\"name\":\"gavin\"}", apiCallDetailVo.getBody());
+            Assertions.assertNull(apiCallDetailVo.getReqParams());
+            verify(ruleService, never()).getById(anySet());
+        }
+
+        @Test
+        void testFieldEncryptionRuleIncludesUnknownRuleId() {
+            ApiCallService service = mock(ApiCallService.class);
+            doCallRealMethod().when(service).encryptionIfNeed(anyBoolean(), any(ApiCallDetailVo.class), any(ModulesDto.class));
+            ReflectionTestUtils.setField(service, "ruleService", ruleService);
+            ReflectionTestUtils.setField(service, "modulesService", modulesService);
+
+            when(service.parseCustomParam(anyBoolean(), anyString(), any(Map.class)))
+                    .thenAnswer(invocation -> "ENC:" + invocation.getArgument(1));
+
+            ObjectId ruleObjectId = new ObjectId();
+            String ruleId = ruleObjectId.toHexString();
+            TextEncryptionRuleDto ruleDto = new TextEncryptionRuleDto();
+            ruleDto.setId(ruleObjectId);
+            List<TextEncryptionRuleDto> list = new ArrayList<>();
+            list.add(ruleDto);
+            list.add(null);
+            when(ruleService.getById(anySet())).thenReturn(list);
+
+            Map<String, List<String>> fieldEncryptionRule = new HashMap<>();
+            fieldEncryptionRule.put("name", List.of(ruleId, new ObjectId().toHexString()));
+
+            ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+            apiCallDetailVo.setApiId("");
+            apiCallDetailVo.setFieldEncryptionRule(fieldEncryptionRule);
+            apiCallDetailVo.setQuery("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setBody("{\"name\":\"gavin\"}");
+            apiCallDetailVo.setReqParams("{\"k\":\"v\"}");
+
+            service.encryptionIfNeed(true, apiCallDetailVo, null);
+
+            Assertions.assertEquals("{\"name\":\"gavin\"}", apiCallDetailVo.getQuery());
+            Assertions.assertEquals("{\"name\":\"gavin\"}", apiCallDetailVo.getBody());
+            verify(ruleService, times(0)).getById(anySet());
         }
     }
 

@@ -51,6 +51,9 @@ public class ModulesDto extends BaseDto {
 
     private String path;
 
+    /**
+     * @see com.tapdata.tm.module.enums.ApiType
+     * */
     @NotBlank
     private String apiType;
 
@@ -110,6 +113,8 @@ public class ModulesDto extends BaseDto {
     private List<PathSetting> pathSetting;
 
     ApiAlarmConfig apiAlarmConfig;
+
+    private String publishStatus;
 
     public void withPathSettingIfNeed() {
         if (null == pathSetting) {

@@ -1208,18 +1208,23 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			MergeTableNode mergeTableNode = (MergeTableNode) node;
 			Map<String, List<MergeTableProperties>> lookupMap = new HashMap<>();
 			MergeTablePropertiesUtil.initLookupMergeProperties(mergeTableNode.getMergeProperties(),lookupMap);
+			//清除失效缓存
+			if(MapUtils.isNotEmpty(cacheIdsMap) && cacheIdsMap.containsKey(mergeTableNode.getId())){
+				List<String> newCacheIdList = new ArrayList<>();
+			    lookupMap.values().forEach(lockkupList ->{
+					if(CollectionUtils.isNotEmpty(lockkupList)){
+						newCacheIdList.addAll(lockkupList.stream().map(MergeTableProperties::getId).toList());
+					}
+				});
+				List<Map<String, String>> cacheIdList = cacheIdsMap.get(mergeTableNode.getId());
+				List<Map<String, String>> deleteCacheIdList = cacheIdList.stream().filter(info -> !newCacheIdList.contains(info.get("id"))).toList();
+				deleteMergeTableCache(node,deleteCacheIdList);
+			}
 			lookupMap.values().forEach(lookupList -> {
 				List<MergeTableProperties> cacheRebuildList = lookupList.stream()
 						.filter(mergeTableProperties -> null !=mergeTableProperties
 								&& null != mergeTableProperties.getCacheRebuildStatus()
 								&& CacheRebuildStatus.PENDING.equals(mergeTableProperties.getCacheRebuildStatus())).toList();
-				//清除失效缓存
-				if(MapUtils.isNotEmpty(cacheIdsMap) && cacheIdsMap.containsKey(mergeTableNode.getId()) && CollectionUtils.isNotEmpty(cacheRebuildList)){
-					List<String> newCacheIdList = lookupList.stream().map(MergeTableProperties::getId).toList();
-					List<Map<String, String>> cacheIdList = cacheIdsMap.get(mergeTableNode.getId());
-					List<Map<String, String>> deleteCacheIdList = cacheIdList.stream().filter(info -> !newCacheIdList.contains(info.get("id"))).toList();
-					deleteMergeTableCache(node,deleteCacheIdList);
-				}
 				if(CollectionUtils.isNotEmpty(cacheRebuildList)){
 					deleteMergeTableCache(node,cacheRebuildList.stream().map(mergeTableProperties -> {
 						Map<String, String> cacheInfo = new HashMap<>();
