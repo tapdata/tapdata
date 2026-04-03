@@ -33,11 +33,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+
+import java.util.*;
 import java.util.function.Supplier;
 
 
@@ -173,7 +170,10 @@ public class ModulesController extends BaseController {
   @Operation(summary = "批量修改 发布  modules")
   @PatchMapping("batchUpdate")
   public ResponseMessage<List<ModulesDto>> batchUpdate(HttpServletRequest request, @RequestBody List<ModulesDto> modules) {
-    return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.Publish, () -> modulesService.batchUpdateModuleByList(modules, getLoginUser())));
+    UserDetail userDetail = getLoginUser();
+    List<ModulesDto> modulesDtoList = new ArrayList<>();
+    modules.forEach(module -> dataPermissionCheckOfId(request, userDetail, module.getId(), resolveUpdateAction(module), () -> modulesDtoList.add(modulesService.updateModuleById(module, userDetail))));
+    return success(modulesDtoList);
   }
 
 

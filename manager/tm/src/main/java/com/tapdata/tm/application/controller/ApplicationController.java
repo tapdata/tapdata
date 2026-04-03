@@ -199,9 +199,12 @@ public class ApplicationController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
-    public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        applicationService.deleteLogicsById(id);
-        return success();
+    public ResponseMessage<Void> delete(HttpServletRequest request,@PathVariable("id") String id) {
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.Delete, () -> {
+            applicationService.deleteLogicsById(id);
+            return null;
+        }));
     }
 
 
