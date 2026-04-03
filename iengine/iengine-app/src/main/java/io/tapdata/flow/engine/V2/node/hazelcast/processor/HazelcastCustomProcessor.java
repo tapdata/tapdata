@@ -2,12 +2,14 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
+import com.tapdata.cache.scripts.ScriptCacheService;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
+import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
@@ -87,12 +89,17 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class, n -> !running.get());
 			try {
+				ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 				engine = ScriptUtil.getScriptEngine(
+						JSEngineEnum.GRAALVM_JS.getEngineName(),
 						customNodeTempDto.getTemplate(),
 						javaScriptFunctions,
 						clientMongoOperator,
-						((DataProcessorContext) processorBaseContext).getCacheService(),
-						new ObsScriptLogger(obsLogger, logger));
+						null,
+						null,
+						scriptCacheService,
+						new ObsScriptLogger(getScriptObsLogger(), logger),
+						false);
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
 				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
@@ -162,7 +169,6 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		}
 		Map<String, Object> record = null == after ? before : after;
 		isAfter = null != after;
-		((ScriptEngine) engine).put("log", logger);
 
 		Map<String, Object> context = buildContextMap(tapdataEvent, tapEvent, before, this.globalTaskContent, this.processContextThreadLocal);
 
