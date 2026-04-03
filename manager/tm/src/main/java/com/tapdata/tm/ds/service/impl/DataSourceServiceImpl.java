@@ -1893,13 +1893,17 @@ public class DataSourceServiceImpl extends DataSourceService{
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
                     break;
-                case REUSE_EXISTING,GROUP_IMPORT:
+                case REUSE_EXISTING:
                     if (existingConnectionByName != null) {
                         resultConnection = existingConnectionByName;
                     } else {
                         // 不存在同名连接，作为新连接导入
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
+                    break;
+                case GROUP_IMPORT:
+                    // 按 _id 查重：找到则覆盖，未找到则以原 _id 插入
+                    resultConnection = handleGroupImportConnection(connectionDto, user);
                     break;
 
 
@@ -1954,6 +1958,39 @@ public class DataSourceServiceImpl extends DataSourceService{
         DataSourceConnectionDto result = importEntity(connectionDto, user);
         sendTestConnection(connectionDto, true, true, user);
         return result;
+    }
+
+    /**
+     * GROUP_IMPORT 模式的连接导入处理：按 _id 查重，找到则覆盖更新，未找到则以原 _id 插入。
+     * 保持导出与导入环境的 _id 完全一致。
+     */
+    protected DataSourceConnectionDto handleGroupImportConnection(DataSourceConnectionDto connectionDto, UserDetail user) {
+        if (connectionDto.getId() == null) {
+            return handleImportAsCopyConnection(connectionDto, user);
+        }
+        Query idQuery = new Query(Criteria.where("_id").is(connectionDto.getId()).and("is_deleted").ne(true));
+        idQuery.fields().include("_id", "name");
+        DataSourceConnectionDto existingById = findOne(idQuery);
+
+        if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
+            ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
+            if (externalStorageDto == null) {
+                Query defaultQuery = new Query(Criteria.where("defaultStorage").is(true));
+                ExternalStorageDto defaultExternalStorage = externalStorageService.findOne(defaultQuery);
+                connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
+            }
+        }
+        agentGroupService.importAgentInfo(connectionDto);
+
+        if (existingById != null) {
+            // 已存在相同 _id，覆盖更新
+            return save(connectionDto, user);
+        } else {
+            // 不存在，以原 _id 插入
+            DataSourceConnectionDto result = importEntity(connectionDto, user);
+            sendTestConnection(connectionDto, true, true, user);
+            return result;
+        }
     }
 
     public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {

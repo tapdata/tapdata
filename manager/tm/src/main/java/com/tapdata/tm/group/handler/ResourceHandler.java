@@ -157,10 +157,8 @@ public interface ResourceHandler {
 
         for (DataSourceConnectionDto dataSourceConnectionDto : connections) {
             dataSourceConnectionDto.setConnectionString(null);
-            dataSourceConnectionDto.setCreateUser(null);
             dataSourceConnectionDto.setCustomId(null);
             dataSourceConnectionDto.setLastUpdBy(null);
-            dataSourceConnectionDto.setUserId(null);
             // 移除环境相关字段，避免跨环境导入时产生误差
             if (dataSourceConnectionDto.getConfig() != null) {
                 dataSourceConnectionDto.getConfig().remove("datasourceInstanceId");

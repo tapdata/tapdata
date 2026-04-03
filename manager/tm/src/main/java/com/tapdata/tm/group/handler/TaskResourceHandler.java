@@ -125,10 +125,8 @@ public class TaskResourceHandler implements ResourceHandler {
 
         for (TaskDto taskDto : tasks) {
             // 清理敏感和非必要字段
-            taskDto.setCreateUser(null);
             taskDto.setCustomId(null);
             taskDto.setLastUpdBy(null);
-            taskDto.setUserId(null);
             taskDto.setAgentId(null);
             taskDto.setStatus(TaskDto.STATUS_EDIT);
             taskDto.setSyncStatus(SyncStatus.NORMAL);
@@ -176,10 +174,8 @@ public class TaskResourceHandler implements ResourceHandler {
                         continue;
                     }
                     for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
-                        metadataInstancesDto.setCreateUser(null);
                         metadataInstancesDto.setCustomId(null);
                         metadataInstancesDto.setLastUpdBy(null);
-                        metadataInstancesDto.setUserId(null);
                         payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_METADATA_INSTANCES,
                                 JsonUtil.toJsonUseJackson(metadataInstancesDto)));
                         metadataCount++;
@@ -259,18 +255,20 @@ public class TaskResourceHandler implements ResourceHandler {
         Iterable<TaskDto> tasks = (Iterable<TaskDto>) resources;
 
         for (TaskDto taskDto : tasks) {
-            if (taskDto == null || StringUtils.isBlank(taskDto.getName())) {
+            if (taskDto == null || taskDto.getId() == null) {
                 continue;
             }
-            if (duplicates.containsKey(taskDto.getName())) {
+            String taskId = taskDto.getId().toHexString();
+            if (duplicates.containsKey(taskId)) {
                 continue;
             }
-            Query query = new Query(Criteria.where("name").is(taskDto.getName())
+            // 按 _id 查重：_id 已在导出时保留
+            Query query = new Query(Criteria.where("_id").is(taskDto.getId())
                     .and("is_deleted").ne(true));
             query.fields().include("_id", "name");
             TaskDto existing = taskService.findOne(query, user);
             if (existing != null) {
-                duplicates.put(taskDto.getName(), "duplicate");
+                duplicates.put(taskId, "duplicate");
             }
         }
         return duplicates;

@@ -77,10 +77,8 @@ public class ModuleResourceHandler implements ResourceHandler {
 
         for (ModulesDto modulesDto : modules) {
             // 清理敏感和非必要字段
-            modulesDto.setCreateUser(null);
             modulesDto.setCustomId(null);
             modulesDto.setLastUpdBy(null);
-            modulesDto.setUserId(null);
             modulesDto.setStatus(null);
             if (CollectionUtils.isNotEmpty(modulesDto.getFields())) {
                 modulesDto.getFields().sort(Comparator.comparing(
@@ -156,22 +154,23 @@ public class ModuleResourceHandler implements ResourceHandler {
     public Map<String, String> findDuplicateNames(Iterable<?> resources, UserDetail user) {
         Map<String, String> duplicates = new HashMap<>();
 
-
         Iterable<ModulesDto> modules = (Iterable<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
-            if (modulesDto == null || StringUtils.isBlank(modulesDto.getName())) {
+            if (modulesDto == null || modulesDto.getId() == null) {
                 continue;
             }
-            if (duplicates.containsKey(modulesDto.getName())) {
+            String moduleId = modulesDto.getId().toHexString();
+            if (duplicates.containsKey(moduleId)) {
                 continue;
             }
-            Query query = new Query(Criteria.where("name").is(modulesDto.getName())
+            // 按 _id 查重：_id 已在导出时保留
+            Query query = new Query(Criteria.where("_id").is(modulesDto.getId())
                     .and("is_deleted").ne(true));
             query.fields().include("_id", "name");
             ModulesDto existing = modulesService.findOne(query, user);
             if (existing != null) {
-                duplicates.put(modulesDto.getName(), "duplicate");
+                duplicates.put(moduleId, "duplicate");
             }
         }
         return duplicates;
