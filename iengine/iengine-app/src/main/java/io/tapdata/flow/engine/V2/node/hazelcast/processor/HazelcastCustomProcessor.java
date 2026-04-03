@@ -5,10 +5,7 @@ import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
-import com.tapdata.entity.JavaScriptFunctions;
-import com.tapdata.entity.MessageEntity;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.context.ProcessContext;
@@ -16,7 +13,9 @@ import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
@@ -25,6 +24,7 @@ import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
+import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
@@ -64,6 +64,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 	private ThreadLocal<Map<String, Object>> processContextThreadLocal;
 	private Map<String, Object> globalTaskContent;
+	private ScriptExecutorsManager scriptExecutorsManager;
 
 	public HazelcastCustomProcessor(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -94,6 +95,12 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 						new ObsScriptLogger(obsLogger, logger));
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
+				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
+						node.getTaskId(), node.getId(),
+						!processorBaseContext.getTaskDto().isNormalTask()
+				);
+				((ScriptEngine) engine).put("ScriptExecutorsManager", scriptExecutorsManager);
+
 			} catch (ScriptException e) {
 				throw new TapCodeException(ScriptProcessorExCode_30.CUSTOM_PROCESSOR_GET_SCRIPT_ENGINE_FAILED, "Init script engine failed", e)
 						.dynamicDescriptionParameters(e.getMessage());
@@ -203,6 +210,13 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		if (null != processContextThreadLocal) {
 			processContextThreadLocal.remove();
 		}
+		// Close script executors manager
+		CommonUtils.ignoreAnyError(() -> {
+			if (this.scriptExecutorsManager != null) {
+				this.scriptExecutorsManager.close();
+				this.scriptExecutorsManager = null;
+			}
+		}, TAG);
 		super.doClose();
 	}
 
