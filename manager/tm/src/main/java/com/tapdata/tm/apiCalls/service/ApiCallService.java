@@ -113,6 +113,8 @@ public class ApiCallService {
     public ApiCallDetailVo findById(String id, UserDetail loginUser) {
         ApiCallEntity apiCallEntity = mongoOperations.findById(id, ApiCallEntity.class);
         ApiCallDetailVo apiCallDetailVo = BeanUtil.copyProperties(apiCallEntity, ApiCallDetailVo.class);
+        apiCallDetailVo.setQueryOfCount(null);
+        apiCallDetailVo.setQueryOfPage(null);
         apiCallDetailVo.setVisitTotalCount(Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getResRows).orElse(0L));
         double latency = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getLatency).map(Number::doubleValue).orElse(0D);
         apiCallDetailVo.setLatency(latency);
