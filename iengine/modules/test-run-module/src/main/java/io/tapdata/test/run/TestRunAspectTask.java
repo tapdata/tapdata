@@ -17,9 +17,8 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
-import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.simplify.pretty.ClassHandlersV2;
 import io.tapdata.exception.ExceptionUtil;
@@ -67,6 +66,11 @@ public class TestRunAspectTask extends AspectTask {
     valueHandler.register(LocalDateTime.class, LocalDateTime::toString);
     valueHandler.register(Instant.class, Instant::toString);
     valueHandler.register(TapDateTimeValue.class,tapValue -> tapValue.getValue().toInstant().toString());
+    valueHandler.register(TapArrayValue.class, TapValue::getValue);
+    valueHandler.register(TapMapValue.class, TapValue::getValue);
+    valueHandler.register(TapStringValue.class, TapValue::getValue);
+    valueHandler.register(TapRawValue.class, TapValue::getValue);
+
   }
 
   @Override
@@ -125,6 +129,7 @@ public class TestRunAspectTask extends AspectTask {
       //run task error
       paramMap.put("code", "error");
       paramMap.put("message", ExceptionUtil.getMessage(stopAspect.getError()));
+      paramMap.put("stackTrace", ExceptionUtil.getStackString(stopAspect.getError()));
     } else {
       paramMap.put("code", "ok");
     }
@@ -179,9 +184,73 @@ public class TestRunAspectTask extends AspectTask {
     TapEvent tapEvent = (TapEvent) tapdataEvent.getTapEvent().clone();
     Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
     if (MapUtils.isNotEmpty(after)) {
-      AllLayerMapIterator allLayerMapIterator = new AllLayerMapIterator();
-      allLayerMapIterator.iterate(after, (key, value, recursive) -> valueHandler.handle(value));
+      recursiveHandleMap(after);
+      after = sortMapKeys(after);
     }
     return after;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> sortMapKeys(Map<String, Object> map) {
+    LinkedHashMap<String, Object> sorted = new LinkedHashMap<>();
+    map.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .forEach(e -> {
+              Object value = e.getValue();
+              if (value instanceof Map) {
+                value = sortMapKeys((Map<String, Object>) value);
+              } else if (value instanceof Collection) {
+                value = sortCollectionMaps((Collection<Object>) value);
+              }
+              sorted.put(e.getKey(), value);
+            });
+    return sorted;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Collection<Object> sortCollectionMaps(Collection<Object> collection) {
+    List<Object> result = new ArrayList<>();
+    for (Object item : collection) {
+      if (item instanceof Map) {
+        result.add(sortMapKeys((Map<String, Object>) item));
+      } else if (item instanceof Collection) {
+        result.add(sortCollectionMaps((Collection<Object>) item));
+      } else {
+        result.add(item);
+      }
+    }
+    return result;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Object recursiveHandleValue(Object value) {
+    Object newValue = valueHandler.handle(value);
+    Object result = newValue != null ? newValue : value;
+    if (result instanceof Map) {
+      recursiveHandleMap((Map<String, Object>) result);
+    } else if (result instanceof Collection) {
+      recursiveHandleCollection((Collection<Object>) result);
+    }
+    return newValue;
+  }
+
+  @SuppressWarnings("unchecked")
+  private void recursiveHandleMap(Map<String, Object> map) {
+    for (Map.Entry<String, Object> entry : map.entrySet()) {
+      Object newValue = recursiveHandleValue(entry.getValue());
+      if (newValue != null) {
+        entry.setValue(newValue);
+      }
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private void recursiveHandleCollection(Collection<Object> collection) {
+    List<Object> original = new ArrayList<>(collection);
+    collection.clear();
+    for (Object item : original) {
+      Object newItem = recursiveHandleValue(item);
+      collection.add(newItem != null ? newItem : item);
+    }
   }
 }

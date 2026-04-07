@@ -545,6 +545,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
         taskDtoCopy.setSyncStatus(SyncStatus.NORMAL);
+        applyTestRunInputEvent(taskDtoCopy, dto);
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
@@ -644,6 +645,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
         taskDtoCopy.setSyncStatus(SyncStatus.NORMAL);
+        applyTestRunInputEvent(taskDtoCopy, dto);
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
@@ -735,6 +737,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
         return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeIds.toString()) : wsTestRun(userDetail, taskDto, taskDtoCopy);
+    }
+
+    void applyTestRunInputEvent(TaskDto taskDtoCopy, TestRunDto dto) {
+        if(StringUtils.isNotBlank(dto.getTestRunInputEventJson())){
+            taskDtoCopy.setTestRunInputEventType(dto.getTestRunInputEventType());
+            taskDtoCopy.setTestRunInputEventJson(dto.getTestRunInputEventJson());
+        }
     }
 
     private Map<String, Object> rpcTestRun(String testTaskId, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
@@ -887,6 +896,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 log.error("getRun JsResultVo error:{}", dto.getMessage());
                 res.setCode("SystemError");
                 res.setMessage(dto.getMessage());
+                res.setStack(dto.getStackTrace());
             });
         } else {
             result.setOver(false);

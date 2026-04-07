@@ -126,6 +126,10 @@ public class QueryDataBaseDataService {
 	}
 
 	public Map<String, Object> getData(String connectionId, String tableName) throws Throwable {
+		return getData(connectionId,tableName,rows);
+	}
+
+	public Map<String, Object> getData(String connectionId, String tableName,int rows) throws Throwable {
 		String associateId = "queryRecords_" + connectionId + "_" + tableName + "_" + UUID.randomUUID();
 		try {
 			ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);

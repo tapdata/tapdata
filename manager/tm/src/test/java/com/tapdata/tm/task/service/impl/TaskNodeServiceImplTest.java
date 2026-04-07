@@ -7,11 +7,14 @@ import com.tapdata.tm.base.dto.PageParameter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -19,6 +22,8 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
@@ -29,10 +34,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -47,6 +55,8 @@ class TaskNodeServiceImplTest {
 
     UserDetail userDetail;
     MetadataInstancesService metadataInstancesService;
+    TaskService taskService;
+    MonitoringLogsService monitoringLogService;
 
     @BeforeEach
     void init() {
@@ -60,6 +70,10 @@ class TaskNodeServiceImplTest {
         ReflectionTestUtils.setField(taskNodeService, "dataSourceService", mock(DataSourceService.class));
         metadataInstancesService = mock(MetadataInstancesService.class);
         ReflectionTestUtils.setField(taskNodeService, "metadataInstancesService", metadataInstancesService);
+        taskService = mock(TaskService.class);
+        ReflectionTestUtils.setField(taskNodeService, "taskService", taskService);
+        monitoringLogService = mock(MonitoringLogsService.class);
+        ReflectionTestUtils.setField(taskNodeService, "monitoringLogService", monitoringLogService);
 
         userDetail = mock(UserDetail.class);
     }
@@ -554,6 +568,107 @@ class TaskNodeServiceImplTest {
             Assertions.assertTrue(tableNames.contains("table1"));
             Assertions.assertTrue(tableNames.contains("table2"));
             Assertions.assertTrue(tableNames.contains("new_table"));
+        }
+    }
+
+    @Nested
+    class TestRunInputEventTest {
+        @Test
+        void testTestRunJsNodePropagatesCustomInputEvent() {
+            TaskDto taskDto = createMigrateTask("jsNode");
+            TestRunDto dto = createTestRunDto(taskDto, "jsNode");
+            dto.setTestRunInputEventType("insert");
+            dto.setTestRunInputEventJson("{\"after\":{\"id\":1}}");
+
+            AtomicReference<TaskDto> captured = new AtomicReference<>();
+            when(taskService.findById(any())).thenReturn(taskDto);
+            doCallRealMethod().when(taskNodeService).testRunJsNode(any(TestRunDto.class), any(UserDetail.class));
+            doAnswer(invocation -> {
+                captured.set(invocation.getArgument(1));
+                return null;
+            }).when(taskNodeService).sendMessageAfterFindAgent(any(TaskDto.class), any(TaskDto.class), any(UserDetail.class));
+
+            taskNodeService.testRunJsNode(dto, userDetail);
+
+            Assertions.assertNotNull(captured.get());
+            Assertions.assertEquals("insert", captured.get().getTestRunInputEventType());
+            Assertions.assertEquals("{\"after\":{\"id\":1}}", captured.get().getTestRunInputEventJson());
+        }
+
+        @Test
+        void testTestRunJsNodeRpcPropagatesCustomInputEvent() {
+            TaskDto taskDto = createMigrateTask("jsNode");
+            TestRunDto dto = createTestRunDto(taskDto, "jsNode");
+            dto.setTestRunInputEventType("delete");
+            dto.setTestRunInputEventJson("{\"before\":{\"id\":1}}");
+
+            AtomicReference<TaskDto> captured = new AtomicReference<>();
+            when(taskService.findById(any())).thenReturn(taskDto);
+            doCallRealMethod().when(taskNodeService).testRunJsNodeRPC(any(TestRunDto.class), any(UserDetail.class), anyInt());
+            doAnswer(invocation -> {
+                captured.set(invocation.getArgument(2));
+                return new HashMap<String, Object>();
+            }).when(taskNodeService).wsTestRun(any(UserDetail.class), any(TaskDto.class), any(TaskDto.class));
+
+            taskNodeService.testRunJsNodeRPC(dto, userDetail, 0);
+
+            Assertions.assertNotNull(captured.get());
+            Assertions.assertEquals("delete", captured.get().getTestRunInputEventType());
+            Assertions.assertEquals("{\"before\":{\"id\":1}}", captured.get().getTestRunInputEventJson());
+        }
+
+        @Test
+        void testTestRunJsNodeLeavesCustomInputEventEmptyWhenNotProvided() {
+            TaskDto taskDto = createMigrateTask("jsNode");
+            TestRunDto dto = createTestRunDto(taskDto, "jsNode");
+
+            AtomicReference<TaskDto> captured = new AtomicReference<>();
+            when(taskService.findById(any())).thenReturn(taskDto);
+            doCallRealMethod().when(taskNodeService).testRunJsNode(any(TestRunDto.class), any(UserDetail.class));
+            doAnswer(invocation -> {
+                captured.set(invocation.getArgument(1));
+                return null;
+            }).when(taskNodeService).sendMessageAfterFindAgent(any(TaskDto.class), any(TaskDto.class), any(UserDetail.class));
+
+            taskNodeService.testRunJsNode(dto, userDetail);
+
+            Assertions.assertNotNull(captured.get());
+            Assertions.assertNull(captured.get().getTestRunInputEventType());
+            Assertions.assertNull(captured.get().getTestRunInputEventJson());
+        }
+
+        private TaskDto createMigrateTask(String nodeId) {
+            DatabaseNode source = new DatabaseNode();
+            source.setId("source");
+            source.setName("source");
+            source.setConnectionId("connection");
+            source.setTableNames(new ArrayList<>(Collections.singletonList("test_table")));
+
+            MigrateJsProcessorNode jsNode = new MigrateJsProcessorNode();
+            jsNode.setId(nodeId);
+            jsNode.setName(nodeId);
+
+            Dag dag = new Dag();
+            dag.setNodes(new ArrayList<>(Arrays.asList(source, jsNode)));
+            dag.setEdges(new ArrayList<>(Collections.singletonList(new Edge(source.getId(), jsNode.getId()))));
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setName("task");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
+            taskDto.setTestTaskId(new ObjectId().toHexString());
+            taskDto.setDag(DAG.build(dag));
+            return taskDto;
+        }
+
+        private TestRunDto createTestRunDto(TaskDto taskDto, String nodeId) {
+            TestRunDto dto = new TestRunDto();
+            dto.setTaskId(taskDto.getId().toHexString());
+            dto.setJsNodeId(nodeId);
+            dto.setTableName("test_table");
+            dto.setRows(1);
+            dto.setVersion(1L);
+            return dto;
         }
     }
 }
