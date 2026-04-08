@@ -170,47 +170,107 @@
     ]
   },
   {
-    "insert": "RoleMapping",
-    "documents": [
+    "update": "RoleMapping",
+    "updates": [
       {
-        "principalId": "v2_data-server-list_creation",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
+        "q": {
+          "principalId": "v2_data-server-list_creation",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
         },
-        "self_only": false
+        "u": {
+          "$set": {
+            "principalId": "v2_data-server-list_creation",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
       },
       {
-        "principalId": "v2_data-server-list_copy",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
+        "q": {
+          "principalId": "v2_data-server-list_copy",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
         },
-        "self_only": false
+        "u": {
+          "$set": {
+            "principalId": "v2_data-server-list_copy",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
       },
       {
-        "principalId": "v2_data-server-list_import",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
+        "q": {
+          "principalId": "v2_data-server-list_import",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
         },
-        "self_only": false
+        "u": {
+          "$set": {
+            "principalId": "v2_data-server-list_import",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
       },
       {
-        "principalId": "v2_data-server-list_export",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
+        "q": {
+          "principalId": "v2_data-server-list_export",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
         },
-        "self_only": false
+        "u": {
+          "$set": {
+            "principalId": "v2_data-server-list_export",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
       },
       {
-        "principalId": "v2_data-server-list_all_data",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
+        "q": {
+          "principalId": "v2_data-server-list_all_data",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
         },
-        "self_only": false
+        "u": {
+          "$set": {
+            "principalId": "v2_data-server-list_all_data",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
       }
     ]
   }
