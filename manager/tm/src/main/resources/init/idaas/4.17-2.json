@@ -4,138 +4,19 @@
     "updates": [
       {
         "q": {
-          "name": "v2_datasource_all_data_Edit"
+          "name": "v2_data-server-list_creation"
         },
         "u": {
           "$set": {
-            "parentId": "v2_datasource_menu",
-            "description": "编辑全部数据",
-            "name": "v2_datasource_all_data_Edit",
-            "need_permission": true,
-            "order": 2,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_datasource_all_data_Delete"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_datasource_menu",
-            "description": "删除全部数据",
-            "name": "v2_datasource_all_data_Delete",
-            "need_permission": true,
-            "order": 3,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_api-client_creation"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_api-client",
-            "description": "创建客户端",
-            "name": "v2_api-client_creation",
-            "need_permission": true,
-            "order": 1,
-            "resources": [
-              {
-                "type": "button",
-                "code": "v2_api-client_creation"
-              }
-            ],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_api-client_all_data"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_api-client",
-            "description": "全部数据授权",
-            "name": "v2_api-client_all_data",
-            "need_permission": true,
-            "order": 2,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_api-client_all_data_Edit"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_api-client",
-            "description": "编辑全部数据",
-            "name": "v2_api-client_all_data_Edit",
-            "need_permission": true,
-            "order": 3,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_api-client_all_data_Delete"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_api-client",
-            "description": "删除全部数据",
-            "name": "v2_api-client_all_data_Delete",
-            "need_permission": true,
-            "order": 4,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_api-servers_creation"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_api-servers",
+            "parentId": "v2_data-server-list",
             "description": "创建服务",
-            "name": "v2_api-servers_creation",
+            "name": "v2_data-server-list_creation",
             "need_permission": true,
             "order": 1,
             "resources": [
               {
                 "type": "button",
-                "code": "v2_api-servers_creation"
+                "code": "v2_data-server-list_creation"
               }
             ],
             "status": "enable",
@@ -147,19 +28,19 @@
       },
       {
         "q": {
-          "name": "v2_api-servers_download"
+          "name": "v2_data-server-list_copy"
         },
         "u": {
           "$set": {
-            "parentId": "v2_api-servers",
-            "description": "下载服务",
-            "name": "v2_api-servers_download",
+            "parentId": "v2_data-server-list",
+            "description": "复制服务",
+            "name": "v2_data-server-list_copy",
             "need_permission": true,
             "order": 2,
             "resources": [
               {
                 "type": "button",
-                "code": "v2_api-servers_download"
+                "code": "v2_data-server-list_copy"
               }
             ],
             "status": "enable",
@@ -171,51 +52,61 @@
       },
       {
         "q": {
-          "name": "v2_api-servers_all_data"
+          "name": "v2_data-server-list_import"
         },
         "u": {
           "$set": {
-            "parentId": "v2_api-servers",
+            "parentId": "v2_data-server-list",
+            "description": "导入服务",
+            "name": "v2_data-server-list_import",
+            "need_permission": true,
+            "order": 3,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_data-server-list_import"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data-server-list_export"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data-server-list",
+            "description": "导出服务",
+            "name": "v2_data-server-list_export",
+            "need_permission": true,
+            "order": 4,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_data-server-list_export"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data-server-list_all_data"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data-server-list",
             "description": "全部数据授权",
-            "name": "v2_api-servers_all_data",
-            "need_permission": true,
-            "order": 3,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_api-servers_all_data_Edit"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_api-servers",
-            "description": "编辑全部数据",
-            "name": "v2_api-servers_all_data_Edit",
-            "need_permission": true,
-            "order": 4,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_api-servers_all_data_Delete"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_api-servers",
-            "description": "删除全部数据",
-            "name": "v2_api-servers_all_data_Delete",
+            "name": "v2_data-server-list_all_data",
             "need_permission": true,
             "order": 5,
             "resources": [],
@@ -228,92 +119,22 @@
       },
       {
         "q": {
-          "name": "v2_data_replication_all_data_Edit"
+          "name": "v2_project_management"
         },
         "u": {
           "$set": {
-            "parentId": "v2_data_replication",
-            "description": "编辑全部数据",
-            "name": "v2_data_replication_all_data_Edit",
-            "need_permission": true,
-            "order": 2,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data_replication_all_data_Delete"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data_replication",
-            "description": "删除全部数据",
-            "name": "v2_data_replication_all_data_Delete",
-            "need_permission": true,
-            "order": 3,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data_replication_all_data_Reset"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data_replication",
-            "description": "重置全部数据",
-            "name": "v2_data_replication_all_data_Reset",
-            "need_permission": true,
-            "order": 4,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data_replication_all_data_Start"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data_replication",
-            "description": "启动全部数据",
-            "name": "v2_data_replication_all_data_Start",
-            "need_permission": true,
-            "order": 5,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data_replication_all_data_Stop"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data_replication",
-            "description": "停止全部数据",
-            "name": "v2_data_replication_all_data_Stop",
+            "parentId": "v2_advanced_features",
+            "description": "项目管理",
+            "name": "v2_project_management",
             "need_permission": true,
             "order": 6,
-            "resources": [],
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_project_management",
+                "path": ""
+              }
+            ],
             "status": "enable",
             "type": "read",
             "version": "v2"
@@ -323,168 +144,22 @@
       },
       {
         "q": {
-          "name": "v2_data_flow_all_data_Edit"
+          "name": "v2_project_import_and_export"
         },
         "u": {
           "$set": {
-            "parentId": "v2_data_flow",
-            "description": "编辑全部数据",
-            "name": "v2_data_flow_all_data_Edit",
-            "need_permission": true,
-            "order": 2,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data_flow_all_data_Delete"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data_flow",
-            "description": "删除全部数据",
-            "name": "v2_data_flow_all_data_Delete",
-            "need_permission": true,
-            "order": 3,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data_flow_all_data_Reset"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data_flow",
-            "description": "重置全部数据",
-            "name": "v2_data_flow_all_data_Reset",
-            "need_permission": true,
-            "order": 4,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data_flow_all_data_Start"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data_flow",
-            "description": "启动全部数据",
-            "name": "v2_data_flow_all_data_Start",
-            "need_permission": true,
-            "order": 5,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data_flow_all_data_Stop"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data_flow",
-            "description": "停止全部数据",
-            "name": "v2_data_flow_all_data_Stop",
+            "parentId": "v2_advanced_features",
+            "description": "项目导入导出",
+            "name": "v2_project_import_and_export",
             "need_permission": true,
             "order": 6,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data-server-list_all_data_Edit"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data-server-list",
-            "description": "编辑全部数据",
-            "name": "v2_data-server-list_all_data_Edit",
-            "need_permission": true,
-            "order": 6,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data-server-list_all_data_Publish"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data-server-list",
-            "description": "发布全部数据",
-            "name": "v2_data-server-list_all_data_Publish",
-            "need_permission": true,
-            "order": 7,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data-server-list_all_data_Delete"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data-server-list",
-            "description": "删除全部数据",
-            "name": "v2_data-server-list_all_data_Delete",
-            "need_permission": true,
-            "order": 10,
-            "resources": [],
-            "status": "enable",
-            "type": "read",
-            "version": "v2"
-          }
-        },
-        "upsert": true
-      },
-      {
-        "q": {
-          "name": "v2_data-server-list_all_data_Revoke"
-        },
-        "u": {
-          "$set": {
-            "parentId": "v2_data-server-list",
-            "description": "撤销全部数据",
-            "name": "v2_data-server-list_all_data_Revoke",
-            "need_permission": true,
-            "order": 11,
-            "resources": [],
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_project_import_and_export",
+                "path": ""
+              }
+            ],
             "status": "enable",
             "type": "read",
             "version": "v2"
@@ -498,7 +173,7 @@
     "insert": "RoleMapping",
     "documents": [
       {
-        "principalId": "v2_datasource_all_data_Edit",
+        "principalId": "v2_data-server-list_creation",
         "principalType": "PERMISSION",
         "roleId": {
           "$oid": "5b9a0a383fcba02649524bf1"
@@ -506,7 +181,7 @@
         "self_only": false
       },
       {
-        "principalId": "v2_datasource_all_data_Delete",
+        "principalId": "v2_data-server-list_copy",
         "principalType": "PERMISSION",
         "roleId": {
           "$oid": "5b9a0a383fcba02649524bf1"
@@ -514,7 +189,7 @@
         "self_only": false
       },
       {
-        "principalId": "v2_api-client_creation",
+        "principalId": "v2_data-server-list_import",
         "principalType": "PERMISSION",
         "roleId": {
           "$oid": "5b9a0a383fcba02649524bf1"
@@ -522,7 +197,7 @@
         "self_only": false
       },
       {
-        "principalId": "v2_api-client_all_data",
+        "principalId": "v2_data-server-list_export",
         "principalType": "PERMISSION",
         "roleId": {
           "$oid": "5b9a0a383fcba02649524bf1"
@@ -530,167 +205,7 @@
         "self_only": false
       },
       {
-        "principalId": "v2_api-client_all_data_Edit",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_api-client_all_data_Delete",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_api-servers_creation",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_api-servers_download",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_api-servers_all_data",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_api-servers_all_data_Edit",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_api-servers_all_data_Delete",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_replication_all_data_Edit",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_replication_all_data_Delete",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_replication_all_data_Reset",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_replication_all_data_Start",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_replication_all_data_Stop",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_flow_all_data_Edit",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_flow_all_data_Delete",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_flow_all_data_Reset",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_flow_all_data_Start",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data_flow_all_data_Stop",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data-server-list_all_data_Edit",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data-server-list_all_data_Publish",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data-server-list_all_data_Delete",
-        "principalType": "PERMISSION",
-        "roleId": {
-          "$oid": "5b9a0a383fcba02649524bf1"
-        },
-        "self_only": false
-      },
-      {
-        "principalId": "v2_data-server-list_all_data_Revoke",
+        "principalId": "v2_data-server-list_all_data",
         "principalType": "PERMISSION",
         "roleId": {
           "$oid": "5b9a0a383fcba02649524bf1"
