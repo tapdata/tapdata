@@ -201,7 +201,6 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@fileserver.tapdata.io:873/data/version/
       - name: Build Frontend
         run: |
-          pnpm config set registry https://registry.npmmirror.com
           cd tapdata && bash build/build.sh -c frontend -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
       - name: Build Docs
         run: |
