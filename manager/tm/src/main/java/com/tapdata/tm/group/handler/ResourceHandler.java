@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.dto.ResourceType;
@@ -111,7 +112,7 @@ public interface ResourceHandler {
      *
      * @param resources 资源列表
      */
-    List<DataSourceConnectionDto> loadConnections(List<?> resources);
+    List<DataSourceEntity> loadConnections(List<?> resources);
 
     /**
      * 查找重名的资源
@@ -133,7 +134,7 @@ public interface ResourceHandler {
 
     default void handleRelatedResources(Map<String, List<TaskUpAndLoadDto>> payloadsByType, List<?> resources,
             UserDetail user,Set<ObjectId> tagIds) {
-        List<DataSourceConnectionDto> connections = loadConnections(resources);
+        List<DataSourceEntity> connections = loadConnections(resources);
         List<TaskUpAndLoadDto> connectionPayload = buildConnectionPayload(connections, user);
         if (CollectionUtils.isNotEmpty(connections)) {
             connections.forEach(c -> {
@@ -149,32 +150,38 @@ public interface ResourceHandler {
     /**
      * 构建连接的导出payload（只收集连接和元数据，不生成Excel）
      */
-    default List<TaskUpAndLoadDto> buildConnectionPayload(List<DataSourceConnectionDto> connections, UserDetail user) {
+    default List<TaskUpAndLoadDto> buildConnectionPayload(List<DataSourceEntity> connections, UserDetail user) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         if (CollectionUtils.isEmpty(connections)) {
             return payload;
         }
 
-        for (DataSourceConnectionDto dataSourceConnectionDto : connections) {
-            dataSourceConnectionDto.setConnectionString(null);
-            dataSourceConnectionDto.setCustomId(null);
-            dataSourceConnectionDto.setLastUpdBy(null);
+        for (DataSourceEntity entity : connections) {
+            entity.setConnectionString(null);
+            entity.setCustomId(null);
+            entity.setLastUpdBy(null);
             // 移除环境相关字段，避免跨环境导入时产生误差
-            if (dataSourceConnectionDto.getConfig() != null) {
-                dataSourceConnectionDto.getConfig().remove("datasourceInstanceId");
+            if (entity.getConfig() != null) {
+                entity.getConfig().remove("datasourceInstanceId");
             }
             DataSourceDefinitionService dataSourceDefinitionService = SpringUtil
                     .getBean(DataSourceDefinitionService.class);
             DataSourceDefinitionDto definition = dataSourceDefinitionService
-                    .findByPdkHash(dataSourceConnectionDto.getPdkHash(), Integer.MAX_VALUE, user);
+                    .findByPdkHash(entity.getPdkHash(), Integer.MAX_VALUE, user);
             if (definition != null) {
-                dataSourceConnectionDto.setDefinitionPdkAPIVersion(definition.getPdkAPIVersion());
-                maskSensitiveConfigFields(dataSourceConnectionDto, definition);
+                maskSensitiveConfigFields(entity, definition);
             }
 
             // 收集元数据
-            String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database",
-                    dataSourceConnectionDto, null);
+            String id = entity.getId().toHexString();
+            String databaseQualifiedName;
+            if (DataSourceDefinitionDto.PDK_TYPE.equals(entity.getPdkType())) {
+                databaseQualifiedName = MetaDataBuilderUtils.generatePdkQualifiedName(
+                        "database", id, null, entity.getDefinitionPdkId(),
+                        entity.getDefinitionGroup(), entity.getDefinitionVersion(), null);
+            } else {
+                databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", id, null);
+            }
             MetadataInstancesService metadataInstancesService = SpringUtil.getBean(MetadataInstancesService.class);
             MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
                     Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)),
@@ -184,9 +191,20 @@ public interface ResourceHandler {
                         JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
             }
 
-            // 存储连接数据（用于后续统一生成Excel）
+            // 序列化连接数据，并补充 definitionPdkAPIVersion 供导入端版本校验使用
+            Map<String, Object> connMap = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(entity), Map.class);
+            if (connMap != null) {
+                // Entity.id 无 @JsonSerialize 注解，Jackson 默认只序列化 getTimestamp() 导致 id 格式不完整，
+                // 显式写成 hex string 确保导入端 ObjectIdDeserialize 能正确还原
+                if (entity.getId() != null) {
+                    connMap.put("id", entity.getId().toHexString());
+                }
+                if (definition != null) {
+                    connMap.put("definitionPdkAPIVersion", definition.getPdkAPIVersion());
+                }
+            }
             payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_CONNECTION,
-                    JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
+                    JsonUtil.toJsonUseJackson(connMap != null ? connMap : entity)));
         }
 
         return payload;
@@ -402,10 +420,10 @@ public interface ResourceHandler {
     }
 
     /**
-     * 根据 DataSourceDefinitionDto 中的 apiServerKey 定义，找到 DataSourceConnectionDto.config
+     * 根据 DataSourceDefinitionDto 中的 apiServerKey 定义，找到 DataSourceEntity.config
      * 里对应的路径并清空值。只处理 SENSITIVE_API_KEYS 中声明的标准化 apiServerKey。
      */
-    private static void maskSensitiveConfigFields(DataSourceConnectionDto conn,
+    private static void maskSensitiveConfigFields(DataSourceEntity conn,
             DataSourceDefinitionDto definition) {
         Map<String, Object> config = conn.getConfig();
         if (MapUtils.isEmpty(config) || definition == null) {

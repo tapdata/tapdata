@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -222,7 +223,7 @@ public class TaskResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<DataSourceConnectionDto> loadConnections(List<?> resources) {
+    public List<DataSourceEntity> loadConnections(List<?> resources) {
         Set<String> connectionIds = new HashSet<>();
         if (CollectionUtils.isEmpty(resources)) {
             return new ArrayList<>();
@@ -244,8 +245,11 @@ public class TaskResourceHandler implements ResourceHandler {
                 }
             }
         }
-        return dataSourceService.findInfoByConnectionIdList(new ArrayList<>(connectionIds));
-
+        if (connectionIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<ObjectId> objectIds = connectionIds.stream().map(ObjectId::new).collect(Collectors.toList());
+        return dataSourceService.findAllEntity(new Query(Criteria.where("_id").in(objectIds)));
     }
 
     @Override

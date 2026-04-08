@@ -2,6 +2,7 @@ package com.tapdata.tm.group.handler;
 
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -129,12 +130,11 @@ public class ModuleResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<DataSourceConnectionDto> loadConnections(List<?> resources) {
+    public List<DataSourceEntity> loadConnections(List<?> resources) {
         Set<String> connectionIds = new HashSet<>();
         if (CollectionUtils.isEmpty(resources)) {
             return new ArrayList<>();
         }
-
 
         List<ModulesDto> modules = (List<ModulesDto>) resources;
 
@@ -147,7 +147,11 @@ public class ModuleResourceHandler implements ResourceHandler {
                 connectionIds.add(connectionId);
             }
         }
-        return dataSourceService.findInfoByConnectionIdList(new ArrayList<>(connectionIds));
+        if (connectionIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<ObjectId> objectIds = connectionIds.stream().map(ObjectId::new).collect(Collectors.toList());
+        return dataSourceService.findAllEntity(new Query(Criteria.where("_id").in(objectIds)));
     }
 
     @Override

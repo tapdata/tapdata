@@ -1804,13 +1804,14 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            String connId = connectionDto.getId().toString();
-            Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
+            ObjectId dtoId = connectionDto.getId();
+            String connId = dtoId != null ? dtoId.toString() : null;
+            Query query = new Query(Criteria.where("_id").is(dtoId));
             query.fields().include("_id");
             connectionDto.setListtags(null);
             DataSourceConnectionDto connectionByUser = findOne(query,user);
             if (connectionByUser == null) {
-				DataSourceConnectionDto connection = findOne(new Query(Criteria.where("_id").is(connectionDto.getId())));
+				DataSourceConnectionDto connection = findOne(new Query(Criteria.where("_id").is(dtoId)));
                 while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
                     connectionDto.setName(connectionDto.getName() + "_import");
 				}
@@ -1839,7 +1840,11 @@ public class DataSourceServiceImpl extends DataSourceService{
                 }
             }
 
-            conMap.put(connId, connectionByUser);
+            String mapKey = connId != null ? connId
+                    : (connectionByUser != null && connectionByUser.getId() != null ? connectionByUser.getId().toString() : null);
+            if (mapKey != null) {
+                conMap.put(mapKey, connectionByUser);
+            }
 
         }
         return conMap;
@@ -1862,7 +1867,8 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            String connId = connectionDto.getId().toString();
+            ObjectId dtoId = connectionDto.getId();
+            String connId = dtoId != null ? dtoId.toString() : null;
             // 基于名称查找现有连接
             Query nameQuery = new Query(Criteria.where("name").is(connectionDto.getName()).and("is_deleted").ne(true));
             nameQuery.fields().include("_id", "name");
@@ -1923,7 +1929,11 @@ public class DataSourceServiceImpl extends DataSourceService{
                     resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     break;
             }
-            conMap.put(connId, resultConnection);
+            String mapKey = connId != null ? connId
+                    : (resultConnection != null && resultConnection.getId() != null ? resultConnection.getId().toString() : null);
+            if (mapKey != null) {
+                conMap.put(mapKey, resultConnection);
+            }
         }
 
         return conMap;

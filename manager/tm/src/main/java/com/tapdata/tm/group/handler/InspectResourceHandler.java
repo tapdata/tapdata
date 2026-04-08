@@ -2,7 +2,7 @@ package com.tapdata.tm.group.handler;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
@@ -132,7 +132,7 @@ public class InspectResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<DataSourceConnectionDto> loadConnections(List<?> resources) {
+    public List<DataSourceEntity> loadConnections(List<?> resources) {
         return List.of();
     }
 

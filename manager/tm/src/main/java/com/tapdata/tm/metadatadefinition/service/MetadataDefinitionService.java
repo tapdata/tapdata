@@ -651,8 +651,10 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
                 // 已存在，覆盖更新
                 update(idQuery, tag);
             } else {
-                // 不存在，以原 _id 插入
-                super.save(tag, user);
+                // 不存在，以原 _id 插入：使用 upsert 而非 save，
+                // 因为 save() 对已有 _id 的 entity 执行 updateFirst（而非 insert），
+                // 导致 document 不存在时无任何效果，MetadataDefinition 记录丢失。
+                upsert(idQuery, tag, user);
             }
         }
 

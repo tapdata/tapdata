@@ -23,6 +23,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.group.dto.*;
 import com.tapdata.tm.group.entity.GroupInfoEntity;
@@ -84,6 +85,8 @@ import java.util.stream.Collectors;
 import org.springframework.data.mongodb.core.query.Update;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.user.dto.UserDto;
+import com.tapdata.tm.user.entity.User;
+import com.tapdata.tm.user.repository.UserRepository;
 import com.tapdata.tm.role.dto.RoleDto;
 
 @Service
@@ -165,6 +168,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     private BatchUpChecker batchUpChecker;
     private com.tapdata.tm.roleMapping.service.RoleMappingService roleMappingService;
     private com.tapdata.tm.user.service.UserService userService;
+    private UserRepository userRepository;
     private com.tapdata.tm.role.service.RoleService roleService;
 
     @Override
@@ -727,12 +731,16 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
         try {
             for (GroupInfoDto groupInfo : groupInfos) {
-                // _id 已在导出时保留，resourceItems 中的资源 _id 也与目标环境一致，无需重新解析
                 groupInfo.setCreateUser(null);
                 groupInfo.setCustomId(null);
                 groupInfo.setLastUpdBy(null);
                 groupInfo.setUserId(null);
-                upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
+                if (groupInfo.getId() != null) {
+                    upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
+                } else {
+                    // 导入文件中无 _id 时，按 name 进行 upsert，避免重复创建同名分组
+                    upsertByWhere(Where.where("name", groupInfo.getName()), groupInfo, user);
+                }
             }
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
         } catch (Exception e) {
@@ -854,7 +862,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             refreshImportLastUpdate(connections.values(), connectionMetadata);
             Map<String, DataSourceConnectionDto> conMap = dataSourceService.batchImport(
-                    new ArrayList<>(connections.values()), user, ImportModeEnum.REPLACE);
+                    new ArrayList<>(connections.values()), user, importMode);
             metadataInstancesService.batchImport(connectionMetadata, user, conMap, new HashMap<>(), new HashMap<>());
             log.info("Async import connections completed, recordId={}, count={}", recordId, connections.size());
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
@@ -2123,10 +2131,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      * _id 保持恒等映射，userId/@SetOnInsert 字段由 upsert 机制自动保护（新建时写入，更新时不覆盖）。
      *
      * @param payloads 解析后的 tar 文件 payload（包含 Users.json、Roles.json 等 key）
-     * @param user     当前操作用户
      * @return exportedUserId → currentUserId 的映射（_id 保持不变，为恒等映射，供后续 Connection/Task user_id 替换使用）
      */
-    public Map<String, String> importUserData(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
+    public Map<String, String> importUserData(Map<String, List<TaskUpAndLoadDto>> payloads) {
         // exportedUserId → currentUserId（_id 已保留，映射为恒等）
         Map<String, String> userIdMap = new LinkedHashMap<>();
 
@@ -2137,13 +2144,18 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         for (TaskUpAndLoadDto item : usersPayload) {
             if (!GroupConstants.COLLECTION_USER.equals(item.getCollectionName()) || item.getJson() == null) continue;
             Map<String, Object> userMap = JsonUtil.parseJsonUseJackson(item.getJson(),
-                    new TypeReference<Map<String, Object>>() {});
+					new TypeReference<>() {
+					});
             if (userMap == null) continue;
             String exportedId = (String) userMap.get("_id");
             if (StringUtils.isBlank(exportedId)) continue;
 
             try {
-                UserDto userDto = EXPORT_MAPPER.convertValue(normalizeIdKey(userMap), UserDto.class);
+                // 先提取 password，再从 map 中移除，避免 UserDto（无 password 字段）反序列化报 UnrecognizedField
+                Object passwordRaw = userMap.get("password");
+                Map<String, Object> normalizedMap = normalizeIdKey(userMap);
+                normalizedMap.remove("password");
+                UserDto userDto = EXPORT_MAPPER.convertValue(normalizedMap, UserDto.class);
                 ObjectId userOid = userDto.getId();
                 if (userOid == null) continue;
                 // 新建时生成 accessCode（@SetOnInsert 保证更新时不覆盖已有 accessCode）
@@ -2151,6 +2163,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     userDto.setAccessCode(generateAccessCode());
                 }
                 userService.upsert(Query.query(Criteria.where("_id").is(userOid)), userDto);
+                // UserDto 无 password 字段，直接从导入 Map 中提取并单独写入（UserEntity 有 password）
+                if (passwordRaw instanceof String && StringUtils.isNotBlank((String) passwordRaw)) {
+                    userRepository.upsert(Query.query(Criteria.where("_id").is(userOid)),
+                            new Update().set("password", passwordRaw));
+                }
                 userIdMap.put(exportedId, exportedId);
                 userCount++;
             } catch (Exception e) {
@@ -2188,7 +2205,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         for (TaskUpAndLoadDto item : rmPayload) {
             if (!GroupConstants.COLLECTION_ROLE_MAPPING.equals(item.getCollectionName()) || item.getJson() == null) continue;
             Map<String, Object> rmMap = JsonUtil.parseJsonUseJackson(item.getJson(),
-                    new TypeReference<Map<String, Object>>() {});
+					new TypeReference<>() {
+					});
             if (rmMap == null) continue;
             String exportedRmId = (String) rmMap.get("_id");
             if (StringUtils.isBlank(exportedRmId)) continue;
@@ -2236,6 +2254,22 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
         map.entrySet().removeIf(e -> e.getValue() == null);
         return map;
+    }
+
+    /**
+     * 从 User 实体中提取 userId → password 映射，供导出时补充 password 字段使用。
+     * BaseService.findAll 在 DTO 转换时会主动剔除 password，因此需要直接查询实体。
+     */
+    private Map<String, String> buildUserPasswordMap(List<ObjectId> userObjectIds) {
+        try {
+            return userRepository.findAll(Query.query(Criteria.where("_id").in(userObjectIds)))
+                    .stream()
+                    .filter(u -> u.getId() != null && StringUtils.isNotBlank(u.getPassword()))
+                    .collect(Collectors.toMap(u -> u.getId().toHexString(), User::getPassword));
+        } catch (Exception e) {
+            log.warn("Failed to fetch user passwords for export", e);
+            return Collections.emptyMap();
+        }
     }
 
     /**
@@ -2296,7 +2330,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         if (payloads.containsKey(GroupConstants.PAYLOAD_KEY_USERS)) {
             log.info("Stage 0: Start importing user/role/permission data");
             try {
-                userIdMap = importUserData(payloads, user);
+                userIdMap = importUserData(payloads);
                 log.info("Stage 0: User data import completed, userIdMapSize={}", userIdMap.size());
             } catch (Exception e) {
                 log.warn("Stage 0: User data import failed, continuing without user mapping: {}", e.getMessage());
@@ -2459,16 +2493,21 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             if (CollectionUtils.isNotEmpty(groupInfos)) {
                 List<GroupInfoRecordDetail> finalDetails = details;
                 groupInfos.forEach(groupInfo -> {
-                    GroupInfoRecordDetail groupInfoRecordDetail = finalDetails.stream()
-                            .filter(d -> d.getGroupId().equals(groupInfo.getId().toHexString()))
-                            .findFirst().orElse(null);
+                    GroupInfoRecordDetail groupInfoRecordDetail = groupInfo.getId() == null ? null
+                            : finalDetails.stream()
+                                    .filter(d -> groupInfo.getId().toHexString().equals(d.getGroupId()))
+                                    .findFirst().orElse(null);
                     groupInfo.setCreateUser(null);
                     groupInfo.setCustomId(null);
                     groupInfo.setLastUpdBy(null);
                     groupInfo.setUserId(null);
-                    // _id 已保留，taskIdMap 为恒等映射，mapResourceItems 仅用于更新操作记录状态
-                    groupInfo.setResourceItemList(mapResourceItems(groupInfo.getResourceItemList(), taskIdMap,groupInfoRecordDetail,moduleImportResult,taskImportResult));
-                    upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
+                    groupInfo.setResourceItemList(mapResourceItems(groupInfo.getResourceItemList(), taskIdMap, groupInfoRecordDetail, moduleImportResult, taskImportResult));
+                    if (groupInfo.getId() != null) {
+                        upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
+                    } else {
+                        // 导入文件中无 _id 时，按 name 进行 upsert，避免重复创建同名分组
+                        upsertByWhere(Where.where("name", groupInfo.getName()), groupInfo, user);
+                    }
                 });
             }
             importedResources += groupCount;
@@ -2983,11 +3022,12 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return renamedGroups;
     }
 
-    protected List<DataSourceConnectionDto> loadConnections(Set<String> connectionIds) {
+    protected List<DataSourceEntity> loadConnections(Set<String> connectionIds) {
         if (CollectionUtils.isEmpty(connectionIds)) {
             return new ArrayList<>();
         }
-        return dataSourceService.findAllByIds(new ArrayList<>(connectionIds));
+        List<ObjectId> objectIds = connectionIds.stream().map(ObjectId::new).collect(Collectors.toList());
+        return dataSourceService.findAllEntity(new Query(Criteria.where("_id").in(objectIds)));
     }
 
     private String buildProjectName(List<GroupInfoDto> groupInfos) {
@@ -3060,9 +3100,18 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
 
         // 7. 构建 User 导出列表（排除 BASE_DTO_VOLATILE_FIELDS + 环境特定字段）
+        // 注：BaseService.findAll 在 DTO 转换时主动剔除了 password，需单独从 User 实体补充
+        Map<String, String> userPasswordMap = buildUserPasswordMap(userObjectIds);
         Set<String> userExtraExclude = new HashSet<>(Arrays.asList("accessCode", "roleMappings", "permissions"));
         List<Map<String, Object>> userExportList = userDtos.stream()
-                .map(dto -> dtoToExportMap(dto, userExtraExclude))
+                .map(dto -> {
+                    Map<String, Object> map = dtoToExportMap(dto, userExtraExclude);
+                    if (dto.getId() != null) {
+                        String pwd = userPasswordMap.get(dto.getId().toHexString());
+                        if (pwd != null) map.put("password", pwd);
+                    }
+                    return map;
+                })
                 .collect(Collectors.toList());
 
         // 8. 构建 Role 导出列表（排除 BASE_DTO_VOLATILE_FIELDS；userEmail 不再导出）

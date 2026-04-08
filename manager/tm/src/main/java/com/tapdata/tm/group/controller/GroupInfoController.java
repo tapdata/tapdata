@@ -229,12 +229,11 @@ public class GroupInfoController extends BaseController {
     @Operation(summary = "导入用户/角色/权限信息")
     @PostMapping(path = "/import/users", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Map<String, Object>> importUsers(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "REPLACE") String importMode)
+            @RequestParam("file") MultipartFile file)
             throws IOException {
         Map<String, List<com.tapdata.tm.task.bean.TaskUpAndLoadDto>> payloads =
                 groupInfoService.parseImportPayloadsPublic(file);
-        Map<String, String> userIdMap = groupInfoService.importUserData(payloads, getLoginUser());
+        Map<String, String> userIdMap = groupInfoService.importUserData(payloads);
         Map<String, Object> result = new HashMap<>();
         result.put("userIdMapSize", userIdMap.size());
         result.put("userIdMap", userIdMap);
