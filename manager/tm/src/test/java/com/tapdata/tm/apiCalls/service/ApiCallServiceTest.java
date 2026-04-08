@@ -1020,6 +1020,87 @@ class ApiCallServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("Method addMoreParam test")
+    class addMoreParamTest {
+
+        @Test
+        @DisplayName("should set dbRate and httpTime when reqBytes > 0 and dataQueryEndTime not null")
+        void testSetDbRateAndHttpTimeWhenDataQueryExists() {
+            ApiCallEntity apiCallEntity = new ApiCallEntity();
+            apiCallEntity.setReqTime(10L);
+            apiCallEntity.setResTime(110L);
+            apiCallEntity.setReqBytes(1000L);
+            apiCallEntity.setDataQueryEndTime(100L);
+            apiCallEntity.setDataQueryTotalTime(100L);
+
+            ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+            apiCallDetailVo.setLatency(300D);
+            apiCallDetailVo.setDataQueryTotalTime(100L);
+
+            apiCallService.addMoreParam(apiCallEntity, apiCallDetailVo);
+
+            Assertions.assertEquals(10L, apiCallDetailVo.getCallStart());
+            Assertions.assertEquals(110L, apiCallDetailVo.getCallEnd());
+            Assertions.assertEquals(1000L, apiCallDetailVo.getResponseBytes());
+            Assertions.assertEquals(10000D, apiCallDetailVo.getDbRate(), 0.0001);
+            Assertions.assertEquals(200D, apiCallDetailVo.getHttpTime(), 0.0001);
+        }
+
+        @Test
+        @DisplayName("should be compatible with boundary scenarios when dataQueryTotalTime is 0")
+        void testCompatibleWhenDataQueryTotalTimeIsZero() {
+            ApiCallEntity apiCallEntity = new ApiCallEntity();
+            apiCallEntity.setReqTime(10L);
+            apiCallEntity.setResTime(110L);
+            apiCallEntity.setReqBytes(1000L);
+            apiCallEntity.setDataQueryEndTime(100L);
+            apiCallEntity.setDataQueryTotalTime(0L);
+
+            ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+            apiCallDetailVo.setLatency(300D);
+            apiCallDetailVo.setDataQueryTotalTime(0L);
+
+            apiCallService.addMoreParam(apiCallEntity, apiCallDetailVo);
+
+            Assertions.assertEquals(10000000D, apiCallDetailVo.getDbRate(), 0.0001);
+            Assertions.assertEquals(300D, apiCallDetailVo.getHttpTime(), 0.0001);
+        }
+
+        @Test
+        @DisplayName("should set dbRate to 0 and calculate httpTime by resTime - reqTime when dataQueryEndTime is null")
+        void testSetHttpTimeByReqAndResTimeWhenNoDataQueryEndTime() {
+            ApiCallEntity apiCallEntity = new ApiCallEntity();
+            apiCallEntity.setReqTime(10L);
+            apiCallEntity.setResTime(60L);
+            apiCallEntity.setReqBytes(1000L);
+            apiCallEntity.setDataQueryEndTime(null);
+
+            ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+
+            apiCallService.addMoreParam(apiCallEntity, apiCallDetailVo);
+
+            Assertions.assertEquals(0D, apiCallDetailVo.getDbRate(), 0.0001);
+            Assertions.assertEquals(50D, apiCallDetailVo.getHttpTime(), 0.0001);
+        }
+
+        @Test
+        @DisplayName("should set httpTime to 0 when reqTime or resTime is null")
+        void testSetHttpTimeToZeroWhenReqOrResTimeIsNull() {
+            ApiCallEntity apiCallEntity = new ApiCallEntity();
+            apiCallEntity.setReqTime(10L);
+            apiCallEntity.setResTime(null);
+            apiCallEntity.setReqBytes(0L);
+
+            ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
+
+            apiCallService.addMoreParam(apiCallEntity, apiCallDetailVo);
+
+            Assertions.assertEquals(0D, apiCallDetailVo.getDbRate(), 0.0001);
+            Assertions.assertEquals(0D, apiCallDetailVo.getHttpTime(), 0.0001);
+        }
+    }
+
     public Filter parseFilter(String filterJson) {
         filterJson = BaseController.replaceLoopBack(filterJson);
         Filter filter = JsonUtil.parseJson(filterJson, Filter.class);
