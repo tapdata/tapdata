@@ -119,7 +119,7 @@ make_package_tapdata() {
   cp $TAPDATA_DIR/manager/tm/target/tm-*-exec.jar components/tm.jar
   cp $TAPDATA_DIR/iengine/ie.jar components/tapdata-agent.jar
   cp $TAPDATA_DIR/tapdata-cli/target/pdk.jar lib/pdk-deploy.jar
-  
+
   # Copy openapi-generator directory to etc
   if [[ -d "$TAPDATA_DIR/openapi-generator" ]]; then
     info "Copying openapi-generator directory to etc/"
@@ -167,8 +167,8 @@ make_docker() {
   cp $TAPDATA_DIR/build/image/docker-entrypoint.sh .
   cp -r $TAPDATA_DIR/build/image/bin .
   cp -r $TAPDATA_DIR/build/image/supervisor .
-  
-  # download and prepare async-profiler 
+
+  info ">> download and prepare async-profiler..."
   mkdir -p ./components/
   if [[ $PLATFORM == "x86_64" ]]; then
     rsync -vzrt --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/enterprise-artifact/tools/async-profiler-3.0-linux-x64.tar.gz ./async-profiler.tar.gz
@@ -178,10 +178,21 @@ make_docker() {
   tar -xzf async-profiler.tar.gz -C ./components/
   mv ./components/async-profiler-* ./components/async-profiler
   rm -f ./async-profiler.tar.gz
-  
-  # docker build -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME .
-  docker buildx create --use --name multi-platform --platform linux/amd64,linux/arm64
-  docker buildx build --platform linux/arm64,linux/amd64 -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME . --push
+
+  info ">> clean old builder (Avoid CI conflicts)..."
+  docker buildx rm multi-platform || true
+  info ">> Install QEMU..."
+  docker run --privileged --rm tonistiigi/binfmt --install all
+  info ">> create builder..."
+  docker buildx create --name multi-platform --use
+  info ">> init builder（Prevent DeadlineExceeded）"
+  docker buildx inspect --bootstrap
+  info ">> building..."
+  docker buildx build \
+    --platform linux/amd64,linux/arm64 \
+    -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME \
+    . \
+    --push
 }
 
 make_tar() {
