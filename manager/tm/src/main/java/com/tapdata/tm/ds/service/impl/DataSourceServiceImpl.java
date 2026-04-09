@@ -100,6 +100,7 @@ import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -1497,7 +1498,15 @@ public class DataSourceServiceImpl extends DataSourceService{
                 databaseModel.setSourceType(SourceTypeEnum.SOURCE.name());
                 databaseModel.setDeleted(false);
 
-                databaseModel = metadataInstancesService.upsertByWhere(Where.where("qualified_name", databaseModel.getQualifiedName()), databaseModel, user);
+                try {
+                    databaseModel = metadataInstancesService.upsertByWhere(Where.where("qualified_name", databaseModel.getQualifiedName()), databaseModel, user);
+                } catch (DuplicateKeyException e) {
+                    log.warn("Duplicate key on MetadataInstances upsert for qualified_name={}, falling back to find existing", databaseModel.getQualifiedName());
+                    MetadataInstancesDto existingMeta = metadataInstancesService.findByQualifiedNameNotDelete(databaseModel.getQualifiedName(), user);
+                    if (existingMeta != null) {
+                        databaseModel = existingMeta;
+                    }
+                }
                 String databaseId = databaseModel.getId().toHexString();
                 List<String> inValues = new ArrayList<>();
                 inValues.add("collection");
