@@ -202,6 +202,11 @@ public interface ResourceHandler {
                 if (definition != null) {
                     connMap.put("definitionPdkAPIVersion", definition.getPdkAPIVersion());
                 }
+                // Entity 序列化 userId 为 "userId"，但 DTO @JsonProperty 期望 "user_id"
+                // 统一为 DTO 字段名，确保导入反序列化时能正确还原
+                if (connMap.containsKey("userId") && !connMap.containsKey("user_id")) {
+                    connMap.put("user_id", connMap.remove("userId"));
+                }
             }
             payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_CONNECTION,
                     JsonUtil.toJsonUseJackson(connMap != null ? connMap : entity)));
@@ -231,10 +236,10 @@ public interface ResourceHandler {
                 try (java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(binaryData)) {
                     List<DataSourceConnectionDto> importedConnections = ExcelUtil.importConnectionsFromExcel(bais,user);
                     for (DataSourceConnectionDto connectionDto : importedConnections) {
-                        if (connectionDto != null) {
-                            String key = connectionDto.getId() == null ? connectionDto.getName()
-                                    : connectionDto.getId().toHexString();
-                            connections.putIfAbsent(key, connectionDto);
+                        if (connectionDto != null && connectionDto.getId() != null) {
+                            connections.putIfAbsent(connectionDto.getId().toHexString(), connectionDto);
+                        } else if (connectionDto != null) {
+                            log.warn("Connection from Excel has no _id, skip: name={}", connectionDto.getName());
                         }
                     }
                 } catch (IOException e) {
@@ -254,9 +259,19 @@ public interface ResourceHandler {
                 DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(taskUpAndLoadDto.getJson(),
                         DataSourceConnectionDto.class);
                 if (connectionDto != null) {
-                    String key = connectionDto.getId() == null ? connectionDto.getName()
-                            : connectionDto.getId().toHexString();
-                    connections.putIfAbsent(key, connectionDto);
+                    // 兼容旧导出文件：Entity 序列化字段名 "userId" 与 DTO @JsonProperty("user_id") 不一致，
+                    // 旧文件中 Jackson 反序列化时无法匹配导致 userId 为 null，此处从原始 JSON 中补回
+                    if (connectionDto.getUserId() == null) {
+                        Map<String, Object> rawMap = JsonUtil.parseJsonUseJackson(taskUpAndLoadDto.getJson(), Map.class);
+                        if (rawMap != null && rawMap.get("userId") instanceof String) {
+                            connectionDto.setUserId((String) rawMap.get("userId"));
+                        }
+                    }
+                    if (connectionDto.getId() == null) {
+                        log.warn("Connection from JSON has no _id, skip: name={}", connectionDto.getName());
+                    } else {
+                        connections.putIfAbsent(connectionDto.getId().toHexString(), connectionDto);
+                    }
                 }
             } else if (GroupConstants.COLLECTION_METADATA_INSTANCES.equals(taskUpAndLoadDto.getCollectionName())) {
                 MetadataInstancesDto metadataInstancesDto = JsonUtil.parseJsonUseJackson(taskUpAndLoadDto.getJson(),

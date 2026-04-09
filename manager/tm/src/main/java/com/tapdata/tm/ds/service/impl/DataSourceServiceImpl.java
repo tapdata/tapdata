@@ -1855,6 +1855,10 @@ public class DataSourceServiceImpl extends DataSourceService{
      */
     public Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user,
                                                             com.tapdata.tm.commons.task.dto.ImportModeEnum importMode) {
+        log.info("[batchImport] importMode={}, connectionCount={}, operator.userId={}", importMode, connectionDtos.size(), user.getUserId());
+        for (DataSourceConnectionDto dto : connectionDtos) {
+            log.info("[batchImport] input connection id={}, name={}, userId={}", dto.getId(), dto.getName(), dto.getUserId());
+        }
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 
         if(importMode.equals(ImportModeEnum.CANCEL_IMPORT)){
@@ -1893,7 +1897,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                         }
 
                         agentGroupService.importAgentInfo(connectionDto);
-                        resultConnection = save(connectionDto, user);
+                        resultConnection = importSave(connectionDto, user);
                     } else {
                         // 不存在同名连接，作为新连接导入
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
@@ -1993,11 +1997,16 @@ public class DataSourceServiceImpl extends DataSourceService{
         agentGroupService.importAgentInfo(connectionDto);
 
         if (existingById != null) {
-            // 已存在相同 _id，覆盖更新
-            return save(connectionDto, user);
+            // 已存在相同 _id，覆盖更新（保留原始 userId）
+            log.info("[handleGroupImportConnection] existing found for id={}, calling importSave, connectionDto.userId={}", connectionDto.getId(), connectionDto.getUserId());
+            DataSourceConnectionDto result = importSave(connectionDto, user);
+            log.info("[handleGroupImportConnection] importSave returned, result.userId={}", result.getUserId());
+            return result;
         } else {
             // 不存在，以原 _id 插入
+            log.info("[handleGroupImportConnection] no existing for id={}, calling importEntity, connectionDto.userId={}", connectionDto.getId(), connectionDto.getUserId());
             DataSourceConnectionDto result = importEntity(connectionDto, user);
+            log.info("[handleGroupImportConnection] importEntity returned, result.userId={}", result.getUserId());
             sendTestConnection(connectionDto, true, true, user);
             return result;
         }
@@ -2313,6 +2322,17 @@ public class DataSourceServiceImpl extends DataSourceService{
     public DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail) {
         DataSourceEntity dataSourceEntity = repository.importEntity(convertToEntity(DataSourceEntity.class, dto), userDetail);
         return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
+    }
+
+    /**
+     * 导入场景的 save，保留原始 userId 和 createUser。
+     * 与 BaseService.save() 流程一致（包括 beforeSave），仅 repository 层调用不同。
+     */
+    public DataSourceConnectionDto importSave(DataSourceConnectionDto dto, UserDetail userDetail) {
+        beforeSave(dto, userDetail);
+        DataSourceEntity entity = convertToEntity(DataSourceEntity.class, dto);
+        entity = repository.importSave(entity, userDetail);
+        return convertToDto(entity, DataSourceConnectionDto.class);
     }
 
     public List<TaskDto> findUsingDigginTaskByConnectionId(String connectionId, UserDetail user) {

@@ -735,12 +735,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 groupInfo.setCustomId(null);
                 groupInfo.setLastUpdBy(null);
                 groupInfo.setUserId(null);
-                if (groupInfo.getId() != null) {
-                    upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
-                } else {
-                    // 导入文件中无 _id 时，按 name 进行 upsert，避免重复创建同名分组
-                    upsertByWhere(Where.where("name", groupInfo.getName()), groupInfo, user);
+                if (groupInfo.getId() == null) {
+                    log.warn("GroupInfo has no _id, skip import: name={}", groupInfo.getName());
+                    continue;
                 }
+                upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
             }
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
         } catch (Exception e) {
@@ -759,63 +758,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             return new ArrayList<>();
         }
 
-        // Collect names per type
-        Set<String> taskNames = new HashSet<>();
-        Set<String> connNames = new HashSet<>();
-        Set<String> moduleNames = new HashSet<>();
-        Set<String> inspectNames = new HashSet<>();
-        for (ResourceItem item : items) {
-            if (item == null || item.getType() == null || StringUtils.isBlank(item.getName())) continue;
-            switch (item.getType()) {
-                case MIGRATE_TASK, SYNC_TASK, SHARE_CACHE -> taskNames.add(item.getName());
-                case CONNECTION -> connNames.add(item.getName());
-                case MODULE -> moduleNames.add(item.getName());
-                case INSPECT_TASK -> inspectNames.add(item.getName());
-                default -> {}
-            }
-        }
-
-        // Query DB for each type and build name→id maps
-        Map<String, String> taskNameToId = new HashMap<>();
-        if (!taskNames.isEmpty()) {
-            taskService.findAllDto(new Query(Criteria.where("name").in(taskNames).and("is_deleted").ne(true)), user)
-                    .forEach(t -> taskNameToId.putIfAbsent(t.getName(), t.getId().toHexString()));
-        }
-        Map<String, String> connNameToId = new HashMap<>();
-        if (!connNames.isEmpty()) {
-            dataSourceService.findAllDto(new Query(Criteria.where("name").in(connNames).and("is_deleted").ne(true)), user)
-                    .forEach(c -> connNameToId.putIfAbsent(c.getName(), c.getId().toHexString()));
-        }
-        Map<String, String> moduleNameToId = new HashMap<>();
-        if (!moduleNames.isEmpty()) {
-            modulesService.findAllDto(new Query(Criteria.where("name").in(moduleNames).and("is_deleted").ne(true)), user)
-                    .forEach(m -> moduleNameToId.putIfAbsent(m.getName(), m.getId().toHexString()));
-        }
-        Map<String, String> inspectNameToId = new HashMap<>();
-        for (String name : inspectNames) {
-            List<InspectDto> found = inspectService.findByName(name);
-            if (CollectionUtils.isNotEmpty(found) && found.get(0).getId() != null) {
-                inspectNameToId.putIfAbsent(name, found.get(0).getId().toHexString());
-            }
-        }
-
-        // Resolve each item
+        // 直接使用 ResourceItem 中的 _id，不再按 name 查找
         List<ResourceItem> resolved = new ArrayList<>();
         for (ResourceItem item : items) {
             if (item == null || item.getType() == null) continue;
+            if (StringUtils.isBlank(item.getId())) {
+                log.warn("ResourceItem has no id, skip: name={}, type={}", item.getName(), item.getType());
+                continue;
+            }
             ResourceItem copy = new ResourceItem();
             copy.setType(item.getType());
-            String resolvedId = null;
-            if (StringUtils.isNotBlank(item.getName())) {
-                resolvedId = switch (item.getType()) {
-                    case MIGRATE_TASK, SYNC_TASK, SHARE_CACHE -> taskNameToId.get(item.getName());
-                    case CONNECTION -> connNameToId.get(item.getName());
-                    case MODULE -> moduleNameToId.get(item.getName());
-                    case INSPECT_TASK -> inspectNameToId.get(item.getName());
-                    default -> null;
-                };
-            }
-            copy.setId(StringUtils.isNotBlank(resolvedId) ? resolvedId : item.getId());
+            copy.setId(item.getId());
             resolved.add(copy);
         }
         return resolved;
@@ -1019,29 +972,27 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             resourceHandlerRegistry.getAllHandlers().stream().findFirst().ifPresent(
                     h -> h.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType, user));
 
-            // 用 payload 中连接的名称查询 DB 里已存在的连接，建立 旧ID -> 新连接DTO 的映射
+            // 用 payload 中连接的 _id 查询 DB 里已存在的连接，建立 旧ID -> 连接DTO 的映射
             Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
             Map<String, DataSourceConnectionDto> payloadConnections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
             if (!payloadConnections.isEmpty()) {
-                List<String> connectionNames = payloadConnections.values().stream()
-                        .map(DataSourceConnectionDto::getName)
+                List<ObjectId> connectionIds = payloadConnections.keySet().stream()
                         .filter(StringUtils::isNotBlank)
-                        .distinct()
+                        .map(ObjectId::new)
                         .collect(Collectors.toList());
-                List<DataSourceConnectionDto> existingConnections = dataSourceService.findAllDto(
-                        new Query(Criteria.where("name").in(connectionNames).and("is_deleted").ne(true)), user);
-                Map<String, DataSourceConnectionDto> nameToExisting = existingConnections.stream()
-                        .collect(Collectors.toMap(DataSourceConnectionDto::getName, c -> c, (a, b) -> a));
-                for (Map.Entry<String, DataSourceConnectionDto> entry : payloadConnections.entrySet()) {
-                    String oldId = entry.getKey();
-                    String name = entry.getValue().getName();
-                    DataSourceConnectionDto existing = nameToExisting.get(name);
+                Map<String, DataSourceConnectionDto> existingById = connectionIds.isEmpty()
+                        ? Collections.emptyMap()
+                        : dataSourceService.findAllDto(
+                                new Query(Criteria.where("_id").in(connectionIds).and("is_deleted").ne(true)), user)
+                            .stream().collect(Collectors.toMap(c -> c.getId().toHexString(), c -> c, (a, b) -> a));
+                for (String oldId : payloadConnections.keySet()) {
+                    DataSourceConnectionDto existing = existingById.get(oldId);
                     if (existing != null) {
                         conMap.put(oldId, existing);
-                        log.info("conMap built (api): oldId={}, name={}, newId={}", oldId, name, existing.getId());
+                        log.info("conMap built (api): id={}, name={}", oldId, existing.getName());
                     } else {
-                        log.warn("conMap build (api): connection '{}' (oldId={}) not found in DB", name, oldId);
+                        log.warn("conMap build (api): connection id={} not found in DB", oldId);
                     }
                 }
                 log.info("conMap built from payload connections (api), payload size={}, matched={}", payloadConnections.size(), conMap.size());
@@ -1120,46 +1071,45 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
             // 找出需要导入的任务中，当前在 DB 里处于运行状态的任务，导入前先停止
             Set<String> runningStatuses = Set.of(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN);
-            List<String> toImportNames = toImportTasks.stream().map(TaskDto::getName).collect(Collectors.toList());
-            Map<String, TaskDto> existingTasksByName = Collections.emptyMap();
-            if (!toImportNames.isEmpty()) {
-                existingTasksByName = taskService
-                        .findAllDto(new Query(Criteria.where("name").in(toImportNames).and("is_deleted").ne(true)), user)
-                        .stream().collect(Collectors.toMap(TaskDto::getName, t -> t, (a, b) -> a));
+            List<ObjectId> toImportTaskIds = toImportTasks.stream()
+                    .map(TaskDto::getId).filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            Map<String, TaskDto> existingTasksById = Collections.emptyMap();
+            if (!toImportTaskIds.isEmpty()) {
+                existingTasksById = taskService
+                        .findAllDto(new Query(Criteria.where("_id").in(toImportTaskIds).and("is_deleted").ne(true)), user)
+                        .stream().collect(Collectors.toMap(t -> t.getId().toHexString(), t -> t, (a, b) -> a));
             }
-            Set<String> stoppedTaskNames = new HashSet<>();
-            for (TaskDto existing : existingTasksByName.values()) {
+            Set<String> stoppedTaskIds = new HashSet<>();
+            for (TaskDto existing : existingTasksById.values()) {
                 if (runningStatuses.contains(existing.getStatus())) {
-                    log.info("Stopping task '{}' before import, status={}", existing.getName(), existing.getStatus());
+                    log.info("Stopping task '{}' (id={}) before import, status={}", existing.getName(), existing.getId(), existing.getStatus());
                     stopAndWaitTask(existing, user);
-                    stoppedTaskNames.add(existing.getName());
+                    stoppedTaskIds.add(existing.getId().toHexString());
                 }
             }
 
-            // 用 payload 中连接的名称查询 DB 里已存在的连接，建立 旧ID -> 新连接DTO 的映射
-            // GROUP_IMPORT 场景下连接不会重新导入，但任务节点上的 connectionId 是导出时的旧 ID，需要映射到目标环境的新 ID
+            // 用 payload 中连接的 _id 查询 DB 里已存在的连接，建立 旧ID -> 连接DTO 的映射
             Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
             Map<String, DataSourceConnectionDto> payloadConnections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
             if (!payloadConnections.isEmpty()) {
-                List<String> connectionNames = payloadConnections.values().stream()
-                        .map(DataSourceConnectionDto::getName)
+                List<ObjectId> connectionIds = payloadConnections.keySet().stream()
                         .filter(StringUtils::isNotBlank)
-                        .distinct()
+                        .map(ObjectId::new)
                         .collect(Collectors.toList());
-                List<DataSourceConnectionDto> existingConnections = dataSourceService.findAllDto(
-                        new Query(Criteria.where("name").in(connectionNames).and("is_deleted").ne(true)), user);
-                Map<String, DataSourceConnectionDto> nameToExisting = existingConnections.stream()
-                        .collect(Collectors.toMap(DataSourceConnectionDto::getName, c -> c, (a, b) -> a));
-                for (Map.Entry<String, DataSourceConnectionDto> entry : payloadConnections.entrySet()) {
-                    String oldId = entry.getKey();
-                    String name = entry.getValue().getName();
-                    DataSourceConnectionDto existing = nameToExisting.get(name);
+                Map<String, DataSourceConnectionDto> existingById = connectionIds.isEmpty()
+                        ? Collections.emptyMap()
+                        : dataSourceService.findAllDto(
+                                new Query(Criteria.where("_id").in(connectionIds).and("is_deleted").ne(true)), user)
+                            .stream().collect(Collectors.toMap(c -> c.getId().toHexString(), c -> c, (a, b) -> a));
+                for (String oldId : payloadConnections.keySet()) {
+                    DataSourceConnectionDto existing = existingById.get(oldId);
                     if (existing != null) {
                         conMap.put(oldId, existing);
-                        log.info("conMap built: oldId={}, name={}, newId={}", oldId, name, existing.getId());
+                        log.info("conMap built: id={}, name={}", oldId, existing.getName());
                     } else {
-                        log.warn("conMap build: connection '{}' (oldId={}) not found in DB, tasks referencing it may fail", name, oldId);
+                        log.warn("conMap build: connection id={} not found in DB, tasks referencing it may fail", oldId);
                     }
                 }
                 log.info("conMap built from payload connections, payload size={}, matched={}", payloadConnections.size(), conMap.size());
@@ -1181,11 +1131,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
 
             // 重启导入前被停止的任务
-            for (String name : stoppedTaskNames) {
+            for (String stoppedId : stoppedTaskIds) {
                 TaskDto imported = taskService.findOne(
-                        new Query(Criteria.where("name").is(name).and("is_deleted").ne(true)), user);
+                        new Query(Criteria.where("_id").is(new ObjectId(stoppedId)).and("is_deleted").ne(true)), user);
                 if (imported != null) {
-                    log.info("Restarting task '{}' after import", name);
+                    log.info("Restarting task '{}' (id={}) after import", imported.getName(), stoppedId);
                     taskService.start(imported.getId(), user);
                 }
             }
@@ -1198,19 +1148,24 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
             Set<String> stoppedInspectIds = new HashSet<>();
             for (InspectDto fileInspect : toImportInspects) {
-                List<InspectDto> found = inspectService.findByName(fileInspect.getName());
-                if (CollectionUtils.isNotEmpty(found)) {
-                    InspectDto existing = found.get(0);
+                if (fileInspect.getId() == null) {
+                    log.warn("InspectDto has no _id, skip stop check: name={}", fileInspect.getName());
+                    continue;
+                }
+                InspectDto existing = inspectService.findOne(
+                        new Query(Criteria.where("_id").is(fileInspect.getId())), user);
+                if (existing != null) {
                     String existStatus = existing.getStatus();
                     if (InspectStatusEnum.RUNNING.getValue().equals(existStatus)
                             || InspectStatusEnum.SCHEDULING.getValue().equals(existStatus)) {
-                        log.info("Stopping inspect task '{}' before import, status={}", existing.getName(), existStatus);
+                        log.info("Stopping inspect task '{}' (id={}) before import, status={}", existing.getName(), existing.getId(), existStatus);
                         boolean stopped = stopAndWaitInspectTask(existing.getId().toHexString(), existing.getName(), user);
                         if (stopped) {
                             stoppedInspectIds.add(existing.getId().toHexString());
                         } else {
-                            log.warn("Inspect task '{}' did not stop, skipping import", existing.getName());
-                            toImportInspects.removeIf(t -> existing.getName().equals(t.getName()));
+                            log.warn("Inspect task '{}' (id={}) did not stop, skipping import", existing.getName(), existing.getId());
+                            String existingId = existing.getId().toHexString();
+                            toImportInspects.removeIf(t -> t.getId() != null && existingId.equals(t.getId().toHexString()));
                         }
                     }
                 }
@@ -1381,27 +1336,26 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         ResourceDiff diff = new ResourceDiff();
         List<TaskUpAndLoadDto> connPayload = payloads.getOrDefault("Connection.json", Collections.emptyList());
 
-        // Parse file connections (deduplicated by _id, fallback to name)
+        // Parse file connections (deduplicated by _id)
         Map<String, DataSourceConnectionDto> fileConnsById = new LinkedHashMap<>();
         for (TaskUpAndLoadDto item : connPayload) {
             if (!GroupConstants.COLLECTION_CONNECTION.equals(item.getCollectionName())) continue;
             DataSourceConnectionDto dto = parseConnectionDto(item.getJson());
-            if (dto == null) continue;
-            String key = dto.getId() != null ? dto.getId().toHexString() : dto.getName();
-            if (key != null) fileConnsById.putIfAbsent(key, dto);
+            if (dto == null || dto.getId() == null) {
+                log.warn("Connection has no _id, skip diff: name={}", dto != null ? dto.getName() : "null");
+                continue;
+            }
+            fileConnsById.putIfAbsent(dto.getId().toHexString(), dto);
         }
         if (fileConnsById.isEmpty()) return diff;
 
         // Batch-query existing connections by _id
         List<ObjectId> fileConnObjectIds = fileConnsById.values().stream()
-                .filter(c -> c.getId() != null)
                 .map(DataSourceConnectionDto::getId)
                 .collect(Collectors.toList());
-        Map<String, DataSourceConnectionDto> existingById = fileConnObjectIds.isEmpty()
-                ? Collections.emptyMap()
-                : dataSourceService
-                    .findAllDto(new Query(Criteria.where("_id").in(fileConnObjectIds).and("is_deleted").ne(true)), user)
-                    .stream().collect(Collectors.toMap(c -> c.getId().toHexString(), c -> c, (a, b) -> a));
+        Map<String, DataSourceConnectionDto> existingById = dataSourceService
+                .findAllDto(new Query(Criteria.where("_id").in(fileConnObjectIds).and("is_deleted").ne(true)), user)
+                .stream().collect(Collectors.toMap(c -> c.getId().toHexString(), c -> c, (a, b) -> a));
 
         // Batch-query definitions by pdkHash
         Set<String> pdkHashes = new HashSet<>();
@@ -1548,6 +1502,18 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             // MongoDB URI 但没有密码，原样返回
             return uri;
         } catch (Exception e) {
+            // ConnectionString 解析失败（例如 mongodb+srv DNS 解析异常），尝试字符串级别 mask 密码
+            if (uri.startsWith("mongodb://") || uri.startsWith("mongodb+srv://")) {
+                int credStart = uri.indexOf("//") + 2;
+                int atSign = uri.indexOf("@", credStart);
+                int colon = uri.indexOf(":", credStart);
+                if (colon > credStart && atSign > colon) {
+                    // 存在 user:password@host 格式，mask 密码部分
+                    return uri.substring(0, colon + 1) + "******" + uri.substring(atSign);
+                }
+                // MongoDB URI 但无密码格式，原样返回
+                return uri;
+            }
             // 非 MongoDB URI，全部 mask
             return "******";
         }
@@ -1608,13 +1574,20 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
         }
 
-        // Regular tasks: query DB then config-compare (mirrors checkTaskConfig logic)
+        // Regular tasks: query DB by _id then config-compare (mirrors checkTaskConfig logic)
         if (!fileTaskEntries.isEmpty()) {
+            // 过滤掉没有 _id 的任务
+            fileTaskEntries.removeIf(e -> {
+                if (e.getKey().getId() == null) {
+                    log.warn("Task has no _id, skip diff: name={}", e.getKey().getName());
+                    return true;
+                }
+                return false;
+            });
             List<ObjectId> regularTaskIds = fileTaskEntries.stream()
                     .map(e -> e.getKey().getId())
-                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
-            Map<String, TaskDto> existingById = regularTaskIds.isEmpty()
+            Map<String, TaskDto> existingByKey = regularTaskIds.isEmpty()
                     ? Collections.emptyMap()
                     : taskService
                         .findAllDto(new Query(Criteria.where("_id").in(regularTaskIds).and("is_deleted").ne(true)), user)
@@ -1622,8 +1595,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             for (Map.Entry<TaskDto, String> entry : fileTaskEntries) {
                 TaskDto fileTask = entry.getKey();
                 String type = entry.getValue();
-                String taskIdKey = fileTask.getId() != null ? fileTask.getId().toHexString() : null;
-                TaskDto existingTask = taskIdKey != null ? existingById.get(taskIdKey) : null;
+                TaskDto existingTask = existingByKey.get(fileTask.getId().toHexString());
                 if (existingTask == null) {
                     ResourceDiffItem item = new ResourceDiffItem(fileTask.getName(), type);
                     item.setSyncType(fileTask.getType());
@@ -1657,6 +1629,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             if (fileInspect.getId() != null) {
                 Query idQuery = new Query(Criteria.where("_id").is(fileInspect.getId()).and("is_deleted").ne(true));
                 existingInspect = inspectService.findOne(idQuery, user);
+            }
+            if (existingInspect == null && StringUtils.isNotBlank(fileInspect.getName())) {
+                // Fallback: query by name when _id is absent or not found
+                List<InspectDto> foundByName = inspectService.findByName(fileInspect.getName());
+                if (foundByName != null && !foundByName.isEmpty()) {
+                    existingInspect = foundByName.get(0);
+                }
             }
             if (existingInspect == null) {
                 diff.getAdd().add(new ResourceDiffItem(fileInspect.getName(), "validate"));
@@ -1903,32 +1882,28 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     private ResourceDiff buildApiDiff(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
         ResourceDiff diff = new ResourceDiff();
 
-        // 解析文件中的 Module，以 _id 为 key 去重（fallback 到 name）
-        // 用 ModulesDto 取 _id，用 normalized map 做字段比对
+        // 解析文件中的 Module，以 _id 为 key 去重
         Map<String, Map<String, Object>> fileModulesById = new LinkedHashMap<>();
-        Map<String, ObjectId> fileModuleIdMap = new LinkedHashMap<>(); // key → ObjectId
         for (TaskUpAndLoadDto item : payloads.getOrDefault("Module.json", Collections.emptyList())) {
             if (!GroupConstants.COLLECTION_MODULES.equals(item.getCollectionName())) continue;
             Map<String, Object> normalized = normalizeModuleForComparison(item.getJson());
             if (normalized == null) continue;
             ModulesDto parsedDto = JsonUtil.parseJsonUseJackson(item.getJson(), ModulesDto.class);
-            String idKey = parsedDto != null && parsedDto.getId() != null
-                    ? parsedDto.getId().toHexString()
-                    : (String) normalized.get("name");
-            if (idKey == null) continue;
-            if (fileModulesById.putIfAbsent(idKey, normalized) == null && parsedDto != null && parsedDto.getId() != null) {
-                fileModuleIdMap.put(idKey, parsedDto.getId());
+            if (parsedDto == null || parsedDto.getId() == null) {
+                log.warn("Module has no _id, skip diff: name={}", normalized.get("name"));
+                continue;
             }
+            fileModulesById.putIfAbsent(parsedDto.getId().toHexString(), normalized);
         }
         if (fileModulesById.isEmpty()) return diff;
 
         // 批量查询 DB 中同 _id 的 Module
-        List<ObjectId> fileModuleObjectIds = new ArrayList<>(fileModuleIdMap.values());
-        Map<String, ModulesDto> existingById = fileModuleObjectIds.isEmpty()
-                ? Collections.emptyMap()
-                : modulesService
-                    .findAllDto(new Query(Criteria.where("_id").in(fileModuleObjectIds).and("is_deleted").ne(true)), user)
-                    .stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m, (a, b) -> a));
+        List<ObjectId> fileModuleObjectIds = fileModulesById.keySet().stream()
+                .map(ObjectId::new)
+                .collect(Collectors.toList());
+        Map<String, ModulesDto> existingById = modulesService
+                .findAllDto(new Query(Criteria.where("_id").in(fileModuleObjectIds).and("is_deleted").ne(true)), user)
+                .stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m, (a, b) -> a));
 
         for (Map.Entry<String, Map<String, Object>> entry : fileModulesById.entrySet()) {
             String key = entry.getKey();
@@ -2497,16 +2472,29 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                             : finalDetails.stream()
                                     .filter(d -> groupInfo.getId().toHexString().equals(d.getGroupId()))
                                     .findFirst().orElse(null);
+                    // 保留导出文件中的原始 userId，upsert 后恢复
+                    String originalUserId = groupInfo.getUserId();
+                    // 映射 userId（如果 userIdMap 存在映射）
+                    if (StringUtils.isNotBlank(originalUserId) && !finalUserIdMap.isEmpty()) {
+                        String mappedUserId = finalUserIdMap.get(originalUserId);
+                        if (StringUtils.isNotBlank(mappedUserId)) {
+                            originalUserId = mappedUserId;
+                        }
+                    }
                     groupInfo.setCreateUser(null);
                     groupInfo.setCustomId(null);
                     groupInfo.setLastUpdBy(null);
                     groupInfo.setUserId(null);
                     groupInfo.setResourceItemList(mapResourceItems(groupInfo.getResourceItemList(), taskIdMap, groupInfoRecordDetail, moduleImportResult, taskImportResult));
-                    if (groupInfo.getId() != null) {
-                        upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
-                    } else {
-                        // 导入文件中无 _id 时，按 name 进行 upsert，避免重复创建同名分组
-                        upsertByWhere(Where.where("name", groupInfo.getName()), groupInfo, user);
+                    if (groupInfo.getId() == null) {
+                        log.warn("GroupInfo has no _id, skip import: name={}", groupInfo.getName());
+                        return;
+                    }
+                    upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
+                    // upsert 中 @SetOnInsert + applyUserDetail 会把 userId 设为 admin，
+                    // 需要额外 update 恢复为导出文件中的原始值
+                    if (StringUtils.isNotBlank(originalUserId)) {
+                        updateById(groupInfo.getId(), Update.update("user_id", originalUserId), user);
                     }
                 });
             }
@@ -2754,7 +2742,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 groupInfoCopy.setCreateUser(null);
                 groupInfoCopy.setCustomId(null);
                 groupInfoCopy.setLastUpdBy(null);
-                groupInfoCopy.setUserId(null);
+                // 保留 userId，导入时需要保持与导出环境一致
                 // 保留 _id 以便跨环境导入时保持 _id 一致
                 groupInfoCopy.setLastUpdAt(null);
                 groupInfoCopy.setCreateAt(null);
@@ -2987,36 +2975,39 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             return renamedGroups;
         }
 
-        List<String> allNames = groupInfos.stream()
-                .filter(g -> g != null && StringUtils.isNotBlank(g.getName()))
-                .map(GroupInfoDto::getName)
+        // 收集导入 group 的 _id，用于区分新增和更新
+        List<ObjectId> importIds = groupInfos.stream()
+                .filter(g -> g != null && g.getId() != null)
+                .map(GroupInfoDto::getId)
                 .collect(Collectors.toList());
+        Set<String> existingImportIds = importIds.isEmpty()
+                ? Collections.emptySet()
+                : findAllDto(new Query(Criteria.where("_id").in(importIds)), user).stream()
+                    .map(g -> g.getId().toHexString())
+                    .collect(Collectors.toSet());
 
-        if (CollectionUtils.isEmpty(allNames)) {
-            return renamedGroups;
-        }
-
-        Query query = new Query(Criteria.where("name").in(allNames).and("is_deleted").ne(true));
-        query.fields().include("_id", "name");
-        List<GroupInfoDto> existingGroups = findAllDto(query, user);
-
-        // 构建名称到分组的映射
-        Map<String, GroupInfoDto> existingMap = existingGroups.stream()
-                .collect(Collectors.toMap(GroupInfoDto::getName, g -> g, (g1, g2) -> g1));
-
-        // 处理重名分组
+        // 只对新增（DB 中不存在该 _id）的 group 检查名称冲突
         for (GroupInfoDto groupInfo : groupInfos) {
-            if (groupInfo == null || StringUtils.isBlank(groupInfo.getName())) {
+            if (groupInfo == null || groupInfo.getId() == null || StringUtils.isBlank(groupInfo.getName())) {
                 continue;
             }
-            GroupInfoDto existing = existingMap.get(groupInfo.getName());
-            if (existing != null) {
-                String backupName = groupInfo.getName() + GroupConstants.BACKUP_NAME_SEPARATOR
+            // 已存在的 group 会被 upsert 覆盖，不需要重命名
+            if (existingImportIds.contains(groupInfo.getId().toHexString())) {
+                continue;
+            }
+            // 新增 group，检查是否有同名的其他 group
+            Query query = new Query(Criteria.where("name").is(groupInfo.getName())
+                    .and("_id").ne(groupInfo.getId())
+                    .and("is_deleted").ne(true));
+            query.fields().include("_id", "name");
+            List<GroupInfoDto> sameNameGroups = findAllDto(query, user);
+            for (GroupInfoDto existing : sameNameGroups) {
+                String backupName = existing.getName() + GroupConstants.BACKUP_NAME_SEPARATOR
                         + System.currentTimeMillis();
                 updateById(existing.getId(), Update.update("name", backupName), user);
-                renamedGroups.put(groupInfo.getName(), backupName);
-                log.info("Duplicate group name handled, originalName={}, backupName={}", groupInfo.getName(),
-                        backupName);
+                renamedGroups.put(existing.getName(), backupName);
+                log.info("Duplicate group name handled, originalName={}, backupName={}, existingId={}, importId={}",
+                        existing.getName(), backupName, existing.getId(), groupInfo.getId());
             }
         }
         return renamedGroups;

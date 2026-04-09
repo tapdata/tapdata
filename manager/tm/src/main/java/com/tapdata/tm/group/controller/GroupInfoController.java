@@ -172,7 +172,7 @@ public class GroupInfoController extends BaseController {
     @PostMapping(path = "/import/connections", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importConnections(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "REPLACE") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
             @RequestParam(value = "vault", required = false) MultipartFile vaultFile,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
