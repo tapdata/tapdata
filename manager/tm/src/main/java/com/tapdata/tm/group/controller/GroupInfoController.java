@@ -11,6 +11,11 @@ import com.tapdata.tm.group.service.GroupInfoService;
 import com.tapdata.tm.group.service.GroupInfoRecordService;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.group.vo.ExportGroupRequest;
+import com.tapdata.tm.group.vo.GroupImportResult;
+import com.tapdata.tm.group.vo.GroupPreviewResult;
+import com.tapdata.tm.group.vo.ModuleWithGroupVo;
+import com.tapdata.tm.group.vo.ResourceDiff;
+import com.tapdata.tm.group.vo.TaskWithGroupVo;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,6 +29,7 @@ import org.springframework.http.MediaType;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -121,4 +127,145 @@ public class GroupInfoController extends BaseController {
 	public ResponseMessage<String> lastestGitTag(@PathVariable String id) {
 		return success(groupInfoService.lastestTagName(id));
 	}
+
+    // ====================== Preview APIs ======================
+
+    @Operation(summary = "对比导入文件与当前系统的全量变更")
+    @PostMapping(path = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<GroupPreviewResult> previewImport(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewImport(file, getLoginUser()));
+    }
+
+    @Operation(summary = "对比连接变更")
+    @PostMapping(path = "/preview/connections", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewConnections(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewConnections(file, getLoginUser()));
+    }
+
+    @Operation(summary = "对比任务变更")
+    @PostMapping(path = "/preview/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewTasks(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewTasks(file, getLoginUser()));
+    }
+
+    @Operation(summary = "对比迁移任务变更")
+    @PostMapping(path = "/preview/migrate/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewMigrateTasks(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewMigrateTasks(file, getLoginUser()));
+    }
+
+    @Operation(summary = "对比同步任务变更")
+    @PostMapping(path = "/preview/sync/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewSyncTasks(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewSyncTasks(file, getLoginUser()));
+    }
+
+    @Operation(summary = "对比API(模块)变更")
+    @PostMapping(path = "/preview/apis", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<ResourceDiff> previewApis(@RequestParam("file") MultipartFile file) throws IOException {
+        return success(groupInfoService.previewApis(file, getLoginUser()));
+    }
+
+    // ====================== Split Import APIs ======================
+
+    @Operation(summary = "导入连接，返回记录ID和变更diff")
+    @PostMapping(path = "/import/connections", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<GroupImportResult> importConnections(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "vault", required = false) MultipartFile vaultFile,
+            @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        return success(groupInfoService.importConnections(file, importModeEnum, getLoginUser(), vaultFile, sync));
+    }
+
+    @Operation(summary = "导入任务，返回记录ID和变更diff")
+    @PostMapping(path = "/import/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<GroupImportResult> importTasks(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        return success(groupInfoService.importTasks(file, importModeEnum, getLoginUser(), sync));
+    }
+
+    @Operation(summary = "导入迁移任务")
+    @PostMapping(path = "/import/migrate/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<GroupImportResult> importMigrateTasks(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        return success(groupInfoService.importMigrateTasks(file, importModeEnum, getLoginUser(), sync));
+    }
+
+    @Operation(summary = "导入同步任务")
+    @PostMapping(path = "/import/sync/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<GroupImportResult> importSyncTasks(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        return success(groupInfoService.importSyncTasks(file, importModeEnum, getLoginUser(), sync));
+    }
+
+    @Operation(summary = "同步导入GroupInfo，返回记录ID")
+    @PostMapping(path = "/import/groupInfo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<Map<String, String>> importGroupInfo(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        ObjectId recordId = groupInfoService.importGroupInfo(file, importModeEnum, getLoginUser());
+        Map<String, String> result = new HashMap<>();
+        result.put("recordId", recordId.toHexString());
+        return success(result);
+    }
+
+    @Operation(summary = "导入用户/角色/权限信息")
+    @PostMapping(path = "/import/users", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<Map<String, Object>> importUsers(
+            @RequestParam("file") MultipartFile file)
+            throws IOException {
+        Map<String, List<com.tapdata.tm.task.bean.TaskUpAndLoadDto>> payloads =
+                groupInfoService.parseImportPayloadsPublic(file);
+        Map<String, String> userIdMap = groupInfoService.importUserData(payloads);
+        Map<String, Object> result = new HashMap<>();
+        result.put("userIdMapSize", userIdMap.size());
+        result.put("userIdMap", userIdMap);
+        return success(result);
+    }
+
+    @Operation(summary = "导入API(模块)，返回记录ID和变更diff")
+    @PostMapping(path = "/import/apis", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<GroupImportResult> importApis(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
+            throws IOException {
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+        return success(groupInfoService.importApis(file, importModeEnum, getLoginUser(), sync));
+    }
+
+    @Operation(summary = "获取包含分组信息的任务列表")
+    @GetMapping("/tasks")
+    public ResponseMessage<Page<TaskWithGroupVo>> tasks(
+            @RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) filter = new Filter();
+        return success(groupInfoService.getTasksWithGroupInfo(filter, getLoginUser()));
+    }
+
+    @Operation(summary = "获取包含分组信息的API列表")
+    @GetMapping("/apis")
+    public ResponseMessage<Page<ModuleWithGroupVo>> apis(
+            @RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) filter = new Filter();
+        return success(groupInfoService.getApisWithGroupInfo(filter, getLoginUser()));
+    }
 }

@@ -100,6 +100,7 @@ import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -1497,7 +1498,15 @@ public class DataSourceServiceImpl extends DataSourceService{
                 databaseModel.setSourceType(SourceTypeEnum.SOURCE.name());
                 databaseModel.setDeleted(false);
 
-                databaseModel = metadataInstancesService.upsertByWhere(Where.where("qualified_name", databaseModel.getQualifiedName()), databaseModel, user);
+                try {
+                    databaseModel = metadataInstancesService.upsertByWhere(Where.where("qualified_name", databaseModel.getQualifiedName()), databaseModel, user);
+                } catch (DuplicateKeyException e) {
+                    log.warn("Duplicate key on MetadataInstances upsert for qualified_name={}, falling back to find existing", databaseModel.getQualifiedName());
+                    MetadataInstancesDto existingMeta = metadataInstancesService.findByQualifiedNameNotDelete(databaseModel.getQualifiedName(), user);
+                    if (existingMeta != null) {
+                        databaseModel = existingMeta;
+                    }
+                }
                 String databaseId = databaseModel.getId().toHexString();
                 List<String> inValues = new ArrayList<>();
                 inValues.add("collection");
@@ -1804,13 +1813,14 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            String connId = connectionDto.getId().toString();
-            Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
+            ObjectId dtoId = connectionDto.getId();
+            String connId = dtoId != null ? dtoId.toString() : null;
+            Query query = new Query(Criteria.where("_id").is(dtoId));
             query.fields().include("_id");
             connectionDto.setListtags(null);
             DataSourceConnectionDto connectionByUser = findOne(query,user);
             if (connectionByUser == null) {
-				DataSourceConnectionDto connection = findOne(new Query(Criteria.where("_id").is(connectionDto.getId())));
+				DataSourceConnectionDto connection = findOne(new Query(Criteria.where("_id").is(dtoId)));
                 while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
                     connectionDto.setName(connectionDto.getName() + "_import");
 				}
@@ -1839,7 +1849,11 @@ public class DataSourceServiceImpl extends DataSourceService{
                 }
             }
 
-            conMap.put(connId, connectionByUser);
+            String mapKey = connId != null ? connId
+                    : (connectionByUser != null && connectionByUser.getId() != null ? connectionByUser.getId().toString() : null);
+            if (mapKey != null) {
+                conMap.put(mapKey, connectionByUser);
+            }
 
         }
         return conMap;
@@ -1850,6 +1864,10 @@ public class DataSourceServiceImpl extends DataSourceService{
      */
     public Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user,
                                                             com.tapdata.tm.commons.task.dto.ImportModeEnum importMode) {
+        log.info("[batchImport] importMode={}, connectionCount={}, operator.userId={}", importMode, connectionDtos.size(), user.getUserId());
+        for (DataSourceConnectionDto dto : connectionDtos) {
+            log.info("[batchImport] input connection id={}, name={}, userId={}", dto.getId(), dto.getName(), dto.getUserId());
+        }
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 
         if(importMode.equals(ImportModeEnum.CANCEL_IMPORT)){
@@ -1862,7 +1880,8 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            String connId = connectionDto.getId().toString();
+            ObjectId dtoId = connectionDto.getId();
+            String connId = dtoId != null ? dtoId.toString() : null;
             // 基于名称查找现有连接
             Query nameQuery = new Query(Criteria.where("name").is(connectionDto.getName()).and("is_deleted").ne(true));
             nameQuery.fields().include("_id", "name");
@@ -1887,19 +1906,23 @@ public class DataSourceServiceImpl extends DataSourceService{
                         }
 
                         agentGroupService.importAgentInfo(connectionDto);
-                        resultConnection = save(connectionDto, user);
+                        resultConnection = importSave(connectionDto, user);
                     } else {
                         // 不存在同名连接，作为新连接导入
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
                     break;
-                case REUSE_EXISTING,GROUP_IMPORT:
+                case REUSE_EXISTING:
                     if (existingConnectionByName != null) {
                         resultConnection = existingConnectionByName;
                     } else {
                         // 不存在同名连接，作为新连接导入
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
+                    break;
+                case GROUP_IMPORT:
+                    // 按 _id 查重：找到则覆盖，未找到则以原 _id 插入
+                    resultConnection = handleGroupImportConnection(connectionDto, user);
                     break;
 
 
@@ -1919,7 +1942,11 @@ public class DataSourceServiceImpl extends DataSourceService{
                     resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     break;
             }
-            conMap.put(connId, resultConnection);
+            String mapKey = connId != null ? connId
+                    : (resultConnection != null && resultConnection.getId() != null ? resultConnection.getId().toString() : null);
+            if (mapKey != null) {
+                conMap.put(mapKey, resultConnection);
+            }
         }
 
         return conMap;
@@ -1954,6 +1981,44 @@ public class DataSourceServiceImpl extends DataSourceService{
         DataSourceConnectionDto result = importEntity(connectionDto, user);
         sendTestConnection(connectionDto, true, true, user);
         return result;
+    }
+
+    /**
+     * GROUP_IMPORT 模式的连接导入处理：按 _id 查重，找到则覆盖更新，未找到则以原 _id 插入。
+     * 保持导出与导入环境的 _id 完全一致。
+     */
+    protected DataSourceConnectionDto handleGroupImportConnection(DataSourceConnectionDto connectionDto, UserDetail user) {
+        if (connectionDto.getId() == null) {
+            return handleImportAsCopyConnection(connectionDto, user);
+        }
+        Query idQuery = new Query(Criteria.where("_id").is(connectionDto.getId()).and("is_deleted").ne(true));
+        idQuery.fields().include("_id", "name");
+        DataSourceConnectionDto existingById = findOne(idQuery);
+
+        if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
+            ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
+            if (externalStorageDto == null) {
+                Query defaultQuery = new Query(Criteria.where("defaultStorage").is(true));
+                ExternalStorageDto defaultExternalStorage = externalStorageService.findOne(defaultQuery);
+                connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
+            }
+        }
+        agentGroupService.importAgentInfo(connectionDto);
+
+        if (existingById != null) {
+            // 已存在相同 _id，覆盖更新（保留原始 userId）
+            log.info("[handleGroupImportConnection] existing found for id={}, calling importSave, connectionDto.userId={}", connectionDto.getId(), connectionDto.getUserId());
+            DataSourceConnectionDto result = importSave(connectionDto, user);
+            log.info("[handleGroupImportConnection] importSave returned, result.userId={}", result.getUserId());
+            return result;
+        } else {
+            // 不存在，以原 _id 插入
+            log.info("[handleGroupImportConnection] no existing for id={}, calling importEntity, connectionDto.userId={}", connectionDto.getId(), connectionDto.getUserId());
+            DataSourceConnectionDto result = importEntity(connectionDto, user);
+            log.info("[handleGroupImportConnection] importEntity returned, result.userId={}", result.getUserId());
+            sendTestConnection(connectionDto, true, true, user);
+            return result;
+        }
     }
 
     public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {
@@ -2266,6 +2331,17 @@ public class DataSourceServiceImpl extends DataSourceService{
     public DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail) {
         DataSourceEntity dataSourceEntity = repository.importEntity(convertToEntity(DataSourceEntity.class, dto), userDetail);
         return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
+    }
+
+    /**
+     * 导入场景的 save，保留原始 userId 和 createUser。
+     * 与 BaseService.save() 流程一致（包括 beforeSave），仅 repository 层调用不同。
+     */
+    public DataSourceConnectionDto importSave(DataSourceConnectionDto dto, UserDetail userDetail) {
+        beforeSave(dto, userDetail);
+        DataSourceEntity entity = convertToEntity(DataSourceEntity.class, dto);
+        entity = repository.importSave(entity, userDetail);
+        return convertToDto(entity, DataSourceConnectionDto.class);
     }
 
     public List<TaskDto> findUsingDigginTaskByConnectionId(String connectionId, UserDetail user) {
