@@ -731,15 +731,26 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
         try {
             for (GroupInfoDto groupInfo : groupInfos) {
+                String originalUserId = groupInfo.getUserId();
                 groupInfo.setCreateUser(null);
                 groupInfo.setCustomId(null);
                 groupInfo.setLastUpdBy(null);
-                groupInfo.setUserId(null);
                 if (groupInfo.getId() == null) {
-                    log.warn("GroupInfo has no _id, skip import: name={}", groupInfo.getName());
-                    continue;
+                    if (StringUtils.isBlank(groupInfo.getName())) {
+                        log.warn("GroupInfo has no _id and no name, skip import");
+                        continue;
+                    }
+                    log.info("GroupInfo has no _id, upsert by name: {}", groupInfo.getName());
+                    groupInfo.setId(new ObjectId());
+                    upsertByWhere(Where.where("name", groupInfo.getName()), groupInfo, user);
+                } else {
+                    upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
                 }
-                upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
+                // upsertByWhere 底层 applyUserDetail 会用当前登录用户覆盖 user_id，需要还原为导出文件中的原始值
+                if (StringUtils.isNotBlank(originalUserId)) {
+                    update(Query.query(Criteria.where("_id").is(groupInfo.getId())),
+                            new Update().set("user_id", originalUserId));
+                }
             }
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
         } catch (Exception e) {
@@ -3394,7 +3405,6 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             } else if (GroupConstants.COLLECTION_INSPECT.equals(collectionName)) {
                 INSPECT_EXPORT_EXCLUDED_FIELDS.forEach(doc::remove);
             } else if (GroupConstants.COLLECTION_GROUP_INFO.equals(collectionName)) {
-                doc.remove("id");
                 doc.remove("createTime");
                 Object gitInfoObj = doc.get("gitInfo");
                 if (gitInfoObj instanceof Map) {
