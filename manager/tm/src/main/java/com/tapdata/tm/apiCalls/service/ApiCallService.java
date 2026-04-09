@@ -113,6 +113,8 @@ public class ApiCallService {
     public ApiCallDetailVo findById(String id, UserDetail loginUser) {
         ApiCallEntity apiCallEntity = mongoOperations.findById(id, ApiCallEntity.class);
         ApiCallDetailVo apiCallDetailVo = BeanUtil.copyProperties(apiCallEntity, ApiCallDetailVo.class);
+        apiCallDetailVo.setQueryOfCount(null);
+        apiCallDetailVo.setQueryOfPage(null);
         apiCallDetailVo.setVisitTotalCount(Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getResRows).orElse(0L));
         double latency = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getLatency).map(Number::doubleValue).orElse(0D);
         apiCallDetailVo.setLatency(latency);
@@ -142,8 +144,32 @@ public class ApiCallService {
         if (null != apiCallEntity) {
             apiCallDetailVo.setFailed(!apiCallEntity.isSucceed());
             encryptionIfNeed(apiCallDetailVo, modulesDto);
+            addMoreParam(apiCallEntity, apiCallDetailVo);
         }
         return apiCallDetailVo;
+    }
+
+    protected void addMoreParam(ApiCallEntity apiCallEntity, ApiCallDetailVo apiCallDetailVo) {
+        apiCallDetailVo.setCallStart(apiCallEntity.getReqTime());
+        apiCallDetailVo.setCallEnd(apiCallEntity.getResTime());
+        apiCallDetailVo.setResponseBytes(apiCallEntity.getReqBytes());
+        Long bytes = apiCallEntity.getReqBytes();
+        if (null != bytes && bytes > 0L && null != apiCallEntity.getDataQueryEndTime()) {
+            double dbCountMs = apiCallEntity.getDataQueryTotalTime().doubleValue();
+            if (dbCountMs == 0D) {
+                //Compatible with boundary scenarios (at very high speeds)
+                dbCountMs = 0.1D;
+            }
+            apiCallDetailVo.setDbRate(1000D * bytes / dbCountMs);
+            apiCallDetailVo.setHttpTime(apiCallDetailVo.getLatency() - apiCallDetailVo.getDataQueryTotalTime().doubleValue());
+        } else {
+            apiCallDetailVo.setDbRate(0D);
+            if (null != apiCallEntity.getResTime() && null != apiCallEntity.getReqTime()) {
+                apiCallDetailVo.setHttpTime(((Long) (apiCallEntity.getResTime() - apiCallEntity.getReqTime())).doubleValue());
+            } else {
+                apiCallDetailVo.setHttpTime(0D);
+            }
+        }
     }
 
     public ApiCallDto updateById(ApiCallDto metadataDefinition, UserDetail userDetail) {
