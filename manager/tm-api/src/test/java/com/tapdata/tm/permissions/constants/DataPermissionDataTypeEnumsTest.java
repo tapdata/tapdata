@@ -30,12 +30,10 @@ class DataPermissionDataTypeEnumsTest {
     void testModules() {
         Assertions.assertEquals("Modules", DataPermissionDataTypeEnums.Modules.getCollection());
         LinkedHashSet<String> actions = DataPermissionDataTypeEnums.Modules.allActions();
-        Assertions.assertEquals(7, actions.size());
+        Assertions.assertEquals(5, actions.size());
         Assertions.assertTrue(actions.contains(DataPermissionActionEnums.View.name()));
         Assertions.assertTrue(actions.contains(DataPermissionActionEnums.Edit.name()));
         Assertions.assertTrue(actions.contains(DataPermissionActionEnums.Publish.name()));
-        Assertions.assertTrue(actions.contains(DataPermissionActionEnums.Export.name()));
-        Assertions.assertTrue(actions.contains(DataPermissionActionEnums.Copy.name()));
         Assertions.assertTrue(actions.contains(DataPermissionActionEnums.Delete.name()));
         Assertions.assertTrue(actions.contains(DataPermissionActionEnums.Revoke.name()));
     }
