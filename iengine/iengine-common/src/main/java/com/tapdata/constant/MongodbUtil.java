@@ -1847,23 +1847,43 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		return uri;
 	}
 
-	public static String mongodbKeySpecialCharHandler(String key, String replacement) {
-
-		if (StringUtils.isNotBlank(key)) {
-			if (key.startsWith("$")) {
-				key = key.replaceFirst("\\$", replacement);
-			}
-
-			if (key.contains(".") && !key.startsWith(SUB_COLUMN_NAME + ".")) {
-				key = key.replaceAll("\\.", replacement);
-			}
-
-			if (key.contains(" ")) {
-				key = key.replaceAll(" ", replacement);
+	static boolean ifNeedReplace(int len, String key) {
+		for (int i = 0; i < len; i++) {
+			char c = key.charAt(i);
+			boolean needReplace = (c == '$' && i == 0)
+					|| (c == '.' && !(i == SUB_COLUMN_NAME.length() && key.startsWith(SUB_COLUMN_NAME + ".")))
+					|| (c == ' ');
+			if (needReplace) {
+				return true;
 			}
 		}
+		return false;
+	}
 
-		return key;
+	public static String mongodbKeySpecialCharHandler(String key, String replacement) {
+		if (key == null || key.isEmpty()) {
+			return key;
+		}
+		int len = key.length();
+		char rep = replacement.charAt(0);
+		boolean needReplace = ifNeedReplace(len, key);
+		if (!needReplace) {
+			return key;
+		}
+		StringBuilder sb = new StringBuilder(len);
+		for (int i = 0; i < len; i++) {
+			char c = key.charAt(i);
+			if (c == '$' && i == 0) {
+				sb.append(rep);
+			} else if (c == '.' && !key.startsWith(SUB_COLUMN_NAME + ".")) {
+				sb.append(rep);
+			} else if (c == ' ') {
+				sb.append(rep);
+			} else {
+				sb.append(c);
+			}
+		}
+		return sb.toString();
 	}
 
 	public static void constructCriteriaInTarget(List<Map<String, String>> joinCondition, Map<String, Object> value, String replacement, Criteria where) {

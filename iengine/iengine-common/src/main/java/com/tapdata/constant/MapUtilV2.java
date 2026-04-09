@@ -35,59 +35,43 @@ public class MapUtilV2 extends MapUtil {
 	 * @return 注意：使用时,如果不存在会返回{@link NotExistsNode},这个类用于区分不存在还是Null
 	 * @throws NullPointerException
 	 */
-	public static Object getValueByKey(Map<String, Object> dataMap, String key) throws NullPointerException {
-		Object value;
-
-		if (MapUtils.isEmpty(dataMap) || StringUtils.isBlank(key)) {
+	public static Object getValueByKey(Map<String, Object> dataMap, String key) {
+		if (dataMap == null || dataMap.isEmpty() || key == null || key.isEmpty()) {
 			return null;
 		}
-
-		if (needSplit(key)) {
-			/* 多层级获取值，利用递归逐层获取 */
-
-			String[] split = key.split("\\.");
-
-			if (split.length == 0 || StringUtils.isAllBlank(split)) {
-				return null;
-			}
-
-			List<String> keys = Arrays.stream(split).filter(StringUtils::isNotBlank).collect(Collectors.toList());
-
-			if (keys.size() <= 1) {
-				return dataMap.getOrDefault(key, notExistsNode);
-			} else {
-				value = dataMap.getOrDefault(keys.get(0), notExistsNode);
-
-				if (value instanceof NotExistsNode) {
-					return dataMap.getOrDefault(key, notExistsNode);
+		Object current = dataMap;
+		int len = key.length();
+		int start = 0;
+		for (int i = 0; i <= len; i++) {
+			if (i == len || key.charAt(i) == '.') {
+				if (i == start) {
+					start = i + 1;
+					continue;
 				}
-
-				// 截掉第一层字段，例如：a.b.c -> b.c，用于递归
-				String recursiveKey = String.join(".", keys.subList(1, keys.size()));
-
-				// 递归处理Map或者List
-				if (value instanceof Map) {
-					value = getValueByKey((Map<String, Object>) value, recursiveKey);
-					if (value instanceof NotExistsNode) {
-						value = dataMap.getOrDefault(key, notExistsNode);
-					}
-				} else if (value instanceof TapMapValue) {
-					value = getValueByKey(((TapMapValue) value).getValue(), recursiveKey);
-					if (value instanceof NotExistsNode) {
-						value = dataMap.getOrDefault(key, notExistsNode);
-					}
-				} else if (value instanceof List) {
-					value = CollectionUtil.getValueByKey((List) value, recursiveKey);
-				} else if (value instanceof TapArrayValue) {
-					value = CollectionUtil.getValueByKey(((TapArrayValue) value).getValue(), recursiveKey);
+				String subKey = key.substring(start, i);
+				current = parse(current, subKey);
+				if (null == current) {
+					return notExistsNode;
 				}
+				start = i + 1;
 			}
-		} else {
-			/* 单层获取值 */
-			value = dataMap.getOrDefault(key, notExistsNode);
 		}
+		return current;
+	}
 
-		return value;
+	static Object parse(Object current, String subKey) {
+		if (current instanceof Map) {
+			current = ((Map<?, ?>) current).get(subKey);
+		} else if (current instanceof TapMapValue v) {
+			current = v.getValue().get(subKey);
+		} else if (current instanceof List<?> v) {
+			current = CollectionUtil.getValueByKey(v, subKey);
+		} else if (current instanceof TapArrayValue v) {
+			current = CollectionUtil.getValueByKey(v.getValue(), subKey);
+		} else {
+			return null;
+		}
+		return current;
 	}
 
 	/**

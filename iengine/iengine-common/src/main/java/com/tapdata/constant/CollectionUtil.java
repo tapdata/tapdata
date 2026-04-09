@@ -1,5 +1,6 @@
 package com.tapdata.constant;
 
+import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapMapValue;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -14,31 +15,42 @@ import java.util.function.Function;
  **/
 public class CollectionUtil  {
 
-	public static List getValueByKey(List list, String key) {
-		TapList retList = new TapList();
-		for (int i = 0; i < list.size(); i++) {
-			Object o = list.get(i);
-			if (o instanceof Map) {
-				Object tempValue = MapUtilV2.getValueByKey((Map) o, key);
-				if (tempValue instanceof NotExistsNode) {
-					continue;
-				}
-				retList.add(i, tempValue);
-			} else if (o instanceof TapMapValue) {
-				Object tempValue = MapUtilV2.getValueByKey(((TapMapValue) o).getValue(), key);
-				if (tempValue instanceof NotExistsNode) {
-					continue;
-				}
-				retList.add(i, tempValue);
-			} else if (o instanceof List) {
-				List tempValue = getValueByKey((List) o, key);
-				if (CollectionUtils.isNotEmpty(tempValue)) {
-					retList.add(i, tempValue);
-				}
-			}
-		}
+	private CollectionUtil() {}
 
-		return CollectionUtils.isNotEmpty(retList) ? retList : null;
+	public static <T>List<T> getValueByKey(List<T> list, String key) {
+		if (list == null || list.isEmpty() || key == null || key.isEmpty()) {
+			return new ArrayList<>();
+		}
+		TapList result = null;
+        for (Object o : list) {
+            Object value = parseValue(o, key);
+            if (value == null
+                    || value instanceof NotExistsNode
+                    || (value instanceof List && ((List<?>) value).isEmpty())) {
+                continue;
+            }
+            if (result == null) {
+                result = new TapList();
+            }
+            result.add(value);
+        }
+		return result;
+	}
+
+	static Object parseValue(Object o, String key) {
+		if (o instanceof Map) {
+			return MapUtilV2.getValueByKey((Map<String, Object>) o, key);
+		}
+		if (o instanceof TapMapValue v) {
+			return MapUtilV2.getValueByKey(v.getValue(), key);
+		}
+		if (o instanceof List) {
+			return getValueByKey((List<?>) o, key);
+		}
+		if (o instanceof TapArrayValue v) {
+			return getValueByKey(v.getValue(), key);
+		}
+		return null;
 	}
 
 	public static void putTapListInList(List list, String key, TapList tapList) throws Exception {

@@ -1,5 +1,4 @@
 package com.tapdata.tm.commons.dag.process;
-import com.tapdata.tm.commons.exception.DDLException;
 import com.tapdata.tm.commons.schema.TableIndexColumn;
 
 import com.tapdata.manager.common.utils.StringUtils;
@@ -12,16 +11,11 @@ import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TableIndex;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.entity.event.ddl.entity.ValueChange;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.util.*;
@@ -151,6 +145,7 @@ public class JoinProcessorNode extends ProcessorNode {
                 field.setOriginalFieldName(String.format("%s.%s", embeddedPath, field.getOriginalFieldName()));
                 baseFields.add(field);
             }
+            mergePks(baseFields);
             return baseSchema;
         } else {
             List<String> basePrimaryKey = new ArrayList<>();
@@ -192,8 +187,28 @@ public class JoinProcessorNode extends ProcessorNode {
             baseSchema.setIndices(mergeTableIndex);
             baseFields.addAll(joinFields);
             baseSchema.setFields(baseFields);
+            mergePks(baseFields);
             return baseSchema;
         }
+    }
+
+    protected void mergePks(List<Field> fields) {
+        Map<String, Field> collectField = fields
+                .stream()
+                .collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f2));
+        int position = 1;
+        position = eachPk(leftPrimaryKeys, collectField, position);
+        eachPk(rightPrimaryKeys, collectField, position);
+    }
+
+    protected int eachPk(List<String> pks, Map<String, Field> collectField, int position) {
+        for (String f : pks) {
+            Field field = collectField.get(f);
+            field.setPrimaryKey(true);
+            field.setPrimaryKeyPosition(position);
+            position++;
+        }
+        return position;
     }
 
     public List<TableIndex> getUniqueIndices(List<TableIndex> indices, Set<String> baseFieldName) {

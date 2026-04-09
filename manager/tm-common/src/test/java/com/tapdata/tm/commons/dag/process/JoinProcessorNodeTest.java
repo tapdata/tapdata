@@ -10,12 +10,28 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 public class JoinProcessorNodeTest {
+    static class TestableJoinProcessorNode extends JoinProcessorNode {
+        void callMergePks(List<Field> fields) {
+            super.mergePks(fields);
+        }
+
+        int callEachPk(List<String> pks, Map<String, Field> collectField, int position) {
+            return super.eachPk(pks, collectField, position);
+        }
+    }
+
     @Nested
     class MergeSchema{
         private JoinProcessorNode joinProcessorNode;
@@ -159,6 +175,102 @@ public class JoinProcessorNodeTest {
             Schema joinOutPutSchema = joinProcessorNode.mergeSchema(null, null, null);
             assertEquals(3, joinOutPutSchema.getFields().size());
             assertEquals(1, joinOutPutSchema.getIndices().size());
+        }
+    }
+
+    @Nested
+    class MergePksAndEachPk {
+        private TestableJoinProcessorNode joinProcessorNode;
+
+        @BeforeEach
+        void init() {
+            joinProcessorNode = new TestableJoinProcessorNode();
+        }
+
+        @Test
+        void testEachPk_ShouldSetPkFlagAndPositionAndReturnNextPosition() {
+            Field f1 = new Field();
+            f1.setFieldName("id");
+            Field f2 = new Field();
+            f2.setFieldName("rid");
+            Map<String, Field> collect = new HashMap<>();
+            collect.put("id", f1);
+            collect.put("rid", f2);
+
+            int next = joinProcessorNode.callEachPk(List.of("id", "rid"), collect, 1);
+            assertEquals(3, next);
+            assertTrue(f1.getPrimaryKey());
+            assertEquals(1, f1.getPrimaryKeyPosition());
+            assertTrue(f2.getPrimaryKey());
+            assertEquals(2, f2.getPrimaryKeyPosition());
+        }
+
+        @Test
+        void testEachPk_EmptyList_ShouldReturnSamePosition() {
+            Field f1 = new Field();
+            f1.setFieldName("id");
+            Map<String, Field> collect = new HashMap<>();
+            collect.put("id", f1);
+            int next = joinProcessorNode.callEachPk(List.of(), collect, 5);
+            assertEquals(5, next);
+            assertFalse(Boolean.TRUE.equals(f1.getPrimaryKey()));
+        }
+
+        @Test
+        void testMergePks_ShouldMergeLeftThenRightPositions() {
+            joinProcessorNode.setLeftPrimaryKeys(List.of("id"));
+            joinProcessorNode.setRightPrimaryKeys(List.of("rid"));
+
+            Field id = new Field();
+            id.setFieldName("id");
+            Field rid = new Field();
+            rid.setFieldName("rid");
+            Field normal = new Field();
+            normal.setFieldName("name");
+
+            List<Field> fields = new ArrayList<>();
+            fields.add(id);
+            fields.add(rid);
+            fields.add(normal);
+
+            joinProcessorNode.callMergePks(fields);
+            assertTrue(id.getPrimaryKey());
+            assertEquals(1, id.getPrimaryKeyPosition());
+            assertTrue(rid.getPrimaryKey());
+            assertEquals(2, rid.getPrimaryKeyPosition());
+            assertFalse(Boolean.TRUE.equals(normal.getPrimaryKey()));
+        }
+
+        @Test
+        void testMergePks_DuplicateFieldName_ShouldUseLastOne() {
+            joinProcessorNode.setLeftPrimaryKeys(List.of("id"));
+            joinProcessorNode.setRightPrimaryKeys(List.of());
+
+            Field first = new Field();
+            first.setFieldName("id");
+            Field last = new Field();
+            last.setFieldName("id");
+
+            List<Field> fields = new ArrayList<>();
+            fields.add(first);
+            fields.add(last);
+
+            joinProcessorNode.callMergePks(fields);
+            assertNotNull(last.getPrimaryKey());
+            assertTrue(last.getPrimaryKey());
+            assertEquals(1, last.getPrimaryKeyPosition());
+            assertFalse(Boolean.TRUE.equals(first.getPrimaryKey()));
+        }
+
+        @Test
+        void testMergePks_WhenPkNotFound_ShouldThrow() {
+            joinProcessorNode.setLeftPrimaryKeys(List.of("missing"));
+            joinProcessorNode.setRightPrimaryKeys(List.of());
+            List<Field> fields = new ArrayList<>();
+            Field f = new Field();
+            f.setFieldName("id");
+            fields.add(f);
+            assertThrows(NullPointerException.class, () -> joinProcessorNode.callMergePks(fields));
         }
     }
 }

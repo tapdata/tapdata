@@ -4,8 +4,11 @@ import lombok.Data;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 多表合并原地更新模式调回产品（主从合并）  属性类
@@ -16,6 +19,16 @@ public class MergeTableProperties implements Serializable {
 	private MergeType mergeType;
 	// 关联条件
 	private List<Map<String, String>> joinKeys;
+
+	List<String> joinKeyList;
+
+	public List<String> initJoinKey(Function<List<Map<String, String>>, List<String>> function) {
+		if (null == joinKeyList) {
+			joinKeyList = function.apply(joinKeys);
+		}
+		return joinKeyList;
+	}
+
 	// 内嵌数组关联条件
 	private List<String> arrayKeys;
 	private String tableName;

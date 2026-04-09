@@ -39,10 +39,10 @@ public class TapEventUtil {
 	}
 
 	public static Map<String, Object> getAfter(TapEvent tapEvent) {
-		if (tapEvent instanceof TapInsertRecordEvent) {
-			return ((TapInsertRecordEvent) tapEvent).getAfter();
-		} else if (tapEvent instanceof TapUpdateRecordEvent) {
-			return ((TapUpdateRecordEvent) tapEvent).getAfter();
+		if (tapEvent instanceof TapInsertRecordEvent e) {
+			return e.getAfter();
+		} else if (tapEvent instanceof TapUpdateRecordEvent e) {
+			return e.getAfter();
 		}
 		return null;
 	}
