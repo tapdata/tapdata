@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.dag.process;
 import cn.hutool.core.util.StrUtil;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
@@ -40,7 +41,9 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		super(NodeEnum.migrate_field_rename_processor.name(), NodeCatalog.processor);
 	}
 
+	@EqField
 	private LinkedList<TableFieldInfo> fieldsMapping;
+	@EqField
 	private Operation fieldsOperation;
 
 	@Override

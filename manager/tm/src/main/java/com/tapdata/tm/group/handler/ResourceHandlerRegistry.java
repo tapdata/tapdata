@@ -61,7 +61,7 @@ public class ResourceHandlerRegistry {
 
     /**
      * 根据资源类型获取对应的处理器
-     * 
+     *
      * @param type 资源类型
      * @return 资源处理器，如果未找到返回 null
      */
@@ -74,6 +74,13 @@ public class ResourceHandlerRegistry {
             log.warn("Resource handler not found for type: {}", type);
         }
         return handler;
+    }
+
+    /**
+     * 获取所有已注册的处理器
+     */
+    public java.util.Collection<ResourceHandler> getAllHandlers() {
+        return handlerMap.values();
     }
 
 }

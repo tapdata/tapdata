@@ -47,6 +47,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
+import com.tapdata.tm.module.entity.Path;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
@@ -703,6 +704,20 @@ public class MetadataInstancesController extends BaseController {
                         exportModulesVo.setConnection(modulesDto.getConnection().toString());
                     }
                     exportModulesVo.setUser_id(modulesDto.getUserId());
+                    if (CollectionUtils.isNotEmpty(exportModulesVo.getFields())) {
+                        exportModulesVo.getFields().sort(Comparator.comparing(
+                                com.tapdata.tm.commons.schema.Field::getFieldName,
+                                Comparator.nullsLast(Comparator.naturalOrder())));
+                    }
+                    if (CollectionUtils.isNotEmpty(exportModulesVo.getPaths())) {
+                        for (Path path : exportModulesVo.getPaths()) {
+                            if (CollectionUtils.isNotEmpty(path.getFields())) {
+                                path.getFields().sort(Comparator.comparing(
+                                        com.tapdata.tm.commons.schema.Field::getFieldName,
+                                        Comparator.nullsLast(Comparator.naturalOrder())));
+                            }
+                        }
+                    }
                     exportModulesVoList.add(exportModulesVo);
                 }
             }

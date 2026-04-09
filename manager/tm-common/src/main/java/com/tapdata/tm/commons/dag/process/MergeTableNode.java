@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.google.common.collect.Lists;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
@@ -39,6 +40,7 @@ import java.util.stream.Collectors;
 public class MergeTableNode extends ProcessorNode {
     public static final String MAIN_TABLE_FIRST_MERGE_MODE = "main_table_first";
     public static final String SUB_TABLE_FIRST_MERGE_MODE = "sub_table_first";
+    @EqField
     private List<MergeTableProperties> mergeProperties;
     private String mergeMode = MAIN_TABLE_FIRST_MERGE_MODE;
 

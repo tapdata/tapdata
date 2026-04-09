@@ -712,6 +712,9 @@ public class DAG implements Serializable, Cloneable {
      * @return all node
      */
     public List<Node> getNodes(){
+        if (null == this.graph) {
+            return null;
+        }
         return graph.getNodes().stream().map(graph::getNode).collect(Collectors.toList());
     }
 
@@ -720,6 +723,9 @@ public class DAG implements Serializable, Cloneable {
      * @return all edge
      */
     public LinkedList<Edge> getEdges() {
+        if (null == graph) {
+            return null;
+        }
         return graph.getEdges().stream().map(graph::getEdge).collect(Collectors.toCollection(LinkedList::new));
     }
 

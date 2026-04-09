@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.dto.ResourceType;
@@ -350,14 +351,14 @@ public class TaskResourceHandlerTest {
         @Test
         @DisplayName("Should return empty list when resources is null")
         void testLoadConnectionsNullResources() {
-            List<DataSourceConnectionDto> result = taskResourceHandler.loadConnections(null);
+            List<DataSourceEntity> result = taskResourceHandler.loadConnections(null);
             assertTrue(result.isEmpty());
         }
 
         @Test
         @DisplayName("Should return empty list when resources is empty")
         void testLoadConnectionsEmptyResources() {
-            List<DataSourceConnectionDto> result = taskResourceHandler.loadConnections(new ArrayList<>());
+            List<DataSourceEntity> result = taskResourceHandler.loadConnections(new ArrayList<>());
             assertTrue(result.isEmpty());
         }
 
