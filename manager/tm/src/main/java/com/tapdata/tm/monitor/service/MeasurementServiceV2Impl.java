@@ -1198,19 +1198,26 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         if (CollectionUtils.isEmpty(taskIds)) {
             return result;
         }
+        // 使用聚合管道按 taskId 分组，每组只取 date 最大的文档，避免全量查询
         Criteria criteria = Criteria.where(PATH_TAGS_TASK_ID).in(taskIds)
                 .and(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
                 .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK);
-        Query query = new Query(criteria);
-        query.fields().include(MetricCons.F_SAMPLES, MetricCons.F_TAGS, MetricCons.F_DATE);
-        query.with(Sort.by(MetricCons.F_DATE).descending());
-        List<MeasurementEntity> entities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        MatchOperation match = Aggregation.match(criteria);
+        SortOperation sort = Aggregation.sort(Sort.by(Sort.Direction.DESC, MetricCons.F_DATE));
+        GroupOperation group = Aggregation.group("$" + PATH_TAGS_TASK_ID)
+                .first(MetricCons.F_TAGS).as(MetricCons.F_TAGS)
+                .first(MetricCons.F_SAMPLES).as(MetricCons.F_SAMPLES);
+        Aggregation aggregation = Aggregation.newAggregation(match, sort, group);
+        aggregation.withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+        List<MeasurementEntity> entities = mongoOperations.aggregate(
+                aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class
+        ).getMappedResults();
         for (MeasurementEntity entity : entities) {
             if (entity == null || entity.getTags() == null || CollectionUtils.isEmpty(entity.getSamples())) {
                 continue;
             }
             String taskId = entity.getTags().get(FIELD_TAGS_TASK_ID);
-            if (StringUtils.isBlank(taskId) || result.containsKey(taskId)) {
+            if (StringUtils.isBlank(taskId)) {
                 continue;
             }
             Sample latest = entity.getSamples().stream()

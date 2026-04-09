@@ -119,19 +119,26 @@ public class TaskDashboardService {
         Set<String> systemConnectionIds = needTaskList ? findSystemConnectionIds() : Set.of();
         List<TaskDto> runningTasks = tasks.stream()
                 .filter(task -> TaskDto.STATUS_RUNNING.equals(task.getStatus()))
-                .filter(task -> !isSystemTask(task, systemConnectionIds))
                 .collect(Collectors.toList());
         List<String> runningTaskIds = runningTasks.stream()
                 .map(TaskDto::getId)
                 .filter(Objects::nonNull)
                 .map(id -> id.toHexString())
                 .collect(Collectors.toList());
+        List<TaskDto> filterTasks = runningTasks.stream()
+                .filter(task -> !isSystemTask(task, systemConnectionIds))
+                .collect(Collectors.toList());
+        List<String> filterTaskIds = filterTasks.stream()
+                .map(TaskDto::getId)
+                .filter(Objects::nonNull)
+                .map(id -> id.toHexString())
+                .collect(Collectors.toList());
 
-        Map<String, Sample> latestSamples = needLatestSamples && CollectionUtils.isNotEmpty(runningTaskIds)
+        Map<String, Sample> latestSamples = needLatestSamples && CollectionUtils.isNotEmpty(runningTasks)
                 ? Optional.ofNullable(measurementServiceV2.findLastMinuteSamplesByTaskIds(runningTaskIds)).orElseGet(HashMap::new)
                 : new HashMap<>();
-        TaskMetricsTrendVo trendVo = needTaskTrend && CollectionUtils.isNotEmpty(runningTaskIds)
-                ? Optional.ofNullable(measurementServiceV2.aggregateTaskMetricsByTaskIds(runningTaskIds, dashboardQuery.startAtMs, dashboardQuery.endAtMs))
+        TaskMetricsTrendVo trendVo = needTaskTrend && CollectionUtils.isNotEmpty(filterTasks)
+                ? Optional.ofNullable(measurementServiceV2.aggregateTaskMetricsByTaskIds(filterTaskIds, dashboardQuery.startAtMs, dashboardQuery.endAtMs))
                 .orElseGet(TaskMetricsTrendVo::new)
                 : new TaskMetricsTrendVo();
 
