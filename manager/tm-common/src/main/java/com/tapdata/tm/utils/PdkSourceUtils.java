@@ -6,12 +6,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.*;
 import java.math.BigInteger;
 import java.security.MessageDigest;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 public class PdkSourceUtils {
     private static final String TAG = PdkSourceUtils.class.getSimpleName();
+    private static final int BUFFER_SIZE = 1024 * 1024;
+
     public static String getFileMD5(MultipartFile originFile){
         return calcFileMD5(originFile);
     }
@@ -21,33 +21,18 @@ public class PdkSourceUtils {
     }
 
     protected static String calcFileMD5(Object originFile){
-        AtomicReference<File> file;
-        AtomicBoolean needDeleteFile = new AtomicBoolean(false);
         if (originFile instanceof MultipartFile){
-            file = new AtomicReference<>();
-            try {
-                transformToFile((MultipartFile) originFile, (k, v)->{
-                    file.set((File) k);
-                    needDeleteFile.set((Boolean) v);
-                });
+            try (InputStream inputStream = ((MultipartFile) originFile).getInputStream()){
+                return calculateStreamMD5(inputStream);
             } catch (IOException e) {
                 CommonUtils.logError(TAG,"get md5 failed",e);
                 return null;
             }
         }else if (originFile instanceof File){
-            file = new AtomicReference<>();
-            file.set((File) originFile);
+            return calculateFileMD5((File) originFile);
         }else {
-            file = null;
-        }
-        if(null == file || null == file.get()){
             return null;
         }
-        String md5 = calculateFileMD5(file.get());
-        if (needDeleteFile.get()){
-            FileUtils.deleteQuietly(file.get());
-        }
-        return md5;
     }
     protected static String calculateFileMD5(File file){
         if(!file.isFile()){
@@ -66,7 +51,23 @@ public class PdkSourceUtils {
             return null;
         }
         BigInteger bigInt = new BigInteger(1, digest.digest());
-        return bigInt.toString(16);
+        return String.format("%032x", bigInt);
+    }
+    protected static String calculateStreamMD5(InputStream inputStream){
+        MessageDigest digest = null;
+        byte buffer[] = new byte[BUFFER_SIZE];
+        int len;
+        try {
+            digest = MessageDigest.getInstance("MD5");
+            while(-1 != (len = inputStream.read(buffer,0,1024))){
+                digest.update(buffer,0,len);
+            }
+        }catch(Exception e){
+            CommonUtils.logError(TAG,"get md5 failed",e);
+            return null;
+        }
+        BigInteger bigInt = new BigInteger(1, digest.digest());
+        return String.format("%032x", bigInt);
     }
     protected static void transformToFile(MultipartFile originFile, BiConsumer consumer) throws IOException {
         File file;

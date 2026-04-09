@@ -141,6 +141,7 @@ public class PkdSourceService {
 			ObjectId iconObjectId = null;
 			try {
 				Map<String, Object> fileInfo = Maps.newHashMap();
+				log.info("jarFile name : {} ,originalFilename : {}",jarFile.getName(),jarFile.getOriginalFilename());
 				String md5 = PdkSourceUtils.getFileMD5(jarFile);
 				fileInfo.put("pdkHash", pdkHash);
 				fileInfo.put("pdkAPIBuildNumber", pdkAPIBuildNumber);

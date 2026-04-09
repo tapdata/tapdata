@@ -16,5 +16,8 @@ public class GroupExportRequest {
     private String name;
 	private GroupInfoDto groupInfoDto;
 	private String gitTag;
+	private String gitBranchName;
+	private String gitPrTitle;
+	private String gitPrDescription;
 	private GroupInfoRecordDto recordDto;
 }

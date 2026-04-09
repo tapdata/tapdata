@@ -2,11 +2,12 @@ package com.tapdata.tm.vo;
 
 import lombok.*;
 
+import java.io.Serializable;
 import java.util.Date;
 
 @Data
-@EqualsAndHashCode(callSuper=false)
-public class BaseVo {
+@EqualsAndHashCode
+public class BaseVo implements Serializable {
     private String id;
     private String customId;
     private Date createAt;

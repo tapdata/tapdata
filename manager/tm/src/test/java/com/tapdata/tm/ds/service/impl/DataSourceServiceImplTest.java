@@ -854,7 +854,7 @@ class DataSourceServiceImplTest {
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
 
             doReturn(existingConnection).when(dataSourceService).findOne(any(Query.class), eq(user));
-            doReturn(connectionDto).when(dataSourceService).save(connectionDto, user);
+            doReturn(connectionDto).when(dataSourceService).importSave(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
             // Execute
@@ -867,7 +867,7 @@ class DataSourceServiceImplTest {
 
             // Verify that the connection ID was replaced with existing ID
             assertEquals(existingConnection.getId(), connectionDto.getId());
-            verify(dataSourceService, times(1)).save(connectionDto, user);
+            verify(dataSourceService, times(1)).importSave(connectionDto, user);
             verify(agentGroupService, times(1)).importAgentInfo(connectionDto);
         }
 

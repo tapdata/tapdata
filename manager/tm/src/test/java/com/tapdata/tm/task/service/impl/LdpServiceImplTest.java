@@ -639,4 +639,41 @@ class LdpServiceImplTest {
             return existingTask;
         }
     }
+
+    @Nested
+    class BuildSourceMetaTest {
+        @Test
+        void testBuildSourceMetaShouldNotDuplicateTag() {
+            Tag tag = new Tag("tag1", "Tag One");
+            MetadataInstancesDto metaData = new MetadataInstancesDto();
+            metaData.setQualifiedName("test_qualified_1");
+            metaData.setSourceType(SourceTypeEnum.SOURCE.name());
+
+            // First call — adds tag
+            MetadataInstancesDto result = ReflectionTestUtils.invokeMethod(
+                    LdpServiceImpl.class, "buildSourceMeta", tag, metaData, null);
+            assertNotNull(result);
+            assertEquals(1, result.getListtags().size());
+
+            // Second call with same object as oldMetaData — should NOT duplicate
+            MetadataInstancesDto result2 = ReflectionTestUtils.invokeMethod(
+                    LdpServiceImpl.class, "buildSourceMeta", tag, metaData, result);
+            assertNotNull(result2);
+            assertEquals(1, result2.getListtags().size(), "Tag should not be duplicated when oldMetaData already contains it");
+        }
+
+        @Test
+        void testBuildSourceMetaAddsNewTag() {
+            Tag tag1 = new Tag("tag1", "Tag One");
+            Tag tag2 = new Tag("tag2", "Tag Two");
+            MetadataInstancesDto metaData = new MetadataInstancesDto();
+            metaData.setQualifiedName("test_qualified_1");
+
+            ReflectionTestUtils.invokeMethod(LdpServiceImpl.class, "buildSourceMeta", tag1, metaData, null);
+            assertEquals(1, metaData.getListtags().size());
+
+            ReflectionTestUtils.invokeMethod(LdpServiceImpl.class, "buildSourceMeta", tag2, metaData, metaData);
+            assertEquals(2, metaData.getListtags().size(), "Different tags should both be added");
+        }
+    }
 }

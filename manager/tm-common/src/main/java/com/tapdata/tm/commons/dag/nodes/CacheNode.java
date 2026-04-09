@@ -1,8 +1,8 @@
 package com.tapdata.tm.commons.dag.nodes;
 
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Schema;
@@ -27,16 +27,24 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 @Setter
 public class CacheNode extends Node<Object> {
     // 不能和task  外层的名称一样，所以叫cacheName
+    @EqField
     private String cacheName;
+    @EqField
     private List<String> fields;
+    @EqField
     private Long ttl;
+    @EqField
     private String cacheKeys;
+    @EqField
     private Long maxRows;
     /** 最大缓存 单位M */
+    @EqField
     private Integer maxMemory;
     /** 需要创建索引字段*/
+    @EqField
     private List<String> needCreateIndex;
     /** 是否自动创建索引*/
+    @EqField
     private Boolean autoCreateIndex = false;
 
 

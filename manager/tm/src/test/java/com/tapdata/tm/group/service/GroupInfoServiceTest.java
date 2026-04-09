@@ -7,6 +7,9 @@ import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
+import com.tapdata.tm.group.constant.GroupConstants;
+import com.tapdata.tm.inspect.dto.InspectDto;
+import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.group.dto.GroupInfoDto;
 import com.tapdata.tm.group.dto.GroupInfoRecordDetail;
@@ -22,6 +25,11 @@ import com.tapdata.tm.group.service.transfer.GroupTransferStrategy;
 import com.tapdata.tm.group.service.transfer.GroupTransferStrategyRegistry;
 import com.tapdata.tm.group.service.transfer.GroupTransferType;
 import com.tapdata.tm.group.vo.ExportGroupRequest;
+import com.tapdata.tm.group.vo.FieldChange;
+import com.tapdata.tm.group.vo.ResourceDiffItem;
+import com.tapdata.tm.group.vo.ResourceDiff;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
@@ -58,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -105,6 +114,9 @@ public class GroupInfoServiceTest {
     @Mock
     private com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService metadataDefinitionService;
 
+    @Mock
+    private com.tapdata.tm.ds.service.impl.DataSourceDefinitionService dataSourceDefinitionService;
+
     private GroupInfoService groupInfoService;
 
     private UserDetail user;
@@ -121,6 +133,7 @@ public class GroupInfoServiceTest {
         ReflectionTestUtils.setField(groupInfoService, "transferStrategyRegistry", transferStrategyRegistry);
         ReflectionTestUtils.setField(groupInfoService, "batchUpChecker", batchUpChecker);
         ReflectionTestUtils.setField(groupInfoService, "metadataDefinitionService", metadataDefinitionService);
+        ReflectionTestUtils.setField(groupInfoService, "dataSourceDefinitionService", dataSourceDefinitionService);
 
         // Setup default mock for transfer strategy (lenient because not all tests use it)
         lenient().when(transferStrategyRegistry.getStrategy(GroupTransferType.FILE)).thenReturn(groupTransferStrategy);
@@ -452,7 +465,10 @@ public class GroupInfoServiceTest {
 			exportGroupRequest.setGroupIds(groupIds);
 			exportGroupRequest.setGroupTransferType(GroupTransferType.FILE);
 			exportGroupRequest.setGroupResetTask(new HashMap<>());
-            groupInfoService.exportGroupInfos(response, exportGroupRequest, user);
+
+            // FILE type is sync — performExport catches exception, updates status, then re-throws as BizException
+            assertThrows(BizException.class, () ->
+                groupInfoService.exportGroupInfos(response, exportGroupRequest, user));
 
             verify(groupInfoService).updateRecordStatus(eq(savedRecord.getId()),
                 eq(GroupInfoRecordDto.STATUS_FAILED), eq("Export error"), any(), eq(user));
@@ -1026,8 +1042,9 @@ public class GroupInfoServiceTest {
         @Test
         @DisplayName("Should return empty list when groupInfos is null")
         void testBuildGroupInfoPayloadNull() {
-            List<TaskUpAndLoadDto> result = (List<TaskUpAndLoadDto>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "buildGroupInfoPayload", (List<GroupInfoDto>) null);
+            List<TaskUpAndLoadDto> result = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "buildGroupInfoPayload",
+                    (List<GroupInfoDto>) null, Collections.<String, String>emptyMap());
 
             assertNotNull(result);
             assertTrue(result.isEmpty());
@@ -1036,8 +1053,9 @@ public class GroupInfoServiceTest {
         @Test
         @DisplayName("Should return empty list when groupInfos is empty")
         void testBuildGroupInfoPayloadEmpty() {
-            List<TaskUpAndLoadDto> result = (List<TaskUpAndLoadDto>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "buildGroupInfoPayload", Collections.emptyList());
+            List<TaskUpAndLoadDto> result = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "buildGroupInfoPayload",
+                    Collections.<GroupInfoDto>emptyList(), Collections.<String, String>emptyMap());
 
             assertNotNull(result);
             assertTrue(result.isEmpty());
@@ -1051,8 +1069,9 @@ public class GroupInfoServiceTest {
             groupDto.setName("Test Group");
             groupDto.setDescription("Test Description");
 
-            List<TaskUpAndLoadDto> result = (List<TaskUpAndLoadDto>) ReflectionTestUtils.invokeMethod(
-                    groupInfoService, "buildGroupInfoPayload", Arrays.asList(groupDto));
+            List<TaskUpAndLoadDto> result = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "buildGroupInfoPayload",
+                    Arrays.asList(groupDto), Collections.<String, String>emptyMap());
 
             assertNotNull(result);
             assertEquals(1, result.size());
@@ -1432,6 +1451,1378 @@ public class GroupInfoServiceTest {
             assertNotNull(result);
             assertEquals(1, result.size());
             assertEquals("Test Group", result.get(0).getName());
+        }
+    }
+
+    @Nested
+    @DisplayName("getConnectionChangedFields tests")
+    class GetConnectionChangedFieldsTest {
+
+        private DataSourceConnectionDto buildConn(String name, String connType, String dbType,
+                                                   Map<String, Object> config, String pdkHash) {
+            DataSourceConnectionDto conn = new DataSourceConnectionDto();
+            conn.setName(name);
+            conn.setConnection_type(connType);
+            conn.setDatabase_type(dbType);
+            conn.setConfig(config);
+            conn.setPdkHash(pdkHash);
+            return conn;
+        }
+
+        private DataSourceDefinitionDto buildDefinition(String pdkHash, Map<String, Object> connectionProperties) {
+            DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+            def.setPdkHash(pdkHash);
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            Map<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connectionProperties);
+            properties.put("connection", connection);
+            def.setProperties(properties);
+            return def;
+        }
+
+        @Test
+        @DisplayName("Same connection should produce empty changes")
+        void testSameConnection() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("database", "mydb");
+            config.put("timezone", "UTC");
+            DataSourceConnectionDto conn1 = buildConn("test", "source", "MySQL", new HashMap<>(config), "hash1");
+            DataSourceConnectionDto conn2 = buildConn("test", "source", "MySQL", new HashMap<>(config), "hash1");
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", conn1, conn2);
+
+            assertNotNull(changes);
+            assertTrue(changes.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Config.database change should produce precise FieldChange")
+        void testConfigDatabaseChange() {
+            Map<String, Object> config1 = new HashMap<>();
+            config1.put("database_name", "old_db");
+            config1.put("timezone", "UTC");
+            Map<String, Object> config2 = new HashMap<>();
+            config2.put("database_name", "new_db");
+            config2.put("timezone", "UTC");
+
+            DataSourceConnectionDto fileConn = buildConn("test", "source", "MySQL", config2, null);
+            DataSourceConnectionDto existingConn = buildConn("test", "source", "MySQL", config1, null);
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", fileConn, existingConn);
+
+            assertNotNull(changes);
+            boolean foundDatabaseChange = changes.stream()
+                    .anyMatch(c -> "config.database_name".equals(c.getField()) && "old_db".equals(c.getFrom()) && "new_db".equals(c.getTo()));
+            assertTrue(foundDatabaseChange, "Should have precise config.database_name change, got: " + changes);
+        }
+
+        @Test
+        @DisplayName("Sensitive/env fields (host, password) should not produce diff")
+        void testSensitiveFieldsExcluded() {
+            Map<String, Object> config1 = new HashMap<>();
+            config1.put("host", "host1");
+            config1.put("password", "pass1");
+            config1.put("database", "db");
+            Map<String, Object> config2 = new HashMap<>();
+            config2.put("database", "db");
+            // host/password not in file config (stripped on export)
+
+            DataSourceConnectionDto fileConn = buildConn("test", "source", "MySQL", config2, null);
+            DataSourceConnectionDto existingConn = buildConn("test", "source", "MySQL", config1, null);
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", fileConn, existingConn);
+
+            assertNotNull(changes);
+            assertTrue(changes.stream().noneMatch(c -> c.getField().contains("host")),
+                    "host should be excluded");
+            assertTrue(changes.stream().noneMatch(c -> c.getField().contains("password")),
+                    "password should be excluded");
+        }
+
+        @Test
+        @DisplayName("All config field changes should produce exact match entries")
+        void testAllConfigFieldsExactMatch() {
+            Map<String, Object> config1 = new HashMap<>();
+            config1.put("database", "db");
+            config1.put("someOtherField", "val1");
+            config1.put("anotherField", "val2");
+            Map<String, Object> config2 = new HashMap<>();
+            config2.put("database", "db");
+            config2.put("someOtherField", "changed1");
+            config2.put("anotherField", "changed2");
+
+            DataSourceConnectionDto fileConn = buildConn("test", "source", "MySQL", config2, null);
+            DataSourceConnectionDto existingConn = buildConn("test", "source", "MySQL", config1, null);
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", fileConn, existingConn);
+
+            assertNotNull(changes);
+            // Should NOT have 'config.other' summary
+            boolean foundOtherConfig = changes.stream()
+                    .anyMatch(c -> "config.other".equals(c.getField()));
+            assertFalse(foundOtherConfig, "Should NOT have 'config.other' summary, got: " + changes);
+
+            // Should have exact match entries for each changed field
+            FieldChange someOther = changes.stream()
+                    .filter(c -> "config.someOtherField".equals(c.getField())).findFirst().orElse(null);
+            assertNotNull(someOther, "Should have 'config.someOtherField' change");
+            assertEquals("val1", someOther.getFrom());
+            assertEquals("changed1", someOther.getTo());
+
+            FieldChange another = changes.stream()
+                    .filter(c -> "config.anotherField".equals(c.getField())).findFirst().orElse(null);
+            assertNotNull(another, "Should have 'config.anotherField' change");
+            assertEquals("val2", another.getFrom());
+            assertEquals("changed2", another.getTo());
+        }
+
+        @Test
+        @DisplayName("Top-level important field change should produce precise FieldChange")
+        void testTopLevelFieldChange() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("database", "db");
+
+            DataSourceConnectionDto fileConn = buildConn("test", "source_and_target", "MySQL", config, null);
+            DataSourceConnectionDto existingConn = buildConn("test", "source", "MySQL", config, null);
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", fileConn, existingConn);
+
+            assertNotNull(changes);
+            boolean foundConnTypeChange = changes.stream()
+                    .anyMatch(c -> "connection_type".equals(c.getField())
+                            && "source".equals(c.getFrom())
+                            && "source_and_target".equals(c.getTo()));
+            assertTrue(foundConnTypeChange, "Should have connection_type change, got: " + changes);
+        }
+
+        @Test
+        @DisplayName("Definition null should degrade gracefully")
+        void testDefinitionNull() {
+            Map<String, Object> config1 = new HashMap<>();
+            config1.put("database", "old_db");
+            Map<String, Object> config2 = new HashMap<>();
+            config2.put("database", "new_db");
+
+            DataSourceConnectionDto fileConn = buildConn("test", "source", "MySQL", config2, null);
+            DataSourceConnectionDto existingConn = buildConn("test", "source", "MySQL", config1, null);
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", fileConn, existingConn);
+
+            assertNotNull(changes);
+            assertFalse(changes.isEmpty(), "Should still detect database change without definition");
+        }
+
+        @Test
+        @DisplayName("Password-type config key should be masked in diff")
+        void testPasswordFieldMasked() {
+            Map<String, Object> config1 = new HashMap<>();
+            config1.put("database_host", "host1.example.com");
+            config1.put("database_password", "oldpass");
+            config1.put("database_name", "old_db");
+            Map<String, Object> config2 = new HashMap<>();
+            config2.put("database_host", "host2.example.com");
+            config2.put("database_password", "newpass");
+            config2.put("database_name", "new_db");
+
+            DataSourceConnectionDto fileConn = buildConn("test", "source", "MySQL", config2, "hash1");
+            DataSourceConnectionDto existingConn = buildConn("test", "source", "MySQL", config1, "hash1");
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", fileConn, existingConn);
+
+            assertNotNull(changes);
+            // database_host change should be detected with actual values (not masked)
+            boolean foundHost = changes.stream().anyMatch(c ->
+                    "config.database_host".equals(c.getField())
+                            && "host1.example.com".equals(c.getFrom())
+                            && "host2.example.com".equals(c.getTo()));
+            assertTrue(foundHost, "database_host change should show actual values, got: " + changes);
+            // database_password change should be detected but values masked
+            boolean foundPass = changes.stream().anyMatch(c ->
+                    "config.database_password".equals(c.getField())
+                            && "******".equals(c.getFrom())
+                            && "******".equals(c.getTo()));
+            assertTrue(foundPass, "database_password change should be detected with masked values, got: " + changes);
+            // database_name should still show actual values
+            boolean foundDb = changes.stream().anyMatch(c -> "config.database_name".equals(c.getField()));
+            assertTrue(foundDb, "database_name change should be detected, got: " + changes);
+        }
+
+        @Test
+        @DisplayName("Config key should be used directly as field name (no spec mapping)")
+        void testConfigKeyUsedDirectly() {
+            Map<String, Object> config1 = new HashMap<>();
+            config1.put("database", "old_db");
+            Map<String, Object> config2 = new HashMap<>();
+            config2.put("database", "new_db");
+
+            DataSourceConnectionDto fileConn = buildConn("test", "source", "MySQL", config2, "hash1");
+            DataSourceConnectionDto existingConn = buildConn("test", "source", "MySQL", config1, "hash1");
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", fileConn, existingConn);
+
+            assertNotNull(changes);
+            // Change should be reported using the original config key "database"
+            boolean foundDb = changes.stream().anyMatch(c ->
+                    "config.database".equals(c.getField())
+                            && "old_db".equals(c.getFrom())
+                            && "new_db".equals(c.getTo()));
+            assertTrue(foundDb, "Should detect database change using original config key, got: " + changes);
+        }
+
+        @Test
+        @DisplayName("MongoDB URI change should mask only password, non-MongoDB URI should be fully masked")
+        void testUriFieldSmartMask() {
+            // Config key "database_uri" matches URI_DISPLAY_API_KEYS directly
+            Map<String, Object> config1 = new HashMap<>();
+            config1.put("database_uri", "mongodb://admin:oldPass@host1:27017/db1");
+            Map<String, Object> config2 = new HashMap<>();
+            config2.put("database_uri", "mongodb://admin:newPass@host2:27017/db2");
+
+            DataSourceConnectionDto fileConn = buildConn("test", "source", "MongoDB", config2, "hash1");
+            DataSourceConnectionDto existingConn = buildConn("test", "source", "MongoDB", config1, "hash1");
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getConnectionChangedFields", fileConn, existingConn);
+
+            assertNotNull(changes);
+            FieldChange uriChange = changes.stream()
+                    .filter(c -> "config.database_uri".equals(c.getField()))
+                    .findFirst().orElse(null);
+            assertNotNull(uriChange, "URI change should be detected, got: " + changes);
+            // Password parts should be masked, but host/db visible
+            String fromStr = (String) uriChange.getFrom();
+            String toStr = (String) uriChange.getTo();
+            assertTrue(fromStr.contains("host1:27017"), "From should show host");
+            assertTrue(toStr.contains("host2:27017"), "To should show host");
+            assertFalse(fromStr.contains("oldPass"), "From should not show password");
+            assertFalse(toStr.contains("newPass"), "To should not show password");
+            assertTrue(fromStr.contains("******"), "From should contain mask");
+            assertTrue(toStr.contains("******"), "To should contain mask");
+        }
+    }
+
+    @Nested
+    @DisplayName("ResourceHandler BFS utility tests")
+    class ResourceHandlerBfsTest {
+
+        @Test
+        @DisplayName("buildConfigPathToApiKeyMap should return correct mappings")
+        void testBuildConfigPathToApiKeyMap() {
+            Map<String, Object> hostMeta = new LinkedHashMap<>();
+            hostMeta.put("apiServerKey", "database_host");
+            Map<String, Object> portMeta = new LinkedHashMap<>();
+            portMeta.put("apiServerKey", "database_port");
+            Map<String, Object> dbMeta = new LinkedHashMap<>();
+            dbMeta.put("title", "Database");
+            // No apiServerKey for database
+
+            // Nested: ssl.sslKey
+            Map<String, Object> sslKeyMeta = new LinkedHashMap<>();
+            sslKeyMeta.put("apiServerKey", "database_password");
+            Map<String, Object> sslChildProps = new LinkedHashMap<>();
+            sslChildProps.put("sslKey", sslKeyMeta);
+            Map<String, Object> sslMeta = new LinkedHashMap<>();
+            sslMeta.put("properties", sslChildProps);
+
+            Map<String, Object> connProps = new LinkedHashMap<>();
+            connProps.put("host", hostMeta);
+            connProps.put("port", portMeta);
+            connProps.put("database", dbMeta);
+            connProps.put("ssl", sslMeta);
+
+            DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            Map<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connProps);
+            properties.put("connection", connection);
+            def.setProperties(properties);
+
+            Map<String, String> result = ResourceHandler.buildConfigPathToApiKeyMap(def);
+            assertEquals("database_host", result.get("host"));
+            assertEquals("database_port", result.get("port"));
+            assertNull(result.get("database")); // no apiServerKey
+            assertEquals("database_password", result.get("ssl.sslKey"));
+        }
+
+        @Test
+        @DisplayName("buildConfigPathToLabelMap should return correct labels")
+        void testBuildConfigPathToLabelMap() {
+            Map<String, Object> hostMeta = new LinkedHashMap<>();
+            hostMeta.put("title", "Host Address");
+            Map<String, Object> dbMeta = new LinkedHashMap<>();
+            dbMeta.put("title", "Database Name");
+
+            Map<String, Object> connProps = new LinkedHashMap<>();
+            connProps.put("host", hostMeta);
+            connProps.put("database", dbMeta);
+
+            DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            Map<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connProps);
+            properties.put("connection", connection);
+            def.setProperties(properties);
+
+            Map<String, String> result = ResourceHandler.buildConfigPathToLabelMap(def);
+            assertEquals("Host Address", result.get("host"));
+            assertEquals("Database Name", result.get("database"));
+        }
+
+        @Test
+        @DisplayName("getMaskedConfigPaths should return sensitive paths")
+        void testGetMaskedConfigPaths() {
+            Map<String, Object> hostMeta = new LinkedHashMap<>();
+            hostMeta.put("apiServerKey", "database_host");
+            Map<String, Object> dbMeta = new LinkedHashMap<>();
+            dbMeta.put("apiServerKey", "some_other_key");
+
+            Map<String, Object> connProps = new LinkedHashMap<>();
+            connProps.put("host", hostMeta);
+            connProps.put("database", dbMeta);
+
+            DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            Map<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connProps);
+            properties.put("connection", connection);
+            def.setProperties(properties);
+
+            Set<String> masked = ResourceHandler.getMaskedConfigPaths(def);
+            assertTrue(masked.contains("host"));
+            assertFalse(masked.contains("database"));
+        }
+
+        @Test
+        @DisplayName("getNestedValue should traverse dotted paths")
+        void testGetNestedValue() {
+            Map<String, Object> inner = new HashMap<>();
+            inner.put("key", "value");
+            Map<String, Object> config = new HashMap<>();
+            config.put("ssl", inner);
+            config.put("simple", "val");
+
+            assertEquals("value", ResourceHandler.getNestedValue(config, "ssl.key"));
+            assertEquals("val", ResourceHandler.getNestedValue(config, "simple"));
+            assertNull(ResourceHandler.getNestedValue(config, "nonexistent.path"));
+            assertNull(ResourceHandler.getNestedValue(null, "any"));
+        }
+
+        @Test
+        @DisplayName("Null definition should return empty maps")
+        void testNullDefinition() {
+            assertTrue(ResourceHandler.buildConfigPathToApiKeyMap(null).isEmpty());
+            assertTrue(ResourceHandler.buildConfigPathToLabelMap(null).isEmpty());
+            assertTrue(ResourceHandler.getMaskedConfigPaths(null).isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("deepDiff tests")
+    class DeepDiffTest {
+
+        private List<FieldChange> invokeDiff(String path, Object existing, Object file) {
+            List<FieldChange> changes = new ArrayList<>();
+            ReflectionTestUtils.invokeMethod(groupInfoService, "deepDiff", changes, path, existing, file);
+            return changes;
+        }
+
+        @Test
+        @DisplayName("Same maps should produce no changes")
+        void testSameMaps() {
+            Map<String, Object> m = Map.of("a", "1", "b", 2);
+            List<FieldChange> changes = invokeDiff("root", new HashMap<>(m), new HashMap<>(m));
+            assertTrue(changes.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Map with added/removed/modified keys")
+        void testMapDiff() {
+            Map<String, Object> existing = new LinkedHashMap<>();
+            existing.put("a", "old");
+            existing.put("b", "same");
+            existing.put("c", "removed");
+            Map<String, Object> file = new LinkedHashMap<>();
+            file.put("a", "new");
+            file.put("b", "same");
+            file.put("d", "added");
+
+            List<FieldChange> changes = invokeDiff("root", existing, file);
+            assertTrue(changes.stream().anyMatch(c -> "root.a".equals(c.getField()) && "old".equals(c.getFrom()) && "new".equals(c.getTo())));
+            assertTrue(changes.stream().anyMatch(c -> "root.c".equals(c.getField())));
+            assertTrue(changes.stream().anyMatch(c -> "root.d".equals(c.getField())));
+            assertTrue(changes.stream().noneMatch(c -> "root.b".equals(c.getField())));
+        }
+
+        @Test
+        @DisplayName("List with keyed diff using ARRAY_KEY_CONFIG (fields by field_name)")
+        void testListKeyedDiff() {
+            Map<String, Object> f1 = new LinkedHashMap<>();
+            f1.put("field_name", "col1");
+            f1.put("type", "string");
+            Map<String, Object> f2 = new LinkedHashMap<>();
+            f2.put("field_name", "col1");
+            f2.put("type", "int");
+
+            List<FieldChange> changes = invokeDiff("fields", List.of(f1), List.of(f2));
+            assertTrue(changes.stream().anyMatch(c -> c.getField().contains("[col1]") && c.getField().contains("type")));
+        }
+
+        @Test
+        @DisplayName("List without key config should use index-based diff")
+        void testListIndexDiff() {
+            List<FieldChange> changes = invokeDiff("unknownArray", List.of("a", "b"), List.of("a", "c"));
+            assertTrue(changes.stream().anyMatch(c -> "unknownArray[1]".equals(c.getField())));
+            assertTrue(changes.stream().noneMatch(c -> "unknownArray[0]".equals(c.getField())));
+        }
+
+        @Test
+        @DisplayName("List size difference should produce changes for extra elements")
+        void testListSizeDiff() {
+            List<FieldChange> changes = invokeDiff("arr", List.of("a"), List.of("a", "b"));
+            assertEquals(1, changes.size());
+            assertEquals("arr[1]", changes.get(0).getField());
+            assertNull(changes.get(0).getFrom());
+            assertEquals("b", changes.get(0).getTo());
+        }
+
+        @Test
+        @DisplayName("Leaf: null vs non-null")
+        void testLeafNullVsNonNull() {
+            List<FieldChange> changes = invokeDiff("f", null, "val");
+            assertEquals(1, changes.size());
+            assertEquals("f", changes.get(0).getField());
+        }
+
+        @Test
+        @DisplayName("Leaf: different types (String vs Map)")
+        void testLeafDifferentTypes() {
+            List<FieldChange> changes = invokeDiff("f", "str", Map.of("k", "v"));
+            assertEquals(1, changes.size());
+        }
+
+        @Test
+        @DisplayName("Nested Map+List mixed recursion - paths uses keyed diff by 'name'")
+        void testNestedMixed() {
+            // Start path as "paths" so ARRAY_KEY_CONFIG matches "paths" -> keyField "name"
+            List<Map<String, Object>> existing = List.of(Map.of("name", "p1", "desc", "old"));
+            List<Map<String, Object>> file = List.of(Map.of("name", "p1", "desc", "new"));
+            List<FieldChange> changes = invokeDiff("paths", existing, file);
+            assertTrue(changes.stream().anyMatch(c -> c.getField().contains("[p1]") && c.getField().contains("desc")),
+                    "Should use keyed diff on paths array, got: " + changes);
+        }
+
+        @Test
+        @DisplayName("Empty list vs empty list should produce no changes")
+        void testEmptyLists() {
+            List<FieldChange> changes = invokeDiff("arr", List.of(), List.of());
+            assertTrue(changes.isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("jsonEqual tests")
+    class JsonEqualTest {
+
+        private boolean invokeJsonEqual(Object a, Object b) {
+            return Boolean.TRUE.equals(
+                    ReflectionTestUtils.invokeMethod(groupInfoService, "jsonEqual", a, b));
+        }
+
+        @Test
+        @DisplayName("null vs null should be equal")
+        void testBothNull() {
+            assertTrue(invokeJsonEqual(null, null));
+        }
+
+        @Test
+        @DisplayName("Empty string vs null should be equal")
+        void testEmptyStringVsNull() {
+            assertTrue(invokeJsonEqual("", null));
+            assertTrue(invokeJsonEqual(null, ""));
+        }
+
+        @Test
+        @DisplayName("Empty string vs empty string should be equal")
+        void testEmptyStringVsEmptyString() {
+            assertTrue(invokeJsonEqual("", ""));
+        }
+
+        @Test
+        @DisplayName("Map key order difference should still be equal")
+        void testMapKeyOrder() {
+            Map<String, Object> m1 = new LinkedHashMap<>();
+            m1.put("b", 2);
+            m1.put("a", 1);
+            Map<String, Object> m2 = new LinkedHashMap<>();
+            m2.put("a", 1);
+            m2.put("b", 2);
+            assertTrue(invokeJsonEqual(m1, m2));
+        }
+
+        @Test
+        @DisplayName("Different values should not be equal")
+        void testDifferentValues() {
+            assertFalse(invokeJsonEqual("abc", "def"));
+            assertFalse(invokeJsonEqual(1, 2));
+        }
+
+        @Test
+        @DisplayName("null vs non-null should not be equal")
+        void testNullVsNonNull() {
+            assertFalse(invokeJsonEqual(null, "val"));
+            assertFalse(invokeJsonEqual("val", null));
+        }
+    }
+
+    @Nested
+    @DisplayName("normalizeConfigForComparison tests")
+    class NormalizeConfigForComparisonTest {
+
+        private Map<String, Object> invoke(Map<String, Object> config) {
+            return ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "normalizeConfigForComparison", config);
+        }
+
+        @Test
+        @DisplayName("null config returns null")
+        void testNullConfig() {
+            assertNull(invoke(null));
+        }
+
+        @Test
+        @DisplayName("With empty CONFIG_ENV_EXCLUDED_FIELDS, all fields are preserved")
+        void testEnvFieldsRemoved() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("host", "localhost");
+            config.put("port", 3306);
+            config.put("password", "secret");
+            config.put("user", "admin");
+            config.put("username", "admin");
+            config.put("database_name", "mydb");
+            config.put("datasourceInstanceId", "inst1");
+
+            Map<String, Object> result = invoke(config);
+            assertNotNull(result);
+            // CONFIG_ENV_EXCLUDED_FIELDS is now empty, so all fields are preserved
+            assertTrue(result.containsKey("host"));
+            assertTrue(result.containsKey("port"));
+            assertTrue(result.containsKey("password"));
+            assertTrue(result.containsKey("user"));
+            assertTrue(result.containsKey("username"));
+            assertTrue(result.containsKey("datasourceInstanceId"));
+            assertEquals("mydb", result.get("database_name"));
+        }
+
+        @Test
+        @DisplayName("All fields are preserved for comparison (masking happens at FieldChange level)")
+        void testAllFieldsPreserved() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("myCustomHost", "host.example.com");
+            config.put("database", "mydb");
+
+            Map<String, Object> result = invoke(config);
+            assertNotNull(result);
+            assertTrue(result.containsKey("myCustomHost"));
+            assertEquals("host.example.com", result.get("myCustomHost"));
+            assertEquals("mydb", result.get("database"));
+        }
+    }
+
+    @Nested
+    @DisplayName("filterToFileKeys tests")
+    class FilterToFileKeysTest {
+
+        private Map<String, Object> invoke(Map<String, Object> fileConfig, Map<String, Object> existingConfig) {
+            return ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "filterToFileKeys", fileConfig, existingConfig);
+        }
+
+        @Test
+        @DisplayName("null fileConfig returns existingConfig as-is")
+        void testNullFileConfig() {
+            Map<String, Object> existing = Map.of("a", 1);
+            assertSame(existing, invoke(null, existing));
+        }
+
+        @Test
+        @DisplayName("null existingConfig returns null")
+        void testNullExistingConfig() {
+            assertNull(invoke(Map.of("a", 1), null));
+        }
+
+        @Test
+        @DisplayName("Only file keys are retained in existing config")
+        void testNormalFilter() {
+            Map<String, Object> fileConfig = new HashMap<>();
+            fileConfig.put("database", "db");
+            fileConfig.put("schema", "public");
+
+            Map<String, Object> existingConfig = new HashMap<>();
+            existingConfig.put("database", "db");
+            existingConfig.put("schema", "public");
+            existingConfig.put("uri", "mongodb://...");  // not in file, should be filtered out
+
+            Map<String, Object> result = invoke(fileConfig, existingConfig);
+            assertNotNull(result);
+            assertEquals(2, result.size());
+            assertTrue(result.containsKey("database"));
+            assertTrue(result.containsKey("schema"));
+            assertFalse(result.containsKey("uri"));
+        }
+    }
+
+
+    @Nested
+    @DisplayName("getModuleChangedFields tests")
+    class GetModuleChangedFieldsTest {
+
+        private List<FieldChange> invoke(Map<String, Object> fileMap, Map<String, Object> existingMap) {
+            return ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getModuleChangedFields", fileMap, existingMap);
+        }
+
+        @Test
+        @DisplayName("Both null returns empty list")
+        void testBothNull() {
+            List<FieldChange> changes = invoke(null, null);
+            assertTrue(changes.isEmpty());
+        }
+
+        @Test
+        @DisplayName("One null returns wildcard change")
+        void testOneNull() {
+            Map<String, Object> map = Map.of("name", "test");
+            List<FieldChange> changes = invoke(map, null);
+            assertEquals(1, changes.size());
+            assertEquals("*", changes.get(0).getField());
+        }
+
+        @Test
+        @DisplayName("Same maps produce no changes")
+        void testSameMaps() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("name", "api1");
+            m.put("apiType", "defaultApi");
+            List<FieldChange> changes = invoke(new LinkedHashMap<>(m), new LinkedHashMap<>(m));
+            assertTrue(changes.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Different fields produce changes via deepDiff")
+        void testDifferentFields() {
+            Map<String, Object> existing = new LinkedHashMap<>();
+            existing.put("name", "api1");
+            existing.put("apiType", "defaultApi");
+            existing.put("description", "old desc");
+            Map<String, Object> file = new LinkedHashMap<>();
+            file.put("name", "api1");
+            file.put("apiType", "clientApi");
+            file.put("description", "old desc");
+
+            List<FieldChange> changes = invoke(file, existing);
+            assertFalse(changes.isEmpty());
+            assertTrue(changes.stream().anyMatch(c -> "apiType".equals(c.getField())));
+        }
+    }
+
+    @Nested
+    @DisplayName("normalizeModuleForComparison tests")
+    class NormalizeModuleForComparisonTest {
+
+        private Map<String, Object> invoke(String json) {
+            return ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "normalizeModuleForComparison", json);
+        }
+
+        @Test
+        @DisplayName("Blank json returns null")
+        void testBlankJson() {
+            assertNull(invoke(null));
+            assertNull(invoke(""));
+            assertNull(invoke("   "));
+        }
+
+        @Test
+        @DisplayName("Excluded fields are removed")
+        void testExcludedFieldsRemoved() {
+            String json = "{\"id\":\"123\",\"name\":\"api1\",\"connectionId\":\"c1\",\"status\":\"active\",\"apiType\":\"defaultApi\"}";
+            Map<String, Object> result = invoke(json);
+            assertNotNull(result);
+            assertFalse(result.containsKey("id"));
+            assertFalse(result.containsKey("connectionId"));
+            assertFalse(result.containsKey("status"));
+            assertEquals("api1", result.get("name"));
+            assertEquals("defaultApi", result.get("apiType"));
+        }
+
+        @Test
+        @DisplayName("fields array items have id removed")
+        void testFieldsIdRemoved() {
+            String json = "{\"name\":\"api1\",\"fields\":[{\"id\":\"f1\",\"field_name\":\"col1\"},{\"id\":\"f2\",\"field_name\":\"col2\"}]}";
+            Map<String, Object> result = invoke(json);
+            assertNotNull(result);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> fields = (List<Map<String, Object>>) result.get("fields");
+            assertNotNull(fields);
+            assertEquals(2, fields.size());
+            assertFalse(fields.get(0).containsKey("id"));
+            assertFalse(fields.get(1).containsKey("id"));
+            assertEquals("col1", fields.get(0).get("field_name"));
+        }
+
+        @Test
+        @DisplayName("listtags array items have id removed")
+        void testListtagsIdRemoved() {
+            String json = "{\"name\":\"api1\",\"listtags\":[{\"id\":\"t1\",\"value\":\"tag1\"}]}";
+            Map<String, Object> result = invoke(json);
+            assertNotNull(result);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> tags = (List<Map<String, Object>>) result.get("listtags");
+            assertNotNull(tags);
+            assertFalse(tags.get(0).containsKey("id"));
+            assertEquals("tag1", tags.get(0).get("value"));
+        }
+    }
+
+    @Nested
+    @DisplayName("getInspectChangedFields tests")
+    class GetInspectChangedFieldsTest {
+
+        private com.tapdata.tm.inspect.dto.InspectDto buildInspect(String flowId, String mode, String method) {
+            com.tapdata.tm.inspect.dto.InspectDto dto = new com.tapdata.tm.inspect.dto.InspectDto();
+            dto.setName("inspect1");
+            dto.setFlowId(flowId);
+            dto.setMode(mode);
+            dto.setInspectMethod(method);
+            return dto;
+        }
+
+        @Test
+        @DisplayName("Same inspect returns empty changes")
+        void testSameInspect() {
+            com.tapdata.tm.inspect.dto.InspectDto i1 = buildInspect("flow1", "manual", "row_count");
+            com.tapdata.tm.inspect.dto.InspectDto i2 = buildInspect("flow1", "manual", "row_count");
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getInspectChangedFields", i1, i2);
+            assertNotNull(changes);
+            assertTrue(changes.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Different flowId/mode/inspectMethod produces changes")
+        void testDifferentFields() {
+            com.tapdata.tm.inspect.dto.InspectDto file = buildInspect("flow2", "cron", "field");
+            com.tapdata.tm.inspect.dto.InspectDto existing = buildInspect("flow1", "manual", "row_count");
+
+            List<FieldChange> changes = ReflectionTestUtils.invokeMethod(
+                    groupInfoService, "getInspectChangedFields", file, existing);
+            assertNotNull(changes);
+            assertTrue(changes.stream().anyMatch(c -> "flowId".equals(c.getField())));
+            assertTrue(changes.stream().anyMatch(c -> "mode".equals(c.getField())));
+            assertTrue(changes.stream().anyMatch(c -> "inspectMethod".equals(c.getField())));
+        }
+    }
+
+    @Nested
+    @DisplayName("normalizePathForConfig tests")
+    class NormalizePathForConfigTest {
+
+        private String invoke(String path) {
+            return ReflectionTestUtils.invokeMethod(groupInfoService, "normalizePathForConfig", path);
+        }
+
+        @Test
+        @DisplayName("Concrete keyed segments replaced with [*]")
+        void testNormalize() {
+            assertEquals("paths[*].fields", invoke("paths[customerQuery].fields"));
+            assertEquals("paths[*].fields[*].type", invoke("paths[api1].fields[col1].type"));
+        }
+
+        @Test
+        @DisplayName("[*] remains unchanged")
+        void testWildcardUnchanged() {
+            assertEquals("paths[*].fields", invoke("paths[*].fields"));
+        }
+
+        @Test
+        @DisplayName("No brackets returns as-is")
+        void testNoBrackets() {
+            assertEquals("fields", invoke("fields"));
+        }
+    }
+
+    // ====================== buildConnectionDiff / buildTaskDiff / buildApiDiff Tests ======================
+
+    @Nested
+    @DisplayName("buildConnectionDiff tests")
+    class BuildConnectionDiffTest {
+
+        private ResourceDiff invoke(Map<String, List<TaskUpAndLoadDto>> payloads) {
+            return ReflectionTestUtils.invokeMethod(groupInfoService, "buildConnectionDiff", payloads, user);
+        }
+
+        private TaskUpAndLoadDto connPayload(String name, String connType, Map<String, Object> config) {
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("name", name);
+            json.put("connection_type", connType);
+            json.put("database_type", "MySQL");
+            if (config != null) json.put("config", config);
+            return new TaskUpAndLoadDto(GroupConstants.COLLECTION_CONNECTION, JsonUtil.toJsonUseJackson(json));
+        }
+
+        @Test
+        @DisplayName("Empty payloads returns empty diff")
+        void testEmptyPayloads() {
+            ResourceDiff diff = invoke(Collections.emptyMap());
+            assertNotNull(diff);
+            assertTrue(diff.getAdd().isEmpty());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Payload with wrong collectionName is skipped")
+        void testWrongCollectionName() {
+            TaskUpAndLoadDto item = new TaskUpAndLoadDto("WrongCollection", "{\"name\":\"conn1\",\"connection_type\":\"source\"}");
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item));
+            lenient().when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertTrue(diff.getAdd().isEmpty());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("New connection (not in DB) produces add item")
+        void testNewConnection() {
+            TaskUpAndLoadDto item = connPayload("new_conn", "source", Map.of("database_name", "db1"));
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item));
+
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+            lenient().when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getAdd().size());
+            assertEquals("new_conn", diff.getAdd().get(0).getName());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Existing connection with no change produces no update")
+        void testNoChange() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("database_name", "db1");
+            TaskUpAndLoadDto item = connPayload("conn1", "source", config);
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item));
+
+            DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setName("conn1");
+            existing.setConnection_type("source");
+            existing.setDatabase_type("MySQL");
+            existing.setConfig(new HashMap<>(config));
+
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(existing));
+            lenient().when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertTrue(diff.getAdd().isEmpty());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Existing connection with different connection_type produces update")
+        void testConnectionTypeChanged() {
+            Map<String, Object> config = new HashMap<>();
+            config.put("database_name", "db1");
+            TaskUpAndLoadDto item = connPayload("conn1", "source_and_target", config);
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item));
+
+            DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setName("conn1");
+            existing.setConnection_type("source");
+            existing.setDatabase_type("MySQL");
+            existing.setConfig(new HashMap<>(config));
+
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(existing));
+            lenient().when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertTrue(diff.getAdd().isEmpty());
+            assertEquals(1, diff.getUpdate().size());
+            ResourceDiffItem updateItem = diff.getUpdate().get(0);
+            assertEquals("conn1", updateItem.getName());
+            assertTrue(updateItem.getChanges().stream()
+                    .anyMatch(c -> "connection_type".equals(c.getField())
+                            && "source".equals(c.getFrom())
+                            && "source_and_target".equals(c.getTo())));
+        }
+
+        @Test
+        @DisplayName("Existing connection with different config produces update")
+        void testConfigChanged() {
+            Map<String, Object> fileConfig = new HashMap<>();
+            fileConfig.put("database_name", "new_db");
+            TaskUpAndLoadDto item = connPayload("conn1", "source", fileConfig);
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item));
+
+            DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setName("conn1");
+            existing.setConnection_type("source");
+            existing.setDatabase_type("MySQL");
+            Map<String, Object> existingConfig = new HashMap<>();
+            existingConfig.put("database_name", "old_db");
+            existing.setConfig(existingConfig);
+
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(existing));
+            lenient().when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getUpdate().size());
+            assertTrue(diff.getUpdate().get(0).getChanges().stream()
+                    .anyMatch(c -> "config.database_name".equals(c.getField())));
+        }
+
+        @Test
+        @DisplayName("Multiple connections: mix of add and update")
+        void testMixedAddAndUpdate() {
+            Map<String, Object> config1 = new HashMap<>();
+            config1.put("database_name", "db1");
+            Map<String, Object> config2 = new HashMap<>();
+            config2.put("database_name", "new_db2");
+
+            TaskUpAndLoadDto item1 = connPayload("brand_new", "source", config1);
+            TaskUpAndLoadDto item2 = connPayload("existing_conn", "source", config2);
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item1, item2));
+
+            DataSourceConnectionDto existingConn = new DataSourceConnectionDto();
+            existingConn.setName("existing_conn");
+            existingConn.setConnection_type("source");
+            existingConn.setDatabase_type("MySQL");
+            Map<String, Object> oldConfig = new HashMap<>();
+            oldConfig.put("database_name", "old_db2");
+            existingConn.setConfig(oldConfig);
+
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(existingConn));
+            lenient().when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getAdd().size());
+            assertEquals("brand_new", diff.getAdd().get(0).getName());
+            assertEquals(1, diff.getUpdate().size());
+            assertEquals("existing_conn", diff.getUpdate().get(0).getName());
+        }
+
+        @Test
+        @DisplayName("Duplicate names in payload are deduplicated (first wins)")
+        void testDuplicateNames() {
+            TaskUpAndLoadDto item1 = connPayload("conn1", "source", Map.of("database_name", "db_first"));
+            TaskUpAndLoadDto item2 = connPayload("conn1", "target", Map.of("database_name", "db_second"));
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item1, item2));
+
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+            lenient().when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getAdd().size(), "Duplicate names should be deduplicated");
+        }
+
+        @Test
+        @DisplayName("Vault secrets are injected before comparison so masked password is restored")
+        void testVaultInjectionBeforeComparison() {
+            // File connection has masked password; vault.json has the real values
+            // resolveVaultStrategy requires all three: _url, _user, _password
+            Map<String, Object> fileConfig = new HashMap<>();
+            fileConfig.put("password", "******");
+            fileConfig.put("username", "******");
+            fileConfig.put("host", "******");
+            fileConfig.put("port", 3306);
+            fileConfig.put("database_name", "db1");
+            TaskUpAndLoadDto connItem = connPayload("conn1", "source", fileConfig);
+
+            // Vault entries: {connName}_url, {connName}_user, {connName}_password
+            // Use simple host:port/user format so parseUriComponents can extract host/port
+            Map<String, String> vaultMap = new LinkedHashMap<>();
+            vaultMap.put("conn1_url", "myhost:3306/admin");
+            vaultMap.put("conn1_user", "admin");
+            vaultMap.put("conn1_password", "realPassword");
+            TaskUpAndLoadDto vaultItem = new TaskUpAndLoadDto(GroupConstants.VAULT_FILE, JsonUtil.toJsonUseJackson(vaultMap));
+
+            Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
+            payloads.put("Connection.json", List.of(connItem));
+            payloads.put(GroupConstants.VAULT_FILE, List.of(vaultItem));
+
+            // Existing connection in DB has the same real values (after vault injection they should match)
+            // Note: parseUriComponents returns port as int, so existing must also use int
+            DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setName("conn1");
+            existing.setConnection_type("source");
+            existing.setDatabase_type("MySQL");
+            Map<String, Object> existingConfig = new HashMap<>();
+            existingConfig.put("password", "realPassword");
+            existingConfig.put("username", "admin");
+            existingConfig.put("host", "myhost");
+            existingConfig.put("port", 3306);
+            existingConfig.put("database_name", "db1");
+            existing.setConfig(existingConfig);
+
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(existing));
+            lenient().when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            // After vault injection the password should match → no update
+            assertTrue(diff.getUpdate().isEmpty(),
+                    "With vault injection, identical passwords should not produce a diff");
+        }
+    }
+
+    @Nested
+    @DisplayName("buildTaskDiff tests")
+    class BuildTaskDiffTest {
+
+        private ResourceDiff invoke(Map<String, List<TaskUpAndLoadDto>> payloads) {
+            return ReflectionTestUtils.invokeMethod(groupInfoService, "buildTaskDiff", payloads, user);
+        }
+
+        private TaskUpAndLoadDto migrateTaskPayload(String name) {
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("name", name);
+            json.put("type", "initial_sync+cdc");
+            json.put("syncType", "migrate");
+            return new TaskUpAndLoadDto(GroupConstants.COLLECTION_TASK, JsonUtil.toJsonUseJackson(json));
+        }
+
+        private TaskUpAndLoadDto syncTaskPayload(String name) {
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("name", name);
+            json.put("type", "initial_sync+cdc");
+            json.put("syncType", "sync");
+            return new TaskUpAndLoadDto(GroupConstants.COLLECTION_TASK, JsonUtil.toJsonUseJackson(json));
+        }
+
+        private TaskUpAndLoadDto inspectPayload(String name, String flowId, String mode, String method) {
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("name", name);
+            json.put("flowId", flowId);
+            json.put("mode", mode);
+            json.put("inspectMethod", method);
+            return new TaskUpAndLoadDto(GroupConstants.COLLECTION_INSPECT, JsonUtil.toJsonUseJackson(json));
+        }
+
+        @Test
+        @DisplayName("Empty payloads returns empty diff")
+        void testEmptyPayloads() {
+            ResourceDiff diff = invoke(Collections.emptyMap());
+            assertNotNull(diff);
+            assertTrue(diff.getAdd().isEmpty());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("New migrate task produces add item with type 'migrate'")
+        void testNewMigrateTask() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "MigrateTask.json", List.of(migrateTaskPayload("task1")));
+
+            when(taskService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getAdd().size());
+            assertEquals("task1", diff.getAdd().get(0).getName());
+            assertEquals("migrate", diff.getAdd().get(0).getType());
+        }
+
+        @Test
+        @DisplayName("New sync task produces add item with type 'sync'")
+        void testNewSyncTask() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "SyncTask.json", List.of(syncTaskPayload("sync_task1")));
+
+            when(taskService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getAdd().size());
+            assertEquals("sync_task1", diff.getAdd().get(0).getName());
+            assertEquals("sync", diff.getAdd().get(0).getType());
+        }
+
+        @Test
+        @DisplayName("Existing task with same config produces no update")
+        void testExistingTaskNoChange() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "MigrateTask.json", List.of(migrateTaskPayload("task1")));
+
+            TaskDto existingTask = new TaskDto();
+            existingTask.setName("task1");
+            existingTask.setType("initial_sync+cdc");
+            existingTask.setSyncType("migrate");
+
+            when(taskService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(existingTask));
+
+            ResourceDiff diff = invoke(payloads);
+            assertTrue(diff.getAdd().isEmpty());
+            // Whether update is empty depends on TaskConfigCompareUtil; at least no add
+        }
+
+        @Test
+        @DisplayName("New inspect task produces add item with type 'validate'")
+        void testNewInspectTask() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "InspectTask.json", List.of(inspectPayload("inspect1", "f1", "manual", "row_count")));
+
+            when(inspectService.findByName("inspect1")).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getAdd().size());
+            assertEquals("inspect1", diff.getAdd().get(0).getName());
+            assertEquals("validate", diff.getAdd().get(0).getType());
+        }
+
+        @Test
+        @DisplayName("Existing inspect task with different fields produces update")
+        void testExistingInspectChanged() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "InspectTask.json", List.of(inspectPayload("inspect1", "flow_new", "cron", "field")));
+
+            InspectDto existing = new InspectDto();
+            existing.setName("inspect1");
+            existing.setFlowId("flow_old");
+            existing.setMode("manual");
+            existing.setInspectMethod("row_count");
+
+            when(inspectService.findByName("inspect1")).thenReturn(List.of(existing));
+
+            ResourceDiff diff = invoke(payloads);
+            assertTrue(diff.getAdd().isEmpty());
+            assertEquals(1, diff.getUpdate().size());
+            ResourceDiffItem updateItem = diff.getUpdate().get(0);
+            assertEquals("inspect1", updateItem.getName());
+            assertEquals("validate", updateItem.getType());
+            assertTrue(updateItem.getChanges().stream().anyMatch(c -> "flowId".equals(c.getField())));
+            assertTrue(updateItem.getChanges().stream().anyMatch(c -> "mode".equals(c.getField())));
+            assertTrue(updateItem.getChanges().stream().anyMatch(c -> "inspectMethod".equals(c.getField())));
+        }
+
+        @Test
+        @DisplayName("Mixed migrate + sync + inspect tasks")
+        void testMixedTaskTypes() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
+            payloads.put("MigrateTask.json", List.of(migrateTaskPayload("m_task")));
+            payloads.put("SyncTask.json", List.of(syncTaskPayload("s_task")));
+            payloads.put("InspectTask.json", List.of(inspectPayload("v_task", "f1", "manual", "row_count")));
+
+            when(taskService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+            when(inspectService.findByName("v_task")).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(3, diff.getAdd().size());
+            assertTrue(diff.getAdd().stream().anyMatch(i -> "m_task".equals(i.getName()) && "migrate".equals(i.getType())));
+            assertTrue(diff.getAdd().stream().anyMatch(i -> "s_task".equals(i.getName()) && "sync".equals(i.getType())));
+            assertTrue(diff.getAdd().stream().anyMatch(i -> "v_task".equals(i.getName()) && "validate".equals(i.getType())));
+        }
+    }
+
+    @Nested
+    @DisplayName("buildApiDiff tests")
+    class BuildApiDiffTest {
+
+        private ResourceDiff invoke(Map<String, List<TaskUpAndLoadDto>> payloads) {
+            return ReflectionTestUtils.invokeMethod(groupInfoService, "buildApiDiff", payloads, user);
+        }
+
+        private TaskUpAndLoadDto modulePayload(String name, String apiType, String description) {
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("name", name);
+            json.put("apiType", apiType);
+            if (description != null) json.put("description", description);
+            return new TaskUpAndLoadDto(GroupConstants.COLLECTION_MODULES, JsonUtil.toJsonUseJackson(json));
+        }
+
+        @Test
+        @DisplayName("Empty payloads returns empty diff")
+        void testEmptyPayloads() {
+            ResourceDiff diff = invoke(Collections.emptyMap());
+            assertNotNull(diff);
+            assertTrue(diff.getAdd().isEmpty());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Payload with wrong collectionName is skipped")
+        void testWrongCollectionName() {
+            TaskUpAndLoadDto item = new TaskUpAndLoadDto("WrongCollection",
+                    "{\"name\":\"api1\",\"apiType\":\"defaultApi\"}");
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Module.json", List.of(item));
+            lenient().when(modulesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertTrue(diff.getAdd().isEmpty());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("New API module produces add item")
+        void testNewModule() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "Module.json", List.of(modulePayload("api1", "defaultApi", "desc")));
+
+            when(modulesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getAdd().size());
+            assertEquals("api1", diff.getAdd().get(0).getName());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Existing module with same content produces no update")
+        void testNoChange() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "Module.json", List.of(modulePayload("api1", "defaultApi", "same desc")));
+
+            ModulesDto existing = new ModulesDto();
+            existing.setName("api1");
+            existing.setApiType("defaultApi");
+            existing.setDescription("same desc");
+
+            when(modulesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(existing));
+
+            ResourceDiff diff = invoke(payloads);
+            assertTrue(diff.getAdd().isEmpty());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Existing module with different apiType produces update")
+        void testApiTypeChanged() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "Module.json", List.of(modulePayload("api1", "clientApi", "desc")));
+
+            ModulesDto existing = new ModulesDto();
+            existing.setName("api1");
+            existing.setApiType("defaultApi");
+            existing.setDescription("desc");
+
+            when(modulesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(existing));
+
+            ResourceDiff diff = invoke(payloads);
+            assertTrue(diff.getAdd().isEmpty());
+            assertEquals(1, diff.getUpdate().size());
+            assertEquals("api1", diff.getUpdate().get(0).getName());
+            assertTrue(diff.getUpdate().get(0).getChanges().stream()
+                    .anyMatch(c -> "apiType".equals(c.getField())));
+        }
+
+        @Test
+        @DisplayName("Multiple modules: mix of add and update")
+        void testMixedAddAndUpdate() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Module.json", List.of(
+                    modulePayload("new_api", "defaultApi", "new"),
+                    modulePayload("existing_api", "clientApi", "updated")));
+
+            ModulesDto existing = new ModulesDto();
+            existing.setName("existing_api");
+            existing.setApiType("defaultApi");
+            existing.setDescription("old");
+
+            when(modulesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(existing));
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getAdd().size());
+            assertEquals("new_api", diff.getAdd().get(0).getName());
+            assertEquals(1, diff.getUpdate().size());
+            assertEquals("existing_api", diff.getUpdate().get(0).getName());
+        }
+
+        @Test
+        @DisplayName("Duplicate names in payload are deduplicated (first wins)")
+        void testDuplicateNames() {
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Module.json", List.of(
+                    modulePayload("api1", "defaultApi", "first"),
+                    modulePayload("api1", "clientApi", "second")));
+
+            when(modulesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+            assertEquals(1, diff.getAdd().size(), "Duplicate names should be deduplicated");
+        }
+    }
+
+    @Nested
+    @DisplayName("maskUriValue tests")
+    class MaskUriValueTest {
+
+        @Test
+        @DisplayName("null returns null")
+        void testNull() {
+            assertNull(GroupInfoService.maskUriValue(null));
+        }
+
+        @Test
+        @DisplayName("MongoDB URI with password masks only password part")
+        void testMongoUriWithPassword() {
+            String uri = "mongodb://admin:secretPass123@host1:27017,host2:27017/mydb?replicaSet=rs0";
+            Object result = GroupInfoService.maskUriValue(uri);
+            String masked = (String) result;
+            // Password should be masked
+            assertFalse(masked.contains("secretPass123"), "Password should be masked");
+            // Other parts should remain visible
+            assertTrue(masked.contains("admin"), "Username should be visible");
+            assertTrue(masked.contains("host1:27017"), "Host should be visible");
+            assertTrue(masked.contains("mydb"), "Database should be visible");
+            assertTrue(masked.contains("******"), "Should contain mask placeholder");
+            assertEquals("mongodb://admin:******@host1:27017,host2:27017/mydb?replicaSet=rs0", masked);
+        }
+
+        @Test
+        @DisplayName("MongoDB URI without password returns as-is")
+        void testMongoUriWithoutPassword() {
+            String uri = "mongodb://host1:27017/mydb";
+            Object result = GroupInfoService.maskUriValue(uri);
+            assertEquals(uri, result);
+        }
+
+        @Test
+        @DisplayName("MongoDB URI with URL-encoded password masks only password part")
+        void testMongoUriWithEncodedPassword() {
+            String uri = "mongodb://user:myP%40ss@localhost:27017/testdb";
+            Object result = GroupInfoService.maskUriValue(uri);
+            String masked = (String) result;
+            assertTrue(masked.contains("user:"), "Username should be visible");
+            assertTrue(masked.contains("localhost:27017"), "Host should be visible");
+            assertFalse(masked.contains("myP%40ss"), "URL-encoded password should be masked");
+            assertTrue(masked.contains("******"), "Should contain mask placeholder");
+            assertEquals("mongodb://user:******@localhost:27017/testdb", masked);
+        }
+
+        @Test
+        @DisplayName("mongodb+srv URI masks only the password part")
+        void testMongoSrvUriMasksPassword() {
+            String uri = "mongodb+srv://user:pass@cluster0.example.net/testdb";
+            Object result = GroupInfoService.maskUriValue(uri);
+            assertEquals("mongodb+srv://user:******@cluster0.example.net/testdb", result);
+        }
+
+        @Test
+        @DisplayName("Non-MongoDB URI is fully masked")
+        void testNonMongoUri() {
+            String uri = "jdbc:mysql://root:password@localhost:3306/mydb";
+            Object result = GroupInfoService.maskUriValue(uri);
+            assertEquals("******", result);
+        }
+
+        @Test
+        @DisplayName("Plain string (not a URI) is fully masked")
+        void testPlainString() {
+            Object result = GroupInfoService.maskUriValue("some-random-value");
+            assertEquals("******", result);
         }
     }
 

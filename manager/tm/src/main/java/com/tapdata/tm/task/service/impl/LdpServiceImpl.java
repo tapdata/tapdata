@@ -851,7 +851,9 @@ public class LdpServiceImpl implements LdpService {
 			listtags = new ArrayList<>();
 			metaData.setListtags(listtags);
 		}
-		listtags.add(tag);
+		if (!listtags.contains(tag)) {
+			listtags.add(tag);
+		}
 
 		return metaData;
 	}
