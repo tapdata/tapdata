@@ -103,4 +103,6 @@ public class ModulesEntity extends BaseEntity implements IDataPermissionEntity {
     private List<PathSetting> pathSetting;
 
     ApiAlarmConfig apiAlarmConfig;
+
+    private String publishStatus;
 }

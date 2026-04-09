@@ -85,4 +85,6 @@ public class ModulesListVo extends BaseVo implements IDataPermissionDto {
      * 用户自定义的路径最后关键字，没有设置按默认值处理
      * */
     private List<PathSetting> pathSetting;
+
+    private String publishStatus;
 }

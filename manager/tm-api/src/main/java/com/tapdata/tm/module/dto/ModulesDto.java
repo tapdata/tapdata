@@ -115,6 +115,8 @@ public class ModulesDto extends BaseDto implements IDataPermissionDto {
 
     ApiAlarmConfig apiAlarmConfig;
 
+    private String publishStatus;
+
     public void withPathSettingIfNeed() {
         if (null == pathSetting) {
             pathSetting = PathSetting.DEFAULT_PATH_SETTING;

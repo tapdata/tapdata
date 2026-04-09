@@ -678,20 +678,22 @@ class ModulesServiceTest {
 			when(settings.getId()).thenReturn("cluster");
 			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
+			ObjectId connectionId = new ObjectId();
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
 			modulesDto.setId(new ObjectId());
-			modulesDto.setConnection(new ObjectId());
+			modulesDto.setConnection(connectionId);
 			apis.add(modulesDto);
 			doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
 			List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
 			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
 			Map<String, Object> config = new HashMap<>();
 			config.put("isUri", true);
 			config.put("ssl", true);
-			config.put("uri", "mongodb://root:******@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true");
+			config.put("uri", "mongodb://root:test123@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true");
 			config.put("sslKey", "----test key----");
 			config.put("sslValidate", true);
 			config.put("sslCA", "----test ca----");
@@ -702,6 +704,7 @@ class ModulesServiceTest {
 			dataSourceConnectionDtoList.add(dataSourceConnectionDto);
 			when(dataSourceService.findAll(any(Query.class))).thenReturn(dataSourceConnectionDtoList);
 			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
 			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
 			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
 			LinkedHashMap<String, Object> prop = new LinkedHashMap<>();
@@ -738,7 +741,9 @@ class ModulesServiceTest {
 			connection.put("properties", prop);
 			properties.put("connection", connection);
 			definitionDto.setProperties(properties);
-			when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
 			ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
 			assertEquals(1, actual.getConnections().size());
 			assertTrue(actual.getConnections().get(0).getSsl());
@@ -751,16 +756,18 @@ class ModulesServiceTest {
 			when(settings.getId()).thenReturn("cluster");
 			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
+			ObjectId connectionId = new ObjectId();
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
 			modulesDto.setId(new ObjectId());
-			modulesDto.setConnection(new ObjectId());
+			modulesDto.setConnection(connectionId);
 			apis.add(modulesDto);
 			doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
 			List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
 			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
 			Map<String, Object> config = new HashMap<>();
 			config.put("isUri", true);
 			config.put("user", "root");
@@ -776,16 +783,355 @@ class ModulesServiceTest {
 			dataSourceConnectionDtoList.add(dataSourceConnectionDto);
 			when(dataSourceService.findAll(any(Query.class))).thenReturn(dataSourceConnectionDtoList);
 			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
 			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
 			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
 			connection.put("properties", new LinkedHashMap<>());
 			properties.put("connection", connection);
 			definitionDto.setProperties(properties);
-			when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
 			ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
 			assertEquals(1, actual.getConnections().size());
 			assertNull(actual.getConnections().get(0).getSsl());
 			assertNull(actual.getConnections().get(0).getSslCA());
+		}
+	}
+
+	@Nested
+	@DisplayName("ActiveApis Method Tests")
+	class ActiveApisTest {
+		UserDetail userDetail;
+
+		@BeforeEach
+		void beforeEach() {
+			userDetail = mock(UserDetail.class);
+			when(userDetail.getCustomerId()).thenReturn("testCustomerId");
+			when(userDetail.getUserId()).thenReturn("testUserId");
+			modulesService = spy(modulesService);
+		}
+
+		@Test
+		@DisplayName("test activeApis when apis list is empty")
+		void testActiveApisWhenApisEmpty() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			doReturn(new ArrayList<>()).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertTrue(result.isEmpty());
+			assertNull(apiDefinitionVo.getApis());
+			assertNull(apiDefinitionVo.getConnections());
+		}
+
+		@Test
+		@DisplayName("test activeApis when apis list is null")
+		void testActiveApisWhenApisNull() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			doReturn(null).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test activeApis with MongoDB connection using URI")
+		void testActiveApisWithMongoDBUsingUri() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
+			Map<String, Object> config = new HashMap<>();
+			config.put("uri", "mongodb://root:test123@localhost:27017/test?authSource=admin");
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+			assertNotNull(apiDefinitionVo.getApis());
+		}
+
+		@Test
+		@DisplayName("test activeApis with MongoDB connection using params (no URI)")
+		void testActiveApisWithMongoDBUsingParams() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
+			Map<String, Object> config = new HashMap<>();
+			config.put("user", "root");
+			config.put("password", "test123");
+			config.put("host", "localhost:27017");
+			config.put("database", "test");
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+		}
+
+		@Test
+		@DisplayName("test activeApis with non-MongoDB connection type")
+		void testActiveApisWithNonMongoDBConnection() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("MySQL");
+			Map<String, Object> config = new HashMap<>();
+			config.put("host", "localhost");
+			config.put("port", 3306);
+			config.put("database", "testdb");
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MySQL");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+		}
+
+		@Test
+		@DisplayName("test activeApis with Oracle connection type and SID config")
+		void testActiveApisWithOracleAndSIDConfig() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("Oracle");
+			Map<String, Object> config = new HashMap<>();
+			config.put("thinType", "SID");
+			config.put("sid", "ORCL");
+			config.put("host", "localhost");
+			config.put("port", 1521);
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("Oracle");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+			assertEquals("ORCL", apiDefinitionVo.getConnections().get(0).getDatabase_name());
+		}
+
+		@Test
+		@DisplayName("test activeApis with multiple connections")
+		void testActiveApisWithMultipleConnections() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId1 = new ObjectId();
+			ObjectId connectionId2 = new ObjectId();
+
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto1 = new ModulesDto();
+			modulesDto1.setId(new ObjectId());
+			modulesDto1.setConnection(connectionId1);
+			apis.add(modulesDto1);
+			ModulesDto modulesDto2 = new ModulesDto();
+			modulesDto2.setId(new ObjectId());
+			modulesDto2.setConnection(connectionId2);
+			apis.add(modulesDto2);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto conn1 = new DataSourceConnectionDto();
+			conn1.setId(connectionId1);
+			conn1.setDatabase_type("MongoDB");
+			Map<String, Object> config1 = new HashMap<>();
+			config1.put("uri", "mongodb://root:test@localhost:27017/db1");
+			conn1.setConfig(config1);
+
+			DataSourceConnectionDto conn2 = new DataSourceConnectionDto();
+			conn2.setId(connectionId2);
+			conn2.setDatabase_type("MySQL");
+			Map<String, Object> config2 = new HashMap<>();
+			config2.put("host", "localhost");
+			conn2.setConfig(config2);
+
+			List<DataSourceConnectionDto> connectionDtoList = Arrays.asList(conn1, conn2);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto defMongo = new DataSourceDefinitionDto();
+			defMongo.setType("MongoDB");
+			LinkedHashMap<String, Object> propMongo = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connMongo = new LinkedHashMap<>();
+			connMongo.put("properties", new LinkedHashMap<>());
+			propMongo.put("connection", connMongo);
+			defMongo.setProperties(propMongo);
+
+			DataSourceDefinitionDto defMysql = new DataSourceDefinitionDto();
+			defMysql.setType("MySQL");
+			LinkedHashMap<String, Object> propMysql = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connMysql = new LinkedHashMap<>();
+			connMysql.put("properties", new LinkedHashMap<>());
+			propMysql.put("connection", connMysql);
+			defMysql.setProperties(propMysql);
+
+			List<DataSourceDefinitionDto> definitionDtoList = Arrays.asList(defMongo, defMysql);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(2, apiDefinitionVo.getConnections().size());
+		}
+
+		@Test
+		@DisplayName("test activeApis when exception occurs during processing")
+		void testActiveApisWhenExceptionOccurs() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
+			Map<String, Object> config = new HashMap<>();
+			config.put("uri", "invalid-uri");
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertTrue(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(0, apiDefinitionVo.getConnections().size());
+		}
+
+		@Test
+		@DisplayName("test activeApis with empty database types")
+		void testActiveApisWithEmptyDatabaseTypes() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type(null);
+			Map<String, Object> config = new HashMap<>();
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertTrue(result.isEmpty());
+			verify(dataSourceDefinitionService, never()).findAllDto(any(Query.class), eq(userDetail));
 		}
 	}
 
