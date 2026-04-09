@@ -29,7 +29,7 @@ jobs:
       check-style: ${{ steps.check-style.outputs.error }}
     steps:
       - name: Checkout Code to Get Message
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Set env
@@ -38,7 +38,7 @@ jobs:
           echo "COMMIT_MESSAGE="$message"" >> $GITHUB_ENV
       - name: check commit message
         id: check-style
-        if: (!startsWith(env.COMMIT_MESSAGE, 'feat')) && 
+        if: (!startsWith(env.COMMIT_MESSAGE, 'feat')) &&
             (!startsWith(env.COMMIT_MESSAGE, 'fix')) &&
             (!startsWith(env.COMMIT_MESSAGE, 'refactor')) &&
             (!startsWith(env.COMMIT_MESSAGE, 'test')) &&
@@ -73,7 +73,7 @@ jobs:
           echo "FEISHU_APP_SECRET=${{ env.FEISHU_APP_SECRET }}" >> $GITHUB_ENV
       - name: Checkout Enterprise Repo to Set Env if Cron Job
         if: ${{ github.event_name == 'schedule' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Set Env if Cron Job
@@ -82,7 +82,7 @@ jobs:
           current_branch="`git branch -r | cut -d "/" -f 2 | grep '^develop-v[0-9]*.[0-9]*.[0-9]*$' | sort -rV | head -n 1`"
           echo "CURRENT_BRANCH=$current_branch" >> $GITHUB_ENV
           echo "TAG_BRANCH=$current_branch" >> $GITHUB_ENV
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Login to the github container registry
@@ -92,7 +92,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: get test history
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         if: always()
         continue-on-error: true
         with:

@@ -10,4 +10,5 @@ public class LoginProxyResponseDto extends BaseDto {
 	private String token;
 	private Integer wsPort;
 	private String wsPath;
+	private Integer wsProxyPort;
 }

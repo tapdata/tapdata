@@ -44,6 +44,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapCallbackOffset;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -247,7 +248,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (callbackOffset instanceof TapCallbackOffset) {
 				TapCallbackOffset tapOffset = (TapCallbackOffset) callbackOffset;
 
-				Object batchOffset = tapOffset.get(KEY_BATCH_OFFSET);
 				Object streamOffset = tapOffset.get(KEY_STREAM_OFFSET);
 				String tableId = (String) tapOffset.get(KEY_TABLE_ID);
 				String syncStage = (String) tapOffset.get(KEY_SYNC_STAGE);
@@ -257,7 +257,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 				// 构建 TapdataEvent
 				TapdataEvent tapdataEvent = new TapdataEvent();
-				tapdataEvent.setBatchOffset(batchOffset);
 				tapdataEvent.setStreamOffset(streamOffset);
 				if (syncStage != null) {
 					tapdataEvent.setSyncStage(parseSyncStageSafely(syncStage, SyncStage.CDC));
@@ -289,6 +288,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 
 				flushOffsetCallback(tapdataEvent, syncProgress);
+				saveToSnapshot();
 			}
 		});
 	}
@@ -1173,15 +1173,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     private void processEventsWithExactlyOnceCheck(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
-            try {
-                transactionBegin();
-                processEvents(tapEvents);
-                processExactlyOnceWriteCache(tapdataEvents);
-                transactionCommit();
-            } catch (Exception e) {
-                transactionRollback();
-                throw e;
-            }
+            processExactlyOnceWriteCache(tapdataEvents,tapEvents);
         } else {
             processEvents(tapEvents);
         }
@@ -1248,10 +1240,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 
 		// Add offset information from TapdataEvent to TapRecordEvent.info
-		// This allows connectors to access offset information when writing records
-		if (null != tapdataEvent.getBatchOffset()) {
-			tapRecordEvent.addInfo("batchOffset", tapdataEvent.getBatchOffset());
-		}
 		if (null != tapdataEvent.getStreamOffset()) {
 			tapRecordEvent.addInfo("streamOffset", tapdataEvent.getStreamOffset());
 		}
@@ -1659,7 +1647,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    private void flushSyncProgressMap(TapdataEvent tapdataEvent) {
+    protected void flushSyncProgressMap(TapdataEvent tapdataEvent) {
         if (null == tapdataEvent) return;
         Node<?> node = processorBaseContext.getNode();
         if (CollectionUtils.isEmpty(tapdataEvent.getNodeIds())) return;
@@ -1669,7 +1657,29 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (null == tapdataEvent.getSyncStage()) return;
             syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
         } else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-            if (null == tapdataEvent.getSyncStage()) return;
+			if (null == tapdataEvent.getSyncStage() || offsetCallbackEnable) {
+				try {
+					ProcessControlFunction processControlFunction = getConnectorNode().getConnectorFunctions().getProcessControlFunction();
+					if (null == processControlFunction) {
+						return;
+					}
+					HeartbeatEvent event;
+					if (tapdataEvent.getTapEvent() instanceof HeartbeatEvent) {
+						event = (HeartbeatEvent) tapdataEvent.getTapEvent();
+					} else {
+						event = new HeartbeatEvent().init().referenceTime(tapdataEvent.getSourceTime());
+					}
+					event.addInfo("batchOffset", tapdataEvent.getBatchOffset());
+					event.addInfo("streamOffset", tapdataEvent.getStreamOffset());
+					event.addInfo("syncStage", tapdataEvent.getSyncStage());
+					event.addInfo("sourceTime", tapdataEvent.getSourceTime());
+					event.addInfo("nodeIds", tapdataEvent.getNodeIds());
+					processControlFunction.processControl(getConnectorNode().getConnectorContext(), event);
+					return;
+				} catch (Throwable throwable) {
+					errorHandle(throwable);
+				}
+			}
             syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
             if (null != tapdataEvent.getStreamOffset()) {
                 syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
@@ -1687,17 +1697,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
 			}
 		} else {
-			if (offsetCallbackEnable) {
-				return;
-			}
-			else {
+			if (!offsetCallbackEnable) {
 				flushOffsetCallback(tapdataEvent, syncProgress);
 			}
 		}
 		syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
-		if (syncProgress.getSyncStage() == null) {
-			obsLogger.warn(String.format("Found sync stage is null when flush sync progress, event: %s[%s]", tapdataEvent, tapdataEvent.getClass().getName()));
-		}
 	}
 
 	protected boolean flushOffsetCallback(TapdataEvent tapdataEvent, SyncProgress syncProgress) {
@@ -2128,7 +2132,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         startTransactionMap.put(Thread.currentThread().getName(), false);
     }
 
-    void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents) {
+    void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents,List<TapEvent> tapEvents) {
         throw new UnsupportedOperationException();
     }
 

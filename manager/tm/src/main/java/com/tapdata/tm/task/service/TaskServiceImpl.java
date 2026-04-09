@@ -4527,7 +4527,7 @@ public class TaskServiceImpl extends TaskService{
         tasksNumBatch.setTaskType(taskType);
         userDataReportService.produceData(tasksNumBatch);
 
-        if (taskDto.getShareCdcEnable() && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
+        if (Boolean.TRUE.equals(taskDto.getShareCdcEnable()) && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
             //如果是共享挖掘任务给一个队列，避免混乱
             lockControlService.logCollectorStartQueue(user);
         }
@@ -5961,7 +5961,7 @@ public class TaskServiceImpl extends TaskService{
     public CheckTaskMemoryResult checkTaskMemoryHeap(TaskDto taskDto, boolean isRedistribute,UserDetail userDetail){
         if( (null != taskDto.getType() && taskDto.getType().equals(TaskDto.TYPE_CDC))
                 || (null != taskDto.getAttrs() && taskDto.getAttrs().containsKey("syncProgress"))
-                || !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC))return null;
+                || !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC))return CheckTaskMemoryResult.safe();
         DAG dag = taskDto.getDag();
         if(null == dag || CollectionUtils.isEmpty(dag.getNodes())){
             return CheckTaskMemoryResult.safe();

@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -78,4 +79,6 @@ public class ApiCallDetailVo extends BaseVo {
      * @see ApiCallEntity.HttpStatusType
      * */
     private String httpStatus;
+
+    private Map<String, List<String>> fieldEncryptionRule;
 }

@@ -30,7 +30,7 @@ jobs:
         run: |
           echo "TAPDATA_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
       - name: Checkout Tapdata Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'tapdata/tapdata'
           ref: ${{ github.ref_name }}
@@ -201,8 +201,6 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@fileserver.tapdata.io:873/data/version/
       - name: Build Frontend
         run: |
-          export PATH="/root/.nvm/versions/node/v20.12.2/bin:$PATH"
-          pnpm config set registry https://registry.npmmirror.com
           cd tapdata && bash build/build.sh -c frontend -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
       - name: Build Docs
         run: |

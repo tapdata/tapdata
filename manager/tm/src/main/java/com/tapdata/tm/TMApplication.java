@@ -165,5 +165,6 @@ public class TMApplication {
 		CommonUtils.setProperty("tapdata_proxy_mongodb_ssl", userService.isSsl());
 		CommonUtils.setProperty("tapdata_proxy_mongodb_caPath", userService.getCaPath());
 		CommonUtils.setProperty("tapdata_proxy_mongodb_keyPath", userService.getKeyPath());
+		CommonUtils.setProperty("tapdata_proxy_mongodb_sslPass", userService.getSslPass());
 	}
 }

@@ -8,6 +8,7 @@ import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.modules.param.UpdateEncryptionParam;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.param.ApiDetailParam;
@@ -137,6 +138,15 @@ public class ModulesController extends BaseController {
     return success(modulesService.findById(id));
   }
 
+  /**
+   * Support dynamic modification of encryption rules: (for web post)
+   * */
+  @PostMapping("update-param-encryption")
+  public ResponseMessage<Void> updateParamEncryption(@RequestBody UpdateEncryptionParam param) {
+    modulesService.updateParamEncryption(param, getLoginUser());
+    return success();
+  }
+
 
   /**
    * 逻辑删除
@@ -226,6 +236,16 @@ public class ModulesController extends BaseController {
   @GetMapping("apiDefinition")
   public ResponseMessage apiDefinition() {
     return success(modulesService.apiDefinition(getLoginUser()));
+  }
+  /**
+   * 用于api-server 服务：更新api的发布状态
+   * @param publishStatus <apiId, statusMsg>
+   * @return
+   */
+  @PostMapping("update-publish-status")
+  public ResponseMessage<Void> updatePublishStatus(@RequestBody Map<String, String> publishStatus) {
+    modulesService.updatePublishMsg(publishStatus);
+    return success();
   }
 
   @GetMapping("worker-info")

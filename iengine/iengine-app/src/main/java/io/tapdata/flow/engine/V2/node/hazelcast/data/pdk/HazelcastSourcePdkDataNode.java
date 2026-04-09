@@ -149,6 +149,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -187,6 +188,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	private SyncProgress.Type syncProgressType = SyncProgress.Type.NORMAL;
     private final ISkipErrorTable skipErrorTable;
     protected boolean needAdjustBatchSize;
+	private final ReentrantLock eventsLock = new ReentrantLock(true);
 
     private Consumer<List<TapEvent>> streamReadBatchSizeConsumer;
 
@@ -326,9 +328,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				throw e;
 			} finally {
 				if (isRunning()) {
-					if(need2InitialSync(syncProgress)){
-						enqueue(new TapdataCompleteSnapshotEvent());
-					}
 					if(checkRebuildMergeTableCache(false)){
 						SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
 						if(null != snapshotOrderController) {
@@ -338,6 +337,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 						if(getNode() instanceof TableNode tableNode && tableNode.isReFullRun()){
 							enqueue(new TapdataMergeTableCacheRebuildCompleteEvent(tableNode.getMergeTablePropertiesId(), tableNode.getMergeNodeId()));
 						}
+						enqueue(new TapdataCompleteSnapshotEvent());
+					}else if(need2InitialSync(syncProgress)){
+						enqueue(new TapdataCompleteSnapshotEvent());
 					}
 				}
 				Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
@@ -632,8 +634,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
                                             AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
 
                                         if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-                                            tapdataEvents.forEach(this::enqueue);
-
+											eventsLock.lock();
+											try {
+												tapdataEvents.forEach(this::enqueue);
+											} finally {
+												eventsLock.unlock();
+											}
                                             if (batchReadFuncAspect != null)
                                                 AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
                                         }
@@ -1721,7 +1727,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				if(first){
 					obsLogger.info("No need to rebuild the cache, skip directly, table name: {}", tableNode.getTableName());
 				}
-				return true;
+				return !first;
 			}
 		}
 		return false;

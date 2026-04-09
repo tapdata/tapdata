@@ -1,6 +1,7 @@
 package com.tapdata.tm.worker.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.Data;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -39,6 +40,7 @@ public class ApiServerStatus {
 
     String status;
 
+    @JsonDeserialize(using = WorkersDeserializer.class)
     Map<String, ApiServerWorkerInfo> workers;
 
     MetricInfo metricValues;

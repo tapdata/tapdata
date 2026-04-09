@@ -665,7 +665,7 @@ public class WorkerServiceImpl extends WorkerService{
         try {
             BulkOperations bulkOps = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, ServerUsage.class);
             for (ServerUsage entity : entities) {
-                entity.setTtlKey(new Date(entity.getLastUpdateTime()));
+                entity.setTtlKey(new Date(Optional.ofNullable(entity.getLastUpdateTime()).orElse(System.currentTimeMillis())));
                 Query query = queryBuilder.apply(entity);
                 Update update = updateBuilder.apply(entity);
                 bulkOps.upsert(query, update);

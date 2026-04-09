@@ -72,7 +72,7 @@ public class PdkSourceUtils {
     protected static void transformToFile(MultipartFile originFile, BiConsumer consumer) throws IOException {
         File file;
         Boolean needDeleteFile = false;
-        file = new File(originFile.getName());
+        file = new File(originFile.getOriginalFilename());
         try (InputStream ins = originFile.getInputStream()){
             if (!file.exists()){
                 inputStreamToFile(ins,file);

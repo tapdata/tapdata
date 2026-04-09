@@ -95,6 +95,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     @EqField
     private Map<String, Object> nodeConfig;
 
+    private Map<String, Map<String, Object>> tableNodeConfig;
+
     @EqField
     private Map<String, List<String>> updateConditionFieldMap;
 

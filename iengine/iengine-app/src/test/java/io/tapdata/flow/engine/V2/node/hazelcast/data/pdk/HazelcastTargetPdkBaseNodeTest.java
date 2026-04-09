@@ -34,6 +34,7 @@ import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapCallbackOffset;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -1534,10 +1535,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> testAfterData = new HashMap<>();
 			tapEvents.add(TapInsertRecordEvent.create().table(testTableName).after(testAfterData));
 			hazelcastTargetPdkBaseNode.processTapEvents(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
-			verify(hazelcastTargetPdkBaseNode, times(1)).transactionBegin();
-			verify(hazelcastTargetPdkBaseNode, times(1)).processEvents(any());
-			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any());
-			verify(hazelcastTargetPdkBaseNode, times(1)).transactionCommit();
+			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any(),any());
 		}
 
 		@Test
@@ -1549,14 +1547,12 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			doAnswer(invocationOnMock -> {
 				throw new RuntimeException("test");
-			}).when(hazelcastTargetPdkBaseNode).processEvents(any());
+			}).when(hazelcastTargetPdkBaseNode).processExactlyOnceWriteCache(any(), any());
 
 			assertThrows(RuntimeException.class, () -> {
 				hazelcastTargetPdkBaseNode.processTapEvents(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
 			});
-			verify(hazelcastTargetPdkBaseNode, times(1)).transactionBegin();
-			verify(hazelcastTargetPdkBaseNode, times(1)).processEvents(any());
-			verify(hazelcastTargetPdkBaseNode, times(1)).transactionRollback();
+			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any(), any());
 		}
 	}
 
@@ -3070,6 +3066,32 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(syncProgress, times(1)).setSourceTime(1000L);
 			verify(syncProgress, times(1)).setEventTime(2000L);
 			verify(syncProgress, times(1)).setType(SyncProgress.Type.NORMAL);
+			assertTrue(flushOffset.get());
+		}
+	}
+
+	@Nested
+	class FlushSyncProgressMapTest {
+		@Test
+		void testForTapdataHeartbeatEvent() {
+			TapdataEvent tapdataEvent = new TapdataHeartbeatEvent();
+			tapdataEvent.setSyncStage(mock(SyncStage.class));
+			tapdataEvent.setNodeIds(List.of("nodeId1"));
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn("nodeId");
+			Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "syncProgressMap", syncProgressMap);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "offsetCallbackEnable", true);
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
+
+			processorBaseContext = mock(ProcessorBaseContext.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
+			when(processorBaseContext.getNode()).thenReturn(node);
+			AtomicBoolean flushOffset = new AtomicBoolean(false);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", flushOffset);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).flushSyncProgressMap(tapdataEvent);
+			hazelcastTargetPdkBaseNode.flushSyncProgressMap(tapdataEvent);
 			assertTrue(flushOffset.get());
 		}
 	}

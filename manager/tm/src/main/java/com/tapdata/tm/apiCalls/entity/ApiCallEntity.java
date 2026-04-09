@@ -135,6 +135,8 @@ public class ApiCallEntity extends BaseEntity {
 
     private boolean hasMetric;
 
+    Map<String, List<String>> fieldEncryptionRule;
+
     @Getter
     public enum HttpStatusType {
         API_NOT_EXIST_404("API_NOT_EXIST_404"),

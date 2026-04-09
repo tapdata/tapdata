@@ -34,6 +34,8 @@ public class DefaultMongoConfig extends AbstractMongoClientConfiguration {
     private String caPath;
     @Value("${spring.data.mongodb.keyPath}")
     private String keyPath;
+    @Value("${spring.data.mongodb.sslPass}")
+    private String sslPass;
 
     @Bean(name = "mongoCusConversions")
     @Primary
@@ -48,7 +50,7 @@ public class DefaultMongoConfig extends AbstractMongoClientConfiguration {
     @SneakyThrows
     @Override
     protected MongoClientSettings mongoClientSettings() {
-        return SSLUtil.mongoClientSettings(ssl, keyPath, caPath, uri);
+        return SSLUtil.mongoClientSettings(ssl, keyPath, caPath, sslPass, uri);
     }
 
     @Override

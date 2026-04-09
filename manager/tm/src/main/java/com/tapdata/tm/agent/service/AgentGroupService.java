@@ -560,7 +560,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         }
         Criteria criteria = findCriteria(groupIds);
         Query query = Query.query(criteria);
-        List<AgentGroupEntity> all = findAll(query, userDetail);
+        List<AgentGroupEntity> all = settingsService.isCloud() ? findAll(query, userDetail) : findAllEntity(query);
         if (CollectionUtils.isEmpty(all)) {
             //找不到当前标签
             throw new BizException(AgentGroupTag.GROUP_NOT_FUND, groupIds.toString());
@@ -576,12 +576,12 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     }
 
     protected Criteria findCriteria(List<String> groupIds) {
-        Criteria criteria = Criteria.where(AgentGroupTag.TAG_DELETE).is(false);
+        Criteria criteria = Criteria.where(AgentGroupTag.TAG_DELETE).ne(true);
         if (null == groupIds || groupIds.isEmpty()) {
             return criteria;
         }
         if (groupIds.size() == 1) {
-            criteria.and(AgentGroupTag.TAG_GROUP_ID).in(groupIds.get(0));
+            criteria.and(AgentGroupTag.TAG_GROUP_ID).is(groupIds.get(0));
         } else {
             criteria.and(AgentGroupTag.TAG_GROUP_ID).in(groupIds);
         }
