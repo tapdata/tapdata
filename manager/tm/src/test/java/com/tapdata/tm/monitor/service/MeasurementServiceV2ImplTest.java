@@ -23,6 +23,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
+import com.tapdata.tm.monitor.vo.TaskMetricsTrendVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
@@ -150,6 +151,101 @@ class MeasurementServiceV2ImplTest {
             verify(mongoOperations).findOne(any(Query.class), any(Class.class), anyString());
         }
     }
+
+    @Nested
+    class AggregateTaskMetricsByTaskIdsTest {
+        @BeforeEach
+        void init() {
+            mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            when(measurementServiceV2.aggregateTaskMetricsByTaskIds(any(), anyLong(), anyLong())).thenCallRealMethod();
+        }
+
+        @Test
+        void testOneHourWindowUsesMinuteMeasurements() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setGranularity(Granularity.GRANULARITY_MINUTE);
+            entity.setTags(Map.of("taskId", "task-1"));
+            entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 120D, 12D)));
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenAnswer(invocation -> {
+                        Query query = invocation.getArgument(0);
+                        return query.getQueryObject().toJson().contains("\"granularity\": \"minute\"")
+                                ? List.of(entity)
+                                : new ArrayList<>();
+                    });
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
+
+            assertTrue(result.getOutputQps().stream().anyMatch(value -> value != null && value > 0D));
+            assertEquals(120D, result.getOutputQps().get(result.getOutputQps().size() - 1));
+            assertEquals(12D, result.getOutputSizeQps().get(result.getOutputSizeQps().size() - 1));
+        }
+
+        @Test
+        void testOneDayWindowUsesHourMeasurements() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 24L * 60L * 60L * 1000L;
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setGranularity(Granularity.GRANULARITY_HOUR);
+            entity.setTags(Map.of("taskId", "task-1"));
+            entity.setSamples(List.of(sample(new Date(endAt - 60L * 60L * 1000L), 300D, 30D)));
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenAnswer(invocation -> {
+                        Query query = invocation.getArgument(0);
+                        return query.getQueryObject().toJson().contains("\"granularity\": \"hour\"")
+                                ? List.of("task1")
+                                : new ArrayList<>();
+                    });
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
+
+            assertTrue(result.getOutputQps().stream().anyMatch(value -> value != null && value > 0D));
+            assertEquals(300D, result.getOutputQps().get(result.getOutputQps().size() - 1));
+            assertEquals(30D, result.getOutputSizeQps().get(result.getOutputSizeQps().size() - 1));
+        }
+
+        @Test
+        void testAggregateTaskMetricsFiltersByTaskRecordId() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            MeasurementEntity matched = new MeasurementEntity();
+            matched.setGranularity(Granularity.GRANULARITY_MINUTE);
+            matched.setTags(Map.of("taskId", "task-1", "taskRecordId", "record-1"));
+            matched.setSamples(List.of(sample(new Date(endAt - 60_000L), 120D, 12D)));
+            MeasurementEntity stale = new MeasurementEntity();
+            stale.setGranularity(Granularity.GRANULARITY_MINUTE);
+            stale.setTags(Map.of("taskId", "task-1", "taskRecordId", "record-old"));
+            stale.setSamples(List.of(sample(new Date(endAt - 60_000L), 900D, 90D)));
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenAnswer(invocation -> {
+                        Query query = invocation.getArgument(0);
+                        String json = query.getQueryObject().toJson();
+                        assertTrue(json.contains("\"taskRecordId\": \"record-1\""));
+                        assertFalse(json.contains("record-old"));
+                        return List.of(matched);
+                    });
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
+
+            assertTrue(result.getOutputQps().stream().anyMatch(value -> value != null && value > 0D));
+            assertEquals(120D, result.getOutputQps().get(result.getOutputQps().size() - 1));
+            assertEquals(12D, result.getOutputSizeQps().get(result.getOutputSizeQps().size() - 1));
+        }
+
+        private Sample sample(Date date, double outputQps, double outputSizeQps) {
+            Sample sample = new Sample();
+            sample.setDate(date);
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("outputQps", outputQps);
+            vs.put("outputSizeQps", outputSizeQps);
+            sample.setVs(vs);
+            return sample;
+        }
+    }
+
     @Nested
     class AddBulkAgentMeasurementTest{
         private MongoTemplate mongoOperations;

@@ -1099,6 +1099,15 @@ public class TaskController extends BaseController {
         return success(taskService.chart(getLoginUser()));
     }
 
+    @Operation(summary = "Task Dashboard")
+    @GetMapping("/dashboard")
+    public ResponseMessage<TaskDashboardVo> dashboard(@RequestParam(required = false) String type,
+                                                      @RequestParam(required = false) Long step,
+                                                      @RequestParam(required = false) String dashboardType,
+                                                      @RequestParam(required = false) Integer top) {
+        return success(taskService.dashboard(getLoginUser(), type, step, dashboardType, top));
+    }
+
 
     /**
      * @return true 重复名称， false 不重复

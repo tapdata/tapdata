@@ -146,6 +146,7 @@ import com.tapdata.tm.task.service.batchin.ParseRelMig;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.service.chart.ChartViewService;
+import com.tapdata.tm.task.service.dashboard.TaskDashboardService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
@@ -380,6 +381,7 @@ public class TaskServiceImpl extends TaskService{
     private DataSourceDefinitionService dataSourceDefinitionService;
     private BatchUpChecker batchUpChecker;
     private ChartViewService chartViewService;
+    private TaskDashboardService taskDashboardService;
     private UserDataReportService userDataReportService;
     private BatchService batchService;
     private ShareCdcTableMappingService shareCdcTableMappingService;
@@ -2233,6 +2235,11 @@ public class TaskServiceImpl extends TaskService{
         }
         resultChart.put("chart6", chart6Vo);
         return resultChart;
+    }
+
+    @Override
+    public TaskDashboardVo dashboard(UserDetail user, String type, Long step, String dashboardType, Integer top) {
+        return taskDashboardService.dashboard(user, type, step, dashboardType, top);
     }
 
     protected List<InspectDto> inspectTaskList(Filter filter, UserDetail user) {

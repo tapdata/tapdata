@@ -27,6 +27,7 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
+import com.tapdata.tm.task.vo.TaskDashboardVo;
 import com.tapdata.tm.task.vo.TaskStatsDto;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -157,6 +158,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract ShareCacheDetailVo findShareCacheById(String id);
 
     public abstract Map<String, Object> chart(UserDetail user);
+
+    public abstract TaskDashboardVo dashboard(UserDetail user, String type, Long step, String dashboardType, Integer top);
 
     public abstract Map<String, Integer> inspectChart(UserDetail user);
 
