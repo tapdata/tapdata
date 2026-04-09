@@ -247,7 +247,7 @@ public class TaskDashboardService {
     private void fillConnectedDbs(TaskDashboardVo.ConnectedDbs connectedDbs, UserDetail user) {
         Query query = Query.query(Criteria.where("is_deleted").ne(true));
         query.fields().include("_id", "name", "tableCount");
-        List<DataSourceConnectionDto> connections = Optional.ofNullable(dataSourceService.findAllDto(query, user)).orElseGet(ArrayList::new);
+        List<DataSourceConnectionDto> connections = new ArrayList<>(Optional.ofNullable(dataSourceService.findAllDto(query, user)).orElseGet(ArrayList::new));
         connections.sort(Comparator
                 .comparingLong((DataSourceConnectionDto dto) -> Optional.ofNullable(dto.getTableCount()).orElse(0L)).reversed()
                 .thenComparing(dto -> StringUtils.defaultString(dto.getName())));
