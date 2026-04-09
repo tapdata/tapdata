@@ -80,6 +80,24 @@ build_java_component() {
   mvn install -T1C $run_unittest $BUILD_ARGS
 }
 
+function switch_node_version() {
+  version=$1
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  if ! command -v nvm > /dev/null 2>&1; then
+    curl -o- https://gitee.com/RubyMetric/nvm-cn/raw/main/install.sh | bash
+    chmod +x ~/.nvm/nvm.sh
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
+    export NVM_NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node
+  fi
+  nvm use $version
+  if [[ $? -ne 0 ]]; then
+    nvm install $version
+    nvm use $version
+  fi
+}
+
 # build component
 for COMPONENT in ${COMPONENTS[@]}; do
   if [[ $COMPONENT == "tapdata" ]]; then
@@ -87,6 +105,7 @@ for COMPONENT in ${COMPONENTS[@]}; do
   elif [[ $COMPONENT == "connectors" ]]; then
     cd $CONNECTOR_DIR && build_java_component
   elif [[ $COMPONENT == "frontend" ]]; then
+    switch_node_version 20
     cd $FRONTEND_DIR && DAAS_BUILD_NUMBER=$TAG_NAME bash build/build.sh -m $FRONTEND_BUILD_MODE
   fi
 done

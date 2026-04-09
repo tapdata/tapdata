@@ -109,8 +109,7 @@ public class JsonUtil {
 			try {
 				return objectMapper.readValue(json, typeReference);
 			} catch (JsonProcessingException var4) {
-				var4.printStackTrace();
-				return null;
+				throw new RuntimeException(var4);
 			}
 		}
 

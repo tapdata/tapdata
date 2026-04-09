@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.dag.process;
 
 import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Schema;
@@ -15,6 +16,7 @@ import java.util.*;
 @Getter
 @Setter
 public class MigrateUnionProcessorNode extends MigrateProcessorNode{
+    @EqField
     private String tableName;
 
     public MigrateUnionProcessorNode() {

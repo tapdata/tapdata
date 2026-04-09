@@ -44,8 +44,6 @@ public class ExportModulesVo {
     private String path;
     private String apiType;
 
-    private String status;
-
     private List<Path> paths;
     private List<Field> fields;
 

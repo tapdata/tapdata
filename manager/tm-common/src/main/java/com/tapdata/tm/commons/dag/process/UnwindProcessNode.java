@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -29,11 +30,13 @@ public class UnwindProcessNode extends ProcessorNode {
     /** Field path to an array field.
      * To specify a field path,
      * prefix the field name and enclose in quotes. */
+    @EqField
     private String path;
 
     /** Optional.
      * The name of a new field to hold the array index of the element.
      * The name cannot start with a dollar sign $. */
+    @EqField
     private String includeArrayIndex;
 
     /** Optional.
@@ -44,6 +47,7 @@ public class UnwindProcessNode extends ProcessorNode {
      $unwind
      does not output a document.
      The default value is false. */
+    @EqField
     private boolean preserveNullAndEmptyArrays;
 
     /**
@@ -51,6 +55,7 @@ public class UnwindProcessNode extends ProcessorNode {
      * Embedded will save the original document object in the array,
      * Flatten mode will flatten the document objects in the array
      */
+    @EqField
     private UnwindModel unwindModel = UnwindModel.EMBEDDED;
     /**
      * When UnwindModel is in Flatten mode, ArrayModel mode needs to be selected.
@@ -58,8 +63,10 @@ public class UnwindProcessNode extends ProcessorNode {
      * Mixed mode means that the selected array contains object and primitive type data, model derivation will preserve parent and child fields.
      * Basic mode means that the selected array contains basic type data and model derivation only retains the parent field.
      */
+    @EqField
     private ArrayModel arrayModel;
 
+    @EqField
     private String joiner = "_";
 
     public UnwindProcessNode() {
