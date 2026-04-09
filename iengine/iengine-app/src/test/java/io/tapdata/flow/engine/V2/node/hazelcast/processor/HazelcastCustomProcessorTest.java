@@ -71,11 +71,15 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
         when(clientMongoOperator.findOne(any(Query.class), anyString(), any(), any())).thenReturn(customNodeTempDto);
         try (MockedStatic<ScriptUtil> scriptUtilMockedStatic = mockStatic(ScriptUtil.class);) {
             scriptUtilMockedStatic.when(() -> {
-                ScriptUtil.getScriptEngine(eq(null),
+                ScriptUtil.getScriptEngine(anyString(),
+                        any(),
                         anyList(),
                         any(ClientMongoOperator.class),
-                        eq(null),
-                        any(ObsScriptLogger.class));
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        anyBoolean());
             }).thenThrow(new ScriptException("getFailed"));
             try{
 
