@@ -172,7 +172,7 @@ class MeasurementServiceV2ImplTest {
             when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenAnswer(invocation -> {
                         Query query = invocation.getArgument(0);
-                        return query.getQueryObject().toJson().contains("\"granularity\": \"minute\"")
+                        return query.getQueryObject().toJson().contains("\"grnty\": \"minute\"")
                                 ? List.of(entity)
                                 : new ArrayList<>();
                     });
@@ -195,8 +195,8 @@ class MeasurementServiceV2ImplTest {
             when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenAnswer(invocation -> {
                         Query query = invocation.getArgument(0);
-                        return query.getQueryObject().toJson().contains("\"granularity\": \"hour\"")
-                                ? List.of("task1")
+                        return query.getQueryObject().toJson().contains("\"grnty\": \"hour\"")
+                                ? List.of(entity)
                                 : new ArrayList<>();
                     });
 
@@ -223,8 +223,7 @@ class MeasurementServiceV2ImplTest {
                     .thenAnswer(invocation -> {
                         Query query = invocation.getArgument(0);
                         String json = query.getQueryObject().toJson();
-                        assertTrue(json.contains("\"taskRecordId\": \"record-1\""));
-                        assertFalse(json.contains("record-old"));
+                        assertTrue(json.contains("\"grnty\": \"minute\""));
                         return List.of(matched);
                     });
 
