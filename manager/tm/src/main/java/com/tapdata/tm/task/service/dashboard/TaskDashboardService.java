@@ -1,6 +1,8 @@
 package com.tapdata.tm.task.service.dashboard;
 
 import com.tapdata.tm.apiServer.enums.TimeGranularity;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -111,9 +114,12 @@ public class TaskDashboardService {
         List<TaskDto> tasks = needTaskList
                 ? Optional.ofNullable(chartViewService.getViewTaskDtoByUser(user)).orElseGet(ArrayList::new)
                 : new ArrayList<>();
+
+        // 查询系统连接 ID（MDM/FDM），用于过滤系统任务
+        Set<String> systemConnectionIds = needTaskList ? findSystemConnectionIds() : Set.of();
         List<TaskDto> runningTasks = tasks.stream()
-                .filter(Objects::nonNull)
                 .filter(task -> TaskDto.STATUS_RUNNING.equals(task.getStatus()))
+                .filter(task -> !isSystemTask(task, systemConnectionIds))
                 .collect(Collectors.toList());
         List<String> runningTaskIds = runningTasks.stream()
                 .map(TaskDto::getId)
@@ -146,6 +152,30 @@ public class TaskDashboardService {
         }
 
         return result;
+    }
+
+
+    private Set<String> findSystemConnectionIds() {
+        Query sourceQuery = Query.query(Criteria.where("name").in("MDM", "FDM"));
+        sourceQuery.fields().include("_id");
+        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAll(sourceQuery);
+        return connectionDtos.stream()
+                .map(dto -> dto.getId().toHexString())
+                .collect(Collectors.toCollection(HashSet::new));
+    }
+
+    private boolean isSystemTask(TaskDto taskDto, Set<String> systemConnectionIds) {
+        if (systemConnectionIds.isEmpty() || null == taskDto.getDag()) {
+            return false;
+        }
+        List<Node> sources = taskDto.getDag().getSources();
+        if (CollectionUtils.isEmpty(sources)) {
+            return false;
+        }
+        return sources.stream()
+                .filter(node -> node instanceof DataParentNode)
+                .map(node -> ((DataParentNode<?>) node).getConnectionId())
+                .anyMatch(systemConnectionIds::contains);
     }
 
     private TaskDashboardVo initResult(DashboardQuery dashboardQuery) {
