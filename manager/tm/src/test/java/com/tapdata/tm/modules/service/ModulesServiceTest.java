@@ -2079,6 +2079,8 @@ class ModulesServiceTest {
             // Setup
             DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
             connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+            connectionDto.setDatabase_type("mysql");
+            connectionDto.setName("test-mysql-connection");
             conMap.put("662877df9179877be8b37074", connectionDto);
 
             // Execute
@@ -2087,6 +2089,9 @@ class ModulesServiceTest {
             // Verify
             assertEquals("662877df9179877be8b37077", moduleDto.getConnectionId());
             assertEquals(new ObjectId("662877df9179877be8b37077"), moduleDto.getConnection());
+            assertEquals("662877df9179877be8b37077", moduleDto.getDataSource());
+            assertEquals("test-mysql-connection", moduleDto.getConnectionName());
+            assertEquals("mysql", moduleDto.getConnectionType());
         }
 
         @Test

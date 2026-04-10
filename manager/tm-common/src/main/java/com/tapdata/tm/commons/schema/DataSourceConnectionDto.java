@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.schema;
 
 import com.google.common.collect.Lists;
+import com.tapdata.tm.commons.base.DataPermissionAction;
 import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
@@ -36,6 +37,8 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
     public static final String LOAD_FIELD_STATUS_LOADING = "loading";
     public static final String LOAD_FIELD_STATUS_FINISHED = "finished";
     public static final String LOAD_FIELD_STATUS_ERROR = "error";
+
+        private List<DataPermissionAction> permissions;
 
         /** 数据源连接名称 */
         private String name;

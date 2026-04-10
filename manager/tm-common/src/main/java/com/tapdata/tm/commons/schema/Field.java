@@ -60,6 +60,7 @@ public class Field implements Serializable {
 
     /** 字段别名 */
     @JsonProperty("field_alias")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @org.springframework.data.mongodb.core.mapping.Field("field_alias")
     private String fieldAlias;
 

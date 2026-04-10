@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.schema.Field;
@@ -26,6 +27,7 @@ public class FieldModTypeFilterNode extends ProcessorNode{
         super("field_mod_type_filter_processor");
     }
 
+    @EqField
     private List<String> filterTypes;
 
     private  Map<String, Map<String, FieldInfo>> fieldTypeFilterMap = new HashMap<>();

@@ -2,6 +2,7 @@ package com.tapdata.tm.group.handler;
 
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -11,7 +12,9 @@ import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.dto.ResourceType;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
@@ -70,22 +73,33 @@ public class ModuleResourceHandler implements ResourceHandler {
             return payload;
         }
 
-        
+
         List<ModulesDto> modules = (List<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
             // 清理敏感和非必要字段
-            modulesDto.setCreateUser(null);
             modulesDto.setCustomId(null);
             modulesDto.setLastUpdBy(null);
-            modulesDto.setUserId(null);
+            modulesDto.setStatus(null);
+            if (CollectionUtils.isNotEmpty(modulesDto.getFields())) {
+                modulesDto.getFields().sort(Comparator.comparing(
+                        Field::getFieldName, Comparator.nullsLast(Comparator.naturalOrder())));
+            }
+            if (CollectionUtils.isNotEmpty(modulesDto.getPaths())) {
+                for (Path path : modulesDto.getPaths()) {
+                    if (CollectionUtils.isNotEmpty(path.getFields())) {
+                        path.getFields().sort(Comparator.comparing(
+                                Field::getFieldName, Comparator.nullsLast(Comparator.naturalOrder())));
+                    }
+                }
+            }
             payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_MODULES, JsonUtil.toJsonUseJackson(modulesDto)));
         }
         return payload;
     }
 
     @Override
-    
+
     public void collectPayload(List<TaskUpAndLoadDto> payload, Map<String, ?> resourceMap,
             List<MetadataInstancesDto> metadataList) {
         if (CollectionUtils.isEmpty(payload)) {
@@ -116,13 +130,12 @@ public class ModuleResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<DataSourceConnectionDto> loadConnections(List<?> resources) {
+    public List<DataSourceEntity> loadConnections(List<?> resources) {
         Set<String> connectionIds = new HashSet<>();
         if (CollectionUtils.isEmpty(resources)) {
             return new ArrayList<>();
         }
 
-        
         List<ModulesDto> modules = (List<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
@@ -134,29 +147,34 @@ public class ModuleResourceHandler implements ResourceHandler {
                 connectionIds.add(connectionId);
             }
         }
-        return dataSourceService.findInfoByConnectionIdList(new ArrayList<>(connectionIds));
+        if (connectionIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<ObjectId> objectIds = connectionIds.stream().map(ObjectId::new).collect(Collectors.toList());
+        return dataSourceService.findAllEntity(new Query(Criteria.where("_id").in(objectIds)));
     }
 
     @Override
     public Map<String, String> findDuplicateNames(Iterable<?> resources, UserDetail user) {
         Map<String, String> duplicates = new HashMap<>();
 
-        
         Iterable<ModulesDto> modules = (Iterable<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
-            if (modulesDto == null || StringUtils.isBlank(modulesDto.getName())) {
+            if (modulesDto == null || modulesDto.getId() == null) {
                 continue;
             }
-            if (duplicates.containsKey(modulesDto.getName())) {
+            String moduleId = modulesDto.getId().toHexString();
+            if (duplicates.containsKey(moduleId)) {
                 continue;
             }
-            Query query = new Query(Criteria.where("name").is(modulesDto.getName())
+            // 按 _id 查重：_id 已在导出时保留
+            Query query = new Query(Criteria.where("_id").is(modulesDto.getId())
                     .and("is_deleted").ne(true));
             query.fields().include("_id", "name");
             ModulesDto existing = modulesService.findOne(query, user);
             if (existing != null) {
-                duplicates.put(modulesDto.getName(), "duplicate");
+                duplicates.put(moduleId, "duplicate");
             }
         }
         return duplicates;

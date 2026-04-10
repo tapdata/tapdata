@@ -1,5 +1,6 @@
 package com.tapdata.tm.module.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.schema.Field;
@@ -75,6 +76,7 @@ public class ModulesDto extends BaseDto implements IDataPermissionDto {
     private String user;
 
     @Deprecated
+    @JsonIgnore
     private ObjectId user_id;
 
     private Date last_updated;

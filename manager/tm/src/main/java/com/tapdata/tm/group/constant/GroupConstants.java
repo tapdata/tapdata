@@ -53,6 +53,11 @@ public final class GroupConstants {
      */
     public static final String METADATA_DEFINITION = "MetadataDefinition";
 
+    /**
+     * Vault 敏感信息文件名
+     */
+    public static final String VAULT_FILE = "vault.json";
+
     // ==================== 敏感字段列表 ====================
 
     /**
@@ -119,4 +124,66 @@ public final class GroupConstants {
      * 备份名称分隔符
      */
     public static final String BACKUP_NAME_SEPARATOR = "_backup_";
+
+    // ==================== 用户/角色导出导入相关常量 ====================
+
+    /**
+     * 用户集合名称
+     */
+    public static final String COLLECTION_USER = "User";
+
+    /**
+     * 角色集合名称
+     */
+    public static final String COLLECTION_ROLE = "Role";
+
+    /**
+     * 角色映射集合名称
+     */
+    public static final String COLLECTION_ROLE_MAPPING = "RoleMapping";
+
+    /**
+     * 用户ID-邮箱映射集合名称（导出辅助文件）
+     */
+    public static final String COLLECTION_USER_ID_EMAIL_MAP = "UserIdEmailMap";
+
+    /**
+     * 导出文件：User/Users.json
+     */
+    public static final String USER_EXPORT_USERS_FILE = "User/Users.json";
+
+    /**
+     * 导出文件：User/Roles.json
+     */
+    public static final String USER_EXPORT_ROLES_FILE = "User/Roles.json";
+
+    /**
+     * 导出文件：User/RoleMappings.json
+     */
+    public static final String USER_EXPORT_ROLE_MAPPINGS_FILE = "User/RoleMappings.json";
+
+    /**
+     * 导出文件：User/UserIdEmailMap.json（旧userId→email 映射，供 Connection/Task user_id 转换）
+     */
+    public static final String USER_EXPORT_ID_EMAIL_MAP_FILE = "User/UserIdEmailMap.json";
+
+    /**
+     * 导入 payload key：Users.json
+     */
+    public static final String PAYLOAD_KEY_USERS = "Users.json";
+
+    /**
+     * 导入 payload key：Roles.json
+     */
+    public static final String PAYLOAD_KEY_ROLES = "Roles.json";
+
+    /**
+     * 导入 payload key：RoleMappings.json
+     */
+    public static final String PAYLOAD_KEY_ROLE_MAPPINGS = "RoleMappings.json";
+
+    /**
+     * 导入 payload key：UserIdEmailMap.json
+     */
+    public static final String PAYLOAD_KEY_USER_ID_EMAIL_MAP = "UserIdEmailMap.json";
 }

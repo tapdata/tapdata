@@ -31,6 +31,7 @@ import static com.tapdata.tm.commons.schema.SchemaUtils.createField;
 @Slf4j
 public class FieldAddDelProcessorNode extends FieldProcessorNode {
 
+    @EqField
     private boolean deleteAllFields;
     private List<Postion> fieldsAfter;
 
