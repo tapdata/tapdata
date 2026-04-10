@@ -319,17 +319,16 @@ public class TestRunInputEventConvertUtil {
 			return null;
 		}
 		List<Map<String, Object>> eventDataList = parseTestRunInputEventJson(taskDto.getTestRunInputEventJson(),obsLogger);
-		String explicitEventType = normalizeTestRunInputEventType(taskDto.getTestRunInputEventType());
 		List<TapEvent> tapEvents = new ArrayList<>();
 		for (Map<String, Object> eventData : eventDataList) {
-			tapEvents.add(buildTestRunInputTapEvent(eventData, explicitEventType, table,tapFieldLinkedHashMap,codecsFilterManager));
+			tapEvents.add(buildTestRunInputTapEvent(eventData, table,tapFieldLinkedHashMap,codecsFilterManager));
 		}
 		return tapEvents;
 	}
 
-	private static TapEvent buildTestRunInputTapEvent(Map<String, Object> eventData, String explicitEventType, String table,LinkedHashMap<String, TapField> tapFieldLinkedHashMap,TapCodecsFilterManager codecsFilterManager) {
+	private static TapEvent buildTestRunInputTapEvent(Map<String, Object> eventData, String table,LinkedHashMap<String, TapField> tapFieldLinkedHashMap,TapCodecsFilterManager codecsFilterManager) {
 		String eventType = inferTestRunInputEventType(eventData);
-		switch (eventType) {
+		switch (Objects.requireNonNull(eventType)) {
 			case "insert":
 				return new TapInsertRecordEvent().init()
 						.after(readRecordData(eventData, "after", eventType,tapFieldLinkedHashMap,codecsFilterManager))
@@ -359,17 +358,6 @@ public class TestRunInputEventConvertUtil {
 		}
 		if (hasBefore) {
 			return "delete";
-		}
-		return null;
-	}
-
-	private static String normalizeTestRunInputEventType(String eventType) {
-		if (StringUtils.isBlank(eventType)) {
-			return null;
-		}
-		String normalizedEventType = StringUtils.lowerCase(StringUtils.trim(eventType));
-		if (StringUtils.equalsAny(normalizedEventType, "insert", "update", "delete")) {
-			return normalizedEventType;
 		}
 		return null;
 	}

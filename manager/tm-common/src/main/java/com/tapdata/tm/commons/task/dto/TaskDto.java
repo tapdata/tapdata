@@ -153,10 +153,6 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private String testTaskId;
     /**
-     * js 试运行输入事件类型
-     */
-    private String testRunInputEventType;
-    /**
      * js 试运行输入事件 JSON
      */
     private String testRunInputEventJson;

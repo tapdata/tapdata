@@ -16,7 +16,7 @@ public class TestRunDto {
     private String tableName;
     private Integer rows;
     private Long version;
-    private String testRunInputEventType;
     private String testRunInputEventJson;
+    private String sql;
     private int logOutputCount = 100;
 }

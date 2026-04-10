@@ -1,6 +1,7 @@
 package io.tapdata.test.run;
 
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ClassHandlersV2ToStringUtils;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -41,7 +42,6 @@ public class TestRunAspectTask extends AspectTask {
   private final Logger logger = LogManager.getLogger(TestRunAspectTask.class);
 
   private final ClassHandlers observerClassHandlers = new ClassHandlers();
-  private final ClassHandlersV2 valueHandler;
 
   private Set<String> nodeIds;
 
@@ -61,16 +61,6 @@ public class TestRunAspectTask extends AspectTask {
     TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
     tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant().toString());
     codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-    valueHandler = new ClassHandlersV2();
-    valueHandler.register(Date.class, value -> value.toInstant().toString());
-    valueHandler.register(LocalDateTime.class, LocalDateTime::toString);
-    valueHandler.register(Instant.class, Instant::toString);
-    valueHandler.register(TapDateTimeValue.class,tapValue -> tapValue.getValue().toInstant().toString());
-    valueHandler.register(TapArrayValue.class, TapValue::getValue);
-    valueHandler.register(TapMapValue.class, TapValue::getValue);
-    valueHandler.register(TapStringValue.class, TapValue::getValue);
-    valueHandler.register(TapRawValue.class, TapValue::getValue);
-
   }
 
   @Override
@@ -184,7 +174,7 @@ public class TestRunAspectTask extends AspectTask {
     TapEvent tapEvent = (TapEvent) tapdataEvent.getTapEvent().clone();
     Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
     if (MapUtils.isNotEmpty(after)) {
-      recursiveHandleMap(after);
+      ClassHandlersV2ToStringUtils.recursiveHandleMap(after);
       after = sortMapKeys(after);
     }
     return after;
@@ -220,37 +210,5 @@ public class TestRunAspectTask extends AspectTask {
       }
     }
     return result;
-  }
-
-  @SuppressWarnings("unchecked")
-  private Object recursiveHandleValue(Object value) {
-    Object newValue = valueHandler.handle(value);
-    Object result = newValue != null ? newValue : value;
-    if (result instanceof Map) {
-      recursiveHandleMap((Map<String, Object>) result);
-    } else if (result instanceof Collection) {
-      recursiveHandleCollection((Collection<Object>) result);
-    }
-    return newValue;
-  }
-
-  @SuppressWarnings("unchecked")
-  private void recursiveHandleMap(Map<String, Object> map) {
-    for (Map.Entry<String, Object> entry : map.entrySet()) {
-      Object newValue = recursiveHandleValue(entry.getValue());
-      if (newValue != null) {
-        entry.setValue(newValue);
-      }
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  private void recursiveHandleCollection(Collection<Object> collection) {
-    List<Object> original = new ArrayList<>(collection);
-    collection.clear();
-    for (Object item : original) {
-      Object newItem = recursiveHandleValue(item);
-      collection.add(newItem != null ? newItem : item);
-    }
   }
 }
