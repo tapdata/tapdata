@@ -16,6 +16,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TaskDateProcessorExCode_17;
 import io.tapdata.exception.TapCodeException;
@@ -167,6 +168,8 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 			dateTime = ((TapDateTimeValue) v).getValue();
 		} else if (v instanceof DateTime) {
 			dateTime = (DateTime) v;
+		}  else if (v instanceof TapTimeValue) {
+			dateTime = ((TapTimeValue) v).getValue();
 		} else {
 			throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME, "table: " + tableName
 					+ ", key: " + k + ", type: " + v.getClass().getName() + ", value: " + v).dynamicDescriptionParameters(tableName, k, v.getClass().getName(), v);
