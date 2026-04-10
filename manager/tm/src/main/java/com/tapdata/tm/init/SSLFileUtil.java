@@ -132,7 +132,8 @@ public class SSLFileUtil {
         
         return (content.contains("-----BEGIN PRIVATE KEY-----") && content.contains("-----END PRIVATE KEY-----")) ||
                (content.contains("-----BEGIN RSA PRIVATE KEY-----") && content.contains("-----END RSA PRIVATE KEY-----")) ||
-               (content.contains("-----BEGIN EC PRIVATE KEY-----") && content.contains("-----END EC PRIVATE KEY-----"));
+               (content.contains("-----BEGIN EC PRIVATE KEY-----") && content.contains("-----END EC PRIVATE KEY-----")) ||
+               (content.contains("-----BEGIN ENCRYPTED PRIVATE KEY-----") && content.contains("-----END ENCRYPTED PRIVATE KEY-----"));
     }
     
     /**

@@ -50,6 +50,8 @@ public class InitController {
     private String caPath;
     @Value("${spring.data.mongodb.keyPath}")
     private String keyPath;
+    @Value("${spring.data.mongodb.sslPass}")
+    private String sslPass;
 
 
 
@@ -115,6 +117,9 @@ public class InitController {
                             log.info("Successfully loaded SSL private key for {}", dataSourceName);
                         } else {
                             log.warn("Failed to load SSL private key from: {}", keyPath);
+                        }
+                        if (StringUtils.isNotEmpty(sslPass)){
+                            config.put("sslPass", sslPass);
                         }
                     }
 
