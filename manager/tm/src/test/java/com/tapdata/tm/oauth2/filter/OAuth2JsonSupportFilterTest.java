@@ -393,10 +393,6 @@ class OAuth2JsonSupportFilterTest {
 
     @Nested
     class readBodyTest {
-        @BeforeEach
-        void init() throws IOException {
-            when(filter.readBody(any(HttpServletRequest.class))).thenCallRealMethod();
-        }
 
         @Test
         void testJsonToFormRequestWrapper() {
