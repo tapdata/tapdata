@@ -1,6 +1,7 @@
 package io.tapdata.services;
 
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ClassHandlersV2ToStringUtils;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
@@ -70,14 +71,17 @@ public class QueryDataBaseDataService {
 		}
 		return null;
 	}
-
 	public List<Map<String, Object>> query(String connectionId, String tableName, String sql) {
+		return queryV2(connectionId,tableName,sql,false);
+	}
+
+
+	public List<Map<String, Object>> queryV2(String connectionId, String tableName, String sql,Boolean toString) {
 		String associateId = "query_" + connectionId +  "_" + UUID.randomUUID();
 		TapTable tapTable = new TapTable();
 		if (tableName != null && !tableName.isEmpty()) {
 			tapTable = TapTableUtil.getTapTableByConnectionId(connectionId, tableName);
 		}
-
 		try {
 			ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 			Connections connections = HazelcastTaskService.taskService().getConnection(connectionId);
@@ -103,6 +107,9 @@ public class QueryDataBaseDataService {
 						for (Map<String, Object> map : maps) {
 							codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
 							originCodecsFilterManager.transformFromTapValueMap(map);
+							if(toString){
+								ClassHandlersV2ToStringUtils.recursiveHandleMap(map);
+							}
 						}
 					}
 
@@ -126,10 +133,10 @@ public class QueryDataBaseDataService {
 	}
 
 	public Map<String, Object> getData(String connectionId, String tableName) throws Throwable {
-		return getData(connectionId,tableName,rows);
+		return getDataV2(connectionId,tableName,null);
 	}
 
-	public Map<String, Object> getData(String connectionId, String tableName,int rows) throws Throwable {
+	public Map<String, Object> getDataV2(String connectionId, String tableName,Integer limit) throws Throwable {
 		String associateId = "queryRecords_" + connectionId + "_" + tableName + "_" + UUID.randomUUID();
 		try {
 			ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
@@ -151,7 +158,8 @@ public class QueryDataBaseDataService {
 				AtomicReference<List<Map<String, Object>>> resultsAtomic = new AtomicReference<>();
 				QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorNode.getConnectorFunctions().getQueryByAdvanceFilterFunction();
 				TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
-				tapAdvanceFilter.limit(rows);
+                tapAdvanceFilter.limit(Objects.requireNonNullElse(limit, rows));
+
 				try {
 					queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable,
 							filterResults -> {
@@ -165,6 +173,12 @@ public class QueryDataBaseDataService {
 						for (Map<String, Object> map : maps) {
 							codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
 							originCodecsFilterManager.transformFromTapValueMap(map);
+							if(limit != null){
+								ClassHandlersV2ToStringUtils.recursiveHandleMap(map);
+							}
+						}
+						if(limit != null){
+							return map(entry("sampleData", maps));
 						}
 					}
 				} catch (Exception e1) {
