@@ -76,7 +76,7 @@ public class QueryDataBaseDataService {
 	}
 
 
-	public List<Map<String, Object>> queryV2(String connectionId, String tableName, String sql,Boolean toString) {
+	public List<Map<String, Object>> queryV2(String connectionId, String tableName, String sql,boolean toString) {
 		String associateId = "query_" + connectionId +  "_" + UUID.randomUUID();
 		TapTable tapTable = new TapTable();
 		if (tableName != null && !tableName.isEmpty()) {
