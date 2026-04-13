@@ -1,5 +1,6 @@
 package com.tapdata.tm.application.dto;
 
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,7 +15,7 @@ import java.util.Set;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ApplicationDto extends BaseDto {
+public class ApplicationDto extends BaseDto implements IDataPermissionDto {
     private String name;
 
     private String clientId;

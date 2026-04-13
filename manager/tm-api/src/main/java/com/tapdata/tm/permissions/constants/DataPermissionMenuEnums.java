@@ -4,7 +4,10 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import org.apache.commons.collections4.MapUtils;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -13,19 +16,22 @@ import java.util.function.Supplier;
  * @version v1.0 2023/8/8 19:00 Create
  */
 public enum DataPermissionMenuEnums {
-	Connections(DataPermissionDataTypeEnums.Connections, "v2_datasource_all_data"),
-	MigrateTack(DataPermissionDataTypeEnums.Task, "v2_data_replication_all_data"),
-	SyncTack(DataPermissionDataTypeEnums.Task, "v2_data_flow_all_data"),
-	LogCollectorTack(DataPermissionDataTypeEnums.Task, ""),
-	ConnHeartbeatTack(DataPermissionDataTypeEnums.Task, ""),
-	MemCacheTack(DataPermissionDataTypeEnums.Task, ""),
-	INSPECT_TACK(DataPermissionDataTypeEnums.INSPECT, ""),
+	Connections(DataPermissionDataTypeEnums.Connections,initAllDataPermissionName(DataPermissionDataTypeEnums.Connections,"v2_datasource_all_data")),
+	ApiClient(DataPermissionDataTypeEnums.Application, initAllDataPermissionName(DataPermissionDataTypeEnums.Application,"v2_api-client_all_data")),
+	ApiServers(DataPermissionDataTypeEnums.ApiServer, initAllDataPermissionName(DataPermissionDataTypeEnums.ApiServer,"v2_api-servers_all_data")),
+	MigrateTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_data_replication_all_data")),
+	SyncTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_data_flow_all_data")),
+	LogCollectorTack(DataPermissionDataTypeEnums.Task, null),
+	ConnHeartbeatTack(DataPermissionDataTypeEnums.Task, null),
+	MemCacheTack(DataPermissionDataTypeEnums.Task, null),
+	INSPECT_TACK(DataPermissionDataTypeEnums.INSPECT, null),
+	Modules(DataPermissionDataTypeEnums.Modules, initAllDataPermissionName(DataPermissionDataTypeEnums.Modules,"v2_data-server-list_all_data")),
 	;
 
 	private final DataPermissionDataTypeEnums dataType;
-	private final String allDataPermissionName;
+	private final Map<String,String> allDataPermissionName;
 
-	DataPermissionMenuEnums(DataPermissionDataTypeEnums dataType, String allDataPermissionName) {
+	DataPermissionMenuEnums(DataPermissionDataTypeEnums dataType, Map<String,String> allDataPermissionName) {
 		this.dataType = dataType;
 		this.allDataPermissionName = allDataPermissionName;
 	}
@@ -34,8 +40,8 @@ public enum DataPermissionMenuEnums {
 		return dataType;
 	}
 
-	public String getAllDataPermissionName() {
-		return allDataPermissionName;
+	public String getAllDataPermissionName(String actionName) {
+		return MapUtils.isNotEmpty(allDataPermissionName) ? allDataPermissionName.get(actionName) : null;
 	}
 
 	public <T> T checkAndSetFilter(UserDetail userDetail, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
@@ -66,5 +72,17 @@ public enum DataPermissionMenuEnums {
 //				syncType.checkAndSetFilter(userDetail, actionEnums, supplier)
 			})
 			.orElseGet(supplier);
+	}
+
+	public static Map<String,String> initAllDataPermissionName(DataPermissionDataTypeEnums enums,String allData){
+		Map<String,String> allDataPermissionName = new HashMap<>();
+		enums.allActions().forEach(action -> {
+			if(action.equals("View")){
+				allDataPermissionName.put(action, allData);
+			}else{
+				allDataPermissionName.put(action, allData+"_"+action);
+			}
+		});
+		return allDataPermissionName;
 	}
 }

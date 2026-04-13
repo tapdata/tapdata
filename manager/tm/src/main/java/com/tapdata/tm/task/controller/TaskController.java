@@ -903,6 +903,7 @@ public class TaskController extends BaseController {
                                                                  HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Start,
 				() -> taskService.batchStart(taskObjectIds, userDetail, request, response)
 			);
@@ -916,6 +917,7 @@ public class TaskController extends BaseController {
                                                                 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Stop,
 				() -> taskService.batchStop(taskObjectIds, userDetail, request, response)
 			);
@@ -945,6 +947,7 @@ public class TaskController extends BaseController {
 																																	HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Delete,
 				() -> taskService.batchDelete(taskObjectIds, userDetail, request, response)
 			);
@@ -971,7 +974,7 @@ public class TaskController extends BaseController {
 																																 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Reset,
 					() -> taskService.batchRenew(taskObjectIds, userDetail, request, response)
 				);
@@ -1550,5 +1553,15 @@ public class TaskController extends BaseController {
             throw new BizException("Task.NotFound");
         }
         return success(taskService.checkTaskMemoryHeap(taskDto,true,getLoginUser()));
+    }
+
+    private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {
+        if (StringUtils.isBlank(syncType) && CollectionUtils.isNotEmpty(taskObjectIds)) {
+            TaskDto taskDto = taskService.findByTaskId(taskObjectIds.get(0), "syncType");
+            if (taskDto != null) {
+                return taskDto.getSyncType();
+            }
+        }
+        return syncType;
     }
 }
