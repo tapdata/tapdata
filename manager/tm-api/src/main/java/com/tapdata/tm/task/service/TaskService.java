@@ -157,8 +157,6 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract ShareCacheDetailVo findShareCacheById(String id);
 
-    public abstract Map<String, Object> chart(UserDetail user);
-
     public abstract TaskDashboardVo dashboard(UserDetail user, String type, Long step, String dashboardType, Integer top);
 
     public abstract Map<String, Integer> inspectChart(UserDetail user);
