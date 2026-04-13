@@ -174,7 +174,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
 		checkGitInfoAndHandleUrl(dto);
-		checkResourceExclusiveness(dto, null);
+		checkResourceExclusiveness(dto, dto.getId());
 	}
 
 	private static void checkGitInfoAndHandleUrl(GroupInfoDto dto) {
