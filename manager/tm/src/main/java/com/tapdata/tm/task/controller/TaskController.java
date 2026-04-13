@@ -1091,15 +1091,14 @@ public class TaskController extends BaseController {
         return success(result);
     }
 
-    /**
-     * 首页图
-     *
-     * @return map
-     */
-    @Operation(summary = "Chart")
-    @GetMapping("/chart")
-    public ResponseMessage<Map<String, Object>> chart() {
-        return success(taskService.chart(getLoginUser()));
+
+    @Operation(summary = "Task Dashboard")
+    @GetMapping("/dashboard")
+    public ResponseMessage<TaskDashboardVo> dashboard(@RequestParam(required = false) String type,
+                                                      @RequestParam(required = false) Long step,
+                                                      @RequestParam(required = false) String dashboardType,
+                                                      @RequestParam(required = false) Integer top) {
+        return success(taskService.dashboard(getLoginUser(), type, step, dashboardType, top));
     }
 
 

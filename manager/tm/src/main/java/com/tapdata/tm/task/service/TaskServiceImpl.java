@@ -124,7 +124,6 @@ import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.report.dto.TasksNumBatch;
 import com.tapdata.tm.report.service.UserDataReportService;
-import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
@@ -146,6 +145,7 @@ import com.tapdata.tm.task.service.batchin.ParseRelMig;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.service.chart.ChartViewService;
+import com.tapdata.tm.task.service.dashboard.TaskDashboardService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
@@ -380,6 +380,7 @@ public class TaskServiceImpl extends TaskService{
     private DataSourceDefinitionService dataSourceDefinitionService;
     private BatchUpChecker batchUpChecker;
     private ChartViewService chartViewService;
+    private TaskDashboardService taskDashboardService;
     private UserDataReportService userDataReportService;
     private BatchService batchService;
     private ShareCdcTableMappingService shareCdcTableMappingService;
@@ -2205,34 +2206,9 @@ public class TaskServiceImpl extends TaskService{
     }
 
 
-    /**
-     * migrate 同步任务  即数据复制
-     * sync   迁移  即数据开发
-     * logCollector 挖掘任务
-     *
-     * @param user
-     * @return
-     */
-    public Map<String, Object> chart(UserDetail user) {
-        Map<String, Object> resultChart = new HashMap<>();
-        //把任务都查询出来
-        List<TaskDto> taskDtoList = chartViewService.getViewTaskDtoByUser(user);
-        Map<String, List<TaskDto>> syncTypeToTaskList = taskDtoList.stream().collect(Collectors.groupingBy(TaskDto::getSyncType));
-
-        List<TaskDto> migrateList =  syncTypeToTaskList.getOrDefault(SyncType.MIGRATE.getValue(), Collections.emptyList());
-        resultChart.put("chart1", getDataCopyChart(migrateList));
-//        resultChart.put("chart2", dataCopy);
-        List<TaskDto> synList = syncTypeToTaskList.getOrDefault(SyncType.SYNC.getValue(), Collections.emptyList());
-        resultChart.put("chart3", getDataDevChart(synList));
-//        resultChart.put("chart4", dataDev);
-        resultChart.put("chart5", inspectChart(user));
-        Chart6Vo chart6Vo = ChartSchedule.cache.get(user.getUserId());
-        if (chart6Vo == null) {
-            chart6Vo = chartViewService.transmissionOverviewChartData(taskDtoList);
-            ChartSchedule.put(user.getUserId(), chart6Vo);
-        }
-        resultChart.put("chart6", chart6Vo);
-        return resultChart;
+    @Override
+    public TaskDashboardVo dashboard(UserDetail user, String type, Long step, String dashboardType, Integer top) {
+        return taskDashboardService.dashboard(user, type, step, dashboardType, top);
     }
 
     protected List<InspectDto> inspectTaskList(Filter filter, UserDetail user) {
