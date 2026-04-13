@@ -292,7 +292,7 @@ public class ApplicationController extends BaseController {
     @GetMapping("{id}/modules")
     public ResponseMessage<List<ModulePermissionVo>> getAccessibleModules(HttpServletRequest request, @PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
-        return success(dataPermissionCheckOfId(request, userDetail, id, null,
+        return success(dataPermissionCheckOfId(request, userDetail, id, DataPermissionActionEnums.View,
                 () -> applicationService.getAccessibleModules(id, userDetail)));
     }
 
