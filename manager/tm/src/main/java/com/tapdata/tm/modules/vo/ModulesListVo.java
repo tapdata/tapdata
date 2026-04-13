@@ -1,6 +1,7 @@
 package com.tapdata.tm.modules.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.module.dto.PathSetting;
@@ -15,7 +16,7 @@ import java.util.List;
 
 @Data
 @EqualsAndHashCode(callSuper=false)
-public class ModulesListVo extends BaseVo {
+public class ModulesListVo extends BaseVo implements IDataPermissionDto {
     private String name;
 
     @JsonProperty("datasource")
