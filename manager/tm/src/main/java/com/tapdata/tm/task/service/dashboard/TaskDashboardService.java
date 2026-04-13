@@ -350,10 +350,10 @@ public class TaskDashboardService {
         query.step = DEFAULT_STEP;
         query.dashboardTypeEnum = DashboardType.fromValue(dashboardType);
         query.top = normalizeTop(top);
-        if ("hours".equalsIgnoreCase(type) && Long.valueOf(1L).equals(step)) {
+        if ("hours".equalsIgnoreCase(type)) {
             query.type = "hours";
             query.step = 1L;
-        } else if ("days".equalsIgnoreCase(type) && Long.valueOf(1L).equals(step)) {
+        } else if ("days".equalsIgnoreCase(type)) {
             query.type = "days";
             query.step = 1L;
         }
