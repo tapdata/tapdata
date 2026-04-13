@@ -1754,7 +1754,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 						.dynamicDescriptionParameters(pkOrUniqueFields, data);
 			}
 			if (value instanceof Number number) {
-				values.add(BigDecimal.valueOf(number.doubleValue()).stripTrailingZeros().toPlainString());
+				values.add(new BigDecimal(String.valueOf(number)).stripTrailingZeros().toPlainString());
 			} else if (null == value) {
 				values.add("null");
 			} else {

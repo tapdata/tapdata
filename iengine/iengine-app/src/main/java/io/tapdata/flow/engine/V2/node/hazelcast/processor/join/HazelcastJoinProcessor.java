@@ -61,15 +61,15 @@ import static io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJ
  * @date 2021/12/15 12:08 PM
  **/
 public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
-    private static final int MAX_BATCH = 500;
-    private static final String JOIN_NODE_MAX_BATCH = "JOIN_NODE_MAX_BATCH";
-    int maxBatchSize = 500;
+    private static final int MAX_BATCH = 300;
+    private static final String JOIN_NODE_MAX_L2_UPSERT_BATCH = "JOIN_NODE_MAX_L2_UPSERT_BATCH";
+    protected int maxBatchSize = 300;
 
     private final Logger logger = LogManager.getLogger(HazelcastJoinProcessor.class);
 
     private JoinType joinType;
 
-    private final static String IMAP_NAME_DELIMITER = "-";
+    private static final String IMAP_NAME_DELIMITER = "-";
 
     private String referenceId;
     private BytesIMap<Map<String, Map<String, Object>>> leftJoinCache;
@@ -117,7 +117,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
         this.context = context;
         this.mapIterator = new AllLayerMapIterator();
         initNode();
-        this.maxBatchSize = CommonUtils.getPropertyInt(JOIN_NODE_MAX_BATCH, MAX_BATCH);
+        this.maxBatchSize = CommonUtils.getPropertyInt(JOIN_NODE_MAX_L2_UPSERT_BATCH, MAX_BATCH);
     }
 
     private static String referenceId(Node<?> node) {
@@ -248,6 +248,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
         return false;
     }
 
+    @SneakyThrows
     @Override
     protected void tryProcess(List<BatchEventWrapper> es, Consumer<List<BatchProcessResult>> consumer) {
         if (null == es || es.isEmpty()) {
@@ -270,9 +271,12 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
             TapdataEvent tapdataEvent = e.getTapdataEvent();
             Map<String, Object> before;
             Map<String, Object> after;
-            String opType;
-            TapRecordEvent dataEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
-            opType = TapEventUtil.getOp(dataEvent);
+            String opType = null;
+            TapRecordEvent dataEvent = null;
+            if (tapdataEvent.getTapEvent() instanceof TapRecordEvent tre) {
+                dataEvent = tre;
+                opType = TapEventUtil.getOp(dataEvent);
+            }
             if (null == opType || !tapdataEvent.isDML()) {
                 continue;
             }
@@ -286,6 +290,12 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
                 joinResults = leftJoinRightProcess(before, after, opType, leftCache, rightCache);
             }
             eachJoinResult(joinResults, dataEvent, tapdataEvent, batchProcessResults, consumer, node);
+        }
+        if (!leftCache.isEmpty()) {
+            leftJoinCache.insertMany(leftCache);
+        }
+        if (!rightCache.isEmpty()) {
+            rightJoinCache.insertMany(rightCache);
         }
         if (!batchProcessResults.isEmpty()) {
             acceptBatch(batchProcessResults, consumer, node);
@@ -529,17 +539,10 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
         final Map<String, Map<String, Object>> keyCache = find(joinKey, cache, joinCache);
         Optional.ofNullable(keyCache).ifPresent(m -> m.remove(key));
         if (MapUtils.isEmpty(keyCache)) {
-            if (exists(joinKey, cache, joinCache)) {
-                cache.remove(joinKey);
-                return;
-            }
+            cache.remove(joinKey);
             joinCache.delete(joinKey);
         } else {
-            if (exists(joinKey, cache, joinCache)) {
-                cache.put(joinKey, keyCache);
-                return;
-            }
-            joinCache.update(joinKey, keyCache);
+            cache.put(joinKey, keyCache);
         }
     }
 
