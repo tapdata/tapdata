@@ -1,6 +1,7 @@
 package com.tapdata.tm.apiServer.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -48,7 +49,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("ApiServer")
-public class ApiServerEntity extends BaseEntity {
+public class ApiServerEntity extends BaseEntity implements IDataPermissionEntity {
     private String clientName;
     private String clientURI;
     private String processId;
