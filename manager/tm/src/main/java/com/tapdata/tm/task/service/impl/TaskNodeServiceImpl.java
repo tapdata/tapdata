@@ -971,6 +971,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (dataParentNode == null) {
             throw new BizException("MockData.PreNodeNotFound", nodeId);
         }
+        if(StringUtils.isBlank(tableName) && dataParentNode instanceof TableNode){
+            tableName = ((TableNode) dataParentNode).getTableName();
+        }
 
         if (StringUtils.isBlank(taskDto.getAgentId())) {
             taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);

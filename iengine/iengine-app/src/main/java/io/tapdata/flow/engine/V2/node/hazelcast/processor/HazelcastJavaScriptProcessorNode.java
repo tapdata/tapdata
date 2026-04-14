@@ -100,8 +100,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	}
 
 	protected Invocable getOrInitEngine() {
-		String threadName = Thread.currentThread().getName();
-		return engineMap.computeIfAbsent(threadName, tn -> {
+		String nodeId = getNode().getId();
+		return engineMap.computeIfAbsent(nodeId, tn -> {
 			Node<?> node = getNode();
 			String script;
 			if (node instanceof JsProcessorNode) {
@@ -172,8 +172,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 				List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
 
-				ScriptExecutorsManager.ScriptExecutor source = sourceMap.computeIfAbsent(threadName, k -> getDefaultScriptExecutor(predecessors, SOURCE_TAG));
-				ScriptExecutorsManager.ScriptExecutor target = targetMap.computeIfAbsent(threadName, k -> getDefaultScriptExecutor(successors, TARGET_TAG));
+				ScriptExecutorsManager.ScriptExecutor source = sourceMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(predecessors, SOURCE_TAG));
+				ScriptExecutorsManager.ScriptExecutor target = targetMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(successors, TARGET_TAG));
 				((ScriptEngine) engine).put(SOURCE_TAG, source);
 				((ScriptEngine) engine).put(TARGET_TAG, target);
 			}
