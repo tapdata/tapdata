@@ -19,15 +19,18 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for WorkerCallsInfoGenerator
@@ -424,6 +427,38 @@ class WorkerCallsInfoGeneratorTest {
 
             Assertions.assertDoesNotThrow(() -> generator.close());
             verify(acceptor, never()).accept(any());
+        }
+    }
+
+    @Nested
+    class appendTest {
+        @BeforeEach
+        void init() {
+            generator = new WorkerCallsInfoGenerator(acceptor);
+            doNothing().when(acceptor).accept(anyList());
+        }
+
+        @Test
+        void testNormal() {
+            generator.append(new Document()
+                    .append("req_path", "/api/call")
+                    .append("reqTime", System.currentTimeMillis()));
+        }
+
+        @Test
+        void test200() {
+            generator.append(new Document()
+                    .append("req_path", "/api/call")
+                    .append("reqTime", System.currentTimeMillis())
+                    .append("code", "200"));
+        }
+
+        @Test
+        void testContainsSucceed() {
+            generator.append(new Document()
+                    .append("req_path", "/api/call")
+                    .append("reqTime", System.currentTimeMillis())
+                    .append("succeed", false));
         }
     }
 
