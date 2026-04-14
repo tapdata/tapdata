@@ -1033,7 +1033,6 @@ class DataSourceServiceImplTest {
         void testHandleImportAsCopyConnectionWithExistingById() {
             // Setup
             doReturn(existingConnectionById).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
@@ -1052,7 +1051,6 @@ class DataSourceServiceImplTest {
         void testHandleImportAsCopyConnectionNoExistingById() {
             // Setup
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
@@ -1067,21 +1065,20 @@ class DataSourceServiceImplTest {
         }
 
         @Test
-        @DisplayName("test handleImportAsCopyConnection with name conflict")
+        @DisplayName("test handleImportAsCopyConnection with name conflict - name preserved")
         void testHandleImportAsCopyConnectionWithNameConflict() {
             // Setup
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(true, true, false).when(dataSourceService).checkRepeatNameBool(eq(user), anyString(), eq(null));
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
             // Execute
             DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
 
-            // Verify
+            // Verify - name should NOT be modified, _id is used for uniqueness
             assertNotNull(result);
-            assertEquals("test_connection_import_import", connectionDto.getName()); // Name should be modified to avoid conflict
-            verify(dataSourceService, times(3)).checkRepeatNameBool(eq(user), anyString(), eq(null));
+            assertEquals("test_connection", connectionDto.getName());
+            verify(dataSourceService, never()).checkRepeatNameBool(eq(user), anyString(), eq(null));
             verify(dataSourceService, times(1)).importEntity(connectionDto, user);
         }
 
@@ -1092,7 +1089,6 @@ class DataSourceServiceImplTest {
             connectionDto.setShareCDCExternalStorageId("662877df9179877be8b37079");
 
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
@@ -1115,7 +1111,6 @@ class DataSourceServiceImplTest {
             connectionDto.setShareCDCExternalStorageId("662877df9179877be8b37079");
 
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
@@ -1140,7 +1135,6 @@ class DataSourceServiceImplTest {
             connectionDto.setShareCDCExternalStorageId(""); // Blank storage ID
 
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 

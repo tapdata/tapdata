@@ -796,8 +796,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             for (TaskUpAndLoadDto item : payloads.getOrDefault("Connection.json", Collections.emptyList())) {
                 if (GroupConstants.COLLECTION_CONNECTION.equals(item.getCollectionName())) {
                     DataSourceConnectionDto conn = parseConnectionDto(item.getJson());
-                    if (conn != null && StringUtils.isNotBlank(conn.getName())) {
-                        connections.putIfAbsent(conn.getName(), conn);
+                    if (conn != null && conn.getId() != null) {
+                        connections.putIfAbsent(conn.getId().toHexString(), conn);
+                    } else if (conn != null) {
+                        log.warn("Connection has no _id, skip: name={}", conn.getName());
                     }
                 } else if (GroupConstants.COLLECTION_METADATA_INSTANCES.equals(item.getCollectionName())) {
                     MetadataInstancesDto metadata = JsonUtil.parseJsonUseJackson(item.getJson(), MetadataInstancesDto.class);
@@ -1239,9 +1241,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         long timeout = 60_000;
         long start = System.currentTimeMillis();
         while (true) {
-            List<InspectDto> found = inspectService.findByName(name);
-            if (CollectionUtils.isEmpty(found)) return true;
-            String currentStatus = found.get(0).getStatus();
+            InspectDto found = inspectService.findById(MongoUtils.toObjectId(inspectId));
+            if (found == null) return true;
+            String currentStatus = found.getStatus();
             if (INSPECT_STOPPED_STATUSES.contains(currentStatus)) {
                 return true;
             }

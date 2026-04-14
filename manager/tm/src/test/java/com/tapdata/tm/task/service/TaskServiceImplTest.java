@@ -931,6 +931,7 @@ class TaskServiceImplTest {
             nodes.add(databaseNode);
 
             when(taskDto.getName()).thenReturn("testTask");
+            when(taskDto.getId()).thenReturn(new ObjectId());
             when(taskDto.getDag()).thenReturn(dag);
             when(dag.getNodes()).thenReturn(nodes);
             when(databaseNode.getConnectionId()).thenReturn("conn1");
@@ -991,9 +992,7 @@ class TaskServiceImplTest {
         void testBatchImportCancelModeWithConnectionDuplicate() {
             // Setup
             importMode = ImportModeEnum.CANCEL_IMPORT;
-            Query nameQuery = new Query(Criteria.where("name").is("testTask").and("is_deleted").ne(true));
-            nameQuery.fields().include("_id", "user_id", "name");
-            when(taskService.findOne(nameQuery)).thenReturn(null);
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(null);
             when(taskService.checkConnectionIdDuplicate(taskDto, conMap)).thenReturn(true);
 
             doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
@@ -1168,7 +1167,6 @@ class TaskServiceImplTest {
             Query idQuery = new Query(Criteria.where("_id").is(taskId).and("is_deleted").ne(true));
             idQuery.fields().include("_id", "user_id", "name");
             when(taskService.findOne(idQuery)).thenReturn(existingTaskById);
-            when(taskService.checkTaskNameNotError("testTask", user, null)).thenReturn(false);
             when(taskService.convertToEntity(TaskEntity.class, taskDto)).thenReturn(taskEntity);
             when(taskService.convertToDto(taskEntity, TaskDto.class)).thenReturn(taskDto);
             when(dag.validate()).thenReturn(new HashMap<>());
@@ -1195,7 +1193,6 @@ class TaskServiceImplTest {
         void testHandleImportAsCopyModeWithNameConflict() {
             // Setup
             when(taskService.findOne(any(Query.class))).thenReturn(null);
-            when(taskService.checkTaskNameNotError(anyString(), any(), any())).thenReturn(true).thenReturn(false);
             when(taskService.convertToEntity(TaskEntity.class, taskDto)).thenReturn(taskEntity);
             when(taskService.convertToDto(taskEntity, TaskDto.class)).thenReturn(taskDto);
             when(dag.validate()).thenReturn(new HashMap<>());
@@ -1207,8 +1204,8 @@ class TaskServiceImplTest {
             // Execute
             taskService.handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
 
-            // Verify
-            verify(taskDto, times(1)).setName("testTask_import");
+            // Verify: name should NOT be modified (no _import suffix)
+            verify(taskDto, never()).setName(anyString());
             verify(taskService, times(1)).confirmById(taskDto, user, true, true);
         }
 
@@ -1217,7 +1214,6 @@ class TaskServiceImplTest {
         void testHandleImportAsCopyModeWithValidationErrors() {
             // Setup
             when(taskService.findOne(any(Query.class))).thenReturn(null);
-            when(taskService.checkTaskNameNotError(anyString(), any(), any())).thenReturn(false);
             when(taskService.convertToEntity(TaskEntity.class, taskDto)).thenReturn(taskEntity);
             when(taskService.convertToDto(taskEntity, TaskDto.class)).thenReturn(taskDto);
 
@@ -1292,7 +1288,6 @@ class TaskServiceImplTest {
             Query idQuery = new Query(Criteria.where("_id").is(taskId).and("is_deleted").ne(true));
             idQuery.fields().include("_id", "user_id", "name");
             when(taskService.findOne(idQuery)).thenReturn(existingTaskById);
-            when(taskService.checkTaskNameNotError(anyString(), any(UserDetail.class), any())).thenReturn(false);
             doNothing().when(taskService).updateConnectionIds(any(TaskDto.class), any(Map.class));
 
             TaskEntity taskEntity = new TaskEntity();
@@ -1367,7 +1362,6 @@ class TaskServiceImplTest {
             Query idQuery = new Query(Criteria.where("_id").is(taskId).and("is_deleted").ne(true));
             idQuery.fields().include("_id", "user_id", "name");
             when(taskService.findOne(idQuery)).thenReturn(existingTaskById);
-            when(taskService.checkTaskNameNotError(anyString(), any(UserDetail.class), any())).thenReturn(false);
             doNothing().when(taskService).updateConnectionIds(any(TaskDto.class), any(Map.class));
 
             TaskEntity taskEntity = new TaskEntity();
@@ -1682,37 +1676,41 @@ class TaskServiceImplTest {
         }
 
         @Test
-        @DisplayName("test batchImport with null task name")
+        @DisplayName("test batchImport with null task name but valid id")
         void testBatchImportWithNullTaskName() {
             // Setup
             TaskDto taskDto = mock(TaskDto.class);
             when(taskDto.getName()).thenReturn(null);
+            when(taskDto.getId()).thenReturn(new ObjectId());
             taskDtos.add(taskDto);
 
             doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
 
             // Execute
             taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
-            // Verify - should skip processing this task
-            verify(taskService, never()).findOne(any(Query.class));
+            // Verify - should process by _id
+            verify(taskService, times(1)).findOne(any(Query.class), any(UserDetail.class));
         }
 
         @Test
-        @DisplayName("test batchImport with empty task name")
+        @DisplayName("test batchImport with empty task name but valid id")
         void testBatchImportWithEmptyTaskName() {
             // Setup
             TaskDto taskDto = mock(TaskDto.class);
             when(taskDto.getName()).thenReturn("");
+            when(taskDto.getId()).thenReturn(new ObjectId());
             taskDtos.add(taskDto);
 
             doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
 
             // Execute
             taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap, Collections.emptyList());
 
-            // Verify - should skip processing this task
-            verify(taskService, never()).findOne(any(Query.class));
+            // Verify - should process by _id
+            verify(taskService, times(1)).findOne(any(Query.class), any(UserDetail.class));
         }
 
         @Test
@@ -1721,11 +1719,10 @@ class TaskServiceImplTest {
             // Setup
             TaskDto taskDto = mock(TaskDto.class);
             when(taskDto.getName()).thenReturn("testTask");
+            when(taskDto.getId()).thenReturn(new ObjectId());
             taskDtos.add(taskDto);
 
-            Query nameQuery = new Query(Criteria.where("name").is("testTask").and("is_deleted").ne(true));
-            nameQuery.fields().include("_id", "user_id", "name");
-            when(taskService.findOne(nameQuery)).thenReturn(null);
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(null);
 
             doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap, Collections.emptyList());
             doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any(),any());
@@ -1744,6 +1741,7 @@ class TaskServiceImplTest {
             importMode = ImportModeEnum.CANCEL_IMPORT;
             TaskDto taskDto = mock(TaskDto.class);
             when(taskDto.getName()).thenReturn("testTask");
+            when(taskDto.getId()).thenReturn(new ObjectId());
             taskDtos.add(taskDto);
 
             when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);

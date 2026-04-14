@@ -3750,11 +3750,14 @@ public class TaskServiceImpl extends TaskService{
                // 根据导入模式处理
                switch (importMode) {
                    case REPLACE,REUSE_EXISTING: {
-                       // 按名称查找现有任务
-                       Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
-                       nameQuery.fields().include("_id", USER_ID, "name");
-                       TaskDto existingTaskByName = findOne(nameQuery, user);
-                       handleReplaceMode(taskDto, existingTaskByName, user, tagList, conMap, nodeMap, taskMap, importResult);
+                       // 基于 _id 查找现有任务，不使用 name 匹配，避免不同用户相同名称任务相互覆盖
+                       if (taskDto.getId() == null) {
+                           throw new BizException("Task.ImportMissingId", taskDto.getName());
+                       }
+                       Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
+                       idQuery.fields().include("_id", USER_ID, "name");
+                       TaskDto existingTaskById = findOne(idQuery, user);
+                       handleReplaceMode(taskDto, existingTaskById, user, tagList, conMap, nodeMap, taskMap, importResult);
                        break;
                    }
                    case GROUP_IMPORT: {
@@ -3772,10 +3775,14 @@ public class TaskServiceImpl extends TaskService{
                        handleImportAsCopyMode(taskDto, user, tagList, conMap,nodeMap,taskMap);
                        break;
                    case CANCEL_IMPORT: {
-                       Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
-                       nameQuery.fields().include("_id", USER_ID, "name");
-                       TaskDto existingTaskByName = findOne(nameQuery, user);
-                       if(null != existingTaskByName){
+                       // 基于 _id 查找现有任务
+                       TaskDto existingTaskById = null;
+                       if (taskDto.getId() != null) {
+                           Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
+                           idQuery.fields().include("_id", USER_ID, "name");
+                           existingTaskById = findOne(idQuery, user);
+                       }
+                       if(null != existingTaskById){
                            throw new BizException("Task.RepeatName");
                        }else{
                            if(checkConnectionIdDuplicate(taskDto, conMap)){
@@ -3820,13 +3827,11 @@ public class TaskServiceImpl extends TaskService{
                 && taskDto.getId() != null
                 && resetTaskList.contains(taskDto.getId().toHexString());
 
-        // GROUP_IMPORT 按 _id 查，其他模式按 name 查
-        Query existingQuery;
-        if (importMode == ImportModeEnum.GROUP_IMPORT && taskDto.getId() != null) {
-            existingQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
-        } else {
-            existingQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
+        // 统一基于 _id 查找现有任务，避免不同用户相同名称任务相互覆盖
+        if (taskDto.getId() == null) {
+            return false;
         }
+        Query existingQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
         existingQuery.fields().exclude("user_id","create_user","pingTime","taskRecordId","last_updated");
 
         // 使用工具类比较任务配置是否一致
@@ -4029,9 +4034,7 @@ public class TaskServiceImpl extends TaskService{
         Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
         idQuery.fields().include("_id", USER_ID, "name");
         TaskDto existingTaskByID= findOne(idQuery);
-        while (checkTaskNameNotError(taskDto.getName(), user, null)) {
-            taskDto.setName(taskDto.getName() + "_import");
-        }
+        // 不再基于名称重命名，使用 _id 保证唯一性
 
         if(null != existingTaskByID){
             // 分配新ID

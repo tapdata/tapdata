@@ -1773,9 +1773,14 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				// 根据导入模式处理
 				switch (importMode) {
 					case REPLACE,REUSE_EXISTING: {
-						// 基于名称查找现有模块
-						ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
-						handleReplaceMode(modulesDto, existingModuleByName, user, conMap, importResult);
+						// 基于 _id 查找现有模块，不使用 name 匹配，避免不同用户相同名称模块相互覆盖
+						if (modulesDto.getId() == null) {
+							throw new BizException("Modules.ImportMissingId", modulesDto.getName());
+						}
+						Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
+						idQuery.fields().include("_id", "user_id", "name", "status");
+						ModulesDto existingModuleById = findOne(idQuery, user);
+						handleReplaceMode(modulesDto, existingModuleById, user, conMap, importResult);
 						break;
 					}
 					case GROUP_IMPORT:
@@ -1786,8 +1791,14 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						handleImportAsCopyMode(modulesDto, user, conMap);
 						break;
 					case CANCEL_IMPORT: {
-						ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
-						if (null != existingModuleByName) {
+						// 基于 _id 查找现有模块
+						ModulesDto existingModuleById = null;
+						if (modulesDto.getId() != null) {
+							Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
+							idQuery.fields().include("_id", "user_id", "name", "status");
+							existingModuleById = findOne(idQuery, user);
+						}
+						if (null != existingModuleById) {
 							return importResult;
 						} else {
 							if (checkConnectionIdDuplicate(modulesDto, conMap)) {
@@ -1894,10 +1905,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		idQuery.fields().include("_id", "user_id", "name");
 		ModulesDto existingModuleByID = findOne(idQuery);
 
-		// 确保名称唯一，添加_import后缀
-		while (checkTaskNameNotError(modulesDto.getName(), user, null)) {
-			modulesDto.setName(modulesDto.getName() + "_import");
-		}
+		// 不再基于名称重命名，使用 _id 保证唯一性
 
 		if (existingModuleByID != null) {
 			modulesDto.setId(new ObjectId());

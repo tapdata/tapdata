@@ -116,8 +116,11 @@ public class ModuleResourceHandler implements ResourceHandler {
             if (GroupConstants.COLLECTION_MODULES.equals(item.getCollectionName())) {
                 ModulesDto modulesDto = JsonUtil.parseJsonUseJackson(item.getJson(), ModulesDto.class);
                 if (modulesDto != null) {
-                    String key = modulesDto.getId() == null ? modulesDto.getName() : modulesDto.getId().toHexString();
-                    moduleMap.putIfAbsent(key, modulesDto);
+                    if (modulesDto.getId() != null) {
+                        moduleMap.putIfAbsent(modulesDto.getId().toHexString(), modulesDto);
+                    } else {
+                        log.warn("Module has no _id, skip: name={}", modulesDto.getName());
+                    }
                 }
             } else if (GroupConstants.COLLECTION_METADATA_INSTANCES.equals(item.getCollectionName())) {
                 MetadataInstancesDto metadataInstancesDto = JsonUtil.parseJsonUseJackson(item.getJson(),
