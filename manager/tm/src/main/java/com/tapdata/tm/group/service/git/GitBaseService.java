@@ -4,6 +4,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.group.dto.GroupGitInfoDto;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.jgit.api.CreateBranchCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -65,7 +66,8 @@ public abstract class GitBaseService implements GitService {
 	}
 
 	/**
-	 * Create and checkout a new local branch using JGit
+	 * Create and checkout a local branch using JGit.
+	 * If the branch already exists on remote, checkout tracking the remote branch.
 	 */
 	@Override
 	public void createBranch(String localPath, String branchName) {
@@ -82,16 +84,29 @@ public abstract class GitBaseService implements GitService {
 		}
 
 		try (Git git = Git.open(localDir)) {
-			git.checkout()
-					.setCreateBranch(true)
-					.setName(branchName)
-					.call();
-			log.info("Created and checked out branch {} in {}", branchName, localPath);
+			String remoteBranchRef = "refs/remotes/origin/" + branchName;
+			boolean remoteBranchExists = git.getRepository().findRef(remoteBranchRef) != null;
+
+			if (remoteBranchExists) {
+				git.checkout()
+						.setCreateBranch(true)
+						.setName(branchName)
+						.setStartPoint("origin/" + branchName)
+						.setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
+						.call();
+				log.info("Checked out existing remote branch {} (tracking origin/{}) in {}", branchName, branchName, localPath);
+			} else {
+				git.checkout()
+						.setCreateBranch(true)
+						.setName(branchName)
+						.call();
+				log.info("Created and checked out new branch {} in {}", branchName, localPath);
+			}
 		} catch (IOException e) {
 			log.error("Failed to open git repository at {}", localPath, e);
 			throw new BizException("Git.Repository.OpenFailed", e, localPath);
 		} catch (GitAPIException e) {
-			log.error("Failed to create branch {}", branchName, e);
+			log.error("Failed to create/checkout branch {}", branchName, e);
 			throw new BizException("Git.Branch.Failed", e, e.getMessage());
 		}
 	}
