@@ -461,7 +461,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         List<TaskUpAndLoadDto> groupInfoPayload = buildGroupInfoPayload(groupInfos, resourceIdToName);
 
         // 构建用户/角色/权限导出数据
-        Map<String, byte[]> userExportContents = buildUserExportData(groupInfos);
+        Map<String, byte[]> userExportContents = buildUserExportData(groupInfos, user);
 
         // 构建导出记录
         String yyyymmdd = DateUtil.today().replaceAll("-", "");
@@ -3051,12 +3051,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      *  - RoleMapping：排除 BASE_DTO_VOLATILE_FIELDS + role（嵌套关联对象）
      *  - UserIdEmailMap：userId → email 的辅助映射，供 Connection/Task user_id 转换
      */
-    private Map<String, byte[]> buildUserExportData(List<GroupInfoDto> groupInfos) {
+    private Map<String, byte[]> buildUserExportData(List<GroupInfoDto> groupInfos, UserDetail user) {
         // 1. 收集所有 groupInfo 的 userId
         Set<String> userIdStrings = groupInfos.stream()
                 .filter(g -> StringUtils.isNotBlank(g.getUserId()))
                 .map(GroupInfoDto::getUserId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        // 同时加入当前登录用户，确保导出包含操作者自身的用户/角色/权限数据
+        if (user != null && StringUtils.isNotBlank(user.getUserId())) {
+            userIdStrings.add(user.getUserId());
+        }
 
         if (userIdStrings.isEmpty()) {
             return Collections.emptyMap();
