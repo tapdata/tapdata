@@ -18,14 +18,7 @@ import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.BsonBinaryWriter;
-import org.bson.BsonDocumentWriter;
-import org.bson.BsonWriter;
 import org.bson.Document;
-import org.bson.codecs.DocumentCodec;
-import org.bson.codecs.EncoderContext;
-import org.bson.codecs.configuration.CodecRegistry;
-import org.bson.io.BasicOutputBuffer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -75,10 +68,6 @@ public class ApiMetricsRawScheduleExecutor {
                 final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
                 eachApi(queryTime, collection, acceptor);
             }
-            Criteria updateCriteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
-                    .and(ApiCallField.HAS_METRIC.field()).is(false);
-            Query queried = Query.query(updateCriteria);
-            mongoTemplate.updateMulti(queried, Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
             session.commitTransaction();
         } catch (Exception e) {
             log.error("bulkUpsert ApiMetricsRaw error", e);
@@ -95,8 +84,7 @@ public class ApiMetricsRawScheduleExecutor {
 
     void eachApi(long queryTime, MongoCollection<Document> collection, MetricInstanceFactory acceptor) {
         final Criteria criteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
-                .and(ApiCallField.HAS_METRIC.field()).is(false)
-                .and(ApiCallField.DELETE.field()).ne(true);
+                .and(ApiCallField.HAS_METRIC.field()).is(false);
         final Query query = Query.query(criteria);
         String[] filterFields = CollectionField.fields(
                 BaseEntityFields._ID,
@@ -125,6 +113,10 @@ public class ApiMetricsRawScheduleExecutor {
         try (final MongoCursor<Document> cursor = iterable.iterator()) {
             while (cursor.hasNext()) {
                 final Document entity = cursor.next();
+                Boolean deleted = entity.getBoolean(ApiCallField.DELETE.field());
+                if (null != deleted && deleted) {
+                    continue;
+                }
                 acceptor.accept(entity);
             }
             Criteria updateCriteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
