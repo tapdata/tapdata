@@ -390,6 +390,7 @@ public class WorkerServiceImpl extends WorkerService{
                 taskLimit = getLimitTaskNum(worker, userDetail);
 
                 calculationEngineVo.setProcessId(agentId);
+                calculationEngineVo.setProcessName(worker.getHostname());
                 scheduleAgentId.set(agentId);
                 calculationEngineVo.setManually(true);
 
@@ -457,6 +458,7 @@ public class WorkerServiceImpl extends WorkerService{
         AtomicInteger scheduleRunNum = new AtomicInteger();
         AtomicInteger scheduleTaskLimit = new AtomicInteger();
         AtomicInteger totalTaskLimit = new AtomicInteger();
+        AtomicReference<String> scheduleAgentHostname = new AtomicReference<>("");
 
         for (int i = 0; i < workers.size(); i++) {
             WorkerDto worker = workers.get(i);
@@ -481,16 +483,19 @@ public class WorkerServiceImpl extends WorkerService{
 
             if (i == 0 || workSchedule.getProcessId() == null) {
                 scheduleAgentId.set(processId);
+                scheduleAgentHostname.set(worker.getHostname());
                 scheduleWeight.set(weight);
                 scheduleRunNum.set(runningNum);
                 scheduleTaskLimit.set(taskLimit);
             } else if (worker.getWeight() > scheduleWeight.get()) {
                 scheduleAgentId.set(processId);
+                scheduleAgentHostname.set(worker.getHostname());
                 scheduleWeight.set(weight);
                 scheduleRunNum.set(runningNum);
                 scheduleTaskLimit.set(taskLimit);
             } else if (worker.getWeight().equals(scheduleWeight.get()) &&  (taskLimit - runningNum) > (scheduleTaskLimit.get() - scheduleRunNum.get())) {
                 scheduleAgentId.set(processId);
+                scheduleAgentHostname.set(worker.getHostname());
                 scheduleWeight.set(weight);
                 scheduleRunNum.set(runningNum);
                 scheduleTaskLimit.set(taskLimit);
@@ -504,6 +509,7 @@ public class WorkerServiceImpl extends WorkerService{
         entity.setScheduleTime(System.currentTimeMillis());
 
         calculationEngineVo.setProcessId(processId);
+        calculationEngineVo.setProcessName(scheduleAgentHostname.get());
         calculationEngineVo.setFilter(filter);
         calculationEngineVo.setThreadLog(threadLog);
         calculationEngineVo.setAvailable(availableNum);

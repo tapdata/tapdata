@@ -109,7 +109,8 @@ public class TaskRestartSchedule {
         boolean isCloud = isCloud();
         long heartExpire = getHeartExpire();
 
-        if (System.currentTimeMillis() - lastCheckTime < heartExpire / 2) {
+        long throttleInterval = Math.min(heartExpire / 4, 30000L);
+        if (System.currentTimeMillis() - lastCheckTime < throttleInterval) {
             return;
         }
 
@@ -156,7 +157,8 @@ public class TaskRestartSchedule {
         if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
             heartExpire = Long.parseLong(settings.getValue().toString());
         } else {
-            heartExpire = 1800000L;
+            heartExpire = 300000L;
+            log.warn("getHeartExpire: JOB_HEART_TIMEOUT not found in Settings, using default {}ms", heartExpire);
         }
         return heartExpire;
     }
@@ -326,6 +328,37 @@ public class TaskRestartSchedule {
             return userWorkerMap.get(userId);
         } else {
             return userWorkerMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
+        }
+    }
+
+    @Scheduled(fixedDelay = 60000)
+    @SchedulerLock(name = "retrySchedulingFailedTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    public void retrySchedulingFailedTask() {
+        Thread.currentThread().setName("taskSchedule-retrySchedulingFailed");
+        if (isCloud()) return;
+
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULE_FAILED)
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - 60000L));
+        List<TaskDto> all = taskService.findAll(Query.query(criteria));
+        if (CollectionUtils.isEmpty(all)) return;
+
+        Map<String, UserDetail> userDetailMap = getUserDetailMap(all);
+        Map<String, List<Worker>> userWorkerMap = this.getUserWorkMap();
+        if (userWorkerMap == null || userWorkerMap.isEmpty()) return;
+
+        for (TaskDto taskDto : all) {
+            UserDetail user = userDetailMap.get(taskDto.getUserId());
+            if (null == user) continue;
+            List<Worker> workerList = getUserWorkList(false, userWorkerMap, user.getUserId());
+            if (CollectionUtils.isNotEmpty(workerList)) {
+                StateMachineResult result = stateMachineService.executeAboutTask(
+                        taskDto, DataFlowEvent.OVERTIME, user);
+                if (result.isOk()) {
+                    log.info("Auto-retrying scheduling_failed task [{}]", taskDto.getName());
+                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
+                    taskScheduleService.scheduling(taskDto, user, true);
+                }
+            }
         }
     }
 

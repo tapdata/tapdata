@@ -8,6 +8,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -21,7 +22,9 @@ public class TmStatusService {
   private static final List<Runnable> toAvailableHandler = new ArrayList<>();
 
   public static boolean isEnable() {
-		return AppType.currentType().isCloud();
+		String value = Optional.ofNullable(System.getenv("TM_STATUS_SERVICE_ENABLE"))
+				.orElse(System.getProperty("TM_STATUS_SERVICE_ENABLE", "true"));
+		return Boolean.parseBoolean(value);
   }
 
   public static boolean isNotEnable() {

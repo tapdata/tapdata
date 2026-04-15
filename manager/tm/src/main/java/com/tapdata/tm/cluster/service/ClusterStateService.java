@@ -395,7 +395,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
 
         Update update = new Update();
         update.set("status", "stopped");
-        mongoTemplate.updateFirst(query, update, ClusterStateEntity.class);
+        mongoTemplate.updateMulti(query, update, ClusterStateEntity.class);
     }
 
     public Page<ClusterStateDto> getAll(Filter filter) {
@@ -409,15 +409,20 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             Optional.ofNullable(workers).ifPresent(w -> w.forEach(k -> availableProcessIds.add(k.getProcessId())));
 
             items.forEach(m -> {
-                Optional.ofNullable(m.getManagement()).ifPresent(management -> management.setServiceStatus(management.getStatus()));
-                Optional.ofNullable(m.getApiServer()).ifPresent(api -> api.setServiceStatus(api.getStatus()));
-                Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
-                    if (availableProcessIds.contains(m.getSystemInfo().getProcess_id())) {
-                        fe.setServiceStatus(fe.getStatus());
-                    } else {
-                        fe.setServiceStatus("stopped");
-                    }
+                boolean clusterStopped = "stopped".equals(m.getStatus());
 
+                Optional.ofNullable(m.getManagement()).ifPresent(management -> {
+                    management.setServiceStatus(clusterStopped ? "stopped" : management.getStatus());
+                });
+                Optional.ofNullable(m.getApiServer()).ifPresent(api -> {
+                    api.setServiceStatus(clusterStopped ? "stopped" : api.getStatus());
+                });
+                Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
+                    if (clusterStopped || !availableProcessIds.contains(m.getSystemInfo().getProcess_id())) {
+                        fe.setServiceStatus("stopped");
+                    } else {
+                        fe.setServiceStatus(fe.getStatus());
+                    }
                 });
             });
         });
