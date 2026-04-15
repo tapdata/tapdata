@@ -34,6 +34,8 @@ public class ApiCallDto extends BaseDto {
     @JsonProperty("user_info")
     private Map userInfo;
 
+    private String clientId;
+
     private String allPathId;
 
     @JsonProperty("api_path")

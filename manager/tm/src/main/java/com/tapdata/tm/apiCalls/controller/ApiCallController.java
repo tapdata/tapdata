@@ -6,7 +6,6 @@ import com.tapdata.tm.apiCalls.service.ApiCallService;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
 import com.tapdata.tm.apiCalls.vo.ApiPercentile;
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -64,6 +63,21 @@ public class ApiCallController extends BaseController {
             filter = new Filter();
         }
         return success(apiCallService.find(filter));
+    }
+
+    /**
+     * cursor分页返回
+     *
+     * @param filterJson
+     * @return
+     */
+    @GetMapping("/cursor")
+    public ResponseMessage<Page<ApiCallDetailVo>> findApiCallPage(@RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) {
+            filter = new Filter();
+        }
+        return success(apiCallService.findApiCallPage(filter));
     }
 
 

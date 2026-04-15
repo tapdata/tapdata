@@ -188,8 +188,7 @@ public class ApiCallService {
             criteria.and(Tag.METHOD).is(method);
         }
         if (null != clientId && StringUtils.isNotBlank(String.valueOf(clientId).trim())) {
-            criteria.and("user_info").exists(true)
-                    .and(String.format("user_info.%s", Tag.CLIENT_ID)).is(clientId);
+            criteria.and(Tag.CLIENT_ID).is(clientId);
         }
         analyseRangeNumber(Tag.DB_COST, Tag.DATA_QUERY_TOTAL_TIME, where, criteria);
         analyseRangeNumber(Tag.LATENCY, Tag.LATENCY, where, criteria);
@@ -278,7 +277,7 @@ public class ApiCallService {
         }
     }
 
-    public Page<ApiCallDetailVo> find(Filter filter) {
+    public Page<ApiCallDetailVo> findApiCallPage(Filter filter) {
         final Where where = filter.getWhere();
         final Object clientId = where.get(Tag.CLIENT_ID);
         final String order = (String) ((filter.getOrder() == null) ? "createTime DESC" : filter.getOrder());
@@ -286,119 +285,105 @@ public class ApiCallService {
         //filter by method
         final Criteria criteria = genericFilterCriteria(filter);
         startFilterApiNameOrId(filter, criteria);
-        AggregationOperation countStage = Aggregation.count().as("total");
         Set<String> clientIds = new HashSet<>();
         if (null != clientId && StringUtils.isNotBlank(String.valueOf(clientId).trim())) {
             clientIds.add(String.valueOf(clientId).trim());
         }
         AggregationOperation matchStage = Aggregation.match(criteria);
-        Aggregation countAggregation = Aggregation.newAggregation(
-                matchStage,
-                countStage
-        );
-        final AggregationResults<Map<String, Number>> countResults = mongoOperations.aggregate(countAggregation, Tag.API_CALL, (Class<Map<String, Number>>) (Class<?>) Map.class);
-        final long total = countResults.getMappedResults().isEmpty() ? 0L : Optional.ofNullable(countResults.getMappedResults().get(0))
-                .map(e -> e.get("total"))
-                .map(Number::longValue)
-                .orElse(0L);
         final List<ApiCallDataVo> apiCallDetailVoList;
-        if (total > 0L) {
-            final int skip = filter.getSkip();
-            final int size = filter.getLimit();
-            org.springframework.data.domain.Sort sort;
-            String[] split = order.split(" ");
-            Sort sortField = Sort.by(Tag.CREATE_TIME);
-            int orderType = -1;
-            if (split.length > 0) {
-                String sortFieldName = split[0].trim();
-                if (Tag.DB_COST.equalsIgnoreCase(sortFieldName)) {
-                    sortFieldName = Tag.DATA_QUERY_TOTAL_TIME;
-                } else if (Tag.CREATE_TIME.equalsIgnoreCase(sortFieldName)) {
-                    sortFieldName = Tag.REQ_TIME;
-                }
-                sortField = Sort.by(sortFieldName);
+        int skip = filter.getSkip();
+        final int size = filter.getLimit();
+        org.springframework.data.domain.Sort sort;
+        String[] split = order.split(" ");
+        Sort sortField = Sort.by(Tag.CREATE_TIME);
+        int orderType = -1;
+        if (split.length > 0) {
+            String sortFieldName = split[0].trim();
+            if (Tag.DB_COST.equalsIgnoreCase(sortFieldName)) {
+                sortFieldName = Tag.DATA_QUERY_TOTAL_TIME;
+            } else if (Tag.CREATE_TIME.equalsIgnoreCase(sortFieldName)) {
+                sortFieldName = Tag.REQ_TIME;
             }
-            if (split.length > 1) {
-                orderType = "ASC".equals(split[1].trim().toUpperCase(Locale.ROOT)) ? 1 : -1;
-            }
-            if (orderType == 1) {
-                sort = sortField.ascending();
-            } else {
-                sort = sortField.descending();
-            }
-            final Aggregation aggregation = newAggregation(
-                    matchStage,
-                    new SortOperation(sort),
-                    skip(skip),
-                    limit(size),
-                    project()
-                            .and("_id").as(Tag.ID)
-                            .and(Tag.CREATE_TIME).as(Tag.CREATE_AT)
-                            .and("user_id").as("userId")
-                            .and("createUser").as("createUser")
-                            .and(Tag.LATENCY).as(Tag.LATENCY)
-                            .and(Tag.DATA_QUERY_TOTAL_TIME).as(Tag.DB_COST)
-                            .and(ApiCallField.REQ_TIME.field()).as(ApiCallField.REQ_TIME.field())
-                            .and(ApiCallField.REQ_PATH.field()).as("reqPath")
-                            .and("resTime").as("resTime")
-                            .and("api_meta").as("apiMeta")
-                            .and("user_info").as("userInfo")
-                            .and("call_id").as("callId")
-                            .and("user_ip").as("userIp")
-                            .and("user_port").as("userPort")
-                            .and(Tag.METHOD).as(Tag.METHOD)
-                            .and("code").as("code")
-                            .and(ApiCallField.SUCCEED.field()).as(ApiCallField.SUCCEED.field())
-                            .and("codeMsg").as("codeMsg")
-                            .and("report_time").as("reportTime")
-                            .and("visitTotalCount").as("visitTotalCount")
-                            .and(Tag.CREATE_TIME).as(Tag.CREATE_TIME)
-                            .and("speed").as("speed")
-                            .and("averResponseTime").as("averResponseTime")
-                            .and("req_params").as("reqParams")
-                            .and("query").as("query")
-                            .and("body").as("body")
-                            .and(Tag.ALL_PATH_ID).as("apiId")
-                            .and("req_path").as("apiPath")
-                            .and("httpStatus").as("httpStatus")
-            );
-            Set<String> moduleIds = new HashSet<>();
-            AggregationResults<ApiCallDataVo> apiCall = mongoOperations.aggregate(aggregation, Tag.API_CALL, ApiCallDataVo.class);
-            apiCallDetailVoList = Optional.ofNullable(apiCall.getMappedResults()).orElse(new ArrayList<>());
-            apiCallDetailVoList.stream()
-                    .filter(Objects::nonNull)
-                    .map(ApiCallDataVo::getUserInfo)
-                    .filter(Objects::nonNull)
-                    .filter(e -> Objects.nonNull(e.get(Tag.CLIENT_ID)))
-                    .map(e -> String.valueOf(e.get(Tag.CLIENT_ID)))
-                    .filter(StringUtils::isNotBlank)
-                    .forEach(clientIds::add);
-            apiCallDetailVoList.stream()
-                    .filter(Objects::nonNull)
-                    .map(ApiCallDataVo::getApiId)
-                    .filter(Objects::nonNull)
-                    .filter(StringUtils::isNotBlank)
-                    .forEach(moduleIds::add);
-            final Map<String, String> applicationNameMap = new HashMap<>();
-            if (!clientIds.isEmpty()) {
-                List<ApplicationDto> applications = applicationService.findByIds(new ArrayList<>(clientIds));
-                applicationNameMap.putAll(applications.stream()
-                        .filter(Objects::nonNull)
-                        .filter(e -> Objects.nonNull(e.getClientId()))
-                        .collect(Collectors.toMap(ApplicationDto::getClientId, ApplicationDto::getClientName, (e1, e2) -> e2)));
-            }
-            apiCallDetailVoList.stream().filter(Objects::nonNull).forEach(e -> {
-                Optional.ofNullable(e.getUserInfo())
-                        .map(userInfo -> userInfo.get(Tag.CLIENT_ID))
-                        .map(applicationNameMap::get)
-                        .ifPresent(e::setClientName);
-                e.setApiName(e.getApiId());
-                e.setApiPath(e.getApiId());
-                e.setApiId(null);
-            });
-        } else {
-            apiCallDetailVoList = new ArrayList<>();
+            sortField = Sort.by(sortFieldName);
         }
+        if (split.length > 1) {
+            orderType = "ASC".equals(split[1].trim().toUpperCase(Locale.ROOT)) ? 1 : -1;
+        }
+        if (orderType == 1) {
+            sort = sortField.ascending();
+        } else {
+            sort = sortField.descending();
+        }
+        final Aggregation aggregation = newAggregation(
+                matchStage,
+                new SortOperation(sort),
+                skip(skip),
+                limit(size),
+                project()
+                        .and("_id").as(Tag.ID)
+                        .and(Tag.CREATE_TIME).as(Tag.CREATE_AT)
+                        .and("user_id").as("userId")
+                        .and("createUser").as("createUser")
+                        .and(Tag.LATENCY).as(Tag.LATENCY)
+                        .and(Tag.DATA_QUERY_TOTAL_TIME).as(Tag.DB_COST)
+                        .and(ApiCallField.REQ_TIME.field()).as(ApiCallField.REQ_TIME.field())
+                        .and(ApiCallField.REQ_PATH.field()).as("reqPath")
+                        .and("resTime").as("resTime")
+                        .and("api_meta").as("apiMeta")
+                        .and("user_info").as("userInfo")
+                        .and("call_id").as("callId")
+                        .and("user_ip").as("userIp")
+                        .and("user_port").as("userPort")
+                        .and(Tag.METHOD).as(Tag.METHOD)
+                        .and("code").as("code")
+                        .and(ApiCallField.SUCCEED.field()).as(ApiCallField.SUCCEED.field())
+                        .and("codeMsg").as("codeMsg")
+                        .and("report_time").as("reportTime")
+                        .and("visitTotalCount").as("visitTotalCount")
+                        .and(Tag.CREATE_TIME).as(Tag.CREATE_TIME)
+                        .and("speed").as("speed")
+                        .and("averResponseTime").as("averResponseTime")
+                        .and("req_params").as("reqParams")
+                        .and("query").as("query")
+                        .and("body").as("body")
+                        .and(Tag.ALL_PATH_ID).as("apiId")
+                        .and("req_path").as("apiPath")
+                        .and("httpStatus").as("httpStatus")
+        );
+        Set<String> moduleIds = new HashSet<>();
+        AggregationResults<ApiCallDataVo> apiCall = mongoOperations.aggregate(aggregation, Tag.API_CALL, ApiCallDataVo.class);
+        apiCallDetailVoList = Optional.ofNullable(apiCall.getMappedResults()).orElse(new ArrayList<>());
+        apiCallDetailVoList.stream()
+                .filter(Objects::nonNull)
+                .map(ApiCallDataVo::getUserInfo)
+                .filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(e.get(Tag.CLIENT_ID)))
+                .map(e -> String.valueOf(e.get(Tag.CLIENT_ID)))
+                .filter(StringUtils::isNotBlank)
+                .forEach(clientIds::add);
+        apiCallDetailVoList.stream()
+                .filter(Objects::nonNull)
+                .map(ApiCallDataVo::getApiId)
+                .filter(Objects::nonNull)
+                .filter(StringUtils::isNotBlank)
+                .forEach(moduleIds::add);
+        final Map<String, String> applicationNameMap = new HashMap<>();
+        if (!clientIds.isEmpty()) {
+            List<ApplicationDto> applications = applicationService.findByIds(new ArrayList<>(clientIds));
+            applicationNameMap.putAll(applications.stream()
+                    .filter(Objects::nonNull)
+                    .filter(e -> Objects.nonNull(e.getClientId()))
+                    .collect(Collectors.toMap(ApplicationDto::getClientId, ApplicationDto::getClientName, (e1, e2) -> e2)));
+        }
+        apiCallDetailVoList.stream().filter(Objects::nonNull).forEach(e -> {
+            Optional.ofNullable(e.getUserInfo())
+                    .map(userInfo -> userInfo.get(Tag.CLIENT_ID))
+                    .map(applicationNameMap::get)
+                    .ifPresent(e::setClientName);
+            e.setApiName(e.getApiId());
+            e.setApiPath(e.getApiId());
+            e.setApiId(null);
+        });
         final List<ApiCallDetailVo> resultData = Optional.of(apiCallDetailVoList)
                 .map(this::afterFindDto)
                 .orElse(new ArrayList<>())
@@ -406,7 +391,14 @@ public class ApiCallService {
                 .filter(Objects::nonNull)
                 .map(this::mapToApiCallDetailVo)
                 .toList();
-        return Page.page(resultData, total);
+        if (!resultData.isEmpty()) {
+            skip += resultData.size();
+        }
+        return Page.page(resultData, skip);
+    }
+
+    public Page<ApiCallDetailVo> find(Filter filter) {
+        return Page.page(new ArrayList<>(), 0);
     }
 
     protected ApiCallDetailVo mapToApiCallDetailVo(ApiCallDataVo e) {

@@ -43,6 +43,8 @@ public class ApiCallEntity extends BaseEntity {
     @Field("user_info")
     private Map userInfo;
 
+    private String clientId;
+
     private String allPathId;
 
     @Field("api_path")
