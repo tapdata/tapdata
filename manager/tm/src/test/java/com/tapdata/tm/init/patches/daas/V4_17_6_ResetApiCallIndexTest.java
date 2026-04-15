@@ -2,6 +2,7 @@ package com.tapdata.tm.init.patches.daas;
 
 import com.mongodb.client.MongoCollection;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.utils.HttpUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import org.bson.Document;
@@ -13,6 +14,9 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockStatic;
@@ -20,7 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class V4_17_5_DropUselessIndexTest {
+class V4_17_6_ResetApiCallIndexTest {
 
     @Mock
     private MongoTemplate mongoTemplate;
@@ -28,11 +32,11 @@ class V4_17_5_DropUselessIndexTest {
     @Mock
     private MongoCollection<Document> mongoCollection;
 
-    private V4_17_5_DropUselessIndex patch;
+    private V4_17_6_ResetApiCallIndex patch;
 
     @BeforeEach
     void setUp() {
-        patch = new V4_17_5_DropUselessIndex(null, null);
+        patch = new V4_17_6_ResetApiCallIndex(null, null);
     }
 
     @Test
@@ -61,6 +65,31 @@ class V4_17_5_DropUselessIndexTest {
             assertDoesNotThrow(patch::run);
 
             verify(mongoCollection).dropIndex("createTime_1_hasMetric_1_delete_1");
+        }
+    }
+
+    @Test
+    void test() {
+        String api = "http://127.0.0.1:3080/api/v1/a0swdcjt68x?access_token="
+                + "eyJraWQiOiJhYjg2NTgyOS1kNjJmLTRiOGEtYTVkZS1mMWUxM2E5NWM2YWIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbHVzdGVyIjoiNjk2MGJkZmM5YjhhODM1MDU0OWFjY2NiIiwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxNzc3MzczMjM0MDQwLCJhdWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjcmVhdGVkQXQiOjE3NzYxNjM2MzQwNDAsIm5iZiI6MTc3NjE2MzYzNCwiZXhwIjoxNzc3MzczMjM0LCJpYXQiOjE3NzYxNjM2MzQsImp0aSI6ImE2ZDZjNjFkLWRiYTEtNDJkOC04MzdhLWM2ZDQ0YTBmNjZmNSJ9.lnuXQm3V6CCK1cSs1NkqteMtrRQ4CExeNSecIwAzBDLEtIHd67zJlpGENziSVhVtBiumheKMY-iNgZiNnTLZV980xSnEZn4kDqLDu4nuIjdtScD3zFEctB81HveZXiE2P7L4AMKyG08qxQLDk-Ck52qtGqfb8TbuDVKX-7-PkuCApyVgcyVTCgUwNaBDOH_KL7N7Ux2x1JJoOGPtM3jhxSMeWizMlUqcDhxAcDoGEGM4diC6FFGKEqvE8k7IccUEG28_hG1lvy8HmNTxQn6HwDFCs9sCHb8tsxVvOr4hlk6aY4ruqGp5DkvpR0U7ySRX4GtyRiYbbXpngibcfKtAUA";
+        AtomicInteger a = new AtomicInteger(0);
+        for (int j = 0; j < 500; j++) {
+            new Thread(() -> {
+                for (int i = 0; i < 10000; i++) {
+                    HttpUtils.sendGetData(api, new HashMap<>());
+                }
+                synchronized (a) {
+                    a.addAndGet(1);
+                }
+            }).start();
+        }
+
+        while (a.get() < 500) {
+            try {
+                Thread.sleep(1000L);
+            } catch (Exception e) {
+
+            }
         }
     }
 }

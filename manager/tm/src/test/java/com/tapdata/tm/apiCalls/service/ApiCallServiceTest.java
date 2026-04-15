@@ -469,7 +469,7 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter);
+            Page<ApiCallDetailVo> page = apiCallService.findApiCallPage(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
@@ -495,7 +495,7 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter);
+            Page<ApiCallDetailVo> page = apiCallService.findApiCallPage(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
@@ -524,7 +524,7 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter);
+            Page<ApiCallDetailVo> page = apiCallService.findApiCallPage(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
@@ -553,7 +553,7 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter);
+            Page<ApiCallDetailVo> page = apiCallService.findApiCallPage(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
@@ -582,7 +582,7 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter);
+            Page<ApiCallDetailVo> page = apiCallService.findApiCallPage(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
@@ -611,9 +611,9 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter);
+            Page<ApiCallDetailVo> page = apiCallService.findApiCallPage(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
-            Assertions.assertEquals(page.getTotal(), 1L);
+            Assertions.assertEquals(page.getTotal(), 0L);
         }
     }
 
