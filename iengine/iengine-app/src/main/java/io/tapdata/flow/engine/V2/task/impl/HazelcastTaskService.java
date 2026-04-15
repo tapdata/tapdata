@@ -14,6 +14,7 @@ import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
+import com.mongodb.ConnectionString;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.cache.external.ExternalStorageCacheService;
 import com.tapdata.constant.ConfigurationCenter;
@@ -179,6 +180,34 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		cacheService = new ExternalStorageCacheService(hazelcastInstance, clientMongoOperator);
 		messageDao.setCacheService(cacheService);
 		GlobalConstant.getInstance().hazelcastInstance(hazelcastInstance);
+
+		// 初始化缓存失效服务
+		initCacheInvalidationService();
+	}
+
+	/**
+	 * 初始化缓存失效服务
+	 */
+	private void initCacheInvalidationService() {
+		try {
+			ConnectionString connectionString = clientMongoOperator.getConnectionString();
+
+			if (connectionString != null) {
+				String mongoUri = connectionString.getConnectionString();
+				String databaseName = connectionString.getDatabase();
+
+				if (mongoUri != null && databaseName != null) {
+					HazelcastUtil.initCacheInvalidationService(hazelcastInstance, mongoUri, databaseName);
+					logger.info("Cache invalidation service initialized successfully for database: {}", databaseName);
+				} else {
+					logger.warn("Cannot initialize cache invalidation service: MongoDB URI or database name is null");
+				}
+			} else {
+				logger.warn("Cannot initialize cache invalidation service: ConnectionString is null");
+			}
+		} catch (Exception e) {
+			logger.error("Failed to initialize cache invalidation service", e);
+		}
 	}
 
 	public static HazelcastInstance getHazelcastInstance() {

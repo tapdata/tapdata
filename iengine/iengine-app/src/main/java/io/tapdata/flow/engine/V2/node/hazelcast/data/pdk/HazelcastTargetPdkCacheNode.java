@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
+import com.tapdata.cache.CacheInvalidationService;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.constant.HazelcastUtil;
@@ -45,6 +46,8 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 
 	private final ConstructIMap<Map<String, Map<String, Object>>> dataMap;
 
+	private CacheInvalidationService cacheInvalidationService;
+
 	public HazelcastTargetPdkCacheNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		Node<?> node = dataProcessorContext.getNode();
@@ -63,6 +66,8 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 		super.doInit(context);
 		ICacheService cacheService = this.dataProcessorContext.getCacheService();
 		this.dataFlowCacheConfig = cacheService.getConfig(cacheName);
+
+		this.cacheInvalidationService = HazelcastUtil.getCacheInvalidationService();
 	}
 
 	void processEvents(List<TapEvent> tapEvents) {
@@ -90,8 +95,13 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 					recordMap.put(afterPk, cacheFieldRow);
 					dataMap.insert(afterCacheKey, recordMap);
 
+					publishCacheInvalidation(beforeCacheKey);
+					if (!beforeCacheKey.equals(afterCacheKey)) {
+						publishCacheInvalidation(afterCacheKey);
+					}
 				} else if (tapEvent instanceof TapDeleteRecordEvent) {
 					CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
+					publishCacheInvalidation(beforeCacheKey);
 				} else {
 					if (logger.isDebugEnabled()) {
 						logger.debug("Cache row is not update or delete, will abort it, msg {}", tapEvent);
@@ -99,6 +109,20 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 				}
 			} catch (Throwable e) {
 				throw new TapEventException(ShareCacheExCode_20.PDK_WRITE_SHARE_CACHE_FAILED, e).addEvent(tapEvent);
+			}
+		}
+	}
+
+	/**
+	 * 发布缓存失效事件到 MongoDB
+	 */
+	private void publishCacheInvalidation(String cacheKey) {
+		if (cacheInvalidationService != null && StringUtils.isNotBlank(cacheKey)) {
+			try {
+				String mapName = dataMap.getName();
+				cacheInvalidationService.publishInvalidation(mapName, cacheKey);
+			} catch (Exception e) {
+				logger.warn("Failed to publish cache invalidation for key: {}", cacheKey, e);
 			}
 		}
 	}
