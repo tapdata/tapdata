@@ -385,7 +385,7 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
 			save(builder.build(), user);
 		}
 
-    public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user, Date now) {
+    public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, String assignedName, Integer available, boolean manually, UserDetail user, Date now) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
         long time = now.getTime();
         builder.taskId(taskDto.getId().toHexString())
@@ -396,10 +396,13 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
                 .logTag("Agent Available Check")
                 .level("INFO")
         ;
-        if (available != null) {
-            builder.message(String.format("%s agents are available now, task is assigned to agent %s", available, assigned));
+        String displayName = StringUtils.isNotBlank(assignedName) ? assignedName + "(" + assigned + ")" : assigned;
+        if (available != null && manually) {
+            builder.message(String.format("Previously assigned agent %s is available, task will continue on this agent", displayName));
+        } else if (available != null) {
+            builder.message(String.format("%s agents are available now, task is assigned to agent %s", available, displayName));
         } else {
-            builder.message(String.format("Task is assigned to agent %s manually", assigned));
+            builder.message(String.format("Task is assigned to agent %s manually", displayName));
         }
 
         save(builder.build(), user);

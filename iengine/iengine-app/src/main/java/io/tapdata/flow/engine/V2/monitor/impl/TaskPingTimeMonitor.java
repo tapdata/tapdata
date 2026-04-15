@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.ConsumerImpl;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
+import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.utils.AppType;
 import org.apache.logging.log4j.LogManager;
@@ -103,8 +104,9 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 	}
 
 	public void taskPingTimeUseHttp(Query query, Update update) {
-        // 正常情况下, 不需频繁心跳
-        if (System.currentTimeMillis() - lastPingTime < heartExpire / 2 && failedStartTime == 0) {
+        // 正常情况下, 不需频繁心跳; TM不可用时缩短间隔以快速探测恢复
+        long pingInterval = TmStatusService.isAvailable() ? heartExpire / 2 : PING_INTERVAL_MS;
+        if (System.currentTimeMillis() - lastPingTime < pingInterval && failedStartTime == 0) {
             return;
         }
 		try {
