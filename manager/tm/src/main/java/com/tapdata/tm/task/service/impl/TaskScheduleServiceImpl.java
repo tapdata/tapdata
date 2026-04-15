@@ -87,18 +87,22 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         }
 
         Date now = new Date();
-        monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user, now);
-        //调度完成之后，改成待运行状态
-        Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId()).set("last_updated", now);
+        monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getProcessName(), calculationEngineVo.getAvailable(), calculationEngineVo.isManually(), user, now);
 
+        // Step 1: Write agentId first while still in SCHEDULING state.
+        // This is safe because no scheduler dispatches start messages to tasks in SCHEDULING state.
+        // Ensures any observer of the subsequent WAIT_RUN state always sees the correct agentId.
+        Query agentIdQuery = new Query(Criteria.where("_id").is(taskDto.getId())
+                .and("status").is(TaskDto.STATUS_SCHEDULING));
+        Update waitRunUpdate = Update.update("agentId", taskDto.getAgentId()).set("last_updated", now);
+        taskService.update(agentIdQuery, waitRunUpdate, user);
+
+        // Step 2: Transition state to WAIT_RUN — agentId is already correct at this point
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_SUCCESS, user);
 
         if (stateMachineResult.isFail()) {
-            log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
+            log.info("concurrent start operations, this operation don’t effective, task name = {}", taskDto.getName());
             return;
-        } else {
-            taskService.update(query1, waitRunUpdate, user);
         }
         sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user);
 
@@ -168,7 +172,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
                 long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48) * 1000 : 108000;
 
-                if (workerDto.getPingTime() < heartExpire) {
+                if ((System.currentTimeMillis() - workerDto.getPingTime()) < heartExpire) {
                     needCalculateAgent.set(false);
                 }
             }
@@ -190,18 +194,10 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 }
                 taskDto.setAgentId(finalAgentId);
             } else {
-                // Fix: When original agent is unavailable, try to schedule to a new available agent
-                // instead of directly setting agentId to null, which would cause scheduling failure
-                log.info("Original agent is unavailable for task [{}], attempting to schedule to a new agent", taskDto.getName());
-                CalculationEngineVo tempVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
-                if (StringUtils.isNotBlank(tempVo.getProcessId())) {
-                    taskDto.setAgentId(tempVo.getProcessId());
-                    log.info("Successfully scheduled task [{}] to new agent [{}]", taskDto.getName(), tempVo.getProcessId());
-                } else {
-                    // Only set to null when no available agent is found
-                    taskDto.setAgentId(null);
-                    log.warn("No available agent found for task [{}], agentId set to null", taskDto.getName());
-                }
+                // Automatic platform allocation: clear agentId so calculationEngine()
+                // evaluates ALL available agents instead of early-exiting with only the pre-assigned one
+                log.info("Task [{}] with automatic platform allocation, clearing agentId to evaluate all available agents", taskDto.getName());
+                taskDto.setAgentId(null);
             }
         }
 

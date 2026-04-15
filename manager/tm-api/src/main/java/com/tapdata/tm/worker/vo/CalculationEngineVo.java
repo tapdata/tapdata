@@ -9,6 +9,7 @@ import java.util.ArrayList;
 @Data
 public class CalculationEngineVo {
     private String ProcessId;
+    private String processName;
     private String filter;
     private ArrayList<WorkSchedule> threadLog;
     private int available;

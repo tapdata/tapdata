@@ -55,6 +55,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				.transition(TaskState.SCHEDULING, TaskState.WAITING_RUN, DataFlowEvent.SCHEDULE_SUCCESS)
 				.transition(TaskState.SCHEDULING, TaskState.ERROR, DataFlowEvent.ERROR)
 				.transition(TaskState.SCHEDULING_FAILED, TaskState.SCHEDULING, DataFlowEvent.START)
+				.transition(TaskState.SCHEDULING_FAILED, TaskState.SCHEDULING, DataFlowEvent.OVERTIME)
 				.transition(TaskState.SCHEDULING_FAILED, TaskState.SCHEDULING_FAILED, DataFlowEvent.CONFIRM)
 				.transition(TaskState.SCHEDULING_FAILED, TaskState.SCHEDULING_FAILED, DataFlowEvent.SCHEDULE_FAILED)
 				.transition(TaskState.SCHEDULING_FAILED, TaskState.RENEWING, DataFlowEvent.RENEW)
