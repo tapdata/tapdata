@@ -1198,24 +1198,19 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         if (CollectionUtils.isEmpty(taskIds)) {
             return result;
         }
-        // 逐个 taskId 查询最新一条文档，利用复合索引 { grnty, tags.type, tags.taskId, date }
-        // 直接定位到每个 taskId 的最新文档，避免 $sort + $group 全量扫描
+
         for (String tid : taskIds) {
             if (StringUtils.isBlank(tid)) {
                 continue;
             }
-            MeasurementEntity entity = findLastMinuteByTaskId(tid);
-            if (entity == null || CollectionUtils.isEmpty(entity.getSamples())) {
-                continue;
-            }
-            Sample latest = entity.getSamples().stream()
-                    .filter(Objects::nonNull)
-                    .filter(sample -> sample.getDate() != null)
-                    .max(Comparator.comparing(Sample::getDate))
-                    .orElse(null);
-            if (latest != null) {
-                result.put(tid, latest);
-            }
+            Optional.ofNullable(findLastMinuteByTaskId(tid))
+                    .map(MeasurementEntity::getSamples)
+                    .filter(samples -> !samples.isEmpty())
+                    .flatMap(samples -> samples.stream()
+                            .filter(Objects::nonNull)
+                            .filter(sample -> sample.getDate() != null)
+                            .max(Comparator.comparing(Sample::getDate)))
+                    .ifPresent(latest -> result.put(tid, latest));
         }
         return result;
     }
