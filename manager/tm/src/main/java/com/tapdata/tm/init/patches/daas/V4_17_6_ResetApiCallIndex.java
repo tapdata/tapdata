@@ -2,11 +2,19 @@ package com.tapdata.tm.init.patches.daas;
 
 import com.mongodb.client.MongoCollection;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.apiCalls.entity.ApiCallField;
+import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.init.patches.PatchAnnotation;
+import com.tapdata.tm.modules.entity.ModulesEntity;
+import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
+import com.tapdata.tm.worker.entity.ServerUsage;
+import com.tapdata.tm.worker.entity.ServerUsageMetric;
+import com.tapdata.tm.worker.entity.field.ServerUsageField;
+import com.tapdata.tm.worker.entity.field.ServerUsageMetricField;
 import io.tapdata.utils.AppType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,13 +46,34 @@ public class V4_17_6_ResetApiCallIndex extends V4_14_21_AddApiCallTTL {
         } catch (Exception e) {
             logger.warn("drop index not succeed: {}", e.getMessage());
         }
-        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_1_ttl", new Document(CREATE_TIME, 1), 2592000L);
-        createTTLIndexIfNeed(mongoTemplate, apiCallName, "apiId_reqTime_dbCost_latency_code_status_delete", new Document("allPathId", 1).append("reqTime", 1).append("dataQueryTotalTime", 1).append("latency", 1).append("succeed", 1).append("delete", 1), null);
-        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_query-1", new Document("allPathId", -1).append("createTime", -1).append("_id", 1), null);
-        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_query-2", new Document("workOid", 1).append("reqTime", 1), null);
-        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_query_supplement-3", new Document("supplement", 1).append("createTime", 1).append("allPathId", 1).append("reqTime", 1), null);
-        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_metric_filter_sort", new Document("hasMetric", 1).append("createTime", 1).append("reqTime", 1), null);
-        createTTLIndexIfNeed(mongoTemplate, apiCallName, "delete_1_api_gateway_uuid_1_reqTime_1", new Document("api_gateway_uuid", 1).append("reqTime", 1).append("delete", 1), null);
-        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_idx_covering_query", new Document("api_gateway_uuid", 1).append("supplement", 1).append("allPathId", 1).append("workOid", 1).append("_id", 1).append("code", 1).append("codeMsg", 1).append("httpStatus", 1).append("succeed", 1), null);
+        loadingClientId(collection);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_reqTime_-1", new Document(ApiCallField.REQ_TIME.field(), -1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_latency_-1", new Document(ApiCallField.LATENCY.field(), -1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_dataQueryTotalTime_-1", new Document(ApiCallField.DATA_QUERY_TOTAL_TIME.field(), -1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_allPathId_req_path_method_1_reqTime_-1", new Document(ApiCallField.CLIENT_ID.field(), 1).append(ApiCallField.ALL_PATH_ID.field(), 1).append(ApiCallField.REQ_PATH.field(), 1).append(ApiCallField.METHOD.field(), 1).append(ApiCallField.SUCCEED.field(), 1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_delete_1_api_gateway_uuid_1_reqTime_1", new Document(ApiCallField.API_GATEWAY_UUID.field(), 1).append(ApiCallField.REQ_TIME.field(), 1).append(ApiCallField.DELETE.field(), 1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_apiId_reqTime_dbCost_latency_code_status_delete", new Document(ApiCallField.ALL_PATH_ID.field(), 1).append(ApiCallField.REQ_TIME.field(), 1).append(ApiCallField.DATA_QUERY_TOTAL_TIME.field(), 1).append(ApiCallField.LATENCY.field(), 1).append(ApiCallField.SUCCEED.field(), 1).append(ApiCallField.DELETE.field(), 1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_apiId_-1_createTime_1_callId_1", new Document(ApiCallField.ALL_PATH_ID.field(), -1).append(BaseEntityFields.CREATE_TIME.field(), -1).append(BaseEntityFields._ID.field(), 1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_workerId_1_reqTime_1", new Document(ApiCallField.WORK_O_ID.field(), 1).append(ApiCallField.REQ_TIME.field(), 1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_supplement-1_createTime_1_apiId_1_reqTime_1", new Document(ApiCallField.SUPPLEMENT.field(), 1).append(BaseEntityFields.CREATE_TIME.field(), 1).append(ApiCallField.ALL_PATH_ID.field(), 1).append(ApiCallField.REQ_TIME.field(), 1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_hasMetric_1_createTime_1_reqTime_1", new Document(ApiCallField.HAS_METRIC.field(), 1).append(BaseEntityFields.CREATE_TIME.field(), 1).append(ApiCallField.REQ_TIME.field(), 1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_serverId_1_supplement_1_apiId_1_workerId_1_callId_1_code_1_codeMsg_1_httpStatus_1_succeed_1", new Document(ApiCallField.API_GATEWAY_UUID.field(), 1).append(ApiCallField.SUPPLEMENT.field(), 1).append(ApiCallField.ALL_PATH_ID.field(), 1).append(ApiCallField.WORK_O_ID.field(), 1).append(BaseEntityFields._ID.field(), 1).append(ApiCallField.CODE.field(), 1).append(ApiCallField.CODE_MSG.field(), 1).append(ApiCallField.HTTP_STATUS.field(), 1).append(ApiCallField.SUCCEED.field(), 1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_1_ttl", new Document(BaseEntityFields.CREATE_TIME.field(), 1), 2592000L);
+        String serverUsageMetricName = MongoUtils.getCollectionName(ServerUsageMetric.class);
+        createTTLIndexIfNeed(mongoTemplate, serverUsageMetricName, "ServerUsageMetric_granularity_1_lastUpdateTime_-1", new Document(ServerUsageMetricField.TIME_GRANULARITY.field(), 1).append(ServerUsageField.LAST_UPDATE_TIME.field(), 1), null);
+        String serverUsageName = MongoUtils.getCollectionName(ServerUsage.class);
+        createTTLIndexIfNeed(mongoTemplate, serverUsageName, "ServerUsage_lastUpdateTime_1", new Document(ServerUsageField.LAST_UPDATE_TIME.field(), 1), null);
+        String modulesName = MongoUtils.getCollectionName(ModulesEntity.class);
+        createTTLIndexIfNeed(mongoTemplate, modulesName, "Modules_status_1_is_deleted_1", new Document(ModulesField.STATUS.field(), 1).append(ModulesField.IS_DELETED.field(), 1), null);
+    }
+
+    protected void loadingClientId(MongoCollection<Document> collection) {
+        Document query = new Document().append("user_info.clientId", new Document().append("$exists", true));
+        Document update = new Document().append("$set", new Document().append("clientId", "$user_info.clientId"));
+        try {
+            collection.updateMany(query, update);
+        } catch (Exception e) {
+            logger.warn("update api call set clientId by user_info.clientId failed: {}", e.getMessage());
+        }
     }
 }

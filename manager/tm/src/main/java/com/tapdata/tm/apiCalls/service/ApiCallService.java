@@ -280,8 +280,6 @@ public class ApiCallService {
     public Page<ApiCallDetailVo> findApiCallPage(Filter filter) {
         final Where where = filter.getWhere();
         final Object clientId = where.get(Tag.CLIENT_ID);
-        final String order = (String) ((filter.getOrder() == null) ? "createTime DESC" : filter.getOrder());
-
         //filter by method
         final Criteria criteria = genericFilterCriteria(filter);
         startFilterApiNameOrId(filter, criteria);
@@ -290,6 +288,46 @@ public class ApiCallService {
             clientIds.add(String.valueOf(clientId).trim());
         }
         AggregationOperation matchStage = Aggregation.match(criteria);
+        List<ApiCallDetailVo> resultData = aggregate(filter, matchStage, clientIds);
+        int skip = filter.getSkip();
+        if (!resultData.isEmpty()) {
+            skip += resultData.size();
+        }
+        return Page.page(resultData, skip);
+    }
+
+    public Page<ApiCallDetailVo> find(Filter filter) {
+        final Where where = filter.getWhere();
+        final Object clientId = where.get(Tag.CLIENT_ID);
+        //filter by method
+        final Criteria criteria = genericFilterCriteria(filter);
+        startFilterApiNameOrId(filter, criteria);
+        AggregationOperation countStage = Aggregation.count().as("total");
+        Set<String> clientIds = new HashSet<>();
+        if (null != clientId && StringUtils.isNotBlank(String.valueOf(clientId).trim())) {
+            clientIds.add(String.valueOf(clientId).trim());
+        }
+        AggregationOperation matchStage = Aggregation.match(criteria);
+        Aggregation countAggregation = Aggregation.newAggregation(
+                matchStage,
+                countStage
+        );
+        final AggregationResults<Map<String, Number>> countResults = mongoOperations.aggregate(countAggregation, Tag.API_CALL, (Class<Map<String, Number>>) (Class<?>) Map.class);
+        final long total = countResults.getMappedResults().isEmpty() ? 0L : Optional.ofNullable(countResults.getMappedResults().get(0))
+                .map(e -> e.get("total"))
+                .map(Number::longValue)
+                .orElse(0L);
+        final List<ApiCallDetailVo> apiCallDetailVoList;
+        if (total > 0L) {
+            apiCallDetailVoList = aggregate(filter, matchStage, clientIds);
+        } else {
+            apiCallDetailVoList = new ArrayList<>();
+        }
+        return Page.page(apiCallDetailVoList, total);
+    }
+
+    protected List<ApiCallDetailVo> aggregate(Filter filter, AggregationOperation matchStage, Set<String> clientIds) {
+        final String order = (String) ((filter.getOrder() == null) ? "createTime DESC" : filter.getOrder());
         final List<ApiCallDataVo> apiCallDetailVoList;
         int skip = filter.getSkip();
         final int size = filter.getLimit();
@@ -391,15 +429,9 @@ public class ApiCallService {
                 .filter(Objects::nonNull)
                 .map(this::mapToApiCallDetailVo)
                 .toList();
-        if (!resultData.isEmpty()) {
-            skip += resultData.size();
-        }
-        return Page.page(resultData, skip);
+        return resultData;
     }
 
-    public Page<ApiCallDetailVo> find(Filter filter) {
-        return Page.page(new ArrayList<>(), 0);
-    }
 
     protected ApiCallDetailVo mapToApiCallDetailVo(ApiCallDataVo e) {
         final ApiCallDetailVo item = new ApiCallDetailVo();
