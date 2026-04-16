@@ -66,22 +66,6 @@ public class ApiCallController extends BaseController {
     }
 
     /**
-     * cursor分页返回
-     *
-     * @param filterJson
-     * @return
-     */
-    @GetMapping("/cursor")
-    public ResponseMessage<Page<ApiCallDetailVo>> findApiCallPage(@RequestParam(value = "filter", required = false) String filterJson) {
-        Filter filter = parseFilter(filterJson);
-        if (filter == null) {
-            filter = new Filter();
-        }
-        return success(apiCallService.findApiCallPage(filter));
-    }
-
-
-    /**
      * Patch attributes for a model instance and persist it into the data source
      *
      * @param metadataDefinition
