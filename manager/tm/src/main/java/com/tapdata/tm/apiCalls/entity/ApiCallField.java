@@ -48,7 +48,8 @@ public enum ApiCallField implements CollectionField {
     REQUEST_COST("requestCost"),
     HTTP_STATUS("httpStatus"),
     DELETE("delete"),
-    HAS_METRIC("hasMetric");
+    HAS_METRIC("hasMetric"),
+    CLIENT_ID("clientId");
 
     final String fieldName;
 
