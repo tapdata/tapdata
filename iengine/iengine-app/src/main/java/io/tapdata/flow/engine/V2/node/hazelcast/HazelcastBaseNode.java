@@ -606,8 +606,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected void doClose() throws TapCodeException {
 		CommonUtils.handleAnyError(() ->
-			CpuMemoryCollector.unregisterTask(getNode().getTaskId())
-		, e -> obsLogger.warn(String.format("Unregister task %s from cpu memory collector failed: %s", getNode().getTaskId(), e.getMessage())));
+			CpuMemoryCollector.unregisterTaskByNodeId(getNode().getId())
+		, e -> obsLogger.warn(String.format("Unregister task by node id %s from cpu memory collector failed: %s", getNode().getId(), e.getMessage())));
 		CommonUtils.handleAnyError(() -> {
 			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
 			obsLogger.trace(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));

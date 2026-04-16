@@ -168,7 +168,16 @@ public final class CpuMemoryCollector {
 	}
 
 
-	public static void unregisterTask(String taskId) {
+	public static void unregisterTaskByNodeId(String nodeId) {
+        if (StringUtils.isBlank(nodeId)) {
+            return;
+        }
+        String taskId = COLLECTOR.taskWithNode.get(nodeId);
+        if (StringUtils.isBlank(taskId)) {
+            return;
+        }
+        unregisterTask(taskId);
+    }public static void unregisterTask(String taskId) {
 		CommonUtils.handleAnyError(() -> COLLECTOR.threadGroupMap.remove(taskId),
 				e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean threadGroupMap, {}", taskId, e.getMessage()));
 		synchronized (COLLECTOR.weakReferenceMap) {
