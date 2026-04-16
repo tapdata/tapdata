@@ -139,6 +139,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 			ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 			Invocable engine;
+			ObsScriptLogger obsScriptLogger;
+			if(getProcessorBaseContext().getTaskDto().isNormalTask()){
+				obsScriptLogger = new ObsScriptLogger(getScriptObsLogger(),logger);
+			}else{
+				obsScriptLogger = new ObsScriptLogger(obsLogger,logger);
+			}
 			try {
 				engine = finalJs ?
 						ScriptStandardizationUtil.getScriptStandardizationEngine(
@@ -147,7 +153,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 								javaScriptFunctions,
 								clientMongoOperator,
 								scriptCacheService,
-								new ObsScriptLogger(getScriptObsLogger(), logger),
+								obsScriptLogger,
 								this.standard)
 						: ScriptUtil.getScriptEngine(
 						JSEngineEnum.GRAALVM_JS.getEngineName(),
@@ -157,7 +163,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 						null,
 						null,
 						scriptCacheService,
-						new ObsScriptLogger(getScriptObsLogger(), logger),
+						obsScriptLogger,
 						this.standard);
 			} catch (ScriptException e) {
 				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e)

@@ -72,11 +72,11 @@ public class QueryDataBaseDataService {
 		return null;
 	}
 	public List<Map<String, Object>> query(String connectionId, String tableName, String sql) {
-		return queryV2(connectionId,tableName,sql,false);
+		return queryV2(connectionId,tableName,sql,false,99999);
 	}
 
 
-	public List<Map<String, Object>> queryV2(String connectionId, String tableName, String sql,boolean toString) {
+	public List<Map<String, Object>> queryV2(String connectionId, String tableName, String sql,boolean isMockData,int limit) {
 		String associateId = "query_" + connectionId +  "_" + UUID.randomUUID();
 		TapTable tapTable = new TapTable();
 		if (tableName != null && !tableName.isEmpty()) {
@@ -95,19 +95,28 @@ public class QueryDataBaseDataService {
 				AtomicReference<List<Map<String, Object>>> resultsAtomic = new AtomicReference<>();
 				RunRawCommandFunction runRawCommandFunction = connectorNode.getConnectorFunctions().getRunRawCommandFunction();
 				try {
-					runRawCommandFunction.run(connectorNode.getConnectorContext(), sql, tapTable, 99999, events -> {
-						List<Map<String, Object>> results = new ArrayList<>();
+					runRawCommandFunction.run(connectorNode.getConnectorContext(), sql, tapTable, limit, events -> {
+						List<Map<String, Object>> results = resultsAtomic.get();
+						if (results == null) {
+							results = new ArrayList<>();
+							resultsAtomic.set(results);
+						}
+						if (results.size() >= limit && isMockData) {
+							return;
+						}
 						for (TapEvent event : events) {
+							if (results.size() >= limit && isMockData) {
+								break;
+							}
 							results.add(((TapInsertRecordEvent) event).getAfter());
 						}
-						resultsAtomic.set(results);
 					});
 					maps = resultsAtomic.get();
 					if (CollectionUtils.isNotEmpty(maps)) {
 						for (Map<String, Object> map : maps) {
 							codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
 							originCodecsFilterManager.transformFromTapValueMap(map);
-							if(toString){
+							if(isMockData){
 								ClassHandlersV2ToStringUtils.recursiveHandleMap(map);
 							}
 						}

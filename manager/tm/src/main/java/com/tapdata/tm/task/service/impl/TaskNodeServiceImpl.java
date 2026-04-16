@@ -741,7 +741,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
-        return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeIds.toString()) : wsTestRun(userDetail, taskDto, taskDtoCopy);
+        return rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeIds.toString());
     }
 
     void applyTestRunInputEvent(TaskDto taskDtoCopy, TestRunDto dto) {
@@ -986,7 +986,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             List<Map<String, Object>> sampleData;
             if (StringUtils.isNotBlank(dto.getSql())) {
                 checkCapability(connection, "run_raw_command_function", "MockData.ConnectionNotSupportRawCommand", connectionId);
-                sampleData = querySampleDataBySql(taskDto.getAgentId(), connectionId, tableName, dto.getSql());
+                sampleData = querySampleDataBySql(taskDto.getAgentId(), connectionId, tableName, dto.getSql(),100);
             } else {
                 checkCapability(connection, "query_by_advance_filter_function", "MockData.ConnectionNotSupportQuery", connectionId);
                 sampleData = querySampleDataByFilter(taskDto.getAgentId(), connectionId, tableName, rows);
@@ -1021,8 +1021,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
-    private List<Map<String, Object>> querySampleDataBySql(String agentId, String connectionId, String tableName, String sql) throws Throwable {
-        return taskService.callEngineRpc(agentId, List.class, "QueryDataBaseDataService", "queryV2", connectionId, tableName, sql, true);
+    private List<Map<String, Object>> querySampleDataBySql(String agentId, String connectionId, String tableName, String sql,int limit) throws Throwable {
+        return taskService.callEngineRpc(agentId, List.class, "QueryDataBaseDataService", "queryV2", connectionId, tableName, sql, true,limit);
     }
 
     private List<Map<String, Object>> querySampleDataByFilter(String agentId, String connectionId, String tableName, Integer rows) throws Throwable {
