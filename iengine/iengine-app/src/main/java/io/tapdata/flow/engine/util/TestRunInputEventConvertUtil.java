@@ -348,6 +348,22 @@ public class TestRunInputEventConvertUtil {
 	}
 
 	private static String inferTestRunInputEventType(Map<String, Object> eventData) {
+		Object op = eventData.get("op");
+		if (op instanceof String) {
+			switch (((String) op).toLowerCase()) {
+				case "i":
+				case "insert":
+					return "insert";
+				case "u":
+				case "update":
+					return "update";
+				case "d":
+				case "delete":
+					return "delete";
+				default:
+					break;
+			}
+		}
 		boolean hasBefore = eventData.containsKey("before");
 		boolean hasAfter = eventData.containsKey("after");
 		if (hasBefore && hasAfter) {
@@ -359,7 +375,7 @@ public class TestRunInputEventConvertUtil {
 		if (hasBefore) {
 			return "delete";
 		}
-		return null;
+		return "insert";
 	}
 
 	@SuppressWarnings("unchecked")
