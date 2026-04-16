@@ -1069,9 +1069,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
             Set<String> table = partitionTableSubMasterMap.values().stream().map(TapTable::getId).collect(Collectors.toSet());
             List<List<String>> partition = Lists.partition(new ArrayList<>(addList), BATCH_SIZE);
+            List<String> masterTableIds = new ArrayList<>();
             partition.forEach(part -> {
                 List<String> batchList = new ArrayList<>(part);
                 LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), batchList, tapTable -> {
+                    if (null != tapTable.getPartitionMasterTableId()) {
+                        masterTableIds.add(tapTable.getPartitionMasterTableId());
+                    }
                     if (table.contains(tapTable.getId())) return;
                     if (Objects.nonNull(syncSourcePartitionTableEnable)
                             && !syncSourcePartitionTableEnable) {
@@ -1117,7 +1121,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             loadedTableNames = addTapTables.stream().map(TapTable::getId).collect(Collectors.toList());
             List<String> missingTableNames = new ArrayList<>();
             addList.forEach(tableName -> {
-                if (!noPrimaryKeyTableNames.contains(tableName) && !loadedTableNames.contains(tableName)) {
+                if (!noPrimaryKeyTableNames.contains(tableName) && !loadedTableNames.contains(tableName) && !masterTableIds.contains(tableName)) {
                     missingTableNames.add(tableName);
                 }
             });
