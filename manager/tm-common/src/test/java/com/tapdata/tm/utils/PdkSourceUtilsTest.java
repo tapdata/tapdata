@@ -35,7 +35,7 @@ public class PdkSourceUtilsTest {
             MockMultipartFile mp = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
             String md5 = PdkSourceUtils.getFileMD5(mp);
             existFile.delete();
-            assertNotEquals(null,md5);
+            assertEquals(md5Hex(new byte[0]), md5);
         }
         @Test
         @SneakyThrows
@@ -101,8 +101,9 @@ public class PdkSourceUtilsTest {
             file.createNewFile();
             String fileMD5 = PdkSourceUtils.calculateFileMD5(file);
             file.delete();
-            assertNotEquals(null,fileMD5);
+            assertEquals("98f6bcd4621d373cade4e832627b4f6", fileMD5);
         }
+
         @Test
         @SneakyThrows
         @DisplayName("calculateFileMD5 method test with exception")

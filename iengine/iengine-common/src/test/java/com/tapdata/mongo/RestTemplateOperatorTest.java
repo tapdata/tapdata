@@ -413,7 +413,7 @@ public class RestTemplateOperatorTest {
 		RestTemplateOperator.TryFunc func = mock(RestTemplateOperator.TryFunc.class);
 		Predicate<?> stop = mock(Predicate.class);
 		doThrow(new TmUnavailableException("uri", "method", new Object(), mock(ResponseBody.class))).when(func).tryFunc(any());
-		assertThrows(TmUnavailableException.class, () -> restTemplateOperatorUnderTest.retryWrap(func,stop));
+		assertThrows(ManagementException.class, () -> restTemplateOperatorUnderTest.retryWrap(func,stop));
 	}
 
 	@Test
