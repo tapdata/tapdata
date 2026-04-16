@@ -277,25 +277,6 @@ public class ApiCallService {
         }
     }
 
-    public Page<ApiCallDetailVo> findApiCallPage(Filter filter) {
-        final Where where = filter.getWhere();
-        final Object clientId = where.get(Tag.CLIENT_ID);
-        //filter by method
-        final Criteria criteria = genericFilterCriteria(filter);
-        startFilterApiNameOrId(filter, criteria);
-        Set<String> clientIds = new HashSet<>();
-        if (null != clientId && StringUtils.isNotBlank(String.valueOf(clientId).trim())) {
-            clientIds.add(String.valueOf(clientId).trim());
-        }
-        AggregationOperation matchStage = Aggregation.match(criteria);
-        List<ApiCallDetailVo> resultData = aggregate(filter, matchStage, clientIds);
-        int skip = filter.getSkip();
-        if (!resultData.isEmpty()) {
-            skip += resultData.size();
-        }
-        return Page.page(resultData, skip);
-    }
-
     public Page<ApiCallDetailVo> find(Filter filter) {
         final Where where = filter.getWhere();
         final Object clientId = where.get(Tag.CLIENT_ID);
