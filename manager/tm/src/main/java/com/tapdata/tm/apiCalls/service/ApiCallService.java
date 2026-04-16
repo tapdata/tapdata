@@ -426,7 +426,7 @@ public class ApiCallService {
             apiCallEntity.setSucceed(ApiMetricsCompressValueUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()));
             apiCallEntity.setCreateAt(new Date());
             if (apiCallEntity.getUserInfo() != null) {
-                apiCallEntity.setCallId(String.valueOf(apiCallEntity.getUserInfo().get("clientId")));
+                apiCallEntity.setClientId(String.valueOf(apiCallEntity.getUserInfo().get("clientId")));
             }
             if (StringUtils.isBlank(apiCallEntity.getAllPathId())) {
                 //Non-existing APIs use empty string placeholder,

@@ -28,6 +28,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,7 @@ import java.util.function.Function;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ApiMetricsRawScheduleExecutor {
-    static final int BATCH_READ_SIZE = 2000;
+    static final int BATCH_READ_SIZE = 1000;
 
     MongoTemplate mongoTemplate;
 
@@ -122,7 +123,26 @@ public class ApiMetricsRawScheduleExecutor {
             Criteria updateCriteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
                     .and(ApiCallField.HAS_METRIC.field()).is(false);
             Query queried = Query.query(updateCriteria);
-            mongoTemplate.updateMulti(queried, Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
+            queried.fields().include(BaseEntityFields._ID.field());
+            List<Object> ids = new ArrayList<>();
+            final FindIterable<Document> iterableUpdate =
+                    collection.find(queried.getQueryObject(), Document.class)
+                            .batchSize(BATCH_READ_SIZE);
+            try (final MongoCursor<Document> cursorUpdate = iterableUpdate.iterator()) {
+                while (cursorUpdate.hasNext()) {
+                    final Document entity = cursorUpdate.next();
+                    Object oId = entity.get(BaseEntityFields._ID.field());
+                    ids.add(oId);
+                    if (ids.size() >= BATCH_READ_SIZE/2) {
+                        mongoTemplate.updateMulti(Query.query(Criteria.where(BaseEntityFields._ID.field()).in(ids)), Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
+                        ids = new ArrayList<>();
+                    }
+                }
+            } finally {
+                if (!ids.isEmpty()) {
+                    mongoTemplate.updateMulti(Query.query(Criteria.where(BaseEntityFields._ID.field()).in(ids)), Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
+                }
+            }
         }
     }
 
