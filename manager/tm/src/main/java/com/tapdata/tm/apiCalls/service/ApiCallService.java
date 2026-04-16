@@ -451,6 +451,9 @@ public class ApiCallService {
             ApiCallEntity apiCallEntity = BeanUtil.copyProperties(saveApiCallParam, ApiCallEntity.class);
             apiCallEntity.setSucceed(ApiMetricsCompressValueUtil.checkByCode(apiCallEntity.getCode(), apiCallEntity.getHttpStatus()));
             apiCallEntity.setCreateAt(new Date());
+            if (apiCallEntity.getUserInfo() != null) {
+                apiCallEntity.setCallId(String.valueOf(apiCallEntity.getUserInfo().get("clientId")));
+            }
             if (StringUtils.isBlank(apiCallEntity.getAllPathId())) {
                 //Non-existing APIs use empty string placeholder,
                 //eliminating the need for null detection during metric analysis to improve query efficiency
