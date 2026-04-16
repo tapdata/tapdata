@@ -19,6 +19,7 @@ import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.ApiWorkerServer;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +55,7 @@ class WorkerCallServiceImplTest {
 
     WorkerService workerService;
     MongoTemplate mongoOperations;
+    MongoTemplate mongoTemplate;
     ApiWorkerServer apiWorkerServer;
 
     @BeforeEach
@@ -61,9 +63,11 @@ class WorkerCallServiceImplTest {
         callService = mock(WorkerCallServiceImpl.class);
         workerService = mock(WorkerService.class);
         mongoOperations = mock(MongoTemplate.class);
+        mongoTemplate = mock(MongoTemplate.class);
         apiWorkerServer = mock(ApiWorkerServer.class);
         ReflectionTestUtils.setField(callService, "workerService", workerService);
         ReflectionTestUtils.setField(callService, "mongoOperations", mongoOperations);
+        ReflectionTestUtils.setField(callService, "mongoTemplate", mongoTemplate);
         ReflectionTestUtils.setField(callService, "apiWorkerServer", apiWorkerServer);
     }
 
@@ -264,14 +268,24 @@ class WorkerCallServiceImplTest {
             ApiCallEntity topOne = new ApiCallEntity();
             topOne.setId(new ObjectId());
             when(mongoOperations.findOne(any(Query.class), any(Class.class))).thenReturn(topOne);
-            List<ApiCallEntity> apiCalls = new ArrayList<>();
-            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(apiCalls);
+            
+            com.mongodb.client.MongoCollection<org.bson.Document> collection = mock(com.mongodb.client.MongoCollection.class);
+            when(mongoTemplate.getCollection(anyString())).thenReturn(collection);
+            com.mongodb.client.FindIterable<org.bson.Document> iterable = mock(com.mongodb.client.FindIterable.class);
+            when(collection.find(any(org.bson.BsonDocument.class))).thenReturn(iterable);
+            when(collection.find(any(org.bson.Document.class))).thenReturn(iterable);
+            when(iterable.projection(any())).thenReturn(iterable);
+            when(iterable.sort(any())).thenReturn(iterable);
+            when(iterable.batchSize(any(Integer.class))).thenReturn(iterable);
+            com.mongodb.client.MongoCursor<org.bson.Document> cursor = mock(com.mongodb.client.MongoCursor.class);
+            when(iterable.iterator()).thenReturn(cursor);
+            when(cursor.hasNext()).thenReturn(false);
+
             BulkOperations bulkOps = mock(BulkOperations.class);
             when(bulkOps.upsert(any(Query.class), any(Update.class))).thenReturn(null);
             when(bulkOps.execute()).thenReturn(null);
             when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, WorkerCallStats.class)).thenReturn(bulkOps);
-            Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = new HashMap<>();
-            when(callService.groupCallResult(anyString(), anyList())).thenReturn(groupByApiAndWorker);
+
             doCallRealMethod().when(callService).collectApiCallCountGroupByWorker(anyString());
             Assertions.assertDoesNotThrow(() -> callService.collectApiCallCountGroupByWorker("id"));
         }
@@ -284,18 +298,32 @@ class WorkerCallServiceImplTest {
             apiCallInWorker.add(null);
             s1.setLastCallId(new ObjectId().toHexString());
 
-            Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = new HashMap<>();
-            when(callService.groupCallResult(anyString(), anyList())).thenReturn(groupByApiAndWorker);
             when(callService.apiCallInWorkers(anyString())).thenReturn(apiCallInWorker);
             ApiCallEntity topOne = new ApiCallEntity();
             topOne.setId(new ObjectId());
             when(mongoOperations.findOne(any(Query.class), any(Class.class))).thenReturn(topOne);
-            List<ApiCallEntity> apiCalls = new ArrayList<>();
-            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(apiCalls);
+            
+            com.mongodb.client.MongoCollection<org.bson.Document> collection = mock(com.mongodb.client.MongoCollection.class);
+            when(mongoTemplate.getCollection(anyString())).thenReturn(collection);
+            com.mongodb.client.FindIterable<org.bson.Document> iterable = mock(com.mongodb.client.FindIterable.class);
+            when(collection.find(any(org.bson.Document.class))).thenReturn(iterable);
+            when(iterable.projection(any())).thenReturn(iterable);
+            when(iterable.sort(any())).thenReturn(iterable);
+            when(iterable.batchSize(any(Integer.class))).thenReturn(iterable);
+            com.mongodb.client.MongoCursor<org.bson.Document> cursor = mock(com.mongodb.client.MongoCursor.class);
+            when(iterable.iterator()).thenReturn(cursor);
+            
+            // Mock cursor with some data
+            when(cursor.hasNext()).thenReturn(true, true, false);
+            org.bson.Document doc1 = new org.bson.Document("workOid", "worker1").append("allPathId", "api1").append("succeed", true);
+            org.bson.Document doc2 = new org.bson.Document("workOid", "worker1").append("allPathId", "api1").append("succeed", false);
+            when(cursor.next()).thenReturn(doc1, doc2);
+
             BulkOperations bulkOps = mock(BulkOperations.class);
             when(bulkOps.upsert(any(Query.class), any(Update.class))).thenReturn(null);
             when(bulkOps.execute()).thenReturn(null);
             when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, WorkerCallStats.class)).thenReturn(bulkOps);
+
             doCallRealMethod().when(callService).collectApiCallCountGroupByWorker(anyString());
             Assertions.assertDoesNotThrow(() -> callService.collectApiCallCountGroupByWorker("id"));
         }
@@ -308,16 +336,9 @@ class WorkerCallServiceImplTest {
             apiCallInWorker.add(null);
             s1.setLastCallId(new ObjectId().toHexString());
 
-            Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = new HashMap<>();
-            when(callService.groupCallResult(anyString(), anyList())).thenReturn(groupByApiAndWorker);
             when(callService.apiCallInWorkers(anyString())).thenReturn(apiCallInWorker);
             when(mongoOperations.findOne(any(Query.class), any(Class.class))).thenReturn(null);
-            List<ApiCallEntity> apiCalls = new ArrayList<>();
-            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(apiCalls);
-            BulkOperations bulkOps = mock(BulkOperations.class);
-            when(bulkOps.upsert(any(Query.class), any(Update.class))).thenReturn(null);
-            when(bulkOps.execute()).thenReturn(null);
-            when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, WorkerCallStats.class)).thenReturn(bulkOps);
+            
             doCallRealMethod().when(callService).collectApiCallCountGroupByWorker(anyString());
             Assertions.assertDoesNotThrow(() -> callService.collectApiCallCountGroupByWorker("id"));
         }
@@ -330,21 +351,27 @@ class WorkerCallServiceImplTest {
             apiCallInWorker.add(null);
             s1.setLastCallId(new ObjectId().toHexString());
 
-            Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = new HashMap<>();
-            Map<String, WorkerCallStats> map = new HashMap<>();
-            map.put("1", s1);
-            groupByApiAndWorker.put("id", map);
-            when(callService.groupCallResult(anyString(), anyList())).thenReturn(groupByApiAndWorker);
             when(callService.apiCallInWorkers(anyString())).thenReturn(apiCallInWorker);
             ApiCallEntity topOne = new ApiCallEntity();
             topOne.setId(new ObjectId());
             when(mongoOperations.findOne(any(Query.class), any(Class.class))).thenReturn(topOne);
-            List<ApiCallEntity> apiCalls = new ArrayList<>();
-            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(apiCalls);
+            
+            com.mongodb.client.MongoCollection<org.bson.Document> collection = mock(com.mongodb.client.MongoCollection.class);
+            when(mongoTemplate.getCollection(anyString())).thenReturn(collection);
+            com.mongodb.client.FindIterable<org.bson.Document> iterable = mock(com.mongodb.client.FindIterable.class);
+            when(collection.find(any(org.bson.Document.class))).thenReturn(iterable);
+            when(iterable.projection(any())).thenReturn(iterable);
+            when(iterable.sort(any())).thenReturn(iterable);
+            when(iterable.batchSize(any(Integer.class))).thenReturn(iterable);
+            com.mongodb.client.MongoCursor<org.bson.Document> cursor = mock(com.mongodb.client.MongoCursor.class);
+            when(iterable.iterator()).thenReturn(cursor);
+            when(cursor.hasNext()).thenReturn(false);
+
             BulkOperations bulkOps = mock(BulkOperations.class);
             when(bulkOps.upsert(any(Query.class), any(Update.class))).thenReturn(null);
             when(bulkOps.execute()).thenReturn(null);
             when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, WorkerCallStats.class)).thenReturn(bulkOps);
+
             doCallRealMethod().when(callService).collectApiCallCountGroupByWorker(anyString());
             Assertions.assertDoesNotThrow(() -> callService.collectApiCallCountGroupByWorker("id"));
         }
@@ -446,6 +473,65 @@ class WorkerCallServiceImplTest {
             doNothing().when(callService).metricWorker(anyString());
             doCallRealMethod().when(callService).metric();
             Assertions.assertDoesNotThrow(() -> callService.metric());
+        }
+    }
+
+    @Nested
+    class metricWorkerTest {
+        @Test
+        void testNormalWithLastOne() {
+            String workerOid = "worker1";
+            WorkerCallEntity lastOne = new WorkerCallEntity();
+            lastOne.setTimeStart(1600000000000L); // Some old time
+            when(mongoOperations.findOne(any(Query.class), any(Class.class))).thenReturn(lastOne);
+
+            com.mongodb.client.MongoCollection<org.bson.Document> collection = mock(com.mongodb.client.MongoCollection.class);
+            when(mongoTemplate.getCollection("ApiCall")).thenReturn(collection);
+            com.mongodb.client.FindIterable<org.bson.Document> iterable = mock(com.mongodb.client.FindIterable.class);
+            when(collection.find(any(org.bson.Document.class), any(Class.class))).thenReturn(iterable);
+            when(iterable.projection(any())).thenReturn(iterable);
+            when(iterable.sort(any())).thenReturn(iterable);
+            when(iterable.batchSize(any(Integer.class))).thenReturn(iterable);
+            com.mongodb.client.MongoCursor<org.bson.Document> cursor = mock(com.mongodb.client.MongoCursor.class);
+            when(iterable.iterator()).thenReturn(cursor);
+
+            when(cursor.hasNext()).thenReturn(true, false);
+            org.bson.Document doc1 = new org.bson.Document("api_gateway_uuid", "gw1")
+                    .append("allPathId", "api1")
+                    .append("req_path", "/api/v1/test")
+                    .append("workOid", "worker1")
+                    .append("latency", 100)
+                    .append("code", "200")
+                    .append("httpStatus", "200")
+                    .append("succeed", true)
+                    .append("reqTime", 1600000001000L)
+                    .append("resTime", 1600000001100L)
+                    .append("_id", new ObjectId());
+            when(cursor.next()).thenReturn(doc1);
+
+            doCallRealMethod().when(callService).metricWorker(anyString());
+            Assertions.assertDoesNotThrow(() -> callService.metricWorker(workerOid));
+        }
+
+        @Test
+        void testLastOneIsNull() {
+            String workerOid = "worker2";
+            when(mongoOperations.findOne(any(Query.class), any(Class.class))).thenReturn(null);
+
+            com.mongodb.client.MongoCollection<org.bson.Document> collection = mock(com.mongodb.client.MongoCollection.class);
+            when(mongoTemplate.getCollection("ApiCall")).thenReturn(collection);
+            com.mongodb.client.FindIterable<org.bson.Document> iterable = mock(com.mongodb.client.FindIterable.class);
+            when(collection.find(any(org.bson.Document.class), any(Class.class))).thenReturn(iterable);
+            when(iterable.projection(any())).thenReturn(iterable);
+            when(iterable.sort(any())).thenReturn(iterable);
+            when(iterable.batchSize(any(Integer.class))).thenReturn(iterable);
+            com.mongodb.client.MongoCursor<org.bson.Document> cursor = mock(com.mongodb.client.MongoCursor.class);
+            when(iterable.iterator()).thenReturn(cursor);
+
+            when(cursor.hasNext()).thenReturn(false);
+
+            doCallRealMethod().when(callService).metricWorker(anyString());
+            Assertions.assertDoesNotThrow(() -> callService.metricWorker(workerOid));
         }
     }
 

@@ -21,6 +21,8 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
+import java.util.List;
+
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
  * @author <a href="https://github.com/11000100111010101100111">Gavin'Xiao</a>
@@ -57,9 +59,10 @@ public class V4_17_6_ResetApiCallIndex extends V4_14_21_AddApiCallTTL {
         createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_workerId_1_reqTime_1", new Document(ApiCallField.WORK_O_ID.field(), 1).append(ApiCallField.REQ_TIME.field(), 1), null);
         createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_supplement-1_createTime_1_apiId_1_reqTime_1", new Document(ApiCallField.SUPPLEMENT.field(), 1).append(BaseEntityFields.CREATE_TIME.field(), 1).append(ApiCallField.ALL_PATH_ID.field(), 1).append(ApiCallField.REQ_TIME.field(), 1), null);
         createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_hasMetric_1_createTime_1_reqTime_1", new Document(ApiCallField.HAS_METRIC.field(), 1).append(BaseEntityFields.CREATE_TIME.field(), 1).append(ApiCallField.REQ_TIME.field(), 1), null);
-        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_serverId_1_supplement_1_apiId_1_workerId_1_callId_1_code_1_codeMsg_1_httpStatus_1_succeed_1", new Document(ApiCallField.API_GATEWAY_UUID.field(), 1).append(ApiCallField.SUPPLEMENT.field(), 1).append(ApiCallField.ALL_PATH_ID.field(), 1).append(ApiCallField.WORK_O_ID.field(), 1).append(BaseEntityFields._ID.field(), 1).append(ApiCallField.CODE.field(), 1).append(ApiCallField.CODE_MSG.field(), 1).append(ApiCallField.HTTP_STATUS.field(), 1).append(ApiCallField.SUCCEED.field(), 1), null);
+        createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_serverId_1_supplement_1_apiId_1_workerId_1_callId_1", new Document(ApiCallField.API_GATEWAY_UUID.field(), 1).append(BaseEntityFields._ID.field(), 1).append(ApiCallField.SUPPLEMENT.field(), 1).append(ApiCallField.REQ_PATH.field(), 1).append(ApiCallField.ALL_PATH_ID.field(), 1).append(ApiCallField.WORK_O_ID.field(), 1).append(ApiCallField.SUCCEED.field(), 1), null);
         createTTLIndexIfNeed(mongoTemplate, apiCallName, "ApiCall_1_ttl", new Document(BaseEntityFields.CREATE_TIME.field(), 1), 2592000L);
         String serverUsageMetricName = MongoUtils.getCollectionName(ServerUsageMetric.class);
+        dropInvalidRecords(mongoTemplate, serverUsageMetricName);
         createTTLIndexIfNeed(mongoTemplate, serverUsageMetricName, "ServerUsageMetric_granularity_1_lastUpdateTime_-1", new Document(ServerUsageMetricField.TIME_GRANULARITY.field(), 1).append(ServerUsageField.LAST_UPDATE_TIME.field(), 1), null);
         String serverUsageName = MongoUtils.getCollectionName(ServerUsage.class);
         createTTLIndexIfNeed(mongoTemplate, serverUsageName, "ServerUsage_lastUpdateTime_1", new Document(ServerUsageField.LAST_UPDATE_TIME.field(), 1), null);
@@ -69,11 +72,20 @@ public class V4_17_6_ResetApiCallIndex extends V4_14_21_AddApiCallTTL {
 
     protected void loadingClientId(MongoCollection<Document> collection) {
         Document query = new Document().append("user_info.clientId", new Document().append("$exists", true));
-        Document update = new Document().append("$set", new Document().append("clientId", "$user_info.clientId"));
+        Document update = new Document().append("$set", List.of(new Document().append("clientId", "$user_info.clientId")));
         try {
             collection.updateMany(query, update);
         } catch (Exception e) {
             logger.warn("update api call set clientId by user_info.clientId failed: {}", e.getMessage());
+        }
+    }
+
+    protected void dropInvalidRecords(MongoTemplate mongoTemplate, String collectionName) {
+        long ts = System.currentTimeMillis();
+        try {
+            mongoTemplate.remove(new Document().append("lastUpdateTime", new Document("$gt", ts)), collectionName);
+        } catch (Exception e) {
+            logger.warn("Unable delete dropInvalid records, please delete by command: db.{}.deleteMany({\"lastUpdateTime\": {\"gt\": {}}})", collectionName, ts);
         }
     }
 }

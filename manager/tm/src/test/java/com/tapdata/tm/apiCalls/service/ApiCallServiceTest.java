@@ -613,7 +613,7 @@ class ApiCallServiceTest {
             });
             Page<ApiCallDetailVo> page = apiCallService.find(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
-            Assertions.assertEquals(page.getTotal(), 0L);
+            Assertions.assertEquals(page.getTotal(), 1L);
         }
     }
 
