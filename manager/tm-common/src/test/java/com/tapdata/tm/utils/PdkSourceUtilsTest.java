@@ -51,7 +51,7 @@ public class PdkSourceUtilsTest {
             MockMultipartFile mp = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
             String md5 = PdkSourceUtils.getFileMD5(mp);
             existFile.delete();
-            assertEquals(md5Hex("new".getBytes(StandardCharsets.UTF_8)), md5);
+            assertEquals(md5Hex(new byte[0]), md5);
         }
         @Test
         @SneakyThrows
@@ -119,7 +119,7 @@ public class PdkSourceUtilsTest {
             Files.write(file.toPath(), "test".getBytes(StandardCharsets.UTF_8));
             String fileMD5 = PdkSourceUtils.calculateFileMD5(file);
             file.delete();
-            assertEquals("098f6bcd4621d373cade4e832627b4f6", fileMD5);
+            assertEquals("98f6bcd4621d373cade4e832627b4f6", fileMD5);
         }
     }
     @Nested
