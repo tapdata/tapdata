@@ -797,7 +797,7 @@ class TaskNodeServiceImplTest {
 
             List<Map<String, Object>> sampleData = List.of(Map.of("col1", "val1"), Map.of("col1", "val2"));
             when(taskService.callEngineRpc(eq("agent-123"), eq(List.class), eq("QueryDataBaseDataService"), eq("queryV2"),
-                    eq("connId"), eq("test_table"), eq("SELECT * FROM test"), eq(true)))
+                    eq("connId"), eq("test_table"), eq("SELECT * FROM test"), eq(true), eq(100)))
                     .thenReturn(sampleData);
 
             Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
