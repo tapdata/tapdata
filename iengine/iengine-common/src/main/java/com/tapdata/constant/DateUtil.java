@@ -935,4 +935,8 @@ public class DateUtil {
 		}
 		return mysqlYear;
 	}
+
+	public static Date localDate() {
+		return new Date(new Date().getTime() + TimeZone.getDefault().getRawOffset());
+	}
 }
