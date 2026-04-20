@@ -5,11 +5,13 @@ import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.util.PartitionTableFieldRenameOperator;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.entity.schema.TapConstraintMapping;
 import org.junit.jupiter.api.*;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -364,6 +366,39 @@ public class MigrateFieldRenameProcessorNodeTest {
             field.setOriginalFieldName("rid");
             migrateFieldRenameProcessorNode.handleReferenceForeignKeyConstraints(schema, applyConfig, referenceForeignKeyConstraintIOperator);
             assertTrue(constraints.isEmpty());
+        }
+    }
+
+    @Nested
+    class applyTest {
+        @Test
+        void testForTapAlterFieldNameEvent() {
+            MigrateFieldRenameProcessorNode.ApplyConfig applyConfig = mock(MigrateFieldRenameProcessorNode.ApplyConfig.class);
+            TapAlterFieldNameEvent operatorParam = new TapAlterFieldNameEvent();
+            ValueChange<String> valueChange = new ValueChange<>("COLUMN", "TEST_COLUMN");
+            operatorParam.setNameChange(valueChange);
+            MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldNameEvent> alterFieldNameOperator = new MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldNameEvent>() {
+                @Override
+                public void renameField(TapAlterFieldNameEvent param, String fromName, String toName) {
+                    param.getNameChange().setBefore(toName);
+                }
+
+                @Override
+                public void renameAfterField(TapAlterFieldNameEvent param, String fromName, String toName) {
+                    param.getNameChange().setAfter(toName);
+                }
+            };
+            PartitionTableFieldRenameOperator partitionTableFieldRenameOperator = mock(PartitionTableFieldRenameOperator.class);
+            Operation fieldsOperation = new Operation();
+            fieldsOperation.setPrefix("p_");
+            fieldsOperation.setCapitalized("toLowerCase");
+            fieldsOperation.setSuffix("_t");
+            ReflectionTestUtils.setField(applyConfig, "fieldsOperation", fieldsOperation);
+            ReflectionTestUtils.setField(applyConfig, "partitionTableFieldRenameOperator", partitionTableFieldRenameOperator);
+            doCallRealMethod().when(applyConfig).apply(any(Operation.class), anyString());
+            doCallRealMethod().when(applyConfig).apply("test_table", "COLUMN", operatorParam, alterFieldNameOperator);
+            applyConfig.apply("test_table", "COLUMN", operatorParam, alterFieldNameOperator);
+            assertEquals("p_test_column_t", operatorParam.getNameChange().getAfter());
         }
     }
 }
