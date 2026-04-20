@@ -13,6 +13,8 @@ import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
@@ -32,6 +34,7 @@ import javax.script.ScriptException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -240,7 +243,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
         customProcessorNode.setCustomNodeId("customNodeId");
         ReflectionTestUtils.setField(dataProcessorContext, "node", customProcessorNode);
         doCallRealMethod().when(dataProcessorContext).getNode();
-        doCallRealMethod().when(hazelcastCustomProcessor).execute(tapdataEvent);
+        doCallRealMethod().when(hazelcastCustomProcessor).executeAndGetResult(tapdataEvent);
         doCallRealMethod().when(hazelcastCustomProcessor).buildContextMap(any(), any(), any(), any(), any());
         Invocable engine = ScriptUtil.getScriptEngine(
                 "function process(record, form){\n" +
@@ -258,7 +261,58 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
         ReflectionTestUtils.setField(hazelcastCustomProcessor, "processContextThreadLocal", processContextThreadLocal);
         when(hazelcastCustomProcessor.getProcessorBaseContext()).thenReturn(dataProcessorContext);
         when(dataProcessorContext.getTaskDto()).thenReturn(mock(TaskDto.class));
-        hazelcastCustomProcessor.execute(tapdataEvent);
-        assertEquals("i", event.getAfter().get("__op"));
+        Object result = hazelcastCustomProcessor.executeAndGetResult(tapdataEvent);
+        assertNotNull(result);
+        assertEquals("i", ((Map<String, Object>) result).get("__op"));
+    }
+
+    @Test
+    @SneakyThrows
+    void testTryProcessUseOpListForListResult() {
+        HazelcastCustomProcessor processor = spy(new HazelcastCustomProcessor(dataProcessorContext));
+        ReflectionTestUtils.setField(processor, "processorBaseContext", dataProcessorContext);
+        ReflectionTestUtils.setField(processor, "clientMongoOperator", clientMongoOperator);
+        ReflectionTestUtils.setField(processor, "processContextThreadLocal", ThreadLocal.withInitial(HashMap::new));
+        ReflectionTestUtils.setField(processor, "globalTaskContent", new HashMap<String, Object>());
+
+        CustomProcessorNode customProcessorNode = new CustomProcessorNode();
+        customProcessorNode.setCustomNodeId("customNodeId");
+        ReflectionTestUtils.setField(dataProcessorContext, "node", customProcessorNode);
+        doCallRealMethod().when(dataProcessorContext).getNode();
+        when(dataProcessorContext.getTaskDto()).thenReturn(mock(TaskDto.class));
+
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        TapInsertRecordEvent event = TapInsertRecordEvent.create().init();
+        Map<String, Object> after = new HashMap<>();
+        after.put("id", "source");
+        event.setAfter(after);
+        tapdataEvent.setTapEvent(event);
+
+        Invocable engine = ScriptUtil.getScriptEngine(
+                "function process(record, form){\n" +
+                        "\tcontext.opList = ['i', 'd'];\n" +
+                        "\treturn [\n" +
+                        "\t\t{id: '1', name: 'inserted'},\n" +
+                        "\t\t{id: '2', name: 'deleted'}\n" +
+                        "\t];\n" +
+                        "}",
+                null,
+                clientMongoOperator,
+                null,
+                null);
+        ReflectionTestUtils.setField(processor, "engine", engine);
+
+        List<TapdataEvent> outputEvents = new ArrayList<>();
+        processor.tryProcess(tapdataEvent, (resultEvent, processResult) -> outputEvents.add(resultEvent));
+
+        assertEquals(2, outputEvents.size());
+
+        TapEvent firstEvent = outputEvents.get(0).getTapEvent();
+        assertInstanceOf(TapInsertRecordEvent.class, firstEvent);
+        assertEquals("inserted", ((TapInsertRecordEvent) firstEvent).getAfter().get("name"));
+
+        TapEvent secondEvent = outputEvents.get(1).getTapEvent();
+        assertInstanceOf(TapDeleteRecordEvent.class, secondEvent);
+        assertEquals("deleted", ((TapDeleteRecordEvent) secondEvent).getBefore().get("name"));
     }
 }
