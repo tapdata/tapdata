@@ -219,6 +219,9 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		default void renameField(T param, String fromName, String toName) {
 		}
 
+		default void renameAfterField(T param, String fromName, String toName) {
+		}
+
 		default void renameField(String oldKey, String newKey, Map<String, Object> originValueMap, T param) {
 		}
 
@@ -320,6 +323,11 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			if (!fieldName.equals(newFieldName.get())) {
 				partitionTableFieldRenameOperator.rename(fieldName, newFieldName.get());
 				operator.renameField(operatorParam, fieldName, newFieldName.get());
+			}
+			if (operatorParam instanceof TapAlterFieldNameEvent) {
+				String renamedField = ((TapAlterFieldNameEvent) operatorParam).getNameChange().getAfter();
+				renamedField = apply(fieldsOperation, renamedField);
+				operator.renameAfterField(operatorParam, ((TapAlterFieldNameEvent)operatorParam).getNameChange().getAfter(), renamedField);
 			}
 
 			return isShow;
