@@ -7,14 +7,13 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Indexes;
+import com.mongodb.client.model.Sorts;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -35,7 +34,9 @@ public class CacheInvalidationService {
     private final MongoClient mongoClient;
     private final String databaseName;
     private final ScheduledExecutorService scheduler;
-    private final AtomicLong lastCheckTimestamp = new AtomicLong(System.currentTimeMillis());
+    private final AtomicLong lastCheckTimestamp = new AtomicLong(0L);
+    private final Set<String> processedEventIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private static final int CACHE_MAX_SIZE = 10000;
 
     @Getter
     private volatile boolean running = false;
@@ -114,7 +115,14 @@ public class CacheInvalidationService {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
-        
+        if (mongoClient != null) {
+            try {
+                mongoClient.close();
+            } catch (Exception e) {
+                logger.error("Failed to close MongoClient", e);
+            }
+        }
+        processedEventIds.clear();
         logger.info("Cache invalidation service stopped");
     }
     
@@ -148,34 +156,68 @@ public class CacheInvalidationService {
     private void checkAndEvictCache() {
         try {
             long lastCheck = lastCheckTimestamp.get();
-            long now = System.currentTimeMillis();
-            
-            // 查询新的失效事件
-            List<Document> invalidations = mongoClient.getDatabase(databaseName)
-                .getCollection(COLLECTION_NAME)
-                .find(Filters.gt("timestamp", lastCheck))
-                .limit(BATCH_SIZE)
-                .into(new ArrayList<>());
-            
-            if (invalidations.isEmpty()) {
-                return;
-            }
-            
-            logger.debug("Found {} cache invalidation events", invalidations.size());
-            
-            // 处理失效事件
-            for (Document inv : invalidations) {
-                String mapName = inv.getString("mapName");
-                String key = inv.getString("key");
-                
-                if (mapName != null && key != null) {
-                    evictCache(mapName, key);
+            int totalProcessed = 0;
+            boolean hasMore = true;
+
+            while (hasMore && totalProcessed < BATCH_SIZE * 10) {
+                List<Document> invalidations = mongoClient.getDatabase(databaseName)
+                    .getCollection(COLLECTION_NAME)
+                    .find(Filters.gte("timestamp", lastCheck))
+                    .sort(Sorts.ascending("timestamp"))
+                    .limit(BATCH_SIZE)
+                    .into(new ArrayList<>());
+
+                if (invalidations.isEmpty()) {
+                    hasMore = false;
+                    break;
+                }
+
+                long maxTimestamp = lastCheck;
+                int processedInBatch = 0;
+
+                // 处理失效事件
+                for (Document inv : invalidations) {
+                    String mapName = inv.getString("mapName");
+                    String key = inv.getString("key");
+                    Long timestamp = inv.getLong("timestamp");
+
+                    if (mapName != null && key != null && timestamp != null) {
+                        String eventId = mapName + ":" + key + ":" + timestamp;
+
+                        if (!processedEventIds.contains(eventId)) {
+                            evictCache(mapName, key);
+                            processedEventIds.add(eventId);
+                            processedInBatch++;
+
+                            // 限制去重缓存大小
+                            if (processedEventIds.size() > CACHE_MAX_SIZE) {
+                                Iterator<String> iterator = processedEventIds.iterator();
+                                int toRemove = CACHE_MAX_SIZE / 2;
+                                while (iterator.hasNext() && toRemove > 0) {
+                                    iterator.next();
+                                    iterator.remove();
+                                    toRemove--;
+                                }
+                            }
+                        }
+
+                        maxTimestamp = Math.max(maxTimestamp, timestamp);
+                    }
+                }
+
+                totalProcessed += processedInBatch;
+
+                lastCheckTimestamp.set(maxTimestamp);
+
+                if (invalidations.size() < BATCH_SIZE) {
+                    hasMore = false;
                 }
             }
-            
-            // 更新最后检查时间
-            lastCheckTimestamp.set(now);
-            
+
+            if (totalProcessed > 0) {
+                logger.info("Total processed {} cache invalidation events", totalProcessed);
+            }
+
         } catch (Exception e) {
             logger.error("Error checking cache invalidation events", e);
         }
