@@ -307,6 +307,8 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 					} else {
 						TapEventUtil.setAfter(result, before);
 					}
+				}else{
+					TapEventUtil.setBefore(result, null);
 				}
 				break;
 			case DELETE:
