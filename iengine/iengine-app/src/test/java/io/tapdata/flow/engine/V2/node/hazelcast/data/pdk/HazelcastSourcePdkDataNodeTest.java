@@ -3459,6 +3459,51 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         }
 
         @Test
+        @DisplayName("test stream read error subclass rethrow during source runner restart")
+        void testStreamReadErrorSubclassRethrowDuringSourceRunnerRestart() throws Throwable {
+            HazelcastSourcePdkDataNodeImpl spyNode = spy(hazelcastSourcePdkDataNode);
+            spyNode.setIncreaseReadSize(200);
+            ReflectionTestUtils.setField(spyNode, "syncProgress", new SyncProgress());
+            ReflectionTestUtils.setField(spyNode, "sourceRunnerRestarting", new AtomicBoolean(true));
+
+            AtomicReference<CommonUtils.AnyError> capturedAnyError = new AtomicReference<>();
+            PDKMethodInvoker streamReadMethodInvoker = mock(PDKMethodInvoker.class);
+            when(streamReadMethodInvoker.runnable(any(CommonUtils.AnyError.class))).thenAnswer(invocationOnMock -> {
+                capturedAnyError.set(invocationOnMock.getArgument(0));
+                return streamReadMethodInvoker;
+            });
+            ReflectionTestUtils.setField(spyNode, "streamReadMethodInvoker", streamReadMethodInvoker);
+
+            when(spyNode.isRunning()).thenReturn(true);
+            ConnectorNode mockConnectorNode = mock(ConnectorNode.class);
+            when(spyNode.getConnectorNode()).thenReturn(mockConnectorNode);
+            TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+            when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+            ReflectionTestUtils.setField(spyNode, "streamReadConsumer", mock(StreamReadConsumer.class));
+
+            CommonUtils.AnyError mockAnyError = mock(CommonUtils.AnyError.class);
+            AssertionError streamReadError = new AssertionError("serious stream read error");
+            doAnswer(invocationOnMock -> {
+                throw streamReadError;
+            }).when(mockAnyError).run();
+            doReturn(mockAnyError).when(spyNode).doBatchCDC(any(), any(), any(), any(), any(), any());
+
+            BatchAcceptor mockBatchAcceptor = mock(BatchAcceptor.class);
+            when(mockBatchAcceptor.getDelayMs()).thenReturn(100L);
+            ReflectionTestUtils.setField(spyNode, "streamReadBatchAcceptor", mockBatchAcceptor);
+            doNothing().when(spyNode).reportBatchSize(anyInt(), anyInt());
+
+            try (MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
+                pdk.when(() -> PDKInvocationMonitor.invoke(any(ConnectorNode.class), any(PDKMethod.class), any(PDKMethodInvoker.class))).thenAnswer(invocationOnMock -> null);
+
+                spyNode.doNormalCDC();
+
+                assertNotNull(capturedAnyError.get());
+                assertSame(streamReadError, assertThrows(AssertionError.class, () -> capturedAnyError.get().run()));
+            }
+        }
+
+        @Test
         @DisplayName("test doNormalCDC with StreamReadOneByOneConsumer")
         void testDoNormalCDCWithStreamReadOneByOneConsumer() throws Exception {
             HazelcastSourcePdkDataNodeImpl spyNode = spy(hazelcastSourcePdkDataNode);

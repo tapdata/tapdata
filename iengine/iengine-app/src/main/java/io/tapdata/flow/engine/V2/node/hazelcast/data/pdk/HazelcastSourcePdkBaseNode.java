@@ -158,6 +158,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     public static final String SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY = "SOURCE_TO_TAP_VALUE_CONCURRENT_NUM";
     public static final int BATCH_SIZE = 200;
     private static final long SOURCE_RUNNER_RESTART_TERMINATION_CHECK_SECONDS = 60L;
+    private static final long SOURCE_RUNNER_RESTART_TERMINATION_TIMEOUT_SECONDS = TimeUnit.MINUTES.toSeconds(10L);
     private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
     protected SyncProgress syncProgress;
     protected ThreadPoolExecutorEx sourceRunner;
@@ -1258,8 +1259,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         logger.warn("Restart source PDK connector {}", this.associateId);
         ConnectorNode connectorNode = getConnectorNode();
         if (null != connectorNode) {
+            boolean restartFlagSet = sourceRunnerRestarting.compareAndSet(false, true);
             try {
-                sourceRunnerRestarting.compareAndSet(false, true);
                 //Release webhook waiting thread before stop connectorNode.
                 if (streamReadFuncAspect != null) {
                     streamReadFuncAspect.noMoreWaitRawData();
@@ -1283,7 +1284,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 CpuMemoryCollector.registerTask(getNode().getId(), (ThreadFactory) sourceRunner.getThreadFactory());
                 initAndStartSourceRunner();
             } finally {
-                sourceRunnerRestarting.compareAndSet(true, false);
+                if (restartFlagSet) {
+                    sourceRunnerRestarting.set(false);
+                }
             }
         } else {
             String error = "Connector node is null";
@@ -1300,12 +1303,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         runner.shutdownNow();
         try {
             PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+            long waitedSeconds = 0L;
             while (!runner.awaitTermination(SOURCE_RUNNER_RESTART_TERMINATION_CHECK_SECONDS, TimeUnit.SECONDS)) {
+                waitedSeconds += SOURCE_RUNNER_RESTART_TERMINATION_CHECK_SECONDS;
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
                 String warn = String.format("Restart PDK connector waiting for source runner termination, source runner did not terminate within %s seconds, associateId: %s",
                         SOURCE_RUNNER_RESTART_TERMINATION_CHECK_SECONDS, associateId);
                 logger.warn(warn);
-                obsLogger.warn(warn);
+                Optional.ofNullable(obsLogger).ifPresent(log -> log.warn(warn));
+                if (waitedSeconds >= SOURCE_RUNNER_RESTART_TERMINATION_TIMEOUT_SECONDS) {
+                    String error = String.format("Restart PDK connector timed out waiting for source runner termination after %s seconds, associateId: %s",
+                            waitedSeconds, associateId);
+                    errorHandle(new TimeoutException(error), error);
+                    return false;
+                }
             }
             return true;
         } catch (InterruptedException e) {

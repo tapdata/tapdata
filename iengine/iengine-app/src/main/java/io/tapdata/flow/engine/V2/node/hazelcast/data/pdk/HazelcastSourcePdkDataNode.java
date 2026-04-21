@@ -978,8 +978,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				try {
 					finalAnyError.run();
 				} catch (Throwable throwable) {
+					if (throwable instanceof Error) {
+						throw throwable;
+					}
 					if (isSourceRunnerRestarting() || !isRunning()) {
-						logger.info("Source stream read stopped because source runner is restarting, associateId: {}, message: {}",
+						logger.info("Source stream read stopped because source runner is restarting or stopping, associateId: {}, message: {}",
 								associateId, throwable.getMessage());
 						return;
 					}

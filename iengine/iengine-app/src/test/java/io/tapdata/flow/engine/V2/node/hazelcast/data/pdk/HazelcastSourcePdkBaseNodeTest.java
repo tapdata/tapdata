@@ -1375,6 +1375,65 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@DisplayName("test restart flag not cleared when already set")
+		@SneakyThrows
+		void testRestartFlagNotClearedWhenAlreadySet() {
+			try (
+					MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class);
+					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
+			) {
+				ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+				when(sourceRunner.awaitTermination(anyLong(), any(TimeUnit.class))).thenReturn(true);
+				ReflectionTestUtils.setField(instance, "sourceRunner", sourceRunner);
+				ReflectionTestUtils.setField(instance, "sourceRunnerRestarting", new AtomicBoolean(true));
+				String associateId = "test_associateId";
+				ReflectionTestUtils.setField(instance, "associateId", associateId);
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				when(connectorNode.getAssociateId()).thenReturn(associateId);
+				pdkInvocationMonitorMockedStatic.when(() -> PDKInvocationMonitor.invoke(eq(connectorNode), eq(PDKMethod.STOP), any(), anyString()))
+						.thenAnswer(invocationOnMock -> null);
+				pdkIntegrationMockedStatic.when(() -> PDKIntegration.releaseAssociateId(associateId)).thenAnswer(invocationOnMock -> null);
+				doReturn(connectorNode).when(instance).getConnectorNode();
+				doAnswer(invocationOnMock -> null).when(instance).createPdkConnectorNode(eq(dataProcessorContext), any(HazelcastInstance.class));
+				doAnswer(invocationOnMock -> null).when(instance).connectorNodeInit(dataProcessorContext);
+				doAnswer(invocationOnMock -> null).when(instance).initAndStartSourceRunner();
+				Processor.Context jetContext = mock(Processor.Context.class);
+				when(jetContext.hazelcastInstance()).thenReturn(mock(HazelcastInstance.class));
+				ReflectionTestUtils.setField(instance, "jetContext", jetContext);
+				ReflectionTestUtils.setField(instance, "monitorManager", mock(MonitorManager.class));
+
+				assertDoesNotThrow(() -> instance.restartPdkConnector());
+
+				assertTrue(instance.isSourceRunnerRestarting());
+			}
+		}
+
+		@Test
+		@DisplayName("test shutdown source runner timeout")
+		@SneakyThrows
+		void testShutdownSourceRunnerTimeout() {
+			try (MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class)) {
+				ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+				when(sourceRunner.awaitTermination(anyLong(), any(TimeUnit.class))).thenReturn(false);
+				ReflectionTestUtils.setField(instance, "sourceRunner", sourceRunner);
+				ReflectionTestUtils.setField(instance, "associateId", "test_associateId");
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				pdkInvocationMonitorMockedStatic.when(() -> PDKInvocationMonitor.invoke(eq(connectorNode), eq(PDKMethod.STOP), any(), anyString()))
+						.thenAnswer(invocationOnMock -> null);
+				doReturn(null).when(instance).errorHandle(any(Throwable.class), anyString());
+
+				assertFalse(instance.shutdownSourceRunnerAndWait(connectorNode));
+
+				verify(sourceRunner, times(1)).shutdownNow();
+				verify(instance, times(1)).errorHandle(any(TimeoutException.class), contains("timed out waiting for source runner termination"));
+				pdkInvocationMonitorMockedStatic.verify(
+						() -> PDKInvocationMonitor.invoke(eq(connectorNode), eq(PDKMethod.STOP), any(), anyString()),
+						atLeast(2)
+				);
+			}
+		}
+
+		@Test
 		@DisplayName("test getConnectorNode return null")
 		void testWhenConnectorNodeIsNull() {
 			doReturn(null).when(instance).getConnectorNode();
