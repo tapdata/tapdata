@@ -289,6 +289,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 	private TapEvent getTapEvent(TapEvent tapEvent, String op, Map<String, Object> before) {
 		if (StringUtils.equals(TapEventUtil.getOp(tapEvent), op)) {
+			TapEventUtil.setBefore(tapEvent, before);
 			return tapEvent;
 		}
 		OperationType operationType = OperationType.fromOp(op);
@@ -301,15 +302,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			case UPDATE:
 				result = TapUpdateRecordEvent.create();
 				tapEvent.clone(result);
-				if (before != null) {
-					if (StringUtils.equals(TapEventUtil.getOp(tapEvent), OperationType.INSERT.getOp())) {
-						TapEventUtil.setBefore(result, before);
-					} else {
-						TapEventUtil.setAfter(result, before);
-					}
-				}else{
-					TapEventUtil.setBefore(result, null);
-				}
+				TapEventUtil.setBefore(result, before);
 				break;
 			case DELETE:
 				result = TapDeleteRecordEvent.create();
