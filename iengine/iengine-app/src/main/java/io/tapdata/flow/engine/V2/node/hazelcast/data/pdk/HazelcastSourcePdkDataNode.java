@@ -974,6 +974,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 
 
 			CommonUtils.AnyError finalAnyError = anyError;
+			CommonUtils.AnyError restartAwareAnyError = () -> {
+				try {
+					finalAnyError.run();
+				} catch (Throwable throwable) {
+					if (isSourceRunnerRestarting() || !isRunning()) {
+						logger.info("Source stream read stopped because source runner is restarting, associateId: {}, message: {}",
+								associateId, throwable.getMessage());
+						return;
+					}
+					throw throwable;
+				}
+			};
 			String finalStreamReadFunctionName = streamReadFunctionName.get();
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 							.connectorContext(connectorNode.getConnectorContext())
@@ -985,7 +997,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 							.start(),
 					streamReadFuncAspect -> {
 						this.streamReadFuncAspect = streamReadFuncAspect;
-						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ, streamReadMethodInvoker.runnable(finalAnyError));
+						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ, streamReadMethodInvoker.runnable(restartAwareAnyError));
 					});
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
@@ -1012,7 +1024,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			doBeforeReadMulti(connectionConfigWithTables, tables);
 			streamReadFunctionName.set(streamReadMultiConnectionFunction.getClass().getSimpleName());
 			anyError = () -> {
-				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
+				streamReadMultiConnectionFunction.streamRead(connectorNode.getConnectorContext(), connectionConfigWithTables,
 						syncProgress.getStreamOffsetObj(), getIncreaseReadSize(), consumer);
 			};
 		} else {
@@ -1024,7 +1036,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
-					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+					streamReadFunction.streamRead(connectorNode.getConnectorContext(), tables,
 							syncProgress.getStreamOffsetObj(), getIncreaseReadSize(), consumer);
 				};
 			}
@@ -1087,7 +1099,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			doBeforeReadMulti(connectionConfigWithTables, tables);
 			streamReadFunctionName.set(streamReadMultiConnectionFunction.getClass().getSimpleName());
 			anyError = () -> {
-				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
+				streamReadMultiConnectionFunction.streamRead(connectorNode.getConnectorContext(), connectionConfigWithTables,
 						syncProgress.getStreamOffsetObj(), consumer);
 			};
 		} else {
@@ -1099,7 +1111,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
-					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+					streamReadFunction.streamRead(connectorNode.getConnectorContext(), tables,
 							syncProgress.getStreamOffsetObj(), consumer);
 				};
 			}

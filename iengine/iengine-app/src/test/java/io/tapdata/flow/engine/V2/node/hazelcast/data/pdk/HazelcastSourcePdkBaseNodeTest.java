@@ -1289,6 +1289,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
 			) {
 				ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+				when(sourceRunner.awaitTermination(anyLong(), any(TimeUnit.class))).thenReturn(true);
 				ReflectionTestUtils.setField(instance, "readBatchSize", 100);
 				ReflectionTestUtils.setField(instance, "sourceRunner", sourceRunner);
 				String associateId = "test_associateId";
@@ -1333,6 +1334,47 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@DisplayName("test restart flag set before release stream read wait")
+		@SneakyThrows
+		void testRestartFlagSetBeforeReleaseStreamReadWait() {
+			try (
+					MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class);
+					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
+			) {
+				ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+				when(sourceRunner.awaitTermination(anyLong(), any(TimeUnit.class))).thenReturn(true);
+				ReflectionTestUtils.setField(instance, "sourceRunner", sourceRunner);
+				String associateId = "test_associateId";
+				ReflectionTestUtils.setField(instance, "associateId", associateId);
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				when(connectorNode.getAssociateId()).thenReturn(associateId);
+				pdkInvocationMonitorMockedStatic.when(() -> PDKInvocationMonitor.invoke(eq(connectorNode), eq(PDKMethod.STOP), any(), anyString()))
+						.thenAnswer(invocationOnMock -> null);
+				pdkIntegrationMockedStatic.when(() -> PDKIntegration.releaseAssociateId(associateId)).thenAnswer(invocationOnMock -> null);
+				doReturn(connectorNode).when(instance).getConnectorNode();
+				doAnswer(invocationOnMock -> null).when(instance).createPdkConnectorNode(eq(dataProcessorContext), any(HazelcastInstance.class));
+				doAnswer(invocationOnMock -> null).when(instance).connectorNodeInit(dataProcessorContext);
+				doAnswer(invocationOnMock -> null).when(instance).initAndStartSourceRunner();
+				Processor.Context jetContext = mock(Processor.Context.class);
+				when(jetContext.hazelcastInstance()).thenReturn(mock(HazelcastInstance.class));
+				ReflectionTestUtils.setField(instance, "jetContext", jetContext);
+				StreamReadFuncAspect streamReadFuncAspect = mock(StreamReadFuncAspect.class);
+				doAnswer(invocationOnMock -> {
+					assertTrue(instance.isSourceRunnerRestarting());
+					return null;
+				}).when(streamReadFuncAspect).noMoreWaitRawData();
+				ReflectionTestUtils.setField(instance, "streamReadFuncAspect", streamReadFuncAspect);
+				MonitorManager monitorManager = mock(MonitorManager.class);
+				ReflectionTestUtils.setField(instance, "monitorManager", monitorManager);
+
+				assertDoesNotThrow(() -> instance.restartPdkConnector());
+
+				verify(streamReadFuncAspect, times(1)).noMoreWaitRawData();
+				assertFalse(instance.isSourceRunnerRestarting());
+			}
+		}
+
+		@Test
 		@DisplayName("test getConnectorNode return null")
 		void testWhenConnectorNodeIsNull() {
 			doReturn(null).when(instance).getConnectorNode();
@@ -1344,6 +1386,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@SneakyThrows
 		void testPartitionTable() {
 			Node node = new DatabaseNode();
 			node.setId("nodeId");
@@ -1359,6 +1402,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			};
 
 			ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+			when(sourceRunner.awaitTermination(anyLong(), any(TimeUnit.class))).thenReturn(true);
 			MonitorManager monitorManager = mock(MonitorManager.class);
 			ReflectionTestUtils.setField(baseNode, "sourceRunner", sourceRunner);
 			ReflectionTestUtils.setField(baseNode, "associateId", "associateId");
