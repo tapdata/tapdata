@@ -156,11 +156,14 @@ class HazelcastSampleSourcePdkDataNodeTest {
 	}
 
 	@Test
-	void testRejectMissingBeforeOrAfterWhenTypeCannotBeInferred() {
+	void testMissingBeforeOrAfterDefaultsToInsert() {
 		LinkedHashMap<String, TapField> fieldMap = buildFieldMap(field("id", new TapNumber()));
 		TaskDto taskDto = taskDto("{\"id\":1}");
 
-		assertThrows(NullPointerException.class, () -> TestRunInputEventConvertUtil.buildTestRunInputTapEvents(taskDto, TABLE, fieldMap, codecsFilterManager, obsLogger));
+		List<TapEvent> events = TestRunInputEventConvertUtil.buildTestRunInputTapEvents(taskDto, TABLE, fieldMap, codecsFilterManager, obsLogger);
+		assertNotNull(events);
+		assertEquals(1, events.size());
+		assertInstanceOf(TapInsertRecordEvent.class, events.get(0));
 	}
 
 	@Test
