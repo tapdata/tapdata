@@ -75,6 +75,17 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     private MongoTemplate mongoTemplate;
     private AgentGroupService agentGroupService;
 
+    private final java.util.concurrent.ThreadPoolExecutor statusInfoExecutor =
+        new java.util.concurrent.ThreadPoolExecutor(
+            1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+            new java.util.concurrent.LinkedBlockingQueue<>(16),
+            r -> {
+                Thread t = new Thread(r, "cluster-statusInfo-writer");
+                t.setDaemon(true);
+                return t;
+            },
+            new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy());
+
     public ClusterStateService(@NonNull ClusterStateRepository repository) {
         super(repository, ClusterStateDto.class, ClusterStateEntity.class);
     }
@@ -323,8 +334,13 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         update.set("last_updated",new Date());
         log.info("insert ClusterState data:{} ", JSON.toJSONString(update));
 
-        repository.getMongoOperations().upsert(query, update, "ClusterState");
-
+        statusInfoExecutor.execute(() -> {
+            try {
+                repository.getMongoOperations().upsert(query, update, "ClusterState");
+            } catch (Exception e) {
+                log.warn("ClusterState upsert failed for uuid={}, will retry on next statusInfo", uuid, e);
+            }
+        });
     }
 
 
@@ -409,7 +425,8 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             Optional.ofNullable(workers).ifPresent(w -> w.forEach(k -> availableProcessIds.add(k.getProcessId())));
 
             items.forEach(m -> {
-                boolean clusterStopped = "stopped".equals(m.getStatus());
+                boolean workerAlive = availableProcessIds.contains(m.getSystemInfo().getProcess_id());
+                boolean clusterStopped = "stopped".equals(m.getStatus()) && !workerAlive;
 
                 Optional.ofNullable(m.getManagement()).ifPresent(management -> {
                     management.setServiceStatus(clusterStopped ? "stopped" : management.getStatus());
@@ -418,7 +435,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
                     api.setServiceStatus(clusterStopped ? "stopped" : api.getStatus());
                 });
                 Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
-                    if (clusterStopped || !availableProcessIds.contains(m.getSystemInfo().getProcess_id())) {
+                    if (clusterStopped || !workerAlive) {
                         fe.setServiceStatus("stopped");
                     } else {
                         fe.setServiceStatus(fe.getStatus());
