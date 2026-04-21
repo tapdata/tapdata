@@ -397,6 +397,11 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
+	public boolean needCopyBatchEventWrapper() {
+		return true;
+	}
+
+	@Override
 	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
 		tapdataEvent.setTransformToTapValueResult(null);
 	}
