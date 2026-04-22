@@ -570,6 +570,44 @@ class MeasurementServiceV2ImplTest {
             verify(taskService, new Times(1)).updateDelayTime(new ObjectId("665d2b9b889245e73373cf50"), 111L);
             verify(taskService, new Times(2)).updateDelayTime(any(ObjectId.class),anyLong());
         }
+
+        @Test
+        @DisplayName("test addBulkAgentMeasurement reuses share cdc task delay when task is idle")
+        void testReuseShareCdcDelayWhenTaskIdle(){
+            String taskId = "665d2b9b889245e73373cf49";
+            String logCollectorTaskId = "665d2b9b889245e73373cf51";
+            long taskEventTime = System.currentTimeMillis() - 300_000L;
+            long logCollectorEventTime = System.currentTimeMillis() - 10_000L;
+
+            Sample sample = new Sample();
+            sample.setDate(new Date());
+            Map vs = new HashMap();
+            vs.put("replicateLag", 300_000L);
+            vs.put("currentEventTimestamp", taskEventTime);
+            vs.put("inputQps", 0);
+            vs.put("outputQps", 0);
+            sample.setVs(vs);
+            when(sampleRequest.getSample()).thenReturn(sample);
+
+            Map<String, String> shareCdcTaskId = new HashMap<>();
+            shareCdcTaskId.put("connectionId", logCollectorTaskId);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setShareCdcEnable(true);
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+            taskDto.setShareCdcTaskId(shareCdcTaskId);
+            TaskDto logCollectorTask = new TaskDto();
+            logCollectorTask.setStatus(TaskDto.STATUS_RUNNING);
+            logCollectorTask.setCurrentEventTimestamp(logCollectorEventTime);
+            logCollectorTask.setDelayTime(10_000L);
+            when(taskService.findByTaskId(eq(new ObjectId(taskId)), any(String[].class))).thenReturn(taskDto);
+            when(taskService.findByTaskId(eq(new ObjectId(logCollectorTaskId)), any(String[].class))).thenReturn(logCollectorTask);
+
+            doCallRealMethod().when(measurementServiceV2).addAgentMeasurement(samples);
+            measurementServiceV2.addAgentMeasurement(samples);
+
+            verify(taskService).updateDelayTime(new ObjectId(taskId), 10_000L);
+            assertEquals(10_000L, sample.getVs().get("replicateLag"));
+        }
         @Test
         @DisplayName("test addBulkAgentMeasurement method when type is table")
         void test5(){
