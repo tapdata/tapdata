@@ -100,8 +100,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	}
 
 	protected Invocable getOrInitEngine() {
-		String threadName = Thread.currentThread().getName();
-		return engineMap.computeIfAbsent(threadName, tn -> {
+		String nodeId = getNode().getId();
+		return engineMap.computeIfAbsent(nodeId, tn -> {
 			Node<?> node = getNode();
 			String script;
 			if (node instanceof JsProcessorNode) {
@@ -139,6 +139,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 			ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 			Invocable engine;
+			ObsScriptLogger obsScriptLogger;
+			if(getProcessorBaseContext().getTaskDto().isNormalTask()){
+				obsScriptLogger = new ObsScriptLogger(getScriptObsLogger(),logger);
+			}else{
+				obsScriptLogger = new ObsScriptLogger(obsLogger,logger);
+			}
 			try {
 				engine = finalJs ?
 						ScriptStandardizationUtil.getScriptStandardizationEngine(
@@ -147,7 +153,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 								javaScriptFunctions,
 								clientMongoOperator,
 								scriptCacheService,
-								new ObsScriptLogger(getScriptObsLogger(), logger),
+								obsScriptLogger,
 								this.standard)
 						: ScriptUtil.getScriptEngine(
 						JSEngineEnum.GRAALVM_JS.getEngineName(),
@@ -157,7 +163,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 						null,
 						null,
 						scriptCacheService,
-						new ObsScriptLogger(getScriptObsLogger(), logger),
+						obsScriptLogger,
 						this.standard);
 			} catch (ScriptException e) {
 				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e)
@@ -172,8 +178,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 				List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
 
-				ScriptExecutorsManager.ScriptExecutor source = sourceMap.computeIfAbsent(threadName, k -> getDefaultScriptExecutor(predecessors, SOURCE_TAG));
-				ScriptExecutorsManager.ScriptExecutor target = targetMap.computeIfAbsent(threadName, k -> getDefaultScriptExecutor(successors, TARGET_TAG));
+				ScriptExecutorsManager.ScriptExecutor source = sourceMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(predecessors, SOURCE_TAG));
+				ScriptExecutorsManager.ScriptExecutor target = targetMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(successors, TARGET_TAG));
 				((ScriptEngine) engine).put(SOURCE_TAG, source);
 				((ScriptEngine) engine).put(TARGET_TAG, target);
 			}

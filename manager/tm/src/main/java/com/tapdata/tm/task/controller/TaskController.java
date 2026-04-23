@@ -1267,6 +1267,13 @@ public class TaskController extends BaseController {
         return success();
     }
 
+    @PostMapping("migrate-js/mock-data")
+    @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    public ResponseMessage<Map<String,Object>> mockDate(@RequestBody TestRunDto dto) {
+        return success(taskNodeService.mockDateRPC(dto,getLoginUser()));
+    }
+
+
     @PostMapping("migrate-js/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
     public ResponseMessage<Map<String, Object>> testRunJsRPC(@RequestBody TestRunDto dto) {

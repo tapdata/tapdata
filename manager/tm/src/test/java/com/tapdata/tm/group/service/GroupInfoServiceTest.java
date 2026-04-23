@@ -2271,7 +2271,12 @@ public class GroupInfoServiceTest {
         }
 
         private TaskUpAndLoadDto connPayload(String name, String connType, Map<String, Object> config) {
+            return connPayload(new ObjectId().toHexString(), name, connType, config);
+        }
+
+        private TaskUpAndLoadDto connPayload(String id, String name, String connType, Map<String, Object> config) {
             Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
             json.put("name", name);
             json.put("connection_type", connType);
             json.put("database_type", "MySQL");
@@ -2318,12 +2323,14 @@ public class GroupInfoServiceTest {
         @Test
         @DisplayName("Existing connection with no change produces no update")
         void testNoChange() {
+            String connId = new ObjectId().toHexString();
             Map<String, Object> config = new HashMap<>();
             config.put("database_name", "db1");
-            TaskUpAndLoadDto item = connPayload("conn1", "source", config);
+            TaskUpAndLoadDto item = connPayload(connId, "conn1", "source", config);
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item));
 
             DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setId(new ObjectId(connId));
             existing.setName("conn1");
             existing.setConnection_type("source");
             existing.setDatabase_type("MySQL");
@@ -2340,12 +2347,14 @@ public class GroupInfoServiceTest {
         @Test
         @DisplayName("Existing connection with different connection_type produces update")
         void testConnectionTypeChanged() {
+            String connId = new ObjectId().toHexString();
             Map<String, Object> config = new HashMap<>();
             config.put("database_name", "db1");
-            TaskUpAndLoadDto item = connPayload("conn1", "source_and_target", config);
+            TaskUpAndLoadDto item = connPayload(connId, "conn1", "source_and_target", config);
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item));
 
             DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setId(new ObjectId(connId));
             existing.setName("conn1");
             existing.setConnection_type("source");
             existing.setDatabase_type("MySQL");
@@ -2368,12 +2377,14 @@ public class GroupInfoServiceTest {
         @Test
         @DisplayName("Existing connection with different config produces update")
         void testConfigChanged() {
+            String connId = new ObjectId().toHexString();
             Map<String, Object> fileConfig = new HashMap<>();
             fileConfig.put("database_name", "new_db");
-            TaskUpAndLoadDto item = connPayload("conn1", "source", fileConfig);
+            TaskUpAndLoadDto item = connPayload(connId, "conn1", "source", fileConfig);
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item));
 
             DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setId(new ObjectId(connId));
             existing.setName("conn1");
             existing.setConnection_type("source");
             existing.setDatabase_type("MySQL");
@@ -2398,11 +2409,13 @@ public class GroupInfoServiceTest {
             Map<String, Object> config2 = new HashMap<>();
             config2.put("database_name", "new_db2");
 
+            String existingId = new ObjectId().toHexString();
             TaskUpAndLoadDto item1 = connPayload("brand_new", "source", config1);
-            TaskUpAndLoadDto item2 = connPayload("existing_conn", "source", config2);
+            TaskUpAndLoadDto item2 = connPayload(existingId, "existing_conn", "source", config2);
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item1, item2));
 
             DataSourceConnectionDto existingConn = new DataSourceConnectionDto();
+            existingConn.setId(new ObjectId(existingId));
             existingConn.setName("existing_conn");
             existingConn.setConnection_type("source");
             existingConn.setDatabase_type("MySQL");
@@ -2421,10 +2434,11 @@ public class GroupInfoServiceTest {
         }
 
         @Test
-        @DisplayName("Duplicate names in payload are deduplicated (first wins)")
+        @DisplayName("Duplicate IDs in payload are deduplicated (first wins)")
         void testDuplicateNames() {
-            TaskUpAndLoadDto item1 = connPayload("conn1", "source", Map.of("database_name", "db_first"));
-            TaskUpAndLoadDto item2 = connPayload("conn1", "target", Map.of("database_name", "db_second"));
+            String sameId = new ObjectId().toHexString();
+            TaskUpAndLoadDto item1 = connPayload(sameId, "conn1", "source", Map.of("database_name", "db_first"));
+            TaskUpAndLoadDto item2 = connPayload(sameId, "conn1", "target", Map.of("database_name", "db_second"));
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Connection.json", List.of(item1, item2));
 
             when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
@@ -2445,7 +2459,8 @@ public class GroupInfoServiceTest {
             fileConfig.put("host", "******");
             fileConfig.put("port", 3306);
             fileConfig.put("database_name", "db1");
-            TaskUpAndLoadDto connItem = connPayload("conn1", "source", fileConfig);
+            String connId = new ObjectId().toHexString();
+            TaskUpAndLoadDto connItem = connPayload(connId, "conn1", "source", fileConfig);
 
             // Vault entries: {connName}_url, {connName}_user, {connName}_password
             // Use simple host:port/user format so parseUriComponents can extract host/port
@@ -2462,6 +2477,7 @@ public class GroupInfoServiceTest {
             // Existing connection in DB has the same real values (after vault injection they should match)
             // Note: parseUriComponents returns port as int, so existing must also use int
             DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setId(new ObjectId(connId));
             existing.setName("conn1");
             existing.setConnection_type("source");
             existing.setDatabase_type("MySQL");
@@ -2492,7 +2508,12 @@ public class GroupInfoServiceTest {
         }
 
         private TaskUpAndLoadDto migrateTaskPayload(String name) {
+            return migrateTaskPayload(new ObjectId().toHexString(), name);
+        }
+
+        private TaskUpAndLoadDto migrateTaskPayload(String id, String name) {
             Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
             json.put("name", name);
             json.put("type", "initial_sync+cdc");
             json.put("syncType", "migrate");
@@ -2500,7 +2521,12 @@ public class GroupInfoServiceTest {
         }
 
         private TaskUpAndLoadDto syncTaskPayload(String name) {
+            return syncTaskPayload(new ObjectId().toHexString(), name);
+        }
+
+        private TaskUpAndLoadDto syncTaskPayload(String id, String name) {
             Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
             json.put("name", name);
             json.put("type", "initial_sync+cdc");
             json.put("syncType", "sync");
@@ -2556,10 +2582,12 @@ public class GroupInfoServiceTest {
         @Test
         @DisplayName("Existing task with same config produces no update")
         void testExistingTaskNoChange() {
+            String taskId = new ObjectId().toHexString();
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
-                    "MigrateTask.json", List.of(migrateTaskPayload("task1")));
+                    "MigrateTask.json", List.of(migrateTaskPayload(taskId, "task1")));
 
             TaskDto existingTask = new TaskDto();
+            existingTask.setId(new ObjectId(taskId));
             existingTask.setName("task1");
             existingTask.setType("initial_sync+cdc");
             existingTask.setSyncType("migrate");
@@ -2638,7 +2666,12 @@ public class GroupInfoServiceTest {
         }
 
         private TaskUpAndLoadDto modulePayload(String name, String apiType, String description) {
+            return modulePayload(new ObjectId().toHexString(), name, apiType, description);
+        }
+
+        private TaskUpAndLoadDto modulePayload(String id, String name, String apiType, String description) {
             Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
             json.put("name", name);
             json.put("apiType", apiType);
             if (description != null) json.put("description", description);
@@ -2684,10 +2717,12 @@ public class GroupInfoServiceTest {
         @Test
         @DisplayName("Existing module with same content produces no update")
         void testNoChange() {
+            String moduleId = new ObjectId().toHexString();
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
-                    "Module.json", List.of(modulePayload("api1", "defaultApi", "same desc")));
+                    "Module.json", List.of(modulePayload(moduleId, "api1", "defaultApi", "same desc")));
 
             ModulesDto existing = new ModulesDto();
+            existing.setId(new ObjectId(moduleId));
             existing.setName("api1");
             existing.setApiType("defaultApi");
             existing.setDescription("same desc");
@@ -2702,10 +2737,12 @@ public class GroupInfoServiceTest {
         @Test
         @DisplayName("Existing module with different apiType produces update")
         void testApiTypeChanged() {
+            String moduleId = new ObjectId().toHexString();
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
-                    "Module.json", List.of(modulePayload("api1", "clientApi", "desc")));
+                    "Module.json", List.of(modulePayload(moduleId, "api1", "clientApi", "desc")));
 
             ModulesDto existing = new ModulesDto();
+            existing.setId(new ObjectId(moduleId));
             existing.setName("api1");
             existing.setApiType("defaultApi");
             existing.setDescription("desc");
@@ -2723,11 +2760,13 @@ public class GroupInfoServiceTest {
         @Test
         @DisplayName("Multiple modules: mix of add and update")
         void testMixedAddAndUpdate() {
+            String existingId = new ObjectId().toHexString();
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Module.json", List.of(
                     modulePayload("new_api", "defaultApi", "new"),
-                    modulePayload("existing_api", "clientApi", "updated")));
+                    modulePayload(existingId, "existing_api", "clientApi", "updated")));
 
             ModulesDto existing = new ModulesDto();
+            existing.setId(new ObjectId(existingId));
             existing.setName("existing_api");
             existing.setApiType("defaultApi");
             existing.setDescription("old");
@@ -2742,11 +2781,12 @@ public class GroupInfoServiceTest {
         }
 
         @Test
-        @DisplayName("Duplicate names in payload are deduplicated (first wins)")
+        @DisplayName("Duplicate IDs in payload are deduplicated (first wins)")
         void testDuplicateNames() {
+            String sameId = new ObjectId().toHexString();
             Map<String, List<TaskUpAndLoadDto>> payloads = Map.of("Module.json", List.of(
-                    modulePayload("api1", "defaultApi", "first"),
-                    modulePayload("api1", "clientApi", "second")));
+                    modulePayload(sameId, "api1", "defaultApi", "first"),
+                    modulePayload(sameId, "api1", "clientApi", "second")));
 
             when(modulesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
 

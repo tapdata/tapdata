@@ -22,6 +22,7 @@ import io.tapdata.websocket.handler.TestRunTaskHandler;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * @author GavinXiao
@@ -63,10 +64,7 @@ public class JSProcessNodeTestRunService {
             obsLoggerFactory.removeFromFactory(taskId);
         }
         AtomicReference<Object> logCollector = new AtomicReference<>();
-        int defaultLogLength = 100;
-        if (logOutputCount > 0) {
-            defaultLogLength = Math.min(logOutputCount, ScriptNodeProcessNodeAppender.LOG_UPPER_LIMIT);
-        }
+        int defaultLogLength = 1000;
         FixedSizeBlockingDeque<MonitoringLogsDto> logList = new FixedSizeBlockingDeque<>(defaultLogLength);
         logCollector.set(logList);
         taskDto.taskInfo(ScriptNodeProcessNodeAppender.LOG_LIST_KEY  + taskId, logCollector);
@@ -106,7 +104,15 @@ public class JSProcessNodeTestRunService {
             taskDtoMap.remove(taskId);
             logger.info("test run task {} {}, cost {}ms", taskId, null == taskClient ? "error" : taskClient.getStatus(), (System.currentTimeMillis() - startTs));
         }
-        resultMap.put("logs", Optional.ofNullable(logCollector.get()).orElse(new ArrayList<>()));
+        Object rawLogs = logCollector.get();
+        if (rawLogs instanceof Collection) {
+            List<?> filteredLogs = ((Collection<?>) rawLogs).stream()
+                    .filter(log -> !(log instanceof MonitoringLogsDto && "TRACE".equalsIgnoreCase(((MonitoringLogsDto) log).getLevel())))
+                    .collect(Collectors.toList());
+            resultMap.put("logs", filteredLogs);
+        } else {
+            resultMap.put("logs", Optional.ofNullable(rawLogs).orElse(new ArrayList<>()));
+        }
         return resultMap;
     }
 
