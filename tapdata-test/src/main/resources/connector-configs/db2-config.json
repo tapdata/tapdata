@@ -1,0 +1,10 @@
+{
+  "host": "192.168.1.191",
+  "port": 50000,
+  "database": "SAMPLE",
+  "schema": "DB2INST1",
+  "user": "db2inst1",
+  "password": "Gotapd888",
+  "rawLogServerHost": "192.168.1.132",
+  "rawLogServerPort": 50031
+}

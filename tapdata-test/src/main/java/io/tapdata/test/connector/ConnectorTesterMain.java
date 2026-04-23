@@ -198,14 +198,14 @@ public class ConnectorTesterMain {
         }
 
         String connectorId = parts[1];
-        String tableName = parts[2];
+        List<String> tableNames = Arrays.asList(parts[2].split(","));
         long count = Long.parseLong(parts[3]);
         int duration = parts.length > 4 ? Integer.parseInt(parts[4]) : 30000; // 30秒
 
-        System.out.println("Testing stream read for: " + connectorId + "." + tableName);
+        System.out.println("Testing stream read for: " + connectorId + "." + parts[2]);
         System.out.println("Duration: " + duration + " ms");
 
-        HotLoadConnectorTester.PerformanceResult result = tester.testStreamRead(connectorId, Collections.singletonList(tableName), count, duration);
+        HotLoadConnectorTester.PerformanceResult result = tester.testStreamRead(connectorId, tableNames, count, duration);
         System.out.println("Result: " + result);
     }
 
