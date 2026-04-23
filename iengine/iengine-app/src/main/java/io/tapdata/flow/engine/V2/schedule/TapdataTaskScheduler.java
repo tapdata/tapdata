@@ -5,6 +5,7 @@ import com.tapdata.constant.ConnectorConstant;
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.firedome.MultiTaggedGauge;
 import io.tapdata.firedome.PrometheusName;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkBaseNode;
 import io.tapdata.flow.engine.V2.task.OpType;
 import io.tapdata.flow.engine.V2.util.TaskOperationQueue;
 import io.tapdata.utils.AppType;
@@ -739,6 +740,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				long taskRetrySucceedTimeMs = TimeUnit.HOURS.toMillis(1L);
 				long currentTimeMillis = System.currentTimeMillis();
 				if (currentTimeMillis - taskRetryStartTimeMs >= taskRetrySucceedTimeMs) {
+					// Silent-recovery fallback: drive milestone.retrying=false and clear functionRetryStatus
+					// for each PDK invoker before releasing the engine-side retry state. Without this,
+					// storeMilestone() keeps re-persisting retrying=true every 5s.
+					HazelcastPdkBaseNode.triggerTaskRetryCleanupHooks(taskId);
 					taskRetryService.reset();
 					ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId);
 					if (null != obsLogger) {
