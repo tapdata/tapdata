@@ -66,7 +66,7 @@ public class HazelcastUtil {
 	public static final HZLoggingType DEFAULT_HZ_LOGGING_TYPE = HZLoggingType.LOG4J2;
 	private static Logger logger = LogManager.getLogger(HazelcastUtil.class);
     @Getter
-    private static CacheInvalidationService cacheInvalidationService;
+    private static volatile CacheInvalidationService cacheInvalidationService;
 	private static final Object CACHE_INVALIDATION_LOCK = new Object();
 
 	public static Config getConfig(String instanceName) {
