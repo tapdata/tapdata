@@ -145,4 +145,36 @@ class JsonUtilTest {
         Assertions.assertInstanceOf(Map.class, data);
         Assertions.assertEquals("test", ((Map) data).get("type"));
     }
+
+    @Nested
+    class InstantTypeAdapterTest {
+        @Test
+        void testSerializeInstant() {
+            java.time.Instant instant = java.time.Instant.parse("2026-04-16T05:28:12.648Z");
+            String json = JsonUtil.toJson(instant);
+            Assertions.assertEquals("\"2026-04-16T05:28:12.648Z\"", json);
+        }
+
+        @Test
+        void testDeserializeInstant() {
+            String json = "\"2026-04-16T05:28:12.648Z\"";
+            java.time.Instant instant = JsonUtil.parseJson(json, java.time.Instant.class);
+            Assertions.assertNotNull(instant);
+            Assertions.assertEquals(java.time.Instant.parse("2026-04-16T05:28:12.648Z"), instant);
+        }
+
+        @Test
+        void testSerializeNullInstant() {
+            java.time.Instant instant = null;
+            String json = JsonUtil.toJson(instant);
+            Assertions.assertEquals("null", json);
+        }
+
+        @Test
+        void testDeserializeNullInstant() {
+            String json = "null";
+            java.time.Instant instant = JsonUtil.parseJson(json, java.time.Instant.class);
+            Assertions.assertNull(instant);
+        }
+    }
 }
