@@ -66,7 +66,7 @@ public class HazelcastUtil {
 	public static final HZLoggingType DEFAULT_HZ_LOGGING_TYPE = HZLoggingType.LOG4J2;
 	private static Logger logger = LogManager.getLogger(HazelcastUtil.class);
     @Getter
-    private static volatile CacheInvalidationService cacheInvalidationService;
+    private static CacheInvalidationService cacheInvalidationService;
 	private static final Object CACHE_INVALIDATION_LOCK = new Object();
 
 	public static Config getConfig(String instanceName) {
@@ -226,22 +226,18 @@ public class HazelcastUtil {
 	 * @param mongoUri MongoDB 连接 URI
 	 * @param databaseName MongoDB 数据库名
 	 */
-	public static void initCacheInvalidationService(HazelcastInstance hazelcastInstance, String mongoUri, String databaseName) {
+	public static synchronized void initCacheInvalidationService(HazelcastInstance hazelcastInstance, String mongoUri, String databaseName) {
 		if (cacheInvalidationService == null) {
-			synchronized (CACHE_INVALIDATION_LOCK) {
-				if (cacheInvalidationService == null) {
-					try {
-						MongoClient mongoClient = MongoClients.create(mongoUri);
+			try {
+				MongoClient mongoClient = MongoClients.create(mongoUri);
 
-						cacheInvalidationService = new CacheInvalidationService(hazelcastInstance, mongoClient, databaseName);
-						cacheInvalidationService.start();
+				cacheInvalidationService = new CacheInvalidationService(hazelcastInstance, mongoClient, databaseName);
+				cacheInvalidationService.start();
 
-						logger.info("Cache invalidation service initialized and started successfully");
-					} catch (Exception e) {
-						logger.error("Failed to initialize cache invalidation service", e);
-						throw new CoreException("Failed to initialize cache invalidation service", e);
-					}
-				}
+				logger.info("Cache invalidation service initialized and started successfully");
+			} catch (Exception e) {
+				logger.error("Failed to initialize cache invalidation service", e);
+				throw new CoreException("Failed to initialize cache invalidation service", e);
 			}
 		}
 	}
