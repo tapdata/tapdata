@@ -43,273 +43,274 @@ public class V4_18_1_CustomNode_Aggregate extends AbsPatch {
     }
 
     private String loadTemplate() {
-        return "function process(record, form){\n" +
-                "  const OP_MAP = {\n" +
-                "    '=': '$eq',\n" +
-                "    '≠': '$ne',\n" +
-                "    '>': '$gt',\n" +
-                "    '≥': '$gte',\n" +
-                "    '<': '$lt',\n" +
-                "    '≤': '$lte',\n" +
-                "    IN: '$in',\n" +
-                "    'NOT IN': '$nin',\n" +
-                "    REGEX: '$regex',\n" +
-                "  }\n" +
-                "  \n" +
-                "  function buildPipelineStages(value) {\n" +
-                "    const stages = []\n" +
-                "  \n" +
-                "    if (value.matchConditions.length > 0) {\n" +
-                "      const matchObj = {}\n" +
-                "      const conditions = value.matchConditions.map((c) => {\n" +
-                "        const mongoOp = OP_MAP[c.operator] || '$eq'\n" +
-                "        let val = c.value\n" +
-                "        if (c.operator === 'IN' || c.operator === 'NOT IN') {\n" +
-                "          val = val.split(',').map((s) => s.trim())\n" +
-                "        }\n" +
-                "        return { [c.field]: { [mongoOp]: val } }\n" +
-                "      })\n" +
-                "  \n" +
-                "      if (conditions.length === 1) {\n" +
-                "        Object.assign(matchObj, conditions[0])\n" +
-                "      } else {\n" +
-                "        const hasOr = value.matchConditions.some((c) => c.logic === 'OR')\n" +
-                "        if (hasOr) {\n" +
-                "          matchObj.$or = conditions\n" +
-                "        } else {\n" +
-                "          conditions.forEach((c) => Object.assign(matchObj, c))\n" +
-                "        }\n" +
-                "      }\n" +
-                "      stages.push({ $match: matchObj })\n" +
-                "    }\n" +
-                "  \n" +
-                "    if (value.groupFields.length > 0 || value.aggregateFields.length > 0) {\n" +
-                "      const groupObj = {}\n" +
-                "  \n" +
-                "      if (value.groupFields.length === 1 && !value.groupFields[0]?.alias) {\n" +
-                "        groupObj._id = `$${value.groupFields[0]?.field}`\n" +
-                "      } else if (value.groupFields.length > 0) {\n" +
-                "        groupObj._id = {}\n" +
-                "        value.groupFields.forEach((g) => {\n" +
-                "          const key = g.alias || g.field\n" +
-                "          groupObj._id[key] = `$${g.field}`\n" +
-                "        })\n" +
-                "      } else {\n" +
-                "        groupObj._id = null\n" +
-                "      }\n" +
-                "  \n" +
-                "      value.aggregateFields.forEach((a) => {\n" +
-                "        const opLower = a.operator.toLowerCase()\n" +
-                "        if (a.operator === '$count') {\n" +
-                "          groupObj[a.outputField] = { $sum: 1 }\n" +
-                "        } else {\n" +
-                "          groupObj[a.outputField] = { [opLower]: `$${a.sourceField}` }\n" +
-                "        }\n" +
-                "      })\n" +
-                "  \n" +
-                "      stages.push({ $group: groupObj })\n" +
-                "    }\n" +
-                "  \n" +
-                "    return stages\n" +
-                "  }\n" +
-                "  \n" +
-                "  function buildPipelineJSON(value, indent = 2) {\n" +
-                "    if (value.useRawPipeline) {\n" +
-                "      return JSON.parse(value.rawPipeline)\n" +
-                "    }\n" +
-                "    const stages = buildPipelineStages(value)\n" +
-                "    if (stages === null) return []\n" +
-                "    return stages\n" +
-                "  }\n" +
-                "  \n" +
-                "  function resolvePipelineTemplate(template, params) {\n" +
-                "    function resolveValue(value) {\n" +
-                "      // 1. 字符串模板处理\n" +
-                "      if (typeof value === 'string') {\n" +
-                "        const match = value.match(/^\\$\\{(\\w+)\\}$/)\n" +
-                "  \n" +
-                "        // \uD83D\uDC49 完整占位符：${xxx}\n" +
-                "        if (match) {\n" +
-                "          const key = match[1]\n" +
-                "          return resolveParam(params[key])\n" +
-                "        }\n" +
-                "  \n" +
-                "        // \uD83D\uDC49 字符串中包含变量：xxx ${a} yyy\n" +
-                "        return value.replace(/\\$\\{(\\w+)\\}/g, (_, key) => {\n" +
-                "          const val = params[key]\n" +
-                "          return val != null ? String(val) : `\\${${key}}`\n" +
-                "        })\n" +
-                "      }\n" +
-                "  \n" +
-                "      // 2. 数组\n" +
-                "      if (Array.isArray(value)) {\n" +
-                "        return value.map(resolveValue)\n" +
-                "      }\n" +
-                "  \n" +
-                "      // 3. 对象\n" +
-                "      if (value && typeof value === 'object') {\n" +
-                "        const result = {}\n" +
-                "        for (const key in value) {\n" +
-                "          result[key] = resolveValue(value[key])\n" +
-                "        }\n" +
-                "        return result\n" +
-                "      }\n" +
-                "  \n" +
-                "      // 4. 原始值\n" +
-                "      return value\n" +
-                "    }\n" +
-                "  \n" +
-                "    function resolveParam(val) {\n" +
-                "      if (val == null) return val\n" +
-                "  \n" +
-                "      // \uD83D\uDC49 number / boolean 原样返回\n" +
-                "      if (typeof val === 'number' || typeof val === 'boolean') {\n" +
-                "        return val\n" +
-                "      }\n" +
-                "  \n" +
-                "      // \uD83D\uDC49 Date 特殊处理\n" +
-                "      if (typeof val === 'object' && val.toDate) {\n" +
-                "        return {\n" +
-                "          $dateTime: val\n" +
-                "        }\n" +
-                "      }\n" +
-                "  \n" +
-                "      return val\n" +
-                "    }\n" +
-                "  \n" +
-                "    return resolveValue(template)\n" +
-                "  }\n" +
-                "  \n" +
-                "  const { aggregate } = form\n" +
-                "  const pipeline = resolvePipelineTemplate(buildPipelineJSON(aggregate), record)\n" +
-                "  \n" +
-                "  const db = ScriptExecutorsManager.getScriptExecutor(aggregate.connectionName)\n" +
-                "  const result = db.aggregate({\n" +
-                "      database: aggregate.database,\n" +
-                "      collection: aggregate.tableName,\n" +
-                "      pipeline\n" +
-                "  });\n" +
-                "  \n" +
-                "  log.warn('==record==')\n" +
-                "  log.warn(record)\n" +
-                "  log.warn('==result==')\n" +
-                "  log.warn(result)\n" +
-                "  \n" +
-                "  switch(context.op) {\n" +
-                "    case 'd':\n" +
-                "      if (aggregate.enableDeleteWhenEmpty && !result) {\n" +
-                "        log.warn('==删除==')\n" +
-                "        pipeline.unshift({\n" +
-                "          $documents: [record]\n" +
-                "        })\n" +
-                "        const deleteResult = db.aggregate({\n" +
-                "            database: aggregate.database,\n" +
-                "            pipeline\n" +
-                "        })\n" +
-                "        log.warn(deleteResult[0])\n" +
-                "        return deleteResult[0]\n" +
-                "      } else if (result && result.length) {\n" +
-                "        // 清理 before\n" +
-                "        context.opList = ['u']\n" +
-                "        context.before = null\n" +
-                "        log.warn('==删除转更新==')\n" +
-                "        return result\n" +
-                "      }\n" +
-                "      break\n" +
-                "    case 'u':\n" +
-                "      if (aggregate.effectiveUpdateFields && aggregate.effectiveUpdateFields.length) {\n" +
-                "        const get = (obj, path) =>\n" +
-                "          path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);\n" +
-                "        \n" +
-                "        const isEqual = (a, b) => {\n" +
-                "          if (a === b) return true;\n" +
-                "        \n" +
-                "          if (typeof a !== 'object' || typeof b !== 'object' || a == null || b == null) {\n" +
-                "            return false;\n" +
-                "          }\n" +
-                "        \n" +
-                "          const keysA = Object.keys(a);\n" +
-                "          const keysB = Object.keys(b);\n" +
-                "          if (keysA.length !== keysB.length) return false;\n" +
-                "          \n" +
-                "          return keysA.every(k => isEqual(a[k], b[k]));\n" +
-                "        };\n" +
-                "        \n" +
-                "        const before = {...context.before}\n" +
-                "        const after = {...record}\n" +
-                "        const hasDiff = aggregate.effectiveUpdateFields.some(path => !isEqual(get(before, path), get(after, path)));\n" +
-                "        \n" +
-                "        if (hasDiff) {\n" +
-                "          const beforePipeline = resolvePipelineTemplate(buildPipelineJSON(aggregate), before)\n" +
-                "          const beforeResult = db.aggregate({\n" +
-                "              database: aggregate.database,\n" +
-                "              collection: aggregate.tableName,\n" +
-                "              pipeline: beforePipeline\n" +
-                "          });\n" +
-                "          let returnData = []\n" +
-                "          let opList = []\n" +
-                "          \n" +
-                "          log.warn('==beforeResult==')\n" +
-                "          log.warn(beforeResult)\n" +
-                "          \n" +
-                "          \n" +
-                "          if (!beforeResult) {\n" +
-                "            const deleteResult = db.aggregate({\n" +
-                "              database: aggregate.database,\n" +
-                "              pipeline: [{\n" +
-                "                $documents: [context.before]\n" +
-                "              }, ...beforePipeline]\n" +
-                "            })\n" +
-                "            log.warn(deleteResult)\n" +
-                "            opList.push('d')\n" +
-                "            returnData.push(deleteResult[0])\n" +
-                "          } else {\n" +
-                "            returnData.push(beforeResult[0])\n" +
-                "            opList.push('i')\n" +
-                "          }\n" +
-                "          \n" +
-                "          if (!result) {\n" +
-                "            const deleteResult = db.aggregate({\n" +
-                "              database: aggregate.database,\n" +
-                "              pipeline: [{\n" +
-                "                $documents: [record]\n" +
-                "              }, ...pipeline]\n" +
-                "            })\n" +
-                "            opList.push('d')\n" +
-                "            returnData.push(deleteResult[0])\n" +
-                "          } else {\n" +
-                "            returnData.push(result[0])\n" +
-                "            opList.push('i')\n" +
-                "          }\n" +
-                "          \n" +
-                "          \n" +
-                "          if (opList[0] === opList[1] && isEqual({...returnData[0]}, {...returnData[1]})) {\n" +
-                "            returnData = returnData[0]\n" +
-                "            opList = opList[0]\n" +
-                "          }\n" +
-                "          \n" +
-                "          log.warn('==opList==')\n" +
-                "          log.warn(opList)\n" +
-                "          log.warn('==returnData==')\n" +
-                "          log.warn(returnData)\n" +
-                "          \n" +
-                "          context.opList = opList\n" +
-                "          context.before = null\n" +
-                "          return returnData\n" +
-                "        } else {\n" +
-                "          // 清理 before\n" +
-                "          log.warn('清理 before')\n" +
-                "          context.opList = ['u']\n" +
-                "          context.before = null\n" +
-                "        }\n" +
-                "      }\n" +
-                "      \n" +
-                "      break\n" +
-                "  }\n" +
-                "  \n" +
-                "  \n" +
-                "  return result;\n" +
-                "}";
+        return """
+                function process(record, form){
+                  const OP_MAP = {
+                    '=': '$eq',
+                    '≠': '$ne',
+                    '>': '$gt',
+                    '≥': '$gte',
+                    '<': '$lt',
+                    '≤': '$lte',
+                    IN: '$in',
+                    'NOT IN': '$nin',
+                    REGEX: '$regex',
+                  }
+                  const enableLog = false
+                  const logWarn = msg => enableLog && log.warn(msg)
+                
+                  function buildPipelineStages(value) {
+                    const stages = []
+                
+                    if (value.matchConditions.length > 0) {
+                      const matchObj = {}
+                      const conditions = value.matchConditions.map((c) => {
+                        const mongoOp = OP_MAP[c.operator] || '$eq'
+                        let val = c.value
+                        if (c.operator === 'IN' || c.operator === 'NOT IN') {
+                          val = val.split(',').map((s) => s.trim())
+                        }
+                        return { [c.field]: { [mongoOp]: val } }
+                      })
+                
+                      if (conditions.length === 1) {
+                        Object.assign(matchObj, conditions[0])
+                      } else {
+                        const hasOr = value.matchConditions.some((c) => c.logic === 'OR')
+                        if (hasOr) {
+                          matchObj.$or = conditions
+                        } else {
+                          conditions.forEach((c) => Object.assign(matchObj, c))
+                        }
+                      }
+                      stages.push({ $match: matchObj })
+                    }
+                
+                    if (value.groupFields.length > 0 || value.aggregateFields.length > 0) {
+                      const groupObj = {}
+                
+                      if (value.groupFields.length === 1 && !value.groupFields[0]?.alias) {
+                        groupObj._id = `$${value.groupFields[0]?.field}`
+                      } else if (value.groupFields.length > 0) {
+                        groupObj._id = {}
+                        value.groupFields.forEach((g) => {
+                          const key = g.alias || g.field
+                          groupObj._id[key] = `$${g.field}`
+                        })
+                      } else {
+                        groupObj._id = null
+                      }
+                
+                      value.aggregateFields.forEach((a) => {
+                        const opLower = a.operator.toLowerCase()
+                        if (a.operator === '$count') {
+                          groupObj[a.outputField] = { $sum: 1 }
+                        } else {
+                          groupObj[a.outputField] = { [opLower]: `$${a.sourceField}` }
+                        }
+                      })
+                
+                      stages.push({ $group: groupObj })
+                    }
+                
+                    return stages
+                  }
+                
+                  function buildPipelineJSON(value, indent = 2) {
+                    if (value.useRawPipeline) {
+                      return JSON.parse(value.rawPipeline)
+                    }
+                    const stages = buildPipelineStages(value)
+                    if (stages === null) return []
+                    return stages
+                  }
+                
+                  function resolvePipelineTemplate(template, params) {
+                    function resolveValue(value) {
+                      if (typeof value === 'string') {
+                        const match = value.match(/^\\$\\{(\\w+)\\}$/)
+                        // \uD83D\uDC49 完整占位符：${xxx}
+                        if (match) {
+                          const key = match[1]
+                          return resolveParam(params[key])
+                        }
+                        // \uD83D\uDC49 字符串中包含变量：xxx ${a} yyy
+                        return value.replace(/\\$\\{(\\w+)\\}/g, (_, key) => {
+                          const val = params[key]
+                          return val != null ? String(val) : `\\${${key}}`
+                        })
+                      }
+                
+                      if (Array.isArray(value)) {
+                        return value.map(resolveValue)
+                      }
+                
+                      if (value && typeof value === 'object') {
+                        const result = {}
+                        for (const key in value) {
+                          result[key] = resolveValue(value[key])
+                        }
+                        return result
+                      }
+                
+                      return value
+                    }
+                
+                    function resolveParam(val) {
+                      if (val == null) return val
+                      // \uD83D\uDC49 number / boolean 原样返回
+                      if (typeof val === 'number' || typeof val === 'boolean') {
+                        return val
+                      }
+                      // \uD83D\uDC49 Date 特殊处理
+                      if (typeof val === 'object' && val.toDate) {
+                        return {
+                          $dateTime: val
+                        }
+                      }
+                
+                      return val
+                    }
+                
+                    return resolveValue(template)
+                  }
+                
+                  const { aggregate } = form
+                  const pipeline = resolvePipelineTemplate(buildPipelineJSON(aggregate), record)
+                  const db = ScriptExecutorsManager.getScriptExecutor(aggregate.connectionName)
+                  const result = db.aggregate({
+                      database: aggregate.database,
+                      collection: aggregate.tableName,
+                      pipeline
+                  });
+                
+                  logWarn('==record==')
+                  logWarn(record)
+                  logWarn('==result==')
+                  logWarn(result)
+                
+                  switch(context.op) {
+                    case 'd':
+                      if (aggregate.enableDeleteWhenEmpty && !result) {
+                        logWarn('==删除==')
+                        pipeline.unshift({
+                          $documents: [record]
+                        })
+                        const deleteResult = db.aggregate({
+                            database: aggregate.database,
+                            pipeline
+                        })
+                        logWarn(deleteResult[0])
+                        return deleteResult[0]
+                      } else if (result && result.length) {
+                        // 清理 before
+                        context.opList = ['u']
+                        context.before = null
+                        logWarn('==删除转更新==')
+                        return result
+                      }
+                      break
+                    case 'u':
+                      const get = (obj, path) =>
+                        path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj)
+                
+                      const isEqual = (a, b) => {
+                        if (a === b) return true;
+                
+                        if (typeof a !== 'object' || typeof b !== 'object' || a == null || b == null) {
+                          return false;
+                        }
+                
+                        const keysA = Object.keys(a);
+                        const keysB = Object.keys(b);
+                        if (keysA.length !== keysB.length) return false;
+                
+                        return keysA.every(k => isEqual(a[k], b[k]));
+                      }
+                
+                      const before = {...context.before}
+                      const after = {...record}
+                
+                      if (aggregate.groupChangeFields && aggregate.groupChangeFields.length) {
+                        const hasDiff = aggregate.groupChangeFields.some(path => !isEqual(get(before, path), get(after, path)))
+                
+                        if (hasDiff) {
+                          const beforePipeline = resolvePipelineTemplate(buildPipelineJSON(aggregate), before)
+                          const beforeResult = db.aggregate({
+                              database: aggregate.database,
+                              collection: aggregate.tableName,
+                              pipeline: beforePipeline
+                          });
+                          let returnData = []
+                          let opList = []
+                
+                          logWarn('==beforeResult==')
+                          logWarn(beforeResult)
+                
+                
+                          if (!beforeResult) {
+                            const deleteResult = db.aggregate({
+                              database: aggregate.database,
+                              pipeline: [{
+                                $documents: [context.before]
+                              }, ...beforePipeline]
+                            })
+                            logWarn(deleteResult)
+                            opList.push('d')
+                            returnData.push(deleteResult[0])
+                          } else {
+                            returnData.push(beforeResult[0])
+                            opList.push('i')
+                          }
+                
+                          if (!result) {
+                            const deleteResult = db.aggregate({
+                              database: aggregate.database,
+                              pipeline: [{
+                                $documents: [record]
+                              }, ...pipeline]
+                            })
+                            opList.push('d')
+                            returnData.push(deleteResult[0])
+                          } else {
+                            returnData.push(result[0])
+                            opList.push('i')
+                          }
+                
+                
+                          if (opList[0] === opList[1] && isEqual({...returnData[0]}, {...returnData[1]})) {
+                            returnData = returnData[0]
+                            opList = opList[0]
+                          }
+                
+                          logWarn('==opList==')
+                          logWarn(opList)
+                          logWarn('==returnData==')
+                          logWarn(returnData)
+                
+                          context.opList = opList
+                          context.before = null
+                          return returnData
+                        }
+                      }
+                
+                      if (aggregate.effectiveUpdateFields && aggregate.effectiveUpdateFields.length) {
+                        const hasDiff = aggregate.effectiveUpdateFields.some(path => !isEqual(get(before, path), get(after, path)))
+                
+                        if (!hasDiff) return
+                      }
+                
+                      // 清理 before
+                      logWarn('清理 before')
+                      context.opList = ['u']
+                      context.before = null
+                
+                      break
+                  }
+                
+                  return result
+                }
+                """;
     }
 
     private Map<String, Object> buildFormSchema() {
