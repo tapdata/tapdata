@@ -63,7 +63,7 @@ public class TaskAlarmScheduler {
     private TaskScheduleService taskScheduleService;
     private TransformSchemaService transformSchema;
 
-    @Scheduled(fixedDelay = 60000)
+    @Scheduled(fixedDelay = 30000)
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
 			Thread.currentThread().setName(getClass().getSimpleName() + "-taskAgentAlarm");
