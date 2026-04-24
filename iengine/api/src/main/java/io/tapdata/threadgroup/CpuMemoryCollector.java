@@ -47,9 +47,10 @@ import java.util.function.LongConsumer;
 @Slf4j
 public class CpuMemoryCollector {
     public static final long MAX_LISTENING_SIZE = Runtime.getRuntime().maxMemory() / (40L * 5L);// 25_000_000; // max allow weak ref of 1G
+    private static final Integer TASK_STATISTICS_RESTRICTION = CommonUtils.getPropertyInt("TASK_STATISTICS_RESTRICTION",200);
     private static final ExecutorService EXECUTOR_SERVICE = new ThreadPoolExecutor(
             50,
-            200,
+            TASK_STATISTICS_RESTRICTION + 50,
             0L,
             TimeUnit.MILLISECONDS,
             new SynchronousQueue<>(),
@@ -106,6 +107,10 @@ public class CpuMemoryCollector {
         if (StringUtils.isEmpty(taskId)) {
             return;
         }
+        if (COLLECTOR.threadGroupMap.size() >= TASK_STATISTICS_RESTRICTION && !COLLECTOR.threadGroupMap.containsKey(taskId)) {
+            log.warn("Task statistics restriction exceeded, skip register task, node id: {}, task id: {}, current count: {}, restriction: {}", nodeId, taskId, COLLECTOR.threadGroupMap.size(), TASK_STATISTICS_RESTRICTION);
+            return;
+        }
         try {
             COLLECTOR.referenceQueue.put(taskId, new ReferenceQueue<>());
             COLLECTOR.weakReferenceMap.put(taskId, new FixedConcurrentHashMap<>(MAX_LISTENING_SIZE));
@@ -117,10 +122,9 @@ public class CpuMemoryCollector {
                 }
             }
             weakReferences.add(new WeakReference<>(threadGroup));
+            COLLECTOR.startClean(taskId);
         } catch (Exception e) {
             log.warn("Register task failed, node id = {}, e = {}", nodeId, e.getMessage());
-        } finally {
-            COLLECTOR.startClean(taskId);
         }
     }
 
