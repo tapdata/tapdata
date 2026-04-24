@@ -4290,6 +4290,9 @@ public class TaskServiceImpl extends TaskService{
         Update set = resetUpdate();
         set.unset("temp")
                 .unset("milestones")
+                .unset("delayTime")
+                .unset("taskIncrementDelay")
+                .unset("taskIncrementDelayThreshold")
                 .unset(TM_CURRENT_TIME)
                 .set("agentTags", null)
                 .set("syncStatus", SyncStatus.NORMAL)
@@ -4793,7 +4796,7 @@ public class TaskServiceImpl extends TaskService{
             return;
         }
 
-        Update stopUpdate = Update.update(STOPED_DATE, System.currentTimeMillis());
+        Update stopUpdate = Update.update(STOPED_DATE, System.currentTimeMillis()).unset("taskIncrementDelay").unset("taskIncrementDelayThreshold");
         if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
             stopUpdate.set("ldpNewTables", taskDto.getLdpNewTables());
         }
@@ -4951,6 +4954,8 @@ public class TaskServiceImpl extends TaskService{
             });
 
             Update update = Update.update(STOP_RETRY_TIMES, 0).unset(STOPED_DATE)
+                    .unset("taskIncrementDelay")
+                    .unset("taskIncrementDelayThreshold")
                     .unset(FUNCTION_RETRY_STATUS);
             updateById(id, update, user);
 
@@ -5028,6 +5033,15 @@ public class TaskServiceImpl extends TaskService{
     public void updateDelayTime(ObjectId taskId, long delayTime) {
         Criteria criteria = Criteria.where("_id").is(taskId);
         Update update = new Update().set("delayTime", delayTime);
+        update(new Query(criteria), update);
+    }
+
+    @Override
+    public void updateTaskIncrementDelayAlarm(ObjectId taskId, Long taskIncrementDelay, Long taskIncrementDelayThreshold) {
+        Criteria criteria = Criteria.where("_id").is(taskId).and("status").is(TaskDto.STATUS_RUNNING);
+        Update update = new Update()
+                .set("taskIncrementDelay", taskIncrementDelay)
+                .set("taskIncrementDelayThreshold", taskIncrementDelayThreshold);
         update(new Query(criteria), update);
     }
 
