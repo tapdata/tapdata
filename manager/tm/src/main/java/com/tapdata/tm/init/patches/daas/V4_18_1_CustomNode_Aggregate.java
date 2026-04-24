@@ -30,7 +30,7 @@ public class V4_18_1_CustomNode_Aggregate extends AbsPatch {
 
         CustomNodeDto dto = new CustomNodeDto();
         dto.setId(new ObjectId("69ccc354d1403e965bee8b9d"));
-        dto.setName("聚合处理");
+        dto.setName("Aggregate");
         dto.setFormSchema(buildFormSchema());
         dto.setTemplate(loadTemplate());
         dto.setCreateAt(new Date());
@@ -279,8 +279,8 @@ public class V4_18_1_CustomNode_Aggregate extends AbsPatch {
                 
                 
                           if (opList[0] === opList[1] && isEqual({...returnData[0]}, {...returnData[1]})) {
-                            returnData = returnData[0]
-                            opList = opList[0]
+                            returnData = returnData.slice(1)
+                            opList = opList[0].slice(1)
                           }
                 
                           logWarn('==opList==')
@@ -309,8 +309,7 @@ public class V4_18_1_CustomNode_Aggregate extends AbsPatch {
                   }
                 
                   return result
-                }
-                """;
+                }""";
     }
 
     private Map<String, Object> buildFormSchema() {
