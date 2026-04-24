@@ -1598,8 +1598,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			}
 			Object value = MapUtilV2.getValueByKey(data, joinKey);
 			if (value instanceof NotExistsNode) {
-				nodeLogger.warn("The join field does not exist, and this lookup will be skipped, which may cause the final data to be incorrect. Please check and fix it manually, node name: {}, join key: {}, data keys: {}",
-						getPreNode(mergeProperty.getId()).getName(), joinKey, data.keySet());
+				nodeLogger.info("The join field does not exist, and this lookup will be skipped, which may cause the final data to be incorrect. Please check and fix it manually, node name: {}, join key: {}, data: {}",
+						getPreNode(mergeProperty.getId()).getName(), joinKey, data.toString());
 				return null;
 			}
 			if (value instanceof TapList) {
