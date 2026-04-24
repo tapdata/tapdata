@@ -47,7 +47,7 @@ import java.util.function.LongConsumer;
 @Slf4j
 public class CpuMemoryCollector {
     public static final long MAX_LISTENING_SIZE = Runtime.getRuntime().maxMemory() / (40L * 5L);// 25_000_000; // max allow weak ref of 1G
-    private static final Integer TASK_STATISTICS_RESTRICTION = CommonUtils.getPropertyInt("TASK_STATISTICS_RESTRICTION",200);
+    private static final Integer TASK_STATISTICS_RESTRICTION = Math.max(CommonUtils.getPropertyInt("TASK_STATISTICS_RESTRICTION", 200), 200);
     private static final ExecutorService EXECUTOR_SERVICE = new ThreadPoolExecutor(
             50,
             TASK_STATISTICS_RESTRICTION + 50,
