@@ -584,10 +584,10 @@ public class ConnectorManager {
 			RestTemplateOperator pingRestTemplateOperator = new RestTemplateOperator(
 					baseURLs,
 					restRetryTime,
-					() -> 2000L,
+					() -> 5000L,
 					1000,
-					30000,
-					30000
+					3000,
+					3000
 			);
 
 			pingClientMongoOperator = new HttpClientMongoOperator(

@@ -462,11 +462,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
                     api.setServiceStatus(clusterStopped ? "stopped" : api.getStatus());
                 });
                 Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
-                    if (clusterStopped || !workerAlive) {
-                        fe.setServiceStatus("stopped");
-                    } else {
-                        fe.setServiceStatus(fe.getStatus());
-                    }
+                    fe.setServiceStatus(clusterStopped ? "stopped" : fe.getStatus());
                 });
             });
         });
