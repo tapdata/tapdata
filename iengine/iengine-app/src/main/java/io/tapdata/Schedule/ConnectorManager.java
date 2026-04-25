@@ -6,7 +6,6 @@ import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoDriverInformation;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
-import com.mongodb.client.internal.MongoClientImpl;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.*;
@@ -583,37 +582,66 @@ public class ConnectorManager {
 	@Bean("pingClientMongoOperator")
 	@DependsOn({"restTemplateOperator", "configCenter"})
 	public ClientMongoOperator initPingMongoOperator() {
-		MongoTemplate mongoTemplate = null;
-		MongoClient client = null;
 		try {
-			if (StringUtils.isNotBlank(mongoURI)) {
-				MongoClientSettings.Builder builder = MongoClientSettings.builder();
-				builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
-				builder.applyConnectionString(new ConnectionString(mongoURI));
+			MongoClient client = createMongoClient();
+			MongoTemplate mongoTemplate = createMongoTemplate(client);
 
-				if (ssl) {
-					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
-					String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
-					List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
-
-					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
-					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
-				}
-				client = MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
-				mongoTemplate = new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
-			}
-			pingClientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, new ConnectionString(mongoURI) ,new RestTemplateOperator(
+			RestTemplateOperator pingRestTemplateOperator = new RestTemplateOperator(
 					baseURLs,
 					restRetryTime,
-					() -> {
-						return 2000L;
-					}, 1000, 30000, 30000
-			), configCenter);
+					() -> 5000L,
+					1000,
+					3000,
+					3000
+			);
+
+			pingClientMongoOperator = new HttpClientMongoOperator(
+					mongoTemplate,
+					client,
+					new ConnectionString(mongoURI),
+					pingRestTemplateOperator,
+					configCenter
+			);
 			pingClientMongoOperator.setCloudRegion(jobTags);
+			return pingClientMongoOperator;
 		} catch (Exception e) {
-			throw new RuntimeException(e);
+			throw new RuntimeException("Failed to initialize ping MongoDB operator", e);
 		}
-		return pingClientMongoOperator;
+	}
+
+	/**
+	 * 创建 MongoClient 实例
+	 *
+	 * @return MongoClient 实例
+	 * @throws Exception 创建失败时抛出异常
+	 */
+	private MongoClient createMongoClient() throws Exception {
+		if (StringUtils.isBlank(mongoURI)) {
+			return null;
+		}
+
+		MongoClientSettings.Builder builder = MongoClientSettings.builder();
+		builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
+		builder.applyConnectionString(new ConnectionString(mongoURI));
+
+		if (ssl) {
+			List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
+			String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
+			List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
+
+			SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
+			builder.applyToSslSettings(sslSettingsBuilder -> {
+				sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();
+			});
+		}
+		return MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
+	}
+
+	private MongoTemplate createMongoTemplate(MongoClient client) {
+		if (client == null) {
+			return null;
+		}
+		return new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
 	}
 
 	@Bean("targetProgressRateStats")
