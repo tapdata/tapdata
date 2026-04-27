@@ -309,6 +309,8 @@ public class TaskServiceImpl extends TaskService{
     public static final String STOPED_DATE = "stopedDate";
     public static final String TARGET = "target";
     public static final String ENCODE_PREFIX = "_tap_encode_";
+    public static final String TASK_INCREMENT_DELAY = "taskIncrementDelay";
+    public static final String TASK_INCREMENT_DELAY_THRESHOLD = "taskIncrementDelayThreshold";
 
     @NotNull
     private static String getTableName() {
@@ -4291,8 +4293,8 @@ public class TaskServiceImpl extends TaskService{
         set.unset("temp")
                 .unset("milestones")
                 .unset("delayTime")
-                .unset("taskIncrementDelay")
-                .unset("taskIncrementDelayThreshold")
+                .unset(TASK_INCREMENT_DELAY)
+                .unset(TASK_INCREMENT_DELAY_THRESHOLD)
                 .unset(TM_CURRENT_TIME)
                 .set("agentTags", null)
                 .set("syncStatus", SyncStatus.NORMAL)
@@ -4796,7 +4798,7 @@ public class TaskServiceImpl extends TaskService{
             return;
         }
 
-        Update stopUpdate = Update.update(STOPED_DATE, System.currentTimeMillis()).unset("taskIncrementDelay").unset("taskIncrementDelayThreshold");
+        Update stopUpdate = Update.update(STOPED_DATE, System.currentTimeMillis()).unset(TASK_INCREMENT_DELAY).unset(TASK_INCREMENT_DELAY_THRESHOLD);
         if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
             stopUpdate.set("ldpNewTables", taskDto.getLdpNewTables());
         }
@@ -4954,8 +4956,8 @@ public class TaskServiceImpl extends TaskService{
             });
 
             Update update = Update.update(STOP_RETRY_TIMES, 0).unset(STOPED_DATE)
-                    .unset("taskIncrementDelay")
-                    .unset("taskIncrementDelayThreshold")
+                    .unset(TASK_INCREMENT_DELAY)
+                    .unset(TASK_INCREMENT_DELAY_THRESHOLD)
                     .unset(FUNCTION_RETRY_STATUS);
             updateById(id, update, user);
 
@@ -5038,10 +5040,10 @@ public class TaskServiceImpl extends TaskService{
 
     @Override
     public void updateTaskIncrementDelayAlarm(ObjectId taskId, Long taskIncrementDelay, Long taskIncrementDelayThreshold) {
-        Criteria criteria = Criteria.where("_id").is(taskId).and("status").is(TaskDto.STATUS_RUNNING);
+        Criteria criteria = Criteria.where("_id").is(taskId).and(STATUS).is(TaskDto.STATUS_RUNNING);
         Update update = new Update()
-                .set("taskIncrementDelay", taskIncrementDelay)
-                .set("taskIncrementDelayThreshold", taskIncrementDelayThreshold);
+                .set(TASK_INCREMENT_DELAY, taskIncrementDelay)
+                .set(TASK_INCREMENT_DELAY_THRESHOLD, taskIncrementDelayThreshold);
         update(new Query(criteria), update);
     }
 
