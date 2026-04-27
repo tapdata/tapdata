@@ -317,6 +317,7 @@ public class V4_18_1_CustomNode_Aggregate extends AbsPatch {
         style.put("padding", "16px");
 
         Map<String, Object> form = new LinkedHashMap<>();
+        form.put("key", "aggregate");
         form.put("colon", false);
         form.put("shallow", false);
         form.put("layout", "vertical");
@@ -333,17 +334,11 @@ public class V4_18_1_CustomNode_Aggregate extends AbsPatch {
         Map<String, Object> componentProps = new LinkedHashMap<>();
         componentProps.put("fieldOptions", Collections.emptyList());
 
-        Map<String, Object> fulfill = new LinkedHashMap<>();
-        fulfill.put("run", "$values.attrs.isAggregateNode = true");
-        Map<String, Object> reactions = new LinkedHashMap<>();
-        reactions.put("fulfill", fulfill);
-
         Map<String, Object> aggregate = new LinkedHashMap<>();
         aggregate.put("type", "object");
         aggregate.put("x-component", "AggregatePanel");
         aggregate.put("default", aggregateDefault);
         aggregate.put("x-component-props", componentProps);
-        aggregate.put("x-reactions", reactions);
         aggregate.put("x-designable-id", "vb5215k7z9f");
         aggregate.put("x-index", 0);
         aggregate.put("name", "aggregate");
@@ -354,7 +349,7 @@ public class V4_18_1_CustomNode_Aggregate extends AbsPatch {
         Map<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "object");
         schema.put("properties", properties);
-        schema.put("x-designable-id", "3tx94vk44ut");
+        schema.put("x-designable-id", "7tggkii2jpu");
 
         Map<String, Object> formSchema = new LinkedHashMap<>();
         formSchema.put("form", form);
