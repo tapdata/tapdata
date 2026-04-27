@@ -207,6 +207,14 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract List<TaskDto> findAllTasksByIds(List<String> list);
 
+    public abstract Boolean getHeartbeatTaskRunningByTaskId(String taskId);
+
+    public abstract Map<String, Boolean> batchGetHeartbeatTaskRunningByTaskIds(List<String> taskIds);
+
+    public abstract void appendHeartbeatTaskRunning(TaskDto taskDto);
+
+    public abstract void appendHeartbeatTaskRunning(List<TaskDto> taskDtos);
+
     public abstract void renewAgentMeasurement(String taskId);
 
     public abstract UpdateResult renewNotSendMq(TaskDto taskDto, UserDetail user);

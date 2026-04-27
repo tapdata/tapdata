@@ -5920,6 +5920,78 @@ class TaskServiceImplTest {
     }
 
     @Nested
+    class HeartbeatTaskRunningTest {
+        @Test
+        void testGetHeartbeatTaskRunningByTaskIdWhenHeartbeatMissing() {
+            doCallRealMethod().when(taskService).getHeartbeatTaskRunningByTaskId("task-1");
+            doCallRealMethod().when(taskService).batchGetHeartbeatTaskRunningByTaskIds(anyList());
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+
+            assertNull(taskService.getHeartbeatTaskRunningByTaskId("task-1"));
+        }
+
+        @Test
+        void testGetHeartbeatTaskRunningByTaskIdWhenHeartbeatRunning() {
+            TaskDto heartbeatTask = new TaskDto();
+            heartbeatTask.setStatus(TaskDto.STATUS_RUNNING);
+            heartbeatTask.setHeartbeatTasks(new HashSet<>(Collections.singletonList("task-1")));
+
+            doCallRealMethod().when(taskService).getHeartbeatTaskRunningByTaskId("task-1");
+            doCallRealMethod().when(taskService).batchGetHeartbeatTaskRunningByTaskIds(anyList());
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.singletonList(heartbeatTask));
+
+            assertTrue(taskService.getHeartbeatTaskRunningByTaskId("task-1"));
+        }
+
+        @Test
+        void testGetHeartbeatTaskRunningByTaskIdWhenHeartbeatAbnormal() {
+            TaskDto heartbeatTask = new TaskDto();
+            heartbeatTask.setStatus(TaskDto.STATUS_ERROR);
+            heartbeatTask.setHeartbeatTasks(new HashSet<>(Collections.singletonList("task-1")));
+
+            doCallRealMethod().when(taskService).getHeartbeatTaskRunningByTaskId("task-1");
+            doCallRealMethod().when(taskService).batchGetHeartbeatTaskRunningByTaskIds(anyList());
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.singletonList(heartbeatTask));
+
+            assertFalse(taskService.getHeartbeatTaskRunningByTaskId("task-1"));
+        }
+
+        @Test
+        void testAppendHeartbeatTaskRunning() {
+            TaskDto taskDto = new TaskDto();
+            ObjectId objectId = new ObjectId();
+            taskDto.setId(objectId);
+
+            doCallRealMethod().when(taskService).appendHeartbeatTaskRunning(taskDto);
+            when(taskService.getHeartbeatTaskRunningByTaskId(objectId.toHexString())).thenReturn(Boolean.TRUE);
+
+            taskService.appendHeartbeatTaskRunning(taskDto);
+
+            assertEquals(Boolean.TRUE, taskDto.getHeartbeatTaskRunning());
+        }
+
+        @Test
+        void testAppendHeartbeatTaskRunningList() {
+            TaskDto task1 = new TaskDto();
+            task1.setId(new ObjectId());
+            TaskDto task2 = new TaskDto();
+            task2.setId(new ObjectId());
+
+            doCallRealMethod().when(taskService).appendHeartbeatTaskRunning(anyList());
+            when(taskService.batchGetHeartbeatTaskRunningByTaskIds(anyList())).thenReturn(new HashMap<String, Boolean>() {{
+                put(task1.getId().toHexString(), Boolean.TRUE);
+                put(task2.getId().toHexString(), null);
+            }});
+
+            taskService.appendHeartbeatTaskRunning(Arrays.asList(task1, task2));
+
+            assertEquals(Boolean.TRUE, task1.getHeartbeatTaskRunning());
+            assertNull(task2.getHeartbeatTaskRunning());
+        }
+
+    }
+
+    @Nested
     class CheckSourceTimeDifferenceTest{
 
         @Test

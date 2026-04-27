@@ -5563,6 +5563,98 @@ public class TaskServiceImpl extends TaskService{
         return findOne(query);
     }
 
+    @Override
+    public Boolean getHeartbeatTaskRunningByTaskId(String taskId) {
+        if (StringUtils.isBlank(taskId)) {
+            return null;
+        }
+        Map<String, Boolean> result = batchGetHeartbeatTaskRunningByTaskIds(Collections.singletonList(taskId));
+        return result.get(taskId);
+    }
+
+    @Override
+    public Map<String, Boolean> batchGetHeartbeatTaskRunningByTaskIds(List<String> taskIds) {
+        if (CollectionUtils.isEmpty(taskIds)) {
+            return Collections.emptyMap();
+        }
+        LinkedHashSet<String> uniqueTaskIds = taskIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (CollectionUtils.isEmpty(uniqueTaskIds)) {
+            return Collections.emptyMap();
+        }
+        Map<String, Optional<Boolean>> loadedValues = loadHeartbeatTaskRunning(new ArrayList<>(uniqueTaskIds));
+        Map<String, Boolean> result = new LinkedHashMap<>();
+        uniqueTaskIds.forEach(taskId -> result.put(taskId, loadedValues.getOrDefault(taskId, Optional.empty()).orElse(null)));
+        return result;
+    }
+
+    @Override
+    public void appendHeartbeatTaskRunning(TaskDto taskDto) {
+        if (taskDto == null || taskDto.getId() == null) {
+            return;
+        }
+        taskDto.setHeartbeatTaskRunning(getHeartbeatTaskRunningByTaskId(taskDto.getId().toHexString()));
+    }
+
+    @Override
+    public void appendHeartbeatTaskRunning(List<TaskDto> taskDtos) {
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return;
+        }
+        List<TaskDto> validTasks = taskDtos.stream()
+                .filter(Objects::nonNull)
+                .filter(taskDto -> taskDto.getId() != null)
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(validTasks)) {
+            return;
+        }
+        Map<String, Boolean> heartbeatTaskRunningMap = batchGetHeartbeatTaskRunningByTaskIds(validTasks.stream()
+                .map(taskDto -> taskDto.getId().toHexString())
+                .collect(Collectors.toList()));
+        validTasks.forEach(taskDto -> taskDto.setHeartbeatTaskRunning(
+                heartbeatTaskRunningMap.get(taskDto.getId().toHexString())
+        ));
+    }
+
+    private Map<String, Optional<Boolean>> loadHeartbeatTaskRunning(List<String> taskIds) {
+        Map<String, Optional<Boolean>> result = new LinkedHashMap<>();
+        taskIds.forEach(taskId -> result.put(taskId, Optional.empty()));
+
+        Query query = Query.query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).in(taskIds)
+                .and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                .and(IS_DELETED).is(false));
+        query.fields().include(ConnHeartbeatUtils.TASK_RELATION_FIELD, STATUS);
+
+        List<TaskDto> heartbeatTasks = findAll(query);
+        if (CollectionUtils.isEmpty(heartbeatTasks)) {
+            return result;
+        }
+
+        Set<String> taskIdSet = new HashSet<>(taskIds);
+        for (TaskDto heartbeatTask : heartbeatTasks) {
+            boolean running = isHeartbeatTaskRunning(heartbeatTask.getStatus());
+            if (CollectionUtils.isEmpty(heartbeatTask.getHeartbeatTasks())) {
+                continue;
+            }
+            for (String relatedTaskId : heartbeatTask.getHeartbeatTasks()) {
+                if (!taskIdSet.contains(relatedTaskId)) {
+                    continue;
+                }
+                if (!running) {
+                    result.put(relatedTaskId, Optional.of(false));
+                } else if (!result.getOrDefault(relatedTaskId, Optional.empty()).isPresent()) {
+                    result.put(relatedTaskId, Optional.of(true));
+                }
+            }
+        }
+        return result;
+    }
+
+    private boolean isHeartbeatTaskRunning(String status) {
+        return ConnHeartbeatUtils.isTaskRunningStatus(status);
+    }
+
     public int deleteHeartbeatByConnId(UserDetail user, String connId) {
         int deleteSize = 0;
         List<TaskDto> heartbeatTasks = findHeartbeatByConnectionId(connId, "_id", STATUS, IS_DELETED);

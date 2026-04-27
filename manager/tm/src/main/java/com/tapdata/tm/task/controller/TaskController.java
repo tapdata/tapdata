@@ -214,6 +214,9 @@ public class TaskController extends BaseController {
         Page<TaskDto> result = DataPermissionMenuEnums.checkAndSetFilter(
             userDetail, filter, DataPermissionActionEnums.View, () -> taskService.find(finalFilter, userDetail)
         );
+        if (result != null) {
+            taskService.appendHeartbeatTaskRunning(result.getItems());
+        }
         return success(result);
     }
 
@@ -365,6 +368,7 @@ public class TaskController extends BaseController {
 		) {
 			Field fields = parseField(fieldsJson);
 			UserDetail user = getLoginUser();
+            ObjectId oid = MongoUtils.toObjectId(id);
             Field finalFields;
             if(null == fields){
                 finalFields = new Field();
@@ -373,8 +377,8 @@ public class TaskController extends BaseController {
             }
             finalFields.put("errorEvents.stacks",false);
             finalFields.put("attrs.SNAPSHOT_ORDER_LIST",false);
-			TaskDto taskDto = dataPermissionCheckOfId(request, user, MongoUtils.toObjectId(id), DataPermissionActionEnums.View,
-				() -> taskService.findById(MongoUtils.toObjectId(id), finalFields, user)
+			TaskDto taskDto = dataPermissionCheckOfId(request, user, oid, DataPermissionActionEnums.View,
+				() -> taskService.findById(oid, finalFields, user)
 			);
 			if (taskDto != null) {
 				if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
@@ -401,6 +405,7 @@ public class TaskController extends BaseController {
 					taskDto.setCrontabScheduleMsg(MessageUtil.getMessage(taskDto.getCrontabScheduleMsg()));
 				}
                 taskService.checkSourceTimeDifference(taskDto,user);
+                taskDto.setHeartbeatTaskRunning(taskService.getHeartbeatTaskRunningByTaskId(oid.toHexString()));
 			}
 			return success(taskDto);
 		}
@@ -413,10 +418,15 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "获取任务详情")
     @GetMapping("findTaskDetailById/{id}")
-    public ResponseMessage<TaskDetailVo> findTaskDetailById(@PathVariable("id") String id,
-                                                            @RequestParam(value = "fields", required = false) String fieldsJson) {
+    public ResponseMessage<TaskDetailVo> findTaskDetailById(
+        @PathVariable("id") String id,
+        @RequestParam(value = "fields", required = false) String fieldsJson
+    ) {
         Field fields = parseField(fieldsJson);
         TaskDetailVo taskDetailVo = taskService.findTaskDetailById(id, fields, getLoginUser());
+        if (taskDetailVo != null) {
+            taskDetailVo.setHeartbeatTaskRunning(taskService.getHeartbeatTaskRunningByTaskId(id));
+        }
         return success(taskDetailVo);
     }
 
