@@ -112,7 +112,7 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 					null,
 					true));
 			Map<String, Invocable> engineMap = new HashMap<>();
-			engineMap.put(Thread.currentThread().getName(), engine);
+			engineMap.put(processorBaseContext.getNode().getId(), engine);
 			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode, "engineMap", engineMap);
 			tapdataEvent = mock(TapdataEvent.class);
 			tapEvent = mock(TapUpdateRecordEvent.class);
@@ -287,6 +287,8 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 		when(processorBaseContext1.getTaskDto()).thenReturn(taskDto1);
 		when(processorBaseContext1.getNode()).thenReturn(jsProcessorNode);
 		ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode1,"processorBaseContext",processorBaseContext1);
+		when(hazelcastJavaScriptProcessorNode1.getProcessorBaseContext()).thenReturn(processorBaseContext1);
+		when(hazelcastJavaScriptProcessorNode1.getScriptObsLogger()).thenReturn(mock(ObsLogger.class));
 		HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
 		ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode1,"clientMongoOperator",clientMongoOperator);
 		List<JavaScriptFunctions> javaScriptFunctions=new ArrayList<>();

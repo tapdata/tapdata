@@ -89,6 +89,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     public static final String FIELD_TAGS_TASK_RECORD_ID = MetricCons.Tags.F_TASK_RECORD_ID;
     public static final String FIELD_SS_VS_REPLICATE_LAG = MetricCons.SS.VS.F_REPLICATE_LAG;
     public static final String FIELD_SS_VS_CURR_EVENT_TS = MetricCons.SS.VS.F_CURR_EVENT_TS;
+    public static final String FIELD_SS_VS_INPUT_QPS = MetricCons.SS.VS.F_INPUT_QPS;
+    public static final String FIELD_SS_VS_OUTPUT_QPS = MetricCons.SS.VS.F_OUTPUT_QPS;
 
     public static final String PATH_TAGS_TASK_ID = MetricCons.Tags.path(FIELD_TAGS_TASK_ID);
     public static final String PATH_TAGS_TASK_RECORD_ID = MetricCons.Tags.path(FIELD_TAGS_TASK_RECORD_ID);
@@ -145,6 +147,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
             Query query = Query.query(criteria);
             requestSample.get().setDate(second);
+            if (SAMPLE_TYPE_TASK.equals(tags.get(FIELD_TAGS_TYPE))) {
+                reuseShareCdcDelayIfNeed(tags, requestSample.get());
+            }
 
             Map<String, Object> sampleMap = requestSample.get().toMap();
             Document upd = new Document();
@@ -176,6 +181,99 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
         bulkOperations.execute();
+    }
+
+    private void reuseShareCdcDelayIfNeed(Map<String, String> tags, Sample sample) {
+        try {
+            if (null == tags || null == sample || null == sample.getVs()) {
+                return;
+            }
+            String taskId = tags.get(FIELD_TAGS_TASK_ID);
+            if (StringUtils.isBlank(taskId)) {
+                return;
+            }
+            Map<String, Number> vs = sample.getVs();
+            Long replicateLag = parseLong(vs.get(FIELD_SS_VS_REPLICATE_LAG));
+            Long currentEventTimestamp = parseLong(vs.get(FIELD_SS_VS_CURR_EVENT_TS));
+            if (!isIdleTaskSample(vs)) {
+                return;
+            }
+
+            TaskDto taskDto = taskService.findByTaskId(new ObjectId(taskId), "_id", "shareCdcEnable", "shareCdcTaskId", "syncType");
+            if (!isShareCdcNormalTask(taskDto)) {
+                return;
+            }
+
+            Long delayTime = findShareCdcDelaySnapshot(taskDto.getShareCdcTaskId(), currentEventTimestamp);
+            if (null == delayTime || (null != replicateLag && delayTime >= replicateLag)) {
+                return;
+            }
+            vs.put(FIELD_SS_VS_REPLICATE_LAG, delayTime);
+        } catch (Exception e) {
+            log.warn("Reuse share cdc delay failed, task tags: {}, error: {}", tags, e.getMessage());
+        }
+    }
+
+    private boolean isShareCdcNormalTask(TaskDto taskDto) {
+        return null != taskDto
+                && Boolean.TRUE.equals(taskDto.getShareCdcEnable())
+                && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())
+                && null != taskDto.getShareCdcTaskId()
+                && !taskDto.getShareCdcTaskId().isEmpty();
+    }
+
+    private Long findShareCdcDelaySnapshot(Map<String, String> shareCdcTaskId, Long currentEventTimestamp) {
+        long maxDelayTime = 0L;
+        boolean found = false;
+        for (String logCollectorTaskId : shareCdcTaskId.values()) {
+            if (StringUtils.isBlank(logCollectorTaskId)) {
+                return null;
+            }
+            TaskDto logCollectorTask = taskService.findByTaskId(new ObjectId(logCollectorTaskId), "_id", "status", FIELD_SS_VS_CURR_EVENT_TS, "delayTime");
+            if (null == logCollectorTask
+                    || !TaskDto.STATUS_RUNNING.equals(logCollectorTask.getStatus())
+                    || null == logCollectorTask.getCurrentEventTimestamp()
+                    || (null != currentEventTimestamp && logCollectorTask.getCurrentEventTimestamp() < currentEventTimestamp)) {
+                return null;
+            }
+            maxDelayTime = Math.max(maxDelayTime, Math.max(0L, logCollectorTask.getDelayTime()));
+            found = true;
+        }
+        return found ? maxDelayTime: null;
+    }
+
+    private boolean isIdleTaskSample(Map<String, Number> vs) {
+        Double inputQps = parseDouble(vs.get(FIELD_SS_VS_INPUT_QPS));
+        Double outputQps = parseDouble(vs.get(FIELD_SS_VS_OUTPUT_QPS));
+        return null != inputQps && inputQps <= 0 && null != outputQps && outputQps <= 0;
+    }
+
+    private Double parseDouble(Object value) {
+        if (null == value) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private Long parseLong(Object value) {
+        if (null == value) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static final String INSTANT_PADDING_LEFT = "left";

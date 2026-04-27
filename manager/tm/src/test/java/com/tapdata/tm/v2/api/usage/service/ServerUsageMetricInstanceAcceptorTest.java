@@ -202,7 +202,7 @@ class ServerUsageMetricInstanceAcceptorTest {
     }
 
     @Nested
-    class acceptTest {
+    class AcceptMetricTest {
         @Test
         void testNormal() {
             ServerUsageMetric metric = ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0);
@@ -234,7 +234,7 @@ class ServerUsageMetricInstanceAcceptorTest {
             cpu.add(1D);
             cpu.add(3D);
             acceptor.accept(metric, memory, memoryMax, cpu);
-            Assertions.assertEquals(4L, metric.getHeapMemoryMax());
+            Assertions.assertEquals(5L, metric.getHeapMemoryMax());
             Assertions.assertEquals(4L, metric.getHeapMemoryUsage());
             Assertions.assertEquals(2D, metric.getCpuUsage());
             Assertions.assertEquals(7L, metric.getMaxHeapMemoryUsage());

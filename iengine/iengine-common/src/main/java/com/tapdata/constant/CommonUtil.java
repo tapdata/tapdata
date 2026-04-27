@@ -1,6 +1,9 @@
 package com.tapdata.constant;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.entity.MysqlJson;
 import com.tapdata.entity.values.BooleanNotExist;
@@ -402,13 +405,59 @@ public class CommonUtil {
 
 	private static boolean obj2JsonCompare(Object val, Object obj, boolean ignoreTimePrecision, String roundingMode) throws CompareException {
 		try {
-			JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-			return !JSONUtil.obj2Json(val).equals(obj.toString());
+			ObjectMapper localJsonMapper = JSONUtil.mapper.copy();
+			localJsonMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+			localJsonMapper.enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
+			String sourceJson = localJsonMapper.writeValueAsString(val);
+			String targetJson = obj.toString();
+			try {
+				JsonNode sourceJsonValue = localJsonMapper.readTree(sourceJson);
+				try {
+					JsonNode targetJsonValue = localJsonMapper.readTree(targetJson);
+					return !compareJsonNode(sourceJsonValue, targetJsonValue);
+				} catch (JsonProcessingException ignored) {
+					return !sourceJson.equals(targetJson);
+				}
+			} catch (JsonProcessingException ignored) {
+				return !sourceJson.equals(targetJson);
+			}
 		} catch (JsonProcessingException e) {
 			throw new CompareException(e).sourceValue(val).targetValue(obj);
-		} finally {
-			JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 		}
+	}
+
+	private static boolean compareJsonNode(JsonNode val1, JsonNode val2) {
+		if (null == val1 || null == val2) {
+			return val1 == val2;
+		}
+		if (val1.isObject() && val2.isObject()) {
+			if (val1.size() != val2.size()) return false;
+			Iterator<String> fieldNames = val1.fieldNames();
+			while (fieldNames.hasNext()) {
+				String fieldName = fieldNames.next();
+				if (!val2.has(fieldName) || !compareJsonNode(val1.get(fieldName), val2.get(fieldName))) {
+					return false;
+				}
+			}
+			return true;
+		}
+		if (val1.isArray() && val2.isArray()) {
+			if (val1.size() != val2.size()) return false;
+			for (int i = 0; i < val1.size(); i++) {
+				if (!compareJsonNode(val1.get(i), val2.get(i))) {
+					return false;
+				}
+			}
+			return true;
+		}
+		if (val1.isNumber() && val2.isNumber()) {
+			return compareJsonNumberNode(val1, val2);
+		}
+		return val1.equals(val2);
+	}
+
+	private static boolean compareJsonNumberNode(JsonNode val1, JsonNode val2) {
+		return val1.decimalValue().compareTo(val2.decimalValue()) == 0;
 	}
 
 	private static Object try2String(Object val, boolean ignoreTimePrecision) {

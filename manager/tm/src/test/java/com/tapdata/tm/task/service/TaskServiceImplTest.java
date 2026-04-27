@@ -3848,6 +3848,11 @@ class TaskServiceImplTest {
             when(stateMachineService.executeAboutTask(dto, DataFlowEvent.STOPPED, user)).thenReturn(stateMachineResult);
             doCallRealMethod().when(taskService).stopped(id,user);
             String actual = taskService.stopped(id, user);
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(taskService, new Times(1)).updateById(eq(id), updateCaptor.capture(), eq(user));
+            Document unset = (Document) updateCaptor.getValue().getUpdateObject().get("$unset");
+            assertTrue(unset.containsKey("taskIncrementDelay"));
+            assertTrue(unset.containsKey("taskIncrementDelayThreshold"));
             verify(taskService,new Times(1)).start(id,user);
             assertEquals(id.toHexString(),actual);
         }
@@ -3932,6 +3937,14 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).updateDelayTime(id, 0);
             taskService.updateDelayTime(id, 0);
             verify(taskService,new Times(1)).update(any(Query.class), any(Update.class));
+        }
+
+        @Test
+        void testUpdateTaskIncrementDelayAlarmNormal() {
+            ObjectId id = mock(ObjectId.class);
+            doCallRealMethod().when(taskService).updateTaskIncrementDelayAlarm(id, 100L, 50L);
+            taskService.updateTaskIncrementDelayAlarm(id, 100L, 50L);
+            verify(taskService, new Times(1)).update(any(Query.class), any(Update.class));
         }
     }
 

@@ -58,27 +58,39 @@ public class AgentLogConfigurationWatcherTest {
     @DisplayName("test  updateRollingFileAppender normal")
     @Test
     void updateRollingFileAppenderTest(){
-        LoggerContext context = LoggerContext.getContext(false);
-        AgentLogConfigurationWatcher agentLogConfigurationWatcher=new AgentLogConfigurationWatcher();
-        LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
-        Logger rootLogger = context.getRootLogger();
-        TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();
-        RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
-                .setName("rollingFileAppender")
-                .withFileName("./tapdata-agent.log")
-                .withFilePattern("./tapdata-agent-%i.log.%d{yyyyMMdd}.gz")
-                .withPolicy(timeBasedTriggeringPolicy)
-                .build();
-        rootLogger.addAppender(rollingFileAppender);
-        agentLogConfigurationWatcher.updateRollingFileAppender(logConfiguration);
-        context.getRootLogger().getAppenders().get("rollingFileAppender");
-        Appender updateAppender = rootLogger.getAppenders().get("rollingFileAppender");
-        RollingFileAppender updateRollAppender = (RollingFileAppender) updateAppender;
-        TriggeringPolicy triggeringPolicy = updateRollAppender.getTriggeringPolicy();
-        boolean isUpdateSuccess=triggeringPolicy instanceof CompositeTriggeringPolicy;
-        assertEquals(true,isUpdateSuccess);
-        DefaultRolloverStrategy rolloverStrategy = (DefaultRolloverStrategy)updateRollAppender.getManager().getRolloverStrategy();
-        assertEquals(100,rolloverStrategy.getMaxIndex());
+        java.io.File tmpDir = new java.io.File(System.getProperty("java.io.tmpdir"), "agent-log-test-" + System.nanoTime());
+        tmpDir.mkdirs();
+        String tmpLogFile = new java.io.File(tmpDir, "tapdata-agent.log").getAbsolutePath();
+        String tmpLogPattern = new java.io.File(tmpDir, "tapdata-agent-%i.log.%d{yyyyMMdd}.gz").getAbsolutePath();
+        try {
+            LoggerContext context = LoggerContext.getContext(false);
+            AgentLogConfigurationWatcher agentLogConfigurationWatcher = new AgentLogConfigurationWatcher();
+            LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
+            Logger rootLogger = context.getRootLogger();
+            TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();
+            RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
+                    .setName("rollingFileAppender")
+                    .withFileName(tmpLogFile)
+                    .withFilePattern(tmpLogPattern)
+                    .withPolicy(timeBasedTriggeringPolicy)
+                    .build();
+            rootLogger.addAppender(rollingFileAppender);
+            agentLogConfigurationWatcher.updateRollingFileAppender(logConfiguration);
+            context.getRootLogger().getAppenders().get("rollingFileAppender");
+            Appender updateAppender = rootLogger.getAppenders().get("rollingFileAppender");
+            RollingFileAppender updateRollAppender = (RollingFileAppender) updateAppender;
+            TriggeringPolicy triggeringPolicy = updateRollAppender.getTriggeringPolicy();
+            boolean isUpdateSuccess = triggeringPolicy instanceof CompositeTriggeringPolicy;
+            assertEquals(true, isUpdateSuccess);
+            DefaultRolloverStrategy rolloverStrategy = (DefaultRolloverStrategy) updateRollAppender.getManager().getRolloverStrategy();
+            assertEquals(100, rolloverStrategy.getMaxIndex());
+        } finally {
+            java.io.File[] files = tmpDir.listFiles();
+            if (files != null) {
+                for (java.io.File f : files) f.delete();
+            }
+            tmpDir.delete();
+        }
     }
     @Nested
     class testLogLevel{
