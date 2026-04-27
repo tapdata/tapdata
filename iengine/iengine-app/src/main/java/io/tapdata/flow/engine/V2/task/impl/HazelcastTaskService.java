@@ -102,6 +102,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
@@ -182,13 +183,22 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		GlobalConstant.getInstance().hazelcastInstance(hazelcastInstance);
 
 		// 初始化缓存失效服务
-		initCacheInvalidationService();
+		initCacheInvalidationService(agentId);
+	}
+
+	@PreDestroy
+	public void destroy() {
+		try {
+			HazelcastUtil.shutdownCacheInvalidationService();
+		} catch (Exception e) {
+			logger.warn("Failed to shutdown cache invalidation service", e);
+		}
 	}
 
 	/**
 	 * 初始化缓存失效服务
 	 */
-	private void initCacheInvalidationService() {
+	private void initCacheInvalidationService(String nodeId) {
 		try {
 			ConnectionString connectionString = clientMongoOperator.getConnectionString();
 
@@ -197,7 +207,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				String databaseName = connectionString.getDatabase();
 
 				if (mongoUri != null && databaseName != null) {
-					HazelcastUtil.initCacheInvalidationService(hazelcastInstance, mongoUri, databaseName);
+					HazelcastUtil.initCacheInvalidationService(hazelcastInstance, mongoUri, databaseName, nodeId);
 					logger.info("Cache invalidation service initialized successfully for database: {}", databaseName);
 				} else {
 					logger.warn("Cannot initialize cache invalidation service: MongoDB URI or database name is null");

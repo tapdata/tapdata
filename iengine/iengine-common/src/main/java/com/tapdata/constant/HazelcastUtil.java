@@ -66,7 +66,7 @@ public class HazelcastUtil {
 	public static final HZLoggingType DEFAULT_HZ_LOGGING_TYPE = HZLoggingType.LOG4J2;
 	private static Logger logger = LogManager.getLogger(HazelcastUtil.class);
     @Getter
-    private static CacheInvalidationService cacheInvalidationService;
+    private static volatile CacheInvalidationService cacheInvalidationService;
 	private static final Object CACHE_INVALIDATION_LOCK = new Object();
 
 	public static Config getConfig(String instanceName) {
@@ -226,18 +226,29 @@ public class HazelcastUtil {
 	 * @param mongoUri MongoDB 连接 URI
 	 * @param databaseName MongoDB 数据库名
 	 */
-	public static synchronized void initCacheInvalidationService(HazelcastInstance hazelcastInstance, String mongoUri, String databaseName) {
+	public static void initCacheInvalidationService(HazelcastInstance hazelcastInstance, String mongoUri, String databaseName, String nodeId) {
 		if (cacheInvalidationService == null) {
-			try {
-				MongoClient mongoClient = MongoClients.create(mongoUri);
-
-				cacheInvalidationService = new CacheInvalidationService(hazelcastInstance, mongoClient, databaseName);
-				cacheInvalidationService.start();
-
-				logger.info("Cache invalidation service initialized and started successfully");
-			} catch (Exception e) {
-				logger.error("Failed to initialize cache invalidation service", e);
-				throw new CoreException("Failed to initialize cache invalidation service", e);
+			synchronized (CACHE_INVALIDATION_LOCK) {
+				if (cacheInvalidationService == null) {
+					MongoClient mongoClient = null;
+					try {
+						mongoClient = MongoClients.create(mongoUri);
+						CacheInvalidationService service = new CacheInvalidationService(hazelcastInstance, mongoClient, databaseName, nodeId);
+						service.start();
+						cacheInvalidationService = service;
+						logger.info("Cache invalidation service initialized and started successfully");
+					} catch (Exception e) {
+						if (mongoClient != null) {
+							try {
+								mongoClient.close();
+							} catch (Exception ce) {
+								logger.warn("Failed to close MongoClient after init failure", ce);
+							}
+						}
+						logger.error("Failed to initialize cache invalidation service", e);
+						throw new CoreException("Failed to initialize cache invalidation service", e);
+					}
+				}
 			}
 		}
 	}

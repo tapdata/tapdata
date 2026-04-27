@@ -46,8 +46,6 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 
 	private final ConstructIMap<Map<String, Map<String, Object>>> dataMap;
 
-	private CacheInvalidationService cacheInvalidationService;
-
 	public HazelcastTargetPdkCacheNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		Node<?> node = dataProcessorContext.getNode();
@@ -66,8 +64,6 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 		super.doInit(context);
 		ICacheService cacheService = this.dataProcessorContext.getCacheService();
 		this.dataFlowCacheConfig = cacheService.getConfig(cacheName);
-
-		this.cacheInvalidationService = HazelcastUtil.getCacheInvalidationService();
 	}
 
 	void processEvents(List<TapEvent> tapEvents) {
@@ -115,15 +111,20 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 
 	/**
 	 * 发布缓存失效事件到 MongoDB
+	 * 每次发布现取 service 引用, 避免 doInit 与 HazelcastUtil.init 顺序竞争造成静默丢事件
 	 */
 	private void publishCacheInvalidation(String cacheKey) {
-		if (cacheInvalidationService != null && StringUtils.isNotBlank(cacheKey)) {
-			try {
-				String mapName = dataMap.getName();
-				cacheInvalidationService.publishInvalidation(mapName, cacheKey);
-			} catch (Exception e) {
-				logger.warn("Failed to publish cache invalidation for key: {}", cacheKey, e);
-			}
+		if (StringUtils.isBlank(cacheKey)) {
+			return;
+		}
+		CacheInvalidationService service = HazelcastUtil.getCacheInvalidationService();
+		if (service == null) {
+			return;
+		}
+		try {
+			service.publishInvalidation(dataMap.getName(), cacheKey);
+		} catch (Exception e) {
+			logger.warn("Failed to publish cache invalidation for key: {}", cacheKey, e);
 		}
 	}
 

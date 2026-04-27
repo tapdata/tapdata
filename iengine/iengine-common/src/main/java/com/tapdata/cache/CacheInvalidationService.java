@@ -13,9 +13,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 
+import org.bson.types.ObjectId;
+
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 缓存失效通知服务
@@ -33,18 +35,24 @@ public class CacheInvalidationService {
     private final HazelcastInstance hazelcastInstance;
     private final MongoClient mongoClient;
     private final String databaseName;
+    private final String localNodeId;
     private final ScheduledExecutorService scheduler;
-    private final AtomicLong lastCheckTimestamp = new AtomicLong(0L);
-    private final Set<String> processedEventIds = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private static final int CACHE_MAX_SIZE = 10000;
+    // 以 _id (ObjectId) 作为游标, 避免基于客户端时间戳带来的边界重复读取与跨节点时钟漂移导致的事件丢失
+    private final AtomicReference<ObjectId> lastSeenId = new AtomicReference<>();
 
     @Getter
     private volatile boolean running = false;
     
-    public CacheInvalidationService(HazelcastInstance hazelcastInstance, MongoClient mongoClient, String databaseName) {
+    public CacheInvalidationService(HazelcastInstance hazelcastInstance, MongoClient mongoClient, String databaseName, String nodeId) {
         this.hazelcastInstance = hazelcastInstance;
         this.mongoClient = mongoClient;
         this.databaseName = databaseName;
+        if (nodeId == null || nodeId.isEmpty()) {
+            this.localNodeId = UUID.randomUUID().toString();
+            logger.warn("nodeId is blank, fall back to random UUID {}; self-eviction filter may be ineffective", this.localNodeId);
+        } else {
+            this.localNodeId = nodeId;
+        }
         this.scheduler = Executors.newScheduledThreadPool(1, r -> {
             Thread t = new Thread(r, "cache-invalidation-checker");
             t.setDaemon(true);
@@ -52,7 +60,7 @@ public class CacheInvalidationService {
         });
         
         ensureIndexes();
-        logger.info("Cache invalidation service initialized for database: {}", databaseName);
+        logger.info("Cache invalidation service initialized for database: {}, nodeId: {}", databaseName, localNodeId);
     }
     
     /**
@@ -61,9 +69,6 @@ public class CacheInvalidationService {
     private void ensureIndexes() {
         try {
             MongoCollection<Document> collection = mongoClient.getDatabase(databaseName).getCollection(COLLECTION_NAME);
-            
-            // 创建时间戳索引（用于查询）
-            collection.createIndex(Indexes.ascending("timestamp"));
             
             // 创建 TTL 索引（自动清理 1 分钟前的记录）
             collection.createIndex(
@@ -87,6 +92,7 @@ public class CacheInvalidationService {
         }
         
         running = true;
+        lastSeenId.compareAndSet(null, findCurrentMaxId());
         scheduler.scheduleAtFixedRate(
             this::checkAndEvictCache,
             0,
@@ -122,7 +128,6 @@ public class CacheInvalidationService {
                 logger.error("Failed to close MongoClient", e);
             }
         }
-        processedEventIds.clear();
         logger.info("Cache invalidation service stopped");
     }
     
@@ -137,6 +142,7 @@ public class CacheInvalidationService {
             Document invalidation = new Document()
                 .append("mapName", mapName)
                 .append("key", key)
+                .append("nodeId", localNodeId)
                 .append("timestamp", System.currentTimeMillis())
                 .append("ttl", new Date(System.currentTimeMillis() + 60000)); // 1 分钟后自动删除
             
@@ -152,65 +158,63 @@ public class CacheInvalidationService {
     
     /**
      * 检查并失效缓存
+     *
+     * 以 _id (ObjectId) 作为游标, 配合 Filters.gt 实现严格"游标 > lastSeen"语义,
+     * 每条文档至多被本节点处理一次, 不再依赖订阅端 wall-clock, 也不会再次读取边界文档.
+     * 注: 完全消除发布端跨节点时钟漂移导致的丢事件问题需要切换到 MongoDB Change Streams,
+     *     当前实现已显著降低问题发生概率, 后续可演进.
      */
     private void checkAndEvictCache() {
         try {
-            long lastCheck = lastCheckTimestamp.get();
+            ObjectId cursor = lastSeenId.get();
             int totalProcessed = 0;
-            boolean hasMore = true;
 
-            while (hasMore && totalProcessed < BATCH_SIZE * 10) {
+            while (totalProcessed < BATCH_SIZE * 10) {
                 List<Document> invalidations = mongoClient.getDatabase(databaseName)
                     .getCollection(COLLECTION_NAME)
-                    .find(Filters.gte("timestamp", lastCheck))
-                    .sort(Sorts.ascending("timestamp"))
+                    .find(cursor != null ? Filters.gt("_id", cursor) : new Document())
+                    .sort(Sorts.ascending("_id"))
                     .limit(BATCH_SIZE)
                     .into(new ArrayList<>());
 
                 if (invalidations.isEmpty()) {
-                    hasMore = false;
                     break;
                 }
 
-                long maxTimestamp = lastCheck;
+                ObjectId maxId = cursor;
                 int processedInBatch = 0;
 
-                // 处理失效事件
                 for (Document inv : invalidations) {
+                    ObjectId id = inv.getObjectId("_id");
+                    if (id != null && (maxId == null || id.compareTo(maxId) > 0)) {
+                        maxId = id;
+                    }
+
                     String mapName = inv.getString("mapName");
                     String key = inv.getString("key");
-                    Long timestamp = inv.getLong("timestamp");
+                    String docNodeId = inv.getString("nodeId");
 
-                    if (mapName != null && key != null && timestamp != null) {
-                        String eventId = mapName + ":" + key + ":" + timestamp;
-
-                        if (!processedEventIds.contains(eventId)) {
-                            evictCache(mapName, key);
-                            processedEventIds.add(eventId);
-                            processedInBatch++;
-
-                            // 限制去重缓存大小
-                            if (processedEventIds.size() > CACHE_MAX_SIZE) {
-                                Iterator<String> iterator = processedEventIds.iterator();
-                                int toRemove = CACHE_MAX_SIZE / 2;
-                                while (iterator.hasNext() && toRemove > 0) {
-                                    iterator.next();
-                                    iterator.remove();
-                                    toRemove--;
-                                }
-                            }
-                        }
-
-                        maxTimestamp = Math.max(maxTimestamp, timestamp);
+                    if (mapName == null || key == null) {
+                        continue;
                     }
+                    // 跳过本节点自己发布的事件, 避免 publisher 把刚写入的本地缓存项再次驱逐
+                    if (localNodeId.equals(docNodeId)) {
+                        continue;
+                    }
+
+                    evictCache(mapName, key);
+                    processedInBatch++;
                 }
 
                 totalProcessed += processedInBatch;
 
-                lastCheckTimestamp.set(maxTimestamp);
+                if (maxId != null && (cursor == null || maxId.compareTo(cursor) > 0)) {
+                    cursor = maxId;
+                    lastSeenId.set(cursor);
+                }
 
                 if (invalidations.size() < BATCH_SIZE) {
-                    hasMore = false;
+                    break;
                 }
             }
 
@@ -221,6 +225,29 @@ public class CacheInvalidationService {
         } catch (Exception e) {
             logger.error("Error checking cache invalidation events", e);
         }
+    }
+
+    /**
+     * 启动时读取当前集合的最大 _id, 用作游标初值
+     */
+    private ObjectId findCurrentMaxId() {
+        try {
+            Document doc = mongoClient.getDatabase(databaseName)
+                .getCollection(COLLECTION_NAME)
+                .find()
+                .sort(Sorts.descending("_id"))
+                .limit(1)
+                .first();
+            if (doc != null) {
+                ObjectId id = doc.getObjectId("_id");
+                if (id != null) {
+                    return id;
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to read max _id from {}, fall back to a fresh ObjectId", COLLECTION_NAME, e);
+        }
+        return new ObjectId();
     }
     
     /**

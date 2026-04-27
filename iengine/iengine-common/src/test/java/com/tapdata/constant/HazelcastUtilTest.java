@@ -49,13 +49,14 @@ class HazelcastUtilTest {
                 CacheInvalidationService.class,
                 (mock, context) -> {
                     // Verify constructor parameters
-                    assertEquals(3, context.arguments().size());
+                    assertEquals(4, context.arguments().size());
                     assertEquals(hazelcastInstance, context.arguments().get(0));
                     assertTrue(context.arguments().get(1) instanceof MongoClient);
                     assertEquals("testDB", context.arguments().get(2));
+                    assertEquals("test-node-id", context.arguments().get(3));
                 }
             )) {
-                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB");
+                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB", "test-node-id");
 
                 // Verify service was created and started
                 assertEquals(1, mockedConstruction.constructed().size());
@@ -73,8 +74,8 @@ class HazelcastUtilTest {
             try (MockedConstruction<CacheInvalidationService> mockedConstruction = mockConstruction(
                 CacheInvalidationService.class
             )) {
-                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB");
-                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB");
+                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB", "test-node-id");
+                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB", "test-node-id");
 
                 // Should only create one instance
                 assertEquals(1, mockedConstruction.constructed().size());
@@ -91,7 +92,7 @@ class HazelcastUtilTest {
                 }
             )) {
                 assertThrows(RuntimeException.class, () ->
-                    HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB")
+                    HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB", "test-node-id")
                 );
             }
         }
@@ -113,7 +114,7 @@ class HazelcastUtilTest {
             try (MockedConstruction<CacheInvalidationService> mockedConstruction = mockConstruction(
                 CacheInvalidationService.class
             )) {
-                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB");
+                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB", "test-node-id");
 
                 CacheInvalidationService service = HazelcastUtil.getCacheInvalidationService();
                 assertNotNull(service);
@@ -132,7 +133,7 @@ class HazelcastUtilTest {
             try (MockedConstruction<CacheInvalidationService> mockedConstruction = mockConstruction(
                 CacheInvalidationService.class
             )) {
-                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB");
+                HazelcastUtil.initCacheInvalidationService(hazelcastInstance, "mongodb://localhost:27017", "testDB", "test-node-id");
 
                 CacheInvalidationService service = mockedConstruction.constructed().get(0);
 
