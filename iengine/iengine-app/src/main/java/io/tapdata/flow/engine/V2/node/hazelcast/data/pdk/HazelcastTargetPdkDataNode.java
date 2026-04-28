@@ -40,6 +40,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkBaseException;
 import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
+import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
 import io.tapdata.flow.engine.V2.policy.TransactionOperator;
@@ -1292,6 +1293,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		List<TapRecordEvent> tapRecordEvents = tapdataEvents.parallelStream().map(TapdataEvent::getExactlyOnceWriteCache)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
+		String taskId = dataProcessorContext.getTaskDto().getId().toHexString();
+		String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + (taskId == null ? "" : "_" + taskId);
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
 				pdkMethodInvoker.runnable(() -> {
 							try {
@@ -1300,7 +1303,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 								writeRecordFunction.writeRecord(
 										connectorNode.getConnectorContext(),
 										tapRecordEvents,
-										dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME),
+										dataProcessorContext.getTapTableMap().get(exactlyOnceTableName),
 										result -> {
 											Map<TapRecordEvent, Throwable> errorMap = result.getErrorMap();
 											if (MapUtils.isNotEmpty(errorMap)) {
