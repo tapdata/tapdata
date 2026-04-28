@@ -177,6 +177,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;
     private String shareCdcStopMessage;
+    private Boolean heartbeatTaskRunning;
     private Long delayTime;
     /** 任务增量延迟告警的当前最大延迟 */
     private Long taskIncrementDelay;
