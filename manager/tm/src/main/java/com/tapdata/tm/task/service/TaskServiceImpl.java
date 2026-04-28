@@ -5895,9 +5895,18 @@ public class TaskServiceImpl extends TaskService{
                 if(CollectionUtils.isNotEmpty(metadataInstancesDtoList)){
                     metadataInstancesDtoList.forEach(metadataInstancesDto -> {
                         if(org.apache.commons.collections4.MapUtils.isNotEmpty(metadataInstancesDto.getTableAttr()) && metadataInstancesDto.getTableAttr().containsKey("avgObjSize")){
-                            Integer avgSize = (Integer) metadataInstancesDto.getTableAttr().get("avgObjSize");
-                            if(null != avgSize){
-                                tableMap.put(metadataInstancesDto.getOriginalName(),Long.valueOf(avgSize));
+                            Object avgSizeObj = metadataInstancesDto.getTableAttr().get("avgObjSize");
+                            Long avgSize = null;
+                            if (avgSizeObj instanceof Number) {
+                                avgSize = ((Number) avgSizeObj).longValue();
+                            } else if (avgSizeObj instanceof String s && !s.isBlank()) {
+                                try {
+                                    avgSize = Long.parseLong(s.trim());
+                                } catch (NumberFormatException ignored) {
+                                }
+                            }
+                            if (avgSize != null) {
+                                tableMap.put(metadataInstancesDto.getOriginalName(), avgSize);
                             }
                         }
                     });

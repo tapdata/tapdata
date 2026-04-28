@@ -7654,6 +7654,55 @@ class TaskServiceImplTest {
             assertTrue(result.getIsSafe());
         }
 
+        @Test
+        @DisplayName("tableAttr 中 avgObjSize 为 Long 时不抛 ClassCastException")
+        void testAvgObjSizeAsLong() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSizeValue(256L);
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertEquals(expected, result);
+        }
+
+        @Test
+        @DisplayName("tableAttr 中 avgObjSize 为数字字符串时正常解析")
+        void testAvgObjSizeAsString() throws Throwable {
+            TaskDto taskDto = buildTaskDtoWithSourceNode("agent-1");
+            mockMetadataWithAvgObjSizeValue("256");
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            doNothing().when(taskService).checkEngineStatus(any(), any());
+            CheckTaskMemoryResult expected = CheckTaskMemoryResult.safe();
+            when(taskService.callEngineRpc(anyString(), eq(CheckTaskMemoryResult.class), anyString(), anyString(), any()))
+                    .thenReturn(expected);
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertEquals(expected, result);
+        }
+
+        @Test
+        @DisplayName("tableAttr 中 avgObjSize 为非数字字符串时按缺失处理返回 safe")
+        void testAvgObjSizeAsInvalidString() {
+            TaskDto taskDto = buildTaskDtoWithSourceNode(null);
+            mockMetadataWithAvgObjSizeValue("abc");
+            doCallRealMethod().when(taskService).checkTaskMemoryHeap(any(), anyBoolean(), any());
+            CheckTaskMemoryResult result = taskService.checkTaskMemoryHeap(taskDto, false, userDetail);
+            assertNotNull(result);
+            assertTrue(result.getIsSafe());
+        }
+
+        private void mockMetadataWithAvgObjSizeValue(Object avgObjSize) {
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setOriginalName("table1");
+            Map<String, Object> tableAttr = new HashMap<>();
+            tableAttr.put("avgObjSize", avgObjSize);
+            meta.setTableAttr(tableAttr);
+            when(metadataInstancesServiceImpl.findByNodeId(anyString(), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(meta));
+        }
+
         private TaskDto buildTaskDtoWithSourceNode(String agentId) {
             return buildTaskDtoWithSourceNode(agentId, 200);
         }
