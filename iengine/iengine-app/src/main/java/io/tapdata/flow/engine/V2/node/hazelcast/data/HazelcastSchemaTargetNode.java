@@ -252,7 +252,10 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		TapTable tapTable = new TapTable(tapEvent.getTableId());
 		if (MapUtils.isNotEmpty(after)) {
 			LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapEvent.getTableId());
-			for (Map.Entry<String, Object> entry : after.entrySet()) {
+			for (Map.Entry<String, Object> entry : after.entrySet().stream().sorted(Comparator.comparing(v -> {
+				TapField field = oldNameFieldMap == null ? null : oldNameFieldMap.get(v.getKey());
+				return field == null ? null : field.getPos();
+			}, Comparator.nullsLast(Comparator.naturalOrder()))).toList()) {
 				String fieldName = entry.getKey();
 				ProcessNodeSchemaUtil.scanTapField(tapTable, oldNameFieldMap, fieldName, entry.getValue(), obsLogger);
 			}
