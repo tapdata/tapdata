@@ -2,6 +2,7 @@ package com.tapdata.tm.worker.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.tapdata.tm.worker.entity.ConnectionPoolEntity;
 import lombok.Data;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -44,6 +45,8 @@ public class ApiServerStatus {
     Map<String, ApiServerWorkerInfo> workers;
 
     MetricInfo metricValues;
+
+    ConnectionPoolInfo connectionPool;
 
     private Boolean updateCpuMem;
 
