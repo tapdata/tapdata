@@ -118,6 +118,7 @@ public class ApiServerMonitorController extends BaseController {
     @Operation(summary = "Server Chart")
     @GetMapping("/server/chart")
     public ResponseMessage<ServerChart> serverChart(@RequestParam(required = true) String serverId,
+                                                    @RequestParam(required = false) String connectionId,
                                                     @RequestParam(required = false) Long startAt,
                                                     @RequestParam(required = false) Long endAt,
                                                     @RequestParam(required = false, name = "type") String type,
@@ -128,6 +129,7 @@ public class ApiServerMonitorController extends BaseController {
         param.setEndAt(endAt);
         param.setType(type);
         param.setStep(step);
+        param.setConnectionId(connectionId);
         return success(apiMetricsChartQuery.serverChart(param));
     }
 
