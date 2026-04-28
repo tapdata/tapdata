@@ -16,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.apache.commons.codec.digest.DigestUtils.md5Hex;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -101,7 +102,7 @@ public class PdkSourceUtilsTest {
             file.createNewFile();
             String fileMD5 = PdkSourceUtils.calculateFileMD5(file);
             file.delete();
-            assertEquals("98f6bcd4621d373cade4e832627b4f6", fileMD5);
+            assertEquals("d41d8cd98f00b204e9800998ecf8427e", fileMD5);
         }
 
         @Test
