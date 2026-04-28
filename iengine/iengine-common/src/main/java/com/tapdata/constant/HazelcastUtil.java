@@ -31,7 +31,6 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import lombok.Getter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -48,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.hazelcast.client.properties.ClientProperty.HAZELCAST_CLOUD_DISCOVERY_TOKEN;
 import static com.hazelcast.client.properties.ClientProperty.METRICS_ENABLED;
@@ -65,9 +65,12 @@ public class HazelcastUtil {
 	private static final String DEFAULT_CALL_TIMEOUT = String.valueOf(TimeUnit.MINUTES.toMillis(5L));
 	public static final HZLoggingType DEFAULT_HZ_LOGGING_TYPE = HZLoggingType.LOG4J2;
 	private static Logger logger = LogManager.getLogger(HazelcastUtil.class);
-    @Getter
-    private static volatile CacheInvalidationService cacheInvalidationService;
+	private static final AtomicReference<CacheInvalidationService> cacheInvalidationServiceRef = new AtomicReference<>();
 	private static final Object CACHE_INVALIDATION_LOCK = new Object();
+
+	public static CacheInvalidationService getCacheInvalidationService() {
+		return cacheInvalidationServiceRef.get();
+	}
 
 	public static Config getConfig(String instanceName) {
 		return getConfig(instanceName, DEFAULT_HZ_LOGGING_TYPE);
@@ -219,23 +222,23 @@ public class HazelcastUtil {
 	}
 
 	/**
-	 * 初始化缓存失效服务
-	 * 应该在 Hazelcast 实例启动后调用
+	 * 初始化缓存失效服务, 应该在 Hazelcast 实例启动后调用
 	 *
 	 * @param hazelcastInstance Hazelcast 实例
-	 * @param mongoUri MongoDB 连接 URI
-	 * @param databaseName MongoDB 数据库名
+	 * @param mongoUri          MongoDB 连接 URI
+	 * @param databaseName      MongoDB 数据库名
+	 * @param nodeId            agent 标识, 同一 cluster 内多 member 共享, 用于 self-eviction 过滤
 	 */
 	public static void initCacheInvalidationService(HazelcastInstance hazelcastInstance, String mongoUri, String databaseName, String nodeId) {
-		if (cacheInvalidationService == null) {
+		if (cacheInvalidationServiceRef.get() == null) {
 			synchronized (CACHE_INVALIDATION_LOCK) {
-				if (cacheInvalidationService == null) {
+				if (cacheInvalidationServiceRef.get() == null) {
 					MongoClient mongoClient = null;
 					try {
 						mongoClient = MongoClients.create(mongoUri);
 						CacheInvalidationService service = new CacheInvalidationService(hazelcastInstance, mongoClient, databaseName, nodeId);
 						service.start();
-						cacheInvalidationService = service;
+						cacheInvalidationServiceRef.set(service);
 						logger.info("Cache invalidation service initialized and started successfully");
 					} catch (Exception e) {
 						if (mongoClient != null) {
@@ -253,17 +256,12 @@ public class HazelcastUtil {
 		}
 	}
 
-    /**
-	 * 停止缓存失效服务
-	 */
 	public static void shutdownCacheInvalidationService() {
-		if (cacheInvalidationService != null) {
-			synchronized (CACHE_INVALIDATION_LOCK) {
-				if (cacheInvalidationService != null) {
-					cacheInvalidationService.stop();
-					cacheInvalidationService = null;
-					logger.info("Cache invalidation service stopped");
-				}
+		synchronized (CACHE_INVALIDATION_LOCK) {
+			CacheInvalidationService service = cacheInvalidationServiceRef.getAndSet(null);
+			if (service != null) {
+				service.stop();
+				logger.info("Cache invalidation service stopped");
 			}
 		}
 	}
