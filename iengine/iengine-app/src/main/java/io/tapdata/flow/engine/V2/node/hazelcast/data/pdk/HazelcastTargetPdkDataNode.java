@@ -1319,6 +1319,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
+	protected boolean eventExactlyOnceWriteCheckExistsForTask(TapdataEvent tapdataEvent) {
+		if (null == tapdataEvent) return false;
+		if (null == tapdataEvent.getExactlyOnceWriteCache()) return false;
+		return mqExactlyOnceCache.contains(String.valueOf(tapdataEvent.getExactlyOnceWriteCache().getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)));
+	}
+
+	@Override
 	protected boolean eventExactlyOnceWriteCheckExists(TapdataEvent tapdataEvent) {
 		if (null == tapdataEvent) return false;
 		if (null == tapdataEvent.getExactlyOnceWriteCache()) return false;
