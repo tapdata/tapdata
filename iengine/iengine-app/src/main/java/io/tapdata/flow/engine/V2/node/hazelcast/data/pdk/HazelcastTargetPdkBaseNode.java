@@ -453,6 +453,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		AlterTableTTLFunction alterTableTTLFunction = connectorFunctions.getAlterTableTTLFunction();
 		if (alterTableTTLFunction != null) {
 			TapAlterTableTTLEvent alterTableTTLEvent = new TapAlterTableTTLEvent();
+			alterTableTTLEvent.setTableId(exactlyOnceTable.getId());
 			alterTableTTLEvent.duration(duration);
 			PDKInvocationMonitor.invoke(
 					getConnectorNode(), PDKMethod.TARGET_ALTER_TABLE,
@@ -462,21 +463,26 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void cacheExactlyOnceIds(ConnectorNode connectorNode, TapTable exactlyOnceTable) {
 		BatchReadFunction batchReadFunction = connectorNode.getConnectorFunctions().getBatchReadFunction();
-		PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
-				() -> {
-					try {
-						batchReadFunction.batchRead(connectorNode.getConnectorContext(), exactlyOnceTable, null, 100, (events, offset) -> {
-							for (TapEvent tapEvent : events) {
-								if (tapEvent instanceof TapInsertRecordEvent insertRecordEvent) {
-									mqExactlyOnceCache.add(String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)));
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		try {
+			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
+					pdkMethodInvoker.runnable(() -> {
+						try {
+							batchReadFunction.batchRead(connectorNode.getConnectorContext(), exactlyOnceTable, null, 100, (events, offset) -> {
+								for (TapEvent tapEvent : events) {
+									if (tapEvent instanceof TapInsertRecordEvent insertRecordEvent) {
+										mqExactlyOnceCache.add(String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)));
+									}
 								}
-							}
-						});
-					} catch (Exception e) {
-						throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters("", exactlyOnceTable.getId()));
-					}
-				}, TAG
-		);
+							});
+						} catch (Exception e) {
+							throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters("", exactlyOnceTable.getId()));
+						}
+					})
+			);
+		} finally {
+			removePdkMethodInvoker(pdkMethodInvoker);
+		}
 	}
 
     protected void checkUnwindConfiguration() {
@@ -2118,7 +2124,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (null == transactionBeginFunction || null == transactionCommitFunction || null == transactionRollbackFunction) {
             return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write transaction functions: begin, commit, rollback");
         }
-        if (null == queryByAdvanceFilterFunction && null == alterTableTTLFunction) {
+        if (null == queryByAdvanceFilterFunction && (!connectorNode.getConnectorContext().getSpecification().getTags().contains("MessageQueue") || null == alterTableTTLFunction)) {
             return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write functions: query by advance filter or alter table ttl functions");
         }
 
@@ -2140,7 +2146,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Source connector(%s) stream read is not supported exactly once", sourceConn.getName()));
 			}
         }
-		return CheckExactlyOnceWriteEnableResult.createEnable().mode(queryByAdvanceFilterFunction == null ? CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.MQ_MODE : CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE);
+		return CheckExactlyOnceWriteEnableResult.createEnable().mode(connectorNode.getConnectorContext().getSpecification().getTags().contains("MessageQueue") ? CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.MQ_MODE : CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE);
     }
 
     protected boolean tableEnableExactlyOnceWrite(SyncStage syncStage, String tableId) {
