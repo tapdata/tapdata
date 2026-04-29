@@ -1294,7 +1294,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
 		String taskId = dataProcessorContext.getTaskDto().getId().toHexString();
-		String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + (taskId == null ? "" : "_" + taskId);
+		String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + "_" + taskId;
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
 				pdkMethodInvoker.runnable(() -> {
 							try {
