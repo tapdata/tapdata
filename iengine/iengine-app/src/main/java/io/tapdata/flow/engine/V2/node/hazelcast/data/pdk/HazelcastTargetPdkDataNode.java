@@ -1263,7 +1263,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		TransactionCommitFunction transactionCommitFunction = connectorFunctions.getTransactionCommitFunction();
-		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_COMMIT,
 				() -> transactionCommitFunction.commit(connectorNode.getConnectorContext()), TAG);
 		super.transactionCommit();
 	}
@@ -1276,7 +1276,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
-		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_ROLLBACK,
 				() -> transactionRollbackFunction.rollback(connectorNode.getConnectorContext()), TAG);
 		super.transactionRollback();
 	}

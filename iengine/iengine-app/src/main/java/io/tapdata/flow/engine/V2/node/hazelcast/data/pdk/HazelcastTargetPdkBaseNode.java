@@ -78,6 +78,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.Par
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
+import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
@@ -462,6 +463,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void cacheExactlyOnceIds(ConnectorNode connectorNode, TapTable exactlyOnceTable) {
+		if (!isRunning() || Thread.currentThread().isInterrupted()) {
+			return;
+		}
 		BatchReadFunction batchReadFunction = connectorNode.getConnectorFunctions().getBatchReadFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try {
@@ -469,6 +473,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					pdkMethodInvoker.runnable(() -> {
 						try {
 							batchReadFunction.batchRead(connectorNode.getConnectorContext(), exactlyOnceTable, null, 100, (events, offset) -> {
+								if (!isRunning() || Thread.currentThread().isInterrupted()) {
+									throw new StopBatchReadException();
+								}
 								for (TapEvent tapEvent : events) {
 									if (tapEvent instanceof TapInsertRecordEvent insertRecordEvent) {
 										mqExactlyOnceCache.add(String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)));
@@ -476,6 +483,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 								}
 							});
 						} catch (Exception e) {
+							if (null != CommonUtils.matchThrowable(e, StopBatchReadException.class)) {
+								return;
+							}
 							throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters("", exactlyOnceTable.getId()));
 						}
 					})
