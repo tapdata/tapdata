@@ -38,12 +38,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -197,6 +199,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
 //            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_DIFFERENCE));

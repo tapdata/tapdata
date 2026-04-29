@@ -1,0 +1,103 @@
+[
+  {
+    "update": "Settings_Alarm",
+    "updates": [
+      {
+        "q": {
+          "key": "TASK_SOURCE_NO_INCREMENTAL_EVENT"
+        },
+        "u": {
+          "$set": {
+            "type": "TASK",
+            "open": true,
+            "key": "TASK_SOURCE_NO_INCREMENTAL_EVENT",
+            "sort": 5,
+            "notify": ["SYSTEM"],
+            "interval": 300,
+            "unit": "SECOND",
+            "emailAlarmTitle": "【TapData Notification: Source heartbeat incremental capture interrupted】{taskName}",
+            "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠️</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Source heartbeat incremental capture interrupted</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Task Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"taskName\" variablename=\"taskName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{taskName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Source Node</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"nodeName\" variablename=\"nodeName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{nodeName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Detail</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">Heartbeat is enabled, but no incremental event has been captured for <span data-variable=\"idleSeconds\" variablename=\"idleSeconds\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{idleSeconds}</span> seconds. Last capture time: <span data-variable=\"lastCaptureTime\" variablename=\"lastCaptureTime\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{lastCaptureTime}</span></p><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "nodeName",
+                "label": "public_node_name",
+                "icon": "IconLucideWaypoints"
+              },
+              {
+                "name": "idleSeconds",
+                "label": "public_duration",
+                "icon": "IconLucideClock"
+              },
+              {
+                "name": "lastCaptureTime",
+                "label": "public_last_capture_time",
+                "icon": "IconLucideClock"
+              },
+              {
+                "name": "latestCaptureTime",
+                "label": "public_last_capture_time",
+                "icon": "IconLucideClock"
+              },
+              {
+                "name": "alarmDate",
+                "label": "public_alarm_date",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        },
+        "upsert": true
+      }
+    ]
+  },
+  {
+    "update": "Task",
+    "updates": [
+      {
+        "q": {
+          "syncType": {
+            "$in": ["migrate", "sync", "logCollector", "mem_cache"]
+          },
+          "$or": [
+            {
+              "alarmSettings": {
+                "$exists": false
+              }
+            },
+            {
+              "alarmSettings": null
+            },
+            {
+              "alarmSettings": []
+            },
+            {
+              "alarmSettings.key": {
+                "$ne": "TASK_SOURCE_NO_INCREMENTAL_EVENT"
+              }
+            }
+          ]
+        },
+        "u": {
+          "$addToSet": {
+            "alarmSettings": {
+              "type": "TASK",
+              "open": true,
+              "key": "TASK_SOURCE_NO_INCREMENTAL_EVENT",
+              "sort": 5,
+              "notify": ["SYSTEM"],
+              "interval": 300,
+              "unit": "SECOND"
+            }
+          }
+        },
+        "upsert": false,
+        "multi": true
+      }
+    ]
+  }
+]
