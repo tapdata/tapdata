@@ -21,7 +21,6 @@ import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -61,12 +60,6 @@ public class TaskRestartSchedule {
     private TransformSchemaService transformSchema;
     private MetadataDefinitionService metadataDefinitionService;
 
-    @Setter(AccessLevel.NONE)
-    private long lastCheckTime = 0L;
-
-    // TM启动时间
-    private static final long TM_START_TIME = System.currentTimeMillis();
-
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
      */
@@ -91,30 +84,14 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 600 * 1000, fixedDelay = 5000)
-    @SchedulerLock(name ="engineRestartNeedStartTask_lock2", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(initialDelay = 30 * 1000, fixedDelay = 30 * 1000)
+    @SchedulerLock(name ="engineRestartNeedStartTask_lock2", lockAtMostFor = "60s", lockAtLeastFor = "30s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
-
-        // 检查TM自身启动时间，如果小于10分钟则直接返回
-        long currentTime = System.currentTimeMillis();
-        long tmRunningTime = currentTime - getTmStartTime();
-        if (tmRunningTime < 600000L) { // 10分钟 = 600000毫秒
-            log.debug("TM started less than 10 minutes ago, skipping engineRestartNeedStartTask. TM running time: {} ms ({} minutes)",
-                tmRunningTime, tmRunningTime / 1000 / 60);
-            return;
-        }
 
         //云版不需要这个重新调度的逻辑
         boolean isCloud = isCloud();
         long heartExpire = getHeartExpire();
-
-        long throttleInterval = Math.min(heartExpire / 4, 30000L);
-        if (System.currentTimeMillis() - lastCheckTime < throttleInterval) {
-            return;
-        }
-
-        lastCheckTime = System.currentTimeMillis();
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("pingTime").lt(System.currentTimeMillis() - heartExpire);
@@ -369,11 +346,4 @@ public class TaskRestartSchedule {
         });
     }
 
-    /**
-     * 获取TM启动时间
-     * @return TM启动时间戳
-     */
-    private long getTmStartTime() {
-        return TM_START_TIME;
-    }
 }
