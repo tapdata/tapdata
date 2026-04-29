@@ -1273,7 +1273,7 @@ public class DAG implements Serializable, Cloneable {
             if (null == fieldChangeRules) return;
             String nodeId = dto.getNodeId();
             for (Field f : dto.getFields()) {
-                fieldChangeRules.process(nodeId, dto.getQualifiedName(), f, map);
+                fieldChangeRules.process(nodeId, dto.getAncestorsName(), f, map);
             }
         }
         public void processDifferenceField(MetadataInstancesDto dto) {
