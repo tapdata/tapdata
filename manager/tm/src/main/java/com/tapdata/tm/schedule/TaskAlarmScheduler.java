@@ -17,12 +17,7 @@ import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.alarm.Level;
-import com.tapdata.tm.statemachine.enums.DataFlowEvent;
-import com.tapdata.tm.statemachine.model.StateMachineResult;
-import com.tapdata.tm.statemachine.service.StateMachineService;
-import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
@@ -59,9 +54,6 @@ public class TaskAlarmScheduler {
     private UserService userService;
     private SettingsService settingsService;
     private AgentGroupService agentGroupService;
-    private StateMachineService stateMachineService;
-    private TaskScheduleService taskScheduleService;
-    private TransformSchemaService transformSchema;
 
     @Scheduled(fixedDelay = 30000)
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
@@ -135,23 +127,7 @@ public class TaskAlarmScheduler {
                             () -> summary.set("SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT")
                     );
                 } else {
-                    if (isCloud) {
-                        summary.set("SYSTEM_FLOW_EGINGE_DOWN_CLOUD");
-                    } else {
-                        StateMachineResult smResult = stateMachineService.executeAboutTask(data, DataFlowEvent.OVERTIME, userDetail);
-                        if (smResult.isOk()) {
-                            data.setAgentId(null);
-                            transformSchema.transformSchemaBeforeDynamicTableName(data, userDetail);
-                            taskScheduleService.scheduling(data, userDetail, true);
-                            param.put("number", workerList.size());
-                            param.put("otherAgentName", data.getAgentId());
-                            summary.set("SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT");
-                            orginAgentId = data.getAgentId();
-                        } else {
-                            log.warn("taskAgentAlarm: failed to transition task [{}] from RUNNING to SCHEDULING via OVERTIME", data.getName());
-                            summary.set("SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT");
-                        }
-                    }
+                    summary.set("SYSTEM_FLOW_EGINGE_DOWN_CLOUD");
                 }
 
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
