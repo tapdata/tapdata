@@ -36,7 +36,7 @@ import static io.tapdata.observable.logging.ObsLogger.LOG_TAG_SOURCE_FOR_USER_SC
 		category = Core.CATEGORY_NAME,
 		elementType = Appender.ELEMENT_TYPE)
 public class ObsHttpTMLog4jAppender extends AbstractAppender {
-	public static final int QUEUE_CAPACITY = 100000;
+	public static final int QUEUE_CAPACITY = 200000;
 	public static final int MIN_BATCH_SIZE = 100;
 	public static final long OFFSET_QUEUE_TIMEOUT = 10L;
 	private final ClientMongoOperator clientMongoOperator;
@@ -89,17 +89,21 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 	}
 
 	protected void callTmApiInsertLogs(List<String> bufferList) {
-		try {
-			List<String> tmp = bufferList.stream()
-					.filter(r -> !r.contains(LOG_TAG_SOURCE_FOR_USER_SCRIPT) || TokenBucketRateLimiter.get().tryAcquire(taskId))
-					.collect(Collectors.toList());
+		int retryCount = 3;
+		for (int i = 0; i < retryCount; i++) {
+			try {
+				List<String> tmp = bufferList.stream()
+						.filter(r -> !r.contains(LOG_TAG_SOURCE_FOR_USER_SCRIPT) || TokenBucketRateLimiter.get().tryAcquire(taskId))
+						.collect(Collectors.toList());
 
-			if (CollectionUtils.isNotEmpty(tmp)) {
-				this.clientMongoOperator.insertMany(bufferList, "MonitoringLogs/batchJson");
-				bufferList.clear();
+				if (CollectionUtils.isNotEmpty(tmp)) {
+					this.clientMongoOperator.insertMany(bufferList, "MonitoringLogs/batchJson");
+					bufferList.clear();
+				}
+				break;
+			} catch (Exception e) {
+				rootLogger.warn("Call tm api insert logs failed after {} retries, {}", i+1, e.getMessage());
 			}
-		} catch (Exception e) {
-			rootLogger.warn("Call tm api insert logs failed, {}", e.getMessage());
 		}
 	}
 

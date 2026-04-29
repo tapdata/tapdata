@@ -309,6 +309,8 @@ public class TaskServiceImpl extends TaskService{
     public static final String STOPED_DATE = "stopedDate";
     public static final String TARGET = "target";
     public static final String ENCODE_PREFIX = "_tap_encode_";
+    public static final String TASK_INCREMENT_DELAY = "taskIncrementDelay";
+    public static final String TASK_INCREMENT_DELAY_THRESHOLD = "taskIncrementDelayThreshold";
 
     @NotNull
     private static String getTableName() {
@@ -4290,6 +4292,9 @@ public class TaskServiceImpl extends TaskService{
         Update set = resetUpdate();
         set.unset("temp")
                 .unset("milestones")
+                .unset("delayTime")
+                .unset(TASK_INCREMENT_DELAY)
+                .unset(TASK_INCREMENT_DELAY_THRESHOLD)
                 .unset(TM_CURRENT_TIME)
                 .set("agentTags", null)
                 .set("syncStatus", SyncStatus.NORMAL)
@@ -4793,7 +4798,7 @@ public class TaskServiceImpl extends TaskService{
             return;
         }
 
-        Update stopUpdate = Update.update(STOPED_DATE, System.currentTimeMillis());
+        Update stopUpdate = Update.update(STOPED_DATE, System.currentTimeMillis()).unset(TASK_INCREMENT_DELAY).unset(TASK_INCREMENT_DELAY_THRESHOLD);
         if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
             stopUpdate.set("ldpNewTables", taskDto.getLdpNewTables());
         }
@@ -4951,6 +4956,8 @@ public class TaskServiceImpl extends TaskService{
             });
 
             Update update = Update.update(STOP_RETRY_TIMES, 0).unset(STOPED_DATE)
+                    .unset(TASK_INCREMENT_DELAY)
+                    .unset(TASK_INCREMENT_DELAY_THRESHOLD)
                     .unset(FUNCTION_RETRY_STATUS);
             updateById(id, update, user);
 
@@ -5028,6 +5035,15 @@ public class TaskServiceImpl extends TaskService{
     public void updateDelayTime(ObjectId taskId, long delayTime) {
         Criteria criteria = Criteria.where("_id").is(taskId);
         Update update = new Update().set("delayTime", delayTime);
+        update(new Query(criteria), update);
+    }
+
+    @Override
+    public void updateTaskIncrementDelayAlarm(ObjectId taskId, Long taskIncrementDelay, Long taskIncrementDelayThreshold) {
+        Criteria criteria = Criteria.where("_id").is(taskId).and(STATUS).is(TaskDto.STATUS_RUNNING);
+        Update update = new Update()
+                .set(TASK_INCREMENT_DELAY, taskIncrementDelay)
+                .set(TASK_INCREMENT_DELAY_THRESHOLD, taskIncrementDelayThreshold);
         update(new Query(criteria), update);
     }
 
@@ -5545,6 +5561,98 @@ public class TaskServiceImpl extends TaskService{
         }
 
         return findOne(query);
+    }
+
+    @Override
+    public Boolean getHeartbeatTaskRunningByTaskId(String taskId) {
+        if (StringUtils.isBlank(taskId)) {
+            return null;
+        }
+        Map<String, Boolean> result = batchGetHeartbeatTaskRunningByTaskIds(Collections.singletonList(taskId));
+        return result.get(taskId);
+    }
+
+    @Override
+    public Map<String, Boolean> batchGetHeartbeatTaskRunningByTaskIds(List<String> taskIds) {
+        if (CollectionUtils.isEmpty(taskIds)) {
+            return Collections.emptyMap();
+        }
+        LinkedHashSet<String> uniqueTaskIds = taskIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (CollectionUtils.isEmpty(uniqueTaskIds)) {
+            return Collections.emptyMap();
+        }
+        Map<String, Optional<Boolean>> loadedValues = loadHeartbeatTaskRunning(new ArrayList<>(uniqueTaskIds));
+        Map<String, Boolean> result = new LinkedHashMap<>();
+        uniqueTaskIds.forEach(taskId -> result.put(taskId, loadedValues.getOrDefault(taskId, Optional.empty()).orElse(null)));
+        return result;
+    }
+
+    @Override
+    public void appendHeartbeatTaskRunning(TaskDto taskDto) {
+        if (taskDto == null || taskDto.getId() == null) {
+            return;
+        }
+        taskDto.setHeartbeatTaskRunning(getHeartbeatTaskRunningByTaskId(taskDto.getId().toHexString()));
+    }
+
+    @Override
+    public void appendHeartbeatTaskRunning(List<TaskDto> taskDtos) {
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return;
+        }
+        List<TaskDto> validTasks = taskDtos.stream()
+                .filter(Objects::nonNull)
+                .filter(taskDto -> taskDto.getId() != null)
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(validTasks)) {
+            return;
+        }
+        Map<String, Boolean> heartbeatTaskRunningMap = batchGetHeartbeatTaskRunningByTaskIds(validTasks.stream()
+                .map(taskDto -> taskDto.getId().toHexString())
+                .collect(Collectors.toList()));
+        validTasks.forEach(taskDto -> taskDto.setHeartbeatTaskRunning(
+                heartbeatTaskRunningMap.get(taskDto.getId().toHexString())
+        ));
+    }
+
+    private Map<String, Optional<Boolean>> loadHeartbeatTaskRunning(List<String> taskIds) {
+        Map<String, Optional<Boolean>> result = new LinkedHashMap<>();
+        taskIds.forEach(taskId -> result.put(taskId, Optional.empty()));
+
+        Query query = Query.query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).in(taskIds)
+                .and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                .and(IS_DELETED).is(false));
+        query.fields().include(ConnHeartbeatUtils.TASK_RELATION_FIELD, STATUS);
+
+        List<TaskDto> heartbeatTasks = findAll(query);
+        if (CollectionUtils.isEmpty(heartbeatTasks)) {
+            return result;
+        }
+
+        Set<String> taskIdSet = new HashSet<>(taskIds);
+        for (TaskDto heartbeatTask : heartbeatTasks) {
+            boolean running = isHeartbeatTaskRunning(heartbeatTask.getStatus());
+            if (CollectionUtils.isEmpty(heartbeatTask.getHeartbeatTasks())) {
+                continue;
+            }
+            for (String relatedTaskId : heartbeatTask.getHeartbeatTasks()) {
+                if (!taskIdSet.contains(relatedTaskId)) {
+                    continue;
+                }
+                if (!running) {
+                    result.put(relatedTaskId, Optional.of(false));
+                } else if (!result.getOrDefault(relatedTaskId, Optional.empty()).isPresent()) {
+                    result.put(relatedTaskId, Optional.of(true));
+                }
+            }
+        }
+        return result;
+    }
+
+    private boolean isHeartbeatTaskRunning(String status) {
+        return ConnHeartbeatUtils.isTaskRunningStatus(status);
     }
 
     public int deleteHeartbeatByConnId(UserDetail user, String connId) {

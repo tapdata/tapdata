@@ -207,6 +207,14 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract List<TaskDto> findAllTasksByIds(List<String> list);
 
+    public abstract Boolean getHeartbeatTaskRunningByTaskId(String taskId);
+
+    public abstract Map<String, Boolean> batchGetHeartbeatTaskRunningByTaskIds(List<String> taskIds);
+
+    public abstract void appendHeartbeatTaskRunning(TaskDto taskDto);
+
+    public abstract void appendHeartbeatTaskRunning(List<TaskDto> taskDtos);
+
     public abstract void renewAgentMeasurement(String taskId);
 
     public abstract UpdateResult renewNotSendMq(TaskDto taskDto, UserDetail user);
@@ -303,6 +311,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
     public abstract void updateDelayTime(ObjectId taskId, long delayTime);
+    public abstract void updateTaskIncrementDelayAlarm(ObjectId taskId, Long taskIncrementDelay, Long taskIncrementDelayThreshold);
     public abstract void refreshSchemas(TaskDto taskDto, String nodeIds, String keys, UserDetail userDetail);
     public abstract void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail);
     public abstract <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable;

@@ -3848,6 +3848,11 @@ class TaskServiceImplTest {
             when(stateMachineService.executeAboutTask(dto, DataFlowEvent.STOPPED, user)).thenReturn(stateMachineResult);
             doCallRealMethod().when(taskService).stopped(id,user);
             String actual = taskService.stopped(id, user);
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(taskService, new Times(1)).updateById(eq(id), updateCaptor.capture(), eq(user));
+            Document unset = (Document) updateCaptor.getValue().getUpdateObject().get("$unset");
+            assertTrue(unset.containsKey("taskIncrementDelay"));
+            assertTrue(unset.containsKey("taskIncrementDelayThreshold"));
             verify(taskService,new Times(1)).start(id,user);
             assertEquals(id.toHexString(),actual);
         }
@@ -3932,6 +3937,14 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).updateDelayTime(id, 0);
             taskService.updateDelayTime(id, 0);
             verify(taskService,new Times(1)).update(any(Query.class), any(Update.class));
+        }
+
+        @Test
+        void testUpdateTaskIncrementDelayAlarmNormal() {
+            ObjectId id = mock(ObjectId.class);
+            doCallRealMethod().when(taskService).updateTaskIncrementDelayAlarm(id, 100L, 50L);
+            taskService.updateTaskIncrementDelayAlarm(id, 100L, 50L);
+            verify(taskService, new Times(1)).update(any(Query.class), any(Update.class));
         }
     }
 
@@ -5904,6 +5917,78 @@ class TaskServiceImplTest {
             assertEquals(3,actual);
             verify(taskService,new Times(2)).findByTaskId(any(ObjectId.class),anyString());
         }
+    }
+
+    @Nested
+    class HeartbeatTaskRunningTest {
+        @Test
+        void testGetHeartbeatTaskRunningByTaskIdWhenHeartbeatMissing() {
+            doCallRealMethod().when(taskService).getHeartbeatTaskRunningByTaskId("task-1");
+            doCallRealMethod().when(taskService).batchGetHeartbeatTaskRunningByTaskIds(anyList());
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+
+            assertNull(taskService.getHeartbeatTaskRunningByTaskId("task-1"));
+        }
+
+        @Test
+        void testGetHeartbeatTaskRunningByTaskIdWhenHeartbeatRunning() {
+            TaskDto heartbeatTask = new TaskDto();
+            heartbeatTask.setStatus(TaskDto.STATUS_RUNNING);
+            heartbeatTask.setHeartbeatTasks(new HashSet<>(Collections.singletonList("task-1")));
+
+            doCallRealMethod().when(taskService).getHeartbeatTaskRunningByTaskId("task-1");
+            doCallRealMethod().when(taskService).batchGetHeartbeatTaskRunningByTaskIds(anyList());
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.singletonList(heartbeatTask));
+
+            assertTrue(taskService.getHeartbeatTaskRunningByTaskId("task-1"));
+        }
+
+        @Test
+        void testGetHeartbeatTaskRunningByTaskIdWhenHeartbeatAbnormal() {
+            TaskDto heartbeatTask = new TaskDto();
+            heartbeatTask.setStatus(TaskDto.STATUS_ERROR);
+            heartbeatTask.setHeartbeatTasks(new HashSet<>(Collections.singletonList("task-1")));
+
+            doCallRealMethod().when(taskService).getHeartbeatTaskRunningByTaskId("task-1");
+            doCallRealMethod().when(taskService).batchGetHeartbeatTaskRunningByTaskIds(anyList());
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.singletonList(heartbeatTask));
+
+            assertFalse(taskService.getHeartbeatTaskRunningByTaskId("task-1"));
+        }
+
+        @Test
+        void testAppendHeartbeatTaskRunning() {
+            TaskDto taskDto = new TaskDto();
+            ObjectId objectId = new ObjectId();
+            taskDto.setId(objectId);
+
+            doCallRealMethod().when(taskService).appendHeartbeatTaskRunning(taskDto);
+            when(taskService.getHeartbeatTaskRunningByTaskId(objectId.toHexString())).thenReturn(Boolean.TRUE);
+
+            taskService.appendHeartbeatTaskRunning(taskDto);
+
+            assertEquals(Boolean.TRUE, taskDto.getHeartbeatTaskRunning());
+        }
+
+        @Test
+        void testAppendHeartbeatTaskRunningList() {
+            TaskDto task1 = new TaskDto();
+            task1.setId(new ObjectId());
+            TaskDto task2 = new TaskDto();
+            task2.setId(new ObjectId());
+
+            doCallRealMethod().when(taskService).appendHeartbeatTaskRunning(anyList());
+            when(taskService.batchGetHeartbeatTaskRunningByTaskIds(anyList())).thenReturn(new HashMap<String, Boolean>() {{
+                put(task1.getId().toHexString(), Boolean.TRUE);
+                put(task2.getId().toHexString(), null);
+            }});
+
+            taskService.appendHeartbeatTaskRunning(Arrays.asList(task1, task2));
+
+            assertEquals(Boolean.TRUE, task1.getHeartbeatTaskRunning());
+            assertNull(task2.getHeartbeatTaskRunning());
+        }
+
     }
 
     @Nested
