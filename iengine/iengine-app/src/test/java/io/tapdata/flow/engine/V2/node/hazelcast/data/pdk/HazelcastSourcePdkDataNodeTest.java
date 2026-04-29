@@ -3801,7 +3801,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             doReturn(true).when(sourceNode).need2InitialSync(syncProgress);
             doReturn(false).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
             doReturn(true).when(sourceNode).isRunning();
-            doNothing().when(sourceNode).doSnapshotWithControl(anyList());
+            doNothing().when(sourceNode).doSnapshotWithControl(anyList(),anyBoolean());
             doNothing().when(sourceNode).addLdpNewTablesIfNeed(taskDto);
             doNothing().when(sourceNode).enqueue(any(TapdataCompleteSnapshotEvent.class));
             doReturn(true).when(sourceNode).need2CDC();
@@ -3819,7 +3819,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 // Verify
                 verify(sourceNode, times(1)).reportBatchSize(1000, 1000);
                 verify(sourceNode, times(1)).filterSubTableIfMasterExists();
-                verify(sourceNode, times(1)).doSnapshotWithControl(argThat(list -> list.size() == 2));
+                verify(sourceNode, times(1)).doSnapshotWithControl(argThat(list -> list.size() == 2),anyBoolean());
                 verify(sourceNode, times(1)).addLdpNewTablesIfNeed(taskDto);
                 verify(sourceNode, times(1)).enqueue(any(TapdataCompleteSnapshotEvent.class));
                 verify(sourceNode, times(1)).need2CDC();
@@ -3841,7 +3841,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             doReturn(true).when(sourceNode).need2InitialSync(syncProgress);
             doReturn(false).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
             doReturn(true).when(sourceNode).isRunning();
-            doNothing().when(sourceNode).doSnapshotWithControl(anyList());
+            doNothing().when(sourceNode).doSnapshotWithControl(anyList(),anyBoolean());
             doNothing().when(sourceNode).addLdpNewTablesIfNeed(taskDto);
             doNothing().when(sourceNode).enqueue(any(TapdataCompleteSnapshotEvent.class));
             doReturn(false).when(sourceNode).need2CDC();
@@ -3858,7 +3858,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 sourceNode.startSourceRunner();
 
                 // Verify
-                verify(sourceNode, times(1)).doSnapshotWithControl(anyList());
+                verify(sourceNode, times(1)).doSnapshotWithControl(anyList(),anyBoolean());
                 verify(sourceNode, times(1)).need2CDC();
                 verify(sourceNode, never()).doCdc();
                 verify(taskClient, times(1)).terminalMode(TerminalMode.COMPLETE);
@@ -3891,7 +3891,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
                 // Verify
                 verify(sourceNode, times(1)).reportBatchSize(1000, 1000);
-                verify(sourceNode, times(0)).doSnapshotWithControl(argThat(list -> list.size() == 2));
+                verify(sourceNode, times(0)).doSnapshotWithControl(argThat(list -> list.size() == 2),anyBoolean());
                 verify(sourceNode, times(1)).need2CDC();
                 verify(sourceNode, times(1)).waitAllSnapshotCompleteIfNeed();
                 verify(sourceNode, times(1)).doCdc();
@@ -3917,9 +3917,10 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
             doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
             doReturn(false).when(sourceNode).need2InitialSync(syncProgress);
+            doReturn(true).when(sourceNode).isReFullRunTask();
             doReturn(true).when(sourceNode).checkRebuildMergeTableCache(anyBoolean());
             doReturn(true).when(sourceNode).isRunning();
-            doNothing().when(sourceNode).doSnapshotWithControl(anyList());
+            doNothing().when(sourceNode).doSnapshotWithControl(anyList(),anyBoolean());
             doNothing().when(sourceNode).addLdpNewTablesIfNeed(taskDto);
             doNothing().when(sourceNode).enqueue(any());
             doReturn(false).when(sourceNode).need2CDC();
@@ -3942,7 +3943,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 sourceNode.startSourceRunner();
 
                 // Verify
-                verify(sourceNode, times(1)).doSnapshotWithControl(anyList());
+                verify(sourceNode, times(1)).doSnapshotWithControl(anyList(),anyBoolean());
                 verify(controller, times(1)).finish(tableNode);
                 verify(controller, times(1)).flush();
                 verify(sourceNode, times(1)).enqueue(any(TapdataMergeTableCacheRebuildCompleteEvent.class));
