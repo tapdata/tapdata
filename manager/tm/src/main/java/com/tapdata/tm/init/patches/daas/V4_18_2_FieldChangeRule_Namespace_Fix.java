@@ -31,11 +31,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-@PatchAnnotation(appType = AppType.DAAS, version = "4.19-1")
-public class V4_19_1_FieldChangeRule_Namespace_Fix extends AbsPatch {
-    private static final Logger logger = LogManager.getLogger(V4_19_1_FieldChangeRule_Namespace_Fix.class);
+@PatchAnnotation(appType = AppType.DAAS, version = "4.18-2")
+public class V4_18_2_FieldChangeRule_Namespace_Fix extends AbsPatch {
+    private static final Logger logger = LogManager.getLogger(V4_18_2_FieldChangeRule_Namespace_Fix.class);
 
-    public V4_19_1_FieldChangeRule_Namespace_Fix(PatchType type, PatchVersion version) {
+    public V4_18_2_FieldChangeRule_Namespace_Fix(PatchType type, PatchVersion version) {
         super(type, version);
     }
 
