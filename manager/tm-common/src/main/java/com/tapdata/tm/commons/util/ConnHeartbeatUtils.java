@@ -27,6 +27,11 @@ public class ConnHeartbeatUtils {
     public static final String CONNECTION_NAME = "tapdata_heartbeat_dummy_connection";
     public static final String TABLE_NAME = "_tapdata_heartbeat_table";
     public static final String TASK_RELATION_FIELD = "heartbeatTasks";
+    public static final Set<String> TASK_RUNNING_STATUSES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            TaskDto.STATUS_SCHEDULING,
+            TaskDto.STATUS_WAIT_RUN,
+            TaskDto.STATUS_RUNNING
+    )));
 
     private ConnHeartbeatUtils() {
     }
@@ -164,5 +169,9 @@ public class ConnHeartbeatUtils {
             }});
         }});
         return heartbeatConnection;
+    }
+
+    public static boolean isTaskRunningStatus(String status) {
+        return TASK_RUNNING_STATUSES.contains(status);
     }
 }

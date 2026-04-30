@@ -51,7 +51,7 @@ public enum ImportModeEnum {
         }
         
         for (ImportModeEnum mode : values()) {
-            if (mode.value.equals(value)) {
+            if (mode.value.equalsIgnoreCase(value)) {
                 return mode;
             }
         }

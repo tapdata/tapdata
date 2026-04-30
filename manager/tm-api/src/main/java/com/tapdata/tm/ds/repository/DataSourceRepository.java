@@ -8,6 +8,8 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.utils.DSConfigUtil;
 import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -25,6 +27,8 @@ import java.util.Optional;
  */
 @Repository
 public class DataSourceRepository extends BaseRepository<DataSourceEntity, ObjectId> {
+    private static final Logger log = LoggerFactory.getLogger(DataSourceRepository.class);
+
     public DataSourceRepository(MongoTemplate mongoOperations) {
         super(DataSourceEntity.class, mongoOperations);
     }
@@ -37,10 +41,80 @@ public class DataSourceRepository extends BaseRepository<DataSourceEntity, Objec
     public DataSourceEntity importEntity(DataSourceEntity entity, UserDetail userDetail) {
         Assert.notNull(entity, "Entity must not be null!");
 
+        // 保留导出文件中原始的 userId 和 createUser，避免被当前操作用户覆盖
+        String originalUserId = entity.getUserId();
+        String originalCreateUser = entity.getCreateUser();
+
         encryptConfig(entity);
         applyUserDetail(entity, userDetail);
         beforeCreateEntity(entity, userDetail);
+
+        // 恢复导出环境的 userId 和 createUser（与导出数据保持一致）
+        if (originalUserId != null && !originalUserId.isEmpty()) {
+            entity.setUserId(originalUserId);
+        }
+        if (originalCreateUser != null && !originalCreateUser.isEmpty()) {
+            entity.setCreateUser(originalCreateUser);
+        }
+
         return mongoOperations.insert(entity, entityInformation.getCollectionName());
+    }
+
+    /**
+     * 导入场景的 save：对已有文档执行 update 但保留原始 userId 和 createUser。
+     * 对新文档委托给 importEntity()。
+     */
+    public DataSourceEntity importSave(DataSourceEntity entity, UserDetail userDetail) {
+        Assert.notNull(entity, "Entity must not be null!");
+
+        log.info("[importSave] called for entity id={}, isNew={}, entity.userId={}, entity.createUser={}, operator.userId={}",
+                entity.getId(), entityInformation.isNew(entity), entity.getUserId(), entity.getCreateUser(),
+                userDetail != null ? userDetail.getUserId() : "null");
+
+        if (entityInformation.isNew(entity)) {
+            log.info("[importSave] entity is new, delegating to importEntity");
+            return importEntity(entity, userDetail);
+        }
+
+        // 保留原始值
+        String originalUserId = entity.getUserId();
+        String originalCreateUser = entity.getCreateUser();
+        log.info("[importSave] preserved originalUserId={}, originalCreateUser={}", originalUserId, originalCreateUser);
+
+        // 与 DataSourceRepository.save() 一致：先加密
+        encryptConfig(entity);
+
+        // 与 BaseRepository.save() 更新路径一致
+        beforeUpdateEntity(entity, userDetail);
+        Query query = getIdQuery(entity.getId());
+        applyUserDetail(query, userDetail);
+        Update update = buildUpdateSet(entity, userDetail);
+
+        log.info("[importSave] after buildUpdateSet: entity.userId={}, update=$set keys={}",
+                entity.getUserId(), update.getUpdateObject().get("$set"));
+
+        // 覆盖回原始 userId 和 createUser（buildUpdateSet 中 applyUserDetail 已将其改为 admin）
+        if (originalUserId != null && !originalUserId.isEmpty()) {
+            update.set("userId", originalUserId);
+            entity.setUserId(originalUserId);
+        }
+        if (originalCreateUser != null && !originalCreateUser.isEmpty()) {
+            update.set("createUser", originalCreateUser);
+            entity.setCreateUser(originalCreateUser);
+        }
+
+        log.info("[importSave] final update object: {}", update.getUpdateObject());
+
+        UpdateResult result = mongoOperations.updateFirst(query, update, entityInformation.getJavaType());
+
+        log.info("[importSave] updateFirst result: matchedCount={}, modifiedCount={}, query={}",
+                result.getMatchedCount(), result.getModifiedCount(), query);
+
+        if (result.getMatchedCount() == 1) {
+            return findOne(query, userDetail).orElse(entity);
+        }
+        log.warn("[importSave] updateFirst matched 0 documents! Returning entity as-is. entity.userId={}", entity.getUserId());
+        return entity;
     }
 
     @Override

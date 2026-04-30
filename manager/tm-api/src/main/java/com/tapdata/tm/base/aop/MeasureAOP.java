@@ -288,6 +288,7 @@ public class MeasureAOP {
             alarmInfo.setParam(param);
             alarmInfo.setLevel(Level.WARNING);
             alarmInfo.setSummary(summary);
+            taskService.updateTaskIncrementDelayAlarm(MongoUtils.toObjectId(taskId), replicateLag.longValue(), (long) alarmRuleDto.getMs());
             alarmService.save(alarmInfo);
         } else {
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
@@ -305,6 +306,7 @@ public class MeasureAOP {
                 alarmInfo.setSummary(summary);
                 alarmInfo.setRecoveryTime(DateUtil.date());
                 alarmInfo.setLastOccurrenceTime(null);
+                taskService.updateTaskIncrementDelayAlarm(MongoUtils.toObjectId(taskId), null, null);
                 alarmService.save(alarmInfo);
             }
         }

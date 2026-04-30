@@ -19,6 +19,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.flow.engine.util.TestRunInputEventConvertUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
@@ -34,9 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.voovan.tools.collection.CacheMap;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 
@@ -94,17 +93,24 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				String sampleDataId = ((DataParentNode) node).getConnectionId() + "_" + tableName;
 
 				List<TapEvent> tapEventList;
+				boolean ignoreRowsLimit = false;
 				if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
 					tapEventList = sampleDataCacheMap.getOrDefault(sampleDataId, new ArrayList<>());
 				} else {
 					tapEventList = new ArrayList<>();
 				}
+				List<TapEvent> customTapEvents = TestRunInputEventConvertUtil.buildTestRunInputTapEvents(processorBaseContext.getTaskDto(), tapTable.getId(),getTableFiledMap(tapTable.getId()),codecsFilterManager,obsLogger);
+				if (CollectionUtils.isNotEmpty(customTapEvents)) {
+					tapEventList = customTapEvents;
+					ignoreRowsLimit = true;
+				}
 				boolean isCache = true;
 				boolean needMock = false;
-				if (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows) {
+				if (!ignoreRowsLimit && (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows)) {
 					tapEventList.clear();
 					isCache = false;
 					try {
+						final List<TapEvent> finalTapEventList = tapEventList;
 						QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
 						if (null == queryByAdvanceFilterFunction){
 							throw new CoreException("Can not get test data from source, QueryByAdvanceFilterFunction is not supported.");
@@ -125,7 +131,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 													}
 												});
 
-												tapEventList.addAll(events);
+												finalTapEventList.addAll(events);
 											}
 										})).logTag(TAG)
 						);
@@ -147,15 +153,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 					logger.debug("get sample data, cache [{}], cost {}ms", isCache, (System.currentTimeMillis() - startTs));
 				}
 
-				List<TapEvent> cloneList = new ArrayList<>();
-				int count = 0;
-				for (TapEvent tapEvent : tapEventList) {
-					if (count >= rows) {
-						break;
-					}
-					cloneList.add((TapEvent) tapEvent.clone());
-					count++;
-				}
+				List<TapEvent> cloneList = cloneTapEvents(tapEventList, rows, ignoreRowsLimit);
 
 				List<TapdataEvent> tapdataEvents = wrapTapdataEvent(cloneList);
 				if (CollectionUtils.isEmpty(tapdataEvents)) {
@@ -230,9 +228,9 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				tapEvents.add(new TapInsertRecordEvent().init().after(result).table(table));
 			}
 		}
-
 		return tapEvents;
 	}
+
 
 	protected List<String> getSourceTables(Node node,List<String> tables) {
 		if (StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
@@ -240,5 +238,18 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 			return ((DatabaseNode) node).getTableNames();
 		}
 		return tables;
+	}
+
+	protected List<TapEvent> cloneTapEvents(List<TapEvent> tapEventList, int rows, boolean ignoreRowsLimit) {
+		List<TapEvent> cloneList = new ArrayList<>();
+		int count = 0;
+		for (TapEvent tapEvent : tapEventList) {
+			if (!ignoreRowsLimit && count >= rows) {
+				break;
+			}
+			cloneList.add((TapEvent) tapEvent.clone());
+			count++;
+		}
+		return cloneList;
 	}
 }

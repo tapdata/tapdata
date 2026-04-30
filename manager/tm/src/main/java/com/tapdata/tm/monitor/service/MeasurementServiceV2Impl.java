@@ -24,6 +24,7 @@ import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.vo.SyncStatusStatisticsVo;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
+import com.tapdata.tm.monitor.vo.TaskMetricsTrendVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
@@ -88,6 +89,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     public static final String FIELD_TAGS_TASK_RECORD_ID = MetricCons.Tags.F_TASK_RECORD_ID;
     public static final String FIELD_SS_VS_REPLICATE_LAG = MetricCons.SS.VS.F_REPLICATE_LAG;
     public static final String FIELD_SS_VS_CURR_EVENT_TS = MetricCons.SS.VS.F_CURR_EVENT_TS;
+    public static final String FIELD_SS_VS_INPUT_QPS = MetricCons.SS.VS.F_INPUT_QPS;
+    public static final String FIELD_SS_VS_OUTPUT_QPS = MetricCons.SS.VS.F_OUTPUT_QPS;
 
     public static final String PATH_TAGS_TASK_ID = MetricCons.Tags.path(FIELD_TAGS_TASK_ID);
     public static final String PATH_TAGS_TASK_RECORD_ID = MetricCons.Tags.path(FIELD_TAGS_TASK_RECORD_ID);
@@ -144,6 +147,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
             Query query = Query.query(criteria);
             requestSample.get().setDate(second);
+            if (SAMPLE_TYPE_TASK.equals(tags.get(FIELD_TAGS_TYPE))) {
+                reuseShareCdcDelayIfNeed(tags, requestSample.get());
+            }
 
             Map<String, Object> sampleMap = requestSample.get().toMap();
             Document upd = new Document();
@@ -175,6 +181,99 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
         bulkOperations.execute();
+    }
+
+    private void reuseShareCdcDelayIfNeed(Map<String, String> tags, Sample sample) {
+        try {
+            if (null == tags || null == sample || null == sample.getVs()) {
+                return;
+            }
+            String taskId = tags.get(FIELD_TAGS_TASK_ID);
+            if (StringUtils.isBlank(taskId)) {
+                return;
+            }
+            Map<String, Number> vs = sample.getVs();
+            Long replicateLag = parseLong(vs.get(FIELD_SS_VS_REPLICATE_LAG));
+            Long currentEventTimestamp = parseLong(vs.get(FIELD_SS_VS_CURR_EVENT_TS));
+            if (!isIdleTaskSample(vs)) {
+                return;
+            }
+
+            TaskDto taskDto = taskService.findByTaskId(new ObjectId(taskId), "_id", "shareCdcEnable", "shareCdcTaskId", "syncType");
+            if (!isShareCdcNormalTask(taskDto)) {
+                return;
+            }
+
+            Long delayTime = findShareCdcDelaySnapshot(taskDto.getShareCdcTaskId(), currentEventTimestamp);
+            if (null == delayTime || (null != replicateLag && delayTime >= replicateLag)) {
+                return;
+            }
+            vs.put(FIELD_SS_VS_REPLICATE_LAG, delayTime);
+        } catch (Exception e) {
+            log.warn("Reuse share cdc delay failed, task tags: {}, error: {}", tags, e.getMessage());
+        }
+    }
+
+    private boolean isShareCdcNormalTask(TaskDto taskDto) {
+        return null != taskDto
+                && Boolean.TRUE.equals(taskDto.getShareCdcEnable())
+                && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())
+                && null != taskDto.getShareCdcTaskId()
+                && !taskDto.getShareCdcTaskId().isEmpty();
+    }
+
+    private Long findShareCdcDelaySnapshot(Map<String, String> shareCdcTaskId, Long currentEventTimestamp) {
+        long maxDelayTime = 0L;
+        boolean found = false;
+        for (String logCollectorTaskId : shareCdcTaskId.values()) {
+            if (StringUtils.isBlank(logCollectorTaskId)) {
+                return null;
+            }
+            TaskDto logCollectorTask = taskService.findByTaskId(new ObjectId(logCollectorTaskId), "_id", "status", FIELD_SS_VS_CURR_EVENT_TS, "delayTime");
+            if (null == logCollectorTask
+                    || !TaskDto.STATUS_RUNNING.equals(logCollectorTask.getStatus())
+                    || null == logCollectorTask.getCurrentEventTimestamp()
+                    || (null != currentEventTimestamp && logCollectorTask.getCurrentEventTimestamp() < currentEventTimestamp)) {
+                return null;
+            }
+            maxDelayTime = Math.max(maxDelayTime, Math.max(0L, logCollectorTask.getDelayTime()));
+            found = true;
+        }
+        return found ? maxDelayTime: null;
+    }
+
+    private boolean isIdleTaskSample(Map<String, Number> vs) {
+        Double inputQps = parseDouble(vs.get(FIELD_SS_VS_INPUT_QPS));
+        Double outputQps = parseDouble(vs.get(FIELD_SS_VS_OUTPUT_QPS));
+        return null != inputQps && inputQps <= 0 && null != outputQps && outputQps <= 0;
+    }
+
+    private Double parseDouble(Object value) {
+        if (null == value) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private Long parseLong(Object value) {
+        if (null == value) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static final String INSTANT_PADDING_LEFT = "left";
@@ -1191,6 +1290,163 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         return mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
     }
 
+    @Override
+    public Map<String, Sample> findLastMinuteSamplesByTaskIds(List<String> taskIds) {
+        Map<String, Sample> result = new HashMap<>();
+        if (CollectionUtils.isEmpty(taskIds)) {
+            return result;
+        }
+
+        for (String tid : taskIds) {
+            if (StringUtils.isBlank(tid)) {
+                continue;
+            }
+            Optional.ofNullable(findLastMinuteByTaskId(tid))
+                    .map(MeasurementEntity::getSamples)
+                    .filter(samples -> !samples.isEmpty())
+                    .flatMap(samples -> samples.stream()
+                            .filter(Objects::nonNull)
+                            .filter(sample -> sample.getDate() != null)
+                            .max(Comparator.comparing(Sample::getDate)))
+                    .ifPresent(latest -> result.put(tid, latest));
+        }
+        return result;
+    }
+
+    @Override
+    public TaskMetricsTrendVo aggregateTaskMetricsByTaskIds(List<String> taskIds, long startAt, long endAt) {
+        TaskMetricsTrendVo result = new TaskMetricsTrendVo();
+        if (CollectionUtils.isEmpty(taskIds) || startAt >= endAt) {
+            return result;
+        }
+
+        TaskMetricsRangeProfile rangeProfile = resolveTaskMetricsRangeProfile(startAt, endAt);
+        long interval = rangeProfile.interval;
+        long bucketStart = startAt - startAt % interval;
+        long bucketEnd = endAt - endAt % interval;
+        long queryStart = bucketStart;
+
+        Criteria criteria = Criteria.where(MetricCons.F_DATE).gte(new Date(queryStart)).lte(new Date(endAt))
+                .and(PATH_TAGS_TASK_ID).in(taskIds)
+                .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK)
+                .and(MetricCons.F_GRANULARITY).is(rangeProfile.queryGranularity);
+        Query query = new Query(criteria);
+        query.fields().include(MetricCons.F_TAGS, MetricCons.F_DATE, MetricCons.F_GRANULARITY, MetricCons.F_DIGEST,
+                PATH_SS_DATE,
+                MetricCons.SS.VS.path(MetricCons.SS.VS.F_OUTPUT_QPS),
+                MetricCons.SS.VS.path(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS));
+        query.with(Sort.by(MetricCons.F_DATE).ascending());
+
+        List<MeasurementEntity> entities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        // taskId -> bucket -> list of sample values (outputQps, outputSizeQps)
+        Map<String, Map<Long, List<double[]>>> taskBucketSamples = new HashMap<>();
+        for (MeasurementEntity entity : entities) {
+            if (entity == null || entity.getTags() == null) {
+                continue;
+            }
+            String taskId = entity.getTags().get(FIELD_TAGS_TASK_ID);
+            if (StringUtils.isBlank(taskId)) {
+                continue;
+            }
+            collectTaskMetricsEntity(entity, rangeProfile, startAt, endAt, interval, taskId, taskBucketSamples);
+        }
+
+        // 每个 taskId 在每个 bucket 内取平均值，再跨 taskId 求和
+        Map<Long, Double> outputQpsMap = new HashMap<>();
+        Map<Long, Double> outputSizeQpsMap = new HashMap<>();
+        for (Map.Entry<String, Map<Long, List<double[]>>> taskEntry : taskBucketSamples.entrySet()) {
+            for (Map.Entry<Long, List<double[]>> bucketEntry : taskEntry.getValue().entrySet()) {
+                long bucket = bucketEntry.getKey();
+                List<double[]> sampleValues = bucketEntry.getValue();
+                double avgOutputQps = sampleValues.stream().mapToDouble(v -> v[0]).average().orElse(0D);
+                double avgOutputSizeQps = sampleValues.stream().mapToDouble(v -> v[1]).average().orElse(0D);
+                outputQpsMap.merge(bucket, avgOutputQps, Double::sum);
+                outputSizeQpsMap.merge(bucket, avgOutputSizeQps, Double::sum);
+            }
+        }
+
+        Double lastOutputQps = null;
+        Double lastOutputSizeQps = null;
+        for (long cursor = bucketStart; cursor <= bucketEnd; cursor += interval) {
+            result.getTs().add(cursor / 1000L);
+            Double outputQps = outputQpsMap.get(cursor);
+            if (outputQps == null) {
+                outputQps = lastOutputQps;
+            } else {
+                lastOutputQps = outputQps;
+            }
+            Double outputSizeQps = outputSizeQpsMap.get(cursor);
+            if (outputSizeQps == null) {
+                outputSizeQps = lastOutputSizeQps;
+            } else {
+                lastOutputSizeQps = outputSizeQps;
+            }
+            result.getOutputQps().add(Optional.ofNullable(outputQps).orElse(0D));
+            result.getOutputSizeQps().add(Optional.ofNullable(outputSizeQps).orElse(0D));
+        }
+        return result;
+    }
+
+    private void collectTaskMetricsEntity(MeasurementEntity entity, TaskMetricsRangeProfile rangeProfile, long startAt, long endAt, long interval,
+                                           String taskId, Map<String, Map<Long, List<double[]>>> taskBucketSamples) {
+        if (CollectionUtils.isEmpty(entity.getSamples())) {
+            return;
+        }
+        if (Granularity.GRANULARITY_MINUTE.equals(rangeProfile.queryGranularity)) {
+            for (Sample sample : entity.getSamples()) {
+                collectTaskMetricsSample(sample, startAt, endAt, interval, taskId, taskBucketSamples);
+            }
+            return;
+        }
+
+        Sample aggregateSample = new Sample();
+        aggregateSample.setDate(Optional.ofNullable(entity.getDate()).orElse(entity.getSamples().get(0).getDate()));
+        aggregateSample.setVs(entity.averageValues());
+        collectTaskMetricsSample(aggregateSample, startAt, endAt, interval, taskId, taskBucketSamples);
+    }
+
+    private void collectTaskMetricsSample(Sample sample, long startAt, long endAt, long interval,
+                                          String taskId, Map<String, Map<Long, List<double[]>>> taskBucketSamples) {
+        if (sample == null || sample.getDate() == null || sample.getVs() == null) {
+            return;
+        }
+        long ts = sample.getDate().getTime();
+        if (ts < startAt || ts > endAt) {
+            return;
+        }
+        long bucket = ts - ts % interval;
+        double outputQps = Optional.ofNullable(sample.getVs().get(MetricCons.SS.VS.F_OUTPUT_QPS)).map(Number::doubleValue).orElse(0D);
+        double outputSizeQps = Optional.ofNullable(sample.getVs().get(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS)).map(Number::doubleValue).orElse(0D);
+        taskBucketSamples
+                .computeIfAbsent(taskId, k -> new HashMap<>())
+                .computeIfAbsent(bucket, k -> new ArrayList<>())
+                .add(new double[]{outputQps, outputSizeQps});
+    }
+
+    private TaskMetricsRangeProfile resolveTaskMetricsRangeProfile(long startAt, long endAt) {
+        long range = endAt - startAt;
+        if (range <= 5L * 60L * 1000L) {
+            return new TaskMetricsRangeProfile(Granularity.GRANULARITY_MINUTE, Granularity.getTimelineMillisInterval(Granularity.GRANULARITY_MINUTE));
+        }
+        if (range <= 60L * 60L * 1000L) {
+            return new TaskMetricsRangeProfile(Granularity.GRANULARITY_MINUTE, Granularity.getGranularityMillisInterval(Granularity.GRANULARITY_MINUTE));
+        }
+        if (range <= 24L * 60L * 60L * 1000L) {
+            return new TaskMetricsRangeProfile(Granularity.GRANULARITY_HOUR, Granularity.getGranularityMillisInterval(Granularity.GRANULARITY_HOUR));
+        }
+        return new TaskMetricsRangeProfile(Granularity.GRANULARITY_DAY, Granularity.getGranularityMillisInterval(Granularity.GRANULARITY_DAY));
+    }
+
+    private static class TaskMetricsRangeProfile {
+        private final String queryGranularity;
+        private final long interval;
+
+        private TaskMetricsRangeProfile(String queryGranularity, long interval) {
+            this.queryGranularity = queryGranularity;
+            this.interval = interval;
+        }
+    }
+
 
     @Override
     public void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto) {
@@ -1251,4 +1507,3 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         criteria.and(keyPath).is(value);
     }
 }
-

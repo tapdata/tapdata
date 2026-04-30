@@ -1258,6 +1258,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         for (MetadataInstancesDto dto : metadataInstancesDtos) {
             num++;
 
+            dto.deduplicateListtags();
 
             Criteria criteria = Criteria.where(QUALIFIED_NAME).is(dto.getQualifiedName());
             dto.setId(null);

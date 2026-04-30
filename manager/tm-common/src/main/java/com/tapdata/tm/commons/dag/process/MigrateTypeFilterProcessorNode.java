@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.dag.process;
 
 import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
@@ -33,6 +34,7 @@ public class MigrateTypeFilterProcessorNode extends MigrateProcessorNode {
         super(NodeEnum.migrate_field_mod_type_filter_processor.name(), NodeCatalog.processor);
     }
 
+    @EqField
     private List<String> filterTypes;
 
     private  Map<String, Map<String, FieldInfo>> fieldTypeFilterMap = new HashMap<>();

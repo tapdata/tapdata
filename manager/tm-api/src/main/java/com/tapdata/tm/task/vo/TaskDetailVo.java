@@ -58,4 +58,6 @@ public class TaskDetailVo extends BaseVo {
 
     private String type;
 
+    private Boolean heartbeatTaskRunning;
+
 }

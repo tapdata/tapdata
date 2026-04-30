@@ -157,6 +157,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     public static final String SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY = "SOURCE_TO_TAP_VALUE_CONCURRENT";
     public static final String SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY = "SOURCE_TO_TAP_VALUE_CONCURRENT_NUM";
     public static final int BATCH_SIZE = 200;
+    private static final long SOURCE_RUNNER_RESTART_TERMINATION_CHECK_SECONDS = 60L;
+    private static final long SOURCE_RUNNER_RESTART_TERMINATION_TIMEOUT_SECONDS = TimeUnit.MINUTES.toSeconds(10L);
     private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
     protected SyncProgress syncProgress;
     protected ThreadPoolExecutorEx sourceRunner;
@@ -186,6 +188,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     protected CopyOnWriteArrayList<String> newTables;
     protected CopyOnWriteArrayList<String> removeTables;
     protected AtomicBoolean sourceRunnerFirstTime;
+    protected AtomicBoolean sourceRunnerRestarting = new AtomicBoolean(false);
     protected Future<?> sourceRunnerFuture;
     // on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
     protected ICdcDelay cdcDelayCalculation;
@@ -456,6 +459,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
                 TransformerWsMessageDto.class);
         this.sourceRunnerFirstTime = new AtomicBoolean(true);
+        this.sourceRunnerRestarting = new AtomicBoolean(false);
         this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
     }
 
@@ -1069,9 +1073,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
             Set<String> table = partitionTableSubMasterMap.values().stream().map(TapTable::getId).collect(Collectors.toSet());
             List<List<String>> partition = Lists.partition(new ArrayList<>(addList), BATCH_SIZE);
+            List<String> masterTableIds = new ArrayList<>();
             partition.forEach(part -> {
                 List<String> batchList = new ArrayList<>(part);
                 LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), batchList, tapTable -> {
+                    if (null != tapTable.getPartitionMasterTableId()) {
+                        masterTableIds.add(tapTable.getPartitionMasterTableId());
+                    }
                     if (table.contains(tapTable.getId())) return;
                     if (Objects.nonNull(syncSourcePartitionTableEnable)
                             && !syncSourcePartitionTableEnable) {
@@ -1117,7 +1125,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             loadedTableNames = addTapTables.stream().map(TapTable::getId).collect(Collectors.toList());
             List<String> missingTableNames = new ArrayList<>();
             addList.forEach(tableName -> {
-                if (!noPrimaryKeyTableNames.contains(tableName) && !loadedTableNames.contains(tableName)) {
+                if (!noPrimaryKeyTableNames.contains(tableName) && !loadedTableNames.contains(tableName) && !masterTableIds.contains(tableName)) {
                     missingTableNames.add(tableName);
                 }
             });
@@ -1248,33 +1256,79 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     abstract void startSourceRunner();
 
     synchronized void restartPdkConnector() {
-        logger.warn(this.associateId);
-        if (null != getConnectorNode()) {
-            //Release webhook waiting thread before stop connectorNode.
-            if (streamReadFuncAspect != null) {
-                streamReadFuncAspect.noMoreWaitRawData();
-                streamReadFuncAspect = null;
+        logger.warn("Restart source PDK connector {}", this.associateId);
+        ConnectorNode connectorNode = getConnectorNode();
+        if (null != connectorNode) {
+            boolean restartFlagSet = sourceRunnerRestarting.compareAndSet(false, true);
+            try {
+                //Release webhook waiting thread before stop connectorNode.
+                if (streamReadFuncAspect != null) {
+                    streamReadFuncAspect.noMoreWaitRawData();
+                    streamReadFuncAspect = null;
+                }
+                if (!shutdownSourceRunnerAndWait(connectorNode)) {
+                    return;
+                }
+                PDKIntegration.releaseAssociateId(this.associateId);
+                ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
+                createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
+                connectorNodeInit(dataProcessorContext);
+                Monitor<?> monitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
+                if (monitor == null) {
+                    monitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.PARTITION_TABLE_MONITOR);
+                }
+                if (monitor instanceof TableMonitor) {
+                    ((TableMonitor) monitor).setAssociateId(this.associateId);
+                }
+                this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+                CpuMemoryCollector.registerTask(getNode().getId(), (ThreadFactory) sourceRunner.getThreadFactory());
+                initAndStartSourceRunner();
+            } finally {
+                if (restartFlagSet) {
+                    sourceRunnerRestarting.set(false);
+                }
             }
-            Optional.ofNullable(this.sourceRunner).ifPresent(ExecutorService::shutdownNow);
-            PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
-            PDKIntegration.releaseAssociateId(this.associateId);
-            ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
-            createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
-            connectorNodeInit(dataProcessorContext);
-            Monitor<?> monitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
-            if (monitor == null) {
-                monitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.PARTITION_TABLE_MONITOR);
-            }
-            if (monitor instanceof TableMonitor) {
-                ((TableMonitor) monitor).setAssociateId(this.associateId);
-            }
-            this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-            CpuMemoryCollector.registerTask(getNode().getId(), (ThreadFactory) sourceRunner.getThreadFactory());
-            initAndStartSourceRunner();
         } else {
             String error = "Connector node is null";
             errorHandle(new RuntimeException(error), error);
         }
+    }
+
+    protected boolean shutdownSourceRunnerAndWait(ConnectorNode connectorNode) {
+        ExecutorService runner = this.sourceRunner;
+        if (runner == null) {
+            return true;
+        }
+        Optional.ofNullable(sourceRunnerFuture).ifPresent(future -> future.cancel(true));
+        runner.shutdownNow();
+        try {
+            PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+            long waitedSeconds = 0L;
+            while (!runner.awaitTermination(SOURCE_RUNNER_RESTART_TERMINATION_CHECK_SECONDS, TimeUnit.SECONDS)) {
+                waitedSeconds += SOURCE_RUNNER_RESTART_TERMINATION_CHECK_SECONDS;
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+                String warn = String.format("Restart PDK connector waiting for source runner termination, source runner did not terminate within %s seconds, associateId: %s",
+                        SOURCE_RUNNER_RESTART_TERMINATION_CHECK_SECONDS, associateId);
+                logger.warn(warn);
+                Optional.ofNullable(obsLogger).ifPresent(log -> log.warn(warn));
+                if (waitedSeconds >= SOURCE_RUNNER_RESTART_TERMINATION_TIMEOUT_SECONDS) {
+                    String error = String.format("Restart PDK connector timed out waiting for source runner termination after %s seconds, associateId: %s",
+                            waitedSeconds, associateId);
+                    errorHandle(new TimeoutException(error), error);
+                    return false;
+                }
+            }
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            String error = "Restart PDK connector interrupted while waiting for source runner termination";
+            errorHandle(e, error);
+            return false;
+        }
+    }
+
+    protected boolean isSourceRunnerRestarting() {
+        return sourceRunnerRestarting.get();
     }
 
     @NotNull
@@ -1693,10 +1747,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             }
 
             TapTable table = dataProcessorContext.getTapTableMap().get(tableName);
+            ConnectorNode connectorNode = getConnectorNode();
+            if (null == connectorNode) {
+                throw new NodeException("Connector node is null").context(getDataProcessorContext());
+            }
             executeDataFuncAspect(TableCountFuncAspect.class, () -> new TableCountFuncAspect()
                             .dataProcessorContext(this.getDataProcessorContext())
                             .start(),
-                    tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT,
+                    tableCountFuncAspect -> PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_COUNT,
                             createPdkMethodInvoker().runnable(
                                     () -> {
                                         try {
@@ -1704,7 +1762,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                                             if (displayTableListFirst) {
                                                 count = -1;
                                             } else {
-                                                count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
+                                                count = batchCountFunction.count(connectorNode.getConnectorContext(), table);
                                                 if (null == snapshotRowSizeMap) {
                                                     snapshotRowSizeMap = new HashMap<>();
                                                 }

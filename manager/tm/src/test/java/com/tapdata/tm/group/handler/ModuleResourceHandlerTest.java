@@ -1,10 +1,10 @@
 package com.tapdata.tm.group.handler;
 
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.dto.ResourceType;
@@ -26,7 +26,6 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -140,10 +139,9 @@ public class ModuleResourceHandlerTest {
             ModulesDto module = new ModulesDto();
             module.setId(new ObjectId());
             module.setName("Test Module");
-            module.setCreateUser("createUser");
             module.setCustomId("customId");
             module.setLastUpdBy("lastUpdBy");
-            module.setUserId("userId");
+            module.setStatus("active");
 
             List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(Arrays.asList(module), user);
 
@@ -151,10 +149,9 @@ public class ModuleResourceHandlerTest {
             assertEquals(GroupConstants.COLLECTION_MODULES, result.get(0).getCollectionName());
 
             // Verify sensitive fields are cleared
-            assertNull(module.getCreateUser());
             assertNull(module.getCustomId());
             assertNull(module.getLastUpdBy());
-            assertNull(module.getUserId());
+            assertNull(module.getStatus());
         }
 
         @Test
@@ -279,14 +276,14 @@ public class ModuleResourceHandlerTest {
         @Test
         @DisplayName("Should return empty list when resources is null")
         void testLoadConnectionsNullResources() {
-            List<DataSourceConnectionDto> result = moduleResourceHandler.loadConnections(null);
+            List<DataSourceEntity> result = moduleResourceHandler.loadConnections(null);
             assertTrue(result.isEmpty());
         }
 
         @Test
         @DisplayName("Should return empty list when resources is empty")
         void testLoadConnectionsEmptyResources() {
-            List<DataSourceConnectionDto> result = moduleResourceHandler.loadConnections(new ArrayList<>());
+            List<DataSourceEntity> result = moduleResourceHandler.loadConnections(new ArrayList<>());
             assertTrue(result.isEmpty());
         }
 
@@ -294,13 +291,13 @@ public class ModuleResourceHandlerTest {
         @DisplayName("Should load connections by connectionId")
         void testLoadConnectionsByConnectionId() {
             ModulesDto module = new ModulesDto();
-            module.setConnectionId("conn123");
+            module.setConnectionId(new ObjectId().toHexString());
 
-            when(dataSourceService.findInfoByConnectionIdList(anyList())).thenReturn(new ArrayList<>());
+            when(dataSourceService.findAllEntity(any(Query.class))).thenReturn(new ArrayList<>());
 
             moduleResourceHandler.loadConnections(Arrays.asList(module));
 
-            verify(dataSourceService).findInfoByConnectionIdList(argThat(list -> list.contains("conn123")));
+            verify(dataSourceService).findAllEntity(any(Query.class));
         }
 
         @Test
@@ -311,11 +308,11 @@ public class ModuleResourceHandlerTest {
             module.setConnectionId(null);
             module.setConnection(connId);
 
-            when(dataSourceService.findInfoByConnectionIdList(anyList())).thenReturn(new ArrayList<>());
+            when(dataSourceService.findAllEntity(any(Query.class))).thenReturn(new ArrayList<>());
 
             moduleResourceHandler.loadConnections(Arrays.asList(module));
 
-            verify(dataSourceService).findInfoByConnectionIdList(argThat(list -> list.contains(connId.toHexString())));
+            verify(dataSourceService).findAllEntity(any(Query.class));
         }
 
         @Test
@@ -325,11 +322,10 @@ public class ModuleResourceHandlerTest {
             module.setConnectionId(null);
             module.setConnection(null);
 
-            when(dataSourceService.findInfoByConnectionIdList(anyList())).thenReturn(new ArrayList<>());
+            List<DataSourceEntity> result = moduleResourceHandler.loadConnections(Arrays.asList(module));
 
-            moduleResourceHandler.loadConnections(Arrays.asList(module));
-
-            verify(dataSourceService).findInfoByConnectionIdList(argThat(List::isEmpty));
+            assertTrue(result.isEmpty());
+            verify(dataSourceService, never()).findAllEntity(any(Query.class));
         }
     }
 
@@ -340,7 +336,9 @@ public class ModuleResourceHandlerTest {
         @Test
         @DisplayName("Should return empty map when no duplicates")
         void testFindDuplicateNamesNoDuplicates() {
+            ObjectId moduleId = new ObjectId();
             ModulesDto module = new ModulesDto();
+            module.setId(moduleId);
             module.setName("Unique Module");
 
             when(modulesService.findOne(any(Query.class), eq(user))).thenReturn(null);
@@ -351,13 +349,15 @@ public class ModuleResourceHandlerTest {
         }
 
         @Test
-        @DisplayName("Should find duplicate names")
+        @DisplayName("Should find duplicate by id")
         void testFindDuplicateNamesWithDuplicates() {
+            ObjectId moduleId = new ObjectId();
             ModulesDto module = new ModulesDto();
+            module.setId(moduleId);
             module.setName("Duplicate Module");
 
             ModulesDto existing = new ModulesDto();
-            existing.setId(new ObjectId());
+            existing.setId(moduleId);
             existing.setName("Duplicate Module");
 
             when(modulesService.findOne(any(Query.class), eq(user))).thenReturn(existing);
@@ -365,43 +365,37 @@ public class ModuleResourceHandlerTest {
             Map<String, String> result = moduleResourceHandler.findDuplicateNames(Arrays.asList(module), user);
 
             assertEquals(1, result.size());
-            assertTrue(result.containsKey("Duplicate Module"));
-            assertEquals("duplicate", result.get("Duplicate Module"));
+            assertTrue(result.containsKey(moduleId.toHexString()));
+            assertEquals("duplicate", result.get(moduleId.toHexString()));
         }
 
         @Test
-        @DisplayName("Should skip null modules")
-        void testFindDuplicateNamesSkipsNull() {
-            List<ModulesDto> modules = Arrays.asList(null, new ModulesDto());
+        @DisplayName("Should skip null modules and modules without id")
+        void testFindDuplicateNamesSkipsNullAndNoId() {
+            ModulesDto moduleNoId = new ModulesDto();
+            moduleNoId.setName("No Id Module");
+            List<ModulesDto> modules = Arrays.asList(null, moduleNoId);
 
             Map<String, String> result = moduleResourceHandler.findDuplicateNames(modules, user);
-
-            assertTrue(result.isEmpty());
-        }
-
-        @Test
-        @DisplayName("Should skip modules with blank name")
-        void testFindDuplicateNamesSkipsBlankName() {
-            ModulesDto module = new ModulesDto();
-            module.setName("");
-
-            Map<String, String> result = moduleResourceHandler.findDuplicateNames(Arrays.asList(module), user);
 
             assertTrue(result.isEmpty());
             verify(modulesService, never()).findOne(any(Query.class), any(UserDetail.class));
         }
 
         @Test
-        @DisplayName("Should not check same name twice")
+        @DisplayName("Should not check same id twice")
         void testFindDuplicateNamesSkipsAlreadyChecked() {
+            ObjectId moduleId = new ObjectId();
             ModulesDto module1 = new ModulesDto();
+            module1.setId(moduleId);
             module1.setName("Same Name");
 
             ModulesDto module2 = new ModulesDto();
+            module2.setId(moduleId);
             module2.setName("Same Name");
 
             ModulesDto existing = new ModulesDto();
-            existing.setId(new ObjectId());
+            existing.setId(moduleId);
             existing.setName("Same Name");
 
             when(modulesService.findOne(any(Query.class), eq(user))).thenReturn(existing);

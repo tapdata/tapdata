@@ -616,54 +616,45 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     /**
      * 批量导入标签定义
-     * 如果标签名已存在则更新，否则新建
+     * 按 _id 查重：已存在则覆盖更新，不存在则以原 _id 插入，保持两端 _id 一致。
      *
      * @param tags 标签定义列表
      * @param user 用户信息
-     * @return 旧标签ID到新标签ID的映射
+     * @return 标签 ID 映射（_id 不变，为恒等映射，保留接口兼容性）
      */
     public Map<String, String> batchImport(List<MetadataDefinitionDto> tags, UserDetail user) {
         Map<String, String> tagIdMap = new HashMap<>();
         if (CollectionUtils.isEmpty(tags)) {
             return tagIdMap;
         }
+        // 父节点优先排序，确保父标签先于子标签处理
         List<MetadataDefinitionDto> sortTags = tags.stream()
                 .sorted(Comparator.comparing((MetadataDefinitionDto dto) -> org.apache.commons.lang3.StringUtils.isNotBlank(dto.getParent_id()))).toList();
         for (MetadataDefinitionDto tag : sortTags) {
-            String oldId = tag.getId() != null ? tag.getId().toHexString() : null;
-            String tagValue = tag.getValue();
-
-            if (StringUtils.isBlank(tagValue)) {
+            if (tag.getId() == null || StringUtils.isBlank(tag.getValue())) {
                 continue;
             }
+            String tagId = tag.getId().toHexString();
+            // _id 保持不变，映射为恒等
+            tagIdMap.put(tagId, tagId);
 
-            // 查找是否已存在同名标签
-            Criteria criteria = Criteria.where("value").is(tagValue).and("item_type").is(tag.getItemType());
-            Query query = new Query(criteria);
-            MetadataDefinitionDto existing = findOne(query);
+            tag.setCreateUser(null);
+            tag.setCustomId(null);
+            tag.setLastUpdBy(null);
+            tag.setUserId(null);
+
+            // 按 _id 查重
+            Query idQuery = Query.query(Criteria.where("_id").is(tag.getId()));
+            MetadataDefinitionDto existing = findOne(idQuery);
 
             if (existing != null) {
-                // 标签已存在，更新并记录映射
-                if (oldId != null) {
-                    tagIdMap.put(oldId, existing.getId().toHexString());
-                }
-                tag.setId(null);
-                if(StringUtils.isNotBlank(tag.getParent_id())) {
-                    tag.setParent_id(tagIdMap.get(tag.getParent_id()));
-                }
-                update(Query.query(Criteria.where("_id").is(existing.getId())),tag);
+                // 已存在，覆盖更新
+                update(idQuery, tag);
             } else {
-                // 标签不存在，新建
-                tag.setCreateUser(null);
-                tag.setCustomId(null);
-                tag.setLastUpdBy(null);
-                tag.setUserId(null);
-                tag.setId(null);
-                if(StringUtils.isNotBlank(tag.getParent_id())) {
-                    tag.setParent_id(tagIdMap.get(tag.getParent_id()));
-                }
-                MetadataDefinitionDto savedTag = super.save(tag,user);
-                tagIdMap.put(oldId, savedTag.getId().toHexString());
+                // 不存在，以原 _id 插入：使用 upsert 而非 save，
+                // 因为 save() 对已有 _id 的 entity 执行 updateFirst（而非 insert），
+                // 导致 document 不存在时无任何效果，MetadataDefinition 记录丢失。
+                upsert(idQuery, tag, user);
             }
         }
 

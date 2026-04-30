@@ -80,6 +80,7 @@ public class MeasureAOPTest {
                 return null;
             }).when(alarmService).save(any());
             measureAOP.taskIncrementDelayAlarm(taskDto,taskId,10,alarmRuleDto);
+            verify(taskService).updateTaskIncrementDelayAlarm(MongoUtils.toObjectId(taskId), null, null);
 
         }
         @DisplayName("test taskIncrementDelayAlarm method when equalsFlag is greater and replicateLag greater alarmRule ms and taskReplicateLagCount is greater than alarmRule point")
@@ -101,6 +102,7 @@ public class MeasureAOPTest {
                 return null;
             }).when(alarmService).save(any());
             measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 500000, alarmRuleDto);
+            verify(taskService).updateTaskIncrementDelayAlarm(MongoUtils.toObjectId(taskId), 500000L, 40000L);
         }
         @DisplayName("test taskIncrementDelayAlarm method when equalsFlag is greater and replicateLag greater alarmRule ms and and info map is null ,so taskReplicateLagCount is less than alarmRule point")
         @Test
@@ -139,6 +141,7 @@ public class MeasureAOPTest {
                 return null;
             }).when(alarmService).save(any());
             measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 3, alarmRuleDto);
+            verify(taskService).updateTaskIncrementDelayAlarm(MongoUtils.toObjectId(taskId), 3L, 40000L);
         }
         @DisplayName("test taskIncrementDelayAlarm method when equalsFlag is less and replicateLag less alarmRule ms and and info map is not null ,so taskReplicateLagCount is greater than alarmRule point and continueTime greater 1 MINUTE")
         @Test
@@ -163,6 +166,7 @@ public class MeasureAOPTest {
                 return null;
             }).when(alarmService).save(any());
             measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 3, alarmRuleDto);
+            verify(taskService).updateTaskIncrementDelayAlarm(MongoUtils.toObjectId(taskId), 3L, 40000L);
         }
     }
     @Nested

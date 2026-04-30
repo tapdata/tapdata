@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.logCollector;
 
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
 import lombok.Getter;
@@ -25,12 +26,16 @@ import java.util.Map;
 @Slf4j
 public class HazelCastImdgNode extends Node<Object> {
 
+    @EqField
     private String externaltype;
     /** 是否开启增量并发写入*/
+    @EqField
     private Boolean cdcConcurrent;
     /** 增量写入线程数*/
+    @EqField
     private Integer cdcConcurrentWriteNum;
     /** 并发写入的分区字段配置，格式: {"tableName":["fieldName"]} */
+    @EqField
     private Map<String, List<String>> concurrentWritePartitionMap;
     public HazelCastImdgNode() {
         super("hazelcastIMDG");

@@ -3,7 +3,9 @@ package com.tapdata.tm.apiServer.service;
 import com.tapdata.tm.apiServer.dto.ApiServerDto;
 import com.tapdata.tm.apiServer.entity.ApiServerEntity;
 import com.tapdata.tm.apiServer.repository.ApiServerRepository;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * @Author:
@@ -26,12 +29,24 @@ import java.util.Map;
 @Service
 @Slf4j
 public class ApiServerService extends BaseService<ApiServerDto, ApiServerEntity, ObjectId, ApiServerRepository> {
+    public static final String USER_ID = "user_id";
+
     public ApiServerService(@NonNull ApiServerRepository repository) {
         super(repository, ApiServerDto.class, ApiServerEntity.class);
     }
 
     protected void beforeSave(ApiServerDto metadataDefinition, UserDetail user) {
 
+    }
+
+    public Supplier<ApiServerDto> dataPermissionFindById(ObjectId apiServerId, Field fields) {
+        return () -> {
+            if (null != fields) {
+                fields.put(USER_ID, true);
+                fields.put(DataPermissionHelper.FIELD_NAME, true);
+            }
+            return findById(apiServerId, fields);
+        };
     }
 
 

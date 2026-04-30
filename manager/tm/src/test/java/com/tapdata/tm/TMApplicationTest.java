@@ -18,6 +18,7 @@ public class TMApplicationTest {
         when(userService.isSsl()).thenReturn("test_ssl");
         when(userService.getCaPath()).thenReturn("test_caPath");
         when(userService.getKeyPath()).thenReturn("test_keyPath");
+        when(userService.getSslPass()).thenReturn("test_sslPass");
         TMApplication.buildProperty(userService);
         assertEquals("test_uri", CommonUtils.getProperty("tapdata_proxy_mongodb_uri"));
         assertEquals("test_port", CommonUtils.getProperty("tapdata_proxy_server_port"));

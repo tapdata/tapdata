@@ -153,6 +153,10 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private String testTaskId;
     /**
+     * js 试运行输入事件 JSON
+     */
+    private String testRunInputEventJson;
+    /**
      * js模型推演id
      */
     private String transformTaskId;
@@ -173,7 +177,12 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;
     private String shareCdcStopMessage;
-    private long delayTime;
+    private Boolean heartbeatTaskRunning;
+    private Long delayTime;
+    /** 任务增量延迟告警的当前最大延迟 */
+    private Long taskIncrementDelay;
+    /** 任务增量延迟告警阈值 */
+    private Long taskIncrementDelayThreshold;
 
     /**
      * 同构或异构标记

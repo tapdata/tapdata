@@ -75,7 +75,7 @@ class GitGroupTransferStrategyTest {
         contents.put("file1.json", "{\"test\":\"data1\"}".getBytes());
         contents.put("file2.json", "{\"test\":\"data2\"}".getBytes());
 
-        request = new GroupExportRequest(null, contents, "test-export", groupInfoDto, null, recordDto);
+        request = new GroupExportRequest(null, contents, "test-export", groupInfoDto, null, "feature/test-branch", null, null, recordDto);
     }
 
     @Test
@@ -118,6 +118,13 @@ class GitGroupTransferStrategyTest {
     }
 
     @Test
+    void testExportGroups_BlankBranchName() {
+        request.setGitBranchName("");
+        BizException exception = assertThrows(BizException.class, () -> strategy.exportGroups(request));
+        assertEquals("Git.Export.BranchName.Required", exception.getErrorCode());
+    }
+
+    @Test
     void testExportGroups_TagAlreadyExists() {
         // Setup tag
         request.setGitTag("v1.0.0");
@@ -142,6 +149,7 @@ class GitGroupTransferStrategyTest {
 
         // Mock git operations
         doNothing().when(gitService).cloneRepo(any(GroupGitInfoDto.class), anyString());
+        doNothing().when(gitService).createBranch(anyString(), anyString());
 
         // Mock git status with changes - need to mock all methods called by buildStatusDetails
         when(gitStatus.isClean()).thenReturn(false);
@@ -154,7 +162,8 @@ class GitGroupTransferStrategyTest {
         when(gitService.getStatus(anyString())).thenReturn(gitStatus);
 
         doNothing().when(gitService).commit(any(GroupGitInfoDto.class), anyString(), anyString());
-        doNothing().when(gitService).push(any(GroupGitInfoDto.class), anyString());
+        doNothing().when(gitService).push(any(GroupGitInfoDto.class), anyString(), anyString());
+        when(gitService.createPullRequest(any(GroupGitInfoDto.class), anyString(), any(), any())).thenReturn("https://github.com/test/pr/1");
 
         // Execute
         strategy.exportGroups(request);
@@ -162,9 +171,10 @@ class GitGroupTransferStrategyTest {
         // Verify git operations were called
         verify(gitServiceRouter).route(gitInfo);
         verify(gitService).cloneRepo(eq(gitInfo), anyString());
+        verify(gitService).createBranch(anyString(), anyString());
         verify(gitService).getStatus(anyString());
         verify(gitService).commit(eq(gitInfo), anyString(), anyString());
-        verify(gitService).push(eq(gitInfo), anyString());
+        verify(gitService).push(eq(gitInfo), anyString(), anyString());
 
         // Verify operation steps were recorded
         assertNotNull(recordDto.getGitOperationSteps());
@@ -184,6 +194,7 @@ class GitGroupTransferStrategyTest {
 
         // Mock git operations
         doNothing().when(gitService).cloneRepo(any(GroupGitInfoDto.class), anyString());
+        doNothing().when(gitService).createBranch(anyString(), anyString());
 
         // Mock git status with changes - need to mock all methods called by buildStatusDetails
         when(gitStatus.isClean()).thenReturn(false);
@@ -196,7 +207,8 @@ class GitGroupTransferStrategyTest {
         when(gitService.getStatus(anyString())).thenReturn(gitStatus);
 
         doNothing().when(gitService).commit(any(GroupGitInfoDto.class), anyString(), anyString());
-        doNothing().when(gitService).push(any(GroupGitInfoDto.class), anyString());
+        doNothing().when(gitService).push(any(GroupGitInfoDto.class), anyString(), anyString());
+        when(gitService.createPullRequest(any(GroupGitInfoDto.class), anyString(), any(), any())).thenReturn("https://github.com/test/pr/1");
         doNothing().when(gitService).createTag(any(GroupGitInfoDto.class), anyString(), anyString());
 
         // Execute
@@ -213,6 +225,7 @@ class GitGroupTransferStrategyTest {
 
         // Mock git operations
         doNothing().when(gitService).cloneRepo(any(GroupGitInfoDto.class), anyString());
+        doNothing().when(gitService).createBranch(anyString(), anyString());
 
         // Mock git status with no changes - still need to mock all methods for buildStatusDetails
         when(gitStatus.isClean()).thenReturn(true);
@@ -229,7 +242,7 @@ class GitGroupTransferStrategyTest {
 
         // Verify commit, push, and tag were NOT called
         verify(gitService, never()).commit(any(), anyString(), anyString());
-        verify(gitService, never()).push(any(), anyString());
+        verify(gitService, never()).push(any(), anyString(), anyString());
         verify(gitService, never()).createTag(any(), anyString(), anyString());
 
         // Verify skip step was recorded
@@ -247,23 +260,28 @@ class GitGroupTransferStrategyTest {
 
         // Mock git operations
         doNothing().when(gitService).cloneRepo(any(GroupGitInfoDto.class), anyString());
+        doNothing().when(gitService).createBranch(anyString(), anyString());
 
         // Mock git status with changes
+        // Note: when recordDto is null, buildStatusDetails is NOT called (recordStep early-returns),
+        // so only getAdded/getModified/getRemoved/getUntracked are needed (by buildCommitMessage)
         when(gitStatus.isClean()).thenReturn(false);
         when(gitStatus.getAdded()).thenReturn(Set.of("file1.json"));
         when(gitStatus.getModified()).thenReturn(Set.of("file2.json"));
         when(gitStatus.getRemoved()).thenReturn(Set.of("file3.json"));
+        when(gitStatus.getUntracked()).thenReturn(Collections.emptySet());
         when(gitService.getStatus(anyString())).thenReturn(gitStatus);
 
         doNothing().when(gitService).commit(any(GroupGitInfoDto.class), anyString(), anyString());
-        doNothing().when(gitService).push(any(GroupGitInfoDto.class), anyString());
+        doNothing().when(gitService).push(any(GroupGitInfoDto.class), anyString(), anyString());
+        when(gitService.createPullRequest(any(GroupGitInfoDto.class), anyString(), any(), any())).thenReturn("https://github.com/test/pr/1");
 
         // Execute - should not throw exception
         assertDoesNotThrow(() -> strategy.exportGroups(request));
 
         // Verify git operations were still called
         verify(gitService).commit(any(), anyString(), anyString());
-        verify(gitService).push(any(), anyString());
+        verify(gitService).push(any(), anyString(), anyString());
     }
 
     @Test
@@ -295,6 +313,7 @@ class GitGroupTransferStrategyTest {
 
         // Mock git operations
         doNothing().when(gitService).cloneRepo(any(GroupGitInfoDto.class), anyString());
+        doNothing().when(gitService).createBranch(anyString(), anyString());
 
         // Mock git status with no changes - need to mock all methods for buildStatusDetails
         when(gitStatus.isClean()).thenReturn(true);
@@ -323,6 +342,7 @@ class GitGroupTransferStrategyTest {
 
         // Mock git operations
         doNothing().when(gitService).cloneRepo(any(GroupGitInfoDto.class), anyString());
+        doNothing().when(gitService).createBranch(anyString(), anyString());
 
         // Mock git status with no changes - need to mock all methods for buildStatusDetails
         when(gitStatus.isClean()).thenReturn(true);
@@ -341,4 +361,3 @@ class GitGroupTransferStrategyTest {
         verify(gitService, never()).commit(any(), anyString(), anyString());
     }
 }
-

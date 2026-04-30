@@ -1,6 +1,7 @@
 package com.tapdata.tm.utils;
 
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.commons.util.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +28,18 @@ public class BeanUtil {
 
         return null;
     }
+
+	public static <T, M> M deepCloneWithJackson(T source, Class<M> clazz) {
+		try {
+			M target = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(source), clazz);
+
+			return target;
+		} catch (Exception ex) {
+			logger.info("class replication failed, {} -> {}, the reason for the failure-->{}", source.getClass().getName(), clazz.getName(), ex.getMessage(), ex);
+		}
+
+		return null;
+	}
 
     /**
      * 可用于使用json的子弹注解

@@ -54,6 +54,7 @@ import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.module.enums.ApiType;
 import com.tapdata.tm.module.enums.ParamTypeEnum;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ApiView;
@@ -131,6 +132,7 @@ import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -145,6 +147,8 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
+	public static final String USER_ID = "user_id";
+
 	private static final String URI = "uri";
 	private static final String PROPERTIES = "properties";
 	protected static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
@@ -179,6 +183,16 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				}
 			});
 		}
+	}
+
+	public Supplier<ModulesDto> dataPermissionFindById(ObjectId moduleId, com.tapdata.tm.base.dto.Field fields) {
+		return () -> {
+			if (null != fields) {
+				fields.put(USER_ID, true);
+				fields.put(DataPermissionHelper.FIELD_NAME, true);
+			}
+			return findById(moduleId, fields);
+		};
 	}
 
 
@@ -495,9 +509,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		//查找已发布的api
 		List<ModulesDto> apis = activeApis(apiDefinitionVo, userDetail);
 		textEncryptionRule(apiDefinitionVo);
+		apiDefinitionVo.setApiInfo(withUnPublishApi(apis));
 		String clusterId = Optional.ofNullable(settingsService.getByKey("cluster")).map(Settings::getId).orElse("");
 		apiDefinitionVo.setClusterId(clusterId);
-		apiDefinitionVo.setApiInfo(withUnPublishApi(apis));
 		return apiDefinitionVo;
 	}
 
@@ -1767,21 +1781,26 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> importResult = new HashMap<>();
 		for (ModulesDto modulesDto : modulesDtos) {
 			try {
-				// 基于名称查找现有模块，而不是基于ID
-				ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
-
 				modulesDto.setIsDeleted(false);
 				modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
 
 				// 根据导入模式处理
 				switch (importMode) {
-					case REPLACE,REUSE_EXISTING,GROUP_IMPORT:
-						handleReplaceMode(modulesDto, existingModuleByName, user, conMap,importResult);
+					case REPLACE,REUSE_EXISTING: {
+						// 基于名称查找现有模块
+						ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
+						handleReplaceMode(modulesDto, existingModuleByName, user, conMap, importResult);
+						break;
+					}
+					case GROUP_IMPORT:
+						// 按 _id 查重：找到则覆盖，未找到则以原 _id 插入
+						handleGroupImportModuleMode(modulesDto, user, importResult);
 						break;
 					case IMPORT_AS_COPY:
 						handleImportAsCopyMode(modulesDto, user, conMap);
 						break;
-					case CANCEL_IMPORT:
+					case CANCEL_IMPORT: {
+						ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
 						if (null != existingModuleByName) {
 							return importResult;
 						} else {
@@ -1792,6 +1811,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 							}
 						}
 						break;
+					}
 					default:
 						// 默认使用复制导入
 						handleImportAsCopyMode(modulesDto, user, conMap);
@@ -1811,6 +1831,37 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Query query = new Query(Criteria.where("name").is(name).and("is_deleted").ne(true));
 		query.fields().include("_id", "user_id", "name","status");
 		return findOne(query, user);
+	}
+
+	/**
+	 * GROUP_IMPORT 模式的模块导入处理：按 _id 查重，找到则覆盖更新，未找到则以原 _id 插入。
+	 * Connection._id 已在导入时保留，无需更新 connectionId 映射。
+	 */
+	protected void handleGroupImportModuleMode(ModulesDto modulesDto, UserDetail user, Map<String, Object> importResult) {
+		if (modulesDto.getId() == null) {
+			ModulesEntity importEntity = repository.importEntity(convertToEntity(ModulesEntity.class, modulesDto), user);
+			log.info("import api modules (group, no id) {}", importEntity);
+			return;
+		}
+		Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
+		idQuery.fields().include("_id", "user_id", "name", "status");
+		ModulesDto existingById = findOne(idQuery);
+
+		if (existingById != null) {
+			// 已存在相同 _id，覆盖更新
+			String existStatus = existingById.getStatus();
+			if (ModuleStatusEnum.ACTIVE.getValue().equals(existStatus)) {
+				existingById.setStatus(ModuleStatusEnum.PENDING.getValue());
+				updateModuleById(existingById, user);
+				modulesDto.setStatus(ModuleStatusEnum.ACTIVE.getValue());
+			}
+			Long count = updateByWhere(new Query(Criteria.where("_id").is(modulesDto.getId())), modulesDto, user);
+			importResult.put(modulesDto.getId().toHexString(), count);
+		} else {
+			// 不存在，以原 _id 插入
+			ModulesEntity importEntity = repository.importEntity(convertToEntity(ModulesEntity.class, modulesDto), user);
+			log.info("import api modules (group) {}", importEntity);
+		}
 	}
 
 	/**
@@ -1894,7 +1945,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				modulesDto.setConnection(dataSourceCon.getId());
 				modulesDto.setDataSource(dataSourceCon.getId().toString());
 				modulesDto.setConnectionName(dataSourceCon.getName());
-				modulesDto.setConnectionType(dataSourceCon.getConnection_type());
+				modulesDto.setConnectionType(dataSourceCon.getDatabase_type());
 			}
 		}
 	}

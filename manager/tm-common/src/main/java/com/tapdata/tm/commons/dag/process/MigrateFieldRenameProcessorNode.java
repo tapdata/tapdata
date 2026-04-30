@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.dag.process;
 import cn.hutool.core.util.StrUtil;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
@@ -40,7 +41,9 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		super(NodeEnum.migrate_field_rename_processor.name(), NodeCatalog.processor);
 	}
 
+	@EqField
 	private LinkedList<TableFieldInfo> fieldsMapping;
+	@EqField
 	private Operation fieldsOperation;
 
 	@Override
@@ -219,6 +222,9 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		default void renameField(T param, String fromName, String toName) {
 		}
 
+		default void renameAfterField(T param, String fromName, String toName) {
+		}
+
 		default void renameField(String oldKey, String newKey, Map<String, Object> originValueMap, T param) {
 		}
 
@@ -320,6 +326,11 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			if (!fieldName.equals(newFieldName.get())) {
 				partitionTableFieldRenameOperator.rename(fieldName, newFieldName.get());
 				operator.renameField(operatorParam, fieldName, newFieldName.get());
+			}
+			if (operatorParam instanceof TapAlterFieldNameEvent) {
+				String renamedField = ((TapAlterFieldNameEvent) operatorParam).getNameChange().getAfter();
+				renamedField = apply(fieldsOperation, renamedField);
+				operator.renameAfterField(operatorParam, ((TapAlterFieldNameEvent)operatorParam).getNameChange().getAfter(), renamedField);
 			}
 
 			return isShow;

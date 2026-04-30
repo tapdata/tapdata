@@ -2,22 +2,25 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
+import com.tapdata.cache.scripts.ScriptCacheService;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
-import com.tapdata.entity.JavaScriptFunctions;
-import com.tapdata.entity.MessageEntity;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
+import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -25,6 +28,7 @@ import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
+import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
@@ -64,6 +68,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 	private ThreadLocal<Map<String, Object>> processContextThreadLocal;
 	private Map<String, Object> globalTaskContent;
+	private ScriptExecutorsManager scriptExecutorsManager;
 
 	public HazelcastCustomProcessor(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -86,14 +91,25 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class, n -> !running.get());
 			try {
+				ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 				engine = ScriptUtil.getScriptEngine(
+						JSEngineEnum.GRAALVM_JS.getEngineName(),
 						customNodeTempDto.getTemplate(),
 						javaScriptFunctions,
 						clientMongoOperator,
-						((DataProcessorContext) processorBaseContext).getCacheService(),
-						new ObsScriptLogger(obsLogger, logger));
+						null,
+						null,
+						scriptCacheService,
+						new ObsScriptLogger(getScriptObsLogger(), logger),
+						false);
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
+				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
+						node.getTaskId(), node.getId(),
+						!processorBaseContext.getTaskDto().isNormalTask()
+				);
+				((ScriptEngine) engine).put("ScriptExecutorsManager", scriptExecutorsManager);
+
 			} catch (ScriptException e) {
 				throw new TapCodeException(ScriptProcessorExCode_30.CUSTOM_PROCESSOR_GET_SCRIPT_ENGINE_FAILED, "Init script engine failed", e)
 						.dynamicDescriptionParameters(e.getMessage());
@@ -124,20 +140,45 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	@SneakyThrows
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-		execute(tapdataEvent);
-		String tableName = TapEventUtil.getTableId(tapdataEvent.getTapEvent());
-		ProcessResult processResult = null;
-		if (StringUtils.isNotEmpty(tableName)) {
-			processResult = getProcessResult(tableName);
+		Map<String, Object> context = processContextThreadLocal.get();
+		try {
+			Object result = executeAndGetResult(tapdataEvent);
+			String tableName = TapEventUtil.getTableId(tapdataEvent.getTapEvent());
+			ProcessResult processResult = null;
+			if (StringUtils.isNotEmpty(tableName)) {
+				processResult = getProcessResult(tableName);
+			}
+			if (null == result) {
+				return;
+			}
+			String defaultOp = resolveOp(context.get("op"), TapEventUtil.getOp(tapdataEvent.getTapEvent()));
+			Map<String, Object> contextBefore = (Map<String, Object>) context.get("before");
+			if (result instanceof List) {
+				List<?> resultList = (List<?>) result;
+				List<?> opList = getOpList(context);
+				validateOpList(resultList, opList);
+				for (int index = 0; index < resultList.size(); index++) {
+					Map<String, Object> newMap = new HashMap<>();
+					MapUtil.copyToNewMap((Map<String, Object>) resultList.get(index), newMap);
+					TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
+					applyResult(cloneTapdataEvent, newMap, resolveListOp(opList, index, defaultOp), contextBefore);
+					consumer.accept(cloneTapdataEvent, processResult);
+				}
+			} else {
+				Map<String, Object> newMap = new HashMap<>();
+				MapUtil.copyToNewMap((Map<String, Object>) result, newMap);
+				applyResult(tapdataEvent, newMap, defaultOp, contextBefore);
+				consumer.accept(tapdataEvent, processResult);
+			}
+		} finally {
+			context.clear();
 		}
-		consumer.accept(tapdataEvent, processResult);
 	}
 
-	protected void execute(TapdataEvent tapdataEvent) throws IllegalAccessException {
+	protected Object executeAndGetResult(TapdataEvent tapdataEvent) throws IllegalAccessException {
 		Node<?> node = processorBaseContext.getNode();
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		MessageEntity messageEntity = tapdataEvent.getMessageEntity();
-		boolean isAfter;
 		boolean isTapRecordEvent = true;
 		Map<String, Object> after;
 		Map<String, Object> before;
@@ -151,11 +192,9 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			isTapRecordEvent = false;
 		}
 		if (MapUtils.isEmpty(after) && MapUtils.isEmpty(before)) {
-			return;
+			return null;
 		}
 		Map<String, Object> record = null == after ? before : after;
-		isAfter = null != after;
-		((ScriptEngine) engine).put("log", logger);
 
 		Map<String, Object> context = buildContextMap(tapdataEvent, tapEvent, before, this.globalTaskContent, this.processContextThreadLocal);
 
@@ -169,11 +208,24 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		} catch (NoSuchMethodException e) {
 			throw new RuntimeException("Execute script error, cannot found function " + FUNCTION_NAME);
 		}
-		if (null == result) {
-			return;
+		return result;
+	}
+
+	private void applyResult(TapdataEvent tapdataEvent, Map<String, Object> newMap) {
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		MessageEntity messageEntity = tapdataEvent.getMessageEntity();
+		boolean isTapRecordEvent = tapEvent instanceof TapRecordEvent;
+		Map<String, Object> after;
+		Map<String, Object> before;
+		if (isTapRecordEvent) {
+			after = TapEventUtil.getAfter(tapEvent);
+			before = TapEventUtil.getBefore(tapEvent);
+		} else {
+			messageEntity = tapdataEvent.getMessageEntity();
+			after = messageEntity.getAfter();
+			before = messageEntity.getBefore();
 		}
-		Map<String, Object> newMap = new HashMap<>();
-		MapUtil.copyToNewMap((Map<String, Object>) result, newMap);
+		boolean isAfter = null != after;
 		if (isAfter) {
 			after.clear();
 			after.putAll(newMap);
@@ -193,6 +245,84 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		}
 	}
 
+	private void applyResult(TapdataEvent tapdataEvent, Map<String, Object> newMap, String op, Map<String, Object> before) {
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if (tapEvent instanceof TapRecordEvent) {
+			TapEvent targetTapEvent = getTapEvent(tapEvent, op, before);
+			setRecordMap(targetTapEvent, op, newMap);
+			tapdataEvent.setTapEvent(targetTapEvent);
+			return;
+		}
+		applyResult(tapdataEvent, newMap);
+	}
+
+	private List<?> getOpList(Map<String, Object> context) {
+		Object opList = context.get("opList");
+		if (null == opList) {
+			return null;
+		}
+		if (!(opList instanceof List)) {
+			return null;
+		}
+		return (List<?>) opList;
+	}
+
+	private void validateOpList(List<?> resultList, List<?> opList) {
+		if (null != opList && resultList.size() != opList.size()) {
+			obsLogger.warn("context.opList size must match the result list size");
+		}
+	}
+
+	private String resolveListOp(List<?> opList, int index, String defaultOp) {
+		if (null == opList) {
+			return defaultOp;
+		}
+		return resolveOp(opList.get(index), defaultOp);
+	}
+
+	private String resolveOp(Object op, String defaultOp) {
+		if (op instanceof String && StringUtils.isNotBlank((String) op)) {
+			return (String) op;
+		}
+		return defaultOp;
+	}
+
+	private TapEvent getTapEvent(TapEvent tapEvent, String op, Map<String, Object> before) {
+		if (StringUtils.equals(TapEventUtil.getOp(tapEvent), op)) {
+			TapEventUtil.setBefore(tapEvent, before);
+			return tapEvent;
+		}
+		OperationType operationType = OperationType.fromOp(op);
+		TapEvent result;
+		switch (operationType) {
+			case INSERT:
+				result = TapInsertRecordEvent.create();
+				tapEvent.clone(result);
+				break;
+			case UPDATE:
+				result = TapUpdateRecordEvent.create();
+				tapEvent.clone(result);
+				TapEventUtil.setBefore(result, before);
+				break;
+			case DELETE:
+				result = TapDeleteRecordEvent.create();
+				tapEvent.clone(result);
+				break;
+			default:
+				result =  tapEvent;
+				break;
+		}
+		return result;
+	}
+
+	private void setRecordMap(TapEvent tapEvent, String op, Map<String, Object> recordMap) {
+		if (ConnectorConstant.MESSAGE_OPERATION_DELETE.equals(op)) {
+			TapEventUtil.setBefore(tapEvent, recordMap);
+		} else {
+			TapEventUtil.setAfter(tapEvent, recordMap);
+		}
+	}
+
 	@Override
 	protected void doClose() throws TapCodeException {
 		CommonUtils.ignoreAnyError(() -> {
@@ -203,6 +333,13 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		if (null != processContextThreadLocal) {
 			processContextThreadLocal.remove();
 		}
+		// Close script executors manager
+		CommonUtils.ignoreAnyError(() -> {
+			if (this.scriptExecutorsManager != null) {
+				this.scriptExecutorsManager.close();
+				this.scriptExecutorsManager = null;
+			}
+		}, TAG);
 		super.doClose();
 	}
 
@@ -250,6 +387,11 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		public Object get(String key) {
 			return map.get(key);
 		}
+	}
+
+	@Override
+	public boolean needCopyBatchEventWrapper() {
+		return true;
 	}
 
 	@Override

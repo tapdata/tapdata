@@ -1,6 +1,7 @@
 package com.tapdata.tm.application.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -51,7 +52,7 @@ import java.util.Set;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("Application")
-public class ApplicationEntity extends BaseEntity {
+public class ApplicationEntity extends BaseEntity implements IDataPermissionEntity {
 
     private String name;
 

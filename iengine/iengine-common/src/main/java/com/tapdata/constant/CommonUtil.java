@@ -1,6 +1,9 @@
 package com.tapdata.constant;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.entity.MysqlJson;
 import com.tapdata.entity.values.BooleanNotExist;
@@ -15,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
@@ -142,21 +146,27 @@ public class CommonUtil {
 	public static boolean compareInstant(Instant val1, Instant val2, boolean ignoreTimePrecision, String roundingMode) {
 		Instant instant1 = val1;
 		Instant instant2 = val2;
-
 		if (ignoreTimePrecision) {
+			boolean secondAndNanoZero1 =
+					instant1.getEpochSecond() % 60 == 0
+							&& instant1.getNano() == 0;
+
+			boolean secondAndNanoZero2 =
+					instant2.getEpochSecond() % 60 == 0
+							&& instant2.getNano() == 0;
+
+			if (secondAndNanoZero1 || secondAndNanoZero2) {
+				Instant norm1 = instant1.truncatedTo(ChronoUnit.MINUTES);
+				Instant norm2 = instant2.truncatedTo(ChronoUnit.MINUTES);
+				return !norm1.equals(norm2);
+			}
 			int precision1 = CommonUtil.getValPrecision(instant1);
 			int precision2 = CommonUtil.getValPrecision(instant2);
-			if (precision1 != precision2) {
-				int minPrecision = Math.min(precision1, precision2);
-				Instant norm1 = CommonUtil.normalizePrecision(instant1, minPrecision, roundingMode);
-				Instant norm2 = CommonUtil.normalizePrecision(instant2, minPrecision, roundingMode);
-				if (norm1.equals(norm2)) {
-					return false;
-				}
-			} else {
-				long diffMillis = Math.abs(Duration.between(val1, val2).toMillis());
-				return diffMillis > 3;
-			}
+			int minPrecision = Math.min(precision1, precision2);
+			Instant norm1 = CommonUtil.normalizePrecision(instant1, minPrecision, roundingMode);
+			Instant norm2 = CommonUtil.normalizePrecision(instant2, minPrecision, roundingMode);
+			long diffMillis = Math.abs(Duration.between(norm1, norm2).toMillis());
+			return diffMillis > 5;
 		}
 		return !instant1.equals(instant2);
 	}
@@ -395,13 +405,59 @@ public class CommonUtil {
 
 	private static boolean obj2JsonCompare(Object val, Object obj, boolean ignoreTimePrecision, String roundingMode) throws CompareException {
 		try {
-			JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-			return !JSONUtil.obj2Json(val).equals(obj.toString());
+			ObjectMapper localJsonMapper = JSONUtil.mapper.copy();
+			localJsonMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+			localJsonMapper.enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
+			String sourceJson = localJsonMapper.writeValueAsString(val);
+			String targetJson = obj.toString();
+			try {
+				JsonNode sourceJsonValue = localJsonMapper.readTree(sourceJson);
+				try {
+					JsonNode targetJsonValue = localJsonMapper.readTree(targetJson);
+					return !compareJsonNode(sourceJsonValue, targetJsonValue);
+				} catch (JsonProcessingException ignored) {
+					return !sourceJson.equals(targetJson);
+				}
+			} catch (JsonProcessingException ignored) {
+				return !sourceJson.equals(targetJson);
+			}
 		} catch (JsonProcessingException e) {
 			throw new CompareException(e).sourceValue(val).targetValue(obj);
-		} finally {
-			JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 		}
+	}
+
+	private static boolean compareJsonNode(JsonNode val1, JsonNode val2) {
+		if (null == val1 || null == val2) {
+			return val1 == val2;
+		}
+		if (val1.isObject() && val2.isObject()) {
+			if (val1.size() != val2.size()) return false;
+			Iterator<String> fieldNames = val1.fieldNames();
+			while (fieldNames.hasNext()) {
+				String fieldName = fieldNames.next();
+				if (!val2.has(fieldName) || !compareJsonNode(val1.get(fieldName), val2.get(fieldName))) {
+					return false;
+				}
+			}
+			return true;
+		}
+		if (val1.isArray() && val2.isArray()) {
+			if (val1.size() != val2.size()) return false;
+			for (int i = 0; i < val1.size(); i++) {
+				if (!compareJsonNode(val1.get(i), val2.get(i))) {
+					return false;
+				}
+			}
+			return true;
+		}
+		if (val1.isNumber() && val2.isNumber()) {
+			return compareJsonNumberNode(val1, val2);
+		}
+		return val1.equals(val2);
+	}
+
+	private static boolean compareJsonNumberNode(JsonNode val1, JsonNode val2) {
+		return val1.decimalValue().compareTo(val2.decimalValue()) == 0;
 	}
 
 	private static Object try2String(Object val, boolean ignoreTimePrecision) {

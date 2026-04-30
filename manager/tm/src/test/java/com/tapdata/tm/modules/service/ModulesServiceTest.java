@@ -25,6 +25,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
@@ -58,6 +59,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -210,6 +212,25 @@ class ModulesServiceTest {
 			modules.setPaths(paths);
 			modulesService.beforeSave(modules, mock(UserDetail.class));
 			Assertions.assertEquals(0, modules.getPaths().get(0).getFields().size());
+		}
+	}
+
+	@Nested
+	class DataPermissionFindByIdTest {
+		@Test
+		void test_fillFieldsAndDelegateFindById() {
+			ModulesService spyService = spy(modulesService);
+			ObjectId moduleId = new ObjectId();
+			com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
+			ModulesDto modulesDto = new ModulesDto();
+			doReturn(modulesDto).when(spyService).findById(eq(moduleId), same(field));
+
+			Supplier<ModulesDto> supplier = spyService.dataPermissionFindById(moduleId, field);
+
+			assertSame(modulesDto, supplier.get());
+			assertEquals(Boolean.TRUE, field.get(ModulesService.USER_ID));
+			assertEquals(Boolean.TRUE, field.get(DataPermissionHelper.FIELD_NAME));
+			verify(spyService).findById(eq(moduleId), same(field));
 		}
 	}
 
@@ -2058,6 +2079,8 @@ class ModulesServiceTest {
             // Setup
             DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
             connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+            connectionDto.setDatabase_type("mysql");
+            connectionDto.setName("test-mysql-connection");
             conMap.put("662877df9179877be8b37074", connectionDto);
 
             // Execute
@@ -2066,6 +2089,9 @@ class ModulesServiceTest {
             // Verify
             assertEquals("662877df9179877be8b37077", moduleDto.getConnectionId());
             assertEquals(new ObjectId("662877df9179877be8b37077"), moduleDto.getConnection());
+            assertEquals("662877df9179877be8b37077", moduleDto.getDataSource());
+            assertEquals("test-mysql-connection", moduleDto.getConnectionName());
+            assertEquals("mysql", moduleDto.getConnectionType());
         }
 
         @Test
