@@ -40,6 +40,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -124,6 +125,52 @@ public class MeasureAOPTest {
             DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
             connectionDto.setHeartbeatEnable(false);
             when(dataSourceService.findById(new ObjectId("66337fb973828322f83f7075"), "heartbeatEnable")).thenReturn(connectionDto);
+
+            measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
+                    taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>());
+
+            verify(alarmService, never()).save(any());
+        }
+
+        @Test
+        void testSkipAlarmWhenMonitorStartMissingAndLastCapturedInvalid() {
+            Map<String, Number> vs = new HashMap<>();
+            vs.put(MetricCons.SS.VS.F_LAST_CAPTURED_INCREMENTAL_EVENT_AT, 0L);
+
+            assertDoesNotThrow(() -> measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
+                    taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>()));
+
+            verify(alarmService, never()).find(anyString(), anyString(), eq(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
+            verify(alarmService, never()).save(any());
+        }
+
+        @Test
+        void testSkipAlarmWhenRestartedWithStaleCapturedTimestamp() {
+            Map<String, Number> vs = new HashMap<>();
+            long now = System.currentTimeMillis();
+            vs.put(MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT, now - 1000L);
+            vs.put(MetricCons.SS.VS.F_LAST_CAPTURED_INCREMENTAL_EVENT_AT, now - 61000L);
+            when(alarmService.find(taskId, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)).thenReturn(Collections.emptyList());
+
+            measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
+                    taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>());
+
+            verify(alarmService, never()).save(any());
+        }
+
+        @Test
+        void testIngAlarmPreferredWhenRecoveredAlarmReturnedFirst() {
+            Map<String, Number> vs = new HashMap<>();
+            vs.put(MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT, System.currentTimeMillis() - 61000L);
+            AlarmInfo recoverAlarm = AlarmInfo.builder()
+                    .status(AlarmStatusEnum.RECOVER)
+                    .metric(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)
+                    .build();
+            AlarmInfo ingAlarm = AlarmInfo.builder()
+                    .status(AlarmStatusEnum.ING)
+                    .metric(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)
+                    .build();
+            when(alarmService.find(taskId, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)).thenReturn(Arrays.asList(recoverAlarm, ingAlarm));
 
             measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
                     taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>());
@@ -276,7 +323,7 @@ public class MeasureAOPTest {
         AlarmRuleDto alarmRuleDto;
 
         public String taskId = "6682d405494d8d2a5c957f38";
-        public String userId = "testUserId";
+        public String userId = "6682d405494d8d2a5c957f39";
 
 
         @BeforeEach
@@ -293,6 +340,7 @@ public class MeasureAOPTest {
 
             taskDto = new TaskDto();
             taskDto.setId(MongoUtils.toObjectId(taskId));
+            taskDto.setUserId(userId);
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
             when(taskService.findByTaskId(any())).thenReturn(taskDto);
             alarmRuleDto = getAlarmRuleDto();
@@ -306,6 +354,7 @@ public class MeasureAOPTest {
 
             userDetail = mock(UserDetail.class);
             when(userService.loadUserById(any())).thenReturn(userDetail);
+            when(userDetail.getUserId()).thenReturn(userId);
 
 
         }
@@ -499,6 +548,68 @@ public class MeasureAOPTest {
             doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
             measureAOP.addAgentMeasurement(joinPoint);
             verify(measureAOP,times(1)).supplmentDelayAvg(any(),any(),any(),any(),any(),any(),any());
+        }
+
+        @DisplayName("test addAgentMeasurement skips sample when user detail is missing")
+        @Test
+        void testSkipWhenUserDetailMissing(){
+            when(userService.loadUserById(any())).thenReturn(null);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status")).thenReturn(taskDto);
+            List<SampleRequest> list = new ArrayList<>();
+            SampleRequest sampleRequest=new SampleRequest();
+
+            Map<String, String> tags =new HashMap<>();
+            tags.put("type","task");
+            tags.put("taskId",taskId);
+            sampleRequest.setTags(tags);
+
+            Sample sample=new Sample();
+            sample.setVs(new HashMap<>());
+            sampleRequest.setSample(sample);
+            list.add(sampleRequest);
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+            Object[] objects = new Object[10];
+            objects[0]=list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+            doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
+
+            assertDoesNotThrow(() -> measureAOP.addAgentMeasurement(joinPoint));
+            verify(measureAOP, never()).setTaskSnapshotDate(any(), any(), any(), any());
+        }
+
+        @DisplayName("test addAgentMeasurement skips node sample when dag node is missing")
+        @Test
+        void testSkipWhenDagNodeMissing(){
+            DAG dag = mock(DAG.class);
+            when(dag.getSources()).thenReturn(Collections.emptyList());
+            when(dag.getTargets()).thenReturn(Collections.emptyList());
+            when(dag.getNode("missing")).thenReturn(null);
+            taskDto.setDag(dag);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status")).thenReturn(taskDto);
+            List<SampleRequest> list = new ArrayList<>();
+            SampleRequest sampleRequest=new SampleRequest();
+
+            Map<String, String> tags =new HashMap<>();
+            tags.put("type","node");
+            tags.put("taskId",taskId);
+            tags.put("nodeId","missing");
+            sampleRequest.setTags(tags);
+
+            Sample sample=new Sample();
+            sample.setVs(new HashMap<>());
+            sampleRequest.setSample(sample);
+            list.add(sampleRequest);
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+            Object[] objects = new Object[10];
+            objects[0]=list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+            doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
+
+            assertDoesNotThrow(() -> measureAOP.addAgentMeasurement(joinPoint));
+            verify(measureAOP, never()).sourceNoIncrementalEventAlarm(any(), any(), any(), any(), any(), any(), any(), any());
+            verify(measureAOP,never()).supplmentDelayAvg(any(),any(),any(),any(),any(),any(),any());
         }
     }
 

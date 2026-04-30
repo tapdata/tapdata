@@ -92,7 +92,13 @@ public class MeasureAOP {
                 taskDtoMap.put(taskId, taskDto);
             });
             taskDtoMap.values().forEach(taskDto -> {
+                if (Objects.isNull(taskDto) || StringUtils.isBlank(taskDto.getUserId())) {
+                    return;
+                }
                 UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+                if (Objects.isNull(userDetail)) {
+                    return;
+                }
                 List<AlarmSettingDto> alarmSettingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
                 userDetailMap.put(taskDto.getUserId(), userDetail);
                 alarmSettingMap.put(userDetail.getUserId(), alarmSettingDtos);
@@ -105,9 +111,15 @@ public class MeasureAOP {
 
             if (StringUtils.isNotBlank(taskId)) {
                 TaskDto taskDto = taskDtoMap.get(taskId);
+                if (Objects.isNull(taskDto) || StringUtils.isBlank(taskDto.getUserId())) {
+                    return;
+                }
                 // task alarm
                 Map<String, List<AlarmRuleDto>> ruleMap = alarmService.getAlarmRuleDtos(taskDto);
                 UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
+                if (Objects.isNull(userDetail)) {
+                    return;
+                }
                 if (MetricCons.SampleType.TASK.check(type)) {
                     if (null != ruleMap && !ruleMap.isEmpty()) {
                         boolean checkOpen =alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, alarmSettingMap.get(userDetail.getUserId()));
@@ -124,9 +136,16 @@ public class MeasureAOP {
                 } else if (MetricCons.SampleType.NODE.check(type)) {
                     String nodeId = sampleRequest.getTags().get(FIELD_TAGS_NODE_ID);
                     DAG dag = taskDto.getDag();
-                    Optional<Node> sourceNode = dag.getSources().stream().filter(node -> node.getId().equals(nodeId)).findFirst();
-                    Optional<Node> targetNode = dag.getTargets().stream().filter(node -> node.getId().equals(nodeId)).findFirst();
-                    String nodeName = dag.getNode(nodeId).getName();
+                    if (StringUtils.isBlank(nodeId) || Objects.isNull(dag)) {
+                        return;
+                    }
+                    Node<?> currentNode = dag.getNode(nodeId);
+                    if (Objects.isNull(currentNode)) {
+                        return;
+                    }
+                    Optional<Node> sourceNode = CollectionUtils.emptyIfNull(dag.getSources()).stream().filter(node -> node.getId().equals(nodeId)).findFirst();
+                    Optional<Node> targetNode = CollectionUtils.emptyIfNull(dag.getTargets()).stream().filter(node -> node.getId().equals(nodeId)).findFirst();
+                    String nodeName = currentNode.getName();
                     if (sourceNode.isPresent()) {
                         sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, nodeName, vs, sourceNode.get(),
                                 heartbeatEnabledMap, alarmSettingMap.get(userDetail.getUserId()));
@@ -243,13 +262,15 @@ public class MeasureAOP {
         Number lastCapturedIncrementalEventAt = vs.get(FIELD_SS_VS_LAST_CAPTURED_INCREMENTAL_EVENT_AT);
         Number lastEnqueuedIncrementalEventAt = vs.get(FIELD_SS_VS_LAST_ENQUEUED_INCREMENTAL_EVENT_AT);
         Number pendingIncrementalEvent = vs.get(FIELD_SS_VS_PENDING_INCREMENTAL_EVENT);
-        if (Objects.isNull(monitorStartAt) && Objects.isNull(lastCapturedIncrementalEventAt)) {
+        Long monitorStart = toPositiveLong(monitorStartAt);
+        Long lastCapturedAt = toPositiveLong(lastCapturedIncrementalEventAt);
+        if (Objects.isNull(monitorStart) && Objects.isNull(lastCapturedAt)) {
             return;
         }
         long now = System.currentTimeMillis();
-        Long lastCapturedAt = Objects.nonNull(lastCapturedIncrementalEventAt) ? lastCapturedIncrementalEventAt.longValue() : null;
-        Long lastEnqueuedAt = Objects.nonNull(lastEnqueuedIncrementalEventAt) ? lastEnqueuedIncrementalEventAt.longValue() : null;
-        long baselineAt = Objects.nonNull(lastCapturedAt) && lastCapturedAt > 0L ? lastCapturedAt : monitorStartAt.longValue();
+        Long lastEnqueuedAt = toPositiveLong(lastEnqueuedIncrementalEventAt);
+        long baselineAt = Objects.isNull(monitorStart) ? lastCapturedAt :
+                Objects.isNull(lastCapturedAt) ? monitorStart : Math.max(monitorStart, lastCapturedAt);
         boolean hasPendingIncrementalEvent = Objects.nonNull(pendingIncrementalEvent) && pendingIncrementalEvent.intValue() > 0;
         boolean downstreamBlocked = hasPendingIncrementalEvent && Objects.nonNull(lastCapturedAt) && lastCapturedAt > 0L
                 && (Objects.isNull(lastEnqueuedAt) || lastCapturedAt > lastEnqueuedAt);
@@ -257,20 +278,27 @@ public class MeasureAOP {
         List<AlarmInfo> alarmInfos = Optional.ofNullable(alarmService.find(taskId, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT))
                 .orElse(Collections.emptyList());
         Optional<AlarmInfo> existing = alarmInfos.stream()
-                .filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus()))
+                .filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()))
                 .findFirst();
 
         if (downstreamBlocked || now - baselineAt < SOURCE_NO_INCREMENTAL_EVENT_THRESHOLD_MS) {
-            if (existing.isPresent() && AlarmStatusEnum.ING.equals(existing.get().getStatus())) {
+            if (existing.isPresent()) {
                 saveSourceNoIncrementalEventRecoverAlarm(task, taskId, nodeId, nodeName, existing.get(), lastCapturedAt);
             }
             return;
         }
 
-        if (existing.isPresent() && AlarmStatusEnum.ING.equals(existing.get().getStatus())) {
+        if (existing.isPresent()) {
             return;
         }
         saveSourceNoIncrementalEventStartAlarm(task, taskId, nodeId, nodeName, lastCapturedAt, baselineAt);
+    }
+
+    private Long toPositiveLong(Number number) {
+        if (Objects.isNull(number) || number.longValue() <= 0L) {
+            return null;
+        }
+        return number.longValue();
     }
 
     private boolean isSourceHeartbeatEnabled(Node<?> sourceNode, Map<String, Boolean> heartbeatEnabledMap) {
