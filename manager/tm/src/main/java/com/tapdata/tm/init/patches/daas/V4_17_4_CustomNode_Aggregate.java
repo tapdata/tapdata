@@ -16,10 +16,10 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
 
-@PatchAnnotation(appType = AppType.DAAS, version = "4.18-1")
-public class V4_18_1_CustomNode_Aggregate extends AbsPatch {
-    private static final Logger logger = LogManager.getLogger(V4_18_1_CustomNode_Aggregate.class);
-    public V4_18_1_CustomNode_Aggregate(PatchType patchType, PatchVersion version) {
+@PatchAnnotation(appType = AppType.DAAS, version = "4.17-4")
+public class V4_17_4_CustomNode_Aggregate extends AbsPatch {
+    private static final Logger logger = LogManager.getLogger(V4_17_4_CustomNode_Aggregate.class);
+    public V4_17_4_CustomNode_Aggregate(PatchType patchType, PatchVersion version) {
         super(patchType, version);
     }
 
