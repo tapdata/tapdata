@@ -105,8 +105,6 @@ public class WebHookAlterInfoDto {
                 this.metricTxt = "Count校验结果的差异行数大于阈值";break;
             case TASK_INCREMENT_START:
                 this.metricTxt = "任务增量开始";break;
-            case TASK_SOURCE_NO_INCREMENTAL_EVENT:
-                this.metricTxt = "源已开启心跳但长时间未捕获到增量事件";break;
             case TASK_FULL_COMPLETE:
                 this.metricTxt = "任务全量完成";break;
             case INSPECT_VALUE_ERROR:

@@ -8,10 +8,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import org.bson.types.ObjectId;
@@ -43,35 +40,6 @@ public class TaskSaveServiceImplTest {
         ReflectionTestUtils.setField(taskSaveService, "alarmSettingService", alarmSettingService);
         ReflectionTestUtils.setField(taskSaveService, "alarmRuleService", alarmRuleService);
     }
-
-    @Nested
-    class supplementAlarmTest {
-        @Test
-        void shouldAppendSourceNoIncrementalEventWhenTaskSettingsAlreadyExist() {
-            TaskDto taskDto = new TaskDto();
-            AlarmSettingVO existing = new AlarmSettingVO();
-            existing.setKey(AlarmKeyEnum.TASK_STATUS_ERROR);
-            taskDto.setAlarmSettings(new ArrayList<>(Collections.singletonList(existing)));
-
-            AlarmSettingDto statusError = new AlarmSettingDto();
-            statusError.setKey(AlarmKeyEnum.TASK_STATUS_ERROR);
-            AlarmSettingDto sourceNoIncremental = new AlarmSettingDto();
-            sourceNoIncremental.setKey(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT);
-            when(alarmSettingService.findAllAlarmSetting(any(UserDetail.class)))
-                    .thenReturn(Arrays.asList(statusError, sourceNoIncremental));
-            when(alarmRuleService.findAllAlarm(any(UserDetail.class))).thenReturn(Collections.emptyList());
-
-            doCallRealMethod().when(taskSaveService).supplementAlarm(any(TaskDto.class), any(UserDetail.class));
-
-            taskSaveService.supplementAlarm(taskDto, mock(UserDetail.class));
-
-            assertNotNull(taskDto.getAlarmSettings());
-            assertEquals(2, taskDto.getAlarmSettings().size());
-            assertTrue(taskDto.getAlarmSettings().stream()
-                    .anyMatch(setting -> AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT == setting.getKey()));
-        }
-    }
-
     @Nested
     class syncTaskSettingTest {
         @Test

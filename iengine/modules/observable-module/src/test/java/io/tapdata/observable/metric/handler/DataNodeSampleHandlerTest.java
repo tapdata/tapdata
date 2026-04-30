@@ -4,7 +4,6 @@ import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.NumberSampler;
 import io.tapdata.common.sample.sampler.ResetSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
-import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,11 +57,6 @@ public class DataNodeSampleHandlerTest {
         handler.outputOthersCounter = mock(CounterSampler.class);
         handler.currentEventTimestamp = mock(NumberSampler.class);
         handler.replicateLag = mock(ResetSampler.class);
-        handler.lastCapturedIncrementalEventAt = mock(NumberSampler.class);
-        handler.lastEnqueuedIncrementalEventAt = mock(NumberSampler.class);
-        handler.pendingIncrementalEvent = mock(NumberSampler.class);
-        handler.sourceIncrementalMonitorStartAt = mock(NumberSampler.class);
-        ReflectionTestUtils.setField(handler, "incrementalSourceReadTimeCostAvg", mock(AverageSampler.class));
 
         doNothing().when(handler.outputSizeSpeed).add(anyLong());
         doNothing().when(handler.outputSpeed).add(anyLong());
@@ -73,11 +67,6 @@ public class DataNodeSampleHandlerTest {
         doNothing().when(handler.outputOthersCounter).inc(anyLong());
         doNothing().when(handler.currentEventTimestamp).setValue(anyLong());
         doNothing().when(handler.replicateLag).setValue(anyLong());
-        doNothing().when(handler.lastCapturedIncrementalEventAt).setValue(anyLong());
-        doNothing().when(handler.lastEnqueuedIncrementalEventAt).setValue(anyLong());
-        doNothing().when(handler.pendingIncrementalEvent).setValue(anyInt());
-        doNothing().when(handler.sourceIncrementalMonitorStartAt).setValue(anyLong());
-        doNothing().when(((AverageSampler) ReflectionTestUtils.getField(handler, "incrementalSourceReadTimeCostAvg"))).add(anyLong(), anyLong());
     }
 
     @Nested
@@ -113,8 +102,7 @@ public class DataNodeSampleHandlerTest {
 
         @Test
         void handleStreamReadProcessCompleteNormal() {
-            recorder.incrInsertTotal();
-            recorder.setNewestEventTimestamp(System.currentTimeMillis());
+
             long time = System.currentTimeMillis();
             handler.handleStreamReadReadComplete(time, recorder);
 
@@ -125,21 +113,9 @@ public class DataNodeSampleHandlerTest {
             verify(handler.inputUpdateCounter, times(1)).inc(recorder.getUpdateTotal());
             verify(handler.inputDeleteCounter, times(1)).inc(recorder.getDdlTotal());
             verify(handler.inputOthersCounter, times(1)).inc(recorder.getOthersTotal());
-            verify(handler.lastCapturedIncrementalEventAt, times(1)).setValue(time);
-            verify(handler.pendingIncrementalEvent, times(1)).setValue(1);
-        }
-
-        @Test
-        void handleStreamReadProcessCompleteHeartbeatOnly() {
-            recorder.setNewestEventTimestamp(System.currentTimeMillis());
-            long time = System.currentTimeMillis();
-            handler.handleStreamReadReadComplete(time, recorder);
-
-            verify(handler.lastCapturedIncrementalEventAt, times(1)).setValue(time);
-            verify(handler.pendingIncrementalEvent, times(1)).setValue(1);
         }
     }
-
+    
     @Nested
     class HandleWriteRecordStartTest {
         @BeforeEach
@@ -159,34 +135,6 @@ public class DataNodeSampleHandlerTest {
             verify(handler.inputUpdateCounter, times(1)).inc(recorder.getUpdateTotal());
             verify(handler.inputDeleteCounter, times(1)).inc(recorder.getDdlTotal());
             verify(handler.inputOthersCounter, times(1)).inc(recorder.getOthersTotal());
-        }
-    }
-
-    @Nested
-    class HandleStreamReadEnqueuedTest {
-        @BeforeEach
-        void init() {
-            doCallRealMethod().when(handler).handleStreamReadEnqueued(anyLong(), any(HandlerUtil.EventTypeRecorder.class));
-        }
-
-        @Test
-        void testHandleStreamReadEnqueued() {
-            recorder.incrInsertTotal();
-            long time = System.currentTimeMillis();
-            handler.handleStreamReadEnqueued(time, recorder);
-
-            verify(handler.lastEnqueuedIncrementalEventAt, times(1)).setValue(time);
-            verify(handler.pendingIncrementalEvent, times(1)).setValue(0);
-        }
-
-        @Test
-        void testHandleStreamReadEnqueuedHeartbeatOnly() {
-            recorder.setNewestEventTimestamp(System.currentTimeMillis());
-            long time = System.currentTimeMillis();
-            handler.handleStreamReadEnqueued(time, recorder);
-
-            verify(handler.lastEnqueuedIncrementalEventAt, times(1)).setValue(time);
-            verify(handler.pendingIncrementalEvent, times(1)).setValue(0);
         }
     }
 

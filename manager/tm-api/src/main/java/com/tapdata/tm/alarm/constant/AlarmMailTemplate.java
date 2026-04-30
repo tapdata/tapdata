@@ -76,12 +76,4 @@ public class AlarmMailTemplate {
             "    Task name: 【{0}】\n" +
             "    Retry times: {1} \n" +
             "    Retry threshold: {2}";
-
-    public static final String TASK_SOURCE_NO_INCREMENTAL_EVENT_TITLE = "【Tapdata Notification: Source heartbeat incremental capture interrupted】{0}";
-    public static final String TASK_SOURCE_NO_INCREMENTAL_EVENT_CONTENT = "Source heartbeat incremental capture interrupted.\n" +
-            "    Task name: 【{0}】\n" +
-            "    Source node: {1}\n" +
-            "    No incremental event captured for {2} seconds\n" +
-            "    Last observed time: {3}\n" +
-            "    Alarm time: {4}";
 }
