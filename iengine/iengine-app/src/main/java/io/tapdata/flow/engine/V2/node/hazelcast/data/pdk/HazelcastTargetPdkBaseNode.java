@@ -1236,7 +1236,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     private void processEventsWithExactlyOnceCheck(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
-            processExactlyOnceWriteCache(tapdataEvents,tapEvents);
+            processExactlyOnceWriteCache(tapdataEvents, tapEvents, checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE);
         } else {
             processEvents(tapEvents);
         }
@@ -1288,24 +1288,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		if (needCheckExactlyOnceWrite) {
 			hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
-			if (checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE) {
-				List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
-				String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
-				if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
-					tapdataEvent.setExactlyOnceWriteCache(null);
-					obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
-					return;
-				} else {
-					if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
-						obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
-						lookupTables.remove(tgtTableNameFromTapEvent);
-					}
-				}
+			List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
+			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
+			if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() &&
+					(checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE && eventExactlyOnceWriteCheckExists(tapdataEvent)) ||
+					(checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.MQ_MODE && eventExactlyOnceWriteCheckExistsForTask(tapdataEvent))) {
+				tapdataEvent.setExactlyOnceWriteCache(null);
+				obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
+				return;
 			} else {
-				if (eventExactlyOnceWriteCheckExistsForTask(tapdataEvent)) {
-					tapdataEvent.setExactlyOnceWriteCache(null);
-					obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
-					return;
+				if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
+					obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
+					lookupTables.remove(tgtTableNameFromTapEvent);
 				}
 			}
 		}
@@ -2205,7 +2199,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         startTransactionMap.put(Thread.currentThread().getName(), false);
     }
 
-    void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents,List<TapEvent> tapEvents) {
+    void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, boolean isSQLMode) {
         throw new UnsupportedOperationException();
     }
 
