@@ -253,7 +253,7 @@ public class ApiMetricsChartQuery {
             if (end > now) {
                 end = now;
             }
-            criteriaBase.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(start).lt(end);
+            criteriaBase.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(start).lte(end);
             criteriaBase.and(ServerUsageField.TYPE.field()).in(List.of(0, 1, 2));
             Query queryOfUsage = Query.query(criteriaBase);
             return (List<T>) usageRepository.findAll(queryOfUsage);
@@ -262,7 +262,7 @@ public class ApiMetricsChartQuery {
         } else {
             start = start / 3600000L * 3600000L;
         }
-        criteriaBase.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(start).lt(end);
+        criteriaBase.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(start).lte(end);
         Query query = Query.query(criteriaBase);
         return (List<T>) serverUsageMetricRepository.findAll(query);
     }

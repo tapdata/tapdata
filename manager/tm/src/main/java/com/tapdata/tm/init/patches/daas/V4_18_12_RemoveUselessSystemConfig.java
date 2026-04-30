@@ -21,10 +21,10 @@ import java.util.List;
  * @description
  */
 @PatchAnnotation(appType = AppType.DAAS, version = "4.18-12")
-public class V4_18_11_RemoveUselessSystemConfig extends AbsPatch {
-    private static final Logger logger = LogManager.getLogger(V4_18_11_RemoveUselessSystemConfig.class);
+public class V4_18_12_RemoveUselessSystemConfig extends AbsPatch {
+    private static final Logger logger = LogManager.getLogger(V4_18_12_RemoveUselessSystemConfig.class);
 
-    public V4_18_11_RemoveUselessSystemConfig(PatchType type, PatchVersion version) {
+    public V4_18_12_RemoveUselessSystemConfig(PatchType type, PatchVersion version) {
         super(type, version);
     }
 
@@ -35,6 +35,7 @@ public class V4_18_11_RemoveUselessSystemConfig extends AbsPatch {
         MongoCollection<Document> collection = mongoTemplate.getCollection("Settings");
         try {
             collection.deleteMany(new Document().append("key", new Document().append("$in", List.of("dataSourcePoolConfig", "accessTimeout"))));
+            collection.deleteMany(new Document().append("$or", List.of(new Document().append("category", new Document().append("$exists", false)), new Document().append("category", null))));
         } catch (Exception e) {
             logger.warn("Unable remove useless system config, key: dataSourcePoolConfig, accessTimeout, {}", e.getMessage());
         }

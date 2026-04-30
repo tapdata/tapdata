@@ -2539,17 +2539,20 @@ public class DataSourceServiceImpl extends DataSourceService{
             return new ArrayList<>();
         }
         Query queryModule = Query.query(new Criteria(ModulesField.STATUS.field()).is("active").and(ModulesField.CONNECTION_ID.field()).in(connectionsIds));
-        queryModule.fields().include(ModulesField.CONNECTION_ID.field());
+        queryModule.fields().include(ModulesField.DATA_SOURCE.field());
         queryModule.with(Sort.by(Sort.Order.desc(ModulesField.LAST_UPDATE_TIME.field())));
         List<ModulesDto> modules = modulesService.findAll(queryModule);
         List<ConnectionWithName> names = new ArrayList<>();
         Map<String, ConnectionWithName> map = new HashMap<>();
         for (int i = 0; i < modules.size(); i++) {
             ModulesDto modulesDto = modules.get(i);
-            ConnectionWithName connectionWithName = new ConnectionWithName(modulesDto.getConnectionId(), null);
-            connectionWithName.setSort(i);
-            names.add(connectionWithName);
-            map.put(modulesDto.getConnectionId(), connectionWithName);
+            String connectionId = modulesDto.getDataSource();
+            if (!map.containsKey(connectionId)) {
+                ConnectionWithName connectionWithName = new ConnectionWithName(connectionId, null);
+                connectionWithName.setSort(i);
+                names.add(connectionWithName);
+                map.put(connectionId, connectionWithName);
+            }
         }
         for (DataSourceEntity e : all) {
             String connectionId = e.getId().toHexString();
@@ -2559,7 +2562,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                 assert connectionWithName != null;
                 connectionWithName.setName(name);
             } else {
-                ConnectionWithName connectionWithName = new ConnectionWithName(e.getId().toHexString(), e.getName());
+                ConnectionWithName connectionWithName = new ConnectionWithName(connectionId, e.getName());
                 connectionWithName.setSort(names.size() + 1);
                 names.add(connectionWithName);
             }
