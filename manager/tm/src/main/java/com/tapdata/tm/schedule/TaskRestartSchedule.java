@@ -36,6 +36,7 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -84,8 +85,8 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 30 * 1000, fixedDelay = 30 * 1000)
-    @SchedulerLock(name ="engineRestartNeedStartTask_lock2", lockAtMostFor = "60s", lockAtLeastFor = "30s")
+    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 10 * 1000)
+    @SchedulerLock(name ="engineRestartNeedStartTask_lock2", lockAtMostFor = "30s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
 
@@ -128,6 +129,15 @@ public class TaskRestartSchedule {
         return userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
     }
 
+    /**
+     * Lower bound covers one missed 5s ping plus a 5s HTTP timeout — going below
+     * this risks false-positive failover on transient network hiccups.
+     */
+    static final long MIN_JOB_HEART_TIMEOUT_MS = 25_000L;
+    private static final long WARN_LOG_INTERVAL_MS = 24 * 60 * 60 * 1000L;
+    private final AtomicLong lastMissingSettingWarnAt = new AtomicLong(0L);
+    private final AtomicLong lastClampWarnAt = new AtomicLong(0L);
+
     private long getHeartExpire() {
         long heartExpire;
         Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.JOB, KeyEnum.JOB_HEART_TIMEOUT);
@@ -135,9 +145,25 @@ public class TaskRestartSchedule {
             heartExpire = Long.parseLong(settings.getValue().toString());
         } else {
             heartExpire = 300000L;
-            log.warn("getHeartExpire: JOB_HEART_TIMEOUT not found in Settings, using default {}ms", heartExpire);
+            warnThrottled(lastMissingSettingWarnAt,
+                    () -> log.warn("getHeartExpire: JOB_HEART_TIMEOUT not found in Settings, using default {}ms", 300000L));
+        }
+        if (heartExpire < MIN_JOB_HEART_TIMEOUT_MS) {
+            long original = heartExpire;
+            heartExpire = MIN_JOB_HEART_TIMEOUT_MS;
+            warnThrottled(lastClampWarnAt,
+                    () -> log.warn("getHeartExpire: configured value {}ms is below minimum {}ms, clamping",
+                            original, MIN_JOB_HEART_TIMEOUT_MS));
         }
         return heartExpire;
+    }
+
+    private void warnThrottled(AtomicLong lastAt, Runnable logFn) {
+        long now = System.currentTimeMillis();
+        long prev = lastAt.get();
+        if (now - prev >= WARN_LOG_INTERVAL_MS && lastAt.compareAndSet(prev, now)) {
+            logFn.run();
+        }
     }
 
 
