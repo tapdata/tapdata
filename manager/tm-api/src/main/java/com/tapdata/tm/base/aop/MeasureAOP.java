@@ -116,22 +116,21 @@ public class MeasureAOP {
                 }
                 // task alarm
                 Map<String, List<AlarmRuleDto>> ruleMap = alarmService.getAlarmRuleDtos(taskDto);
-                if (null == ruleMap || ruleMap.isEmpty()) {
-                    return;
-                }
                 UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
                 if (Objects.isNull(userDetail)) {
                     return;
                 }
                 if (MetricCons.SampleType.TASK.check(type)) {
-                    boolean checkOpen =alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, alarmSettingMap.get(userDetail.getUserId()));
-                    if (checkOpen) {
-                        Optional.ofNullable(ruleMap.get(taskId)).ifPresent(rules -> {
-                            Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
-                            if (!collect.isEmpty()) {
-                                taskIncrementDelayAlarm(taskDto, taskId, vs.get(FIELD_SS_VS_REPLICATE_LAG), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
-                            }
-                        });
+                    if (null != ruleMap && !ruleMap.isEmpty()) {
+                        boolean checkOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, alarmSettingMap.get(userDetail.getUserId()));
+                        if (checkOpen) {
+                            Optional.ofNullable(ruleMap.get(taskId)).ifPresent(rules -> {
+                                Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
+                                if (!collect.isEmpty()) {
+                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get(FIELD_SS_VS_REPLICATE_LAG), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+                                }
+                            });
+                        }
                     }
                     setTaskSnapshotDate(vs, taskId, taskDto, userDetail);
                 } else if (MetricCons.SampleType.NODE.check(type)) {
@@ -151,27 +150,29 @@ public class MeasureAOP {
                         sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, nodeName, vs, sourceNode.get(),
                                 heartbeatEnabledMap, alarmSettingMap.get(userDetail.getUserId()));
                     }
-                    Optional.ofNullable(ruleMap.get(nodeId)).ifPresent(rules -> {
-                        Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
-                        if (!collect.isEmpty()) {
-                            String[] template;
-                            boolean checkOpen;
-                            if (sourceNode.isPresent()) {
-                                checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
-                                template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, true);
-                            } else if (targetNode.isPresent()) {
-                                checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
-                                template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, false);
-                            } else {
-                                checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
-                                template = getTemplate(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null);
-                            }
+                    if (null != ruleMap && !ruleMap.isEmpty()) {
+                        Optional.ofNullable(ruleMap.get(nodeId)).ifPresent(rules -> {
+                            Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
+                            if (!collect.isEmpty()) {
+                                String[] template;
+                                boolean checkOpen;
+                                if (sourceNode.isPresent()) {
+                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
+                                    template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, true);
+                                } else if (targetNode.isPresent()) {
+                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
+                                    template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, false);
+                                } else {
+                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
+                                    template = getTemplate(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null);
+                                }
 
-                            if (checkOpen) {
-                                supplmentDelayAvg(taskDto, taskId, vs.get(template[1]), collect.get(AlarmKeyEnum.valueOf(template[0])), nodeId, nodeName, template);
+                                if (checkOpen) {
+                                    supplmentDelayAvg(taskDto, taskId, vs.get(template[1]), collect.get(AlarmKeyEnum.valueOf(template[0])), nodeId, nodeName, template);
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 }
             }
         });
@@ -289,7 +290,7 @@ public class MeasureAOP {
         if (existing.isPresent()) {
             return;
         }
-        saveSourceNoIncrementalEventStartAlarm(task, taskId, nodeId, nodeName, lastCapturedAt, baselineAt);
+        saveSourceNoIncrementalEventStartAlarm(task, taskId, nodeId, nodeName, lastCapturedAt, baselineAt, now);
     }
 
     private Long toPositiveLong(Number number) {
@@ -314,12 +315,12 @@ public class MeasureAOP {
     }
 
     private void saveSourceNoIncrementalEventStartAlarm(TaskDto task, String taskId, String nodeId, String nodeName,
-                                                        Long lastCapturedAt, long baselineAt) {
+                                                        Long lastCapturedAt, long baselineAt, long now) {
         Map<String, Object> param = Maps.newHashMap();
         param.put("taskName", task.getName());
         param.put("nodeName", nodeName);
         param.put("alarmDate", DateUtil.now());
-        param.put("idleSeconds", SOURCE_NO_INCREMENTAL_EVENT_THRESHOLD_MS / TimeUnit.SECONDS.toMillis(1));
+        param.put("idleSeconds", TimeUnit.MILLISECONDS.toSeconds(now - baselineAt));
         param.put("lastCaptureTime", DateUtil.format(DateUtil.date(baselineAt), "yyyy-MM-dd HH:mm:ss"));
         if (Objects.nonNull(lastCapturedAt) && lastCapturedAt > 0L) {
             param.put("latestCaptureTime", DateUtil.format(DateUtil.date(lastCapturedAt), "yyyy-MM-dd HH:mm:ss"));

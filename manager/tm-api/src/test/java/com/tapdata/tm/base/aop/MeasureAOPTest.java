@@ -83,7 +83,7 @@ public class MeasureAOPTest {
         @Test
         void testStartAlarmWhenNoIncrementalEventForSixtySeconds() {
             Map<String, Number> vs = new HashMap<>();
-            long monitorStartAt = System.currentTimeMillis() - 61000L;
+            long monitorStartAt = System.currentTimeMillis() - 121000L;
             vs.put(MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT, monitorStartAt);
             when(alarmService.find(taskId, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)).thenReturn(Collections.emptyList());
 
@@ -93,7 +93,8 @@ public class MeasureAOPTest {
             verify(alarmService, times(1)).save(argThat(info ->
                     AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT == info.getMetric()
                             && AlarmStatusEnum.ING == info.getStatus()
-                            && "TASK_SOURCE_NO_INCREMENTAL_EVENT_START".equals(info.getSummary())));
+                            && "TASK_SOURCE_NO_INCREMENTAL_EVENT_START".equals(info.getSummary())
+                            && ((Number) info.getParam().get("idleSeconds")).longValue() >= 120L));
         }
 
         @Test
