@@ -10,12 +10,17 @@ import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.metrics.MetricCons;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.alarm.Level;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -35,11 +40,145 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class MeasureAOPTest {
+    @Nested
+    class SourceNoIncrementalEventAlarmTest {
+        private TaskService taskService;
+        private AlarmService alarmService;
+        private DataSourceService dataSourceService;
+        private MeasureAOP measureAOP;
+        private TaskDto taskDto;
+        private final String taskId = "66837fb973828322f83f7074";
+        private final String nodeId = "source-node";
+
+        @BeforeEach
+        void setUp() {
+            taskService = mock(TaskService.class);
+            alarmService = mock(AlarmService.class);
+            dataSourceService = mock(DataSourceService.class);
+            measureAOP = new MeasureAOP(taskService, alarmService, null, null, dataSourceService);
+            taskDto = new TaskDto();
+            taskDto.setId(new ObjectId(taskId));
+            taskDto.setStatus(TaskDto.STATUS_RUNNING);
+            taskDto.setName("task-name");
+            taskDto.setAgentId("agent-id");
+            taskDto.setUserId("user-id");
+            DatabaseNode sourceNode = new DatabaseNode();
+            sourceNode.setId(nodeId);
+            sourceNode.setConnectionId("66337fb973828322f83f7075");
+            sourceNode.setName("source");
+            taskDto.setDag(DAG.build(new Dag(Collections.emptyList(), Collections.singletonList(sourceNode))));
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setHeartbeatEnable(true);
+            when(dataSourceService.findById(new ObjectId("66337fb973828322f83f7075"), "heartbeatEnable")).thenReturn(connectionDto);
+            when(alarmService.checkOpen(any(TaskDto.class), anyString(), eq(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT), isNull(), anyList()))
+                    .thenReturn(true);
+        }
+
+        @Test
+        void testStartAlarmWhenNoIncrementalEventForSixtySeconds() {
+            Map<String, Number> vs = new HashMap<>();
+            long monitorStartAt = System.currentTimeMillis() - 61000L;
+            vs.put(MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT, monitorStartAt);
+            when(alarmService.find(taskId, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)).thenReturn(Collections.emptyList());
+
+            measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
+                    taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>());
+
+            verify(alarmService, times(1)).save(argThat(info ->
+                    AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT == info.getMetric()
+                            && AlarmStatusEnum.ING == info.getStatus()
+                            && "TASK_SOURCE_NO_INCREMENTAL_EVENT_START".equals(info.getSummary())));
+        }
+
+        @Test
+        void testRecoverAlarmWhenDownstreamPendingIncrementalEventExists() {
+            Map<String, Number> vs = new HashMap<>();
+            long lastCapturedAt = System.currentTimeMillis() - 61000L;
+            vs.put(MetricCons.SS.VS.F_LAST_CAPTURED_INCREMENTAL_EVENT_AT, lastCapturedAt);
+            vs.put(MetricCons.SS.VS.F_PENDING_INCREMENTAL_EVENT, 1);
+            AlarmInfo alarmInfo = AlarmInfo.builder()
+                    .status(AlarmStatusEnum.ING)
+                    .metric(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)
+                    .build();
+            alarmInfo.setId(new ObjectId());
+            when(alarmService.find(taskId, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)).thenReturn(Collections.singletonList(alarmInfo));
+
+            measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
+                    taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>());
+
+            verify(alarmService, times(1)).save(argThat(info ->
+                    AlarmStatusEnum.RECOVER == info.getStatus()
+                            && "TASK_SOURCE_NO_INCREMENTAL_EVENT_RECOVER".equals(info.getSummary())));
+        }
+
+        @Test
+        void testSkipAlarmWhenHeartbeatDisabled() {
+            Map<String, Number> vs = new HashMap<>();
+            long monitorStartAt = System.currentTimeMillis() - 61000L;
+            vs.put(MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT, monitorStartAt);
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setHeartbeatEnable(false);
+            when(dataSourceService.findById(new ObjectId("66337fb973828322f83f7075"), "heartbeatEnable")).thenReturn(connectionDto);
+
+            measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
+                    taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>());
+
+            verify(alarmService, never()).save(any());
+        }
+
+        @Test
+        void testSkipAlarmWhenMonitorStartMissingAndLastCapturedInvalid() {
+            Map<String, Number> vs = new HashMap<>();
+            vs.put(MetricCons.SS.VS.F_LAST_CAPTURED_INCREMENTAL_EVENT_AT, 0L);
+
+            assertDoesNotThrow(() -> measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
+                    taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>()));
+
+            verify(alarmService, never()).find(anyString(), anyString(), eq(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
+            verify(alarmService, never()).save(any());
+        }
+
+        @Test
+        void testSkipAlarmWhenRestartedWithStaleCapturedTimestamp() {
+            Map<String, Number> vs = new HashMap<>();
+            long now = System.currentTimeMillis();
+            vs.put(MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT, now - 1000L);
+            vs.put(MetricCons.SS.VS.F_LAST_CAPTURED_INCREMENTAL_EVENT_AT, now - 61000L);
+            when(alarmService.find(taskId, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)).thenReturn(Collections.emptyList());
+
+            measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
+                    taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>());
+
+            verify(alarmService, never()).save(any());
+        }
+
+        @Test
+        void testIngAlarmPreferredWhenRecoveredAlarmReturnedFirst() {
+            Map<String, Number> vs = new HashMap<>();
+            vs.put(MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT, System.currentTimeMillis() - 61000L);
+            AlarmInfo recoverAlarm = AlarmInfo.builder()
+                    .status(AlarmStatusEnum.RECOVER)
+                    .metric(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)
+                    .build();
+            AlarmInfo ingAlarm = AlarmInfo.builder()
+                    .status(AlarmStatusEnum.ING)
+                    .metric(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)
+                    .build();
+            when(alarmService.find(taskId, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)).thenReturn(Arrays.asList(recoverAlarm, ingAlarm));
+
+            measureAOP.sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, "source", vs,
+                    taskDto.getDag().getNode(nodeId), new HashMap<>(), new ArrayList<>());
+
+            verify(alarmService, never()).save(any());
+        }
+    }
+
     @Nested
     class TaskIncrementDelayAlarmTest{
         private TaskService taskService;
@@ -56,12 +195,14 @@ public class MeasureAOPTest {
             alarmService = mock(AlarmService.class);
             userService = mock(UserService.class);
             alarmSettingService = mock(AlarmSettingService.class);
+            DataSourceService dataSourceService = mock(DataSourceService.class);
             Map<String,AtomicInteger> infoMap=new HashMap<>();
             infoMap.put(taskId+"-replicateLag",new AtomicInteger(50000));
             obsMap.put(taskId,infoMap);
             AlarmInfo alarmInfo = AlarmInfo.builder().component(AlarmComponentEnum.FE).status(AlarmStatusEnum.ING).type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).metric(AlarmKeyEnum.TASK_INCREMENT_DELAY).firstOccurrenceTime(new Date(System.currentTimeMillis()-50000)).build();
             alarmInfos.add(alarmInfo);
             when(alarmService.find(anyString(), any(), eq(AlarmKeyEnum.TASK_INCREMENT_DELAY))).thenReturn(alarmInfos);
+            when(dataSourceService.findById(any(ObjectId.class), anyString())).thenReturn(new DataSourceConnectionDto());
         }
         @DisplayName("test taskIncrementDelayAlarm method when equalsFlag is greater and replicateLag not greater alarmRule ms then taskReplicateLagCount is less than alarmRule point")
         @Test
@@ -70,7 +211,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService, null);
             ReflectionTestUtils.setField(measureAOP, "obsMap", obsMap);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
@@ -90,7 +231,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService, null);
             ReflectionTestUtils.setField(measureAOP, "obsMap", obsMap);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
@@ -111,7 +252,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService, null);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
                 assertEquals(Level.RECOVERY,alarmInfo.getLevel());
@@ -129,7 +270,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService, null);
             ReflectionTestUtils.setField(measureAOP, "obsMap", obsMap);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
@@ -153,7 +294,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService, null);
             ReflectionTestUtils.setField(measureAOP, "obsMap", obsMap);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
@@ -182,7 +323,7 @@ public class MeasureAOPTest {
         AlarmRuleDto alarmRuleDto;
 
         public String taskId = "6682d405494d8d2a5c957f38";
-        public String userId = "testUserId";
+        public String userId = "6682d405494d8d2a5c957f39";
 
 
         @BeforeEach
@@ -199,6 +340,7 @@ public class MeasureAOPTest {
 
             taskDto = new TaskDto();
             taskDto.setId(MongoUtils.toObjectId(taskId));
+            taskDto.setUserId(userId);
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
             when(taskService.findByTaskId(any())).thenReturn(taskDto);
             alarmRuleDto = getAlarmRuleDto();
@@ -212,6 +354,7 @@ public class MeasureAOPTest {
 
             userDetail = mock(UserDetail.class);
             when(userService.loadUserById(any())).thenReturn(userDetail);
+            when(userDetail.getUserId()).thenReturn(userId);
 
 
         }
@@ -285,6 +428,47 @@ public class MeasureAOPTest {
             doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
             measureAOP.addAgentMeasurement(joinPoint);
             verify(measureAOP,times(1)).supplmentDelayAvg(any(),any(),any(),any(),any(),any(),any());
+        }
+
+        @DisplayName("test source no incremental event alarm does not depend on node alarm rules")
+        @Test
+        void testSourceNoIncrementalEventWithoutNodeRules(){
+            DAG dag = mock(DAG.class);
+            List<Node> nodes = new ArrayList<>();
+            DatabaseNode node = new DatabaseNode();
+            node.setId("test");
+            node.setName("table");
+            nodes.add(node);
+            when(dag.getSources()).thenReturn(nodes);
+            when(dag.getNode("test")).thenReturn((Node)node);
+            taskDto.setDag(dag);
+            taskDto.setStatus(TaskDto.STATUS_RUNNING);
+            when(alarmService.getAlarmRuleDtos(any())).thenReturn(Collections.emptyMap());
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status")).thenReturn(taskDto);
+            List<SampleRequest> list = new ArrayList<>();
+            SampleRequest sampleRequest=new SampleRequest();
+
+            Map<String, String> tags =new HashMap<>();
+            tags.put("type","node");
+            tags.put("taskId",taskId);
+            tags.put("nodeId","test");
+            sampleRequest.setTags(tags);
+
+            Sample sample=new Sample();
+            sample.setVs(new HashMap<>());
+            sampleRequest.setSample(sample);
+
+            list.add(sampleRequest);
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+
+            Object[] objects = new Object[10];
+            objects[0]=list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+            doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
+            measureAOP.addAgentMeasurement(joinPoint);
+            verify(measureAOP,times(1)).sourceNoIncrementalEventAlarm(eq(taskDto), eq(taskId), eq("test"), eq("table"), any(), any(), anyMap(), any());
+            verify(measureAOP,never()).supplmentDelayAvg(any(),any(),any(),any(),any(),any(),any());
         }
 
         @DisplayName("test addAgentMeasurement when sample type is node")
@@ -365,6 +549,68 @@ public class MeasureAOPTest {
             measureAOP.addAgentMeasurement(joinPoint);
             verify(measureAOP,times(1)).supplmentDelayAvg(any(),any(),any(),any(),any(),any(),any());
         }
+
+        @DisplayName("test addAgentMeasurement skips sample when user detail is missing")
+        @Test
+        void testSkipWhenUserDetailMissing(){
+            when(userService.loadUserById(any())).thenReturn(null);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status")).thenReturn(taskDto);
+            List<SampleRequest> list = new ArrayList<>();
+            SampleRequest sampleRequest=new SampleRequest();
+
+            Map<String, String> tags =new HashMap<>();
+            tags.put("type","task");
+            tags.put("taskId",taskId);
+            sampleRequest.setTags(tags);
+
+            Sample sample=new Sample();
+            sample.setVs(new HashMap<>());
+            sampleRequest.setSample(sample);
+            list.add(sampleRequest);
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+            Object[] objects = new Object[10];
+            objects[0]=list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+            doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
+
+            assertDoesNotThrow(() -> measureAOP.addAgentMeasurement(joinPoint));
+            verify(measureAOP, never()).setTaskSnapshotDate(any(), any(), any(), any());
+        }
+
+        @DisplayName("test addAgentMeasurement skips node sample when dag node is missing")
+        @Test
+        void testSkipWhenDagNodeMissing(){
+            DAG dag = mock(DAG.class);
+            when(dag.getSources()).thenReturn(Collections.emptyList());
+            when(dag.getTargets()).thenReturn(Collections.emptyList());
+            when(dag.getNode("missing")).thenReturn(null);
+            taskDto.setDag(dag);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status")).thenReturn(taskDto);
+            List<SampleRequest> list = new ArrayList<>();
+            SampleRequest sampleRequest=new SampleRequest();
+
+            Map<String, String> tags =new HashMap<>();
+            tags.put("type","node");
+            tags.put("taskId",taskId);
+            tags.put("nodeId","missing");
+            sampleRequest.setTags(tags);
+
+            Sample sample=new Sample();
+            sample.setVs(new HashMap<>());
+            sampleRequest.setSample(sample);
+            list.add(sampleRequest);
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+            Object[] objects = new Object[10];
+            objects[0]=list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+            doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
+
+            assertDoesNotThrow(() -> measureAOP.addAgentMeasurement(joinPoint));
+            verify(measureAOP, never()).sourceNoIncrementalEventAlarm(any(), any(), any(), any(), any(), any(), any(), any());
+            verify(measureAOP,never()).supplmentDelayAvg(any(),any(),any(),any(),any(),any(),any());
+        }
     }
 
     @NotNull
@@ -385,7 +631,7 @@ public class MeasureAOPTest {
         void setUp(){
             alarmService = mock(AlarmService.class);
             taskService = mock(TaskService.class);
-            measureAOP = new MeasureAOP(taskService,alarmService,null,null);
+            measureAOP = new MeasureAOP(taskService,alarmService,null,null, null);
         }
 
         @Test

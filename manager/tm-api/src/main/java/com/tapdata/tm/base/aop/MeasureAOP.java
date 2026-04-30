@@ -1,6 +1,5 @@
 package com.tapdata.tm.base.aop;
 
-import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
@@ -19,6 +18,9 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.common.sample.request.SampleRequest;
@@ -33,6 +35,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -48,6 +51,7 @@ public class MeasureAOP {
     private final AlarmService alarmService;
     private final UserService userService;
     private final AlarmSettingService alarmSettingService;
+    private final DataSourceService dataSourceService;
 //    private final InspectService inspectService;
     private final Map<String, Map<String, AtomicInteger>> obsMap = Maps.newConcurrentMap();
 
@@ -58,12 +62,19 @@ public class MeasureAOP {
     private static final String FIELD_SS_VS_CURR_EVENT_TS = MetricCons.SS.VS.F_CURR_EVENT_TS;
     private static final String FIELD_SS_VS_SNAPSHOT_START_AT = MetricCons.SS.VS.F_SNAPSHOT_START_AT;
     private static final String FIELD_SS_VS_SNAPSHOT_DONE_AT = MetricCons.SS.VS.F_SNAPSHOT_DONE_AT;
+    private static final String FIELD_SS_VS_SOURCE_INCREMENTAL_MONITOR_START_AT = MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT;
+    private static final String FIELD_SS_VS_LAST_CAPTURED_INCREMENTAL_EVENT_AT = MetricCons.SS.VS.F_LAST_CAPTURED_INCREMENTAL_EVENT_AT;
+    private static final String FIELD_SS_VS_LAST_ENQUEUED_INCREMENTAL_EVENT_AT = MetricCons.SS.VS.F_LAST_ENQUEUED_INCREMENTAL_EVENT_AT;
+    private static final String FIELD_SS_VS_PENDING_INCREMENTAL_EVENT = MetricCons.SS.VS.F_PENDING_INCREMENTAL_EVENT;
+    private static final long SOURCE_NO_INCREMENTAL_EVENT_THRESHOLD_MS = TimeUnit.MINUTES.toMillis(1);
 
-    public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService,AlarmSettingService alarmSettingService) {
+    public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService,
+                      AlarmSettingService alarmSettingService, DataSourceService dataSourceService) {
         this.taskService = taskService;
         this.alarmService = alarmService;
         this.userService = userService;
         this.alarmSettingService = alarmSettingService;
+        this.dataSourceService = dataSourceService;
     }
 
 
@@ -74,13 +85,20 @@ public class MeasureAOP {
         Map<String, TaskDto> taskDtoMap = new HashMap<>();
         Map<String, UserDetail> userDetailMap = new HashMap<>();
         Map<String, List<AlarmSettingDto>> alarmSettingMap = new HashMap<>();
+        Map<String, Boolean> heartbeatEnabledMap = new HashMap<>();
         if(CollectionUtils.isNotEmpty(taskIds)){
             taskIds.forEach(taskId -> {
                 TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name", FIELD_SS_VS_CURR_EVENT_TS,"alarmSettings","alarmRules", FIELD_SS_VS_SNAPSHOT_DONE_AT,"status");
                 taskDtoMap.put(taskId, taskDto);
             });
             taskDtoMap.values().forEach(taskDto -> {
+                if (Objects.isNull(taskDto) || StringUtils.isBlank(taskDto.getUserId())) {
+                    return;
+                }
                 UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+                if (Objects.isNull(userDetail)) {
+                    return;
+                }
                 List<AlarmSettingDto> alarmSettingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
                 userDetailMap.put(taskDto.getUserId(), userDetail);
                 alarmSettingMap.put(userDetail.getUserId(), alarmSettingDtos);
@@ -93,51 +111,67 @@ public class MeasureAOP {
 
             if (StringUtils.isNotBlank(taskId)) {
                 TaskDto taskDto = taskDtoMap.get(taskId);
+                if (Objects.isNull(taskDto) || StringUtils.isBlank(taskDto.getUserId())) {
+                    return;
+                }
                 // task alarm
                 Map<String, List<AlarmRuleDto>> ruleMap = alarmService.getAlarmRuleDtos(taskDto);
-                if (null != ruleMap && !ruleMap.isEmpty()) {
-                    UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
-                    if (MetricCons.SampleType.TASK.check(type)) {
-
-                        boolean checkOpen =alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, alarmSettingMap.get(userDetail.getUserId()));
-                        if (checkOpen) {
-                            Optional.ofNullable(ruleMap.get(taskId)).ifPresent(rules -> {
-                                Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
-                                if (!collect.isEmpty()) {
-                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get(FIELD_SS_VS_REPLICATE_LAG), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
-                                }
-                            });
-                        }
-                        setTaskSnapshotDate(vs, taskId, taskDto, userDetail);
-                    } else if (MetricCons.SampleType.NODE.check(type)) {
-                        String nodeId = sampleRequest.getTags().get(FIELD_TAGS_NODE_ID);
-                        Optional.ofNullable(ruleMap.get(nodeId)).ifPresent(rules -> {
+                if (null == ruleMap || ruleMap.isEmpty()) {
+                    return;
+                }
+                UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
+                if (Objects.isNull(userDetail)) {
+                    return;
+                }
+                if (MetricCons.SampleType.TASK.check(type)) {
+                    boolean checkOpen =alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, alarmSettingMap.get(userDetail.getUserId()));
+                    if (checkOpen) {
+                        Optional.ofNullable(ruleMap.get(taskId)).ifPresent(rules -> {
                             Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
                             if (!collect.isEmpty()) {
-                                DAG dag = taskDto.getDag();
-                                Optional<Node> sourceNode = dag.getSources().stream().filter(node -> node.getId().equals(nodeId)).findFirst();
-                                Optional<Node> targetNode = dag.getTargets().stream().filter(node -> node.getId().equals(nodeId)).findFirst();
-                                String[] template;
-                                String nodeName = dag.getNode(nodeId).getName();
-                                boolean checkOpen;
-                                if (sourceNode.isPresent()) {
-                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
-                                    template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, true);
-                                } else if (targetNode.isPresent()) {
-                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
-                                    template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, false);
-                                } else {
-                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
-                                    template = getTemplate(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null);
-                                }
-
-                                if (checkOpen) {
-                                    supplmentDelayAvg(taskDto, taskId, vs.get(template[1]), collect.get(AlarmKeyEnum.valueOf(template[0])), nodeId, nodeName, template);
-                                }
+                                taskIncrementDelayAlarm(taskDto, taskId, vs.get(FIELD_SS_VS_REPLICATE_LAG), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
                             }
                         });
-
                     }
+                    setTaskSnapshotDate(vs, taskId, taskDto, userDetail);
+                } else if (MetricCons.SampleType.NODE.check(type)) {
+                    String nodeId = sampleRequest.getTags().get(FIELD_TAGS_NODE_ID);
+                    DAG dag = taskDto.getDag();
+                    if (StringUtils.isBlank(nodeId) || Objects.isNull(dag)) {
+                        return;
+                    }
+                    Node<?> currentNode = dag.getNode(nodeId);
+                    if (Objects.isNull(currentNode)) {
+                        return;
+                    }
+                    Optional<Node> sourceNode = CollectionUtils.emptyIfNull(dag.getSources()).stream().filter(node -> node.getId().equals(nodeId)).findFirst();
+                    Optional<Node> targetNode = CollectionUtils.emptyIfNull(dag.getTargets()).stream().filter(node -> node.getId().equals(nodeId)).findFirst();
+                    String nodeName = currentNode.getName();
+                    if (sourceNode.isPresent()) {
+                        sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, nodeName, vs, sourceNode.get(),
+                                heartbeatEnabledMap, alarmSettingMap.get(userDetail.getUserId()));
+                    }
+                    Optional.ofNullable(ruleMap.get(nodeId)).ifPresent(rules -> {
+                        Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
+                        if (!collect.isEmpty()) {
+                            String[] template;
+                            boolean checkOpen;
+                            if (sourceNode.isPresent()) {
+                                checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
+                                template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, true);
+                            } else if (targetNode.isPresent()) {
+                                checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
+                                template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, false);
+                            } else {
+                                checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
+                                template = getTemplate(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null);
+                            }
+
+                            if (checkOpen) {
+                                supplmentDelayAvg(taskDto, taskId, vs.get(template[1]), collect.get(AlarmKeyEnum.valueOf(template[0])), nodeId, nodeName, template);
+                            }
+                        }
+                    });
                 }
             }
         });
@@ -209,6 +243,131 @@ public class MeasureAOP {
         }
     }
 
+    protected void sourceNoIncrementalEventAlarm(TaskDto task, String taskId, String nodeId, String nodeName,
+                                                 Map<String, Number> vs, Node<?> sourceNode,
+                                                 Map<String, Boolean> heartbeatEnabledMap,
+                                                 List<AlarmSettingDto> settingDtos) {
+        if (null == task || !TaskDto.STATUS_RUNNING.equals(task.getStatus()) || null == vs || vs.isEmpty()) {
+            return;
+        }
+        if (!isSourceHeartbeatEnabled(sourceNode, heartbeatEnabledMap)) {
+            return;
+        }
+        if (!alarmService.checkOpen(task, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT, null, settingDtos)) {
+            return;
+        }
+        Number monitorStartAt = vs.get(FIELD_SS_VS_SOURCE_INCREMENTAL_MONITOR_START_AT);
+        Number lastCapturedIncrementalEventAt = vs.get(FIELD_SS_VS_LAST_CAPTURED_INCREMENTAL_EVENT_AT);
+        Number lastEnqueuedIncrementalEventAt = vs.get(FIELD_SS_VS_LAST_ENQUEUED_INCREMENTAL_EVENT_AT);
+        Number pendingIncrementalEvent = vs.get(FIELD_SS_VS_PENDING_INCREMENTAL_EVENT);
+        Long monitorStart = toPositiveLong(monitorStartAt);
+        Long lastCapturedAt = toPositiveLong(lastCapturedIncrementalEventAt);
+        if (Objects.isNull(monitorStart) && Objects.isNull(lastCapturedAt)) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Long lastEnqueuedAt = toPositiveLong(lastEnqueuedIncrementalEventAt);
+        long baselineAt = Objects.isNull(monitorStart) ? lastCapturedAt :
+                Objects.isNull(lastCapturedAt) ? monitorStart : Math.max(monitorStart, lastCapturedAt);
+        boolean hasPendingIncrementalEvent = Objects.nonNull(pendingIncrementalEvent) && pendingIncrementalEvent.intValue() > 0;
+        boolean downstreamBlocked = hasPendingIncrementalEvent && Objects.nonNull(lastCapturedAt) && lastCapturedAt > 0L
+                && (Objects.isNull(lastEnqueuedAt) || lastCapturedAt > lastEnqueuedAt);
+
+        List<AlarmInfo> alarmInfos = Optional.ofNullable(alarmService.find(taskId, nodeId, AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT))
+                .orElse(Collections.emptyList());
+        Optional<AlarmInfo> existing = alarmInfos.stream()
+                .filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()))
+                .findFirst();
+
+        if (downstreamBlocked || now - baselineAt < SOURCE_NO_INCREMENTAL_EVENT_THRESHOLD_MS) {
+            if (existing.isPresent()) {
+                saveSourceNoIncrementalEventRecoverAlarm(task, taskId, nodeId, nodeName, existing.get(), lastCapturedAt);
+            }
+            return;
+        }
+
+        if (existing.isPresent()) {
+            return;
+        }
+        saveSourceNoIncrementalEventStartAlarm(task, taskId, nodeId, nodeName, lastCapturedAt, baselineAt);
+    }
+
+    private Long toPositiveLong(Number number) {
+        if (Objects.isNull(number) || number.longValue() <= 0L) {
+            return null;
+        }
+        return number.longValue();
+    }
+
+    private boolean isSourceHeartbeatEnabled(Node<?> sourceNode, Map<String, Boolean> heartbeatEnabledMap) {
+        if (!(sourceNode instanceof DataParentNode<?> dataParentNode) || StringUtils.isBlank(dataParentNode.getConnectionId())) {
+            return false;
+        }
+        String connectionId = dataParentNode.getConnectionId();
+        return heartbeatEnabledMap.computeIfAbsent(connectionId, key -> {
+            if (null == dataSourceService) {
+                return false;
+            }
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(key), "heartbeatEnable");
+            return null != connectionDto && Boolean.TRUE.equals(connectionDto.getHeartbeatEnable());
+        });
+    }
+
+    private void saveSourceNoIncrementalEventStartAlarm(TaskDto task, String taskId, String nodeId, String nodeName,
+                                                        Long lastCapturedAt, long baselineAt) {
+        Map<String, Object> param = Maps.newHashMap();
+        param.put("taskName", task.getName());
+        param.put("nodeName", nodeName);
+        param.put("alarmDate", DateUtil.now());
+        param.put("idleSeconds", SOURCE_NO_INCREMENTAL_EVENT_THRESHOLD_MS / TimeUnit.SECONDS.toMillis(1));
+        param.put("lastCaptureTime", DateUtil.format(DateUtil.date(baselineAt), "yyyy-MM-dd HH:mm:ss"));
+        if (Objects.nonNull(lastCapturedAt) && lastCapturedAt > 0L) {
+            param.put("latestCaptureTime", DateUtil.format(DateUtil.date(lastCapturedAt), "yyyy-MM-dd HH:mm:ss"));
+        }
+        AlarmInfo alarmInfo = AlarmInfo.builder()
+                .status(AlarmStatusEnum.ING)
+                .level(Level.WARNING)
+                .component(AlarmComponentEnum.FE)
+                .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
+                .agentId(task.getAgentId())
+                .taskId(taskId)
+                .nodeId(nodeId)
+                .name(task.getName())
+                .summary("TASK_SOURCE_NO_INCREMENTAL_EVENT_START")
+                .metric(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)
+                .param(param)
+                .build();
+        alarmInfo.setUserId(task.getUserId());
+        alarmService.save(alarmInfo);
+    }
+
+    private void saveSourceNoIncrementalEventRecoverAlarm(TaskDto task, String taskId, String nodeId, String nodeName,
+                                                          AlarmInfo existing, Long lastCapturedAt) {
+        Map<String, Object> param = Maps.newHashMap();
+        param.put("taskName", task.getName());
+        param.put("nodeName", nodeName);
+        param.put("alarmDate", DateUtil.now());
+        if (Objects.nonNull(lastCapturedAt) && lastCapturedAt > 0L) {
+            param.put("latestCaptureTime", DateUtil.format(DateUtil.date(lastCapturedAt), "yyyy-MM-dd HH:mm:ss"));
+        }
+        AlarmInfo alarmInfo = AlarmInfo.builder()
+                .status(AlarmStatusEnum.RECOVER)
+                .level(Level.RECOVERY)
+                .component(AlarmComponentEnum.FE)
+                .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
+                .agentId(task.getAgentId())
+                .taskId(taskId)
+                .nodeId(nodeId)
+                .name(task.getName())
+                .summary("TASK_SOURCE_NO_INCREMENTAL_EVENT_RECOVER")
+                .metric(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT)
+                .param(param)
+                .build();
+        alarmInfo.setId(existing.getId());
+        alarmInfo.setUserId(task.getUserId());
+        alarmService.save(alarmInfo);
+    }
+
     protected void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto) {
         // check task start cdc
         if (Objects.isNull(task.getCurrentEventTimestamp()) || Objects.isNull(replicateLag)) {
@@ -267,7 +426,7 @@ public class MeasureAOP {
                 AlarmInfo data = first.get();
                 alarmInfo.setId(data.getId());
 
-                long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
+                long continued = TimeUnit.MILLISECONDS.toMinutes(System.currentTimeMillis() - data.getFirstOccurrenceTime().getTime());
                 if (continued > 0) {
                     summary = "TASK_INCREMENT_DELAY_ALWAYS";
                     param.put("continueTime", continued);
@@ -375,7 +534,7 @@ public class MeasureAOP {
                 AlarmInfo data = first.get();
                 alarmInfo.setId(data.getId());
 
-                long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
+                long continued = TimeUnit.MILLISECONDS.toMinutes(System.currentTimeMillis() - data.getFirstOccurrenceTime().getTime());
                 if (continued > 0) {
                     param.put("continueTime", continued);
                     summary = template[3];
