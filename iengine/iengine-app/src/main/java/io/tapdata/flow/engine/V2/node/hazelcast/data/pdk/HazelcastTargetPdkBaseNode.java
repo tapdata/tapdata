@@ -68,6 +68,7 @@ import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
+import io.tapdata.flow.engine.V2.exactlyonce.write.OverflowToRocksDBSet;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
@@ -202,7 +203,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
 	protected final Map<String, Boolean> startTransactionMap = new HashMap<>();
 	protected boolean offsetCallbackEnable = false;
-	protected Set<String> exactlyOnceCache = new HashSet<>();
+	protected OverflowToRocksDBSet exactlyOnceCache = new OverflowToRocksDBSet();
+	private TapTable exactlyOnceTable;
+	private Long earliestTimestamp = Long.MAX_VALUE;
+	private Map<String, Long> firstCDCTimestampMap = new HashMap<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -1309,10 +1313,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-	private TapTable exactlyOnceTable;
-	private Long earliestTimestamp = Long.MAX_VALUE;
-	private Map<String, Long> firstCDCTimestampMap = new HashMap<>();
-
     protected void handleTapdataEventDML(List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache, AtomicReference<TapdataEvent> lastTapdataEvent, TapdataEvent tapdataEvent) throws JsonProcessingException {
         TapRecordEvent tapRecordEvent = handleTapdataRecordEvent(tapdataEvent);
         if (null == tapRecordEvent) {
@@ -2127,7 +2127,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     exactlyOnceWriteCleanerEntities.forEach(exactlyOnceWriteCleaner::unregisterCleaner);
                 }, TAG);
             }
-			exactlyOnceCache.clear();
+			CommonUtils.ignoreAnyError(() -> exactlyOnceCache.close(), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.queueConsumerThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
