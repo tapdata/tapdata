@@ -34,11 +34,11 @@ public class ExactlyOnceUtil {
 	public static final long EXACTLY_ONCE_ID_COL_LENGTH = 500L;
 
 	public static TapTable generateExactlyOnceTable(ConnectorNode connectorNode) {
-		return generateExactlyOnceTableForTask(connectorNode, null);
+		return generateExactlyOnceTableForNode(connectorNode, null);
 	}
 
-	public static TapTable generateExactlyOnceTableForTask(ConnectorNode connectorNode, String taskId) {
-		String exactlyOnceTableName = EXACTLY_ONCE_CACHE_TABLE_NAME + (taskId == null ? "" : "_" + taskId);
+	public static TapTable generateExactlyOnceTableForNode(ConnectorNode connectorNode, String nodeId) {
+		String exactlyOnceTableName = EXACTLY_ONCE_CACHE_TABLE_NAME + (nodeId == null ? "" : "_" + nodeId);
 		TapTable exactlyOnceTable = new TapTable(exactlyOnceTableName);
 		exactlyOnceTable.add(new TapField().name(NODE_ID_COL_NAME).tapType(new TapString(50L, false)).primaryKeyPos(1));
 		exactlyOnceTable.add(new TapField().name(TABLE_NAME_COL_NAME).tapType(new TapString(200L, false)).primaryKeyPos(2));

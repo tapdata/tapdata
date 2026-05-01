@@ -56,6 +56,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TapdataEventException;
@@ -80,6 +81,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.threadgroup.CpuMemoryCollector;
@@ -199,7 +202,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
 	protected final Map<String, Boolean> startTransactionMap = new HashMap<>();
 	protected boolean offsetCallbackEnable = false;
-	protected Set<String> mqExactlyOnceCache = new HashSet<>();
+	protected Set<String> exactlyOnceCache = new HashSet<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -388,7 +391,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         ConnectorNode connectorNode = getConnectorNode();
         ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 
-        TapTable exactlyOnceTable = ExactlyOnceUtil.generateExactlyOnceTableForTask(getConnectorNode(), (mode == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.MQ_MODE ? dataProcessorContext.getTaskDto().getId().toHexString() : null));
+        exactlyOnceTable = ExactlyOnceUtil.generateExactlyOnceTableForNode(getConnectorNode(), (mode == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.MQ_MODE ? getNode().getId().replace("-", "") : null));
         if (null != dataProcessorContext.getTapTableMap()) {
             dataProcessorContext.getTapTableMap().putNew(exactlyOnceTable.getId(), exactlyOnceTable, exactlyOnceTable.getId());
         }
@@ -408,7 +411,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             exactlyOnceWriteTables.add(tableName);
 			if (mode == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.MQ_MODE) {
 				refreshTableTTL(connectorFunctions, exactlyOnceTable, Duration.ofDays(tableNode.getIncrementExactlyOnceEnableTimeWindowDay()));
-				cacheExactlyOnceIds(connectorNode, exactlyOnceTable);
 			} else {
 				ExactlyOnceWriteCleanerEntity exactlyOnceWriteCleanerEntity = new ExactlyOnceWriteCleanerEntity(
 						tableNode.getId(),
@@ -425,7 +427,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (syncTables != null) {
 				if (mode == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.MQ_MODE) {
 					refreshTableTTL(connectorFunctions, exactlyOnceTable, Duration.ofDays(((DatabaseNode) node).getIncrementExactlyOnceEnableTimeWindowDay()));
-					cacheExactlyOnceIds(connectorNode, exactlyOnceTable);
 				}
 				List<String> objectNames = syncTables.getObjectNames();
 				if (CollectionUtils.isNotEmpty(objectNames)) {
@@ -462,7 +463,37 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void cacheExactlyOnceIds(ConnectorNode connectorNode, TapTable exactlyOnceTable) {
+	private void cacheExactlyOnceIds(ConnectorNode connectorNode, String table, Long fromTime) {
+		TapTable tapTable = dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME);
+		Map<String, Object> match = new HashMap<>();
+		match.put(ExactlyOnceUtil.NODE_ID_COL_NAME, getNode().getId());
+		match.put(ExactlyOnceUtil.TABLE_NAME_COL_NAME, table);
+		QueryOperator op = QueryOperator.gte(ExactlyOnceUtil.TIMESTAMP_COL_NAME, fromTime);
+		TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().match(DataMap.create(match)).op(op);
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+				pdkMethodInvoker.runnable(
+						() -> {
+							try {
+								queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, rs -> {
+									if (null != rs.getError()) {
+										throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
+									}
+									rs.getResults().forEach(result -> {
+										String exactlyOnceId = String.valueOf(result.get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME));
+										exactlyOnceCache.add(exactlyOnceId);
+									});
+								});
+							} catch (Exception e) {
+								throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters(tapAdvanceFilter, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME));
+							}
+						}
+				));
+	}
+
+	private void cacheExactlyOnceIdsForTask(ConnectorNode connectorNode, TapTable exactlyOnceTable, Long fromTime, Long toTime) {
 		if (!isRunning() || Thread.currentThread().isInterrupted()) {
 			return;
 		}
@@ -472,13 +503,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
 					pdkMethodInvoker.runnable(() -> {
 						try {
-							batchReadFunction.batchRead(connectorNode.getConnectorContext(), exactlyOnceTable, null, 100, (events, offset) -> {
+							batchReadFunction.batchRead(connectorNode.getConnectorContext(), exactlyOnceTable, fromTime, 100, (events, offset) -> {
 								if (!isRunning() || Thread.currentThread().isInterrupted()) {
 									throw new StopBatchReadException();
 								}
 								for (TapEvent tapEvent : events) {
 									if (tapEvent instanceof TapInsertRecordEvent insertRecordEvent) {
-										mqExactlyOnceCache.add(String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)));
+										String exactlyOnceId = String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME));
+										long timestamp = Long.parseLong(String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.TIMESTAMP_COL_NAME)));
+										if (toTime != null && timestamp > toTime) {
+											throw new StopBatchReadException();
+										}
+										exactlyOnceCache.add(exactlyOnceId);
 									}
 								}
 							});
@@ -1273,6 +1309,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
+	private TapTable exactlyOnceTable;
+	private Long earliestTimestamp = Long.MAX_VALUE;
+	private Map<String, Long> firstCDCTimestampMap = new HashMap<>();
+
     protected void handleTapdataEventDML(List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache, AtomicReference<TapdataEvent> lastTapdataEvent, TapdataEvent tapdataEvent) throws JsonProcessingException {
         TapRecordEvent tapRecordEvent = handleTapdataRecordEvent(tapdataEvent);
         if (null == tapRecordEvent) {
@@ -1290,12 +1330,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
 			List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
 			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
-			if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() &&
-					(checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE && eventExactlyOnceWriteCheckExists(tapdataEvent)) ||
-					(checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.MQ_MODE && eventExactlyOnceWriteCheckExistsForTask(tapdataEvent))) {
-				tapdataEvent.setExactlyOnceWriteCache(null);
-				obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
-				return;
+			if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get()) {
+				firstCDCTimestampMap.computeIfAbsent(tgtTableNameFromTapEvent, k ->  {
+					Long timestamp = TapEventUtil.getTimestamp(tapRecordEvent);
+					if (checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE) {
+						cacheExactlyOnceIds(getConnectorNode(), tgtTableNameFromTapEvent, timestamp);
+					} else if (timestamp < earliestTimestamp) {
+						cacheExactlyOnceIdsForTask(getConnectorNode(), exactlyOnceTable, timestamp, earliestTimestamp);
+						earliestTimestamp = timestamp;
+					}
+					return timestamp;
+				});
+				if (eventExactlyOnceWriteCheckExists(tapdataEvent)) {
+					tapdataEvent.setExactlyOnceWriteCache(null);
+					obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
+					return;
+				} else {
+					if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && lookupTables.contains(tgtTableNameFromTapEvent)) {
+						obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
+						lookupTables.remove(tgtTableNameFromTapEvent);
+					}
+				}
 			} else {
 				if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
 					obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
@@ -2072,7 +2127,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     exactlyOnceWriteCleanerEntities.forEach(exactlyOnceWriteCleaner::unregisterCleaner);
                 }, TAG);
             }
-			mqExactlyOnceCache.clear();
+			exactlyOnceCache.clear();
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.queueConsumerThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
@@ -2206,10 +2261,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     boolean eventExactlyOnceWriteCheckExists(TapdataEvent tapdataEvent) {
         throw new UnsupportedOperationException();
     }
-
-	boolean eventExactlyOnceWriteCheckExistsForTask(TapdataEvent tapdataEvent) {
-		throw new UnsupportedOperationException();
-	}
 
     protected void dispatchTapRecordEvents(List<TapEvent> tapEvents, Predicate<DispatchEntity> dispatchClause, Consumer<List<TapEvent>> consumer) {
         DispatchEntity dispatchEntity = new DispatchEntity();

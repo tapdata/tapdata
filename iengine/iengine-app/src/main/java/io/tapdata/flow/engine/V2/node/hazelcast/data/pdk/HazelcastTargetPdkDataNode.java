@@ -28,11 +28,9 @@ import io.tapdata.entity.event.ddl.constraint.TapDropConstraintEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.*;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.NodeException;
@@ -40,13 +38,11 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkBaseException;
 import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
-import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
 import io.tapdata.flow.engine.V2.policy.TransactionOperator;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
@@ -1293,8 +1289,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		List<TapRecordEvent> tapRecordEvents = tapdataEvents.parallelStream().map(TapdataEvent::getExactlyOnceWriteCache)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
-		String taskId = dataProcessorContext.getTaskDto().getId().toHexString();
-		String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + (isSQLMode ? "" : "_" + taskId);
+		String nodeId = getNode().getId().replace("-", "");
+		String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + (isSQLMode ? "" : "_" + nodeId);
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
 				pdkMethodInvoker.runnable(() -> {
 							try {
@@ -1315,52 +1311,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 								transactionCommit();
 							} catch (Exception e) {
 								transactionRollback();
-								throwTapCodeException(e,new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED));
+								throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, e));
 							}
 						}
 				));
-	}
-
-	@Override
-	protected boolean eventExactlyOnceWriteCheckExistsForTask(TapdataEvent tapdataEvent) {
-		if (null == tapdataEvent) return false;
-		if (null == tapdataEvent.getExactlyOnceWriteCache()) return false;
-		return mqExactlyOnceCache.contains(String.valueOf(tapdataEvent.getExactlyOnceWriteCache().getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)));
 	}
 
 	@Override
 	protected boolean eventExactlyOnceWriteCheckExists(TapdataEvent tapdataEvent) {
 		if (null == tapdataEvent) return false;
 		if (null == tapdataEvent.getExactlyOnceWriteCache()) return false;
-		ConnectorNode connectorNode = getConnectorNode();
-		if (null == connectorNode) {
-			return false;
-		}
-		TapInsertRecordEvent exactlyOnceWriteCache = tapdataEvent.getExactlyOnceWriteCache();
-		TapTable tapTable = dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME);
-		Map<String, Object> filter = exactlyOnceWriteCache.getFilter(tapTable.primaryKeys());
-		TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().match(DataMap.create(filter));
-
-		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
-		PDKMethodInvoker pdkMethodInvoker = exactlyOncePdkMethodInvokerMap.computeIfAbsent(Thread.currentThread().getName(), k -> createPdkMethodInvoker());
-		AtomicBoolean result = new AtomicBoolean(false);
-		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-				pdkMethodInvoker.runnable(
-						() -> {
-							try {
-								queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, rs -> {
-									if (null != rs.getError()) {
-										throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
-									}
-									result.set(CollectionUtils.isNotEmpty(rs.getResults()));
-								});
-							} catch (Exception e) {
-								throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters(tapAdvanceFilter, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME));
-							}
-						}
-				));
-		return result.get();
+		return exactlyOnceCache.contains(String.valueOf(tapdataEvent.getExactlyOnceWriteCache().getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)));
 	}
 
 	@Override
