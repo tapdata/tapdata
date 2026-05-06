@@ -502,6 +502,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			return;
 		}
 		BatchReadFunction batchReadFunction = connectorNode.getConnectorFunctions().getBatchReadFunction();
+		if (batchReadFunction == null) {
+			return;
+		}
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try {
 			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
@@ -2181,11 +2184,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
         QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
 		AlterTableTTLFunction alterTableTTLFunction = connectorFunctions.getAlterTableTTLFunction();
+		BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
         if (null == transactionBeginFunction || null == transactionCommitFunction || null == transactionRollbackFunction) {
             return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write transaction functions: begin, commit, rollback");
         }
-        if (null == queryByAdvanceFilterFunction && (!connectorNode.getConnectorContext().getSpecification().getTags().contains("MessageQueue") || null == alterTableTTLFunction)) {
-            return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write functions: query by advance filter or alter table ttl functions");
+        if (null == queryByAdvanceFilterFunction && (!connectorNode.getConnectorContext().getSpecification().getTags().contains("MessageQueue") || null == alterTableTTLFunction || null == batchReadFunction)) {
+            return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write functions: query by advance filter or alter table ttl and batch read functions");
         }
 
         // Check only have one source node

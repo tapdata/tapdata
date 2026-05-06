@@ -126,8 +126,9 @@ public class OverflowToRocksDBSet extends AbstractSet<String> implements Closeab
 				FileUtils.deleteDirectory(dbDir);
 			}
 			FileUtils.forceMkdir(dbDir.getParentFile());
-			Options options = new Options().setCreateIfMissing(true);
-			db = RocksDB.open(options, dbDir.getAbsolutePath());
+			try (Options options = new Options().setCreateIfMissing(true)) {
+				db = RocksDB.open(options, dbDir.getAbsolutePath());
+			}
 			logger.info("Exactly once cache memory threshold {} reached, spilling to rocksdb at {}", memoryThreshold, dbDir.getAbsolutePath());
 		} catch (Exception e) {
 			throw new RuntimeException("Open rocksdb for exactly once cache failed", e);
