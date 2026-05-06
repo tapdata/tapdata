@@ -212,7 +212,7 @@ class ServerUsageMetricInstanceAcceptorTest {
             memoryMax.add(1L);
             List<Double> cpu = new ArrayList<>();
             cpu.add(1D);
-            acceptor.accept(metric, memory, memoryMax, cpu);
+            acceptor.accept(metric);
             Assertions.assertEquals(1L, metric.getHeapMemoryMax());
             Assertions.assertEquals(1L, metric.getHeapMemoryUsage());
             Assertions.assertEquals(1D, metric.getCpuUsage());
@@ -233,7 +233,7 @@ class ServerUsageMetricInstanceAcceptorTest {
             List<Double> cpu = new ArrayList<>();
             cpu.add(1D);
             cpu.add(3D);
-            acceptor.accept(metric, memory, memoryMax, cpu);
+            acceptor.accept(metric);
             Assertions.assertEquals(5L, metric.getHeapMemoryMax());
             Assertions.assertEquals(4L, metric.getHeapMemoryUsage());
             Assertions.assertEquals(2D, metric.getCpuUsage());
