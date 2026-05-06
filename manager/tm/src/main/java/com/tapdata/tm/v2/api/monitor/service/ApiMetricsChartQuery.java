@@ -304,7 +304,7 @@ public class ApiMetricsChartQuery {
         long fillTime = lastDataTime + step;
         while (fillTime < endAt) {
             fillTime += step;
-            usage.addEmpty(lastProcessedTime, granularity != TimeGranularity.SECOND_FIVE);
+            usage.addEmpty(fillTime, granularity != TimeGranularity.SECOND_FIVE);
         }
         return usage;
     }

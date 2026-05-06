@@ -38,7 +38,7 @@ public class ConnectionPoolInstanceFactory extends FactoryBase<ConnectionPoolEnt
             final ConnectionPoolEntity lastMin = lastOne(serverId, connectionId, TimeGranularity.MINUTE.getType(), null);
             ConnectionPoolEntity lastHour = null;
             if (null != lastMin) {
-                long bucketHour = TimeGranularity.HOUR.fixTime(lastMin.getLastUpdateTime());
+                long bucketHour = TimeGranularity.HOUR.fixTime(lastMin.getLastUpdateTime() / 1000L) * 1000L;
                 lastHour = lastOne(serverId, connectionId, TimeGranularity.HOUR.getType(), bucketHour);
             }
             return new ConnectionPoolInstanceAcceptor(lastMin, lastHour, this.apiMetricsRaws::add);
