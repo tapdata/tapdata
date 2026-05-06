@@ -1136,7 +1136,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				when(exactlyOnceTable.getId()).thenReturn("test");
 				ConnectorNode connectorNode = mock(ConnectorNode.class);
 				when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
-				mb.when(() -> ExactlyOnceUtil.generateExactlyOnceTableForTask(eq(connectorNode), any())).thenReturn(exactlyOnceTable);
+				mb.when(() -> ExactlyOnceUtil.generateExactlyOnceTableForNode(eq(connectorNode), any())).thenReturn(exactlyOnceTable);
 				CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult = CheckExactlyOnceWriteEnableResult.createEnable().mode(CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE);
 				when(hazelcastTargetPdkBaseNode.enableExactlyOnceWrite()).thenReturn(checkExactlyOnceWriteEnableResult);
 				ConnectorFunctions functions = mock(ConnectorFunctions.class);
@@ -1159,7 +1159,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				when(exactlyOnceTable.getId()).thenReturn("test");
 				ConnectorNode connectorNode = mock(ConnectorNode.class);
 				when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
-				exactlyOnceUtilMockedStatic.when(() -> ExactlyOnceUtil.generateExactlyOnceTableForTask(eq(connectorNode), any())).thenReturn(exactlyOnceTable);
+				exactlyOnceUtilMockedStatic.when(() -> ExactlyOnceUtil.generateExactlyOnceTableForNode(eq(connectorNode), any())).thenReturn(exactlyOnceTable);
 				CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult = CheckExactlyOnceWriteEnableResult.createEnable().mode(CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE);
 				when(hazelcastTargetPdkBaseNode.enableExactlyOnceWrite()).thenReturn(checkExactlyOnceWriteEnableResult);
 				ConnectorFunctions functions = mock(ConnectorFunctions.class);
@@ -1212,7 +1212,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				when(exactlyOnceTable.getId()).thenReturn("test");
 				ConnectorNode connectorNode = mock(ConnectorNode.class);
 				when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
-				exactlyOnceUtilMockedStatic.when(() -> ExactlyOnceUtil.generateExactlyOnceTableForTask(eq(connectorNode), any())).thenReturn(exactlyOnceTable);
+				exactlyOnceUtilMockedStatic.when(() -> ExactlyOnceUtil.generateExactlyOnceTableForNode(eq(connectorNode), any())).thenReturn(exactlyOnceTable);
 				CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult = mock(CheckExactlyOnceWriteEnableResult.class);
 				when(hazelcastTargetPdkBaseNode.enableExactlyOnceWrite()).thenReturn(checkExactlyOnceWriteEnableResult);
 				when(checkExactlyOnceWriteEnableResult.getEnable()).thenReturn(true);
@@ -1252,7 +1252,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				when(exactlyOnceTable.getId()).thenReturn("test");
 				ConnectorNode connectorNode = mock(ConnectorNode.class);
 				when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
-				exactlyOnceUtilMockedStatic.when(() -> ExactlyOnceUtil.generateExactlyOnceTableForTask(eq(connectorNode), any())).thenReturn(exactlyOnceTable);
+				exactlyOnceUtilMockedStatic.when(() -> ExactlyOnceUtil.generateExactlyOnceTableForNode(eq(connectorNode), any())).thenReturn(exactlyOnceTable);
 				CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult = mock(CheckExactlyOnceWriteEnableResult.class);
 				when(hazelcastTargetPdkBaseNode.enableExactlyOnceWrite()).thenReturn(checkExactlyOnceWriteEnableResult);
 				when(checkExactlyOnceWriteEnableResult.getEnable()).thenReturn(true);
@@ -1525,6 +1525,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			lastTapdataEvent = new AtomicReference<>();
 			obsLogger = mock(ObsLogger.class);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "firstCDCTimestampMap", new HashMap<String, Long>());
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataEventDML(any(), any(), any(), any(), any());
 		}
 
@@ -1588,7 +1589,6 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(1, tapEvents.size());
 			verify(hazelcastTargetPdkBaseNode, never()).handleExactlyOnceWriteCacheIfNeed(any(), any());
 			verify(hazelcastTargetPdkBaseNode, never()).eventExactlyOnceWriteCheckExists(any());
-			verify(hazelcastTargetPdkBaseNode, never()).eventExactlyOnceWriteCheckExistsForTask(any());
 		}
 
 		@Test
@@ -1602,6 +1602,9 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(hazelcastTargetPdkBaseNode.handleExactlyOnceWriteCacheIfNeed(eq(tapdataEvent), eq(exactlyOnceWriteCache))).thenReturn(true);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "checkExactlyOnceWriteEnableResult",
 					CheckExactlyOnceWriteEnableResult.createEnable().mode(CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE));
+			Map<String, Long> firstCDCTimestampMap = new HashMap<>();
+			firstCDCTimestampMap.put("t1", 1L);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "firstCDCTimestampMap", firstCDCTimestampMap);
 			when(hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList()).thenReturn(Lists.newArrayList("t1"));
 			when(hazelcastTargetPdkBaseNode.getTgtTableNameFromTapEvent(tapRecordEvent)).thenReturn("t1");
 			when(hazelcastTargetPdkBaseNode.eventExactlyOnceWriteCheckExists(tapdataEvent)).thenReturn(true);
@@ -1615,23 +1618,28 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
-		@DisplayName("MQ_MODE: eventExactlyOnceWriteCheckExistsForTask returns true, event is skipped")
+		@DisplayName("MQ_MODE: eventExactlyOnceWriteCheckExists returns true, event is skipped")
 		void testMqModeExactlyOnceExistsForTaskSkipsEvent() throws JsonProcessingException {
 			TapInsertRecordEvent tapRecordEvent = new TapInsertRecordEvent().init();
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapRecordEvent);
 			when(hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent)).thenReturn(tapRecordEvent);
-			when(hazelcastTargetPdkBaseNode.handleExactlyOnceWriteCacheIfNeed(eq(tapdataEvent), eq(exactlyOnceWriteCache))).thenReturn(false);
+			when(hazelcastTargetPdkBaseNode.handleExactlyOnceWriteCacheIfNeed(eq(tapdataEvent), eq(exactlyOnceWriteCache))).thenReturn(true);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "checkExactlyOnceWriteEnableResult",
 					CheckExactlyOnceWriteEnableResult.createEnable().mode(CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.MQ_MODE));
-			when(hazelcastTargetPdkBaseNode.eventExactlyOnceWriteCheckExistsForTask(tapdataEvent)).thenReturn(true);
+			Map<String, Long> firstCDCTimestampMap = new HashMap<>();
+			firstCDCTimestampMap.put("t1", 1L);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "firstCDCTimestampMap", firstCDCTimestampMap);
+			when(hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList()).thenReturn(Lists.newArrayList("t1"));
+			when(hazelcastTargetPdkBaseNode.getTgtTableNameFromTapEvent(tapRecordEvent)).thenReturn("t1");
+			when(hazelcastTargetPdkBaseNode.eventExactlyOnceWriteCheckExists(tapdataEvent)).thenReturn(true);
 			tapdataEvent.setExactlyOnceWriteCache(new TapInsertRecordEvent());
 
 			hazelcastTargetPdkBaseNode.handleTapdataEventDML(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
 
 			assertTrue(tapEvents.isEmpty());
 			assertNull(tapdataEvent.getExactlyOnceWriteCache());
-			verify(hazelcastTargetPdkBaseNode, never()).eventExactlyOnceWriteCheckExists(any());
+			assertTrue(hasExactlyOnceWriteCache.get());
 		}
 
 		@Test
@@ -1694,7 +1702,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> testAfterData = new HashMap<>();
 			tapEvents.add(TapInsertRecordEvent.create().table(testTableName).after(testAfterData));
 			hazelcastTargetPdkBaseNode.processTapEvents(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
-			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any(),any());
+			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any(), any(), anyBoolean());
 		}
 
 		@Test
@@ -1706,12 +1714,12 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			doAnswer(invocationOnMock -> {
 				throw new RuntimeException("test");
-			}).when(hazelcastTargetPdkBaseNode).processExactlyOnceWriteCache(any(), any());
+			}).when(hazelcastTargetPdkBaseNode).processExactlyOnceWriteCache(any(), any(), anyBoolean());
 
 			assertThrows(RuntimeException.class, () -> {
 				hazelcastTargetPdkBaseNode.processTapEvents(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
 			});
-			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any(), any());
+			verify(hazelcastTargetPdkBaseNode, times(1)).processExactlyOnceWriteCache(any(), any(), anyBoolean());
 		}
 	}
 
@@ -3325,7 +3333,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
-	@DisplayName("cacheExactlyOnceIds method test")
+	@DisplayName("cacheExactlyOnceIdsForTask method test")
 	class CacheExactlyOnceIdsTest {
 		private HazelcastTargetPdkBaseNode spyTargetBaseNode;
 		private ConnectorNode connectorNode;
@@ -3373,24 +3381,26 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doReturn(false).when(spyTargetBaseNode).isRunning();
 			TapTable exactlyOnceTable = new TapTable("eot");
 			try (MockedStatic<PDKInvocationMonitor> ms = mockStatic(PDKInvocationMonitor.class)) {
-				ReflectionTestUtils.invokeMethod(spyTargetBaseNode, "cacheExactlyOnceIds", connectorNode, exactlyOnceTable);
+				ReflectionTestUtils.invokeMethod(spyTargetBaseNode, "cacheExactlyOnceIdsForTask", connectorNode, exactlyOnceTable, null, Long.MAX_VALUE);
 				ms.verifyNoInteractions();
 				verify(batchReadFunction, never()).batchRead(any(), any(), any(), anyInt(), any());
 			}
 		}
 
 		@Test
-		@DisplayName("batchRead returns insert events, mqExactlyOnceCache populated with EXACTLY_ONCE_ID values")
+		@DisplayName("batchRead returns insert events, exactlyOnceCache populated with EXACTLY_ONCE_ID values")
 		void testCachePopulatedFromInsertEvents() throws Throwable {
 			doReturn(true).when(spyTargetBaseNode).isRunning();
 			TapTable exactlyOnceTable = new TapTable("eot");
 			TapInsertRecordEvent e1 = new TapInsertRecordEvent();
 			Map<String, Object> after1 = new HashMap<>();
 			after1.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, "id-1");
+			after1.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, 1L);
 			e1.setAfter(after1);
 			TapInsertRecordEvent e2 = new TapInsertRecordEvent();
 			Map<String, Object> after2 = new HashMap<>();
 			after2.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, "id-2");
+			after2.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, 2L);
 			e2.setAfter(after2);
 			TapDeleteRecordEvent e3 = new TapDeleteRecordEvent();
 			List<TapEvent> events = Lists.newArrayList(e1, e2, e3);
@@ -3406,12 +3416,12 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 							invoker.getRunnable().run();
 							return null;
 						});
-				ReflectionTestUtils.invokeMethod(spyTargetBaseNode, "cacheExactlyOnceIds", connectorNode, exactlyOnceTable);
+				ReflectionTestUtils.invokeMethod(spyTargetBaseNode, "cacheExactlyOnceIdsForTask", connectorNode, exactlyOnceTable, null, Long.MAX_VALUE);
 			}
-			Set<String> mqExactlyOnceCache = (Set<String>) ReflectionTestUtils.getField(spyTargetBaseNode, "mqExactlyOnceCache");
-			assertEquals(2, mqExactlyOnceCache.size());
-			assertTrue(mqExactlyOnceCache.contains("id-1"));
-			assertTrue(mqExactlyOnceCache.contains("id-2"));
+			Set<String> exactlyOnceCache = (Set<String>) ReflectionTestUtils.getField(spyTargetBaseNode, "exactlyOnceCache");
+			assertEquals(2, exactlyOnceCache.size());
+			assertTrue(exactlyOnceCache.contains("id-1"));
+			assertTrue(exactlyOnceCache.contains("id-2"));
 			verify(spyTargetBaseNode, times(1)).removePdkMethodInvoker(any());
 		}
 
@@ -3423,6 +3433,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TapInsertRecordEvent e1 = new TapInsertRecordEvent();
 			Map<String, Object> after1 = new HashMap<>();
 			after1.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, "id-1");
+			after1.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, 1L);
 			e1.setAfter(after1);
 			doAnswer(inv -> {
 				BiConsumer<List<TapEvent>, Object> consumer = inv.getArgument(4);
@@ -3436,10 +3447,10 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 							invoker.getRunnable().run();
 							return null;
 						});
-				assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(spyTargetBaseNode, "cacheExactlyOnceIds", connectorNode, exactlyOnceTable));
+				assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(spyTargetBaseNode, "cacheExactlyOnceIdsForTask", connectorNode, exactlyOnceTable, null, Long.MAX_VALUE));
 			}
-			Set<String> mqExactlyOnceCache = (Set<String>) ReflectionTestUtils.getField(spyTargetBaseNode, "mqExactlyOnceCache");
-			assertTrue(mqExactlyOnceCache.isEmpty());
+			Set<String> exactlyOnceCache = (Set<String>) ReflectionTestUtils.getField(spyTargetBaseNode, "exactlyOnceCache");
+			assertTrue(exactlyOnceCache.isEmpty());
 			verify(spyTargetBaseNode, times(1)).removePdkMethodInvoker(any());
 		}
 
@@ -3457,7 +3468,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 							invoker.getRunnable().run();
 							return null;
 						});
-				ReflectionTestUtils.invokeMethod(spyTargetBaseNode, "cacheExactlyOnceIds", connectorNode, exactlyOnceTable);
+				ReflectionTestUtils.invokeMethod(spyTargetBaseNode, "cacheExactlyOnceIdsForTask", connectorNode, exactlyOnceTable, null, Long.MAX_VALUE);
 			}
 			ArgumentCaptor<TapCodeException> captor = ArgumentCaptor.forClass(TapCodeException.class);
 			verify(spyTargetBaseNode, times(1)).throwTapCodeException(any(Throwable.class), captor.capture());
