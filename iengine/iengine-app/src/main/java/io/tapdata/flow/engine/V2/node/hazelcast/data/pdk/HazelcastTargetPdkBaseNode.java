@@ -1332,7 +1332,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
 			if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get()) {
 				firstCDCTimestampMap.computeIfAbsent(tgtTableNameFromTapEvent, k ->  {
-					Long timestamp = TapEventUtil.getTimestamp(tapRecordEvent);
+					// If the first CDC event, cache the exactly once write id from 5 minutes before its reference time because of the difference between source and target
+					Long timestamp = TapEventUtil.getTimestamp(tapRecordEvent) - 5 * 60 * 1000L;
 					if (checkExactlyOnceWriteEnableResult.getMode() == CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE) {
 						cacheExactlyOnceIds(getConnectorNode(), tgtTableNameFromTapEvent, timestamp);
 					} else if (timestamp < earliestTimestamp) {
