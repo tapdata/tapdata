@@ -13,9 +13,11 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
@@ -39,14 +41,17 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.v2.api.pool.service.ConnectionPoolScheduleExecutor;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.WorkSchedule;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
+import com.tapdata.tm.worker.entity.ConnectionPoolEntity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
+import com.tapdata.tm.worker.entity.field.ServerUsageField;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -112,6 +117,8 @@ public class WorkerServiceImpl extends WorkerService{
     private UserService userService;
     @Autowired
     private MongoTemplate mongoTemplate;
+    @Autowired
+    private ConnectionPoolScheduleExecutor connectionPoolExecutor;
 
     private final MultiTaggedCounter workerPing;
     private Random random = new Random();
@@ -650,6 +657,31 @@ public class WorkerServiceImpl extends WorkerService{
     @Override
     public void appendUsage(List<ServerUsage> usages) {
         bulkUpsert(usages);
+        List<ConnectionPoolEntity> entities = new ArrayList<>();
+        for (ServerUsage usage : usages) {
+            int processType = usage.getProcessType();
+            if (processType != ServerUsage.ProcessType.API_SERVER.getType()) {
+                continue;
+            }
+            Long lastUpdateTime = usage.getLastUpdateTime();
+            String processId = usage.getProcessId();
+            List<ConnectionPoolEntity> poolConnections = usage.getPoolConnections();
+            if (CollectionUtils.isEmpty(poolConnections)) {
+                continue;
+            }
+            poolConnections.stream()
+                    .filter(Objects::nonNull)
+                    .peek(e -> {
+                        e.setLastUpdateTime(lastUpdateTime);
+                        e.setProcessId(processId);
+                        e.setTimeGranularity(TimeGranularity.SECOND_FIVE.getType());
+                    })
+                    .forEach(entities::add);
+        }
+        if (entities.isEmpty()) {
+            return;
+        }
+        connectionPoolExecutor.bulkUpsert(entities);
     }
 
     public void bulkUpsert(List<ServerUsage> entities) {
@@ -677,27 +709,31 @@ public class WorkerServiceImpl extends WorkerService{
     }
 
     private Query buildDefaultQuery(ServerUsage entity) {
-        Criteria criteria = Criteria.where("processId").is(entity.getProcessId())
-                .and("workOid").is(entity.getWorkOid())
-                .and("lastUpdateTime").is(entity.getLastUpdateTime());
+        Criteria criteria = Criteria.where(ServerUsageField.PROCESS_ID.field()).is(entity.getProcessId())
+                .and(ServerUsageField.WORK_OID.field()).is(entity.getWorkOid())
+                .and(ServerUsageField.LAST_UPDATE_TIME.field()).is(entity.getLastUpdateTime());
         return Query.query(criteria);
     }
 
     private Update buildDefaultUpdate(ServerUsage entity) {
         Update update = new Update();
-        update.set("cpuUsage", entity.getCpuUsage());
-        update.set("heapMemoryMax", entity.getHeapMemoryMax());
-        update.set("heapMemoryUsage", entity.getHeapMemoryUsage());
-        update.set("lastUpdateTime", entity.getLastUpdateTime());
-        update.set("type", entity.getType());
-        update.set("processType", entity.getProcessType());
+        update.set(ServerUsageField.CPU_USAGE.field(), entity.getCpuUsage());
+        update.set(ServerUsageField.HEAP_MEMORY_MAX.field(), entity.getHeapMemoryMax());
+        update.set(ServerUsageField.HEAP_MEMORY_USAGE.field(), entity.getHeapMemoryUsage());
+        update.set(ServerUsageField.LAST_UPDATE_TIME.field(), entity.getLastUpdateTime());
+        update.set(ServerUsageField.TYPE.field(), entity.getType());
+        update.set(ServerUsageField.PROCESS_TYPE.field(), entity.getProcessType());
         if (ServerUsage.ProcessType.API_SERVER.getType() == entity.getProcessType()) {
-            update.set("selfCpuUsage", entity.getSelfCpuUsage());
+            update.set(ServerUsageField.SELF_CPU_USAGE.field(), entity.getSelfCpuUsage());
+            update.set(ServerUsageField.POOL_MAX_CONNECTIONS.field(), entity.getPoolMaxConnections());
+            update.set(ServerUsageField.POOL_USED_CONNECTIONS.field(), entity.getPoolUsedConnections());
+            update.set(ServerUsageField.POOL_AVAILABLE.field(), entity.getPoolAvailable());
+            update.set(ServerUsageField.POOL_QUEUE_SIZE.field(), entity.getPoolQueueSize());
         }
-        update.set("processId", entity.getProcessId());
-        update.set("workOid", entity.getWorkOid());
-        update.set("ttlKey", entity.getTtlKey());
-        update.currentDate("updatedAt");
+        update.set(ServerUsageField.PROCESS_ID.field(), entity.getProcessId());
+        update.set(ServerUsageField.WORK_OID.field(), entity.getWorkOid());
+        update.set(ServerUsageField.TTL_KEY.field(), entity.getTtlKey());
+        update.currentDate(BaseEntityFields.UPDATED_AT.field());
         return update;
     }
 

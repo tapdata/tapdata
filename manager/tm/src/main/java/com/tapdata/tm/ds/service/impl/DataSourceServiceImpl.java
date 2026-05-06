@@ -14,10 +14,13 @@ import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -35,6 +38,7 @@ import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.dto.ConnectionStats;
+import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
@@ -55,6 +59,7 @@ import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
@@ -70,7 +75,9 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
+import com.tapdata.tm.v2.api.pool.repository.ConnectionPoolInfoRepository;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.ConnectionPoolField;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
@@ -186,6 +193,8 @@ public class DataSourceServiceImpl extends DataSourceService{
     private FileService fileService;
     @Autowired
     private BatchUpChecker batchUpChecker;
+    @Autowired
+    private ConnectionPoolInfoRepository connectionPoolInfoRepository;
 
     public DataSourceServiceImpl(@NonNull DataSourceRepository repository) {
         super(repository);
@@ -2497,6 +2506,63 @@ public class DataSourceServiceImpl extends DataSourceService{
                 )
             );
         return notSupports;
+    }
+
+    public List<ConnectionWithName> findAllConnections(String serverId, UserDetail loginUser) {
+        List<String> connectionsIds = connectionPoolInfoRepository.findDistinct(
+                Query.query(new Criteria(ConnectionPoolField.PROCESS_ID.field()).is(serverId)
+                        .and(ConnectionPoolField.TIME_GRANULARITY.field()).is(TimeGranularity.SECOND_FIVE.getType())),
+                ConnectionPoolField.CONNECTION_ID.field(),
+                loginUser,
+                String.class
+        );
+        if (connectionsIds.isEmpty())  {
+            return new ArrayList<>();
+        }
+        List<ObjectId> connectionsOIds = connectionsIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .map(MongoUtils::toObjectId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (CollectionUtils.isEmpty(connectionsOIds)) {
+            return new ArrayList<>();
+        }
+        Query query = Query.query(new Criteria(BaseEntityFields._ID.field()).in(connectionsOIds));
+        query.fields().include(BaseEntityFields._ID.field(), "name");
+        List<DataSourceEntity> all = repository.findAll(query, loginUser);
+        if (org.springframework.util.CollectionUtils.isEmpty(all)) {
+            return new ArrayList<>();
+        }
+        Query queryModule = Query.query(new Criteria(ModulesField.STATUS.field()).is("active").and(ModulesField.CONNECTION_ID.field()).in(connectionsIds));
+        queryModule.fields().include(ModulesField.DATA_SOURCE.field());
+        queryModule.with(Sort.by(Sort.Order.desc(ModulesField.LAST_UPDATE_TIME.field())));
+        List<ModulesDto> modules = modulesService.findAll(queryModule);
+        List<ConnectionWithName> names = new ArrayList<>();
+        Map<String, ConnectionWithName> map = new HashMap<>();
+        for (int i = 0; i < modules.size(); i++) {
+            ModulesDto modulesDto = modules.get(i);
+            String connectionId = modulesDto.getDataSource();
+            if (!map.containsKey(connectionId)) {
+                ConnectionWithName connectionWithName = new ConnectionWithName(connectionId, null);
+                connectionWithName.setSort(i);
+                names.add(connectionWithName);
+                map.put(connectionId, connectionWithName);
+            }
+        }
+        for (DataSourceEntity e : all) {
+            String connectionId = e.getId().toHexString();
+            String name = e.getName();
+            if (map.containsKey(connectionId)) {
+                ConnectionWithName connectionWithName = map.get(connectionId);
+                assert connectionWithName != null;
+                connectionWithName.setName(name);
+            } else {
+                ConnectionWithName connectionWithName = new ConnectionWithName(connectionId, e.getName());
+                connectionWithName.setSort(names.size() + 1);
+                names.add(connectionWithName);
+            }
+        }
+        return names.stream().sorted(Comparator.comparing(ConnectionWithName::getSort)).toList();
     }
 
     @Override

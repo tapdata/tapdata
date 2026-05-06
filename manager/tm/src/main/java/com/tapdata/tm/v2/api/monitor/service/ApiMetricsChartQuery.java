@@ -37,14 +37,17 @@ import com.tapdata.tm.v2.api.monitor.main.param.ServerListParam;
 import com.tapdata.tm.v2.api.monitor.utils.ApiMetricsCompressValueUtil;
 import com.tapdata.tm.v2.api.monitor.utils.ChartSortUtil;
 import com.tapdata.tm.v2.api.monitor.utils.TimeRangeUtil;
+import com.tapdata.tm.v2.api.pool.repository.ConnectionPoolInfoRepository;
 import com.tapdata.tm.v2.api.usage.repository.ServerUsageMetricRepository;
 import com.tapdata.tm.v2.api.usage.repository.UsageRepository;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.MetricInfo;
+import com.tapdata.tm.worker.entity.ConnectionPoolEntity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.UsageBase;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.ConnectionPoolField;
 import com.tapdata.tm.worker.entity.field.ServerUsageField;
 import com.tapdata.tm.worker.entity.field.WorkerField;
 import com.tapdata.tm.worker.entity.field.WorkerType;
@@ -92,6 +95,7 @@ public class ApiMetricsChartQuery {
     ModulesService modulesService;
     ServerUsageMetricRepository serverUsageMetricRepository;
     ApiMetricsRawMergeService metricsRawMergeService;
+    ConnectionPoolInfoRepository poolInfoRepository;
 
     public ServerTopOnHomepage serverTopOnHomepage(QueryBase param) {
         final ServerTopOnHomepage result = ServerTopOnHomepage.create();
@@ -297,7 +301,7 @@ public class ApiMetricsChartQuery {
             if (end > now) {
                 end = now;
             }
-            criteriaBase.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(start).lt(end);
+            criteriaBase.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(start).lte(end);
             criteriaBase.and(ServerUsageField.TYPE.field()).in(List.of(0, 1, 2));
             Query queryOfUsage = Query.query(criteriaBase);
             return (List<T>) usageRepository.findAll(queryOfUsage);
@@ -306,7 +310,7 @@ public class ApiMetricsChartQuery {
         } else {
             start = start / 3600000L * 3600000L;
         }
-        criteriaBase.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(start).lt(end);
+        criteriaBase.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(start).lte(end);
         Query query = Query.query(criteriaBase);
         return (List<T>) serverUsageMetricRepository.findAll(query);
     }
@@ -325,6 +329,7 @@ public class ApiMetricsChartQuery {
         long currentTime = granularity.fixTime(startAt);
         long firstDataTime = infos.get(0).getLastUpdateTime() / 1000L;
         while (currentTime < firstDataTime) {
+            usage.addEmpty(currentTime, granularity != TimeGranularity.SECOND_FIVE);
             currentTime += step;
         }
         // Process each data point
@@ -347,6 +352,7 @@ public class ApiMetricsChartQuery {
         long fillTime = lastDataTime + step;
         while (fillTime < endAt) {
             fillTime += step;
+            usage.addEmpty(fillTime, granularity != TimeGranularity.SECOND_FIVE);
         }
         return usage;
     }
@@ -368,6 +374,14 @@ public class ApiMetricsChartQuery {
         item.setQueryFrom(param.getQueryStart());
         item.setQueryEnd(param.getQueryEnd());
         item.setGranularity(param.getGranularity().getType());
+        List<Integer> poolMaxConnections = usage.getPoolMaxConnections();
+        if (null != poolMaxConnections && !poolMaxConnections.isEmpty()) {
+            item.setPoolMaxConnections(poolMaxConnections.get(poolMaxConnections.size() - 1));
+        }
+        List<Integer> poolUsedConnections = usage.getPoolUsedConnections();
+        if (null != poolUsedConnections && !poolUsedConnections.isEmpty()) {
+            item.setPoolUsedConnections(poolUsedConnections.get(poolUsedConnections.size() - 1));
+        }
     }
 
     protected Worker findServerById(String serverId) {
@@ -428,6 +442,76 @@ public class ApiMetricsChartQuery {
         return result;
     }
 
+    protected ServerChart.PoolUsage collectionConnectionPoolUsage(ServerChartParam param, TimeGranularity type, Long startOf, Long endOf) {
+        if (StringUtils.isBlank(param.getConnectionId())) {
+            return new ServerChart.PoolUsage();
+        }
+        String serverId = param.getServerId();
+        Criteria criteriaOfUsage = Criteria.where(ConnectionPoolField.PROCESS_ID.field()).is(serverId)
+                .and(ConnectionPoolField.CONNECTION_ID.field()).is(param.getConnectionId());
+        long start = startOf * 1000L;
+        long end = endOf * 1000L;
+        Query query;
+        if (type == TimeGranularity.SECOND_FIVE) {
+            long now = System.currentTimeMillis() / 5000L * 5000L - 5000L;
+            if (end > now) {
+                end = now;
+            }
+        } else {
+            if (type == TimeGranularity.MINUTE) {
+                start = start / 60000L * 60000L;
+            } else {
+                start = start / 3600000L * 3600000L;
+            }
+        }
+        criteriaOfUsage.and(ConnectionPoolField.TIME_GRANULARITY.field()).is(type.getType());
+        criteriaOfUsage.and(ConnectionPoolField.LAST_UPDATE_TIME.field()).gte(start).lte(end);
+        query = Query.query(criteriaOfUsage);
+        List<ConnectionPoolEntity> all = poolInfoRepository.findAll(query);
+        return mapPoolUsage(all, startOf, endOf, type);
+    }
+
+    protected ServerChart.PoolUsage mapPoolUsage(List<ConnectionPoolEntity> infos, long startAt, long endAt, TimeGranularity granularity) {
+        final ServerChart.PoolUsage usage = new ServerChart.PoolUsage();
+        if (infos.isEmpty()) {
+            return usage;
+        }
+        // Calculate step based on granularity
+        long step = ApiMetricsCompressValueUtil.stepByGranularity(granularity);
+        infos.sort(Comparator.comparingLong(ConnectionPoolEntity::getLastUpdateTime));
+        endAt = granularity.fixTime(endAt);
+        long currentTime = granularity.fixTime(startAt);
+        long firstDataTime = infos.get(0).getLastUpdateTime() / 1000L;
+        while (currentTime < firstDataTime) {
+            currentTime += step;
+            usage.addEmpty(currentTime);
+        }
+        // Process each data point
+        long lastProcessedTime = currentTime;
+        for (ConnectionPoolEntity info : infos) {
+            long ts = info.getLastUpdateTime() / 1000L;
+            // Fill any gaps between data points
+            while (lastProcessedTime < ts) {
+                usage.addEmpty(lastProcessedTime);
+                lastProcessedTime += step;
+            }
+            // Add the actual data point if not already added
+            if (lastProcessedTime == ts) {
+                usage.add(info);
+                lastProcessedTime += step;
+            }
+        }
+        // Fill gaps after last data point until endAt
+        long lastDataTime = infos.get(infos.size() - 1).getLastUpdateTime() / 1000L;
+        long fillTime = lastDataTime + step;
+        while (fillTime < endAt) {
+            fillTime += step;
+            usage.addEmpty(lastProcessedTime);
+        }
+        return usage;
+    }
+
+
     public ServerChart serverChart(ServerChartParam param) {
         String serverId = param.getServerId();
         if (StringUtils.isBlank(serverId)) {
@@ -441,7 +525,9 @@ public class ApiMetricsChartQuery {
                 .and(ServerUsageField.PROCESS_TYPE.field()).is(ServerUsage.ProcessType.API_SERVER.getType());
         List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getRealStart(), param.getRealEnd(), param.getGranularity());
         ServerChart.Usage usage = this.mapUsage(allUsage, param.getRealStart(), param.getRealEnd(), param.getGranularity());
+        ServerChart.PoolUsage poolUsage = collectionConnectionPoolUsage(param, param.getGranularity(), param.getRealStart(), param.getRealEnd());
         result.setUsage(usage);
+        result.setPoolUsage(poolUsage);
         //request chart & avg delay & p95 & p99
         List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(
                 param, false,
