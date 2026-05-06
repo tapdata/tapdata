@@ -43,6 +43,9 @@ public class ServerItem extends DataValueBase {
     @DecimalFormat
     Double errorRate;
 
+    Integer poolMaxConnections;
+    Integer poolUsedConnections;
+
     long errorCount;
 
     boolean deleted;

@@ -15,6 +15,10 @@ public enum ServerUsageField implements CollectionField {
     HEAP_MEMORY_MAX("heapMemoryMax"),
     HEAP_MEMORY_USAGE("heapMemoryUsage"),
     LAST_UPDATE_TIME("lastUpdateTime"),
+    POOL_MAX_CONNECTIONS("poolMaxConnections"),
+    POOL_USED_CONNECTIONS("poolUsedConnections"),
+    POOL_AVAILABLE("poolAvailable"),
+    POOL_QUEUE_SIZE("poolQueueSize"),
     TTL_KEY("ttlKey");
 
     final String field;
