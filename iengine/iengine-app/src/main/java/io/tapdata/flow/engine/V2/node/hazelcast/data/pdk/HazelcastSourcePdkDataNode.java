@@ -310,11 +310,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				}
 			}
 			try {
-				if (need2InitialSync(syncProgress) || checkRebuildMergeTableCache(true)) {
+				if (need2InitialSync(syncProgress)) {
 					if (this.sourceRunnerFirstTime.get()) {
 						obsLogger.info("Starting batch read from {} tables", tables.size());
-						doSnapshotWithControl(new ArrayList<>(tables));
+						doSnapshotWithControl(new ArrayList<>(tables),true);
 					}
+				}else if(isReFullRunTask()){
+					doSnapshotWithControl(new ArrayList<>(tables),checkRebuildMergeTableCache(true));
 				}
 
 				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(newTables)) {
@@ -426,7 +428,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 	}
 
-	protected void doSnapshotWithControl(List<String> tableList) throws Throwable {
+	protected void doSnapshotWithControl(List<String> tableList,boolean needRun) throws Throwable {
 		Node<?> node = getNode();
 		if (node instanceof TableNode && ((TableNode) node).isSourceAndTarget()) {
 			doSnapshot(tableList);
@@ -434,7 +436,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 		SnapshotOrderController controller = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
 		if (null != controller) {
-			CommonUtils.AnyError runner = () -> doSnapshot(tableList);
+			CommonUtils.AnyError runner;
+			if(needRun){
+				runner= () -> doSnapshot(tableList);
+			}else{
+				runner= () -> {};
+			}
 			controller.runWithControl(getNode(), runner);
 		}
 	}
@@ -1729,7 +1736,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			return false;
 		}
 		if(getNode() instanceof TableNode tableNode) {
-			if(tableNode.isReFullRun()) {
+			if(isReFullRunTableNode()) {
 				if (first){
 					clientMongoOperator.update(Query.query(Criteria.where("taskId").is(dataProcessorContext.getTaskDto().getId().toHexString())
 							.and("nodeId").is(tableNode.getMergeNodeId())
@@ -1737,7 +1744,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					obsLogger.info("Rebuild merge table cache, table name: {}", tableNode.getTableName());
 				}
 				return true;
-			}else if(dataProcessorContext.getTaskDto().isReFullRun() && !tableNode.isReFullRun()) {
+			}else if(isReFullRunTask()){
 				if(first){
 					obsLogger.info("No need to rebuild the cache, skip directly, table name: {}", tableNode.getTableName());
 				}
@@ -1745,6 +1752,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			}
 		}
 		return false;
+	}
+
+	protected boolean isReFullRunTableNode(){
+		return getNode() instanceof TableNode tableNode && tableNode.isReFullRun();
+	}
+
+	protected boolean isReFullRunTask(){
+		return dataProcessorContext.getTaskDto().isReFullRun();
 	}
 
 	@Override
