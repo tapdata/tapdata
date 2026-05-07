@@ -547,19 +547,22 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 
-		// 应用批量限流控制
-		applyBatchStartTaskRateLimit(taskDto);
-
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		try {
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 
+			// Claim the task first so TM immediately moves wait_run→running; if this fails the
+			// task is still in scheduling/wait_run and we abort rather than start a phantom job.
 			TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskOpRespDto.class);
 			if (null == taskOpRespDto || !taskOpRespDto.getSuccessIds().contains(taskId)) {
 				// 防止任务异常状态下再次启动任务
 				throw new RuntimeException("Update task status to 'running' failed");
 			}
+
+			// Apply rate limiting after claiming: TM already knows the task is running so the
+			// wait_run overtime timer will not fire while we wait here.
+			applyBatchStartTaskRateLimit(taskDto);
 
 			// 使用 computeIfAbsent 防止创建重复的 TaskClient
 			taskClientMap.computeIfAbsent(taskId, id -> hazelcastTaskService.startTask(taskDto));
