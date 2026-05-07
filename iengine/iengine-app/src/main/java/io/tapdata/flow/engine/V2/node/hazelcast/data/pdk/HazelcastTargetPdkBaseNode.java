@@ -477,24 +477,28 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-				pdkMethodInvoker.runnable(
-						() -> {
-							try {
-								queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, rs -> {
-									if (null != rs.getError()) {
-										throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
-									}
-									rs.getResults().forEach(result -> {
-										String exactlyOnceId = String.valueOf(result.get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME));
-										exactlyOnceCache.add(exactlyOnceId);
+		try {
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+					pdkMethodInvoker.runnable(
+							() -> {
+								try {
+									queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, rs -> {
+										if (null != rs.getError()) {
+											throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
+										}
+										rs.getResults().forEach(result -> {
+											String exactlyOnceId = String.valueOf(result.get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME));
+											exactlyOnceCache.add(exactlyOnceId);
+										});
 									});
-								});
-							} catch (Exception e) {
-								throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters(tapAdvanceFilter, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME));
+								} catch (Exception e) {
+									throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters(tapAdvanceFilter, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME));
+								}
 							}
-						}
-				));
+					));
+		} finally {
+			removePdkMethodInvoker(pdkMethodInvoker);
+		}
 	}
 
 	private void cacheExactlyOnceIdsForTask(ConnectorNode connectorNode, TapTable exactlyOnceTable, Long fromTime, Long toTime) {
