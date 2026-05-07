@@ -50,6 +50,7 @@ public class OverflowToRocksDBSet extends AbstractSet<String> implements Closeab
 
 	@Override
 	public synchronized boolean add(String s) {
+		if (s == null) throw new NullPointerException("null exactly once id is not allowed");
 		if (memory.size() < memoryThreshold) {
 			return memory.add(s);
 		}

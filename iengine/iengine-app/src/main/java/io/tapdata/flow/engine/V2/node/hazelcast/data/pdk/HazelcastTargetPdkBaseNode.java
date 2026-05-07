@@ -206,7 +206,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected OverflowToRocksDBSet exactlyOnceCache = new OverflowToRocksDBSet();
 	private TapTable exactlyOnceTable;
 	private Long earliestTimestamp = Long.MAX_VALUE;
-	private Map<String, Long> firstCDCTimestampMap = new HashMap<>();
+	private final Map<String, Long> firstCDCTimestampMap = new ConcurrentHashMap<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);

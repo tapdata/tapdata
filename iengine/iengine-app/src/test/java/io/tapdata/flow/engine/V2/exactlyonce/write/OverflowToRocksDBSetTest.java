@@ -87,6 +87,14 @@ class OverflowToRocksDBSetTest {
 			}
 			assertEquals(2, count);
 		}
+
+		@Test
+		void testAddNullRejectedBeforeSpill() {
+			set = new OverflowToRocksDBSet(10L, UUID.randomUUID().toString());
+			assertThrows(NullPointerException.class, () -> set.add(null));
+			assertEquals(0, set.size());
+			assertTrue(set.isEmpty());
+		}
 	}
 
 	@Nested
@@ -126,6 +134,16 @@ class OverflowToRocksDBSetTest {
 			set.add("a");
 			set.add("b");
 			assertThrows(UnsupportedOperationException.class, () -> set.iterator());
+		}
+
+		@Test
+		void testAddNullRejectedAfterSpill() {
+			set = new OverflowToRocksDBSet(1L, UUID.randomUUID().toString());
+			set.add("a");
+			set.add("b");
+			assertNotNull(ReflectionTestUtils.getField(set, "db"));
+			assertThrows(NullPointerException.class, () -> set.add(null));
+			assertEquals(2, set.size());
 		}
 
 		@Test
