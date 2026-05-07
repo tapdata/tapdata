@@ -22,6 +22,7 @@ import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -684,7 +685,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isCDCConcurrent(true);
 			boolean result = hazelcastTargetPdkBaseNode.isCDCConcurrent(true);
 			Assertions.assertFalse(result);
-			verify(obsLogger, times(1)).trace(any());
+			verify(obsLogger, times(1)).info(any());
 		}
 
 		@Test
@@ -698,7 +699,21 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isCDCConcurrent(true);
 			boolean result = hazelcastTargetPdkBaseNode.isCDCConcurrent(true);
 			Assertions.assertFalse(result);
-			verify(obsLogger, times(1)).trace(any());
+			verify(obsLogger, times(1)).info(any());
+		}
+
+		@Test
+		void testExactlyOnceWriteEnabledNode() {
+			TableNode node = mock(TableNode.class);
+			ProcessorNode processorNode = mock(ProcessorNode.class);
+			when(node.predecessors()).thenReturn(Collections.singletonList(processorNode));
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) node);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isCDCConcurrent(true);
+			CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult = CheckExactlyOnceWriteEnableResult.createEnable();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "checkExactlyOnceWriteEnableResult", checkExactlyOnceWriteEnableResult);
+			boolean result = hazelcastTargetPdkBaseNode.isCDCConcurrent(true);
+			Assertions.assertFalse(result);
+			verify(obsLogger, times(1)).info(any());
 		}
 	}
 
