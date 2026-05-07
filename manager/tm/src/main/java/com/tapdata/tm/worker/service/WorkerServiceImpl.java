@@ -374,12 +374,12 @@ public class WorkerServiceImpl extends WorkerService{
 
         AtomicReference<String> scheduleAgentId = new AtomicReference<>("");
 
-        Object jobHeartTimeout = settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT).getValue();
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
         boolean isCloud = settingsService.isCloud();
         if ((userDetail.getUserId() == null || userDetail.getUserId().equals("")) && isCloud) {
             throw new BizException("NotFoundUserId");
         }
-        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout) * 1000L;
+        Long findTime = System.currentTimeMillis() - (overTime * 1000L) + 1L;
 
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();

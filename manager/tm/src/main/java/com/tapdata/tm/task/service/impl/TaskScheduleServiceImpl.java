@@ -3,8 +3,7 @@ package com.tapdata.tm.task.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.Settings.constant.CategoryEnum;
-import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
@@ -180,8 +179,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             if (CollectionUtils.isNotEmpty(workerList)) {
                 Worker workerDto = workerList.get(0);
 
-                Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
-                long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48) * 1000 : 108000;
+                long heartExpire = (long) SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) * 1000L;
 
                 if ((System.currentTimeMillis() - workerDto.getPingTime()) < heartExpire || Boolean.TRUE.equals(taskDto.getCheckMemoryHeap())){
                     needCalculateAgent.set(false);
