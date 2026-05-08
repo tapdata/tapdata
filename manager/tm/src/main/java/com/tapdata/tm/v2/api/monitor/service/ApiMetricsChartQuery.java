@@ -6,10 +6,13 @@ import com.tapdata.tm.base.dto.ValueResult;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.base.field.CollectionField;
+import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.Component;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.cluster.entity.field.ClusterStateField;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
+import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.cluster.util.ApiStatusUtil;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.modules.service.ModulesService;
@@ -96,6 +99,7 @@ public class ApiMetricsChartQuery {
     ServerUsageMetricRepository serverUsageMetricRepository;
     ApiMetricsRawMergeService metricsRawMergeService;
     ConnectionPoolInfoRepository poolInfoRepository;
+    ClusterStateService clusterStateService;
 
     public ServerTopOnHomepage serverTopOnHomepage(QueryBase param) {
         final ServerTopOnHomepage result = ServerTopOnHomepage.create();
@@ -368,9 +372,22 @@ public class ApiMetricsChartQuery {
         item.setDeleted(Optional.ofNullable(worker).map(Worker::getDeleted).orElse(false));
         //set cluster state
         Component workerClusterStatus = clusterStateOfWorker.get(processId);
-        item.setServerStatus(Optional.ofNullable(workerClusterStatus).map(Component::getStatus).orElse(null));
+        if (workerClusterStatus == null) {
+            ApiStatusUtil.statusOfApi(false, worker, null, item::setStatus, item::setServiceStatus);
+        } else {
+            ClusterStateDto one = clusterStateService.findOne(Query.query(Criteria.where("apiServer.processID").is(processId)));
+            boolean workerAlive = null != one;
+            if (workerAlive) {
+                String custerProcessId = one.getSystemInfo().getProcess_id();
+                List<Worker> custerInfo = workerRepository.findAll(Query.query(Criteria.where(WorkerField.PROCESS_ID.field()).is(custerProcessId)));
+                workerAlive = null != custerInfo && !custerInfo.isEmpty();
+                boolean clusterStopped = ApiStatusUtil.clusterStopped(one, workerAlive);
+                ApiStatusUtil.statusOfApi(clusterStopped, worker, workerClusterStatus, item::setStatus, item::setServiceStatus);
+            } else {
+                ApiStatusUtil.statusOfApi(false, worker, workerClusterStatus, item::setStatus, item::setServiceStatus);
+            }
+        }
         item.setServerPingTime(Optional.ofNullable(worker).map(Worker::getWorkerStatus).map(ApiServerStatus::getActiveTime).orElse(null));
-        item.setServerPingStatus(Optional.ofNullable(worker).map(Worker::getWorkerStatus).map(ApiServerStatus::getStatus).orElse(null));
         item.setQueryFrom(param.getQueryStart());
         item.setQueryEnd(param.getQueryEnd());
         item.setGranularity(param.getGranularity().getType());
