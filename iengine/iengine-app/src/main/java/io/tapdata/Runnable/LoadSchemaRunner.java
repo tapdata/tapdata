@@ -249,7 +249,7 @@ public class LoadSchemaRunner implements Runnable {
 						tables -> consumeTapTable(tableConsumer, dataTypesMap, tables)), TAG);
 	}
 
-	private static void consumeTapTable(Consumer<TapTable> tableConsumer, DefaultExpressionMatchingMap dataTypesMap, List<TapTable> tables) {
+	public static void consumeTapTable(Consumer<TapTable> tableConsumer, DefaultExpressionMatchingMap dataTypesMap, List<TapTable> tables) {
 		if (CollectionUtils.isEmpty(tables)) {
 			return;
 		}
