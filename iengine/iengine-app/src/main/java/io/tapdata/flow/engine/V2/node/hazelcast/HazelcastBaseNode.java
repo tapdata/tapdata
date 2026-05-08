@@ -56,6 +56,8 @@ import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkBaseException;
+import io.tapdata.exception.TapPdkOffsetOutOfLogEx;
+import io.tapdata.exception.TapPdkReadMissingPrivilegesEx;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.entity.TaskEnvMap;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
@@ -717,6 +719,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		SkipError skipError = SkipErrorStrategy.getDefaultSkipErrorStrategy().getSkipError();
 		CommonUtils.handleAnyError(()->{
 			String message;
+			if(currentEx instanceof TapPdkOffsetOutOfLogEx || currentEx instanceof TapPdkReadMissingPrivilegesEx){
+				errorEvent.set(null);
+				return;
+			}
 			if(currentEx instanceof TapProcessorUnknownException){
 				message = currentEx.getCause().getMessage();
 			}else{
