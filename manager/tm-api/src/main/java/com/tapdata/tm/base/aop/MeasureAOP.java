@@ -23,6 +23,7 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.SampleRequest;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -320,7 +321,9 @@ public class MeasureAOP {
         param.put("taskName", task.getName());
         param.put("nodeName", nodeName);
         param.put("alarmDate", DateUtil.now());
-        param.put("idleSeconds", TimeUnit.MILLISECONDS.toSeconds(now - baselineAt));
+        long idleMillis = now - baselineAt;
+        long totalSeconds = TimeUnit.MILLISECONDS.toSeconds(idleMillis);
+        param.put("idleDuration", TimeUtil.secondsToHhmmss(totalSeconds));
         param.put("lastCaptureTime", DateUtil.format(DateUtil.date(baselineAt), "yyyy-MM-dd HH:mm:ss"));
         if (Objects.nonNull(lastCapturedAt) && lastCapturedAt > 0L) {
             param.put("latestCaptureTime", DateUtil.format(DateUtil.date(lastCapturedAt), "yyyy-MM-dd HH:mm:ss"));

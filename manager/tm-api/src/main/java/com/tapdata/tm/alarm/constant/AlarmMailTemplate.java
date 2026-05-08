@@ -81,7 +81,7 @@ public class AlarmMailTemplate {
     public static final String TASK_SOURCE_NO_INCREMENTAL_EVENT_CONTENT = "Source heartbeat incremental capture interrupted.\n" +
             "    Task name: 【{0}】\n" +
             "    Source node: {1}\n" +
-            "    No incremental event captured for {2} seconds\n" +
+            "    No incremental event captured for {2}\n" +
             "    Last observed time: {3}\n" +
             "    Alarm time: {4}";
 }

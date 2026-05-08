@@ -24,6 +24,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
 import org.aspectj.lang.JoinPoint;
@@ -94,7 +95,7 @@ public class MeasureAOPTest {
                     AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT == info.getMetric()
                             && AlarmStatusEnum.ING == info.getStatus()
                             && "TASK_SOURCE_NO_INCREMENTAL_EVENT_START".equals(info.getSummary())
-                            && ((Number) info.getParam().get("idleSeconds")).longValue() >= 120L));
+                            && TimeUtil.hhmmssToSeconds(info.getParam().get("idleDuration").toString()) >= 120L));
         }
 
         @Test
