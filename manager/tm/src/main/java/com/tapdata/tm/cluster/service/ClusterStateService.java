@@ -19,6 +19,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.*;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
+import com.tapdata.tm.cluster.util.ApiStatusUtil;
 import com.tapdata.tm.clusterOperation.constant.AgentStatusEnum;
 import com.tapdata.tm.clusterOperation.constant.ClusterOperationTypeEnum;
 import com.tapdata.tm.clusterOperation.dto.ClusterOperationDto;
@@ -28,6 +29,7 @@ import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -446,20 +448,28 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
 
             List<String> availableProcessIds = Lists.newArrayList();
             List<Worker> workers = workerService.findAvailableAgentBySystem(processIds);
+            Map<String, Worker> apiMap;
+            if (null != workers) {
+                apiMap = workers.stream()
+                        .filter(Objects::nonNull)
+                        .filter(e -> "".equals(e.getWorkerType()))
+                        .collect(Collectors.toMap(Worker::getProcessId, e -> e, (e1, e2) -> e2));
+            } else {
+                apiMap = new HashMap<>();
+            }
             Optional.ofNullable(workers).ifPresent(w -> w.forEach(k -> availableProcessIds.add(k.getProcessId())));
 
             items.forEach(m -> {
                 boolean workerAlive = availableProcessIds.contains(m.getSystemInfo().getProcess_id());
-                if (workerAlive && "stopped".equals(m.getStatus())) {
-                    m.setStatus("running");
-                }
-                boolean clusterStopped = "stopped".equals(m.getStatus()) && !workerAlive;
+                boolean clusterStopped = ApiStatusUtil.clusterStopped(m, workerAlive);
 
                 Optional.ofNullable(m.getManagement()).ifPresent(management -> {
                     management.setServiceStatus(clusterStopped ? "stopped" : management.getStatus());
                 });
                 Optional.ofNullable(m.getApiServer()).ifPresent(api -> {
-                    api.setServiceStatus(clusterStopped ? "stopped" : api.getStatus());
+                    String apiId = api.getProcessID();
+                    Worker apiInfo = apiMap.get(apiId);
+                    ApiStatusUtil.statusOfApi(clusterStopped, apiInfo, api, api::setStatus, api::setServiceStatus);
                 });
                 Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
                     fe.setServiceStatus(clusterStopped ? "stopped" : fe.getStatus());
