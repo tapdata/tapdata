@@ -179,6 +179,7 @@
         <script-engine-module.version>2.5-SNAPSHOT</script-engine-module.version>
         <gson.version>2.12.1</gson.version>
         <httpclient5.version>5.4.4</httpclient5.version>
+        <netty.version>4.1.133.Final</netty.version>
     </properties>
 
     <modules>
