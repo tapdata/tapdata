@@ -69,6 +69,7 @@ import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.param.UpdateEncryptionParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
+import com.tapdata.tm.modules.util.FieldTypeUtil;
 import com.tapdata.tm.modules.util.MongoQueryValidator;
 import com.tapdata.tm.modules.util.MongoUriUtil;
 import com.tapdata.tm.modules.vo.ApiDefinitionVo;
@@ -204,6 +205,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public ModulesDetailVo findById(String id) {
 		final ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
+		parseTapType(modulesDto);
 		modulesDto.withPathSettingIfNeed();
 		transformStatusMsg(modulesDto);
 		final ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
@@ -220,6 +222,26 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				});
 		modulesDetailVo.setConnection(connectionId);
 		return modulesDetailVo;
+	}
+
+	protected void parseTapType(List<ModulesDto> modulesDto) {
+		if (CollectionUtils.isEmpty(modulesDto)) {
+			return;
+		}
+		modulesDto.stream().filter(Objects::nonNull).forEach(this::parseTapType);
+	}
+	protected void parseTapType(ModulesDto modulesDto) {
+		if (null == modulesDto) {
+			return;
+		}
+		if (null != modulesDto.getPaths()) {
+			modulesDto.getPaths().forEach(path -> {
+				FieldTypeUtil.parseTapType(path.getFields());
+				FieldTypeUtil.parseTapType(path.getAvailableQueryField());
+				FieldTypeUtil.parseTapType(path.getRequiredQueryField());
+			});
+		}
+		FieldTypeUtil.parseTapType(modulesDto.getFields());
 	}
 
 	public void updateParamEncryption(UpdateEncryptionParam param, UserDetail user) {
@@ -262,6 +284,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 							transformStatusMsg((ModulesDto) e);
 							((ModulesDto) e).withPathSettingIfNeed();
 						}));
+        parseTapType((List<ModulesDto>) page.getItems());
         String createUser = "";
         List<ModulesListVo> modulesListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(page.getItems(), ModulesListVo.class);
         if (CollectionUtils.isNotEmpty(modulesListVoList)) {
@@ -329,6 +352,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		// TAP-12057 · P2-1：写入前确定性归一化 servingIndexes（排序 + 方向规范），避免 Module 全量 diff 抖动（ADR-0001）。
 		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
         removeStatusInfo(modulesDto);
+		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
 		return super.save(modulesDto, userDetail);
 
 	}
@@ -386,6 +410,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		// TAP-12057 · P2-1：更新链路同样归一化 servingIndexes（ADR-0001）。
 		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
         removeStatusInfo(modulesDto);
+		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
 		return super.upsertByWhere(where, modulesDto, userDetail);
 	}
 
@@ -419,7 +444,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public List<ModulesDto> batchUpdateModuleByList(List<ModulesDto> modulesDtos, UserDetail userDetail) {
 		List<ModulesDto> modulesDtoList = new ArrayList<>();
-		modulesDtos.forEach((modulesDto -> modulesDtoList.add(updateModuleById(modulesDto, userDetail))));
+		modulesDtos.forEach((modulesDto -> {
+			FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
+			modulesDtoList.add(updateModuleById(modulesDto, userDetail));
+		}));
 		return modulesDtoList;
 	}
 
@@ -529,6 +557,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				}
 				newDto.setIsDeleted(false);
 				removeStatusInfo(newDto);
+				FieldTypeUtil.validCustomWhereIfNeed(newDto);
 				super.upsert(query, newDto, userDetail);
 			}
 		}
@@ -1256,6 +1285,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				field1.setExample("");
 				newField.add(field1);
 			}
+			FieldTypeUtil.parseTapType(field);
 		}
 		return newField;
 	}
