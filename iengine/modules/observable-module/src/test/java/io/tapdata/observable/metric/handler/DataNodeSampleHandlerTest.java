@@ -7,6 +7,9 @@ import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.utils.UnitTestUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,9 +29,13 @@ import static org.mockito.Mockito.verify;
 public class DataNodeSampleHandlerTest {
     DataNodeSampleHandler handler;
     HandlerUtil.EventTypeRecorder recorder;
+    Logger logger;
+
     @BeforeEach
     void init() {
         handler = mock(DataNodeSampleHandler.class);
+        logger = LogManager.getLogger(DataNodeSampleHandler.class);
+        UnitTestUtils.injectField(DataNodeSampleHandler.class, handler, "logger", logger);
         recorder = new HandlerUtil.EventTypeRecorder();
 
 

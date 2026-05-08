@@ -272,7 +272,7 @@ class TaskInspectUtilsTest {
             String fromJson = JSON.toJSONString(keys);
             String toJson = JSON.toJSONString(decodeKeys);
             String errorTips = String.format("The keys are inconsistent\n- encode: %s\n-   from: %s\n-     to: %s\n", encodeStr, fromJson, toJson);
-            System.out.println(errorTips); // 用于输出当前版本的序列化信息，如果改动了序列化，请将结果生成新和测试用例，以兼容旧的序列化版本
+//            System.out.println(errorTips); // 用于输出当前版本的序列化信息，如果改动了序列化，请将结果生成新和测试用例，以兼容旧的序列化版本
             assertTrue(isOk, errorTips);
         }
 
