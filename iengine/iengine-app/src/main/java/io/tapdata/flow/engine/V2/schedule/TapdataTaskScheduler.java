@@ -342,7 +342,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			List<TaskDto> allWaitRunTasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 			for (TaskDto waitRunTask : allWaitRunTasks) {
 				logger.info("Staring task from http query: {}[{}]", waitRunTask.getName(), waitRunTask.getId());
-				query = new Query(Criteria.where("id").is(waitRunTask.getId()));
+				query = new Query(Criteria.where("_id").is(waitRunTask.getId()));
 				Update update = new Update();
 				update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
 				addAgentIdUpdate(update);
