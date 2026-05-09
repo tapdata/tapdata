@@ -446,12 +446,13 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
 
         Optional.ofNullable(page).flatMap(p -> Optional.ofNullable(p.getItems())).ifPresent(items -> {
             List<String> processIds = items.stream().map(n -> n.getSystemInfo().getProcess_id()).collect(Collectors.toList());
-
+            List<String> apiServerId = items.stream().map(ClusterStateDto::getApiServer).map(Component::getServerId).distinct().toList();
             List<String> availableProcessIds = Lists.newArrayList();
             List<Worker> workers = workerService.findAvailableAgentBySystem(processIds);
             Map<String, Worker> apiMap;
-            if (null != workers) {
-                apiMap = workers.stream()
+            if (!apiServerId.isEmpty()) {
+                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where("process_id").in(apiServerId).and("worker_type").is(WorkerType.API_SERVER.getType())));
+                apiMap = allApiServerInfo.stream()
                         .filter(Objects::nonNull)
                         .filter(e -> WorkerType.API_SERVER.getType().equals(e.getWorkerType()))
                         .collect(Collectors.toMap(Worker::getProcessId, e -> e, (e1, e2) -> e2));
@@ -468,7 +469,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
                     management.setServiceStatus(clusterStopped ? "stopped" : management.getStatus());
                 });
                 Optional.ofNullable(m.getApiServer()).ifPresent(api -> {
-                    String apiId = api.getProcessID();
+                    String apiId = api.getServerId();
                     Worker apiInfo = apiMap.get(apiId);
                     ApiStatusUtil.statusOfApi(clusterStopped, apiInfo, api, api::setStatus, api::setServiceStatus);
                 });
