@@ -185,11 +185,36 @@ public class WorkerServiceImpl extends WorkerService{
     }
 
     private Criteria getAvailableAgentCriteria() {
-        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        // +1L makes the gte boundary effectively a strict gt: a worker whose ping_time
+        // exactly equals (now - overTime*1000) is treated as DEAD, matching calculationEngine.
         return Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
+                .and("ping_time").gte(getEvictionFindTimeMillis())
                 .and("isDeleted").ne(true).and("stopping").ne(true)
                 .and("agentTags").ne("disabledScheduleTask");
+    }
+
+    /**
+     * Threshold for "is this worker still alive" — used by liveness/availability checks
+     * (UI, isAgentTimeout-style queries). Boundary +1L excludes the worker whose ping
+     * is exactly at WORKER_HEART_OVERTIME.
+     */
+    private long getEvictionFindTimeMillis() {
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        return System.currentTimeMillis() - (overTime * 1000L) + 1L;
+    }
+
+    /**
+     * Stricter threshold for SCHEDULING (selecting which worker to assign a task to).
+     * Subtracts WORKER_SCHEDULE_SAFETY_MARGIN_S so a worker whose ping is on the verge
+     * of timing out is not picked — protects against the "switch to dead engine" race
+     * during HA failover. Floored at overTime/2 (and at least 1s) so misconfiguration
+     * cannot collapse the window to zero.
+     */
+    private long getSelectionFindTimeMillis() {
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        int margin = SettingsEnum.WORKER_SCHEDULE_SAFETY_MARGIN_S.getIntValue(5);
+        int effective = Math.max(overTime - margin, Math.max(overTime / 2, 1));
+        return System.currentTimeMillis() - (effective * 1000L) + 1L;
     }
 
     public List<Worker> findAvailableAgentBySystem(UserDetail userDetail) {
@@ -374,12 +399,12 @@ public class WorkerServiceImpl extends WorkerService{
 
         AtomicReference<String> scheduleAgentId = new AtomicReference<>("");
 
-        Object jobHeartTimeout = settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT).getValue();
         boolean isCloud = settingsService.isCloud();
         if ((userDetail.getUserId() == null || userDetail.getUserId().equals("")) && isCloud) {
             throw new BizException("NotFoundUserId");
         }
-        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout) * 1000L;
+        // Use selection (not eviction) threshold so a worker about to die is not picked.
+        Long findTime = getSelectionFindTimeMillis();
 
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();

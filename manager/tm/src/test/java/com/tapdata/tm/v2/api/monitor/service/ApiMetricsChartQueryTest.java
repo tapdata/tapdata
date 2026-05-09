@@ -1,8 +1,11 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.Component;
+import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
+import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
@@ -73,7 +76,7 @@ class ApiMetricsChartQueryTest {
     private ServerUsageMetricRepository serverUsageMetricRepository;
     private ApiMetricsRawMergeService metricsRawMergeService;
     private ApiMetricsChartQuery apiMetricsChartQuery;
-
+    ClusterStateService clusterStateService;
     @BeforeEach
     void setUp() {
         service = mock(ApiMetricsRawService.class);
@@ -83,6 +86,7 @@ class ApiMetricsChartQueryTest {
         modulesService = mock(ModulesService.class);
         serverUsageMetricRepository = mock(ServerUsageMetricRepository.class);
         metricsRawMergeService = mock(ApiMetricsRawMergeService.class);
+        clusterStateService = mock(ClusterStateService.class);
 
         apiMetricsChartQuery = mock(ApiMetricsChartQuery.class);
         ReflectionTestUtils.setField(apiMetricsChartQuery, "service", service);
@@ -92,6 +96,7 @@ class ApiMetricsChartQueryTest {
         ReflectionTestUtils.setField(apiMetricsChartQuery, "modulesService", modulesService);
         ReflectionTestUtils.setField(apiMetricsChartQuery, "serverUsageMetricRepository", serverUsageMetricRepository);
         ReflectionTestUtils.setField(apiMetricsChartQuery, "metricsRawMergeService", metricsRawMergeService);
+        ReflectionTestUtils.setField(apiMetricsChartQuery, "clusterStateService", clusterStateService);
         when(apiMetricsChartQuery.serverTopOnHomepage(any(QueryBase.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.serverOverviewList(any(ServerListParam.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.queryCpuUsageRecords(any(Criteria.class), anyLong(), anyLong(), any(TimeGranularity.class))).thenCallRealMethod();
@@ -481,10 +486,15 @@ class ApiMetricsChartQueryTest {
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
             param.setGranularity(TimeGranularity.SECOND_FIVE);
+            ClusterStateDto one = new ClusterStateDto();
+            one.setSystemInfo(new SystemInfo(null, null, null, null, 0L,null, null, null, null, null,null,null,null,null));
+            one.getSystemInfo().setProcess_id("pid");
+            when( clusterStateService.findOne(any(Query.class))).thenReturn(one);
+            when(workerRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
             apiMetricsChartQuery.asServerItemInfo("server1", item, usageMap, worker, clusterStateMap, param);
             assertEquals("server1", item.getServerId());
             assertEquals("test-host", item.getServerName());
-            assertEquals("running", item.getServerStatus());
+            assertEquals("stopped", item.getServiceStatus());
         }
 
         @Test

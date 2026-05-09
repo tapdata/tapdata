@@ -8,13 +8,10 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.ConsumerImpl;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
-import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.utils.AppType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
@@ -42,9 +39,7 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 	private ScheduledExecutorService executorService;
 	private HttpClientMongoOperator clientMongoOperator;
 	private Supplier<Boolean> stopTask;
-    private long heartExpire = 300000L;
     private long failedStartTime = 0;
-    private long lastPingTime = 0L;
 
 	private Consumer<TerminalMode> taskMonitor;
 
@@ -56,28 +51,13 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 		this.taskMonitor = terminalMode;
 	}
 
-    private long getHeartExpire() {
-        Query heartExpireQuery = Query.query(Criteria.where("id").is("69"));
-        LinkedHashMap heartExpireObject = clientMongoOperator.findOne(heartExpireQuery, "Settings", LinkedHashMap.class);
-        if (heartExpireObject != null) {
-            String heartExpireStr = heartExpireObject.get("value").toString();
-            if (heartExpireStr != null) {
-                heartExpire = Long.parseLong(heartExpireStr);
-                if (heartExpire < 60000L) {
-                    // 防护性设置, 最低 60s, 否则任务不稳定
-                    heartExpire = 60000L;
-                }
-                return heartExpire;
-            }
-        }
-        return 300000L;
-    }
-
 	@Override
 	public void start() {
-        heartExpire = getHeartExpire();
         failedStartTime = 0;
-		// use scheduleWithFixedDelay because it is not need execute lost times
+		// Always ping every PING_INTERVAL_MS (5s). TM treats pingTime older than
+		// JOB_HEART_TIMEOUT (≥25s) as a dead task; gating ping by heartExpire/2
+		// previously made the ping interval equal the timeout, leaving zero buffer
+		// for transient network/GC hiccups and triggering false-positive HA failover.
 		executorService.scheduleWithFixedDelay(
 				() -> {
 					Thread.currentThread().setName("Task-PingTime-" + taskDto.getId().toHexString());
@@ -104,40 +84,33 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 	}
 
 	public void taskPingTimeUseHttp(Query query, Update update) {
-        // 正常情况下, 不需频繁心跳; TM不可用时缩短间隔以快速探测恢复
-        long pingInterval = TmStatusService.isAvailable() ? heartExpire / 2 : PING_INTERVAL_MS;
-        if (System.currentTimeMillis() - lastPingTime < pingInterval && failedStartTime == 0) {
-            return;
-        }
 		try {
-			heartExpire = getHeartExpire();
-			lastPingTime = System.currentTimeMillis();
 			UpdateResult updateResult = clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
-			// 任务状态异常，应该将任务停止
 			if (updateResult.getModifiedCount() == 0) {
-				if (!AppType.currentType().isCloud()) {
-					logger.warn("Task is scheduled by other engines, will stop task");
-					taskMonitor.accept(TerminalMode.INTERNAL_STOP);
-					stopTask.get();
-				}
-
+				// Self-stop on ownership loss for ALL profiles (cloud + DAAS). Previously cloud
+				// silently continued, which is the root cause of the dual-engine running window
+				// observed in HA drill tests.
+				logger.warn("TaskHA event=ping_rejected reason=update_modifiedCount_zero, will stop task");
+				taskMonitor.accept(TerminalMode.INTERNAL_STOP);
+				stopTask.get();
+				ExecutorUtil.shutdown(executorService, 1L, TimeUnit.SECONDS);
 			} else {
                 failedStartTime = 0L;
             }
 		} catch (Exception e) {
-			if (!AppType.currentType().isCloud()) {
-                if (failedStartTime == 0) {
-                    failedStartTime = System.currentTimeMillis();
-                }
-                if (System.currentTimeMillis() - failedStartTime > onHeartExpire()) {
-                    logger.warn("Send task ping time failed, will stop task: {}", e.getMessage(), e);
-                    taskMonitor.accept(TerminalMode.INTERNAL_STOP);
-                    stopTask.get();
-					ExecutorUtil.shutdown(executorService, 1L, TimeUnit.SECONDS);
-                } else {
-                    logger.warn("Send task ping time failed for {}ms, heartbeat expire is {}ms, will retry", System.currentTimeMillis() - failedStartTime, heartExpire);
-                }
-			}
+            if (failedStartTime == 0) {
+                failedStartTime = System.currentTimeMillis();
+            }
+            if (System.currentTimeMillis() - failedStartTime > onHeartExpire()) {
+                logger.warn("TaskHA event=ping_failed_giveup elapsedMs={}, will stop task: {}",
+                        System.currentTimeMillis() - failedStartTime, e.getMessage(), e);
+                taskMonitor.accept(TerminalMode.INTERNAL_STOP);
+                stopTask.get();
+                ExecutorUtil.shutdown(executorService, 1L, TimeUnit.SECONDS);
+            } else {
+                logger.warn("TaskHA event=ping_failed_retry elapsedMs={} giveupAfterMs={}",
+                        System.currentTimeMillis() - failedStartTime, onHeartExpire());
+            }
 		}
 	}
 

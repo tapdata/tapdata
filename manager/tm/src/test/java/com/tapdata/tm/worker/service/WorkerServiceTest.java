@@ -238,11 +238,17 @@ class WorkerServiceTest {
         SchedulableDto mockSchedulable = new SchedulableDto();
         UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
-        try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)){
+        try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class);
+             MockedStatic<SettingUtil> settingUtilMockedStatic = Mockito.mockStatic(SettingUtil.class)) {
             when(settingsService.isCloud()).thenReturn(false);
             Settings settings = new Settings();
             settings.setValue("1000");
             when(settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT)).thenReturn(settings);
+            // calculationEngine now reads WORKER_HEART_OVERTIME and WORKER_SCHEDULE_SAFETY_MARGIN_S
+            // via SettingUtil (post-Apr 29 SettingsEnum migration); mock both to keep this unit test
+            // independent of SettingUtil's static settingsService field.
+            settingUtilMockedStatic.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(), KeyEnum.WORKER_HEART_TIMEOUT.getValue())).thenReturn("1000");
+            settingUtilMockedStatic.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(), "workerScheduleSafetyMarginSeconds")).thenReturn("5");
             serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
             Worker worker = new Worker();
             worker.setUserId("6393f084c162f518b18165c3");

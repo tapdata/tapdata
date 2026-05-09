@@ -3,8 +3,7 @@ package com.tapdata.tm.task.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.Settings.constant.CategoryEnum;
-import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
@@ -68,6 +67,12 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user,Boolean isReStart) {
+        // Capture the previous owner BEFORE cloudTaskLimitNum mutates taskDto.agentId
+        // so we can fire a best-effort STOP to it after a new owner is chosen (HA failover
+        // path). Reduces the dual-running window when the old engine is alive but TM
+        // already moved the task elsewhere.
+        String oldAgentId = taskDto.getAgentId();
+
         FunctionUtils.ignoreAnyError(() -> {
             CheckTaskMemoryResult checkTaskMemoryResult = taskService.checkTaskMemoryHeap(taskDto, isReStart, user);
             if (null != checkTaskMemoryResult && !checkTaskMemoryResult.getIsSafe()) {
@@ -96,6 +101,20 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         Date now = new Date();
         monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getProcessName(), calculationEngineVo.getAvailable(), calculationEngineVo.isManually(), user, now);
+
+        // Best-effort STOP to the previous owner so it shuts down its local TaskClient
+        // before the new owner finishes booting. Failure here is non-fatal: TaskPingTimeMonitor
+        // on the old engine has its own ownership-loss self-stop as backup.
+        if (StringUtils.isNotBlank(oldAgentId) && !oldAgentId.equals(taskDto.getAgentId())) {
+            try {
+                log.info("TaskHA event=stop_old_agent taskId={} oldAgentId={} newAgentId={}",
+                        taskDto.getId().toHexString(), oldAgentId, taskDto.getAgentId());
+                taskService.sendStoppingMsg(taskDto.getId().toHexString(), oldAgentId, user, false);
+            } catch (Exception e) {
+                log.warn("TaskHA event=stop_old_agent_failed taskId={} oldAgentId={} error={}",
+                        taskDto.getId().toHexString(), oldAgentId, e.getMessage());
+            }
+        }
 
         // Step 1: Write agentId first while still in SCHEDULING state.
         // This is safe because no scheduler dispatches start messages to tasks in SCHEDULING state.
@@ -180,8 +199,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             if (CollectionUtils.isNotEmpty(workerList)) {
                 Worker workerDto = workerList.get(0);
 
-                Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
-                long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48) * 1000 : 108000;
+                long heartExpire = (long) SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) * 1000L;
 
                 if ((System.currentTimeMillis() - workerDto.getPingTime()) < heartExpire || Boolean.TRUE.equals(taskDto.getCheckMemoryHeap())){
                     needCalculateAgent.set(false);
