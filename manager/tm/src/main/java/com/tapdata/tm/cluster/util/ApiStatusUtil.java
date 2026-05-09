@@ -1,5 +1,6 @@
 package com.tapdata.tm.cluster.util;
 
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.Component;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
@@ -27,20 +28,24 @@ public final class ApiStatusUtil {
     }
 
     public static void statusOfApi(boolean clusterStopped, Worker apiInfo, Component workerClusterStatus, Consumer<String> apiStatusFromAgent, Consumer<String> apiStatusFromApiServer) {
-        if (null == apiInfo || null == apiInfo.getWorkerStatus()) {
+        if (null != workerClusterStatus) {
+            apiStatusFromAgent.accept(workerClusterStatus.getStatus());
+        }
+        if (clusterStopped) {
             apiStatusFromApiServer.accept("stopped");
-        } else {
+            return;
+        }
+        if (null != apiInfo && null != apiInfo.getWorkerStatus() && null != apiInfo.getWorkerStatus().getMetricValues()) {
             ApiServerStatus workerStatus = apiInfo.getWorkerStatus();
             String status = workerStatus.getStatus();
-            Long activeTime = workerStatus.getActiveTime();
-            if (null != activeTime && activeTime >= System.currentTimeMillis() - 15_000L) {
+            Object activeTime = apiInfo.getWorkerStatus().getMetricValues().getLastUpdateTime();
+            if (activeTime instanceof Number iTime && iTime.longValue() >= System.currentTimeMillis() - (SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) * 1_000L)) {
                 apiStatusFromApiServer.accept(status);
             } else {
                 apiStatusFromApiServer.accept("stopped");
             }
-        }
-        if (null != workerClusterStatus) {
-            apiStatusFromAgent.accept(clusterStopped ? "stopped" : workerClusterStatus.getStatus());
+        } else {
+            apiStatusFromApiServer.accept("stopped");
         }
     }
 }
