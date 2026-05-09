@@ -823,8 +823,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         cdcConcurrent = cdcConcurrent && cdcConcurrentWriteNum > 1;
         List<? extends Node<?>> predecessors = getNode().predecessors();
         for (Node<?> predecessor : predecessors) {
-            if (predecessor instanceof MergeTableNode || predecessor instanceof UnwindProcessNode || Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable())) {
-                obsLogger.info("CDC concurrent write is disabled because the node has a merge table node or unwind process node or exact once enabled");
+            if (predecessor instanceof MergeTableNode || predecessor instanceof UnwindProcessNode) {
+                obsLogger.trace("CDC concurrent write is disabled because the node has a merge table node or unwind process node");
                 cdcConcurrent = false;
             }
         }
