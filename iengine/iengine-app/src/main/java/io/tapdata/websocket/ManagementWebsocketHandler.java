@@ -15,6 +15,7 @@ import io.tapdata.common.executor.ThreadFactory;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.websocket.handler.PongHandler;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -46,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.websocket.WebSocketEventResult.Type.HANDLE_EVENT_ERROR_RESULT;
@@ -67,7 +69,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 	public static final String WEBSOCKET_CODE_KEY = "websocketCode";
 	public static final String WEBSOCKET_MESSAGE_KEY = "websocketMessage";
-	public static final int MAX_PING_FAIL_TIME = 3;
+	public static final int MAX_PING_FAIL_TIME = (int) CommonUtils.getPropertyLong("WS_MAX_PING_FAIL", 3L);
+	private static final long HANDSHAKE_TIMEOUT_MS = CommonUtils.getPropertyLong("WS_HANDSHAKE_TIMEOUT_MS", 5000L);
+	private static final long RECONNECT_TOTAL_BUDGET_MS = CommonUtils.getPropertyLong("WS_RECONNECT_TOTAL_BUDGET_MS", 30_000L);
+	private static final long FALLBACK_DEBOUNCE_MS = CommonUtils.getPropertyLong("WS_FALLBACK_DEBOUNCE_MS", 2_000L);
 	private Logger logger = LogManager.getLogger(ManagementWebsocketHandler.class);
 
 	public static final String URL_PREFIX = "ws://";
@@ -133,9 +138,14 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	private SettingService settingService;
 
 	private ScheduledExecutorService healthThreadPool;
+	private ExecutorService reconnectExecutor;
 
 	private Set<BeanDefinition> fileDetectorDefinition;
 	private final AtomicInteger pingFailTime = new AtomicInteger();
+	// Static so that SessionOption (inner class, accessed in unit tests via Mockito doCallRealMethod
+	// without the synthetic outer reference) can read it without NPE. Singleton bean — behavior unchanged.
+	static final AtomicInteger lastSuccessfulUrlIndex = new AtomicInteger(0);
+	private final AtomicBoolean reconnectInFlight = new AtomicBoolean(false);
 	private String currentWsUrl;
 
 	private ThreadPoolExecutor websocketHandleMessageThreadPoolExecutor;
@@ -148,6 +158,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		this.fileDetectorDefinition = PkgAnnoUtil.getBeanSetWithAnno(Collections.singletonList("io.tapdata.websocket"),
 				Collections.singletonList(EventHandlerAnnotation.class));
 		healthThreadPool = new ScheduledThreadPoolExecutor(1);
+		this.reconnectExecutor = Executors.newSingleThreadExecutor(new ThreadFactory("Thread-ws-reconnect-"));
 		int corePoolSize = Runtime.getRuntime().availableProcessors() * 2;
 		int maximumPoolSize = 32;
 		if (maximumPoolSize < corePoolSize) {
@@ -176,9 +187,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 						pingFailTime.set(0);
 						handleWhenPingSucceed();
 					});
-					if (!response && pingFailTime.incrementAndGet() > MAX_PING_FAIL_TIME ) {
-						session.release();
-						throw new RuntimeException(String.format("No response was received for %s consecutive websocket heartbeats", MAX_PING_FAIL_TIME));
+					if (!response && pingFailTime.incrementAndGet() >= MAX_PING_FAIL_TIME) {
+						pingFailTime.set(0);
+						logger.warn("No response was received for {} consecutive websocket heartbeats, triggering async reconnect", MAX_PING_FAIL_TIME);
+						triggerReconnect();
 					}
 				} catch (Exception e) {
 					logger.error("Websocket heartbeat failed, will reconnect. Error: " + e.getMessage(), e);
@@ -192,10 +204,41 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	@PreDestroy
 	public void destroy() {
 		this.websocketHandleMessageThreadPoolExecutor.shutdown();
+		if (this.reconnectExecutor != null) {
+			this.reconnectExecutor.shutdownNow();
+		}
+	}
+
+	/**
+	 * Trigger an asynchronous reconnect. De-duped via {@link #reconnectInFlight} so that
+	 * concurrent heartbeat-fail / send-fail paths cannot enqueue more than one outstanding
+	 * reconnect attempt at a time. The heartbeat thread must never call session.release() /
+	 * session.connect() directly — handshake timeouts can take seconds and must not stall
+	 * the health check cadence.
+	 */
+	private void triggerReconnect() {
+		if (!reconnectInFlight.compareAndSet(false, true)) {
+			logger.debug("Reconnect already in flight, skipping duplicate trigger");
+			return;
+		}
+		if (reconnectExecutor == null || reconnectExecutor.isShutdown()) {
+			reconnectInFlight.set(false);
+			return;
+		}
+		reconnectExecutor.submit(() -> {
+			try {
+				session.release();
+				session.connect();
+			} catch (Exception e) {
+				logger.warn("Async reconnect attempt failed: {}", e.getMessage());
+			} finally {
+				reconnectInFlight.set(false);
+			}
+		});
 	}
 
 	private void handleWhenPingFailed() {
-		DebounceUtil.debounce("StopTaskSchedulerOnWSDisconnect", 10000, () -> {
+		DebounceUtil.debounce("StopTaskSchedulerOnWSDisconnect", (int) FALLBACK_DEBOUNCE_MS, () -> {
 			TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
 			if (null == tapdataTaskScheduler) return;
 			tapdataTaskScheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
@@ -246,13 +289,24 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				this.listenableFuture = client.doHandshake(this, UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8));
 			}
 
-			session.setSession(listenableFuture.get());
+			session.setSession(listenableFuture.get(HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS));
 			logger.info("Connect to web socket server success, url {}", currentWsUrl);
 		} catch (InterruptedException interruptedException) {
 			Thread.currentThread().interrupt();
+			if (this.listenableFuture != null) {
+				this.listenableFuture.cancel(true);
+			}
 			logger.warn("Connect to web socket Thread interrupted,Thread name:{}", Thread.currentThread().getName());
+		} catch (TimeoutException timeoutException) {
+			if (this.listenableFuture != null) {
+				this.listenableFuture.cancel(true);
+			}
+			logger.warn("Connect to web socket {} timed out after {}ms, will try next URL", currentWsUrl, HANDSHAKE_TIMEOUT_MS);
 		}
 		catch (Exception e) {
+			if (this.listenableFuture != null) {
+				this.listenableFuture.cancel(true);
+			}
 			logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
 		}
 	}
@@ -414,17 +468,25 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			// 连接前关闭之前所有的连接
 			release();
 			List<String> urLs = getBaseURLs();
-			if (CollectionUtils.isNotEmpty(urLs)) {
-				for (String baseURL : urLs) {
-					getManagementWebsocketHandler().connect(baseURL);
-					if (isOpen()) break;
-				}
-				if (!isOpen()) {
-					throw new RuntimeException("Send websocket message failed, can not connected any one of TM before send message");
-				}
-			} else {
+			if (CollectionUtils.isEmpty(urLs)) {
 				throw new RuntimeException("Connect to management websocket failed, base url(s) is empty");
 			}
+			long deadline = System.currentTimeMillis() + RECONNECT_TOTAL_BUDGET_MS;
+			int size = urLs.size();
+			int startIdx = Math.floorMod(lastSuccessfulUrlIndex.get(), size);
+			for (int i = 0; i < size; i++) {
+				if (System.currentTimeMillis() >= deadline) {
+					logger.warn("Reconnect total budget {}ms exhausted after trying {} URL(s)", RECONNECT_TOTAL_BUDGET_MS, i);
+					break;
+				}
+				int idx = (startIdx + i) % size;
+				getManagementWebsocketHandler().connect(urLs.get(idx));
+				if (isOpen()) {
+					lastSuccessfulUrlIndex.set(idx);
+					return;
+				}
+			}
+			throw new RuntimeException("Send websocket message failed, can not connect any of TM URLs: " + urLs);
 		}
 
 		protected synchronized void release() {

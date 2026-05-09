@@ -23,8 +23,11 @@ import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutionException;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -70,7 +73,9 @@ class ManagementWebsocketHandlerTest {
 
             @Test
             void testNormal() {
-                Assertions.assertDoesNotThrow(() -> assertVerify(3, 1, 1, 1, 1));
+                // Post-fix: connect() invokes isOpen() exactly 2× on the success path
+                // (initial guard + post-handler.connect check). Previously 3× (extra final guard).
+                Assertions.assertDoesNotThrow(() -> assertVerify(2, 1, 1, 1, 1));
             }
 
             @Test
@@ -94,7 +99,8 @@ class ManagementWebsocketHandlerTest {
             @Test
             void afterConnectButNotOpen() {
                 doAnswer(w -> when(option.isOpen()).thenReturn(false)).when(handler).connect(anyString());
-                Assertions.assertThrows(RuntimeException.class, () -> assertVerify(3, 1, 1, 1, 1));
+                // Post-fix: with a single URL, isOpen() is invoked 2× (initial guard + post-handler.connect check).
+                Assertions.assertThrows(RuntimeException.class, () -> assertVerify(2, 1, 1, 1, 1));
             }
         }
     }
@@ -135,10 +141,13 @@ class ManagementWebsocketHandlerTest {
         }
 
         @Test
-        void SessionOptionTest_Interrupt_Exception() throws ExecutionException, InterruptedException {
+        void SessionOptionTest_Interrupt_Exception() throws Exception {
             ListenableFuture mockListenableFuture = mock(ListenableFuture.class);
             ReflectionTestUtils.setField(managementWebsocketHandlerTest, "listenableFuture", mockListenableFuture);
+            // After Fix 2 (handshake timeout), production code calls get(long, TimeUnit) — mock both forms
+            // so existing semantics are preserved.
             doThrow(new InterruptedException()).when(mockListenableFuture).get();
+            doThrow(new InterruptedException()).when(mockListenableFuture).get(anyLong(), any(TimeUnit.class));
             StandardWebSocketClient mockClient = mock(StandardWebSocketClient.class);
             when(mockClient.doHandshake(any(), any(), any(URI.class))).thenReturn(mockListenableFuture);
             Logger mockLogger = mock(Logger.class);
@@ -158,6 +167,77 @@ class ManagementWebsocketHandlerTest {
             }
         }
 
+    }
+
+    @Nested
+    class UrlRotationTest {
+        ManagementWebsocketHandler.SessionOption option;
+        ManagementWebsocketHandler handler;
+        List<String> urLs;
+
+        @BeforeEach
+        void init() {
+            option = mock(ManagementWebsocketHandler.SessionOption.class);
+            handler = mock(ManagementWebsocketHandler.class);
+            urLs = new ArrayList<>(Arrays.asList("http://tm1/api/", "http://tm2/api/", "http://tm3/api/"));
+            when(option.isOpen()).thenReturn(false);
+            doNothing().when(option).release();
+            when(option.getBaseURLs()).thenReturn(urLs);
+            when(option.getManagementWebsocketHandler()).thenReturn(handler);
+            doCallRealMethod().when(option).connect();
+            ManagementWebsocketHandler.lastSuccessfulUrlIndex.set(0);
+        }
+
+        @Test
+        void connectStartsFromLastSuccessfulIndex() {
+            // tm1 dead, tm2 alive — pretend tm2 succeeded last time
+            ManagementWebsocketHandler.lastSuccessfulUrlIndex.set(1);
+            List<String> attempted = new ArrayList<>();
+            doAnswer(w -> {
+                String url = w.getArgument(0);
+                attempted.add(url);
+                if ("http://tm2/api/".equals(url)) {
+                    when(option.isOpen()).thenReturn(true);
+                }
+                return null;
+            }).when(handler).connect(anyString());
+
+            option.connect();
+
+            Assertions.assertEquals(1, attempted.size(), "Should hit tm2 first and stop");
+            Assertions.assertEquals("http://tm2/api/", attempted.get(0));
+            Assertions.assertEquals(1, ManagementWebsocketHandler.lastSuccessfulUrlIndex.get());
+        }
+
+        @Test
+        void connectRotatesPastDeadUrls() {
+            // start at index 0, tm1 dead, tm2 dead, tm3 alive
+            ManagementWebsocketHandler.lastSuccessfulUrlIndex.set(0);
+            List<String> attempted = new ArrayList<>();
+            doAnswer(w -> {
+                String url = w.getArgument(0);
+                attempted.add(url);
+                if ("http://tm3/api/".equals(url)) {
+                    when(option.isOpen()).thenReturn(true);
+                }
+                return null;
+            }).when(handler).connect(anyString());
+
+            option.connect();
+
+            Assertions.assertEquals(Arrays.asList("http://tm1/api/", "http://tm2/api/", "http://tm3/api/"), attempted);
+            Assertions.assertEquals(2, ManagementWebsocketHandler.lastSuccessfulUrlIndex.get(),
+                "Successful URL index must be updated");
+        }
+
+        @Test
+        void connectThrowsWhenAllUrlsDead() {
+            doNothing().when(handler).connect(anyString());
+            // isOpen always false ⇒ no URL succeeds
+            Assertions.assertThrows(RuntimeException.class, () -> option.connect());
+            Assertions.assertEquals(0, ManagementWebsocketHandler.lastSuccessfulUrlIndex.get(),
+                "Index must not be updated when no URL succeeds");
+        }
     }
 
     @Nested
