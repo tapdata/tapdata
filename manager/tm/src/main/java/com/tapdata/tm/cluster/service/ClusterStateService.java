@@ -32,6 +32,7 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
 import lombok.Setter;
@@ -452,7 +453,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             if (null != workers) {
                 apiMap = workers.stream()
                         .filter(Objects::nonNull)
-                        .filter(e -> "".equals(e.getWorkerType()))
+                        .filter(e -> WorkerType.API_SERVER.getType().equals(e.getWorkerType()))
                         .collect(Collectors.toMap(Worker::getProcessId, e -> e, (e1, e2) -> e2));
             } else {
                 apiMap = new HashMap<>();
