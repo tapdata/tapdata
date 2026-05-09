@@ -272,39 +272,76 @@ class TaskInspectUtilsTest {
             String fromJson = JSON.toJSONString(keys);
             String toJson = JSON.toJSONString(decodeKeys);
             String errorTips = String.format("The keys are inconsistent\n- encode: %s\n-   from: %s\n-     to: %s\n", encodeStr, fromJson, toJson);
-//            System.out.println(errorTips); // 用于输出当前版本的序列化信息，添加到 testHistoryVersions 中
+//            System.out.println(errorTips); // 用于输出当前版本的序列化信息，如果改动了序列化，请将结果生成新和测试用例，以兼容旧的序列化版本
             assertTrue(isOk, errorTips);
         }
 
         @Test
-        void testHistoryVersions() {
-            // 旧版兼容性判断
-            List<VersionCheckItem> checkVersionList = List.of(
-                VersionCheckItem.of("4.9.0"
-                    , "{\"java.lang.Integer\":1,\"java.lang.Float\":1.1,\"java.lang.Double\":1.1,\"java.math.BigDecimal\":1.1,\"java.lang.Long\":1763532982708,\"java.time.Instant\":\"2025-11-19T06:16:22.708977Z\",\"java.sql.Timestamp\":1763532982708,\"java.util.Date\":1763532982708,\"java.sql.Date\":1763532982708,\"java.lang.String\":\"中文\",\"[B\":\"5Lit5paH\"}"
-                    , "rO0ABXNyABdqYXZhLnV0aWwuTGlua2VkSGFzaE1hcDTATlwQbMD7AgABWgALYWNjZXNzT3JkZXJ4cgARamF2YS51dGlsLkhhc2hNYXAFB9rBwxZg0QMAAkYACmxvYWRGYWN0b3JJAAl0aHJlc2hvbGR4cD9AAAAAAAAMdwgAAAAQAAAADHQABG51bGxwdAARamF2YS5sYW5nLkludGVnZXJzcgARamF2YS5sYW5nLkludGVnZXIS4qCk94GHOAIAAUkABXZhbHVleHIAEGphdmEubGFuZy5OdW1iZXKGrJUdC5TgiwIAAHhwAAAAAXQAD2phdmEubGFuZy5GbG9hdHNyAA9qYXZhLmxhbmcuRmxvYXTa7cmi2zzw7AIAAUYABXZhbHVleHEAfgAGP4zMzXQAEGphdmEubGFuZy5Eb3VibGVzcgAQamF2YS5sYW5nLkRvdWJsZYCzwkopa/sEAgABRAAFdmFsdWV4cQB+AAY/8ZmZmZmZmnQAFGphdmEubWF0aC5CaWdEZWNpbWFsc3IAFGphdmEubWF0aC5CaWdEZWNpbWFsVMcVV/mBKE8DAAJJAAVzY2FsZUwABmludFZhbHQAFkxqYXZhL21hdGgvQmlnSW50ZWdlcjt4cQB+AAYAAAABc3IAFGphdmEubWF0aC5CaWdJbnRlZ2VyjPyfH6k7+x0DAAZJAAhiaXRDb3VudEkACWJpdExlbmd0aEkAE2ZpcnN0Tm9uemVyb0J5dGVOdW1JAAxsb3dlc3RTZXRCaXRJAAZzaWdudW1bAAltYWduaXR1ZGV0AAJbQnhxAH4ABv///////////////v////4AAAABdXIAAltCrPMX+AYIVOACAAB4cAAAAAELeHh0AA5qYXZhLmxhbmcuTG9uZ3NyAA5qYXZhLmxhbmcuTG9uZzuL5JDMjyPfAgABSgAFdmFsdWV4cQB+AAYAAAGamsHJtHQAEWphdmEudGltZS5JbnN0YW50c3IADWphdmEudGltZS5TZXKVXYS6GyJIsgwAAHhwdw0CAAAAAGkdYLYqQiFoeHQAEmphdmEuc3FsLlRpbWVzdGFtcHNyABJqYXZhLnNxbC5UaW1lc3RhbXAmGNXIAVO/ZQIAAUkABW5hbm9zeHIADmphdmEudXRpbC5EYXRlaGqBAUtZdBkDAAB4cHcIAAABmprBxvB4KjM5AHQADmphdmEudXRpbC5EYXRlc3EAfgAfdwgAAAGamsHJtHh0AA1qYXZhLnNxbC5EYXRlc3IADWphdmEuc3FsLkRhdGUU+kZoPzVmlwIAAHhxAH4AH3cIAAABmprBybR4dAAQamF2YS5sYW5nLlN0cmluZ3QABuS4reaWh3EAfgATdXEAfgAVAAAABuS4reaWh3gA"
-                ),
-                VersionCheckItem.of("4.10.0"
-                    , "{\"java.lang.Integer\":1,\"java.lang.Float\":1.1,\"java.lang.Double\":1.1,\"java.math.BigDecimal\":1.1,\"java.lang.Long\":1763543705463,\"java.time.Instant\":\"2025-11-19T09:15:05.463698Z\",\"java.sql.Timestamp\":1763543705463,\"java.util.Date\":1763543705463,\"java.sql.Date\":1763543705463,\"io.tapdata.entity.schema.value.TapArrayValue\":{\"value\":[\"1\",\"2\"]},\"io.tapdata.entity.schema.value.TapBinaryValue\":{\"value\":{\"type\":0,\"value\":\"5Lit5paH\"}},\"io.tapdata.entity.schema.value.TapBooleanValue\":{\"value\":true},\"io.tapdata.entity.schema.value.TapDateTimeValue\":{\"value\":{\"containsIllegal\":false,\"fraction\":3,\"nano\":0,\"originType\":90,\"seconds\":1735660800}},\"io.tapdata.entity.schema.value.TapDateValue\":{\"value\":{\"containsIllegal\":false,\"fraction\":3,\"nano\":0,\"originType\":90,\"seconds\":1735660800}},\"io.tapdata.entity.schema.value.TapJsonValue\":{\"value\":\"{\\\"id\\\":1,\\\"title\\\":\\\"中文\\\"}\"},\"io.tapdata.entity.schema.value.TapMapValue\":{\"value\":{\"id\":1,\"title\":\"中文\"}},\"io.tapdata.entity.schema.value.TapMoneyValue\":{\"value\":1.1},\"io.tapdata.entity.schema.value.TapNumberValue\":{\"value\":1.1},\"io.tapdata.entity.schema.value.TapRawValue\":{\"value\":\"5Lit5paH\"},\"io.tapdata.entity.schema.value.TapStringValue\":{\"value\":\"中文\"},\"io.tapdata.entity.schema.value.TapTimeValue\":{\"value\":{\"containsIllegal\":false,\"fraction\":3,\"nano\":0,\"originType\":1,\"seconds\":1}},\"io.tapdata.entity.schema.value.TapXmlValue\":{\"value\":\"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<root><title>中文</title></root>\"},\"io.tapdata.entity.schema.value.TapYearValue\":{\"value\":{\"containsIllegal\":false,\"fraction\":3,\"nano\":0,\"originType\":90,\"seconds\":-62135798400}},\"java.lang.String\":\"中文\",\"[B\":\"5Lit5paH\"}"
-                    , "gAFkABdqYXZhLnV0aWwuTGlua2VkSGFzaE1hcAEUAARudWxsAAEUABFqYXZhLmxhbmcuSW50ZWdlcgEVAAAAAQEUAA9qYXZhLmxhbmcuRmxvYXQBGD+MzM0BFAAQamF2YS5sYW5nLkRvdWJsZQEXP/GZmZmZmZoBFAAUamF2YS5tYXRoLkJpZ0RlY2ltYWwBGgADMS4xARQADmphdmEubGFuZy5Mb25nARkAAAGam2VndwEUABFqYXZhLnRpbWUuSW5zdGFudAEgAAAAAGkdipkbo3hQARQAEmphdmEuc3FsLlRpbWVzdGFtcAEfAAABmptlZ3cBFAAOamF2YS51dGlsLkRhdGUBHgAAAZqbZWd3ARQADWphdmEuc3FsLkRhdGUBHgAAAZqbZWd3ARQALGlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBBcnJheVZhbHVlAWYALGlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBBcnJheVZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQFlABNqYXZhLnV0aWwuQXJyYXlMaXN0ARQAATEBFAABMqgBFAAHdGFwVHlwZQCoARQALWlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBCaW5hcnlWYWx1ZQFmAC1pby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwQmluYXJ5VmFsdWUBFAALb3JpZ2luVmFsdWUAARQACm9yaWdpblR5cGUAARQABXZhbHVlAQQAJ2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5CeXRlRGF0YQEAAAAABuS4reaWhwEUAAd0YXBUeXBlAKgBFAAuaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcEJvb2xlYW5WYWx1ZQFmAC5pby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwQm9vbGVhblZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEBrO0ABXNyABFqYXZhLmxhbmcuQm9vbGVhbs0gcoDVnPruAgABWgAFdmFsdWV4cAEBFAAHdGFwVHlwZQCoARQAL2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBEYXRlVGltZVZhbHVlAWYAL2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBEYXRlVGltZVZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEEACdpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuRGF0ZVRpbWUAAABaAAAAAwEAAAAAZ3QVAAEAAAAAAQAAAAEUAAd0YXBUeXBlAKgBFAAraW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcERhdGVWYWx1ZQFmACtpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwRGF0ZVZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEEACdpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuRGF0ZVRpbWUAAABaAAAAAwEAAAAAZ3QVAAEAAAAAAQAAAAEUAAd0YXBUeXBlAKgBFAAraW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcEpzb25WYWx1ZQFmACtpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwSnNvblZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEUABl7ImlkIjoxLCJ0aXRsZSI6IuS4reaWhyJ9ARQAB3RhcFR5cGUAqAEUACppby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwTWFwVmFsdWUBZgAqaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcE1hcFZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQFkABdqYXZhLnV0aWwuTGlua2VkSGFzaE1hcAEUAAJpZAEVAAAAAQEUAAV0aXRsZQEUAAbkuK3mloeoARQAB3RhcFR5cGUAqAEUACxpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwTW9uZXlWYWx1ZQFmACxpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwTW9uZXlWYWx1ZQEUAAtvcmlnaW5WYWx1ZQABFAAKb3JpZ2luVHlwZQABFAAFdmFsdWUBFz/xmZmZmZmaARQAB3RhcFR5cGUAqAEUAC1pby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwTnVtYmVyVmFsdWUBZgAtaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcE51bWJlclZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEXP/GZmZmZmZoBFAAHdGFwVHlwZQCoARQAKmlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBSYXdWYWx1ZQFmACppby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwUmF3VmFsdWUBFAALb3JpZ2luVmFsdWUAARQACm9yaWdpblR5cGUAARQABXZhbHVlARYAAAAG5Lit5paHARQAB3RhcFR5cGUAqAEUAC1pby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwU3RyaW5nVmFsdWUBZgAtaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcFN0cmluZ1ZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEUAAbkuK3mlocBFAAHdGFwVHlwZQCoARQAK2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBUaW1lVmFsdWUBZgAraW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcFRpbWVWYWx1ZQEUAAtvcmlnaW5WYWx1ZQABFAAKb3JpZ2luVHlwZQABFAAFdmFsdWUBBAAnaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLkRhdGVUaW1lAAAAAQAAAAMBAAAAAAAAAAEBAAAAAAEAAAABFAAHdGFwVHlwZQCoARQAKmlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBYbWxWYWx1ZQFmACppby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwWG1sVmFsdWUBFAALb3JpZ2luVmFsdWUAARQACm9yaWdpblR5cGUAARQABXZhbHVlARQASTw/eG1sIHZlcnNpb249IjEuMCIgZW5jb2Rpbmc9IlVURi04Ij8+Cjxyb290Pjx0aXRsZT7kuK3mloc8L3RpdGxlPjwvcm9vdD4BFAAHdGFwVHlwZQCoARQAK2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBZZWFyVmFsdWUBZgAraW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcFllYXJWYWx1ZQEUAAtvcmlnaW5WYWx1ZQABFAAKb3JpZ2luVHlwZQABFAAFdmFsdWUBBAAnaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLkRhdGVUaW1lAAAAWgAAAAMB////8Yhq9YABAAAAAAEAAAABFAAHdGFwVHlwZQCoARQAEGphdmEubGFuZy5TdHJpbmcBFAAG5Lit5paHARQAAltCARYAAAAG5Lit5paHqA=="
-                )
-            );
+        void testDeserializationV4_9_0() {
+            long timeMillis = 1763532982708L;
+            String text = "中文";
+            String encodeData = "rO0ABXNyABdqYXZhLnV0aWwuTGlua2VkSGFzaE1hcDTATlwQbMD7AgABWgALYWNjZXNzT3JkZXJ4cgARamF2YS51dGlsLkhhc2hNYXAFB9rBwxZg0QMAAkYACmxvYWRGYWN0b3JJAAl0aHJlc2hvbGR4cD9AAAAAAAAMdwgAAAAQAAAADHQABG51bGxwdAARamF2YS5sYW5nLkludGVnZXJzcgARamF2YS5sYW5nLkludGVnZXIS4qCk94GHOAIAAUkABXZhbHVleHIAEGphdmEubGFuZy5OdW1iZXKGrJUdC5TgiwIAAHhwAAAAAXQAD2phdmEubGFuZy5GbG9hdHNyAA9qYXZhLmxhbmcuRmxvYXTa7cmi2zzw7AIAAUYABXZhbHVleHEAfgAGP4zMzXQAEGphdmEubGFuZy5Eb3VibGVzcgAQamF2YS5sYW5nLkRvdWJsZYCzwkopa/sEAgABRAAFdmFsdWV4cQB+AAY/8ZmZmZmZmnQAFGphdmEubWF0aC5CaWdEZWNpbWFsc3IAFGphdmEubWF0aC5CaWdEZWNpbWFsVMcVV/mBKE8DAAJJAAVzY2FsZUwABmludFZhbHQAFkxqYXZhL21hdGgvQmlnSW50ZWdlcjt4cQB+AAYAAAABc3IAFGphdmEubWF0aC5CaWdJbnRlZ2VyjPyfH6k7+x0DAAZJAAhiaXRDb3VudEkACWJpdExlbmd0aEkAE2ZpcnN0Tm9uemVyb0J5dGVOdW1JAAxsb3dlc3RTZXRCaXRJAAZzaWdudW1bAAltYWduaXR1ZGV0AAJbQnhxAH4ABv///////////////v////4AAAABdXIAAltCrPMX+AYIVOACAAB4cAAAAAELeHh0AA5qYXZhLmxhbmcuTG9uZ3NyAA5qYXZhLmxhbmcuTG9uZzuL5JDMjyPfAgABSgAFdmFsdWV4cQB+AAYAAAGamsHJtHQAEWphdmEudGltZS5JbnN0YW50c3IADWphdmEudGltZS5TZXKVXYS6GyJIsgwAAHhwdw0CAAAAAGkdYLYqQiFoeHQAEmphdmEuc3FsLlRpbWVzdGFtcHNyABJqYXZhLnNxbC5UaW1lc3RhbXAmGNXIAVO/ZQIAAUkABW5hbm9zeHIADmphdmEudXRpbC5EYXRlaGqBAUtZdBkDAAB4cHcIAAABmprBxvB4KjM5AHQADmphdmEudXRpbC5EYXRlc3EAfgAfdwgAAAGamsHJtHh0AA1qYXZhLnNxbC5EYXRlc3IADWphdmEuc3FsLkRhdGUU+kZoPzVmlwIAAHhxAH4AH3cIAAABmprBybR4dAAQamF2YS5sYW5nLlN0cmluZ3QABuS4reaWh3EAfgATdXEAfgAVAAAABuS4reaWh3gA";
+            Object decodeObj = TaskInspectUtils.keysDeserialization(encodeData, null);
+            assertNotNull(decodeObj, "Deserialization failed");
+            Map<?, ?> decodedMap = (Map<?, ?>) decodeObj;
 
-            for (VersionCheckItem o : checkVersionList) {
-                String encodeJson = o.getEncodeJson();
-                String encodeData = o.getEncodeData();
+            assertNull(decodedMap.get("null"));
+            assertEquals(1, decodedMap.get("java.lang.Integer"));
+            assertEquals(1.1f, decodedMap.get("java.lang.Float"));
+            assertEquals(1.1d, decodedMap.get("java.lang.Double"));
+            assertEquals(new BigDecimal("1.1"), decodedMap.get("java.math.BigDecimal"));
+            assertEquals(timeMillis, decodedMap.get("java.lang.Long"));
+            assertEquals(Instant.parse("2025-11-19T06:16:22.708977Z"), decodedMap.get("java.time.Instant"));
+            assertEquals(new Timestamp(timeMillis), decodedMap.get("java.sql.Timestamp"));
+            assertEquals(new Date(timeMillis), decodedMap.get("java.util.Date"));
+            assertEquals(new java.sql.Date(timeMillis), decodedMap.get("java.sql.Date"));
+            assertEquals(text, decodedMap.get("java.lang.String"));
+            assertEquals(text, new String((byte[]) decodedMap.get("[B")));
+        }
 
-                // 对比 10 次，排除随机性
-                for (int i = 0; i < 10; i++) {
-                    Object decodeObj = TaskInspectUtils.keysDeserialization(encodeData, null);
-                    String decodeJson = JSON.toJSONString(decodeObj);
-                    assertTrue(encodeJson.equals(decodeJson), String.format("version incompatible '%s'\n- from: %s\n-   to: %s\n"
-                        , o.getVersion()
-                        , encodeJson
-                        , decodeJson)
-                    );
-                }
-            }
+        @Test
+        void testDeserializationV4_10_0() {
+            long timeMillis = 1763543705463L;
+            String text = "中文";
+            String encodeData = "gAFkABdqYXZhLnV0aWwuTGlua2VkSGFzaE1hcAEUAARudWxsAAEUABFqYXZhLmxhbmcuSW50ZWdlcgEVAAAAAQEUAA9qYXZhLmxhbmcuRmxvYXQBGD+MzM0BFAAQamF2YS5sYW5nLkRvdWJsZQEXP/GZmZmZmZoBFAAUamF2YS5tYXRoLkJpZ0RlY2ltYWwBGgADMS4xARQADmphdmEubGFuZy5Mb25nARkAAAGam2VndwEUABFqYXZhLnRpbWUuSW5zdGFudAEgAAAAAGkdipkbo3hQARQAEmphdmEuc3FsLlRpbWVzdGFtcAEfAAABmptlZ3cBFAAOamF2YS51dGlsLkRhdGUBHgAAAZqbZWd3ARQADWphdmEuc3FsLkRhdGUBHgAAAZqbZWd3ARQALGlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBBcnJheVZhbHVlAWYALGlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBBcnJheVZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQFlABNqYXZhLnV0aWwuQXJyYXlMaXN0ARQAATEBFAABMqgBFAAHdGFwVHlwZQCoARQALWlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBCaW5hcnlWYWx1ZQFmAC1pby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwQmluYXJ5VmFsdWUBFAALb3JpZ2luVmFsdWUAARQACm9yaWdpblR5cGUAARQABXZhbHVlAQQAJ2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5CeXRlRGF0YQEAAAAABuS4reaWhwEUAAd0YXBUeXBlAKgBFAAuaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcEJvb2xlYW5WYWx1ZQFmAC5pby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwQm9vbGVhblZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEBrO0ABXNyABFqYXZhLmxhbmcuQm9vbGVhbs0gcoDVnPruAgABWgAFdmFsdWV4cAEBFAAHdGFwVHlwZQCoARQAL2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBEYXRlVGltZVZhbHVlAWYAL2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBEYXRlVGltZVZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEEACdpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuRGF0ZVRpbWUAAABaAAAAAwEAAAAAZ3QVAAEAAAAAAQAAAAEUAAd0YXBUeXBlAKgBFAAraW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcERhdGVWYWx1ZQFmACtpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwRGF0ZVZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEEACdpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuRGF0ZVRpbWUAAABaAAAAAwEAAAAAZ3QVAAEAAAAAAQAAAAEUAAd0YXBUeXBlAKgBFAAraW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcEpzb25WYWx1ZQFmACtpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwSnNvblZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEUABl7ImlkIjoxLCJ0aXRsZSI6IuS4reaWhyJ9ARQAB3RhcFR5cGUAqAEUACppby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwTWFwVmFsdWUBZgAqaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcE1hcFZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQFkABdqYXZhLnV0aWwuTGlua2VkSGFzaE1hcAEUAAJpZAEVAAAAAQEUAAV0aXRsZQEUAAbkuK3mloeoARQAB3RhcFR5cGUAqAEUACxpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwTW9uZXlWYWx1ZQFmACxpby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwTW9uZXlWYWx1ZQEUAAtvcmlnaW5WYWx1ZQABFAAKb3JpZ2luVHlwZQABFAAFdmFsdWUBFz/xmZmZmZmaARQAB3RhcFR5cGUAqAEUAC1pby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwTnVtYmVyVmFsdWUBZgAtaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcE51bWJlclZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEXP/GZmZmZmZoBFAAHdGFwVHlwZQCoARQAKmlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBSYXdWYWx1ZQFmACppby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwUmF3VmFsdWUBFAALb3JpZ2luVmFsdWUAARQACm9yaWdpblR5cGUAARQABXZhbHVlARYAAAAG5Lit5paHARQAB3RhcFR5cGUAqAEUAC1pby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwU3RyaW5nVmFsdWUBZgAtaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcFN0cmluZ1ZhbHVlARQAC29yaWdpblZhbHVlAAEUAApvcmlnaW5UeXBlAAEUAAV2YWx1ZQEUAAbkuK3mlocBFAAHdGFwVHlwZQCoARQAK2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBUaW1lVmFsdWUBZgAraW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcFRpbWVWYWx1ZQEUAAtvcmlnaW5WYWx1ZQABFAAKb3JpZ2luVHlwZQABFAAFdmFsdWUBBAAnaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLkRhdGVUaW1lAAAAAQAAAAMBAAAAAAAAAAEBAAAAAAEAAAABFAAHdGFwVHlwZQCoARQAKmlvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBYbWxWYWx1ZQFmACppby50YXBkYXRhLmVudGl0eS5zY2hlbWEudmFsdWUuVGFwWG1sVmFsdWUBFAALb3JpZ2luVmFsdWUAARQACm9yaWdpblR5cGUAARQABXZhbHVlARQASTw/eG1sIHZlcnNpb249IjEuMCIgZW5jb2Rpbmc9IlVURi04Ij8+Cjxyb290Pjx0aXRsZT7kuK3mloc8L3RpdGxlPjwvcm9vdD4BFAAHdGFwVHlwZQCoARQAK2lvLnRhcGRhdGEuZW50aXR5LnNjaGVtYS52YWx1ZS5UYXBZZWFyVmFsdWUBZgAraW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLlRhcFllYXJWYWx1ZQEUAAtvcmlnaW5WYWx1ZQABFAAKb3JpZ2luVHlwZQABFAAFdmFsdWUBBAAnaW8udGFwZGF0YS5lbnRpdHkuc2NoZW1hLnZhbHVlLkRhdGVUaW1lAAAAWgAAAAMB////8Yhq9YABAAAAAAEAAAABFAAHdGFwVHlwZQCoARQAEGphdmEubGFuZy5TdHJpbmcBFAAG5Lit5paHARQAAltCARYAAAAG5Lit5paHqA==";
+            Object decodeObj = TaskInspectUtils.keysDeserialization(encodeData, null);
+            assertNotNull(decodeObj, "Deserialization failed");
+            Map<?, ?> decodedMap = (Map<?, ?>) decodeObj;
+
+            assertNull(decodedMap.get("null"));
+            assertEquals(1, decodedMap.get("java.lang.Integer"));
+            assertEquals(1.1f, decodedMap.get("java.lang.Float"));
+            assertEquals(1.1d, decodedMap.get("java.lang.Double"));
+            assertEquals(new BigDecimal("1.1"), decodedMap.get("java.math.BigDecimal"));
+            assertEquals(timeMillis, decodedMap.get("java.lang.Long"));
+            assertEquals(Instant.parse("2025-11-19T09:15:05.463698Z"), decodedMap.get("java.time.Instant"));
+            assertEquals(new Timestamp(timeMillis), decodedMap.get("java.sql.Timestamp"));
+            assertEquals(new Date(timeMillis), decodedMap.get("java.util.Date"));
+            assertEquals(new java.sql.Date(timeMillis), decodedMap.get("java.sql.Date"));
+            assertEquals(new TapArrayValue(Optional.of(new ArrayList<>()).map(o -> {
+                o.add("1");
+                o.add("2");
+                return o;
+            }).get()).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapArrayValue").toString());
+            assertEquals(JSON.toJSONString(new TapBinaryValue(text.getBytes())), JSON.toJSONString(decodedMap.get("io.tapdata.entity.schema.value.TapBinaryValue")));
+            assertEquals(new TapBooleanValue(true).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapBooleanValue").toString());
+            assertEquals(new TapDateTimeValue(DateTime.withDateStr("2025-01-01")).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapDateTimeValue").toString());
+            assertEquals(new TapDateValue(DateTime.withDateStr("2025-01-01")).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapDateValue").toString());
+            assertEquals(new TapJsonValue("{\"id\":1,\"title\":\"中文\"}").toString(), decodedMap.get("io.tapdata.entity.schema.value.TapJsonValue").toString());
+            assertEquals(new TapMapValue(Optional.of(new LinkedHashMap<String, Object>()).map(m -> {
+                m.put("id", 1);
+                m.put("title", text);
+                return m;
+            }).get()).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapMapValue").toString());
+            assertEquals(new TapMoneyValue(1.1).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapMoneyValue").toString());
+            assertEquals(new TapNumberValue(1.1).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapNumberValue").toString());
+            assertEquals(JSON.toJSONString(new TapRawValue(text.getBytes())), JSON.toJSONString(decodedMap.get("io.tapdata.entity.schema.value.TapRawValue")));
+            assertEquals(new TapStringValue(text).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapStringValue").toString());
+            assertEquals(new TapTimeValue(DateTime.withTimeStr("00:00:01")).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapTimeValue").toString());
+            assertEquals(new TapXmlValue("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root><title>中文</title></root>").toString(), decodedMap.get("io.tapdata.entity.schema.value.TapXmlValue").toString());
+            assertEquals(new TapYearValue(1).toString(), decodedMap.get("io.tapdata.entity.schema.value.TapYearValue").toString());
+            assertEquals(text, decodedMap.get("java.lang.String"));
+            assertEquals(text, new String((byte[]) decodedMap.get("[B")));
         }
 
         @Getter

@@ -55,6 +55,10 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	static final String SNAPSHOT_SOURCE_READ_TIME_COST_AVG = MetricCons.SS.VS.F_SNAPSHOT_SOURCE_READ_TIME_COST_AVG;
 	static final String INCR_SOURCE_READ_TIME_COST_AVG = MetricCons.SS.VS.F_INCR_SOURCE_READ_TIME_COST_AVG;
 	static final String TARGET_WRITE_TIME_COST_AVG = MetricCons.SS.VS.F_TARGET_WRITE_TIME_COST_AVG;
+	static final String SOURCE_INCREMENTAL_MONITOR_START_AT = MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT;
+	static final String LAST_CAPTURED_INCREMENTAL_EVENT_AT = MetricCons.SS.VS.F_LAST_CAPTURED_INCREMENTAL_EVENT_AT;
+	static final String LAST_ENQUEUED_INCREMENTAL_EVENT_AT = MetricCons.SS.VS.F_LAST_ENQUEUED_INCREMENTAL_EVENT_AT;
+	static final String PENDING_INCREMENTAL_EVENT = MetricCons.SS.VS.F_PENDING_INCREMENTAL_EVENT;
 	static final String CURR_SNAPSHOT_TABLE = MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE;
 	static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL = MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE_ROW_TOTAL;
 	static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL = MetricCons.SS.VS.F_CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL;
@@ -70,6 +74,10 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	private AverageSampler snapshotSourceReadTimeCostAvg;
 	private AverageSampler incrementalSourceReadTimeCostAvg;
 	private WriteCostAvgSampler targetWriteTimeCostAvg;
+	protected NumberSampler<Long> sourceIncrementalMonitorStartAt;
+	protected NumberSampler<Long> lastCapturedIncrementalEventAt;
+	protected NumberSampler<Long> lastEnqueuedIncrementalEventAt;
+	protected NumberSampler<Integer> pendingIncrementalEvent;
 
 	private final Set<String> nodeTables = new HashSet<>();
 
@@ -165,6 +173,26 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		});
 		collector.addSampler(MetricCons.SS.VS.F_BATCH_READ_SIZE, () -> batchReadSize.get());
 		collector.addSampler(MetricCons.SS.VS.F_BATCH_READ_TIMEOUT_MS, () -> intervalMs.get());
+
+		Number sourceIncrementalMonitorStartAtInitial = values.getOrDefault(SOURCE_INCREMENTAL_MONITOR_START_AT, null);
+		sourceIncrementalMonitorStartAt = collector.getNumberCollector(SOURCE_INCREMENTAL_MONITOR_START_AT, Long.class,
+				null == sourceIncrementalMonitorStartAtInitial ? null : sourceIncrementalMonitorStartAtInitial.longValue());
+		streamIncrementalMonitorStartTs = null == sourceIncrementalMonitorStartAtInitial ? null : sourceIncrementalMonitorStartAtInitial.longValue();
+
+		Number lastCapturedIncrementalEventAtInitial = values.getOrDefault(LAST_CAPTURED_INCREMENTAL_EVENT_AT, null);
+		lastCapturedIncrementalEventAt = collector.getNumberCollector(LAST_CAPTURED_INCREMENTAL_EVENT_AT, Long.class,
+				null == lastCapturedIncrementalEventAtInitial ? null : lastCapturedIncrementalEventAtInitial.longValue());
+		streamIncrementalCaptureTs = null == lastCapturedIncrementalEventAtInitial ? null : lastCapturedIncrementalEventAtInitial.longValue();
+
+		Number lastEnqueuedIncrementalEventAtInitial = values.getOrDefault(LAST_ENQUEUED_INCREMENTAL_EVENT_AT, null);
+		lastEnqueuedIncrementalEventAt = collector.getNumberCollector(LAST_ENQUEUED_INCREMENTAL_EVENT_AT, Long.class,
+				null == lastEnqueuedIncrementalEventAtInitial ? null : lastEnqueuedIncrementalEventAtInitial.longValue());
+		streamIncrementalEnqueueTs = null == lastEnqueuedIncrementalEventAtInitial ? null : lastEnqueuedIncrementalEventAtInitial.longValue();
+
+		Number pendingIncrementalEventInitial = values.getOrDefault(PENDING_INCREMENTAL_EVENT, null);
+		pendingIncrementalEvent = collector.getNumberCollector(PENDING_INCREMENTAL_EVENT, Integer.class,
+				null == pendingIncrementalEventInitial ? null : pendingIncrementalEventInitial.intValue());
+		streamPendingIncrementalEvent = null == pendingIncrementalEventInitial ? 0 : pendingIncrementalEventInitial.intValue();
 	}
 
 	public void addTable(String... tables) {
@@ -231,12 +259,24 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	private Long streamAcceptLastTs;
 	private Long streamReferenceTimeLastTs;
 	private Long streamProcessStartTs;
+	private Long streamIncrementalMonitorStartTs;
+	private Long streamIncrementalCaptureTs;
+	private Long streamIncrementalEnqueueTs;
+	private int streamPendingIncrementalEvent;
+
+    private static boolean hasCapturedIncrementalEvents(HandlerUtil.EventTypeRecorder recorder) {
+        return null != recorder && (recorder.getTotal() > 0
+                || null != recorder.getNewestEventTimestamp()
+                || null != recorder.getOldestEventTimestamp());
+    }
 
 	public void handleStreamReadStreamStart(List<String> tables, Long startAt) {
 		incrementalSourceReadTimeCostAvg = collector.getAverageSampler(INCR_SOURCE_READ_TIME_COST_AVG,
 				timeCostAvgGauge,
 				nodeId, nodeName, "source", taskId, taskName, taskType);
 		streamAcceptLastTs = startAt;
+		streamIncrementalMonitorStartTs = startAt;
+		Optional.ofNullable(sourceIncrementalMonitorStartAt).ifPresent(number -> number.setValue(startAt));
 		for (String table : tables) {
 			addTable(table);
 		}
@@ -331,6 +371,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
 		streamProcessStartTs = readCompleteAt;
 		streamReferenceTimeLastTs = recorder.getNewestEventTimestamp();
+        if (hasCapturedIncrementalEvents(recorder)) {
+            streamIncrementalCaptureTs = readCompleteAt;
+            streamPendingIncrementalEvent = 1;
+            Optional.ofNullable(lastCapturedIncrementalEventAt).ifPresent(number -> number.setValue(readCompleteAt));
+            Optional.ofNullable(pendingIncrementalEvent).ifPresent(number -> number.setValue(streamPendingIncrementalEvent));
+        }
 	}
 
 	public void handleStreamReadProcessComplete(Long processCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
@@ -353,8 +399,14 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	}
 
 
-	public void handleStreamReadEnqueued(Long enqueuedTime) {
+	public void handleStreamReadEnqueued(Long enqueuedTime, HandlerUtil.EventTypeRecorder recorder) {
 		streamAcceptLastTs = enqueuedTime;
+        if (hasCapturedIncrementalEvents(recorder)) {
+            streamIncrementalEnqueueTs = enqueuedTime;
+            streamPendingIncrementalEvent = 0;
+            Optional.ofNullable(lastEnqueuedIncrementalEventAt).ifPresent(number -> number.setValue(enqueuedTime));
+            Optional.ofNullable(pendingIncrementalEvent).ifPresent(number -> number.setValue(streamPendingIncrementalEvent));
+        }
 	}
 
 	public void handleWriteRecordStart(Long startAt, HandlerUtil.EventTypeRecorder recorder) {
