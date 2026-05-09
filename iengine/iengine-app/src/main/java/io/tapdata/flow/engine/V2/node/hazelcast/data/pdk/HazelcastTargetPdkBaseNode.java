@@ -125,6 +125,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -207,6 +208,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private TapTable exactlyOnceTable;
 	private Long earliestTimestamp = Long.MAX_VALUE;
 	private final Map<String, Long> firstCDCTimestampMap = new ConcurrentHashMap<>();
+	private final Map<String, Long> lastCDCTimestampMap = new ConcurrentHashMap<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -487,8 +489,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 											throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
 										}
 										rs.getResults().forEach(result -> {
-											String exactlyOnceId = String.valueOf(result.get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME));
-											exactlyOnceCache.add(exactlyOnceId);
+                                            try {
+												String exactlyOnceIds = StringCompression.uncompressV2(String.valueOf(result.get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)));
+												lastCDCTimestampMap.merge(String.valueOf(result.get(ExactlyOnceUtil.TABLE_NAME_COL_NAME)), Long.parseLong(String.valueOf(result.get(ExactlyOnceUtil.TIMESTAMP_COL_NAME))), Math::max);
+												exactlyOnceCache.addAll(Arrays.stream(exactlyOnceIds.split("\\t")).toList());
+                                            } catch (IOException e) {
+												throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED,
+														"Uncompress exactly-once IDs failed for table: " + result.get(ExactlyOnceUtil.TABLE_NAME_COL_NAME), e);
+                                            }
 										});
 									});
 								} catch (Exception e) {
@@ -520,12 +528,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 								}
 								for (TapEvent tapEvent : events) {
 									if (tapEvent instanceof TapInsertRecordEvent insertRecordEvent) {
-										String exactlyOnceId = String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME));
 										long timestamp = Long.parseLong(String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.TIMESTAMP_COL_NAME)));
 										if (toTime != null && timestamp > toTime) {
 											throw new StopBatchReadException();
 										}
-										exactlyOnceCache.add(exactlyOnceId);
+										try {
+											String exactlyOnceIds = StringCompression.uncompressV2(String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)));
+											lastCDCTimestampMap.merge(String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.TABLE_NAME_COL_NAME)), Long.parseLong(String.valueOf(insertRecordEvent.getAfter().get(ExactlyOnceUtil.TIMESTAMP_COL_NAME))), Math::max);
+											exactlyOnceCache.addAll(Arrays.stream(exactlyOnceIds.split("\\t")).toList());
+										} catch (IOException e) {
+											throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED,
+													"Uncompress exactly-once IDs failed for table: " + insertRecordEvent.getAfter().get(ExactlyOnceUtil.TABLE_NAME_COL_NAME), e);
+										}
 									}
 								}
 							});
@@ -1354,15 +1368,25 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
 					return;
 				} else {
-					if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && lookupTables.contains(tgtTableNameFromTapEvent)) {
+					if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && lookupTables.contains(tgtTableNameFromTapEvent) && tapdataEvent.getSourceTime() > lastCDCTimestampMap.getOrDefault(tgtTableNameFromTapEvent, 0L)) {
 						obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
 						lookupTables.remove(tgtTableNameFromTapEvent);
+						if (lookupTables.isEmpty()) {
+							exactlyOnceCache.clear();
+							firstCDCTimestampMap.clear();
+							lastCDCTimestampMap.clear();
+						}
 					}
 				}
 			} else {
-				if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
+				if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && tapdataEvent.getSourceTime() > lastCDCTimestampMap.getOrDefault(tgtTableNameFromTapEvent, 0L)) {
 					obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
 					lookupTables.remove(tgtTableNameFromTapEvent);
+					if (lookupTables.isEmpty()) {
+						exactlyOnceCache.clear();
+						firstCDCTimestampMap.clear();
+						lastCDCTimestampMap.clear();
+					}
 				}
 			}
 		}

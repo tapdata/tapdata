@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.google.common.collect.Maps;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.StringCompression;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
@@ -28,6 +29,7 @@ import io.tapdata.entity.event.ddl.constraint.TapDropConstraintEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.*;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
@@ -69,6 +71,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.BeanUtils;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1286,9 +1289,47 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		List<TapRecordEvent> tapRecordEvents = tapdataEvents.parallelStream().map(TapdataEvent::getExactlyOnceWriteCache)
+		// 收集所有 insert 形式的 cache 事件，按 after.TABLE_NAME 分组，将每组的 EXACTLY_ONCE_ID
+		// 用制表符拼接后压缩，合并为单条 cache 事件，从而显著减少 cache 表写入条数
+		List<TapInsertRecordEvent> rawCacheEvents = tapdataEvents.parallelStream()
+				.map(TapdataEvent::getExactlyOnceWriteCache)
 				.filter(Objects::nonNull)
-				.collect(Collectors.toList());
+				.filter(e -> MapUtils.isNotEmpty(e.getAfter()))
+				.toList();
+		Map<String, List<TapInsertRecordEvent>> groupedByTable = rawCacheEvents.stream()
+				.collect(Collectors.groupingBy(
+						e -> String.valueOf(e.getAfter().get(ExactlyOnceUtil.TABLE_NAME_COL_NAME)),
+						LinkedHashMap::new,
+						Collectors.toList()));
+		List<TapRecordEvent> tapRecordEvents = new ArrayList<>(groupedByTable.size());
+		for (Map.Entry<String, List<TapInsertRecordEvent>> entry : groupedByTable.entrySet()) {
+			String tableName = entry.getKey();
+			List<TapInsertRecordEvent> group = entry.getValue();
+			String joinedIds = group.stream()
+					.map(e -> String.valueOf(e.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)))
+					.collect(Collectors.joining("\t"));
+			String compressedIds;
+			try {
+				compressedIds = StringCompression.compressV2(joinedIds);
+			} catch (IOException ioe) {
+				throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED,
+						"Compress exactly-once IDs failed for table: " + tableName, ioe);
+			}
+			Map<String, Object> firstAfter = group.get(0).getAfter();
+			long maxTs = group.stream()
+					.mapToLong(e -> {
+						Object ts = e.getAfter().get(ExactlyOnceUtil.TIMESTAMP_COL_NAME);
+						return ts instanceof Number ? ((Number) ts).longValue() : 0L;
+					})
+					.max().orElse(System.currentTimeMillis());
+			Map<String, Object> after = new HashMap<>();
+			after.put(ExactlyOnceUtil.UUID_ID, UUID.randomUUID().toString().replace("-", ""));
+			after.put(ExactlyOnceUtil.NODE_ID_COL_NAME, firstAfter.get(ExactlyOnceUtil.NODE_ID_COL_NAME));
+			after.put(ExactlyOnceUtil.TABLE_NAME_COL_NAME, tableName);
+			after.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, compressedIds);
+			after.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, maxTs);
+			tapRecordEvents.add(insertRecordEvent(after, tableName));
+		}
 		String nodeId = getNode().getId().replace("-", "");
 		String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + (isSQLMode ? "" : "_" + nodeId);
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
