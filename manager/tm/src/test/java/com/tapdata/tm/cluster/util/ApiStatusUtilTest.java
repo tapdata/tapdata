@@ -1,12 +1,23 @@
 package com.tapdata.tm.cluster.util;
 
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.Component;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
+import com.tapdata.tm.worker.dto.MetricInfo;
+import com.tapdata.tm.worker.entity.Worker;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.util.Date;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ApiStatusUtilTest {
@@ -64,5 +75,105 @@ class ApiStatusUtilTest {
     void clusterStopped_workerAliveOverridesExpiredTtl() {
         // ping_time 是权威信号；只要 worker 存活，ttl 过期也不算 stopped（避免被异步 stopCluster 滞后影响）
         assertFalse(ApiStatusUtil.clusterStopped(dto("running", ttlInPast()), true));
+    }
+
+    private static Worker apiWorker(String workerStatus, Object lastUpdateTime) {
+        Worker worker = new Worker();
+        ApiServerStatus status = new ApiServerStatus();
+        status.setStatus(workerStatus);
+        MetricInfo metric = new MetricInfo();
+        metric.setLastUpdateTime(lastUpdateTime);
+        status.setMetricValues(metric);
+        worker.setWorkerStatus(status);
+        return worker;
+    }
+
+    private static Component apiComponent(String persistedStatus) {
+        Component c = new Component();
+        c.setStatus(persistedStatus);
+        return c;
+    }
+
+    private static MockedStatic<SettingUtil> stubHeartOvertime(int seconds) {
+        MockedStatic<SettingUtil> mocked = Mockito.mockStatic(SettingUtil.class);
+        mocked.when(() -> SettingUtil.getValue(CategoryEnum.WORKER.getValue(), KeyEnum.WORKER_HEART_TIMEOUT.getValue()))
+                .thenReturn(String.valueOf(seconds));
+        return mocked;
+    }
+
+    @Test
+    void statusOfApi_apiWorkerFresh_promotesStatusToRunning() {
+        // 启动期典型场景：DB 持久 status 仍为 stopped（agent 慢通道未上报），
+        // 但 apiserver 自身 REST 心跳已新鲜 → status / serviceStatus 都应翻 running
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", System.currentTimeMillis());
+            Component api = apiComponent("stopped");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("running", setStatus.get());
+            assertEquals("running", setServiceStatus.get());
+        }
+    }
+
+    @Test
+    void statusOfApi_apiWorkerStale_keepsPersistedStatus() {
+        // apiserver 自身超过 30s 未心跳：status 沿用 DB 陈值，serviceStatus 报 stopped
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            long stale = System.currentTimeMillis() - 60_000L;
+            Worker apiInfo = apiWorker("running", stale);
+            Component api = apiComponent("running");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("running", setStatus.get());
+            assertEquals("stopped", setServiceStatus.get());
+        }
+    }
+
+    @Test
+    void statusOfApi_clusterStopped_doesNotPromoteStatus() {
+        // agent 已挂：status 沿用 DB（让 stopCluster 调度器接管），serviceStatus 强制 stopped
+        Worker apiInfo = apiWorker("running", System.currentTimeMillis());
+        Component api = apiComponent("running");
+        AtomicReference<String> setStatus = new AtomicReference<>();
+        AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+        ApiStatusUtil.statusOfApi(true, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+        assertEquals("running", setStatus.get());
+        assertEquals("stopped", setServiceStatus.get());
+    }
+
+    @Test
+    void statusOfApi_apiInfoNull_keepsPersistedStatus() {
+        // Worker 实体缺失（极端启动 / 集群异常）：保留 DB status，serviceStatus 报 stopped
+        Component api = apiComponent("stopped");
+        AtomicReference<String> setStatus = new AtomicReference<>();
+        AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+        ApiStatusUtil.statusOfApi(false, null, api, setStatus::set, setServiceStatus::set);
+
+        assertEquals("stopped", setStatus.get());
+        assertEquals("stopped", setServiceStatus.get());
+    }
+
+    @Test
+    void statusOfApi_workerClusterStatusNull_skipsStatusCallback() {
+        // ApiMetricsChartQuery 第 328 行调用：workerClusterStatus 为 null，setStatus 不应被调用
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", System.currentTimeMillis());
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, null, setStatus::set, setServiceStatus::set);
+
+            assertNull(setStatus.get());
+            assertEquals("running", setServiceStatus.get());
+        }
     }
 }

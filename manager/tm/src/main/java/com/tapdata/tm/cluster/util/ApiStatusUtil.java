@@ -3,7 +3,6 @@ package com.tapdata.tm.cluster.util;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.Component;
-import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.entity.Worker;
 
 import java.util.Date;
@@ -35,24 +34,30 @@ public final class ApiStatusUtil {
     }
 
     public static void statusOfApi(boolean clusterStopped, Worker apiInfo, Component workerClusterStatus, Consumer<String> apiStatusFromAgent, Consumer<String> apiStatusFromApiServer) {
+        // status 与 serviceStatus 同源对齐：apiserver 自身 REST 心跳（3s/次）通常远早于 agent 的
+        // WebSocket statusInfo 慢通道把 ClusterState.apiServer.status 写库。启动期若仅复读 DB 陈值，
+        // 会出现 serviceStatus=running 而 status=stopped 持续数十秒的分裂现象。当 apiserver 自报心跳
+        // 仍新鲜且 agent 未挂时，把 status 一并提升为活信号；其余情况保留 DB 值，交由 statusInfo /
+        // stopCluster 的既有路径自然收敛。
+        boolean apiAlive = !clusterStopped && isApiWorkerFresh(apiInfo);
+        String liveApiStatus = apiAlive ? apiInfo.getWorkerStatus().getStatus() : null;
+
         if (null != workerClusterStatus) {
-            apiStatusFromAgent.accept(workerClusterStatus.getStatus());
+            apiStatusFromAgent.accept(apiAlive ? liveApiStatus : workerClusterStatus.getStatus());
         }
         if (clusterStopped) {
             apiStatusFromApiServer.accept("stopped");
             return;
         }
-        if (null != apiInfo && null != apiInfo.getWorkerStatus() && null != apiInfo.getWorkerStatus().getMetricValues()) {
-            ApiServerStatus workerStatus = apiInfo.getWorkerStatus();
-            String status = workerStatus.getStatus();
-            Object activeTime = apiInfo.getWorkerStatus().getMetricValues().getLastUpdateTime();
-            if (activeTime instanceof Number iTime && iTime.longValue() >= System.currentTimeMillis() - (SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) * 1_000L)) {
-                apiStatusFromApiServer.accept(status);
-            } else {
-                apiStatusFromApiServer.accept("stopped");
-            }
-        } else {
-            apiStatusFromApiServer.accept("stopped");
+        apiStatusFromApiServer.accept(apiAlive ? liveApiStatus : "stopped");
+    }
+
+    private static boolean isApiWorkerFresh(Worker apiInfo) {
+        if (null == apiInfo || null == apiInfo.getWorkerStatus() || null == apiInfo.getWorkerStatus().getMetricValues()) {
+            return false;
         }
+        Object activeTime = apiInfo.getWorkerStatus().getMetricValues().getLastUpdateTime();
+        long threshold = System.currentTimeMillis() - (SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) * 1_000L);
+        return activeTime instanceof Number iTime && iTime.longValue() >= threshold;
     }
 }
