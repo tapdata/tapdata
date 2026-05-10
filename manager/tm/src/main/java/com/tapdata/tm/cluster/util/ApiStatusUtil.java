@@ -21,10 +21,13 @@ public final class ApiStatusUtil {
     }
 
     public static Boolean clusterStopped(ClusterStateDto workerClusterStatus, boolean workerAlive) {
+        // workerAlive 已基于 Worker.ping_time + lastHeartbeat 判定（口径权威）。
+        // ClusterState.status 仅作为持久化字段由 ClusterSchedule.stopCluster() 异步翻转，
+        // 不再阻塞 UI/getAll 的实时性反应。
         if (workerAlive && "stopped".equals(workerClusterStatus.getStatus())) {
             workerClusterStatus.setStatus("running");
         }
-       return "stopped".equals(workerClusterStatus.getStatus()) && !workerAlive;
+        return !workerAlive;
     }
 
     public static void statusOfApi(boolean clusterStopped, Worker apiInfo, Component workerClusterStatus, Consumer<String> apiStatusFromAgent, Consumer<String> apiStatusFromApiServer) {

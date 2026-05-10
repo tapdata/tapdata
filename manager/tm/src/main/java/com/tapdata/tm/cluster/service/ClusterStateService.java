@@ -322,9 +322,12 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         String uuid = (String) systemInfo.get("uuid");
 
         Date now = new Date();
-        // TTL 缓冲取 max(reportInterval*3, 60s)：吸收 MongoDB primary 切换窗口里单次 upsert 的瞬时阻塞
+        // TTL 缓冲取 max(reportInterval*3, lastHeartbeat)：与 worker 存活判定口径保持一致，
+        // 避免 ClusterState.status 翻转滞后于 Worker.ping_time 过期判定造成 getAll 反应延迟
         long intervalMs = reportInterval == null ? 0L : reportInterval.longValue();
-        long newTtl = now.getTime() + Math.max(intervalMs * 3, 60_000L);
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        long heartbeatFloorMs = Math.max(overTime, 1) * 1000L;
+        long newTtl = now.getTime() + Math.max(intervalMs * 3, heartbeatFloorMs);
 
         Query query = Query.query(Criteria.where("systemInfo.uuid").is(uuid));
 
