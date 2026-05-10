@@ -9,6 +9,7 @@ import com.hazelcast.jet.core.Inbox;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.StringCompression;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncObjects;
 import com.tapdata.entity.dataflow.SyncProgress;
@@ -54,6 +55,7 @@ import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
+import io.tapdata.flow.engine.V2.exactlyonce.write.OverflowToRocksDBSet;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -1649,11 +1651,15 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapRecordEvent);
 			tapdataEvent.setSyncStage(SyncStage.CDC);
+			tapdataEvent.setSourceTime(1L);
 			List<String> lookupTables = new ArrayList<>(Lists.newArrayList("t1"));
 			when(hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent)).thenReturn(tapRecordEvent);
 			when(hazelcastTargetPdkBaseNode.handleExactlyOnceWriteCacheIfNeed(eq(tapdataEvent), eq(exactlyOnceWriteCache))).thenReturn(false);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "checkExactlyOnceWriteEnableResult",
 					CheckExactlyOnceWriteEnableResult.createEnable().mode(CheckExactlyOnceWriteEnableResult.ExactlyOnceWriteMode.SQL_MODE));
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "lastCDCTimestampMap", new ConcurrentHashMap<String, Long>());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "firstCDCTimestampMap", new ConcurrentHashMap<String, Long>());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceCache", new OverflowToRocksDBSet());
 			when(hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList()).thenReturn(lookupTables);
 			when(hazelcastTargetPdkBaseNode.getTgtTableNameFromTapEvent(tapRecordEvent)).thenReturn("t1");
 
@@ -3394,12 +3400,12 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TapTable exactlyOnceTable = new TapTable("eot");
 			TapInsertRecordEvent e1 = new TapInsertRecordEvent();
 			Map<String, Object> after1 = new HashMap<>();
-			after1.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, "id-1");
+			after1.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, StringCompression.compressV2("id-1"));
 			after1.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, 1L);
 			e1.setAfter(after1);
 			TapInsertRecordEvent e2 = new TapInsertRecordEvent();
 			Map<String, Object> after2 = new HashMap<>();
-			after2.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, "id-2");
+			after2.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, StringCompression.compressV2("id-2a\tid-2b"));
 			after2.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, 2L);
 			e2.setAfter(after2);
 			TapDeleteRecordEvent e3 = new TapDeleteRecordEvent();
@@ -3419,9 +3425,10 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				ReflectionTestUtils.invokeMethod(spyTargetBaseNode, "cacheExactlyOnceIdsForTask", connectorNode, exactlyOnceTable, null, Long.MAX_VALUE);
 			}
 			Set<String> exactlyOnceCache = (Set<String>) ReflectionTestUtils.getField(spyTargetBaseNode, "exactlyOnceCache");
-			assertEquals(2, exactlyOnceCache.size());
+			assertEquals(3, exactlyOnceCache.size());
 			assertTrue(exactlyOnceCache.contains("id-1"));
-			assertTrue(exactlyOnceCache.contains("id-2"));
+			assertTrue(exactlyOnceCache.contains("id-2a"));
+			assertTrue(exactlyOnceCache.contains("id-2b"));
 			verify(spyTargetBaseNode, times(1)).removePdkMethodInvoker(any());
 		}
 
@@ -3432,7 +3439,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TapTable exactlyOnceTable = new TapTable("eot");
 			TapInsertRecordEvent e1 = new TapInsertRecordEvent();
 			Map<String, Object> after1 = new HashMap<>();
-			after1.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, "id-1");
+			after1.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, StringCompression.compressV2("id-1"));
 			after1.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, 1L);
 			e1.setAfter(after1);
 			doAnswer(inv -> {
