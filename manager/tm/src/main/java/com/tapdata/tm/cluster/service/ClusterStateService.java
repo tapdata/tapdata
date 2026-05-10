@@ -322,12 +322,12 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         String uuid = (String) systemInfo.get("uuid");
 
         Date now = new Date();
-        // TTL 缓冲取 max(reportInterval*3, lastHeartbeat)：与 worker 存活判定口径保持一致，
-        // 避免 ClusterState.status 翻转滞后于 Worker.ping_time 过期判定造成 getAll 反应延迟
-        long intervalMs = reportInterval == null ? 0L : reportInterval.longValue();
+        // TTL 直接取 lastHeartbeat 配置：与 Worker.ping_time 存活判定口径完全一致，
+        // 避免之前 max(reportInterval*3, lastHeartbeat) 中 reportInterval*3 取胜导致 status
+        // 翻转滞后于 lastHeartbeat 设置（reportInterval 通常 20s 以上 → 60s+）
         int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
         long heartbeatFloorMs = Math.max(overTime, 1) * 1000L;
-        long newTtl = now.getTime() + Math.max(intervalMs * 3, heartbeatFloorMs);
+        long newTtl = now.getTime() + heartbeatFloorMs;
 
         Query query = Query.query(Criteria.where("systemInfo.uuid").is(uuid));
 

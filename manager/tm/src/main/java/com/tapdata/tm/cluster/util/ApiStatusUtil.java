@@ -6,7 +6,7 @@ import com.tapdata.tm.cluster.dto.Component;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.entity.Worker;
 
-import java.util.List;
+import java.util.Date;
 import java.util.function.Consumer;
 
 /**
@@ -21,13 +21,17 @@ public final class ApiStatusUtil {
     }
 
     public static Boolean clusterStopped(ClusterStateDto workerClusterStatus, boolean workerAlive) {
-        // workerAlive 已基于 Worker.ping_time + lastHeartbeat 判定（口径权威）。
-        // ClusterState.status 仅作为持久化字段由 ClusterSchedule.stopCluster() 异步翻转，
-        // 不再阻塞 UI/getAll 的实时性反应。
+        // 双信号判定：Worker.ping_time（REST /health 写入）与 ClusterState.ttl（WebSocket
+        // statusInfo 异步执行器写入）来自不同写路径。MongoDB primary 切换瞬时阻塞通常只
+        // 影响其中一条链路，要求两者同时过期才能判 stopped，避免健康节点误报。
+        // 同时 ClusterState.status 仅作为持久化字段由 ClusterSchedule.stopCluster() 异步
+        // 翻转，不再阻塞 UI 反应。
         if (workerAlive && "stopped".equals(workerClusterStatus.getStatus())) {
             workerClusterStatus.setStatus("running");
         }
-        return !workerAlive;
+        if (workerAlive) return false;
+        Date ttl = workerClusterStatus.getTtl();
+        return ttl == null || ttl.before(new Date());
     }
 
     public static void statusOfApi(boolean clusterStopped, Worker apiInfo, Component workerClusterStatus, Consumer<String> apiStatusFromAgent, Consumer<String> apiStatusFromApiServer) {
