@@ -54,6 +54,7 @@ import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.module.enums.ApiType;
 import com.tapdata.tm.module.enums.ParamTypeEnum;
+import com.tapdata.tm.modules.dto.PublishApi;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
@@ -541,6 +542,22 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		String clusterId = Optional.ofNullable(settingsService.getByKey("cluster")).map(Settings::getId).orElse("");
 		apiDefinitionVo.setClusterId(clusterId);
 		return apiDefinitionVo;
+	}
+
+	public ApiDefinitionVo simplifyApiInfo(ApiDefinitionVo infoVo) {
+		List<?> apis = infoVo.getApis();
+		List<PublishApi> simplify = new ArrayList<>();
+		apis.forEach(api -> {
+			if (api instanceof ModulesDto apiInfo) {
+				PublishApi from = PublishApi.from(apiInfo);
+				if (null != from) {
+					from.setId(apiInfo.getId().toHexString());
+					simplify.add(from);
+				}
+			}
+		});
+		infoVo.setApis(simplify);
+		return infoVo;
 	}
 
 	protected List<ModulesDto> activeApis(ApiDefinitionVo apiDefinitionVo, UserDetail userDetail) {

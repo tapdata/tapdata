@@ -42,7 +42,11 @@ public final class FieldTypeUtil {
     public static void parseTapType(Field field) {
         String tapType = field.getTapType();
         TapType type = TapSimplify.fromJson(tapType, TapType.class);
-        field.setSimpleTypeName(type.getClass().getSimpleName().replace("Tap", ""));
+        if (type == null) {
+            field.setSimpleTypeName("Any");
+        } else {
+            field.setSimpleTypeName(type.getClass().getSimpleName().replace("Tap", ""));
+        }
     }
 
     public static void parseTapType(List<Field> field) {

@@ -26,7 +26,7 @@ public class ReLoadApiSchemaService {
         if (StringUtils.isBlank(connectionId)) {
             throw new BizException("schema.reload.connectionId");
         }
-        if (StringUtils.isBlank(connectionId)) {
+        if (StringUtils.isBlank(tableName)) {
             throw new BizException("schema.reload.tableName");
         }
         ServiceCaller serviceCaller = new ServiceCaller();

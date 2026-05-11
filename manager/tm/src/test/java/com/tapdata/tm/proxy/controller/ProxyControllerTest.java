@@ -1,5 +1,6 @@
 package com.tapdata.tm.proxy.controller;
 
+import com.tapdata.tm.proxy.service.impl.RemoteCaller;
 import io.tapdata.modules.api.net.data.FileMeta;
 import org.apache.http.entity.ContentType;
 import org.jetbrains.annotations.NotNull;
@@ -25,9 +26,7 @@ public class ProxyControllerTest {
 
     @Test
     void testResponseForFileMeta() throws IOException {
-
-        ProxyController proxyController = new ProxyController();
-
+        RemoteCaller remoteCaller = mock(RemoteCaller.class);
         byte[] data = new byte[1024];
         FileMeta fileMeta = FileMeta.builder().transferFile(true)
                 .filename("test.log.zip")
@@ -59,8 +58,8 @@ public class ProxyControllerTest {
                 counter.incrementAndGet();
             }
         });
-
-        ReflectionTestUtils.invokeMethod(proxyController, "responseForFileMeta", fileMeta, response);
+        doCallRealMethod().when(remoteCaller).responseForFileMeta(fileMeta, response);
+        remoteCaller.responseForFileMeta(fileMeta, response);
 
         Assertions.assertEquals(1, counter.get());
         verify(response, times(1)).setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_OCTET_STREAM.getMimeType());
