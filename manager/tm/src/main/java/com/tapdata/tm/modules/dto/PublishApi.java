@@ -153,7 +153,7 @@ public class PublishApi {
         public static List<SimplifyPath> from(List<Path> paths) {
             List<SimplifyPath> simplifyPaths = new ArrayList<>();
             if (null != paths) {
-                paths.forEach(path -> simplifyPaths.add(SimplifyPath.from(path)));
+                paths.stream().map(SimplifyPath::from).filter(Objects::nonNull).forEach(simplifyPaths::add);
             }
             return simplifyPaths;
         }

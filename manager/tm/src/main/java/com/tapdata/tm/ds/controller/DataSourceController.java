@@ -474,6 +474,24 @@ public class DataSourceController extends BaseController {
         countValue.put("count", count);
         return success(countValue);
     }
+    @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
+    @PostMapping("module/update")
+    public ResponseMessage<Map<String, Long>> refreshModel(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        Where where = parseWhere(whereJson);
+
+        long count;
+        UserDetail user = getLoginUser();
+        if (reqBody.indexOf("\"$set\"") > 0 || reqBody.indexOf("\"$setOnInsert\"") > 0 || reqBody.indexOf("\"$unset\"") > 0) {
+            Document updateDto = InstanceFactory.instance(JsonParser.class).fromJson(reqBody, Document.class);
+            count = dataSourceService.refreshModel(where, updateDto, null, user);
+        } else {
+            DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(reqBody, DataSourceConnectionDto.class);
+            count = dataSourceService.refreshModel(where, null, connectionDto, user);
+        }
+        HashMap<String, Long> countValue = new HashMap<>();
+        countValue.put("count", count);
+        return success(countValue);
+    }
 
     /**
      * Update instances of the model matched by {{where}} from the data source.

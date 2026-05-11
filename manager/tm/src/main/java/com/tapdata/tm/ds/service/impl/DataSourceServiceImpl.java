@@ -1571,6 +1571,119 @@ public class DataSourceServiceImpl extends DataSourceService{
     }
 
     @Override
+    public long refreshModel(Where where, Document update, DataSourceConnectionDto connectionDto, UserDetail user) {
+        Boolean submit = null;
+        if (where == null || where.get("_id") == null) {
+            return 0L;
+        }
+        String id = (String) where.get("_id");
+        ObjectId objectId = toObjectId(id);
+        if (connectionDto != null) {
+            connectionDto.setId(objectId);
+            updateCheck(user, connectionDto);
+            submit = connectionDto.getSubmit();
+        }
+        boolean hasSchemaTables = false;
+        List<TapTable> tables = null;
+        Document set = null;
+        Object status = null;
+        Object setObj = null == update ? null : update.get("$set");
+        if (setObj != null) {
+            set = setToDocumentByJsonParser(update);
+            if (set != null) {
+                Object schemaTables = set.get("schema.tables");
+                status = set.get("status");
+                if (schemaTables != null) {
+                    hasSchemaTables = true;
+                    set.put("schema.tables", null);
+                    JsonParser instance = InstanceFactory.instance(JsonParser.class);
+                    tables = instance.fromJson(JsonUtil.toJsonUseJackson(schemaTables), new TypeHolder<List<TapTable>>() {
+                    });
+                }
+            }
+        }
+        DataSourceConnectionDto oldConnectionDto = findOne(new Query(Criteria.where("_id").is(new ObjectId(id))));
+        if (oldConnectionDto == null || oldConnectionDto.getId() == null) {
+            return 0L;
+        }
+        UserDetail connectionUser = userService.loadUserById(MongoUtils.toObjectId(oldConnectionDto.getUserId()));
+        String connectionId = oldConnectionDto.getId().toHexString();
+        oldConnectionDto.setBuildModelId(connectionId);
+        updateDatasourceByWhere(set, update, hasSchemaTables, tables, oldConnectionDto, connectionUser);
+        if (connectionDto != null) {
+            long count = updateByWhere(where, connectionDto, connectionUser);
+            updateAfter(connectionUser, oldConnectionDto, submit);
+            return count;
+        }
+        return updateDatasource(update, setObj, where, status, connectionUser);
+    }
+
+    private void updateDatasourceByWhere(Document set, Document update, boolean hasSchemaTables, List<TapTable> tables, DataSourceConnectionDto oldConnectionDto, UserDetail connectionUser) {
+        if (!hasSchemaTables || !CollectionUtils.isNotEmpty(tables)) {
+            return;
+        }
+        String connectionId = oldConnectionDto.getId().toHexString();
+        DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(oldConnectionDto.getDatabase_type(), connectionUser);
+        if (null != definitionDto) {
+            oldConnectionDto.setDefinitionGroup(definitionDto.getGroup());
+            oldConnectionDto.setDefinitionPdkId(definitionDto.getPdkId());
+            oldConnectionDto.setDefinitionScope(definitionDto.getScope());
+            oldConnectionDto.setDefinitionVersion(definitionDto.getVersion());
+        }
+        MetadataInstancesDto databaseModel = MetaDataBuilderUtils.build("database", oldConnectionDto, oldConnectionDto.getUserId(), oldConnectionDto.getCreateUser());
+        MetadataInstancesDto oldMeta = metadataInstancesService.findOne(new Query(Criteria.where("qualified_name").is(databaseModel.getQualifiedName())), connectionUser);
+        String tableName = (String) set.get("name");
+        if (StringUtils.isNotBlank(tableName)) {
+            databaseModel.setOriginalName(tableName);
+            if (databaseModel.getSource() != null) {
+                databaseModel.getSource().setName(tableName);
+            }
+        }
+        if (oldMeta != null) {
+            databaseModel.setHistories(oldMeta.getHistories());
+            metadataUtil.addHistory(oldMeta.getId(), databaseModel, oldMeta, connectionUser, false);
+        }
+        databaseModel.setDeleted(false);
+        databaseModel.setSourceType(SourceTypeEnum.SOURCE.name());
+        try {
+            databaseModel = metadataInstancesService.upsertByWhere(Where.where("qualified_name", databaseModel.getQualifiedName()), databaseModel, connectionUser);
+        } catch (DuplicateKeyException e) {
+            log.warn("Duplicate key on MetadataInstances upsert for qualified_name={}, falling back to find existing", databaseModel.getQualifiedName());
+            MetadataInstancesDto existingMeta = metadataInstancesService.findByQualifiedNameNotDelete(databaseModel.getQualifiedName(), connectionUser);
+            databaseModel = existingMeta != null ? existingMeta : databaseModel;
+        }
+        String loadFieldsStatus = (String) set.get(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS);
+        Long lastUpdate = (Long) set.get(DataSourceConnectionDto.FIELD_LAST_UPDATE);
+        flushDatabaseMetadataInstanceLastUpdate(loadFieldsStatus, connectionId, lastUpdate, connectionUser);
+        if (definitionDto != null) {
+            Boolean loadSchemaField = !Boolean.FALSE.equals(set.get("loadSchemaField"));
+            String databaseId = databaseModel.getId().toHexString();
+            loadSchema(connectionUser, tables, oldConnectionDto, definitionDto.getExpression(), databaseId, loadSchemaField, true);
+            update.put("loadSchemaTime", new Date());
+        }
+    }
+
+    protected long updateDatasource(Document update, Object setObj, Where where, Object status, UserDetail connectionUser) {
+        if (update == null) {
+            return 0L;
+        }
+        if (setObj != null) {
+            setToDocument(update);
+        }
+        Filter filter = new Filter(where);
+        filter.setSkip(0);
+        filter.setLimit(0);
+        Query query = repository.filterToQuery(filter);
+        Update datasourceUpdate = Update.fromDocument(update);
+        if (Objects.nonNull(status)) {
+            int inc = DataSourceEntity.STATUS_READY.equals(status.toString()) ? 0 : 1;
+            datasourceUpdate.set("testCount", inc);
+            datasourceUpdate.set("testTime", System.currentTimeMillis());
+        }
+        return repository.update(query, datasourceUpdate, connectionUser).getModifiedCount();
+    }
+
+    @Override
     public long updatePartialSchema(String id, String loadFieldsStatus, Long lastUpdate, String fromSchemaVersion, String toSchemaVersion, String filters, UserDetail user) {
         long result = 0;
         // 更新连接加载状态

@@ -163,7 +163,7 @@ class DiscoverSchemaServiceTest {
             Query query = invocation.getArgument(0);
             Update update = invocation.getArgument(1);
             String collection = invocation.getArgument(2);
-            assertEquals(ConnectorConstant.CONNECTION_COLLECTION, collection);
+            assertEquals(ConnectorConstant.CONNECTION_COLLECTION + "/module", collection);
             Document q = query.getQueryObject();
             assertNotNull(q.get("_id"));
             Document u = update.getUpdateObject();

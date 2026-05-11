@@ -546,6 +546,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public ApiDefinitionVo simplifyApiInfo(ApiDefinitionVo infoVo) {
 		List<?> apis = infoVo.getApis();
+		if (null == apis) {
+			infoVo.setApiInfo(new ArrayList<>());
+			return infoVo;
+		}
 		List<PublishApi> simplify = new ArrayList<>();
 		apis.forEach(api -> {
 			if (api instanceof ModulesDto apiInfo) {
@@ -1209,9 +1213,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				field1.setField_type(StringUtils.isNotBlank(field.getJavaType()) ? field.getJavaType() : field.getField_type());
 				field1.setRequired(required);
 				field1.setExample("");
+				FieldTypeUtil.parseTapType(field1);
 				newField.add(field1);
 			}
-			FieldTypeUtil.parseTapType(field);
 		}
 		return newField;
 	}

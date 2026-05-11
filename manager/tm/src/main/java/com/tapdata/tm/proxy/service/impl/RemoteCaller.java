@@ -5,6 +5,7 @@ import com.tapdata.tm.async.AsyncContextManager;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.proxy.utils.RemoteCallerUtil;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.error.CoreException;
@@ -16,25 +17,23 @@ import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.pdk.apis.entity.message.EngineMessage;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
-import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.entity.ContentType;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import javax.annotation.Resource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
@@ -48,9 +47,9 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
 @Service
 public class RemoteCaller {
     private final AsyncContextManager asyncContextManager = new AsyncContextManager();
-    @Autowired
+    @Resource(name = "productComponent")
     ProductComponent productComponent;
-    @Autowired
+    @Resource(name = "workerServiceImpl")
     WorkerService workerService;
 
     public void callMethod(@RequestBody ServiceCaller serviceCaller, HttpServletRequest request, HttpServletResponse response, UserDetail userDetail) {
@@ -61,7 +60,7 @@ public class RemoteCaller {
         if (serviceCaller.getMethod() == null)
             throw new BizException("Missing method");
 
-        if(productComponent.isCloud()) {
+        if (productComponent.isCloud()) {
             serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
             WorkerExpireDto shareWorker = workerService.getShareWorker(userDetail);
             if (shareWorker != null) {
@@ -94,10 +93,8 @@ public class RemoteCaller {
         EngineMessageExecutionService engineMessageExecutionService = getEngineMessageExecutionService();
         registerAsyncJob(engineMessage.getId(), request, response);
         try {
-            engineMessageExecutionService.call(engineMessage, (result, throwable) -> {
-                asyncContextManager.applyAsyncJobResult(engineMessage.getId(), result, throwable);
-            });
-        } catch(Throwable throwable) {
+            engineMessageExecutionService.call(engineMessage, (result, throwable) -> asyncContextManager.applyAsyncJobResult(engineMessage.getId(), result, throwable));
+        } catch (Exception throwable) {
             asyncContextManager.applyAsyncJobResult(engineMessage.getId(), null, throwable);
         }
     }
@@ -106,8 +103,8 @@ public class RemoteCaller {
         EngineMessageExecutionService engineMessageExecutionService = getEngineMessageExecutionService();
         try {
             engineMessageExecutionService.call(engineMessage, resultCallback);
-        } catch(Throwable throwable) {
-            throw new RuntimeException(String.format("Error executing engineMessage: %s", engineMessage), throwable);
+        } catch (Exception throwable) {
+            throw new CoreException(String.format("Error executing engineMessage: %s", engineMessage), throwable);
         }
     }
 
@@ -117,10 +114,9 @@ public class RemoteCaller {
             if (error != null) {
                 int code = NetErrors.UNKNOWN_ERROR;
                 Object data = null;
-                if (error instanceof CoreException) {
-                    CoreException coreException = (CoreException) error;
-                    code = coreException.getCode();
-                    data = coreException.getData();
+                if (error instanceof CoreException core) {
+                    code = core.getCode();
+                    data = core.getData();
                 }
                 responseStr =
                         "{\n" +
@@ -139,38 +135,26 @@ public class RemoteCaller {
                                 "    \"code\": \"ok\"\n" +
                                 "}";
             }
-
-            try {
-                if (result instanceof FileMeta && ((FileMeta) result).isTransferFile()) {
-                    responseForFileMeta(((FileMeta) result), response);
-                } else {
-                    response.setContentType("application/json; charset=utf-8");
-                    response.getOutputStream().write(responseStr.getBytes(StandardCharsets.UTF_8));
-                }
-
-            } catch (IOException e) {
-                response.sendError(500, e.getMessage());
-            }
+            afterRegisterAsyncJob(request, response, responseStr);
         });
     }
 
-    public void responseForFileMeta(FileMeta fileMeta, HttpServletResponse response) throws IOException {
-        response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_OCTET_STREAM.getMimeType());
-        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=%s", fileMeta.getFilename()));
-        response.setHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileMeta.getFileSize()));
-        response.setHeader("X-FileMeta-Code", fileMeta.getCode());
-        try (InputStream inputStream = fileMeta.getFileInputStream();
-             OutputStream outputStream = response.getOutputStream()) {
-            long count = 0;
-            int n;
-            byte[] buffer = new byte[8192];
-            while (-1 != (n = inputStream.read(buffer))) {
-                outputStream.write(buffer, 0, n);
-                count += n;
+    protected void afterRegisterAsyncJob(Object result, HttpServletResponse response, String responseStr) throws IOException {
+        try {
+            if (result instanceof FileMeta fileMeta && fileMeta.isTransferFile()) {
+                RemoteCallerUtil.responseForFileMeta(fileMeta, response, log);
+            } else {
+                response.setContentType("application/json; charset=utf-8");
+                response.getOutputStream().write(responseStr.getBytes(StandardCharsets.UTF_8));
             }
-            log.debug("Write file length {}", count);
+
+        } catch (IOException e) {
+            response.sendError(500, e.getMessage());
         }
     }
+
+
+
 
     @NotNull
     private EngineMessageExecutionService getEngineMessageExecutionService() {

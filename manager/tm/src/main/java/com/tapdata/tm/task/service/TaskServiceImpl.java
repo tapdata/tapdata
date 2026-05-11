@@ -37,6 +37,7 @@ import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
 import com.tapdata.tm.lineage.entity.LineageType;
 import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.monitor.service.BatchService;
+import com.tapdata.tm.proxy.utils.RemoteCallerUtil;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
@@ -3133,21 +3134,7 @@ public class TaskServiceImpl extends TaskService{
         io.tapdata.modules.api.net.data.FileMeta fileMeta = callEngineRpc(engineId, io.tapdata.modules.api.net.data.FileMeta.class, className, method, args);
 
         if (fileMeta.isTransferFile()) {
-            response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_OCTET_STREAM.getMimeType());
-            response.setHeader(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=%s", fileMeta.getFilename()));
-            response.setHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileMeta.getFileSize()));
-            response.setHeader("X-FileMeta-Code", fileMeta.getCode());
-            try (InputStream inputStream = fileMeta.getFileInputStream();
-                 OutputStream outputStream = response.getOutputStream()) {
-                long count = 0;
-                int n;
-                byte[] buffer = new byte[8192];
-                while (-1 != (n = inputStream.read(buffer))) {
-                    outputStream.write(buffer, 0, n);
-                    count += n;
-                }
-                log.debug("Write file length {}", count);
-            }
+            RemoteCallerUtil.responseForFileMeta(fileMeta, response, log);
             return;
         }
 

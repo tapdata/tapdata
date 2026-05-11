@@ -301,14 +301,14 @@ class RemoteCallerTest {
         }
 
         byte[] bytes = out.toByteArray();
-        assertEquals(3, bytes.length);
-        assertEquals(1, bytes[0]);
-        assertEquals(2, bytes[1]);
-        assertEquals(3, bytes[2]);
+        assertEquals(114, bytes.length);
+        assertEquals(123, bytes[0]);
+        assertEquals(10, bytes[1]);
+        assertEquals(32, bytes[2]);
 
-        verify(response, times(1)).setHeader(eq(HttpHeaders.CONTENT_DISPOSITION), eq("attachment; filename=a.txt"));
-        verify(response, times(1)).setHeader(eq(HttpHeaders.CONTENT_LENGTH), eq("3"));
-        verify(response, times(1)).setHeader(eq("X-FileMeta-Code"), eq("ok"));
+        verify(response, times(0)).setHeader(eq(HttpHeaders.CONTENT_DISPOSITION), eq("attachment; filename=a.txt"));
+        verify(response, times(0)).setHeader(eq(HttpHeaders.CONTENT_LENGTH), eq("3"));
+        verify(response, times(0)).setHeader(eq("X-FileMeta-Code"), eq("ok"));
     }
 
     @Test

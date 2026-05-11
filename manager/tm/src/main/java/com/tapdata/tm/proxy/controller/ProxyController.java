@@ -10,6 +10,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.proxy.service.impl.RemoteCaller;
+import com.tapdata.tm.proxy.utils.RemoteCallerUtil;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -439,7 +440,7 @@ public class ProxyController extends BaseController {
 				if (error == null) {
 
 					if (result instanceof FileMeta && ((FileMeta) result).isTransferFile()) {
-						remoteCaller.responseForFileMeta((FileMeta) result, response);
+						RemoteCallerUtil.responseForFileMeta((FileMeta) result, response, log);
 						return;
 					}
 

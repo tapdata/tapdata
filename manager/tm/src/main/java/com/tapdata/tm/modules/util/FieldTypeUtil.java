@@ -2,11 +2,16 @@ package com.tapdata.tm.modules.util;
 
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.enums.TableFieldTag;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.entity.Path;
 import io.tapdata.entity.schema.type.TapArray;
+import io.tapdata.entity.schema.type.TapBoolean;
+import io.tapdata.entity.schema.type.TapDate;
+import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapMap;
+import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.type.TapTime;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.simplify.TapSimplify;
 import org.apache.commons.collections4.CollectionUtils;
@@ -35,6 +40,17 @@ public final class FieldTypeUtil {
             "DateTime", "{\"defaultFraction\":3,\"fraction\":3,\"max\":\"9999-12-31T23:59:59.999Z\",\"min\":\"1000-01-01T00:00:00.001Z\",\"type\":1}",
             "Any", "{\"type\": 7}"
     );
+    public static final Map<Class<? extends TapType>, String> FILED_TAP_TYPE = Map.of(
+            TapArray.class, "Array",
+            TapMap.class, "Map",
+            TapBoolean.class, "Boolean",
+            TapNumber.class, "Number",
+            TapString.class, "String",
+            TapTime.class, "Time",
+            TapDate.class, "Date",
+            TapDateTime.class, "DateTime"
+    );
+
     private FieldTypeUtil() {
 
     }
@@ -45,7 +61,12 @@ public final class FieldTypeUtil {
         if (type == null) {
             field.setSimpleTypeName("Any");
         } else {
-            field.setSimpleTypeName(type.getClass().getSimpleName().replace("Tap", ""));
+            String simpleType = FILED_TAP_TYPE.get(type.getClass());
+            if (StringUtils.isEmpty(simpleType)) {
+                field.setSimpleTypeName("Any");
+            } else {
+                field.setSimpleTypeName(simpleType);
+            }
         }
     }
 
@@ -80,19 +101,19 @@ public final class FieldTypeUtil {
     }
 
     public static void genericFieldIfNeed(Field field) {
-        String tag = field.getTag();
-        if (StringUtils.isBlank(field.getTapType()) && TableFieldTag.USER_CREATE.getType().equals(tag)) {
-            String simpleTypeName = field.getSimpleTypeName();
-            if (StringUtils.isBlank(simpleTypeName)) {
-                throw new BizException("schema.field.type.empty");
-            }
-            String tapType = FILED_TYPE.get(simpleTypeName.trim());
-            if (null == tapType) {
-                throw new BizException("schema.field.type.noSupport", simpleTypeName, TapSimplify.toJson(FILED_TYPE.keySet()));
-            }
+        String simpleTypeName = field.getSimpleTypeName();
+        String tapType = StringUtils.isBlank(simpleTypeName) ? null : FILED_TYPE.get(simpleTypeName.trim());
+        if (StringUtils.isNotBlank(simpleTypeName) && null == tapType) {
+            throw new BizException("schema.field.type.noSupport", simpleTypeName, TapSimplify.toJson(FILED_TYPE.keySet()));
+        }
+        if (StringUtils.isBlank(simpleTypeName) && StringUtils.isBlank(field.getTapType())) {
+            throw new BizException("schema.field.type.empty");
+        }
+        if (StringUtils.isBlank(simpleTypeName)) {
+            parseTapType(field);
+        } else {
             field.setTapType(tapType);
         }
-
         String fieldName = field.getFieldName();
         if (StringUtils.isBlank(fieldName)) {
             throw new BizException("schema.field.name.empty");
