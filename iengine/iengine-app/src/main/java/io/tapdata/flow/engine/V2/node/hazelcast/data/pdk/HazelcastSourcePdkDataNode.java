@@ -119,6 +119,7 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
+import io.tapdata.pdk.core.utils.RetryLifeCycle;
 import io.tapdata.pdk.core.utils.RetryUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
@@ -1132,6 +1133,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 				sendCdcStartedEvent();
 				PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
+				// Async stream-read retries never set doRetry=true, so invokerRetrySetter
+				// above skips clearing. Drive the clear explicitly when a retry is in flight.
+				clearRetryLabelIfRetrying(pdkMethodInvoker);
 				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
@@ -1156,6 +1160,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				tapdataEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
 			}
 		}
+	}
+
+	private void clearRetryLabelIfRetrying(PDKMethodInvoker pdkMethodInvoker) {
+		if (null == pdkMethodInvoker) return;
+		RetryLifeCycle lifeCycle = pdkMethodInvoker.getRetryLifeCycle();
+		if (!(lifeCycle instanceof TaskRetryLifeCycle)) return;
+		if (!((TaskRetryLifeCycle) lifeCycle).isRetrying()) return;
+		lifeCycle.success();
+		Optional.ofNullable(pdkMethodInvoker.getClearFunctionRetry()).ifPresent(Runnable::run);
+		Optional.ofNullable(pdkMethodInvoker.getResetRetry()).ifPresent(Runnable::run);
 	}
 
 	protected void sendCdcStartedEvent() {

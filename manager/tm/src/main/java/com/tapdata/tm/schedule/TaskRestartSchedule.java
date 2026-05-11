@@ -21,7 +21,6 @@ import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -61,12 +60,6 @@ public class TaskRestartSchedule {
     private TransformSchemaService transformSchema;
     private MetadataDefinitionService metadataDefinitionService;
 
-    @Setter(AccessLevel.NONE)
-    private long lastCheckTime = 0L;
-
-    // TM启动时间
-    private static final long TM_START_TIME = System.currentTimeMillis();
-
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
      */
@@ -91,29 +84,14 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 600 * 1000, fixedDelay = 5000)
-    @SchedulerLock(name ="engineRestartNeedStartTask_lock2", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(initialDelay = 30 * 1000, fixedDelay = 30 * 1000)
+    @SchedulerLock(name ="engineRestartNeedStartTask_lock2", lockAtMostFor = "60s", lockAtLeastFor = "30s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
-
-        // 检查TM自身启动时间，如果小于10分钟则直接返回
-        long currentTime = System.currentTimeMillis();
-        long tmRunningTime = currentTime - getTmStartTime();
-        if (tmRunningTime < 600000L) { // 10分钟 = 600000毫秒
-            log.debug("TM started less than 10 minutes ago, skipping engineRestartNeedStartTask. TM running time: {} ms ({} minutes)",
-                tmRunningTime, tmRunningTime / 1000 / 60);
-            return;
-        }
 
         //云版不需要这个重新调度的逻辑
         boolean isCloud = isCloud();
         long heartExpire = getHeartExpire();
-
-        if (System.currentTimeMillis() - lastCheckTime < heartExpire / 2) {
-            return;
-        }
-
-        lastCheckTime = System.currentTimeMillis();
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("pingTime").lt(System.currentTimeMillis() - heartExpire);
@@ -156,7 +134,8 @@ public class TaskRestartSchedule {
         if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
             heartExpire = Long.parseLong(settings.getValue().toString());
         } else {
-            heartExpire = 1800000L;
+            heartExpire = 300000L;
+            log.warn("getHeartExpire: JOB_HEART_TIMEOUT not found in Settings, using default {}ms", heartExpire);
         }
         return heartExpire;
     }
@@ -329,6 +308,37 @@ public class TaskRestartSchedule {
         }
     }
 
+    @Scheduled(fixedDelay = 60000)
+    @SchedulerLock(name = "retrySchedulingFailedTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    public void retrySchedulingFailedTask() {
+        Thread.currentThread().setName("taskSchedule-retrySchedulingFailed");
+        if (isCloud()) return;
+
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULE_FAILED)
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - 60000L));
+        List<TaskDto> all = taskService.findAll(Query.query(criteria));
+        if (CollectionUtils.isEmpty(all)) return;
+
+        Map<String, UserDetail> userDetailMap = getUserDetailMap(all);
+        Map<String, List<Worker>> userWorkerMap = this.getUserWorkMap();
+        if (userWorkerMap == null || userWorkerMap.isEmpty()) return;
+
+        for (TaskDto taskDto : all) {
+            UserDetail user = userDetailMap.get(taskDto.getUserId());
+            if (null == user) continue;
+            List<Worker> workerList = getUserWorkList(false, userWorkerMap, user.getUserId());
+            if (CollectionUtils.isNotEmpty(workerList)) {
+                StateMachineResult result = stateMachineService.executeAboutTask(
+                        taskDto, DataFlowEvent.OVERTIME, user);
+                if (result.isOk()) {
+                    log.info("Auto-retrying scheduling_failed task [{}]", taskDto.getName());
+                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
+                    taskScheduleService.scheduling(taskDto, user);
+                }
+            }
+        }
+    }
+
     protected void asyncTaskWarnLog(TaskDto taskDto, UserDetail user, String template, Object... arguments) {
         CompletableFuture.runAsync(() -> {
             String msg = MessageFormat.format(template, arguments);
@@ -336,11 +346,4 @@ public class TaskRestartSchedule {
         });
     }
 
-    /**
-     * 获取TM启动时间
-     * @return TM启动时间戳
-     */
-    private long getTmStartTime() {
-        return TM_START_TIME;
-    }
 }

@@ -75,6 +75,17 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     private MongoTemplate mongoTemplate;
     private AgentGroupService agentGroupService;
 
+    private final java.util.concurrent.ThreadPoolExecutor statusInfoExecutor =
+        new java.util.concurrent.ThreadPoolExecutor(
+            1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+            new java.util.concurrent.LinkedBlockingQueue<>(16),
+            r -> {
+                Thread t = new Thread(r, "cluster-statusInfo-writer");
+                t.setDaemon(true);
+                return t;
+            },
+            new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy());
+
     public ClusterStateService(@NonNull ClusterStateRepository repository) {
         super(repository, ClusterStateDto.class, ClusterStateEntity.class);
     }
@@ -308,7 +319,9 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         String uuid = (String) systemInfo.get("uuid");
 
         Date now = new Date();
-        Double newTtl = now.getTime() + reportInterval * 2;
+        // TTL 缓冲取 max(reportInterval*3, 60s)：吸收 MongoDB primary 切换窗口里单次 upsert 的瞬时阻塞
+        long intervalMs = reportInterval == null ? 0L : reportInterval.longValue();
+        long newTtl = now.getTime() + Math.max(intervalMs * 3, 60_000L);
 
         Query query = Query.query(Criteria.where("systemInfo.uuid").is(uuid));
 
@@ -319,12 +332,17 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         update.set("status", "running");
         update.set("uuid",uuid);
         update.setOnInsert("insertTime", now);
-        update.set("ttl", new Date(newTtl.longValue()));
+        update.set("ttl", new Date(newTtl));
         update.set("last_updated",new Date());
         log.info("insert ClusterState data:{} ", JSON.toJSONString(update));
 
-        repository.getMongoOperations().upsert(query, update, "ClusterState");
-
+        statusInfoExecutor.execute(() -> {
+            try {
+                repository.getMongoOperations().upsert(query, update, "ClusterState");
+            } catch (Exception e) {
+                log.warn("ClusterState upsert failed for uuid={}, will retry on next statusInfo", uuid, e);
+            }
+        });
     }
 
 
@@ -393,9 +411,31 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             return;
         }
 
+        List<String> candidateProcessIds = list.stream()
+                .map(c -> c.getSystemInfo() == null ? null : c.getSystemInfo().getProcess_id())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        Set<String> aliveProcessIds = new HashSet<>();
+        if (!candidateProcessIds.isEmpty()) {
+            List<Worker> aliveWorkers = workerService.findAvailableAgentBySystem(candidateProcessIds);
+            if (aliveWorkers != null) {
+                aliveWorkers.forEach(w -> aliveProcessIds.add(w.getProcessId()));
+            }
+        }
+        List<ObjectId> idsToStop = list.stream()
+                .filter(c -> c.getSystemInfo() != null
+                        && !aliveProcessIds.contains(c.getSystemInfo().getProcess_id()))
+                .map(ClusterStateDto::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (idsToStop.isEmpty()) {
+            return;
+        }
+
+        Query stopQuery = Query.query(Criteria.where("_id").in(idsToStop));
         Update update = new Update();
         update.set("status", "stopped");
-        mongoTemplate.updateFirst(query, update, ClusterStateEntity.class);
+        mongoTemplate.updateMulti(stopQuery, update, ClusterStateEntity.class);
     }
 
     public Page<ClusterStateDto> getAll(Filter filter) {
@@ -409,15 +449,20 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             Optional.ofNullable(workers).ifPresent(w -> w.forEach(k -> availableProcessIds.add(k.getProcessId())));
 
             items.forEach(m -> {
-                Optional.ofNullable(m.getManagement()).ifPresent(management -> management.setServiceStatus(management.getStatus()));
-                Optional.ofNullable(m.getApiServer()).ifPresent(api -> api.setServiceStatus(api.getStatus()));
-                Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
-                    if (availableProcessIds.contains(m.getSystemInfo().getProcess_id())) {
-                        fe.setServiceStatus(fe.getStatus());
-                    } else {
-                        fe.setServiceStatus("stopped");
-                    }
+                boolean workerAlive = availableProcessIds.contains(m.getSystemInfo().getProcess_id());
+                if (workerAlive && "stopped".equals(m.getStatus())) {
+                    m.setStatus("running");
+                }
+                boolean clusterStopped = "stopped".equals(m.getStatus()) && !workerAlive;
 
+                Optional.ofNullable(m.getManagement()).ifPresent(management -> {
+                    management.setServiceStatus(clusterStopped ? "stopped" : management.getStatus());
+                });
+                Optional.ofNullable(m.getApiServer()).ifPresent(api -> {
+                    api.setServiceStatus(clusterStopped ? "stopped" : api.getStatus());
+                });
+                Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
+                    fe.setServiceStatus(clusterStopped ? "stopped" : fe.getStatus());
                 });
             });
         });

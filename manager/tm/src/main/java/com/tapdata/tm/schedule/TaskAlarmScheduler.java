@@ -55,7 +55,7 @@ public class TaskAlarmScheduler {
     private SettingsService settingsService;
     private AgentGroupService agentGroupService;
 
-    @Scheduled(cron = "0 0/5 * * * ? ")
+    @Scheduled(fixedDelay = 30000)
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
 			Thread.currentThread().setName(getClass().getSimpleName() + "-taskAgentAlarm");
@@ -105,50 +105,41 @@ public class TaskAlarmScheduler {
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         for (TaskDto data : taskList) {
-            UserDetail userDetail = userDetailMap.get(data.getUserId());
-            boolean checkOpen = alarmService.checkOpen(data, null, AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN, null, userDetail);
-            if (!checkOpen) {
-                continue;
-            }
+            try {
+                UserDetail userDetail = userDetailMap.get(data.getUserId());
+                boolean checkOpen = alarmService.checkOpen(data, null, AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN, null, userDetail);
+                if (!checkOpen) {
+                    continue;
+                }
 
-            List<Worker> workerList = findWorkerList(data, userDetail);
+                List<Worker> workerList = findWorkerList(data, userDetail);
 
-            String orginAgentId = data.getAgentId();
-            AtomicReference<String> summary = new AtomicReference<>();
-            Map<String, Object> param = Maps.newHashMap();
-            String alarmDate = DateUtil.now();
-            param.put("alarmDate", alarmDate);
-            param.put("taskName", data.getName());
-            param.put("agentName", orginAgentId);
-            if (CollectionUtils.isEmpty(workerList)) {
-                FunctionUtils.isTureOrFalse(isCloud).trueOrFalseHandle(
-                        () -> summary.set("SYSTEM_FLOW_EGINGE_DOWN_CLOUD"),
-                        () -> summary.set("SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT")
-                );
-            } else {
-                if (isCloud) {
-                    summary.set("SYSTEM_FLOW_EGINGE_DOWN_CLOUD");
+                String orginAgentId = data.getAgentId();
+                AtomicReference<String> summary = new AtomicReference<>();
+                Map<String, Object> param = Maps.newHashMap();
+                String alarmDate = DateUtil.now();
+                param.put("alarmDate", alarmDate);
+                param.put("taskName", data.getName());
+                param.put("agentName", orginAgentId);
+                if (CollectionUtils.isEmpty(workerList)) {
+                    FunctionUtils.isTureOrFalse(isCloud).trueOrFalseHandle(
+                            () -> summary.set("SYSTEM_FLOW_EGINGE_DOWN_CLOUD"),
+                            () -> summary.set("SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT")
+                    );
                 } else {
-                    data.setAgentId(null);
-                    CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(data, userDetail, "task", data.getName());
-                    param.put("number", workerList.size());
-                    param.put("otherAgentName", calculationEngineVo.getProcessId());
-                    summary.set("SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT");
-                    orginAgentId = calculationEngineVo.getProcessId();
+                    summary.set("SYSTEM_FLOW_EGINGE_DOWN_CLOUD");
                 }
 
-                if (!isCloud) {
-                    taskService.start(data, userDetail, "11", true);
-                }
+                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
+                        .name(data.getName()).summary(summary.get()).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
+                        .build();
+                alarmInfo.setParam(param);
+                alarmInfo.setUserId(data.getUserId());
+                alarmService.save(alarmInfo);
+            } catch (Exception e) {
+                log.error("taskAgentAlarm: failed to handle agent alarm for task [{}]: {}", data.getName(), e.getMessage(), e);
             }
-
-            AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
-                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
-                    .name(data.getName()).summary(summary.get()).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
-                    .build();
-            alarmInfo.setParam(param);
-            alarmInfo.setUserId(data.getUserId());
-            alarmService.save(alarmInfo);
         }
     }
 

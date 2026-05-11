@@ -6,7 +6,6 @@ import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoDriverInformation;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
-import com.mongodb.client.internal.MongoClientImpl;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.*;
@@ -194,8 +193,9 @@ public class ConnectorManager {
         // change 60s to 300s, because DFS fault usually lasts longer than 1 minute
         long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", AppType.currentType().isCloud() ? 300000L : 60000L);
         long minRestApiTimeout = CommonUtils.getPropertyLong("MINIMUM_REST_API_TIMEOUT", 30000L);
+        long maxRestApiTimeout = CommonUtils.getPropertyLong("MAX_REST_API_TIMEOUT", AppType.currentType().isCloud() ? 300000L : 120000L);
         long jobHeartTimeout = settingService.getLong("jobHeartTimeout", defRestApiTimeout);
-        return Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout);
+        return Math.min(Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout), maxRestApiTimeout);
     };
 
 	@PostConstruct
@@ -516,7 +516,11 @@ public class ConnectorManager {
 	@Bean("restTemplateOperator")
 	public RestTemplateOperator initRestTemplate() {
 		initVariable();
-		restTemplateOperator = new RestTemplateOperator(baseURLs, restRetryTime, getRetryTimeoutSupplier);
+		int connectTimeout = (int) CommonUtils.getPropertyLong("REST_CONNECT_TIMEOUT", 5000L);
+		int readTimeout = (int) CommonUtils.getPropertyLong("REST_READ_TIMEOUT", 15000L);
+		int connectRequestTimeout = (int) CommonUtils.getPropertyLong("REST_CONNECT_REQUEST_TIMEOUT", 5000L);
+		restTemplateOperator = new RestTemplateOperator(baseURLs, restRetryTime, getRetryTimeoutSupplier,
+				connectTimeout, readTimeout, connectRequestTimeout);
 
 		return restTemplateOperator;
 	}
@@ -578,37 +582,66 @@ public class ConnectorManager {
 	@Bean("pingClientMongoOperator")
 	@DependsOn({"restTemplateOperator", "configCenter"})
 	public ClientMongoOperator initPingMongoOperator() {
-		MongoTemplate mongoTemplate = null;
-		MongoClient client = null;
 		try {
-			if (StringUtils.isNotBlank(mongoURI)) {
-				MongoClientSettings.Builder builder = MongoClientSettings.builder();
-				builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
-				builder.applyConnectionString(new ConnectionString(mongoURI));
+			MongoClient client = createMongoClient();
+			MongoTemplate mongoTemplate = createMongoTemplate(client);
 
-				if (ssl) {
-					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
-					String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
-					List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
-
-					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
-					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
-				}
-				client = MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
-				mongoTemplate = new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
-			}
-			pingClientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, new ConnectionString(mongoURI) ,new RestTemplateOperator(
+			RestTemplateOperator pingRestTemplateOperator = new RestTemplateOperator(
 					baseURLs,
 					restRetryTime,
-					() -> {
-						return 2000L;
-					}, 1000, 30000, 30000
-			), configCenter);
+					() -> 5000L,
+					1000,
+					3000,
+					3000
+			);
+
+			pingClientMongoOperator = new HttpClientMongoOperator(
+					mongoTemplate,
+					client,
+					new ConnectionString(mongoURI),
+					pingRestTemplateOperator,
+					configCenter
+			);
 			pingClientMongoOperator.setCloudRegion(jobTags);
+			return pingClientMongoOperator;
 		} catch (Exception e) {
-			throw new RuntimeException(e);
+			throw new RuntimeException("Failed to initialize ping MongoDB operator", e);
 		}
-		return pingClientMongoOperator;
+	}
+
+	/**
+	 * 创建 MongoClient 实例
+	 *
+	 * @return MongoClient 实例
+	 * @throws Exception 创建失败时抛出异常
+	 */
+	private MongoClient createMongoClient() throws Exception {
+		if (StringUtils.isBlank(mongoURI)) {
+			return null;
+		}
+
+		MongoClientSettings.Builder builder = MongoClientSettings.builder();
+		builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
+		builder.applyConnectionString(new ConnectionString(mongoURI));
+
+		if (ssl) {
+			List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
+			String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
+			List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
+
+			SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
+			builder.applyToSslSettings(sslSettingsBuilder -> {
+				sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();
+			});
+		}
+		return MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
+	}
+
+	private MongoTemplate createMongoTemplate(MongoClient client) {
+		if (client == null) {
+			return null;
+		}
+		return new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
 	}
 
 	@Bean("targetProgressRateStats")

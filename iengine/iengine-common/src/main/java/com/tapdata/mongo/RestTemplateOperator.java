@@ -24,6 +24,8 @@ import org.apache.hc.client5.http.entity.GzipCompressingEntity;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.core5.util.TimeValue;
 
 import org.apache.hc.core5.http.HttpEntityContainer;
 import org.apache.hc.core5.http.NoHttpResponseException;
@@ -149,12 +151,22 @@ public class RestTemplateOperator {
 	private ClientHttpRequestFactory getRequestFactory(int connectTimeout, int readTimeout, int connectRequestTimeout) {
 		int threshold = 1024;
 
-		PoolingHttpClientConnectionManager poolingHttpClientConnectionManager = new PoolingHttpClientConnectionManager();
-		poolingHttpClientConnectionManager.setMaxTotal(2000);
-		poolingHttpClientConnectionManager.setDefaultMaxPerRoute(2000);
+		long connTtlSeconds = CommonUtils.getPropertyLong("HTTP_CONN_TTL_SECONDS", 30L);
+		long connIdleSeconds = CommonUtils.getPropertyLong("HTTP_CONN_IDLE_SECONDS", 30L);
+		long connValidateAfterSeconds = CommonUtils.getPropertyLong("HTTP_CONN_VALIDATE_AFTER_SECONDS", 5L);
+
+		PoolingHttpClientConnectionManager poolingHttpClientConnectionManager =
+				PoolingHttpClientConnectionManagerBuilder.create()
+						.setMaxConnTotal(2000)
+						.setMaxConnPerRoute(2000)
+						.setConnectionTimeToLive(TimeValue.ofSeconds(connTtlSeconds))
+						.setValidateAfterInactivity(TimeValue.ofSeconds(connValidateAfterSeconds))
+						.build();
 		CloseableHttpClient httpClient = HttpClientBuilder.create()
 				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build())
 				.disableAutomaticRetries()
+				.evictExpiredConnections()
+				.evictIdleConnections(TimeValue.ofSeconds(connIdleSeconds))
 				.addRequestInterceptorFirst((request, entityDetails, context) -> {
 					if(request instanceof HttpEntityContainer entityContainer && entityDetails != null){
                         if (entityDetails instanceof ByteArrayEntity byteArrayEntity) {
@@ -728,11 +740,9 @@ public class RestTemplateOperator {
 				break;
 			} catch (Exception e) {
 				boolean changeURL = true;
-				// TmUnavailableException need to retry for cloud
+				// TmUnavailableException: retry in all modes to handle F5 VIP failover scenarios
 				if (e instanceof TmUnavailableException) {
-					if (!AppType.currentType().isCloud()) {
-						throw (TmUnavailableException) e;
-					}
+					// allow retry with URL switching for all deployment modes
 				} else if (e instanceof HttpClientErrorException) {
 					// If the parameter is incorrect, no retry will be performed
 					if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {

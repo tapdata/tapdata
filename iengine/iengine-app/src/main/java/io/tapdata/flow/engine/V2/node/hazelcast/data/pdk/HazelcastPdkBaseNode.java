@@ -90,6 +90,12 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
+	/**
+	 * taskId -> (invoker -> cleanup). Lets out-of-band fallbacks (e.g. the 1-hour task-retry
+	 * timeout in TapdataTaskScheduler) clear the per-invoker retry label without touching
+	 * tapdata-common-lib. Each entry self-deregisters via removePdkMethodInvoker().
+	 */
+	private static final ConcurrentHashMap<String, ConcurrentHashMap<PDKMethodInvoker, Runnable>> TASK_RETRY_CLEANUP_HOOKS = new ConcurrentHashMap<>();
 	protected String associateId;
 	protected TapLogger.LogListener logListener;
 	private final List<PDKMethodInvoker> pdkMethodInvokerList = new CopyOnWriteArrayList<>();
@@ -178,7 +184,30 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				.clearFunctionRetry(() -> cleanFunctionRetry(taskDto.getId().toHexString()))
 				.retryLifeCycle(createRetryLifeCycle());
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
+		String taskIdHex = taskDto.getId().toHexString();
+		Runnable cleanupHook = () -> {
+			RetryLifeCycle rlc = pdkMethodInvoker.getRetryLifeCycle();
+			if (rlc instanceof TaskRetryLifeCycle && ((TaskRetryLifeCycle) rlc).isRetrying()) {
+				rlc.success();
+			}
+			cleanFunctionRetry(taskIdHex);
+		};
+		TASK_RETRY_CLEANUP_HOOKS
+				.computeIfAbsent(taskIdHex, k -> new ConcurrentHashMap<>())
+				.put(pdkMethodInvoker, cleanupHook);
 		return pdkMethodInvoker;
+	}
+
+	public static void triggerTaskRetryCleanupHooks(String taskId) {
+		if (null == taskId) return;
+		ConcurrentHashMap<PDKMethodInvoker, Runnable> hooks = TASK_RETRY_CLEANUP_HOOKS.get(taskId);
+		if (null == hooks) return;
+		for (Runnable hook : hooks.values()) {
+			try {
+				hook.run();
+			} catch (Throwable ignored) {
+			}
+		}
 	}
 
 	public void signFunctionRetry(String taskId) {
@@ -218,6 +247,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
 		if (null == pdkMethodInvoker) return;
 		pdkMethodInvokerList.remove(pdkMethodInvoker);
+		String taskIdHex = processorBaseContext.getTaskDto().getId().toHexString();
+		TASK_RETRY_CLEANUP_HOOKS.computeIfPresent(taskIdHex, (k, m) -> {
+			m.remove(pdkMethodInvoker);
+			return m.isEmpty() ? null : m;
+		});
 	}
 
 	protected void connectorNodeInit(DataProcessorContext dataProcessorContext) {
@@ -552,49 +586,57 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	public RetryLifeCycle createRetryLifeCycle() {
-		return new SampleRetryLifeCycle() {
-			@Override
-			public void onChange() {
-				boolean retrying = startRetryTs.get() > 0 && success == null;
-				long retryTimes = this.retryTimes.get();
-				long startRetryTs = this.startRetryTs.get();
-				Long endRetryTs = this.endRetryTs.get() > 0 ? this.endRetryTs.get() : null;
-				Long nextRetryTs = getNextRetryTimestamp();
-				Long totalRetries = this.totalRetries.get();
-				String retryOp = this.retryOp;
-				Boolean success = this.success;
+		return new TaskRetryLifeCycle();
+	}
 
-				if (retrying) {
-					if (obsLogger != null)
-					obsLogger.info("Retry operation {}, retry times {}, first retry time {}{}", retryOp,
-							totalRetries != null ? String.format("%s/%s", retryTimes, totalRetries) : retryTimes,
-							DateFormatUtils.format(startRetryTs, "yyyy-MM-dd HH:mm:ss"),
-							nextRetryTs != null ? String.format(", next retry time %s", DateFormatUtils.format(nextRetryTs, "yyyy-MM-dd HH:mm:ss")) : "");
-				} else {
-					long endAt = endRetryTs != null ? endRetryTs : System.currentTimeMillis();
-					if (obsLogger != null)
-					obsLogger.info("Retry operation {} {}, total cost {}", retryOp,
-							Boolean.TRUE.equals(success) ? "success" : "failed",
-							DateUtil.microseondsToStringTime((endAt - startRetryTs) * 1000));
-				}
+	public class TaskRetryLifeCycle extends SampleRetryLifeCycle {
+		public boolean isRetrying() {
+			return startRetryTs.get() > 0 && success == null;
+		}
 
-				AspectUtils.executeDataFuncAspect(RetryLifeCycleAspect.class, () -> {
-					RetryLifeCycleAspect aspect = new RetryLifeCycleAspect();
+		@Override
+		public void onChange() {
+			boolean retrying = startRetryTs.get() > 0 && success == null;
+			long retryTimes = this.retryTimes.get();
+			long startRetryTs = this.startRetryTs.get();
+			Long endRetryTs = this.endRetryTs.get() > 0 ? this.endRetryTs.get() : null;
+			Long nextRetryTs = getNextRetryTimestamp();
+			Long totalRetries = this.totalRetries.get();
+			String retryOp = this.retryOp;
+			Boolean success = this.success;
 
-					aspect.setRetrying(retrying);
-					aspect.setRetryTimes(retryTimes);
-					aspect.setStartRetryTs(startRetryTs);
-					aspect.setEndRetryTs(endRetryTs);
-					aspect.setNextRetryTs(nextRetryTs);
-					aspect.setTotalRetries(totalRetries);
-					aspect.setRetryOp(retryOp);
-					aspect.setSuccess(success);
-
-					return aspect;
-				}, aspect -> {
-					aspect.dataProcessorContext(getDataProcessorContext());
-				});
+			if (retrying) {
+				if (obsLogger != null)
+				obsLogger.info("Retry operation {}, retry times {}, first retry time {}{}", retryOp,
+						totalRetries != null ? String.format("%s/%s", retryTimes, totalRetries) : retryTimes,
+						DateFormatUtils.format(startRetryTs, "yyyy-MM-dd HH:mm:ss"),
+						nextRetryTs != null ? String.format(", next retry time %s", DateFormatUtils.format(nextRetryTs, "yyyy-MM-dd HH:mm:ss")) : "");
+			} else {
+				long endAt = endRetryTs != null ? endRetryTs : System.currentTimeMillis();
+				if (obsLogger != null)
+				obsLogger.info("Retry operation {} {}, total cost {}", retryOp,
+						Boolean.TRUE.equals(success) ? "success" : "failed",
+						DateUtil.microseondsToStringTime((endAt - startRetryTs) * 1000));
 			}
-		};
+
+			AspectUtils.executeDataFuncAspect(RetryLifeCycleAspect.class, () -> {
+				RetryLifeCycleAspect aspect = new RetryLifeCycleAspect();
+
+				aspect.setRetrying(retrying);
+				aspect.setRetryTimes(retryTimes);
+				aspect.setStartRetryTs(startRetryTs);
+				aspect.setEndRetryTs(endRetryTs);
+				aspect.setNextRetryTs(nextRetryTs);
+				aspect.setTotalRetries(totalRetries);
+				aspect.setRetryOp(retryOp);
+				aspect.setSuccess(success);
+
+				return aspect;
+			}, aspect -> {
+				if (aspect != null) {
+					aspect.dataProcessorContext(getDataProcessorContext());
+				}
+			});
+		}
 	}
 }
