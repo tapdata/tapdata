@@ -466,4 +466,49 @@ class MapUtilTest {
 			assertTrue(((Map<?, ?>) ((List<?>) map.get("l")).get(0)).containsKey("C"));
 		}
 	}
+
+	@Nested
+	@DisplayName("More branches test")
+	class moreBranchesTest {
+		@Test
+		void testGetValueByKeyTrimQuotes() {
+			Map<String, Object> map = new HashMap<>();
+			map.put("a", 1);
+			assertEquals(1, MapUtil.getValueByKey(map, "\"a\""));
+		}
+
+		@Test
+		void testRemoveValueByKeyInvalidSplitShouldSkipLoop() {
+			Map<String, Object> map = new HashMap<>();
+			map.put("a", new HashMap<>(Map.of("b", 1)));
+			assertFalse(MapUtil.removeValueByKey(map, "a..b"));
+		}
+
+		@Test
+		@SneakyThrows
+		void testPutValueInMapListEmptyShouldCreateMapInList() {
+			Map<String, Object> map = new HashMap<>();
+			map.put("l", new ArrayList<>());
+			MapUtil.putValueInMap(map, "l.k", "v", "");
+			assertEquals("v", ((Map<?, ?>) ((List<?>) map.get("l")).get(0)).get("k"));
+		}
+
+		@Test
+		void testRecursiveMapWhenLoadSchemaAndFlatMap() {
+			Map<String, Object> data = new LinkedHashMap<>();
+			data.put("a", 1);
+			data.put("m", new LinkedHashMap<>(Map.of("b", 2)));
+			data.put("l", new ArrayList<>(List.of(new LinkedHashMap<>(Map.of("c", 3)))));
+
+			List<com.tapdata.entity.RelateDatabaseField> fields = new ArrayList<>();
+			MapUtil.recursiveMapWhenLoadSchema(fields, data, "t1", "");
+			assertTrue(fields.size() >= 3);
+
+			Map<String, Object> flat = new HashMap<>();
+			MapUtil.recursiveFlatMap(data, flat, "");
+			assertEquals(1, flat.get("a"));
+			assertEquals(2, flat.get("m.b"));
+			assertEquals(new ArrayList<>(List.of(new LinkedHashMap<>(Map.of("c", 3)))), flat.get("l"));
+		}
+	}
 }

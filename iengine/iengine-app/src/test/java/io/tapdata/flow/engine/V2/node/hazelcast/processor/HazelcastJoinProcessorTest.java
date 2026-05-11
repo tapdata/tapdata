@@ -842,4 +842,64 @@ public class HazelcastJoinProcessorTest extends BaseHazelcastNodeTest {
         return imap;
     }
 
+    @Test
+    void testAppendIMap_WhenKeyExists_ShouldFlushAndClear() throws Exception {
+        BytesIMap<Map<String, Map<String, Object>>> joinCache = mock(BytesIMap.class);
+        Map<String, Map<String, Map<String, Object>>> cache = new HashMap<>();
+        cache.put("k1", new HashMap<>(Map.of("[1]", new HashMap<>(Map.of("id", 1)))));
+
+        ReflectionTestUtils.setField(hazelcastJoinProcessor, "maxBatchSize", 1000);
+        var m = HazelcastJoinProcessor.class.getDeclaredMethod("appendIMap", String.class, Map.class, Map.class, BytesIMap.class);
+        m.setAccessible(true);
+
+        Map<String, Map<String, Object>> newValue = new HashMap<>(Map.of("[2]", new HashMap<>(Map.of("id", 2))));
+        m.invoke(hazelcastJoinProcessor, "k1", newValue, cache, joinCache);
+
+        verify(joinCache, times(1)).insertMany(org.mockito.ArgumentMatchers.anyMap());
+        Assertions.assertTrue(cache.containsKey("k1"));
+        Assertions.assertEquals(newValue, cache.get("k1"));
+    }
+
+    @Test
+    void testAppendIMap_WhenOverBatch_ShouldFlushAndClear() throws Exception {
+        BytesIMap<Map<String, Map<String, Object>>> joinCache = mock(BytesIMap.class);
+        Map<String, Map<String, Map<String, Object>>> cache = new HashMap<>();
+
+        ReflectionTestUtils.setField(hazelcastJoinProcessor, "maxBatchSize", 0);
+        var m = HazelcastJoinProcessor.class.getDeclaredMethod("appendIMap", String.class, Map.class, Map.class, BytesIMap.class);
+        m.setAccessible(true);
+
+        m.invoke(
+                hazelcastJoinProcessor,
+                "k2",
+                new HashMap<>(Map.of("[3]", new HashMap<>(Map.of("id", 3)))),
+                cache,
+                joinCache
+        );
+
+        verify(joinCache, times(1)).insertMany(org.mockito.ArgumentMatchers.anyMap());
+        Assertions.assertTrue(cache.isEmpty());
+    }
+
+    @Test
+    void testFindAndExists_ShouldPreferLocalCache() throws Exception {
+        BytesIMap<Map<String, Map<String, Object>>> joinCache = mock(BytesIMap.class);
+        Map<String, Map<String, Map<String, Object>>> cache = new HashMap<>();
+        Map<String, Map<String, Object>> v = new HashMap<>(Map.of("[1]", new HashMap<>(Map.of("id", 1))));
+        cache.put("k", v);
+
+        var findM = HazelcastJoinProcessor.class.getDeclaredMethod("find", String.class, Map.class, BytesIMap.class);
+        findM.setAccessible(true);
+        Object found = findM.invoke(hazelcastJoinProcessor, "k", cache, joinCache);
+        Assertions.assertEquals(v, found);
+
+        var existsM = HazelcastJoinProcessor.class.getDeclaredMethod("exists", String.class, Map.class, BytesIMap.class);
+        existsM.setAccessible(true);
+        Object exists = existsM.invoke(hazelcastJoinProcessor, "k", cache, joinCache);
+        Assertions.assertEquals(Boolean.TRUE, exists);
+
+        verify(joinCache, times(0)).find(org.mockito.ArgumentMatchers.anyString());
+        verify(joinCache, times(0)).exists(org.mockito.ArgumentMatchers.anyString());
+    }
+
 }

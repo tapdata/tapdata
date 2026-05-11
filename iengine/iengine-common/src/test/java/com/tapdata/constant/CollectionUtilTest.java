@@ -147,6 +147,17 @@ class CollectionUtilTest {
 	}
 
 	@Test
+	@DisplayName("Method putTapListInList should ignore negative index entries")
+	void testPutTapListInList_ShouldIgnoreNegativeIndex() throws Exception {
+		List<Object> list = new ArrayList<>();
+		TapList tapList = new TapList();
+		((List) tapList).add(new HashMap<>(Map.of(TapList.INDEX, -1, TapList.VALUE, "v")));
+
+		CollectionUtil.putTapListInList(list, "k", tapList);
+		assertTrue(list.isEmpty());
+	}
+
+	@Test
 	@DisplayName("Method removeKeyFromList should remove empty maps and return removed flag")
 	void testRemoveKeyFromList() {
 		List<Object> list = new ArrayList<>();
@@ -167,6 +178,19 @@ class CollectionUtilTest {
 		assertEquals(1, list2.size());
 
 		assertFalse(CollectionUtil.removeKeyFromList(new ArrayList<>(), "a"));
+	}
+
+	@Test
+	@DisplayName("Method removeKeyFromList should still call remove when already removed")
+	void testRemoveKeyFromList_WhenAlreadyRemoved_ShouldContinue() {
+		List<Object> list = new ArrayList<>();
+		list.add(new HashMap<>(Map.of("a", 1)));
+		list.add(new HashMap<>(Map.of("a", 2)));
+		list.add(new HashMap<>(Map.of("b", 3)));
+
+		assertTrue(CollectionUtil.removeKeyFromList(list, "a"));
+		assertEquals(1, list.size());
+		assertEquals(Map.of("b", 3), list.get(0));
 	}
 
 	@Test

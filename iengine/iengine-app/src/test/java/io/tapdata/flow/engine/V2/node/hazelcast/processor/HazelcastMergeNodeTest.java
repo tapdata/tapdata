@@ -3653,5 +3653,62 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		}
 
 	}
-}
 
+	@Nested
+	@DisplayName("autoMarkIsArrayByParentModel / selfCheckMergeTableProperties test")
+	class AutoMarkAndSelfCheckTest {
+		@Test
+		@DisplayName("selfCheckMergeTableProperties should mark children array and arrayPath")
+		void testSelfCheckMergeTableProperties() throws Exception {
+			MergeTableProperties parent = new MergeTableProperties();
+			parent.setMergeType(MergeTableProperties.MergeType.updateIntoArray);
+			parent.setTargetPath("arrField");
+
+			MergeTableProperties child = new MergeTableProperties();
+			child.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			child.setArray(false);
+			child.setArrayPath(null);
+			parent.setChildren(Collections.singletonList(child));
+
+			var m = HazelcastMergeNode.class.getDeclaredMethod("selfCheckMergeTableProperties", List.class);
+			m.setAccessible(true);
+			m.invoke(hazelcastMergeNode, Collections.singletonList(parent));
+
+			assertTrue(child.getIsArray());
+			assertEquals("arrField", child.getArrayPath());
+		}
+
+		@Test
+		@DisplayName("autoMarkIsArrayByParentModel should set isArray for updateWrite when parent model field is TapArray")
+		void testAutoMarkIsArrayByParentModel() {
+			MergeTableProperties ancestor = new MergeTableProperties();
+			ancestor.setId("A");
+			ancestor.setChildren(new ArrayList<>());
+
+			MergeTableProperties p = new MergeTableProperties();
+			p.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			p.setTargetPath("arr");
+			p.setArray(false);
+			ancestor.getChildren().add(p);
+
+			mergeTableNode.setMergeProperties(Collections.singletonList(ancestor));
+			when(processorBaseContext.getNode()).thenReturn((Node) mergeTableNode);
+
+			TableNode preNode = new TableNode();
+			preNode.setId("A");
+			preNode.setName("preA");
+			preNode.setTableName("tA");
+			when(processorBaseContext.getNodes()).thenReturn(Collections.singletonList(preNode));
+
+			TapTable table = new TapTable();
+			table.setNameFieldMap(new java.util.LinkedHashMap<>());
+			table.add(new TapField().name("arr").tapType(new io.tapdata.entity.schema.type.TapArray()));
+			TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+			when(tapTableMap.get("tA")).thenReturn(table);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+
+			hazelcastMergeNode.autoMarkIsArrayByParentModel();
+			assertTrue(p.getIsArray());
+		}
+	}
+}
