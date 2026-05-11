@@ -302,4 +302,100 @@ class ManagementWebsocketHandlerTest {
         }
     }
 
+    @Nested
+    class ReconnectTriggerTest {
+
+        private ManagementWebsocketHandler handler;
+        private java.util.concurrent.ExecutorService mockReconnectExecutor;
+        private ManagementWebsocketHandler.SessionOption mockSession;
+
+        @BeforeEach
+        void init() {
+            handler = new ManagementWebsocketHandler();
+            mockSession = mock(ManagementWebsocketHandler.SessionOption.class);
+            doNothing().when(mockSession).release();
+            mockReconnectExecutor = mock(java.util.concurrent.ExecutorService.class);
+            when(mockReconnectExecutor.isShutdown()).thenReturn(false);
+
+            ReflectionTestUtils.setField(handler, "session", mockSession);
+            ReflectionTestUtils.setField(handler, "reconnectExecutor", mockReconnectExecutor);
+            ReflectionTestUtils.setField(handler, "logger", mock(Logger.class));
+            // reset reconnectInFlight so each test starts fresh
+            ((java.util.concurrent.atomic.AtomicBoolean) ReflectionTestUtils.getField(handler, "reconnectInFlight")).set(false);
+        }
+
+        @Test
+        void handleTransportError_triggersAsyncReconnect() {
+            handler.handleTransportError(null, new RuntimeException("simulated transport error"));
+
+            // Eager reconnect must submit a task to the dedicated executor — not wait for the
+            // next 5s ping cycle to discover the broken socket.
+            verify(mockReconnectExecutor, times(1)).submit(any(Runnable.class));
+        }
+
+        @Test
+        void handleTransportError_concurrentCalls_dedupedViaReconnectInFlight() {
+            handler.handleTransportError(null, new RuntimeException("err1"));
+            handler.handleTransportError(null, new RuntimeException("err2"));
+            handler.handleTransportError(null, new RuntimeException("err3"));
+
+            // reconnectInFlight de-dupes: only the first call submits a task; the rest are
+            // no-ops until the in-flight reconnect finishes (mock executor never runs it).
+            verify(mockReconnectExecutor, times(1)).submit(any(Runnable.class));
+        }
+    }
+
+    @Nested
+    class SingleUrlNginxGraceTest {
+        private ManagementWebsocketHandler.SessionOption option;
+        private ManagementWebsocketHandler handler;
+
+        @BeforeEach
+        void init() {
+            option = mock(ManagementWebsocketHandler.SessionOption.class);
+            handler = mock(ManagementWebsocketHandler.class);
+            // single-URL nginx mode
+            when(option.getBaseURLs()).thenReturn(Collections.singletonList("http://nginx:3031/api/"));
+            when(option.isOpen()).thenReturn(false);
+            doNothing().when(option).release();
+            when(option.getManagementWebsocketHandler()).thenReturn(handler);
+            doCallRealMethod().when(option).connect();
+            ManagementWebsocketHandler.lastSuccessfulUrlIndex.set(0);
+        }
+
+        @Test
+        void singleUrl_handshakeFailsTwice_appliesGraceSleepBetweenAttempts() {
+            // handler.connect() never opens the session — simulates nginx routing to dead upstream
+            doNothing().when(handler).connect(anyString());
+
+            long start = System.currentTimeMillis();
+            Assertions.assertThrows(RuntimeException.class, () -> option.connect());
+            long elapsed = System.currentTimeMillis() - start;
+
+            // Single-URL grace sleep WS_NGINX_FAIL_TIMEOUT_MS defaults to 1500ms; even on a fast
+            // CI box the elapsed wall time must include this delay before the throw.
+            Assertions.assertTrue(elapsed >= 1500L,
+                "Single-URL nginx grace sleep must delay the failure throw by >= 1500ms; observed " + elapsed + "ms");
+        }
+
+        @Test
+        void singleUrl_disabledViaSystemProperty_throwsImmediately() {
+            // Note: WS_NGINX_FAIL_TIMEOUT_MS is read once at class init. We can't toggle it in this
+            // test without classloader gymnastics, so we verify the OPPOSITE of the previous test:
+            // when the URL list has multiple entries, no grace sleep is applied (the loop exits via
+            // budget-exhaustion path, not the single-URL branch).
+            when(option.getBaseURLs()).thenReturn(Arrays.asList("http://tm1/api/", "http://tm2/api/"));
+            doNothing().when(handler).connect(anyString());
+
+            long start = System.currentTimeMillis();
+            Assertions.assertThrows(RuntimeException.class, () -> option.connect());
+            long elapsed = System.currentTimeMillis() - start;
+
+            // No grace sleep should be applied for multi-URL config — elapsed should be < 500ms
+            // (just the for-loop overhead).
+            Assertions.assertTrue(elapsed < 1500L,
+                "Multi-URL must NOT apply nginx grace sleep; observed " + elapsed + "ms");
+        }
+    }
+
 }

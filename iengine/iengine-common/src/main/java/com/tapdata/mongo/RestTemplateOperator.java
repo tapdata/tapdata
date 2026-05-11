@@ -19,6 +19,8 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.client5.http.HttpHostConnectException;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.entity.GzipCompressingEntity;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -52,6 +54,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -83,6 +87,12 @@ public class RestTemplateOperator {
 	private long retryInterval = 500;
 
 	private final AtomicLong logCount = new AtomicLong(0);
+
+	/**
+	 * Held so {@link #retryWrap} can evict stale pooled sockets after I/O failure
+	 * (typical when nginx upstream dies and the keep-alive socket is poisoned).
+	 */
+	private PoolingHttpClientConnectionManager connectionManager;
 
 	private RestTemplateOperator() {
 	}
@@ -162,6 +172,7 @@ public class RestTemplateOperator {
 						.setConnectionTimeToLive(TimeValue.ofSeconds(connTtlSeconds))
 						.setValidateAfterInactivity(TimeValue.ofSeconds(connValidateAfterSeconds))
 						.build();
+		this.connectionManager = poolingHttpClientConnectionManager;
 		CloseableHttpClient httpClient = HttpClientBuilder.create()
 				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build())
 				.disableAutomaticRetries()
@@ -751,11 +762,16 @@ public class RestTemplateOperator {
 					if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
 						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
 					}
-				} else {
-					// 'NoHttpResponseException' may occur with multithreaded requests, There is no need to switch services
-					if (null != CommonUtils.matchThrowable(e, NoHttpResponseException.class)) {
-						changeURL = false;
-					}
+				}
+
+				// Evict idle pooled sockets after I/O failure so the next retry opens a
+				// fresh TCP connection. Stale keep-alive sockets are the root cause of
+				// slow recovery when nginx fronts a dead TM upstream — the pool's
+				// validate-after-inactivity check does not detect this fast enough.
+				// This replaces the previous NoHttpResponseException → changeURL=false
+				// workaround, which only masked the symptom in single-URL deployments.
+				if (CommonUtils.getPropertyBool("HTTP_EVICT_ON_IO_ERROR", true) && isIoFailure(e)) {
+					evictIdleConnections();
 				}
 
 				// Print the first exception message
@@ -795,6 +811,31 @@ public class RestTemplateOperator {
 							+ " " + retryInfo.lastError.getMessage()), retryInfo.lastError);
 		} else {
 			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), retryInfo.lastError.getMessage()), retryInfo.lastError);
+		}
+	}
+
+	/**
+	 * True when the throwable (or any cause) indicates a transport-level failure that
+	 * leaves a pooled keep-alive socket in a poisoned state. Matches both client5 and
+	 * java.net exception classes seen in nginx-fronted HA drill failures.
+	 */
+	static boolean isIoFailure(Throwable t) {
+		return CommonUtils.matchThrowable(t, NoHttpResponseException.class) != null
+				|| CommonUtils.matchThrowable(t, SocketTimeoutException.class) != null
+				|| CommonUtils.matchThrowable(t, ConnectTimeoutException.class) != null
+				|| CommonUtils.matchThrowable(t, HttpHostConnectException.class) != null
+				|| CommonUtils.matchThrowable(t, SocketException.class) != null;
+	}
+
+	void evictIdleConnections() {
+		PoolingHttpClientConnectionManager cm = this.connectionManager;
+		if (cm == null) {
+			return;
+		}
+		try {
+			cm.closeIdle(TimeValue.ZERO_MILLISECONDS);
+		} catch (Exception evictErr) {
+			logger.debug("Failed to evict idle pool connections: {}", evictErr.getMessage());
 		}
 	}
 

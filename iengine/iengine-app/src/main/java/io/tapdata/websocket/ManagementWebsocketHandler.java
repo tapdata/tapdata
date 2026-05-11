@@ -69,10 +69,16 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 	public static final String WEBSOCKET_CODE_KEY = "websocketCode";
 	public static final String WEBSOCKET_MESSAGE_KEY = "websocketMessage";
-	public static final int MAX_PING_FAIL_TIME = (int) CommonUtils.getPropertyLong("WS_MAX_PING_FAIL", 3L);
+	public static final int MAX_PING_FAIL_TIME = (int) CommonUtils.getPropertyLong("WS_MAX_PING_FAIL", 2L);
 	private static final long HANDSHAKE_TIMEOUT_MS = CommonUtils.getPropertyLong("WS_HANDSHAKE_TIMEOUT_MS", 5000L);
 	private static final long RECONNECT_TOTAL_BUDGET_MS = CommonUtils.getPropertyLong("WS_RECONNECT_TOTAL_BUDGET_MS", 30_000L);
 	private static final long FALLBACK_DEBOUNCE_MS = CommonUtils.getPropertyLong("WS_FALLBACK_DEBOUNCE_MS", 2_000L);
+	/**
+	 * Grace sleep applied after a failed handshake when only one base URL is configured
+	 * (nginx single-URL deployment). Gives nginx time to mark the dead upstream as down
+	 * via fail_timeout before the next handshake attempt routes through the same proxy.
+	 */
+	private static final long WS_NGINX_FAIL_TIMEOUT_MS = CommonUtils.getPropertyLong("WS_NGINX_FAIL_TIMEOUT_MS", 1500L);
 	private Logger logger = LogManager.getLogger(ManagementWebsocketHandler.class);
 
 	public static final String URL_PREFIX = "ws://";
@@ -89,9 +95,11 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	public static final String DESTINATION = "/agent";
 
 	/**
-	 * Check ws alive every {PING_INTERVAL} seconds.
+	 * Check ws alive every {PING_INTERVAL} seconds. Tightened from 10s → 5s so a failed-node
+	 * detection lands in 5s × MAX_PING_FAIL = 10s, comfortably inside the 25s lastHeartbeat
+	 * window even when nginx fronts a dead TM upstream. Configurable via WS_PING_INTERVAL_S.
 	 */
-	private static final Long PING_INTERVAL = 10L;
+	private static final Long PING_INTERVAL = CommonUtils.getPropertyLong("WS_PING_INTERVAL_S", 5L);
 	/**
 	 * websocket接受消息的长度限制：10MB
 	 */
@@ -420,6 +428,9 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		logger.error("Web socket handler occur handle transport error {}", exception.getMessage(), exception);
 		this.session.release();
 		handleWhenPingFailed();
+		// Eager reconnect: don't wait for the next ping cycle (5s) to discover the broken socket.
+		// triggerReconnect() de-dupes via reconnectInFlight, so concurrent paths cannot stack.
+		triggerReconnect();
 	}
 
 	@Override
@@ -486,6 +497,17 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					return;
 				}
 			}
+			// Single-URL nginx mode: if the for-loop above only had one URL to try and the
+			// handshake failed, the next call site will retry through the same nginx proxy
+			// almost immediately. Sleep WS_NGINX_FAIL_TIMEOUT_MS to give nginx a chance to
+			// mark the dead upstream as down (fail_timeout) before our caller retries.
+			if (size == 1 && WS_NGINX_FAIL_TIMEOUT_MS > 0 && System.currentTimeMillis() < deadline) {
+				try {
+					Thread.sleep(WS_NGINX_FAIL_TIMEOUT_MS);
+				} catch (InterruptedException ie) {
+					Thread.currentThread().interrupt();
+				}
+			}
 			throw new RuntimeException("Send websocket message failed, can not connect any of TM URLs: " + urLs);
 		}
 
@@ -530,6 +552,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 						}
 						logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
 						release();
+						// Eager async reconnect alongside the synchronous retry below — gives the
+						// background reconnect thread a head start so the next iteration's connect()
+						// may already find an open session. Idempotent via reconnectInFlight.
+						triggerReconnect();
 					}
 
 					wait(500L);
