@@ -79,6 +79,7 @@ import org.bson.Document;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -104,6 +105,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             .enable(SerializationFeature.INDENT_OUTPUT)
             .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
             .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+
+    /** 用于生成 accessCode 等安全敏感令牌，避免使用 Math.random() 这类弱 PRNG。 */
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     /**
      * 用于对比差异的 ObjectMapper：字段名字母排序 + 忽略 null 值，
@@ -2260,13 +2264,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     }
 
     /**
-     * 生成 accessCode（32位随机十六进制字符串，与 UserServiceImpl.randomHexString() 保持一致）。
+     * 生成 accessCode：32 位随机十六进制字符串。
+     * accessCode 用于 PDK 连接器注册等鉴权场景，必须使用 SecureRandom，避免 Math.random() 这类弱 PRNG (S2245)。
      */
     private String generateAccessCode() {
-        return java.util.stream.IntStream.range(0, 8)
-                .mapToObj(i -> Integer.toHexString(
-                        Double.valueOf((1 + Math.random()) * 0x10000).intValue()).substring(1))
-                .collect(Collectors.joining());
+        byte[] bytes = new byte[16];
+        SECURE_RANDOM.nextBytes(bytes);
+        StringBuilder sb = new StringBuilder(32);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b & 0xff));
+        }
+        return sb.toString();
     }
 
 

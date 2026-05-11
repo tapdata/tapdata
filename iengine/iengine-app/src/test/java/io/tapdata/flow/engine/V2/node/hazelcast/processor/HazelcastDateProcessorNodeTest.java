@@ -10,6 +10,8 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapRawValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.error.TaskDateProcessorExCode_17;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.schema.TapTableMap;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,6 +62,7 @@ class HazelcastDateProcessorNodeTest extends BaseTaskTest {
 			timestamp = 1621339200000L;
 			Instant instant = Instant.ofEpochMilli(timestamp);
 			after.put("_datetime", new DateTime(instant));
+			after.put("_tapTimeValue", new TapTimeValue(new DateTime(instant)));
 			after.put("_tapDatetimeValue", new TapDateTimeValue(new DateTime(instant)));
 			after.put("map", new HashMap<String, Object>() {
 				{
@@ -78,6 +82,7 @@ class HazelcastDateProcessorNodeTest extends BaseTaskTest {
 			});
 			Map<String, Object> before = new HashMap<>();
 			before.put("_datetime", new DateTime(instant));
+			before.put("_tapTimeValue", new TapTimeValue(new DateTime(instant)));
 			before.put("_tapDatetimeValue", new TapDateTimeValue(new DateTime(instant)));
 			before.put("map", new HashMap<String, Object>() {
 				{
@@ -102,6 +107,7 @@ class HazelcastDateProcessorNodeTest extends BaseTaskTest {
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			TapTable tapTable = new TapTable("91936e19-01b2-47ce-a5c3-73b66131c437");
 			tapTable.add(new TapField("_datetime", "now"));
+			tapTable.add(new TapField("_tapTimeValue", "now"));
 			tapTable.add(new TapField("_tapDatetimeValue", "now"));
 			tapTable.add(new TapField("map._datetime", "now"));
 			tapTable.add(new TapField("map._tapDatetimeValue", "now"));
@@ -178,6 +184,17 @@ class HazelcastDateProcessorNodeTest extends BaseTaskTest {
 			assertDoesNotThrow(() -> hazelcastDateProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> {
 			}));
 			assertNull(tapUpdateRecordEvent.getBefore().get("_datetime"));
+		}
+
+		@Test
+		@DisplayName("test TapRawValue with null content (Excel empty DATE cell) should be skipped")
+		void test6() {
+			TapRawValue rawValue = new TapRawValue();
+			rawValue.setOriginType("DATE");
+			tapUpdateRecordEvent.getBefore().put("_datetime", rawValue);
+			assertDoesNotThrow(() -> hazelcastDateProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> {
+			}));
+			assertSame(rawValue, tapUpdateRecordEvent.getBefore().get("_datetime"));
 		}
 	}
 }

@@ -7,6 +7,8 @@ package com.tapdata.tm.permissions.constants;
 public enum DataPermissionActionEnums {
 	View,
 	Edit,
+	Publish,
+	Revoke,
 	Reset,
 	Delete,
 	Start,

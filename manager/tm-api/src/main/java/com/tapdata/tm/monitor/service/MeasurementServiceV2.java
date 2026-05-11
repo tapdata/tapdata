@@ -8,6 +8,7 @@ import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.vo.SyncStatusStatisticsVo;
+import com.tapdata.tm.monitor.vo.TaskMetricsTrendVo;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import io.tapdata.common.sample.request.Sample;
@@ -41,6 +42,10 @@ public interface MeasurementServiceV2 {
     List<SyncStatusStatisticsVo> queryTableSyncStatusStatistics(SyncStatusStatisticsParam param);
 
     MeasurementEntity findLastMinuteByTaskId(String taskId);
+
+    Map<String, Sample> findLastMinuteSamplesByTaskIds(List<String> taskIds);
+
+    TaskMetricsTrendVo aggregateTaskMetricsByTaskIds(List<String> taskIds, long startAt, long endAt);
 
     void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto);
 

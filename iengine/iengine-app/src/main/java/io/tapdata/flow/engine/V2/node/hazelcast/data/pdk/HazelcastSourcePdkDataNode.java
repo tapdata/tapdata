@@ -309,11 +309,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				}
 			}
 			try {
-				if (need2InitialSync(syncProgress) || checkRebuildMergeTableCache(true)) {
+				if (need2InitialSync(syncProgress)) {
 					if (this.sourceRunnerFirstTime.get()) {
 						obsLogger.info("Starting batch read from {} tables", tables.size());
-						doSnapshotWithControl(new ArrayList<>(tables));
+						doSnapshotWithControl(new ArrayList<>(tables),true);
 					}
+				}else if(isReFullRunTask()){
+					doSnapshotWithControl(new ArrayList<>(tables),checkRebuildMergeTableCache(true));
 				}
 
 				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(newTables)) {
@@ -425,7 +427,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 	}
 
-	protected void doSnapshotWithControl(List<String> tableList) throws Throwable {
+	protected void doSnapshotWithControl(List<String> tableList,boolean needRun) throws Throwable {
 		Node<?> node = getNode();
 		if (node instanceof TableNode && ((TableNode) node).isSourceAndTarget()) {
 			doSnapshot(tableList);
@@ -433,7 +435,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 		SnapshotOrderController controller = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
 		if (null != controller) {
-			CommonUtils.AnyError runner = () -> doSnapshot(tableList);
+			CommonUtils.AnyError runner;
+			if(needRun){
+				runner= () -> doSnapshot(tableList);
+			}else{
+				runner= () -> {};
+			}
 			controller.runWithControl(getNode(), runner);
 		}
 	}
@@ -974,6 +981,21 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 
 
 			CommonUtils.AnyError finalAnyError = anyError;
+			CommonUtils.AnyError restartAwareAnyError = () -> {
+				try {
+					finalAnyError.run();
+				} catch (Throwable throwable) {
+					if (throwable instanceof Error) {
+						throw throwable;
+					}
+					if (isSourceRunnerRestarting() || !isRunning()) {
+						logger.info("Source stream read stopped because source runner is restarting or stopping, associateId: {}, message: {}",
+								associateId, throwable.getMessage());
+						return;
+					}
+					throw throwable;
+				}
+			};
 			String finalStreamReadFunctionName = streamReadFunctionName.get();
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 							.connectorContext(connectorNode.getConnectorContext())
@@ -985,7 +1007,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 							.start(),
 					streamReadFuncAspect -> {
 						this.streamReadFuncAspect = streamReadFuncAspect;
-						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ, streamReadMethodInvoker.runnable(finalAnyError));
+						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ, streamReadMethodInvoker.runnable(restartAwareAnyError));
 					});
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
@@ -1012,7 +1034,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			doBeforeReadMulti(connectionConfigWithTables, tables);
 			streamReadFunctionName.set(streamReadMultiConnectionFunction.getClass().getSimpleName());
 			anyError = () -> {
-				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
+				streamReadMultiConnectionFunction.streamRead(connectorNode.getConnectorContext(), connectionConfigWithTables,
 						syncProgress.getStreamOffsetObj(), getIncreaseReadSize(), consumer);
 			};
 		} else {
@@ -1024,7 +1046,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
-					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+					streamReadFunction.streamRead(connectorNode.getConnectorContext(), tables,
 							syncProgress.getStreamOffsetObj(), getIncreaseReadSize(), consumer);
 				};
 			}
@@ -1087,7 +1109,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			doBeforeReadMulti(connectionConfigWithTables, tables);
 			streamReadFunctionName.set(streamReadMultiConnectionFunction.getClass().getSimpleName());
 			anyError = () -> {
-				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
+				streamReadMultiConnectionFunction.streamRead(connectorNode.getConnectorContext(), connectionConfigWithTables,
 						syncProgress.getStreamOffsetObj(), consumer);
 			};
 		} else {
@@ -1099,7 +1121,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
-					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+					streamReadFunction.streamRead(connectorNode.getConnectorContext(), tables,
 							syncProgress.getStreamOffsetObj(), consumer);
 				};
 			}
@@ -1715,7 +1737,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			return false;
 		}
 		if(getNode() instanceof TableNode tableNode) {
-			if(tableNode.isReFullRun()) {
+			if(isReFullRunTableNode()) {
 				if (first){
 					clientMongoOperator.update(Query.query(Criteria.where("taskId").is(dataProcessorContext.getTaskDto().getId().toHexString())
 							.and("nodeId").is(tableNode.getMergeNodeId())
@@ -1723,7 +1745,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					obsLogger.info("Rebuild merge table cache, table name: {}", tableNode.getTableName());
 				}
 				return true;
-			}else if(dataProcessorContext.getTaskDto().isReFullRun() && !tableNode.isReFullRun()) {
+			}else if(isReFullRunTask()){
 				if(first){
 					obsLogger.info("No need to rebuild the cache, skip directly, table name: {}", tableNode.getTableName());
 				}
@@ -1731,6 +1753,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			}
 		}
 		return false;
+	}
+
+	protected boolean isReFullRunTableNode(){
+		return getNode() instanceof TableNode tableNode && tableNode.isReFullRun();
+	}
+
+	protected boolean isReFullRunTask(){
+		return dataProcessorContext.getTaskDto().isReFullRun();
 	}
 
 	@Override

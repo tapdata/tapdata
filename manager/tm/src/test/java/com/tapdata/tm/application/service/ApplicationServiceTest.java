@@ -4,8 +4,10 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.entity.ApplicationEntity;
 import com.tapdata.tm.application.repository.ApplicationRepository;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import org.bson.BsonValue;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,12 +17,17 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.same;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 class ApplicationServiceTest {
@@ -33,6 +40,23 @@ class ApplicationServiceTest {
         repository = mock(ApplicationRepository.class);
         service = new ApplicationService(repository);
         userDetail = mock(UserDetail.class);
+    }
+
+    @Nested
+    class DataPermissionFindByIdTest {
+        @Test
+        void testFillFieldsAndDelegateFindById() {
+            ApplicationService spyService = spy(service);
+            ObjectId applicationId = new ObjectId();
+            Field field = new Field();
+            ApplicationDto applicationDto = new ApplicationDto();
+            doReturn(applicationDto).when(spyService).findById(eq(applicationId), same(field));
+
+            assertSame(applicationDto, spyService.dataPermissionFindById(applicationId, field).get());
+            assertEquals(Boolean.TRUE, field.get(ApplicationService.USER_ID));
+            assertEquals(Boolean.TRUE, field.get(DataPermissionHelper.FIELD_NAME));
+            verify(spyService).findById(eq(applicationId), same(field));
+        }
     }
 
     @Nested

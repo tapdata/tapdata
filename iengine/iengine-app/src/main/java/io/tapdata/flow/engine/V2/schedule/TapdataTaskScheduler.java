@@ -239,9 +239,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		return () -> {
 			String taskId;
 			try {
-				logger.info("hstest>>>>>>> {}", taskOperation);
-				if (taskOperation instanceof StartTaskOperation) {
-					StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
+				if (taskOperation instanceof StartTaskOperation startTaskOperation) {
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
 					taskId = startTaskOperation.getTaskDto().getId().toHexString();
 					TaskDto taskDto = startTaskOperation.getTaskDto();
@@ -250,8 +248,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 						ObsLoggerFactory.getInstance().getObsLogger(taskDto).warn("Start task failed because of task lock, will ignored");
 						ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
 					}
-				} else if (taskOperation instanceof StopTaskOperation) {
-					StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
+				} else if (taskOperation instanceof StopTaskOperation stopTaskOperation) {
 					Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
 					taskId = stopTaskOperation.getTaskId();
 					if (!taskLock.tryRun(taskId, () -> stopTask(taskId), 1L, TimeUnit.SECONDS)) {

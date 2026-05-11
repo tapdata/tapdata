@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
+import com.tapdata.cache.CacheInvalidationService;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.constant.HazelcastUtil;
@@ -90,8 +91,13 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 					recordMap.put(afterPk, cacheFieldRow);
 					dataMap.insert(afterCacheKey, recordMap);
 
+					publishCacheInvalidation(beforeCacheKey);
+					if (!beforeCacheKey.equals(afterCacheKey)) {
+						publishCacheInvalidation(afterCacheKey);
+					}
 				} else if (tapEvent instanceof TapDeleteRecordEvent) {
 					CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
+					publishCacheInvalidation(beforeCacheKey);
 				} else {
 					if (logger.isDebugEnabled()) {
 						logger.debug("Cache row is not update or delete, will abort it, msg {}", tapEvent);
@@ -100,6 +106,25 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 			} catch (Throwable e) {
 				throw new TapEventException(ShareCacheExCode_20.PDK_WRITE_SHARE_CACHE_FAILED, e).addEvent(tapEvent);
 			}
+		}
+	}
+
+	/**
+	 * 发布缓存失效事件到 MongoDB
+	 * 每次发布现取 service 引用, 避免 doInit 与 HazelcastUtil.init 顺序竞争造成静默丢事件
+	 */
+	private void publishCacheInvalidation(String cacheKey) {
+		if (StringUtils.isBlank(cacheKey)) {
+			return;
+		}
+		CacheInvalidationService service = HazelcastUtil.getCacheInvalidationService();
+		if (service == null) {
+			return;
+		}
+		try {
+			service.publishInvalidation(dataMap.getName(), cacheKey);
+		} catch (Exception e) {
+			logger.warn("Failed to publish cache invalidation for key: {}", cacheKey, e);
 		}
 	}
 

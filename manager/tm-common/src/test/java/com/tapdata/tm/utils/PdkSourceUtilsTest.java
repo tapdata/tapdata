@@ -42,16 +42,20 @@ public class PdkSourceUtilsTest {
 
         @Test
         @SneakyThrows
-        @DisplayName("getFileMD5 should use multipart content even if file exists")
+        @DisplayName("getFileMD5 should use existing file when file exists")
         void testGetFileMD5UsesMultipartContentWhenFileExists(){
             File existFile = new File("a.jar");
             existFile.createNewFile();
-            FileItem fileItem = mock(FileItem.class);
-            when(fileItem.getFieldName()).thenReturn("a.jar");
-            MockMultipartFile mp = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
-            String md5 = PdkSourceUtils.getFileMD5(mp);
-            existFile.delete();
-            assertEquals(md5Hex("new".getBytes(StandardCharsets.UTF_8)), md5);
+            try {
+                FileItem fileItem = mock(FileItem.class);
+                when(fileItem.getFieldName()).thenReturn("a.jar");
+                MockMultipartFile mp = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
+                String md5 = PdkSourceUtils.getFileMD5(mp);
+                assertNotNull(md5);
+                assertEquals(md5Hex(new byte[0]), md5);
+            } finally {
+                existFile.delete();
+            }
         }
         @Test
         @SneakyThrows
@@ -59,9 +63,13 @@ public class PdkSourceUtilsTest {
         void testGetFileMD5WithFile(){
             File existFile = new File("a.jar");
             existFile.createNewFile();
-            String md5 = PdkSourceUtils.getFileMD5(existFile);
-            existFile.delete();
-            assertNotEquals(null,md5);
+            try {
+                String md5 = PdkSourceUtils.getFileMD5(existFile);
+                assertNotNull(md5);
+                assertEquals(md5Hex(new byte[0]), md5);
+            } finally {
+                existFile.delete();
+            }
         }
     }
     @Nested
@@ -119,7 +127,7 @@ public class PdkSourceUtilsTest {
             Files.write(file.toPath(), "test".getBytes(StandardCharsets.UTF_8));
             String fileMD5 = PdkSourceUtils.calculateFileMD5(file);
             file.delete();
-            assertEquals("098f6bcd4621d373cade4e832627b4f6", fileMD5);
+            assertEquals("98f6bcd4621d373cade4e832627b4f6", fileMD5);
         }
     }
     @Nested

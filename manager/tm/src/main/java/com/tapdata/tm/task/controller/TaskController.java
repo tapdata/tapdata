@@ -214,6 +214,9 @@ public class TaskController extends BaseController {
         Page<TaskDto> result = DataPermissionMenuEnums.checkAndSetFilter(
             userDetail, filter, DataPermissionActionEnums.View, () -> taskService.find(finalFilter, userDetail)
         );
+        if (result != null) {
+            taskService.appendHeartbeatTaskRunning(result.getItems());
+        }
         return success(result);
     }
 
@@ -365,6 +368,7 @@ public class TaskController extends BaseController {
 		) {
 			Field fields = parseField(fieldsJson);
 			UserDetail user = getLoginUser();
+            ObjectId oid = MongoUtils.toObjectId(id);
             Field finalFields;
             if(null == fields){
                 finalFields = new Field();
@@ -373,8 +377,8 @@ public class TaskController extends BaseController {
             }
             finalFields.put("errorEvents.stacks",false);
             finalFields.put("attrs.SNAPSHOT_ORDER_LIST",false);
-			TaskDto taskDto = dataPermissionCheckOfId(request, user, MongoUtils.toObjectId(id), DataPermissionActionEnums.View,
-				() -> taskService.findById(MongoUtils.toObjectId(id), finalFields, user)
+			TaskDto taskDto = dataPermissionCheckOfId(request, user, oid, DataPermissionActionEnums.View,
+				() -> taskService.findById(oid, finalFields, user)
 			);
 			if (taskDto != null) {
 				if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
@@ -401,6 +405,7 @@ public class TaskController extends BaseController {
 					taskDto.setCrontabScheduleMsg(MessageUtil.getMessage(taskDto.getCrontabScheduleMsg()));
 				}
                 taskService.checkSourceTimeDifference(taskDto,user);
+                taskDto.setHeartbeatTaskRunning(taskService.getHeartbeatTaskRunningByTaskId(oid.toHexString()));
 			}
 			return success(taskDto);
 		}
@@ -413,10 +418,15 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "获取任务详情")
     @GetMapping("findTaskDetailById/{id}")
-    public ResponseMessage<TaskDetailVo> findTaskDetailById(@PathVariable("id") String id,
-                                                            @RequestParam(value = "fields", required = false) String fieldsJson) {
+    public ResponseMessage<TaskDetailVo> findTaskDetailById(
+        @PathVariable("id") String id,
+        @RequestParam(value = "fields", required = false) String fieldsJson
+    ) {
         Field fields = parseField(fieldsJson);
         TaskDetailVo taskDetailVo = taskService.findTaskDetailById(id, fields, getLoginUser());
+        if (taskDetailVo != null) {
+            taskDetailVo.setHeartbeatTaskRunning(taskService.getHeartbeatTaskRunningByTaskId(id));
+        }
         return success(taskDetailVo);
     }
 
@@ -903,6 +913,7 @@ public class TaskController extends BaseController {
                                                                  HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Start,
 				() -> taskService.batchStart(taskObjectIds, userDetail, request, response)
 			);
@@ -916,6 +927,7 @@ public class TaskController extends BaseController {
                                                                 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Stop,
 				() -> taskService.batchStop(taskObjectIds, userDetail, request, response)
 			);
@@ -945,6 +957,7 @@ public class TaskController extends BaseController {
 																																	HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Delete,
 				() -> taskService.batchDelete(taskObjectIds, userDetail, request, response)
 			);
@@ -971,7 +984,7 @@ public class TaskController extends BaseController {
 																																 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Reset,
 					() -> taskService.batchRenew(taskObjectIds, userDetail, request, response)
 				);
@@ -1088,15 +1101,14 @@ public class TaskController extends BaseController {
         return success(result);
     }
 
-    /**
-     * 首页图
-     *
-     * @return map
-     */
-    @Operation(summary = "Chart")
-    @GetMapping("/chart")
-    public ResponseMessage<Map<String, Object>> chart() {
-        return success(taskService.chart(getLoginUser()));
+
+    @Operation(summary = "Task Dashboard")
+    @GetMapping("/dashboard")
+    public ResponseMessage<TaskDashboardVo> dashboard(@RequestParam(required = false) String type,
+                                                      @RequestParam(required = false) Long step,
+                                                      @RequestParam(required = false) String dashboardType,
+                                                      @RequestParam(required = false) Integer top) {
+        return success(taskService.dashboard(getLoginUser(), type, step, dashboardType, top));
     }
 
 
@@ -1264,6 +1276,13 @@ public class TaskController extends BaseController {
         taskNodeService.testRunJsNode(dto, getLoginUser());
         return success();
     }
+
+    @PostMapping("migrate-js/mock-data")
+    @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    public ResponseMessage<Map<String,Object>> mockDate(@RequestBody TestRunDto dto) {
+        return success(taskNodeService.mockDateRPC(dto,getLoginUser()));
+    }
+
 
     @PostMapping("migrate-js/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
@@ -1550,5 +1569,15 @@ public class TaskController extends BaseController {
             throw new BizException("Task.NotFound");
         }
         return success(taskService.checkTaskMemoryHeap(taskDto,true,getLoginUser()));
+    }
+
+    private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {
+        if (StringUtils.isBlank(syncType) && CollectionUtils.isNotEmpty(taskObjectIds)) {
+            TaskDto taskDto = taskService.findByTaskId(taskObjectIds.get(0), "syncType");
+            if (taskDto != null) {
+                return taskDto.getSyncType();
+            }
+        }
+        return syncType;
     }
 }

@@ -4,6 +4,7 @@ import lombok.*;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.Set;
 
 @Data
 @EqualsAndHashCode
@@ -15,4 +16,5 @@ public class BaseVo implements Serializable {
     private String userId;
     private String lastUpdBy;
     private String createUser;
+    private Set<String> permissionActions;
 }
