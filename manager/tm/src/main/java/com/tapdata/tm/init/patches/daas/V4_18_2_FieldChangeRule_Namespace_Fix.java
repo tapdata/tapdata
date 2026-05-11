@@ -52,7 +52,7 @@ public class V4_18_2_FieldChangeRule_Namespace_Fix extends AbsPatch {
         query.fields().include("syncType", "dag");
         List<TaskDto> tasks = taskService.findAll(query);
         if (CollectionUtils.isEmpty(tasks)) {
-            logger.info("V4_19_1: no tasks need fix");
+            logger.info("V4_18_2: no tasks need fix");
             return;
         }
 
@@ -73,7 +73,7 @@ public class V4_18_2_FieldChangeRule_Namespace_Fix extends AbsPatch {
         int updated = 0;
         updated += updateMigrateTasks(taskRepository, migrateTasks, qnToAncestors);
         updated += updateSyncTasks(taskRepository, syncTasks);
-        logger.info("V4_19_1 done, scanned tasks={}, updated tasks={}, resolved qualifiedNames={}/{}",
+        logger.info("V4_18_2 done, scanned tasks={}, updated tasks={}, resolved qualifiedNames={}/{}",
                 tasks.size(), updated, qnToAncestors.size(), qualifiedNames.size());
     }
 
