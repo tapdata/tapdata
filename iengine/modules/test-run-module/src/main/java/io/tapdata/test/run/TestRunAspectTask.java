@@ -1,6 +1,7 @@
 package io.tapdata.test.run;
 
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ClassHandlersV2ToStringUtils;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -17,9 +18,8 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
-import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.simplify.pretty.ClassHandlersV2;
 import io.tapdata.exception.ExceptionUtil;
@@ -42,7 +42,6 @@ public class TestRunAspectTask extends AspectTask {
   private final Logger logger = LogManager.getLogger(TestRunAspectTask.class);
 
   private final ClassHandlers observerClassHandlers = new ClassHandlers();
-  private final ClassHandlersV2 valueHandler;
 
   private Set<String> nodeIds;
 
@@ -62,11 +61,6 @@ public class TestRunAspectTask extends AspectTask {
     TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
     tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant().toString());
     codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-    valueHandler = new ClassHandlersV2();
-    valueHandler.register(Date.class, value -> value.toInstant().toString());
-    valueHandler.register(LocalDateTime.class, LocalDateTime::toString);
-    valueHandler.register(Instant.class, Instant::toString);
-    valueHandler.register(TapDateTimeValue.class,tapValue -> tapValue.getValue().toInstant().toString());
   }
 
   @Override
@@ -125,6 +119,7 @@ public class TestRunAspectTask extends AspectTask {
       //run task error
       paramMap.put("code", "error");
       paramMap.put("message", ExceptionUtil.getMessage(stopAspect.getError()));
+      paramMap.put("stackTrace", ExceptionUtil.getStackString(stopAspect.getError()));
     } else {
       paramMap.put("code", "ok");
     }
@@ -179,9 +174,41 @@ public class TestRunAspectTask extends AspectTask {
     TapEvent tapEvent = (TapEvent) tapdataEvent.getTapEvent().clone();
     Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
     if (MapUtils.isNotEmpty(after)) {
-      AllLayerMapIterator allLayerMapIterator = new AllLayerMapIterator();
-      allLayerMapIterator.iterate(after, (key, value, recursive) -> valueHandler.handle(value));
+      ClassHandlersV2ToStringUtils.recursiveHandleMap(after);
+      after = sortMapKeys(after);
     }
     return after;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> sortMapKeys(Map<String, Object> map) {
+    LinkedHashMap<String, Object> sorted = new LinkedHashMap<>();
+    map.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .forEach(e -> {
+              Object value = e.getValue();
+              if (value instanceof Map) {
+                value = sortMapKeys((Map<String, Object>) value);
+              } else if (value instanceof Collection) {
+                value = sortCollectionMaps((Collection<Object>) value);
+              }
+              sorted.put(e.getKey(), value);
+            });
+    return sorted;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Collection<Object> sortCollectionMaps(Collection<Object> collection) {
+    List<Object> result = new ArrayList<>();
+    for (Object item : collection) {
+      if (item instanceof Map) {
+        result.add(sortMapKeys((Map<String, Object>) item));
+      } else if (item instanceof Collection) {
+        result.add(sortCollectionMaps((Collection<Object>) item));
+      } else {
+        result.add(item);
+      }
+    }
+    return result;
   }
 }

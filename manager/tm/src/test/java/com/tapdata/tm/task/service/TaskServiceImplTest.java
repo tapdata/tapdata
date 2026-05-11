@@ -3846,6 +3846,11 @@ class TaskServiceImplTest {
             when(stateMachineService.executeAboutTask(dto, DataFlowEvent.STOPPED, user)).thenReturn(stateMachineResult);
             doCallRealMethod().when(taskService).stopped(id,user);
             String actual = taskService.stopped(id, user);
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(taskService, new Times(1)).updateById(eq(id), updateCaptor.capture(), eq(user));
+            Document unset = (Document) updateCaptor.getValue().getUpdateObject().get("$unset");
+            assertTrue(unset.containsKey("taskIncrementDelay"));
+            assertTrue(unset.containsKey("taskIncrementDelayThreshold"));
             verify(taskService,new Times(1)).start(id,user);
             assertEquals(id.toHexString(),actual);
         }
@@ -3930,6 +3935,14 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).updateDelayTime(id, 0);
             taskService.updateDelayTime(id, 0);
             verify(taskService,new Times(1)).update(any(Query.class), any(Update.class));
+        }
+
+        @Test
+        void testUpdateTaskIncrementDelayAlarmNormal() {
+            ObjectId id = mock(ObjectId.class);
+            doCallRealMethod().when(taskService).updateTaskIncrementDelayAlarm(id, 100L, 50L);
+            taskService.updateTaskIncrementDelayAlarm(id, 100L, 50L);
+            verify(taskService, new Times(1)).update(any(Query.class), any(Update.class));
         }
     }
 
@@ -4492,75 +4505,6 @@ class TaskServiceImplTest {
                             Criteria.where("crontabExpressionFlag").is(true)
                     )),user)).thenReturn(except);
             long result = taskService.runningTaskNum(user);
-            assertEquals(except,result);
-        }
-    }
-    @Nested
-    class ChartTest{
-        TaskRepository taskRepository = mock(TaskRepository.class);
-        //        @Test
-        void testChartNormal(){
-            new DataPermissionHelper(mock(DataPermissionHelperImpl.class)); //when repository.find call methods in DataPermissionHelper class this line is need
-            try (MockedStatic<DataPermissionService> mb = Mockito
-                    .mockStatic(DataPermissionService.class)) {
-                mb.when(DataPermissionService::isCloud).thenReturn(true);
-                taskService = spy(new TaskServiceImpl(taskRepository));
-                UserDetail user = mock(UserDetail.class);
-                DataPermissionMenuEnums permission = mock(DataPermissionMenuEnums.class);
-                List<TaskDto> taskDtoList = new ArrayList<>();
-                TaskDto taskDto1 = new TaskDto();
-                taskDto1.setStatus("stop");
-                taskDto1.setSyncType("migrate");
-                TaskDto taskDto2 = new TaskDto();
-                taskDto2.setStatus("wait_start");
-                taskDto2.setSyncType("migrate");
-                TaskDto taskDto3 = new TaskDto();
-                taskDto3.setStatus("edit");
-                taskDto3.setSyncType("migrate");
-                TaskDto taskDto4 = new TaskDto();
-                taskDto4.setStatus("stop");
-                taskDto4.setSyncType("sync");
-                TaskDto taskDto5 = new TaskDto();
-                taskDto5.setStatus("stop");
-                taskDto5.setSyncType("sync");
-                taskDtoList.add(taskDto1);
-                taskDtoList.add(taskDto2);
-                taskDtoList.add(taskDto3);
-                taskDtoList.add(taskDto4);
-                taskDtoList.add(taskDto5);
-                doReturn(taskDtoList).when(taskService).findAllDto(any(),any());
-                when(permission.MigrateTack.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> taskService.findAllDto(any(),any()))).thenReturn(taskDtoList);
-                doReturn(new HashMap()).when(taskService).inspectChart(user);
-                Chart6Vo chart6Vo = mock(Chart6Vo.class);
-                doReturn(chart6Vo).when(chartViewService).transmissionOverviewChartData(taskDtoList);
-                Map<String, Object> actual = taskService.chart(user);
-                Map chart1 = (Map) actual.get("chart1");
-                assertEquals(3,chart1.get("total"));
-                Map chart3 = (Map) actual.get("chart3");
-                assertEquals(2,chart3.get("total"));
-                Map chart5 = (Map) actual.get("chart5");
-                assertEquals(0,chart5.size());
-                assertEquals(chart6Vo,actual.get("chart6"));
-            }
-
-        }
-    }
-    @Nested
-    class RunningTaskNumWithProcessIdTest{
-        @Test
-        void testRunningTaskNumWithProcessId(){
-            TaskRepository taskRepository = mock(TaskRepository.class);
-            taskService = new TaskServiceImpl(taskRepository);
-            long except = 5L;
-            UserDetail userDetail = mock(UserDetail.class);
-            when(taskRepository.count(Query.query(Criteria.where("agentId").is("111")
-                    .and("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
-                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
-                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
-                            Criteria.where("planStartDateFlag").is(true),
-                            Criteria.where("crontabExpressionFlag").is(true)
-                    )), userDetail)).thenReturn(except);
-            long result = taskService.runningTaskNum("111", userDetail);
             assertEquals(except,result);
         }
     }
@@ -5971,6 +5915,78 @@ class TaskServiceImplTest {
             assertEquals(3,actual);
             verify(taskService,new Times(2)).findByTaskId(any(ObjectId.class),anyString());
         }
+    }
+
+    @Nested
+    class HeartbeatTaskRunningTest {
+        @Test
+        void testGetHeartbeatTaskRunningByTaskIdWhenHeartbeatMissing() {
+            doCallRealMethod().when(taskService).getHeartbeatTaskRunningByTaskId("task-1");
+            doCallRealMethod().when(taskService).batchGetHeartbeatTaskRunningByTaskIds(anyList());
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+
+            assertNull(taskService.getHeartbeatTaskRunningByTaskId("task-1"));
+        }
+
+        @Test
+        void testGetHeartbeatTaskRunningByTaskIdWhenHeartbeatRunning() {
+            TaskDto heartbeatTask = new TaskDto();
+            heartbeatTask.setStatus(TaskDto.STATUS_RUNNING);
+            heartbeatTask.setHeartbeatTasks(new HashSet<>(Collections.singletonList("task-1")));
+
+            doCallRealMethod().when(taskService).getHeartbeatTaskRunningByTaskId("task-1");
+            doCallRealMethod().when(taskService).batchGetHeartbeatTaskRunningByTaskIds(anyList());
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.singletonList(heartbeatTask));
+
+            assertTrue(taskService.getHeartbeatTaskRunningByTaskId("task-1"));
+        }
+
+        @Test
+        void testGetHeartbeatTaskRunningByTaskIdWhenHeartbeatAbnormal() {
+            TaskDto heartbeatTask = new TaskDto();
+            heartbeatTask.setStatus(TaskDto.STATUS_ERROR);
+            heartbeatTask.setHeartbeatTasks(new HashSet<>(Collections.singletonList("task-1")));
+
+            doCallRealMethod().when(taskService).getHeartbeatTaskRunningByTaskId("task-1");
+            doCallRealMethod().when(taskService).batchGetHeartbeatTaskRunningByTaskIds(anyList());
+            when(taskService.findAll(any(Query.class))).thenReturn(Collections.singletonList(heartbeatTask));
+
+            assertFalse(taskService.getHeartbeatTaskRunningByTaskId("task-1"));
+        }
+
+        @Test
+        void testAppendHeartbeatTaskRunning() {
+            TaskDto taskDto = new TaskDto();
+            ObjectId objectId = new ObjectId();
+            taskDto.setId(objectId);
+
+            doCallRealMethod().when(taskService).appendHeartbeatTaskRunning(taskDto);
+            when(taskService.getHeartbeatTaskRunningByTaskId(objectId.toHexString())).thenReturn(Boolean.TRUE);
+
+            taskService.appendHeartbeatTaskRunning(taskDto);
+
+            assertEquals(Boolean.TRUE, taskDto.getHeartbeatTaskRunning());
+        }
+
+        @Test
+        void testAppendHeartbeatTaskRunningList() {
+            TaskDto task1 = new TaskDto();
+            task1.setId(new ObjectId());
+            TaskDto task2 = new TaskDto();
+            task2.setId(new ObjectId());
+
+            doCallRealMethod().when(taskService).appendHeartbeatTaskRunning(anyList());
+            when(taskService.batchGetHeartbeatTaskRunningByTaskIds(anyList())).thenReturn(new HashMap<String, Boolean>() {{
+                put(task1.getId().toHexString(), Boolean.TRUE);
+                put(task2.getId().toHexString(), null);
+            }});
+
+            taskService.appendHeartbeatTaskRunning(Arrays.asList(task1, task2));
+
+            assertEquals(Boolean.TRUE, task1.getHeartbeatTaskRunning());
+            assertNull(task2.getHeartbeatTaskRunning());
+        }
+
     }
 
     @Nested

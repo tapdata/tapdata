@@ -27,6 +27,7 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
+import com.tapdata.tm.task.vo.TaskDashboardVo;
 import com.tapdata.tm.task.vo.TaskStatsDto;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -156,7 +157,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract ShareCacheDetailVo findShareCacheById(String id);
 
-    public abstract Map<String, Object> chart(UserDetail user);
+    public abstract TaskDashboardVo dashboard(UserDetail user, String type, Long step, String dashboardType, Integer top);
 
     public abstract Map<String, Integer> inspectChart(UserDetail user);
 
@@ -205,6 +206,14 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract void getTableDDL(TaskDto taskDto);
 
     public abstract List<TaskDto> findAllTasksByIds(List<String> list);
+
+    public abstract Boolean getHeartbeatTaskRunningByTaskId(String taskId);
+
+    public abstract Map<String, Boolean> batchGetHeartbeatTaskRunningByTaskIds(List<String> taskIds);
+
+    public abstract void appendHeartbeatTaskRunning(TaskDto taskDto);
+
+    public abstract void appendHeartbeatTaskRunning(List<TaskDto> taskDtos);
 
     public abstract void renewAgentMeasurement(String taskId);
 
@@ -302,6 +311,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
     public abstract void updateDelayTime(ObjectId taskId, long delayTime);
+    public abstract void updateTaskIncrementDelayAlarm(ObjectId taskId, Long taskIncrementDelay, Long taskIncrementDelayThreshold);
     public abstract void refreshSchemas(TaskDto taskDto, String nodeIds, String keys, UserDetail userDetail);
     public abstract void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail);
     public abstract <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable;

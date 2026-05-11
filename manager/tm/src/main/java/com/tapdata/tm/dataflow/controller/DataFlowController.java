@@ -129,17 +129,6 @@ public class DataFlowController extends BaseController {
         return success(dataFlowService.save(dto, getLoginUser()));
     }
 
-    /**
-     * 已废弃
-     * @return
-     */
-    @Operation(summary = "Chart")
-    @GetMapping("/chart")
-    @Deprecated
-    public ResponseMessage<Map<String, Object>> chart() {
-//        return success(dataflowChartService.chart(getLoginUser()));
-        return success(taskService.chart(getLoginUser()));
-    }
 
     @Operation(summary = "Batch start dataFlow")
     @PostMapping("/startBatch")

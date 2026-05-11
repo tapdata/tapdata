@@ -20,6 +20,7 @@ import com.tapdata.tm.utils.ApiMetricsDelayUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiDetail;
 import com.tapdata.tm.v2.api.monitor.main.dto.ApiOfEachServer;
+import com.tapdata.tm.v2.api.monitor.main.dto.ApiRequestTrend;
 import com.tapdata.tm.v2.api.monitor.main.dto.ChartAndDelayOfApi;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerChart;
 import com.tapdata.tm.v2.api.monitor.main.dto.ServerItem;
@@ -142,6 +143,53 @@ public class ApiMetricsChartQuery {
             }
             result.setTotalErrorRate(ApiMetricsCompressValueUtil.rate(errorNum, totalRequestCount));
             metricsRawMergeService.baseDataCalculate(result, apiMetricsRaws, result::setResponseTime);
+        }
+        return result;
+    }
+
+    public ApiRequestTrend homepageRequestTrend(QueryBase param) {
+        long delay = metricsRawMergeService.getDelay();
+        ApiRequestTrend result = ApiRequestTrend.create(TimeGranularity.SECOND_FIVE);
+        TimeRangeUtil.rangeOf(result, param, delay, false);
+        List<ApiMetricsRaw> apiMetricsRaws = service.supplementMetricsRaw(
+                param, false,
+                c -> c.and(ApiMetricsRawFields.METRIC_TYPE.field()).is(MetricTypes.ALL.getType()),
+                null,
+                CollectionField.fields(
+                        ApiMetricsRawFields.TIME_START,
+                        ApiMetricsRawFields.REQ_COUNT,
+                        ApiMetricsRawFields.TIME_GRANULARITY
+                )
+        );
+        if (CollectionUtils.isEmpty(apiMetricsRaws)) {
+            return result;
+        }
+        Map<Long, ApiRequestTrend.Item> collect = apiMetricsRaws.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(e.getTimeStart()))
+                .collect(Collectors.groupingBy(
+                        ApiMetricsRaw::getTimeStart,
+                        Collectors.collectingAndThen(Collectors.toList(), rows -> {
+                            ApiRequestTrend.Item item = ApiRequestTrend.Item.create(rows.get(0).getTimeStart());
+                            long reqCount = rows.stream().map(ApiMetricsRaw::getReqCount).filter(Objects::nonNull).mapToLong(Long::longValue).sum();
+                            item.setValue(reqCount / (double) ApiMetricsCompressValueUtil.stepByGranularity(param.getGranularity()));
+                            return item;
+                        })
+                ));
+        List<ApiRequestTrend.Item> items = ChartSortUtil.fixAndSort(
+                collect,
+                param.getFixStart(),
+                param.getFixEnd(),
+                param.getGranularity(),
+                ApiRequestTrend.Item::create,
+                item -> {
+                }
+        );
+        for (ApiRequestTrend.Item item : items) {
+            if (item.getTs() < param.getFixStart() || item.getTs() > param.getEndAt()) {
+                continue;
+            }
+            result.add(item);
         }
         return result;
     }

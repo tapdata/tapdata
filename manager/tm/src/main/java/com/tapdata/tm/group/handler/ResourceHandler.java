@@ -177,7 +177,7 @@ public interface ResourceHandler {
             String databaseQualifiedName;
             if (DataSourceDefinitionDto.PDK_TYPE.equals(entity.getPdkType())) {
                 databaseQualifiedName = MetaDataBuilderUtils.generatePdkQualifiedName(
-                        "database", id, null, entity.getDefinitionPdkId(),
+                        "database", id, "", entity.getDefinitionPdkId(),
                         entity.getDefinitionGroup(), entity.getDefinitionVersion(), null);
             } else {
                 databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", id, null);

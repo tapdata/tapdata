@@ -202,7 +202,7 @@ class ServerUsageMetricInstanceAcceptorTest {
     }
 
     @Nested
-    class acceptTest {
+    class AcceptMetricTest {
         @Test
         void testNormal() {
             ServerUsageMetric metric = ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0);

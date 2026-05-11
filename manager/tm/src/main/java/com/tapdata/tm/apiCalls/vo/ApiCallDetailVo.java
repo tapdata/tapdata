@@ -81,4 +81,29 @@ public class ApiCallDetailVo extends BaseVo {
     private String httpStatus;
 
     private Map<String, List<String>> fieldEncryptionRule;
+
+    /**
+     * Request start time
+     * */
+    private Long callStart;
+    /**
+     * Request end time
+     * */
+    private Long callEnd;
+    /**
+     * response byte count
+     * */
+    private Long responseBytes;
+    /**
+     * Database response rate = response byte count / dataQueryTotalTime
+     * unit: B/s
+     * */
+    @DecimalFormat(maxScale = 4, scale = 1)
+    private Double dbRate;
+    /**
+     * http response time
+     * unit: ms
+     * */
+    @DecimalFormat(maxScale = 4, scale = 1)
+    private Double httpTime;
 }

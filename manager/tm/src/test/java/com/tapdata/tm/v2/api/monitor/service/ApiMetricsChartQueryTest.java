@@ -109,6 +109,7 @@ class ApiMetricsChartQueryTest {
         when(apiMetricsChartQuery.findRowByApiId(anyString(), any(QueryBase.class), any(MetricTypes.class), any(String[].class))).thenCallRealMethod();
         when(apiMetricsChartQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.homepageRequestTrend(any(QueryBase.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.extractIndex(anyString())).thenCallRealMethod();
         when(apiMetricsChartQuery.topWorkerInServer(anyList(), any(ServerDetail.class))).thenCallRealMethod();
         doCallRealMethod().when(apiMetricsChartQuery).handler(any(ServerChart.Item.class));

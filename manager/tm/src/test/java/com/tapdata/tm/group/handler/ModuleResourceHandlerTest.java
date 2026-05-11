@@ -139,10 +139,9 @@ public class ModuleResourceHandlerTest {
             ModulesDto module = new ModulesDto();
             module.setId(new ObjectId());
             module.setName("Test Module");
-            module.setCreateUser("createUser");
             module.setCustomId("customId");
             module.setLastUpdBy("lastUpdBy");
-            module.setUserId("userId");
+            module.setStatus("active");
 
             List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(Arrays.asList(module), user);
 

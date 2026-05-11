@@ -2284,7 +2284,12 @@ public class GroupInfoServiceTest {
         }
 
         private TaskUpAndLoadDto connPayload(String name, String connType, Map<String, Object> config) {
+            return connPayload(new ObjectId().toHexString(), name, connType, config);
+        }
+
+        private TaskUpAndLoadDto connPayload(String id, String name, String connType, Map<String, Object> config) {
             Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
             json.put("name", name);
             json.put("connection_type", connType);
             json.put("database_type", "MySQL");
@@ -2526,7 +2531,12 @@ public class GroupInfoServiceTest {
         }
 
         private TaskUpAndLoadDto migrateTaskPayload(String name) {
+            return migrateTaskPayload(new ObjectId().toHexString(), name);
+        }
+
+        private TaskUpAndLoadDto migrateTaskPayload(String id, String name) {
             Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
             json.put("name", name);
             json.put("type", "initial_sync+cdc");
             json.put("syncType", "migrate");
@@ -2543,7 +2553,12 @@ public class GroupInfoServiceTest {
         }
 
         private TaskUpAndLoadDto syncTaskPayload(String name) {
+            return syncTaskPayload(new ObjectId().toHexString(), name);
+        }
+
+        private TaskUpAndLoadDto syncTaskPayload(String id, String name) {
             Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
             json.put("name", name);
             json.put("type", "initial_sync+cdc");
             json.put("syncType", "sync");
@@ -2692,7 +2707,12 @@ public class GroupInfoServiceTest {
         }
 
         private TaskUpAndLoadDto modulePayload(String name, String apiType, String description) {
+            return modulePayload(new ObjectId().toHexString(), name, apiType, description);
+        }
+
+        private TaskUpAndLoadDto modulePayload(String id, String name, String apiType, String description) {
             Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
             json.put("name", name);
             json.put("apiType", apiType);
             if (description != null) json.put("description", description);
