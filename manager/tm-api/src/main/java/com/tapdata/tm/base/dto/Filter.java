@@ -69,9 +69,13 @@ public class Filter {
 	 * @param sort the sort
 	 */
 	public Filter(int page, int size, List<String> sort) {
-		this.page = page;
+		this.page = Math.max(page, 1);
 		this.size = size;
 		this.sort = sort;
+	}
+
+	public int getPage() {
+		return Math.max(page, 1);
 	}
 
 	public Where where(String prop, Object value) {

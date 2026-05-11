@@ -58,6 +58,14 @@ class QueryUtilTest {
         }
 
         @Test
+        void testPageIsClampedToOneForSkipCalculation() {
+            Filter filter = new Filter(0, 15, List.of("createTime DESC"));
+
+            Assertions.assertEquals(1, filter.getPage());
+            Assertions.assertEquals(0, filter.getSkip());
+        }
+
+        @Test
         void testGetSortHandlesNullSortList() {
             Filter filter = new Filter();
             filter.setSort(null);
