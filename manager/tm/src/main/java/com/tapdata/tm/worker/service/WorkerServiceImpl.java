@@ -324,9 +324,7 @@ public class WorkerServiceImpl extends WorkerService{
                     .and("is_deleted").ne(true)
                     .and("user_id").is(userDetail.getUserId())
                     .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
-                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
-                     Criteria.where("crontabExpressionFlag").is(true),
-                     Criteria.where("planStartDateFlag").is(true));
+                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN));
             Query query = Query.query(criteria);
             query.fields().include("id", "name", "syncType");
             //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
