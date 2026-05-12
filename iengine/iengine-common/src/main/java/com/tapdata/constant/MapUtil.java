@@ -37,21 +37,6 @@ public class MapUtil {
 		return getValueByKey(dataMap, key, "");
 	}
 
-	private static String replaceIfNeeded(String key, String replacement) {
-		if (replacement != null && !replacement.isEmpty()) {
-			return MongodbUtil.mongodbKeySpecialCharHandler(key, replacement);
-		}
-		return key;
-	}
-
-	private static String trimAndReplace(String key, String replacement) {
-		if (key.length() >= 2 && key.charAt(0) == '"' && key.charAt(key.length() - 1) == '"') {
-			key = key.substring(1, key.length() - 1);
-		}
-		return replaceIfNeeded(key, replacement);
-	}
-
-
 	/**
 	 * get value from map in target
 	 *
@@ -62,38 +47,47 @@ public class MapUtil {
 	 * @throws NullPointerException
 	 */
 	public static Object getValueByKey(Map<String, Object> dataMap, String key, String replacement) {
-		if (dataMap == null || dataMap.isEmpty() || key == null || key.isEmpty()) {
+		Object value = null;
+
+		if (MapUtils.isEmpty(dataMap) || StringUtils.isBlank(key)) {
 			return null;
 		}
-		int len = key.length();
-		int firstDot = key.indexOf('.');
-		if (firstDot <= 0 || key.charAt(len - 1) == '.') {
-			String finalKey = trimAndReplace(key, replacement);
-			return dataMap.get(finalKey);
-		}
-		Object current = dataMap;
-		int start = 0;
-		for (int i = 0; i < len; i++) {
-			if (key.charAt(i) == '.') {
-				if (i > start) {
-					String subKey = key.substring(start, i);
-					subKey = replaceIfNeeded(subKey, replacement);
-					if (!(current instanceof Map)) return null;
-					current = ((Map<?, ?>) current).get(subKey);
-					if (current == null) return null;
+
+		if (needSplit(key)) {
+			String[] split = key.split("\\.");
+
+			if (split.length > 0 && StringUtils.isNoneBlank(split)) {
+
+				List<String> keys = Arrays.stream(split).filter(StringUtils::isNotBlank).collect(Collectors.toList());
+
+				value = dataMap;
+				for (int i = 0; i < keys.size(); i++) {
+					String subKey = keys.get(i);
+
+					subKey = StringUtils.isNotBlank(replacement) ? MongodbUtil.mongodbKeySpecialCharHandler(subKey, replacement) : subKey;
+
+					if (value instanceof Map && ((Map) value).containsKey(subKey)) {
+						value = ((Map) value).get(subKey);
+					} else {
+						value = null;
+						break;
+					}
 				}
-				start = i + 1;
 			}
 		}
-		if (start < len) {
-			String subKey = key.substring(start);
-			subKey = replaceIfNeeded(subKey, replacement);
-			if (current instanceof Map) {
-				return ((Map<?, ?>) current).get(subKey);
+
+		key = trimKey(key);
+
+		if (value == null) {
+			key = StringUtils.isNotBlank(replacement) ? MongodbUtil.mongodbKeySpecialCharHandler(key, replacement) : key;
+			if (dataMap.containsKey(key)) {
+				value = dataMap.get(key);
 			}
 		}
-		return null;
+
+		return value;
 	}
+
 	/**
 	 * 通过特殊符号"."判断是否是多层级的字段
 	 *
@@ -101,11 +95,20 @@ public class MapUtil {
 	 * @return
 	 */
 	public static boolean needSplit(String key) {
-		int index = key.indexOf(".");
-		if (index == -1 || index == 0) {
-			return false;
+		return key.contains(".") && !key.startsWith(".") && !key.endsWith(".");
+	}
+
+	/**
+	 * 去除key的双引号,oracle列名可能携带双引号
+	 *
+	 * @param key
+	 * @return
+	 */
+	private static String trimKey(String key) {
+		if (key.contains("\"") && key.startsWith("\"") && key.endsWith("\"")) {
+			key = key.replace("\"", "");
 		}
-		return key.charAt(key.length() - 1) != '.';
+		return key;
 	}
 
 	public static boolean removeValueByKey(Map<String, Object> dataMap, String key, String replacement) {
