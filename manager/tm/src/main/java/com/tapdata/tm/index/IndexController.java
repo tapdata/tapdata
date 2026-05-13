@@ -1,5 +1,6 @@
 package com.tapdata.tm.index;
 
+import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.utils.WebUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ import java.util.Collection;
  */
 @Controller
 @Slf4j
+@IgnoreLogin
 public class IndexController {
 
     @Value("${application.title}")

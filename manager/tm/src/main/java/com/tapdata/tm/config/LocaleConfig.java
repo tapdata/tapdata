@@ -1,5 +1,7 @@
 package com.tapdata.tm.config;
 
+import com.tapdata.tm.config.security.LoginUserInterceptor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.LocaleResolver;
@@ -12,6 +14,9 @@ import java.util.Locale;
 
 @Configuration
 public class LocaleConfig implements WebMvcConfigurer {
+
+    @Autowired
+    private LoginUserInterceptor loginUserInterceptor;
 
     @Bean
     public LocaleResolver localeResolver() {
@@ -32,6 +37,7 @@ public class LocaleConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(localeChangeInterceptor());
+        registry.addInterceptor(loginUserInterceptor);
     }
 
 }

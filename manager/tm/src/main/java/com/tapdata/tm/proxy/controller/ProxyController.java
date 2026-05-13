@@ -4,6 +4,7 @@ import cn.hutool.crypto.digest.MD5;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.async.AsyncContextManager;
+import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
@@ -198,6 +199,7 @@ public class ProxyController extends BaseController {
 	}
 
     @GetMapping("callback/{token}")
+    @IgnoreLogin
     public void get(@PathVariable("token") String token, HttpServletRequest request, HttpServletResponse response) throws IOException {
         byte[] data = null;
         try {
@@ -211,6 +213,7 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @PostMapping("callback/{token}")
+    @IgnoreLogin
     public void rawDataCallback(@PathVariable("token") String token, @RequestBody Object content, HttpServletRequest request, HttpServletResponse response) throws IOException {
         if(content == null) {
             response.sendError(SC_BAD_REQUEST, "content is illegal");
@@ -328,9 +331,10 @@ public class ProxyController extends BaseController {
 //        }
 	}
 
-	@Operation(summary = "External callback url")
-	@GetMapping("id")
-	public ResponseMessage<String> newId(HttpServletRequest request) {
+    @Operation(summary = "External callback url")
+    @GetMapping("id")
+    @IgnoreLogin
+    public ResponseMessage<String> newId(HttpServletRequest request) {
 		return success(new ObjectId().toString());
 	}
 
@@ -499,16 +503,20 @@ public class ProxyController extends BaseController {
 		}
 	}
 
-	@Operation(summary = "External callback url")
-	@GetMapping("cleanup")
-	public ResponseMessage<List<String>> cleanUp(HttpServletRequest request) {
+    @Operation(summary = "External callback url")
+    @GetMapping("cleanup")
+    public ResponseMessage<List<String>> cleanUp(HttpServletRequest request) {
 		NodeHealthManager nodeHealthManager = InstanceFactory.bean(NodeHealthManager.class);
 		return success(nodeHealthManager.cleanUpDeadNodes());
 	}
 
-	@Operation(summary = "External callback url")
-	@GetMapping("memory")
-	public void memoryGet(@RequestParam(name = "t", required = false) String token, @RequestParam(name = "keys", required = false) String keys, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    @Operation(summary = "External callback url")
+    @GetMapping("memory")
+    @IgnoreLogin
+    public void memoryGet(HttpServletRequest request, HttpServletResponse response
+        , @RequestParam(name = "t", required = false) String token
+        , @RequestParam(name = "keys", required = false) String keys
+        , @RequestParam(name = "pid", required = false) String processId) throws IOException {
 		if (token == null || !token.equals(TOKEN)) {
 			response.sendError(SC_UNAUTHORIZED);
 			return;
@@ -527,12 +535,13 @@ public class ProxyController extends BaseController {
 		}
 	}
 
-	@Operation(summary = "External callback url")
-	@GetMapping("memory/connectors")
-	public void memoryV2GetDefaultName(
+    @Operation(summary = "External callback url")
+    @GetMapping("memory/connectors")
+    @IgnoreLogin
+    public void memoryV2GetDefaultName(HttpServletRequest request, HttpServletResponse response,
 			@RequestParam(name = "access_token", required = false) String token,
 			@RequestParam(name = "fileName", required = false) String fileName,
-			@RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+			@RequestParam(name = "pid", required = false) String processId) throws IOException {
 		memoryV2Get(token, null, processId, request, response);
 	}
 
@@ -568,9 +577,10 @@ public class ProxyController extends BaseController {
 		}
 	}
 
-	@Operation(summary = "External callback url")
-	@GetMapping("supervisor")
-	public void supervisorInfoDefaultName(
+    @Operation(summary = "External callback url")
+    @GetMapping("supervisor")
+    @IgnoreLogin
+    public void supervisorInfoDefaultName(
 			@RequestParam(name = "access_token", required = false) String token,
 			@RequestParam(name = "associateIds", required = false) String associateIds,
 			@RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -579,6 +589,7 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("supervisor/{fileName}")
+    @IgnoreLogin
     public void supervisorInfo(
             @RequestParam(name = "access_token", required = false) String token,
             @RequestParam(name = "associateIds", required = false) String associateIds,
@@ -666,9 +677,12 @@ public class ProxyController extends BaseController {
 		executeEngineMessage(serviceCaller, resultCallback);
 	}
 
-	@Operation(summary = "External callback url")
-	@PostMapping("memory")
-	public void memory(@RequestParam(name = "t", required = false) String token, @RequestBody MemoryDto memoryDto, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    @Operation(summary = "External callback url")
+    @PostMapping("memory")
+    @IgnoreLogin
+    public void memory(HttpServletRequest request, HttpServletResponse response
+        , @RequestParam(name = "t", required = false) String token
+        , @RequestBody MemoryDto memoryDto) throws IOException {
 		if (token == null || !token.equals(TOKEN)) {
 			response.sendError(SC_UNAUTHORIZED);
 			return;
