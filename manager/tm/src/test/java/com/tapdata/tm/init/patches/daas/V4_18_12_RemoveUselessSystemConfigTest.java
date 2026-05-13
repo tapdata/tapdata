@@ -17,14 +17,14 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-class V4_18_12_RemoveUselessSystemConfigTest {
+class V4_17_6_RemoveUselessSystemConfigTest {
 
-    private V4_18_12_RemoveUselessSystemConfig patch;
+    private V4_17_6_RemoveUselessSystemConfig patch;
     @BeforeEach
     void setUp() {
         PatchType type = mock(PatchType.class);
         PatchVersion version = mock(PatchVersion.class);
-        patch = new V4_18_12_RemoveUselessSystemConfig(type, version);
+        patch = new V4_17_6_RemoveUselessSystemConfig(type, version);
     }
 
     @Nested
