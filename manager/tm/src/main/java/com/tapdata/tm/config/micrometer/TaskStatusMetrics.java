@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Metrics;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -44,9 +45,15 @@ public class TaskStatusMetrics {
         query.fields().include("id", "name", "deleteName", "status");
 
         List<TaskEntity> tasks = taskService.findAllEntity(query);
+        if (tasks == null) {
+            return;
+        }
 
         List<String> ids = new ArrayList<>();
         for (TaskEntity task : tasks) {
+            if (task.getId() == null || StringUtils.isBlank(task.getStatus())) {
+                continue;
+            }
             String taskId = task.getId().toHexString();
             ids.add(taskId);
             // 不存在时添加任务状态指标；更新任务状态

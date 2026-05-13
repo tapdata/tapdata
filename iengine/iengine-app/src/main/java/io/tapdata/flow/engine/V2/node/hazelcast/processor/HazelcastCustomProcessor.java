@@ -63,12 +63,14 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	public static final String FUNCTION_NAME = "process";
 
 	private Logger logger = LogManager.getLogger(HazelcastCustomProcessor.class);
-	private Invocable engine;
+	private Map<Long, Invocable> engineMap = new ConcurrentHashMap<>();
 	private StateMap stateMap;
 
 	private ThreadLocal<Map<String, Object>> processContextThreadLocal;
 	private Map<String, Object> globalTaskContent;
 	private ScriptExecutorsManager scriptExecutorsManager;
+	private CustomNodeTempDto customNodeTempDto;
+	private List<JavaScriptFunctions> javaScriptFunctions;
 
 	public HazelcastCustomProcessor(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -83,16 +85,27 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		if (NodeTypeEnum.get(node.getType()).equals(NodeTypeEnum.CUSTOM_PROCESSOR)) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
 			Query query = new Query(Criteria.where("_id").is(customNodeId));
-			CustomNodeTempDto customNodeTempDto = clientMongoOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
+			this.customNodeTempDto = clientMongoOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
 					n -> !running.get());
 			if (null == customNodeTempDto) {
 				throw new TapCodeException(TaskProcessorExCode_11.CUSTOM_NODE_NOT_FOUND, "Cannot find custom node template by id: " + customNodeId);
 			}
-			List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
+			this.javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class, n -> !running.get());
+			this.stateMap = getStateMap(context.hazelcastInstance(), node.getId());
+			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
+					node.getTaskId(), node.getId(),
+					!processorBaseContext.getTaskDto().isNormalTask()
+			);
+		}
+	}
+
+	protected Invocable getOrInitEngine() {
+		long threadId = Thread.currentThread().getId();
+		return engineMap.computeIfAbsent(threadId, tid -> {
 			try {
 				ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
-				engine = ScriptUtil.getScriptEngine(
+				Invocable newEngine = ScriptUtil.getScriptEngine(
 						JSEngineEnum.GRAALVM_JS.getEngineName(),
 						customNodeTempDto.getTemplate(),
 						javaScriptFunctions,
@@ -102,19 +115,14 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 						scriptCacheService,
 						new ObsScriptLogger(getScriptObsLogger(), logger),
 						false);
-				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
-				((ScriptEngine) engine).put("state", stateMap);
-				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
-						node.getTaskId(), node.getId(),
-						!processorBaseContext.getTaskDto().isNormalTask()
-				);
-				((ScriptEngine) engine).put("ScriptExecutorsManager", scriptExecutorsManager);
-
+				((ScriptEngine) newEngine).put("state", stateMap);
+				((ScriptEngine) newEngine).put("ScriptExecutorsManager", scriptExecutorsManager);
+				return newEngine;
 			} catch (ScriptException e) {
 				throw new TapCodeException(ScriptProcessorExCode_30.CUSTOM_PROCESSOR_GET_SCRIPT_ENGINE_FAILED, "Init script engine failed", e)
 						.dynamicDescriptionParameters(e.getMessage());
 			}
-		}
+		});
 	}
 
 	private static String getStateMapName(String nodeId) {
@@ -198,6 +206,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 		Map<String, Object> context = buildContextMap(tapdataEvent, tapEvent, before, this.globalTaskContent, this.processContextThreadLocal);
 
+		Invocable engine = getOrInitEngine();
 		((ScriptEngine) engine).put("context", context);
 
 		Object result;
@@ -326,9 +335,16 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	@Override
 	protected void doClose() throws TapCodeException {
 		CommonUtils.ignoreAnyError(() -> {
-			if (this.engine instanceof GraalJSScriptEngine) {
-				((GraalJSScriptEngine) this.engine).close();
-			}
+			engineMap.values().forEach(engine -> {
+				if (engine instanceof GraalJSScriptEngine) {
+					try {
+						((GraalJSScriptEngine) engine).close();
+					} catch (Exception e) {
+						logger.warn("Error closing GraalJS engine: {}", e.getMessage());
+					}
+				}
+			});
+			engineMap.clear();
 		}, TAG);
 		if (null != processContextThreadLocal) {
 			processContextThreadLocal.remove();
@@ -340,6 +356,8 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 				this.scriptExecutorsManager = null;
 			}
 		}, TAG);
+		this.customNodeTempDto = null;
+		this.javaScriptFunctions = null;
 		super.doClose();
 	}
 
@@ -355,7 +373,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 		@Override
 		public void init(String mapKey, Class<Object> valueClass) {
-			this.map = new HashMap<>();
+			this.map = new ConcurrentHashMap<>();
 		}
 
 		@Override
@@ -393,6 +411,12 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	public boolean needCopyBatchEventWrapper() {
 		return true;
 	}
+
+	@Override
+	public boolean supportConcurrentProcess() {
+		return true;
+	}
+
 
 	@Override
 	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {

@@ -95,6 +95,10 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
 				MetricCons.SS.VS.F_OUTPUT_QPS,
 				MetricCons.SS.VS.F_TIME_COST_AVG,
 				MetricCons.SS.VS.F_REPLICATE_LAG,
+				MetricCons.SS.VS.F_SOURCE_INCREMENTAL_MONITOR_START_AT,
+				MetricCons.SS.VS.F_LAST_CAPTURED_INCREMENTAL_EVENT_AT,
+				MetricCons.SS.VS.F_LAST_ENQUEUED_INCREMENTAL_EVENT_AT,
+				MetricCons.SS.VS.F_PENDING_INCREMENTAL_EVENT,
 				MetricCons.SS.VS.F_CURR_EVENT_TS
 		);
 	}

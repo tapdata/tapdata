@@ -37,7 +37,7 @@ public class FieldChangeRuleGroup {
         for (FieldChangeRule r : rules) add(nodeId, r);
     }
 
-    public FieldChangeRule getRule(String nodeId, String qualifiedName, String fieldName, String dataType, TypeExprResult<DataMap> exprResult) {
+    public FieldChangeRule getRule(String nodeId, String ancestorsName, String fieldName, String dataType, TypeExprResult<DataMap> exprResult) {
         Map<FieldChangeRule.Scope, List<FieldChangeRule>> scopeListMap = rules.get(nodeId);
 
         if (scopeListMap == null) {
@@ -49,7 +49,9 @@ public class FieldChangeRuleGroup {
             fieldChangeRules = new ArrayList<>(fieldChangeRules);
             Collections.reverse(fieldChangeRules);
             for (FieldChangeRule fieldChangeRule : fieldChangeRules) {
-                if (fieldName.equals(fieldChangeRule.getFieldName()) && qualifiedName.equals(fieldChangeRule.getQualifiedName())) {
+                if (!fieldName.equals(fieldChangeRule.getFieldName())) continue;
+                String ruleAncestorsName = fieldChangeRule.getAncestorsName();
+                if (null == ruleAncestorsName || ruleAncestorsName.equals(ancestorsName)) {
                     return fieldChangeRule;
                 }
             }
@@ -73,26 +75,12 @@ public class FieldChangeRuleGroup {
             }
         }
 
-//        return Optional.ofNullable(rules.get(nodeId)).map(nodeRules -> Optional.ofNullable(nodeRules.get(FieldChangeRule.Scope.Field)).map(ruleSet -> {
-//            for (FieldChangeRule r : ruleSet) {
-//                if (fieldName.equals(r.getFieldName()) && qualifiedName.equals(r.getQualifiedName())) return r;
-//            }
-//            return null;
-//        }).orElse(Optional.ofNullable(nodeRules.get(FieldChangeRule.Scope.Node)).map(ruleSet -> {
-//            for (FieldChangeRule r : ruleSet) {
-//                if (r.getType().equals(FieldChangeRule.Type.MutiDataType)) {
-//                    return r;
-//                }
-//                if (r.getAccept().equals(dataType)) return r;
-//            }
-//            return null;
-//        }).orElse(null))).orElse(null);
         return null;
     }
 
-    public void process(String nodeId, String qualifiedName, Field f, DefaultExpressionMatchingMap map) {
+    public void process(String nodeId, String ancestorsName, Field f, DefaultExpressionMatchingMap map) {
         TypeExprResult<DataMap> exprResult = map.get(f.getDataType());
-        FieldChangeRule rule = getRule(nodeId, qualifiedName, f.getFieldName(), f.getDataType(), exprResult);
+        FieldChangeRule rule = getRule(nodeId, ancestorsName, f.getFieldName(), f.getDataType(), exprResult);
         if (null == rule) return;
 
         switch (rule.getType()) {

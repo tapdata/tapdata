@@ -197,12 +197,14 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
 //            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_DIFFERENCE));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_RETRY_WARN));
             taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
         }
+        supplementAlarmSettingIfMissing(taskDto, settingDtoMap.get(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
 
         if (CollectionUtils.isEmpty(taskDto.getAlarmRules())) {
             addIfNotNull(alarmRuleDtos, ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
@@ -237,6 +239,20 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             }
         }
 
+    }
+
+    private void supplementAlarmSettingIfMissing(TaskDto taskDto, AlarmSettingDto defaultSetting) {
+        if (Objects.isNull(taskDto) || Objects.isNull(defaultSetting)) {
+            return;
+        }
+        List<AlarmSettingVO> alarmSettings = Optional.ofNullable(taskDto.getAlarmSettings()).orElseGet(Lists::newArrayList);
+        boolean exists = alarmSettings.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(setting -> defaultSetting.getKey().equals(setting.getKey()));
+        if (!exists) {
+            alarmSettings.add(CglibUtil.copy(defaultSetting, AlarmSettingVO.class));
+            taskDto.setAlarmSettings(alarmSettings);
+        }
     }
 
     private void addIfNotNull(List list, Object element){

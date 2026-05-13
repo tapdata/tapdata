@@ -1,5 +1,7 @@
 package com.tapdata.tm.commons.schema;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.List;
 
 public enum DifferenceTypeEnum {
@@ -36,6 +38,7 @@ public enum DifferenceTypeEnum {
                 differenceField.getTargetField().setFieldName(field.getFieldName());
                 differenceField.getTargetField().setColumnPosition(field.getColumnPosition());
                 differenceField.getTargetField().setPrimaryKeyPosition(field.getPrimaryKeyPosition());
+                differenceField.getTargetField().setDataTypeTemp(differenceField.getTargetField().getDataType());
                 fields.remove(field);
                 fields.add(differenceField.getTargetField());
             }
@@ -56,6 +59,7 @@ public enum DifferenceTypeEnum {
                 differenceField.getTargetField().setFieldName(field.getFieldName());
                 differenceField.getTargetField().setColumnPosition(field.getColumnPosition());
                 differenceField.getTargetField().setPrimaryKeyPosition(field.getPrimaryKeyPosition());
+                differenceField.getTargetField().setDataTypeTemp(differenceField.getTargetField().getDataType());
                 fields.remove(field);
                 fields.add(differenceField.getTargetField());
             }
