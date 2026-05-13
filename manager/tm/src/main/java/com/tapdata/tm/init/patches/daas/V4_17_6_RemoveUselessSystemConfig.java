@@ -20,11 +20,11 @@ import java.util.List;
  * @version v1.0 2026/4/28 19:23 Create
  * @description
  */
-@PatchAnnotation(appType = AppType.DAAS, version = "4.18-12")
-public class V4_18_12_RemoveUselessSystemConfig extends AbsPatch {
-    private static final Logger logger = LogManager.getLogger(V4_18_12_RemoveUselessSystemConfig.class);
+@PatchAnnotation(appType = AppType.DAAS, version = "4.17-6")
+public class V4_17_6_RemoveUselessSystemConfig extends AbsPatch {
+    private static final Logger logger = LogManager.getLogger(V4_17_6_RemoveUselessSystemConfig.class);
 
-    public V4_18_12_RemoveUselessSystemConfig(PatchType type, PatchVersion version) {
+    public V4_17_6_RemoveUselessSystemConfig(PatchType type, PatchVersion version) {
         super(type, version);
     }
 
