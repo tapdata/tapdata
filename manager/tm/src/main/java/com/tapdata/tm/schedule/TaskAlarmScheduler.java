@@ -29,12 +29,16 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,6 +58,7 @@ public class TaskAlarmScheduler {
     private UserService userService;
     private SettingsService settingsService;
     private AgentGroupService agentGroupService;
+    private MongoTemplate mongoTemplate;
 
     @Scheduled(cron = "0 0/5 * * * ? ")
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
@@ -149,6 +154,118 @@ public class TaskAlarmScheduler {
             alarmInfo.setParam(param);
             alarmInfo.setUserId(data.getUserId());
             alarmService.save(alarmInfo);
+        }
+    }
+
+    @Scheduled(cron = "0 0/1 * * * ? ")
+    @SchedulerLock(name = "engine_heartbeat_alarm_lock", lockAtMostFor = "30s", lockAtLeastFor = "10s")
+    public void engineHeartbeatAlarm() {
+        Thread.currentThread().setName(getClass().getSimpleName() + "-engineHeartbeatAlarm");
+
+        Query workerQuery = new Query(Criteria.where("worker_type").is("connector"));
+        List<WorkerDto> workers = workerService.findAll(workerQuery);
+        if (CollectionUtils.isEmpty(workers)) {
+            return;
+        }
+
+        Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
+        long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48) * 1000 : 108000;
+        long now = System.currentTimeMillis();
+
+        Map<String, WorkerDto> offlineMap = workers.stream()
+                .filter(w -> (Objects.nonNull(w.getIsDeleted()) && w.getIsDeleted())
+                        || (Objects.nonNull(w.getStopping()) && w.getStopping())
+                        || (Objects.nonNull(w.getPingTime()) && w.getPingTime() < (now - heartExpire)))
+                .collect(Collectors.toMap(WorkerDto::getProcessId, Function.identity(), (e1, e2) -> e1));
+
+        Set<String> onlineAgentIds = workers.stream()
+                .map(WorkerDto::getProcessId)
+                .filter(id -> StringUtils.isNotBlank(id) && !offlineMap.containsKey(id))
+                .collect(Collectors.toSet());
+
+        Query ingOfflineQuery = new Query(Criteria.where("status").is(AlarmStatusEnum.ING)
+                .and("metric").is(AlarmKeyEnum.ENGINE_OFFLINE.name()));
+        List<AlarmInfo> ingOffline = mongoTemplate.find(ingOfflineQuery, AlarmInfo.class);
+        Set<String> alreadyAlarmedAgentIds = ingOffline.stream()
+                .map(AlarmInfo::getAgentId).filter(Objects::nonNull).collect(Collectors.toSet());
+
+        Date currentDate = new Date();
+        String alarmDate = DateUtil.now();
+
+        if (!offlineMap.isEmpty()) {
+            Query runningTaskQuery = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
+                    .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                    .and("is_deleted").is(false));
+            List<TaskDto> runningTasks = taskService.findAll(runningTaskQuery);
+            Map<String, Long> taskCountByAgent = runningTasks.stream()
+                    .filter(t -> StringUtils.isNotBlank(t.getAgentId()))
+                    .collect(Collectors.groupingBy(TaskDto::getAgentId, Collectors.counting()));
+
+            for (Map.Entry<String, WorkerDto> entry : offlineMap.entrySet()) {
+                String agentId = entry.getKey();
+                if (alreadyAlarmedAgentIds.contains(agentId)) {
+                    continue;
+                }
+                WorkerDto w = entry.getValue();
+                String agentName = StringUtils.isNotBlank(w.getHostname()) ? w.getHostname() : agentId;
+                long taskCount = taskCountByAgent.getOrDefault(agentId, 0L);
+                Map<String, Object> param = Maps.newHashMap();
+                param.put("agentName", agentName);
+                param.put("agentId", agentId);
+                param.put("taskCount", taskCount);
+                param.put("alarmDate", alarmDate);
+                AlarmInfo info = AlarmInfo.builder()
+                        .status(AlarmStatusEnum.ING).level(Level.WARNING)
+                        .component(AlarmComponentEnum.FE).type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
+                        .agentId(agentId).name(agentName).summary("ENGINE_OFFLINE")
+                        .metric(AlarmKeyEnum.ENGINE_OFFLINE).build();
+                info.setParam(param);
+                info.setFirstOccurrenceTime(currentDate);
+                info.setLastOccurrenceTime(currentDate);
+                info.setLastNotifyTime(currentDate);
+                mongoTemplate.insert(info);
+                log.warn("Engine offline detected agentId={}, agentName={}, taskCount={}", agentId, agentName, taskCount);
+            }
+        }
+
+        Map<String, AlarmInfo> offlineByAgent = ingOffline.stream()
+                .filter(a -> StringUtils.isNotBlank(a.getAgentId()))
+                .collect(Collectors.toMap(AlarmInfo::getAgentId, Function.identity(), (a, b) -> a));
+        Map<String, WorkerDto> workerByAgent = workers.stream()
+                .filter(w -> StringUtils.isNotBlank(w.getProcessId()))
+                .collect(Collectors.toMap(WorkerDto::getProcessId, Function.identity(), (a, b) -> a));
+
+        for (Map.Entry<String, AlarmInfo> entry : offlineByAgent.entrySet()) {
+            String agentId = entry.getKey();
+            if (!onlineAgentIds.contains(agentId)) {
+                continue;
+            }
+            mongoTemplate.updateMulti(
+                    Query.query(Criteria.where("status").is(AlarmStatusEnum.ING)
+                            .and("metric").is(AlarmKeyEnum.ENGINE_OFFLINE.name())
+                            .and("agentId").is(agentId)),
+                    new Update().set("status", AlarmStatusEnum.RECOVER).set("recoveryTime", currentDate),
+                    AlarmInfo.class);
+
+            WorkerDto live = workerByAgent.get(agentId);
+            String agentName = live != null && StringUtils.isNotBlank(live.getHostname())
+                    ? live.getHostname()
+                    : (StringUtils.isNotBlank(entry.getValue().getName()) ? entry.getValue().getName() : agentId);
+            Map<String, Object> param = Maps.newHashMap();
+            param.put("agentName", agentName);
+            param.put("agentId", agentId);
+            param.put("alarmDate", alarmDate);
+            AlarmInfo info = AlarmInfo.builder()
+                    .status(AlarmStatusEnum.ING).level(Level.RECOVERY)
+                    .component(AlarmComponentEnum.FE).type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
+                    .agentId(agentId).name(agentName).summary("ENGINE_ONLINE")
+                    .metric(AlarmKeyEnum.ENGINE_ONLINE).build();
+            info.setParam(param);
+            info.setFirstOccurrenceTime(currentDate);
+            info.setLastOccurrenceTime(currentDate);
+            info.setLastNotifyTime(currentDate);
+            mongoTemplate.insert(info);
+            log.info("Engine online recovered agentId={}, agentName={}", agentId, agentName);
         }
     }
 
