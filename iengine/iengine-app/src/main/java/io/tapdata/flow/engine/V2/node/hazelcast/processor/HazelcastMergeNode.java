@@ -1866,11 +1866,14 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 								lookupData = mockLookupMap(childMergeProperty);
 								mockData = true;
 							} else {
-								String firstKey = keySet.iterator().next();
-								lookupData = (Map<String, Object>) findData.get(firstKey);
+								String lastKey = null;
+								for (String key : keySet) {
+									lastKey = key;
+								}
+								lookupData = (Map<String, Object>) findData.get(lastKey);
 							}
 							if (keySet.size() > 1) {
-								nodeLogger.warn("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use first row: {}", tableName, joinValueKey, lookupData);
+								nodeLogger.warn("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use last row: {}", tableName, joinValueKey, lookupData);
 							}
 						}
 						mergeLookupResult.setSharedJoinKeys(shareJoinKeys);
