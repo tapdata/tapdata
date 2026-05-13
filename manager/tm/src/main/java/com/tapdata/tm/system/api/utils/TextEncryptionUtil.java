@@ -84,10 +84,14 @@ public class TextEncryptionUtil {
     }
 
     public static void formatBefore(Map<String, Object> item, Map<String, Param> paramTypeMap) {
-        if (null == paramTypeMap || paramTypeMap.isEmpty()) {
+        if (null == item || item.isEmpty() || null == paramTypeMap) {
             return;
         }
-        paramTypeMap.forEach((key, p) -> {
+        item.keySet().forEach(key -> {
+            Param p = paramTypeMap.get(key);
+            if (null == p) {
+                return;
+            }
             final String type = p.getType();
             final String defaultValue = StringUtils.isBlank(p.getDefaultvalue()) ? null : p.getDefaultvalue().trim();
             Optional.ofNullable(parseRuleMap.get(type))
@@ -96,6 +100,17 @@ public class TextEncryptionUtil {
                         handler.parse(item, key);
                     });
         });
+    }
+
+    public static Object parseValue(String type, String value) {
+        ParseRule handler = parseRuleMap.get(type);
+        if (null == handler) {
+            return value;
+        }
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", value);
+        handler.parse(map, "key");
+        return map.get("key");
     }
 
     public static List<Map<String, Object>> textEncryptionBySwitch(Boolean open, List<Map<String, Object>> data) {

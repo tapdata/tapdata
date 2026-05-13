@@ -43,6 +43,11 @@ public class ClusterComponentStopService {
     private UserService userService;
 
     public Map<String, Object> componentStopped(ComponentStoppedRequest req, UserDetail caller) {
+        log.info("ClusterComponent event=received component={} uuid={} processId={} callerUserId={}",
+                req == null ? null : req.getComponent(),
+                req == null ? null : req.getUuid(),
+                req == null ? null : req.getProcessId(),
+                caller == null ? null : caller.getUserId());
         validate(req);
 
         String uuid = req.getUuid();
@@ -65,9 +70,6 @@ public class ClusterComponentStopService {
                 workerUpdated = markWorkerStopped(processId, WorkerType.API_SERVER.getType());
                 clusterStateUpdated = setClusterStateComponentStopped(uuid, "apiServer");
                 safeSendStopWorkWs(processId, caller);
-                break;
-            case ComponentStoppedRequest.COMPONENT_FRONTEND:
-                clusterStateUpdated = setClusterStateComponentStopped(uuid, "management");
                 break;
             default:
                 throw new IllegalArgumentException("Unknown component: " + component);
@@ -125,6 +127,7 @@ public class ClusterComponentStopService {
                 .and("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN);
         List<TaskDto> tasks = taskService.findAll(Query.query(criteria));
         if (CollectionUtils.isEmpty(tasks)) {
+            log.info("TaskHA event=agent_initiated_offline processId={} taskCount=0 reason=no_running_tasks", processId);
             return 0;
         }
 
@@ -149,8 +152,8 @@ public class ClusterComponentStopService {
                 taskScheduleService.scheduling(taskDto, user, true);
                 rescheduled++;
             } catch (Exception e) {
-                log.warn("TaskHA event=agent_initiated_offline skip taskId={} reason=exception msg={}",
-                        taskDto.getId().toHexString(), e.getMessage());
+                log.warn("TaskHA event=agent_initiated_offline skip taskId={} reason=exception",
+                        taskDto.getId().toHexString(), e);
             }
         }
         log.info("TaskHA event=agent_initiated_offline processId={} taskCount={} rescheduled={}",
