@@ -828,6 +828,8 @@ public class UserServiceImpl extends UserService{
 			add("v2_cluster-management_menu");
 			add("v2_user_management_menu");
 			add("v2_role_management");
+            add("v2_project_management");
+            add("v2_project_import_and_export");
 		}};
 
     @Override
