@@ -945,4 +945,83 @@ class MessageServiceTest {
             assertEquals(1, list.getTotal());
         }
     }
+
+    @Nested
+    class GetMessageListVoPageTest {
+        private MongoTemplate template;
+        private TmPageable tmPageable;
+        private Query query;
+
+        @BeforeEach
+        void beforeEach() {
+            template = mock(MongoTemplate.class);
+            when(mockMessageRepository.getMongoOperations()).thenReturn(template);
+            tmPageable = new TmPageable();
+            tmPageable.setPage(1);
+            tmPageable.setSize(20);
+            query = new Query();
+        }
+
+        @Test
+        void renderTitleForExpiringMessage() {
+            MessageEntity entity = new MessageEntity();
+            entity.setMsg(MsgTypeEnum.EXPIRING.getValue());
+            entity.setLevel(Level.WARN.getValue());
+            entity.setSystem("system");
+            entity.setTemplate("LICENSE_EXPIRING");
+            Map<String, Object> param = new HashMap<>();
+            param.put("dayAlarm", 10L);
+            entity.setParam(param);
+
+            when(template.count(query, MessageEntity.class)).thenReturn(1L);
+            when(template.find(query, MessageEntity.class)).thenReturn(Collections.singletonList(entity));
+
+            Page<MessageListVo> result = messageServiceUnderTest.getMessageListVoPage(Locale.US, query, tmPageable);
+
+            assertEquals(1, result.getTotal());
+            assertEquals(1, result.getItems().size());
+            assertEquals(
+                    "Your license will expire in 10 days. To avoid any impact on your service after expiration, please contact Tapdata as soon as possible to obtain a new license.",
+                    result.getItems().get(0).getTitle());
+        }
+
+        @Test
+        void renderTitleForExpiredMessage() {
+            MessageEntity entity = new MessageEntity();
+            entity.setMsg(MsgTypeEnum.EXPIRED.getValue());
+            entity.setLevel(Level.WARN.getValue());
+            entity.setSystem("system");
+            entity.setTemplate("LICENSE_EXPIRED");
+            Map<String, Object> param = new HashMap<>();
+            param.put("dayAlarm", 0L);
+            entity.setParam(param);
+
+            when(template.count(query, MessageEntity.class)).thenReturn(1L);
+            when(template.find(query, MessageEntity.class)).thenReturn(Collections.singletonList(entity));
+
+            Page<MessageListVo> result = messageServiceUnderTest.getMessageListVoPage(Locale.US, query, tmPageable);
+
+            assertEquals(
+                    "Your license has expired and your service will be affected. If you need to continue using the service, please contact Tapdata as soon as possible to obtain a new license.",
+                    result.getItems().get(0).getTitle());
+        }
+
+        @Test
+        void doNotRenderForOtherMsgTypes() {
+            MessageEntity entity = new MessageEntity();
+            entity.setMsg(MsgTypeEnum.DELETED.getValue());
+            entity.setTitle("original title");
+            entity.setTemplate("LICENSE_EXPIRING");
+            Map<String, Object> param = new HashMap<>();
+            param.put("dayAlarm", 10L);
+            entity.setParam(param);
+
+            when(template.count(query, MessageEntity.class)).thenReturn(1L);
+            when(template.find(query, MessageEntity.class)).thenReturn(Collections.singletonList(entity));
+
+            Page<MessageListVo> result = messageServiceUnderTest.getMessageListVoPage(Locale.US, query, tmPageable);
+
+            assertEquals("original title", result.getItems().get(0).getTitle());
+        }
+    }
 }
