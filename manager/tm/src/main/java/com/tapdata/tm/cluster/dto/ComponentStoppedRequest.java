@@ -10,7 +10,6 @@ public class ComponentStoppedRequest {
 
     public static final String COMPONENT_ENGINE = "engine";
     public static final String COMPONENT_APISERVER = "apiserver";
-    public static final String COMPONENT_FRONTEND = "frontend";
 
     @NotBlank
     private String uuid;
