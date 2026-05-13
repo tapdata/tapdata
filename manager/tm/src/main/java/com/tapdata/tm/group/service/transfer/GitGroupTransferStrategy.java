@@ -22,8 +22,10 @@ import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -307,6 +309,34 @@ public class GitGroupTransferStrategy implements GroupTransferStrategy {
 	 * If file already exists, it will be overwritten
 	 */
 	private void writeContentsToDirectory(File exportDir, Map<String, byte[]> contents) throws IOException {
+		// Clean up stale files in subdirectories (e.g. old connection/task/api files after rename)
+		Set<String> newFileNames = contents.keySet();
+		Set<String> subdirs = new HashSet<>();
+		for (String fileName : newFileNames) {
+			int sep = fileName.indexOf('/');
+			if (sep > 0) {
+				subdirs.add(fileName.substring(0, sep));
+			}
+		}
+		for (String subdir : subdirs) {
+			File subdirFile = new File(exportDir, subdir);
+			if (subdirFile.isDirectory()) {
+				File[] existingFiles = subdirFile.listFiles();
+				if (existingFiles != null) {
+					for (File existing : existingFiles) {
+						String relativePath = subdir + "/" + existing.getName();
+						if (!newFileNames.contains(relativePath)) {
+							if (existing.delete()) {
+								log.info("Removed stale file {} (no longer in export)", relativePath);
+							} else {
+								log.warn("Failed to remove stale file {}", relativePath);
+							}
+						}
+					}
+				}
+			}
+		}
+
 		for (Map.Entry<String, byte[]> entry : contents.entrySet()) {
 			String fileName = entry.getKey();
 			byte[] fileContent = entry.getValue();

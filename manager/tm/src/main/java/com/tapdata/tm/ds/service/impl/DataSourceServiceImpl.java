@@ -14,10 +14,13 @@ import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -35,6 +38,7 @@ import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.dto.ConnectionStats;
+import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
@@ -55,6 +59,7 @@ import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
@@ -70,7 +75,9 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
+import com.tapdata.tm.v2.api.pool.repository.ConnectionPoolInfoRepository;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.ConnectionPoolField;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
@@ -186,6 +193,8 @@ public class DataSourceServiceImpl extends DataSourceService{
     private FileService fileService;
     @Autowired
     private BatchUpChecker batchUpChecker;
+    @Autowired
+    private ConnectionPoolInfoRepository connectionPoolInfoRepository;
 
     public DataSourceServiceImpl(@NonNull DataSourceRepository repository) {
         super(repository);
@@ -1134,6 +1143,10 @@ public class DataSourceServiceImpl extends DataSourceService{
 
 
     protected void beforeSave(DataSourceConnectionDto connection, UserDetail user) {
+        beforeSave(connection, user, false);
+    }
+
+    protected void beforeSave(DataSourceConnectionDto connection, UserDetail user, boolean skipRepeatNameCheck) {
         log.debug("create connection before, connection = {}, user = {}", connection, user == null ? null : user.getUserId());
         //校验数据源的名称是否合法
         checkName(connection.getName());
@@ -1152,8 +1165,10 @@ public class DataSourceServiceImpl extends DataSourceService{
         connection.setDefinitionTags(definitionDto.getTags());
         connection.setCapabilities(definitionDto.getCapabilities());
 
-        //检查是否存在名称相同的数据源连接，存在的话，则不允许。（还可以检验一下关键字）
-        checkRepeatName(user, connection.getName(), connection.getId());
+        //检查是否存在名称相同的数据源连接，存在的话，则不允许。（导入场景跳过，用 _id 保证唯一性）
+        if (!skipRepeatNameCheck) {
+            checkRepeatName(user, connection.getName(), connection.getId());
+        }
         //根据数据源定义信息，使用json schema校验数据源配置信息的格式，如果格式不正确则返回错误
 //        boolean ok = JsonSchemaUtils.checkDataSourceDefinition(definitionDto, connection.getConfig());
 //        if (!ok) {
@@ -1934,9 +1949,6 @@ public class DataSourceServiceImpl extends DataSourceService{
             DataSourceConnectionDto connectionByUser = findOne(query,user);
             if (connectionByUser == null) {
 				DataSourceConnectionDto connection = findOne(new Query(Criteria.where("_id").is(dtoId)));
-                while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
-                    connectionDto.setName(connectionDto.getName() + "_import");
-				}
 				if(connection != null){
 					connectionDto.setId(null);
                 }
@@ -1954,9 +1966,6 @@ public class DataSourceServiceImpl extends DataSourceService{
             } else {
                 if (cover) {
                     ObjectId objectId = connectionByUser.getId();
-                    while (checkRepeatNameBool(user, connectionDto.getName(), objectId)) {
-                        connectionDto.setName(connectionDto.getName() + "_import");
-                    }
                     agentGroupService.importAgentInfo(connectionDto);
                     connectionByUser = save(connectionDto, user);
                 }
@@ -1984,29 +1993,38 @@ public class DataSourceServiceImpl extends DataSourceService{
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 
         if(importMode.equals(ImportModeEnum.CANCEL_IMPORT)){
-            List<String> nameList = connectionDtos.stream().map(DataSourceConnectionDto::getName).collect(Collectors.toList());
-            Query nameQuery = new Query(Criteria.where("name").in(nameList).and("is_deleted").ne(true));
-            long count = count(nameQuery, user);
-            if(count > 0){
-                throw new BizException("Datasource.RepeatName");
+            List<ObjectId> idList = connectionDtos.stream()
+                    .map(DataSourceConnectionDto::getId).filter(Objects::nonNull).collect(Collectors.toList());
+            if (!idList.isEmpty()) {
+                Query idQuery = new Query(Criteria.where("_id").in(idList).and("is_deleted").ne(true));
+                long count = count(idQuery, user);
+                if (count > 0) {
+                    throw new BizException("Datasource.RepeatName");
+                }
             }
         }
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
             ObjectId dtoId = connectionDto.getId();
             String connId = dtoId != null ? dtoId.toString() : null;
-            // 基于名称查找现有连接
-            Query nameQuery = new Query(Criteria.where("name").is(connectionDto.getName()).and("is_deleted").ne(true));
-            nameQuery.fields().include("_id", "name");
-            DataSourceConnectionDto existingConnectionByName = findOne(nameQuery, user);
+            // 基于 _id 查找现有连接，不使用 name 匹配，避免不同用户相同名称连接相互覆盖
+            DataSourceConnectionDto existingConnection = null;
+            if (dtoId != null) {
+                Query idQuery = new Query(Criteria.where("_id").is(dtoId).and("is_deleted").ne(true));
+                idQuery.fields().include("_id", "name");
+                existingConnection = findOne(idQuery, user);
+            }
 
             DataSourceConnectionDto resultConnection = null;
 
             switch (importMode) {
                 case REPLACE:
-                    if (existingConnectionByName != null) {
+                    if (dtoId == null) {
+                        throw new BizException("Import.ConnectionMissingId", connectionDto.getName());
+                    }
+                    if (existingConnection != null) {
                         // 替换模式：保留现有ID，使用导入数据覆盖
-                        ObjectId existingId = existingConnectionByName.getId();
+                        ObjectId existingId = existingConnection.getId();
                         connectionDto.setId(existingId);
 
                         if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
@@ -2026,10 +2044,9 @@ public class DataSourceServiceImpl extends DataSourceService{
                     }
                     break;
                 case REUSE_EXISTING:
-                    if (existingConnectionByName != null) {
-                        resultConnection = existingConnectionByName;
+                    if (existingConnection != null) {
+                        resultConnection = existingConnection;
                     } else {
-                        // 不存在同名连接，作为新连接导入
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
                     break;
@@ -2045,7 +2062,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
                 case CANCEL_IMPORT:
                     // 取消导入，使用原有连接（如果存在）
-                    if (existingConnectionByName == null) {
+                    if (existingConnection == null) {
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
                     break;
@@ -2072,10 +2089,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         Query idQuery = new Query(Criteria.where("_id").is(connectionDto.getId()).and("is_deleted").ne(true));
         idQuery.fields().include("_id", "name");
         DataSourceConnectionDto existingConnectionById = findOne(idQuery);
-        // 检查名称冲突并重命名
-        while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
-            connectionDto.setName(connectionDto.getName() + "_import");
-        }
+        // 不再基于名称重命名，使用 _id 保证唯一性
         if(null != existingConnectionById){
             // 分配新ID
             connectionDto.setId(null);
@@ -2451,7 +2465,7 @@ public class DataSourceServiceImpl extends DataSourceService{
      * 与 BaseService.save() 流程一致（包括 beforeSave），仅 repository 层调用不同。
      */
     public DataSourceConnectionDto importSave(DataSourceConnectionDto dto, UserDetail userDetail) {
-        beforeSave(dto, userDetail);
+        beforeSave(dto, userDetail, true);
         DataSourceEntity entity = convertToEntity(DataSourceEntity.class, dto);
         entity = repository.importSave(entity, userDetail);
         return convertToDto(entity, DataSourceConnectionDto.class);
@@ -2610,6 +2624,63 @@ public class DataSourceServiceImpl extends DataSourceService{
                 )
             );
         return notSupports;
+    }
+
+    public List<ConnectionWithName> findAllConnections(String serverId, UserDetail loginUser) {
+        List<String> connectionsIds = connectionPoolInfoRepository.findDistinct(
+                Query.query(new Criteria(ConnectionPoolField.PROCESS_ID.field()).is(serverId)
+                        .and(ConnectionPoolField.TIME_GRANULARITY.field()).is(TimeGranularity.SECOND_FIVE.getType())),
+                ConnectionPoolField.CONNECTION_ID.field(),
+                loginUser,
+                String.class
+        );
+        if (connectionsIds.isEmpty())  {
+            return new ArrayList<>();
+        }
+        List<ObjectId> connectionsOIds = connectionsIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .map(MongoUtils::toObjectId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (CollectionUtils.isEmpty(connectionsOIds)) {
+            return new ArrayList<>();
+        }
+        Query query = Query.query(new Criteria(BaseEntityFields._ID.field()).in(connectionsOIds));
+        query.fields().include(BaseEntityFields._ID.field(), "name");
+        List<DataSourceEntity> all = repository.findAll(query, loginUser);
+        if (org.springframework.util.CollectionUtils.isEmpty(all)) {
+            return new ArrayList<>();
+        }
+        Query queryModule = Query.query(new Criteria(ModulesField.STATUS.field()).is("active").and(ModulesField.CONNECTION_ID.field()).in(connectionsIds));
+        queryModule.fields().include(ModulesField.DATA_SOURCE.field());
+        queryModule.with(Sort.by(Sort.Order.desc(ModulesField.LAST_UPDATE_TIME.field())));
+        List<ModulesDto> modules = modulesService.findAll(queryModule);
+        List<ConnectionWithName> names = new ArrayList<>();
+        Map<String, ConnectionWithName> map = new HashMap<>();
+        for (int i = 0; i < modules.size(); i++) {
+            ModulesDto modulesDto = modules.get(i);
+            String connectionId = modulesDto.getDataSource();
+            if (!map.containsKey(connectionId)) {
+                ConnectionWithName connectionWithName = new ConnectionWithName(connectionId, null);
+                connectionWithName.setSort(i);
+                names.add(connectionWithName);
+                map.put(connectionId, connectionWithName);
+            }
+        }
+        for (DataSourceEntity e : all) {
+            String connectionId = e.getId().toHexString();
+            String name = e.getName();
+            if (map.containsKey(connectionId)) {
+                ConnectionWithName connectionWithName = map.get(connectionId);
+                assert connectionWithName != null;
+                connectionWithName.setName(name);
+            } else {
+                ConnectionWithName connectionWithName = new ConnectionWithName(connectionId, e.getName());
+                connectionWithName.setSort(names.size() + 1);
+                names.add(connectionWithName);
+            }
+        }
+        return names.stream().sorted(Comparator.comparing(ConnectionWithName::getSort)).toList();
     }
 
     @Override

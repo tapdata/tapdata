@@ -196,8 +196,9 @@ public class ConnectorManager {
         // change 60s to 300s, because DFS fault usually lasts longer than 1 minute
         long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", AppType.currentType().isCloud() ? 300000L : 60000L);
         long minRestApiTimeout = CommonUtils.getPropertyLong("MINIMUM_REST_API_TIMEOUT", 30000L);
+        long maxRestApiTimeout = CommonUtils.getPropertyLong("MAX_REST_API_TIMEOUT", AppType.currentType().isCloud() ? 300000L : 120000L);
         long jobHeartTimeout = settingService.getLong("jobHeartTimeout", defRestApiTimeout);
-        return Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout);
+        return Math.min(Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout), maxRestApiTimeout);
     };
 
 	@PostConstruct
@@ -518,7 +519,11 @@ public class ConnectorManager {
 	@Bean("restTemplateOperator")
 	public RestTemplateOperator initRestTemplate() {
 		initVariable();
-		restTemplateOperator = new RestTemplateOperator(baseURLs, restRetryTime, getRetryTimeoutSupplier);
+		int connectTimeout = (int) CommonUtils.getPropertyLong("REST_CONNECT_TIMEOUT", 5000L);
+		int readTimeout = (int) CommonUtils.getPropertyLong("REST_READ_TIMEOUT", 15000L);
+		int connectRequestTimeout = (int) CommonUtils.getPropertyLong("REST_CONNECT_REQUEST_TIMEOUT", 5000L);
+		restTemplateOperator = new RestTemplateOperator(baseURLs, restRetryTime, getRetryTimeoutSupplier,
+				connectTimeout, readTimeout, connectRequestTimeout);
 
 		return restTemplateOperator;
 	}
@@ -579,10 +584,10 @@ public class ConnectorManager {
 			RestTemplateOperator pingRestTemplateOperator = new RestTemplateOperator(
 					baseURLs,
 					restRetryTime,
-					() -> 2000L,
+					() -> 5000L,
 					1000,
-					30000,
-					30000
+					3000,
+					3000
 			);
 
 			pingClientMongoOperator = new HttpClientMongoOperator(

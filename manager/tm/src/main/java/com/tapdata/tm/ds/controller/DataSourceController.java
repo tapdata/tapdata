@@ -18,6 +18,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
 import com.tapdata.tm.ds.dto.ConnectionStats;
+import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.param.ValidateTableParam;
@@ -180,6 +181,13 @@ public class DataSourceController extends BaseController {
 			final NoSchemaFilter finalFilter = filter;
 			final Boolean finalNoSchema = noSchema;
 			return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.View, () -> dataSourceService.list(finalFilter, finalNoSchema, userDetail)));
+    }
+
+    @Operation(summary = "Find all connection <id:name>")
+    @GetMapping("allConnections/{serverId}")
+    public ResponseMessage<List<ConnectionWithName>> findAllConnections(@PathVariable("serverId") String serverId) {
+        UserDetail userDetail = getLoginUser();
+        return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.View, () -> dataSourceService.findAllConnections(serverId, getLoginUser())));
     }
 
 

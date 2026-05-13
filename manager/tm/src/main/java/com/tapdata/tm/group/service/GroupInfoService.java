@@ -178,7 +178,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
 		checkGitInfoAndHandleUrl(dto);
-		checkResourceExclusiveness(dto, null);
+		checkResourceExclusiveness(dto, dto.getId());
 	}
 
 	private static void checkGitInfoAndHandleUrl(GroupInfoDto dto) {
@@ -465,7 +465,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         List<TaskUpAndLoadDto> groupInfoPayload = buildGroupInfoPayload(groupInfos, resourceIdToName);
 
         // 构建用户/角色/权限导出数据
-        Map<String, byte[]> userExportContents = buildUserExportData(groupInfos);
+        Map<String, byte[]> userExportContents = buildUserExportData(groupInfos, user);
 
         // 构建导出记录
         String yyyymmdd = DateUtil.today().replaceAll("-", "");
@@ -735,15 +735,26 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
         try {
             for (GroupInfoDto groupInfo : groupInfos) {
+                String originalUserId = groupInfo.getUserId();
                 groupInfo.setCreateUser(null);
                 groupInfo.setCustomId(null);
                 groupInfo.setLastUpdBy(null);
-                groupInfo.setUserId(null);
                 if (groupInfo.getId() == null) {
-                    log.warn("GroupInfo has no _id, skip import: name={}", groupInfo.getName());
-                    continue;
+                    if (StringUtils.isBlank(groupInfo.getName())) {
+                        log.warn("GroupInfo has no _id and no name, skip import");
+                        continue;
+                    }
+                    log.info("GroupInfo has no _id, upsert by name: {}", groupInfo.getName());
+                    groupInfo.setId(new ObjectId());
+                    upsertByWhere(Where.where("name", groupInfo.getName()), groupInfo, user);
+                } else {
+                    upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
                 }
-                upsertByWhere(Where.where("_id", groupInfo.getId().toHexString()), groupInfo, user);
+                // upsertByWhere 底层 applyUserDetail 会用当前登录用户覆盖 user_id，需要还原为导出文件中的原始值
+                if (StringUtils.isNotBlank(originalUserId)) {
+                    update(Query.query(Criteria.where("_id").is(groupInfo.getId())),
+                            new Update().set("user_id", originalUserId));
+                }
             }
             updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
         } catch (Exception e) {
@@ -789,8 +800,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             for (TaskUpAndLoadDto item : payloads.getOrDefault("Connection.json", Collections.emptyList())) {
                 if (GroupConstants.COLLECTION_CONNECTION.equals(item.getCollectionName())) {
                     DataSourceConnectionDto conn = parseConnectionDto(item.getJson());
-                    if (conn != null && StringUtils.isNotBlank(conn.getName())) {
-                        connections.putIfAbsent(conn.getName(), conn);
+                    if (conn != null && conn.getId() != null) {
+                        connections.putIfAbsent(conn.getId().toHexString(), conn);
+                    } else if (conn != null) {
+                        log.warn("Connection has no _id, skip: name={}", conn.getName());
                     }
                 } else if (GroupConstants.COLLECTION_METADATA_INSTANCES.equals(item.getCollectionName())) {
                     MetadataInstancesDto metadata = JsonUtil.parseJsonUseJackson(item.getJson(), MetadataInstancesDto.class);
@@ -1232,9 +1245,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         long timeout = 60_000;
         long start = System.currentTimeMillis();
         while (true) {
-            List<InspectDto> found = inspectService.findByName(name);
-            if (CollectionUtils.isEmpty(found)) return true;
-            String currentStatus = found.get(0).getStatus();
+            InspectDto found = inspectService.findById(MongoUtils.toObjectId(inspectId));
+            if (found == null) return true;
+            String currentStatus = found.getStatus();
             if (INSPECT_STOPPED_STATUSES.contains(currentStatus)) {
                 return true;
             }
@@ -1308,6 +1321,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     /** 连接比对重要字段（精确比对+记录 from/to）。config 全量比对不依赖此列表 */
     private static final List<String> CONNECTION_IMPORTANT_FIELDS = Arrays.asList(
+            "name",                     // 连接名称
             "connection_type",          // Source/Target/Source&Target
             "shareCdcEnable",           // 共享CDC开关
             "accessNodeType",           // 分配引擎模式
@@ -1323,6 +1337,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     private static Object getTopLevelFieldValue(DataSourceConnectionDto conn, String field) {
         if (conn == null || field == null) return null;
         return switch (field) {
+            case "name" -> conn.getName();
             case "connection_type" -> conn.getConnection_type();
             case "shareCdcEnable" -> conn.getShareCdcEnable();
             case "accessNodeType" -> conn.getAccessNodeType();
@@ -1403,7 +1418,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
                 List<FieldChange> changes = getConnectionChangedFields(fileConn, existingConn);
                 if (!changes.isEmpty()) {
-                    ResourceDiffItem item = new ResourceDiffItem(name, null, changes);
+                    ResourceDiffItem item = new ResourceDiffItem(existingConn.getName(), null, changes);
                     // Build fieldLabels from spec.json
                     if (definition != null) {
                         Map<String, String> configPathToLabel = ResourceHandler.buildConfigPathToLabelMap(definition);
@@ -1785,6 +1800,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     private List<FieldChange> getInspectChangedFields(InspectDto fileInspect, InspectDto existingInspect) {
         List<FieldChange> changes = new ArrayList<>();
         // from = existingInspect (DB), to = fileInspect (import)
+        addFieldChange(changes, "name", existingInspect.getName(), fileInspect.getName());
         addFieldChange(changes, "flowId", existingInspect.getFlowId(), fileInspect.getFlowId());
         addFieldChange(changes, "mode", existingInspect.getMode(), fileInspect.getMode());
         addFieldChange(changes, "inspectMethod", existingInspect.getInspectMethod(), fileInspect.getInspectMethod());
@@ -1877,7 +1893,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 
     /** API 对比时排除的顶层字段：环境相关、运行时状态字段 */
     private static final Set<String> MODULE_EXCLUDED_FIELDS = new HashSet<>(Arrays.asList(
-            "id", "connectionId", "connection", "createTime", "datasource",
+            "id", "createTime", "datasource",
             "createUser", "lastUpdBy", "status", "isDeleted"
     ));
 
@@ -3048,12 +3064,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      *  - RoleMapping：排除 BASE_DTO_VOLATILE_FIELDS + role（嵌套关联对象）
      *  - UserIdEmailMap：userId → email 的辅助映射，供 Connection/Task user_id 转换
      */
-    private Map<String, byte[]> buildUserExportData(List<GroupInfoDto> groupInfos) {
+    private Map<String, byte[]> buildUserExportData(List<GroupInfoDto> groupInfos, UserDetail user) {
         // 1. 收集所有 groupInfo 的 userId
         Set<String> userIdStrings = groupInfos.stream()
                 .filter(g -> StringUtils.isNotBlank(g.getUserId()))
                 .map(GroupInfoDto::getUserId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        // 同时加入当前登录用户，确保导出包含操作者自身的用户/角色/权限数据
+        if (user != null && StringUtils.isNotBlank(user.getUserId())) {
+            userIdStrings.add(user.getUserId());
+        }
 
         if (userIdStrings.isEmpty()) {
             return Collections.emptyMap();
@@ -3209,17 +3230,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         // Task/ — 校验任务（每条独立文件）
         for (TaskUpAndLoadDto item : payloadsByType.getOrDefault(ResourceType.INSPECT_TASK.name(), Collections.emptyList())) {
             if (!GroupConstants.COLLECTION_INSPECT.equals(item.getCollectionName())) continue;
-            String name = extractNameFromJson(item.getJson());
-            if (StringUtils.isBlank(name)) continue;
-            contents.put("Task/" + sanitizeFileName(name) + "_ValidateTask.json", toJsonBytes(List.of(item)));
+            String id = extractIdFromJson(item.getJson());
+            if (StringUtils.isBlank(id)) continue;
+            contents.put("Task/" + id + "_ValidateTask.json", toJsonBytes(List.of(item)));
         }
 
         // API/ — 每个模块独立文件
         for (TaskUpAndLoadDto item : payloadsByType.getOrDefault(ResourceType.MODULE.name(), Collections.emptyList())) {
             if (!GroupConstants.COLLECTION_MODULES.equals(item.getCollectionName())) continue;
-            String name = extractNameFromJson(item.getJson());
-            if (StringUtils.isBlank(name)) continue;
-            contents.put("API/" + sanitizeFileName(name) + "_Module.json", toJsonBytes(List.of(item)));
+            String id = extractIdFromJson(item.getJson());
+            if (StringUtils.isBlank(id)) continue;
+            contents.put("API/" + id + "_Module.json", toJsonBytes(List.of(item)));
         }
 
         // User/ — 用户/角色/权限信息
@@ -3241,40 +3262,37 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 ResourceType.CONNECTION.name(), Collections.emptyList());
         if (payload.isEmpty()) return;
 
-        // 第一次遍历：建立 connectionId → connectionName 映射
-        Map<String, String> connIdToName = new LinkedHashMap<>();
+        // 第一次遍历：收集 connectionId 集合
+        Set<String> connIds = new LinkedHashSet<>();
         for (TaskUpAndLoadDto item : payload) {
             if (GroupConstants.COLLECTION_CONNECTION.equals(item.getCollectionName())) {
-                String name = extractNameFromJson(item.getJson());
                 String id = extractIdFromJson(item.getJson());
-                if (StringUtils.isNotBlank(name) && StringUtils.isNotBlank(id)) {
-                    connIdToName.put(id, name);
+                if (StringUtils.isNotBlank(id)) {
+                    connIds.add(id);
                 }
             }
         }
 
         // 第二次遍历：按 source._id 将元数据分组到各连接（source._id 存储的是连接 ID）
-        Map<String, List<TaskUpAndLoadDto>> metadataByConnName = new LinkedHashMap<>();
+        Map<String, List<TaskUpAndLoadDto>> metadataByConnId = new LinkedHashMap<>();
         for (TaskUpAndLoadDto item : payload) {
             if (GroupConstants.COLLECTION_METADATA_INSTANCES.equals(item.getCollectionName())) {
                 String sourceId = extractNestedFieldFromJson(item.getJson(), "source", "_id");
-                String connName = connIdToName.get(sourceId);
-                if (connName != null) {
-                    metadataByConnName.computeIfAbsent(connName, k -> new ArrayList<>()).add(item);
+                if (connIds.contains(sourceId)) {
+                    metadataByConnId.computeIfAbsent(sourceId, k -> new ArrayList<>()).add(item);
                 }
             }
         }
 
-        // 第三次遍历：写出每个连接的独立文件
+        // 第三次遍历：写出每个连接的独立文件（以 id 命名）
         for (TaskUpAndLoadDto item : payload) {
             if (!GroupConstants.COLLECTION_CONNECTION.equals(item.getCollectionName())) continue;
-            String name = extractNameFromJson(item.getJson());
-            if (StringUtils.isBlank(name)) continue;
-            String safeName = sanitizeFileName(name);
-            contents.put("Connection/" + safeName + "_Connection_Config.json", toJsonBytes(List.of(item)));
-            List<TaskUpAndLoadDto> metadataItems = metadataByConnName.getOrDefault(name, Collections.emptyList());
+            String id = extractIdFromJson(item.getJson());
+            if (StringUtils.isBlank(id)) continue;
+            contents.put("Connection/" + id + "_Connection_Config.json", toJsonBytes(List.of(item)));
+            List<TaskUpAndLoadDto> metadataItems = metadataByConnId.getOrDefault(id, Collections.emptyList());
             if (!metadataItems.isEmpty()) {
-                contents.put("Connection/" + safeName + "_Connection_Metadata.json", toJsonBytes(metadataItems));
+                contents.put("Connection/" + id + "_Connection_Metadata.json", toJsonBytes(metadataItems));
             }
         }
     }
@@ -3287,14 +3305,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     private void buildTaskFileContents(List<TaskUpAndLoadDto> payload, String suffix,
             Map<String, byte[]> contents) {
         List<TaskUpAndLoadDto> currentGroup = null;
-        String currentName = null;
+        String currentId = null;
         for (TaskUpAndLoadDto item : payload) {
             if (GroupConstants.COLLECTION_TASK.equals(item.getCollectionName())) {
                 // 保存上一个任务分组
-                if (currentName != null && currentGroup != null && !currentGroup.isEmpty()) {
-                    contents.put("Task/" + sanitizeFileName(currentName) + suffix, toJsonBytes(currentGroup));
+                if (currentId != null && currentGroup != null && !currentGroup.isEmpty()) {
+                    contents.put("Task/" + currentId + suffix, toJsonBytes(currentGroup));
                 }
-                currentName = extractNameFromJson(item.getJson());
+                currentId = extractIdFromJson(item.getJson());
                 currentGroup = new ArrayList<>();
                 currentGroup.add(item);
             } else if (currentGroup != null) {
@@ -3302,8 +3320,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
         }
         // 保存最后一个任务分组
-        if (currentName != null && currentGroup != null && !currentGroup.isEmpty()) {
-            contents.put("Task/" + sanitizeFileName(currentName) + suffix, toJsonBytes(currentGroup));
+        if (currentId != null && currentGroup != null && !currentGroup.isEmpty()) {
+            contents.put("Task/" + currentId + suffix, toJsonBytes(currentGroup));
         }
     }
 
@@ -3402,7 +3420,6 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             } else if (GroupConstants.COLLECTION_INSPECT.equals(collectionName)) {
                 INSPECT_EXPORT_EXCLUDED_FIELDS.forEach(doc::remove);
             } else if (GroupConstants.COLLECTION_GROUP_INFO.equals(collectionName)) {
-                doc.remove("id");
                 doc.remove("createTime");
                 Object gitInfoObj = doc.get("gitInfo");
                 if (gitInfoObj instanceof Map) {

@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.ConnectionStats;
+import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
@@ -22,11 +23,15 @@ import lombok.Data;
 import lombok.NonNull;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public abstract class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
@@ -149,6 +154,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
      * @return 不满足的项
      */
     public abstract Set<CapabilityEnum> checkCapabilities(String connectionId, Set<CapabilityEnum> capabilities);
+
+    public abstract List<ConnectionWithName> findAllConnections(String serverId, UserDetail loginUser);
 
     @Data
     public static class Part {

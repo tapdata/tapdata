@@ -13,4 +13,5 @@ import lombok.EqualsAndHashCode;
 @Data
 public class ServerChartParam extends QueryBase {
     String serverId;
+    String connectionId;
 }

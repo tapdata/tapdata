@@ -148,7 +148,7 @@ public class ModuleResourceHandlerTest {
             assertEquals(1, result.size());
             assertEquals(GroupConstants.COLLECTION_MODULES, result.get(0).getCollectionName());
 
-            // Verify sensitive fields are cleared
+            // Verify fields cleared by implementation: customId, lastUpdBy, status
             assertNull(module.getCustomId());
             assertNull(module.getLastUpdBy());
             assertNull(module.getStatus());
@@ -250,8 +250,8 @@ public class ModuleResourceHandlerTest {
         }
 
         @Test
-        @DisplayName("Should use name as key when id is null")
-        void testCollectPayloadUsesNameAsKey() {
+        @DisplayName("Should skip module when id is null")
+        void testCollectPayloadSkipsModuleWithNullId() {
             ModulesDto module = new ModulesDto();
             module.setId(null);
             module.setName("Test Module");
@@ -265,7 +265,7 @@ public class ModuleResourceHandlerTest {
 
             moduleResourceHandler.collectPayload(Arrays.asList(payload), resourceMap, metadataList);
 
-            assertTrue(resourceMap.containsKey("Test Module"));
+            assertTrue(resourceMap.isEmpty());
         }
     }
 
@@ -290,8 +290,9 @@ public class ModuleResourceHandlerTest {
         @Test
         @DisplayName("Should load connections by connectionId")
         void testLoadConnectionsByConnectionId() {
+            String connId = "aaaaaaaaaaaaaaaaaaaaaaaa";
             ModulesDto module = new ModulesDto();
-            module.setConnectionId(new ObjectId().toHexString());
+            module.setConnectionId(connId);
 
             when(dataSourceService.findAllEntity(any(Query.class))).thenReturn(new ArrayList<>());
 
@@ -341,15 +342,13 @@ public class ModuleResourceHandlerTest {
             module.setId(moduleId);
             module.setName("Unique Module");
 
-            when(modulesService.findOne(any(Query.class), eq(user))).thenReturn(null);
-
             Map<String, String> result = moduleResourceHandler.findDuplicateNames(Arrays.asList(module), user);
 
             assertTrue(result.isEmpty());
         }
 
         @Test
-        @DisplayName("Should find duplicate by id")
+        @DisplayName("Should find duplicates by id")
         void testFindDuplicateNamesWithDuplicates() {
             ObjectId moduleId = new ObjectId();
             ModulesDto module = new ModulesDto();
@@ -370,13 +369,25 @@ public class ModuleResourceHandlerTest {
         }
 
         @Test
-        @DisplayName("Should skip null modules and modules without id")
-        void testFindDuplicateNamesSkipsNullAndNoId() {
+        @DisplayName("Should skip null modules and modules with null id")
+        void testFindDuplicateNamesSkipsNull() {
             ModulesDto moduleNoId = new ModulesDto();
-            moduleNoId.setName("No Id Module");
+            moduleNoId.setName("No Id");
             List<ModulesDto> modules = Arrays.asList(null, moduleNoId);
 
             Map<String, String> result = moduleResourceHandler.findDuplicateNames(modules, user);
+
+            assertTrue(result.isEmpty());
+            verify(modulesService, never()).findOne(any(Query.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("Should skip modules with null id")
+        void testFindDuplicateNamesSkipsNullId() {
+            ModulesDto module = new ModulesDto();
+            module.setName("Some Name");
+
+            Map<String, String> result = moduleResourceHandler.findDuplicateNames(Arrays.asList(module), user);
 
             assertTrue(result.isEmpty());
             verify(modulesService, never()).findOne(any(Query.class), any(UserDetail.class));

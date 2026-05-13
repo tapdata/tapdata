@@ -30,6 +30,12 @@ public enum SettingsEnum {
     SHARE_CDC_TTL_DAY("share_cdc","share_cdc_ttl_day"),
 
     WORKER_HEART_OVERTIME(CategoryEnum.WORKER.getValue(), KeyEnum.WORKER_HEART_TIMEOUT.getValue()),
+    /**
+     * Safety margin (seconds) subtracted from WORKER_HEART_OVERTIME when SELECTING a worker
+     * for scheduling. Liveness/UI checks keep using the full overtime; only worker selection
+     * is stricter. Avoids picking a worker whose ping is on the verge of expiring.
+     */
+    WORKER_SCHEDULE_SAFETY_MARGIN_S(CategoryEnum.WORKER.getValue(), "workerScheduleSafetyMarginSeconds"),
     SMTP_PASSWORD("SMTP", "smtp.server.password"),
 
     SCHEDULED_LOAD_SCHEMA_COUNT_THRESHOLD("schema", "scheduled.load.schema.count.threshold"),

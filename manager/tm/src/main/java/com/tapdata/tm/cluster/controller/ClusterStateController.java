@@ -12,6 +12,8 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.AccessNodeInfo;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.ClusterStateMonitorRequest;
+import com.tapdata.tm.cluster.dto.ComponentStoppedRequest;
+import com.tapdata.tm.cluster.service.ClusterComponentStopService;
 import com.tapdata.tm.cluster.dto.OracleLogParserCommandExecResult;
 import com.tapdata.tm.cluster.dto.OracleLogParserSNResult;
 import com.tapdata.tm.cluster.dto.OracleLogParserUpdateConfigResult;
@@ -64,6 +66,7 @@ public class ClusterStateController extends BaseController {
 
     private ClusterStateService clusterStateService;
     private RawServerStateService rawServerStateService;
+    private ClusterComponentStopService clusterComponentStopService;
 
     @Autowired
     private PermissionService permissionService;
@@ -81,6 +84,13 @@ public class ClusterStateController extends BaseController {
     public ResponseMessage<ClusterStateDto> save(@RequestBody ClusterStateDto clusterState) {
         clusterState.setId(null);
         return success(clusterStateService.save(clusterState, getLoginUser()));
+    }
+
+    @Operation(summary = "Agent-initiated notification that a local component (engine/apiserver/frontend) has stopped; "
+            + "flips cluster status immediately and for engine also fails tasks over without waiting for heartbeat timeout.")
+    @PostMapping("componentStopped")
+    public ResponseMessage<Map<String, Object>> componentStopped(@RequestBody ComponentStoppedRequest req) {
+        return success(clusterComponentStopService.componentStopped(req, getLoginUser()));
     }
 
     /**

@@ -37,7 +37,7 @@ class AlarmScheduleTest {
         doCallRealMethod().when(alarmSchedule).schedule();
         doCallRealMethod().when(alarmSchedule).apiServer();
         doCallRealMethod().when(alarmSchedule).taskRetryAlarm();
-        doCallRealMethod().when(alarmSchedule).afterPropertiesSet();
+        doCallRealMethod().when(alarmSchedule).afterSingletonsInstantiated();
     }
 
     @Test
@@ -57,6 +57,6 @@ class AlarmScheduleTest {
 
     @Test
     void testAfterPropertiesSet() {
-        Assertions.assertDoesNotThrow(alarmSchedule::afterPropertiesSet);
+        Assertions.assertDoesNotThrow(alarmSchedule::afterSingletonsInstantiated);
     }
 }
