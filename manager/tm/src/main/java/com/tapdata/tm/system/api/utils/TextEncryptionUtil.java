@@ -102,6 +102,17 @@ public class TextEncryptionUtil {
         });
     }
 
+    public static Object parseValue(String type, String value) {
+        ParseRule handler = parseRuleMap.get(type);
+        if (null == handler) {
+            return value;
+        }
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", value);
+        handler.parse(map, "key");
+        return map.get("key");
+    }
+
     public static List<Map<String, Object>> textEncryptionBySwitch(Boolean open, List<Map<String, Object>> data) {
         if (!Boolean.TRUE.equals(open) || null == data || data.isEmpty()) {
             return data;
