@@ -27,7 +27,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.tomcat.websocket.WsSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.util.concurrent.ListenableFuture;
@@ -207,6 +209,32 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				logger.error("Websocket heartbeat failed, will reconnect after {}s. Error: {}", PING_INTERVAL, e.getMessage(), e);
 			}
 		}, 0, PING_INTERVAL, TimeUnit.SECONDS);
+	}
+
+	/**
+	 * 启动期竞态修复：在 WS 握手完成前（最长 HANDSHAKE_TIMEOUT_MS=5000ms），
+	 * TM 的 REST 心跳已经把本引擎标记为存活（约 T+5s），可能会派发任务过来。
+	 * 此时立刻启动 HTTP 轮询兜底，确保握手窗口内被分配到的 WAIT_RUN 任务
+	 * 能被本引擎主动拉起（{@link TapdataTaskScheduler#scheduledTask()} 每 1s 轮询
+	 * agentId+status=WAIT_RUN）。WS 稳定后，{@link #handleWhenPingSucceed()}
+	 * 会在 10s 防抖后自动把它们停掉，回到默认的 WS 驱动模式。
+	 *
+	 * 使用 ApplicationReadyEvent 而非 @PostConstruct：虽然本类已通过
+	 * @DependsOn("tapdataTaskScheduler") 保证依赖 bean 先就绪，但
+	 * ApplicationReadyEvent 在整个 Spring 上下文完全初始化后才触发，
+	 * 更稳妥，且仍远早于 TM 派发任务到达本引擎（TM 看到
+	 * worker.ping_time 需至少 5s）。
+	 */
+	@EventListener(ApplicationReadyEvent.class)
+	public void startHttpFallbackBeforeWsReady() {
+		TapdataTaskScheduler scheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+		if (scheduler == null) {
+			logger.warn("TapdataTaskScheduler bean not available at ApplicationReadyEvent; HTTP fallback not started");
+			return;
+		}
+		scheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
+		scheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
+		logger.info("Started HTTP task polling fallback at engine boot; will be stopped after WS stabilises");
 	}
 
 	@PreDestroy
