@@ -2737,4 +2737,69 @@ class ModulesServiceTest {
             assertEquals(0, result.getOutputCount());
         }
     }
+
+	@Nested
+	class parseTapTypeTest {
+		@Test
+		void testParseTapTypeListNullAndEmpty() {
+			modulesService.parseTapType((List<ModulesDto>) null);
+			modulesService.parseTapType(Collections.emptyList());
+		}
+
+		@Test
+		void testParseTapTypeListFilterNullAndParse() {
+			com.tapdata.tm.commons.schema.Field field = new com.tapdata.tm.commons.schema.Field();
+			field.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("String"));
+
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setPaths(null);
+			modulesDto.setFields(List.of(field));
+
+			List<ModulesDto> list = new ArrayList<>();
+			list.add(null);
+			list.add(modulesDto);
+			modulesService.parseTapType(list);
+
+			assertEquals("String", field.getSimpleTypeName());
+		}
+
+		@Test
+		void testParseTapTypeModulesDtoNull() {
+			modulesService.parseTapType((ModulesDto) null);
+		}
+
+		@Test
+		void testParseTapTypeModulesDtoWithPathsAndFields() {
+			com.tapdata.tm.commons.schema.Field pathField = new com.tapdata.tm.commons.schema.Field();
+			pathField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("Array"));
+			com.tapdata.tm.commons.schema.Field availableField = new com.tapdata.tm.commons.schema.Field();
+			availableField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("Map"));
+			com.tapdata.tm.commons.schema.Field requiredField = new com.tapdata.tm.commons.schema.Field();
+			requiredField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("Boolean"));
+
+			Path path1 = new Path();
+			path1.setFields(List.of(pathField));
+			path1.setAvailableQueryField(List.of(availableField));
+			path1.setRequiredQueryField(List.of(requiredField));
+
+			Path path2 = new Path();
+			path2.setFields(null);
+			path2.setAvailableQueryField(null);
+			path2.setRequiredQueryField(null);
+
+			com.tapdata.tm.commons.schema.Field rootField = new com.tapdata.tm.commons.schema.Field();
+			rootField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("DateTime"));
+
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setPaths(List.of(path1, path2));
+			modulesDto.setFields(List.of(rootField));
+
+			modulesService.parseTapType(modulesDto);
+
+			assertEquals("Array", pathField.getSimpleTypeName());
+			assertEquals("Map", availableField.getSimpleTypeName());
+			assertEquals("Boolean", requiredField.getSimpleTypeName());
+			assertEquals("DateTime", rootField.getSimpleTypeName());
+		}
+	}
 }

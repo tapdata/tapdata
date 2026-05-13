@@ -54,6 +54,7 @@ import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.module.enums.ApiType;
 import com.tapdata.tm.module.enums.ParamTypeEnum;
+import com.tapdata.tm.modules.dto.PublishApi;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
@@ -67,6 +68,7 @@ import com.tapdata.tm.modules.entity.field.ModulesField;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.param.UpdateEncryptionParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
+import com.tapdata.tm.modules.util.FieldTypeUtil;
 import com.tapdata.tm.modules.util.MongoQueryValidator;
 import com.tapdata.tm.modules.util.MongoUriUtil;
 import com.tapdata.tm.modules.vo.ApiDefinitionVo;
@@ -198,6 +200,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public ModulesDetailVo findById(String id) {
 		final ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
+		parseTapType(modulesDto);
 		modulesDto.withPathSettingIfNeed();
 		final ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
 		final String connectionId = modulesDto.getConnection().toString();
@@ -209,6 +212,26 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				});
 		modulesDetailVo.setConnection(connectionId);
 		return modulesDetailVo;
+	}
+
+	protected void parseTapType(List<ModulesDto> modulesDto) {
+		if (CollectionUtils.isEmpty(modulesDto)) {
+			return;
+		}
+		modulesDto.stream().filter(Objects::nonNull).forEach(this::parseTapType);
+	}
+	protected void parseTapType(ModulesDto modulesDto) {
+		if (null == modulesDto) {
+			return;
+		}
+		if (null != modulesDto.getPaths()) {
+			modulesDto.getPaths().forEach(path -> {
+				FieldTypeUtil.parseTapType(path.getFields());
+				FieldTypeUtil.parseTapType(path.getAvailableQueryField());
+				FieldTypeUtil.parseTapType(path.getRequiredQueryField());
+			});
+		}
+		FieldTypeUtil.parseTapType(modulesDto.getFields());
 	}
 
 	public void updateParamEncryption(UpdateEncryptionParam param, UserDetail user) {
@@ -248,7 +271,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 .ifPresent(items -> items.stream()
                         .filter(e -> e instanceof ModulesDto)
                         .forEach(e -> ((ModulesDto) e).withPathSettingIfNeed()));
-
+		parseTapType((List<ModulesDto>) page.getItems());
         String createUser = "";
         List<ModulesListVo> modulesListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(page.getItems(), ModulesListVo.class);
         if (CollectionUtils.isNotEmpty(modulesListVoList)) {
@@ -313,6 +336,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (StringUtils.isBlank(modulesDto.getStatus())) {
 			modulesDto.setStatus(ModuleStatusEnum.GENERATING.getValue());
 		}
+		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
 		return super.save(modulesDto, userDetail);
 
 	}
@@ -365,6 +389,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 			checkoutInputParamIsValid(modulesDto);
 		}
+		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
 		return super.upsertByWhere(where, modulesDto, userDetail);
 	}
 
@@ -384,7 +409,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public List<ModulesDto> batchUpdateModuleByList(List<ModulesDto> modulesDtos, UserDetail userDetail) {
 		List<ModulesDto> modulesDtoList = new ArrayList<>();
-		modulesDtos.forEach((modulesDto -> modulesDtoList.add(updateModuleById(modulesDto, userDetail))));
+		modulesDtos.forEach((modulesDto -> {
+			FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
+			modulesDtoList.add(updateModuleById(modulesDto, userDetail));
+		}));
 		return modulesDtoList;
 	}
 
@@ -492,6 +520,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					newDto.setListtags(listTag);
 				}
 				newDto.setIsDeleted(false);
+				FieldTypeUtil.validCustomWhereIfNeed(newDto);
 				super.upsert(query, newDto, userDetail);
 			}
 		}
@@ -513,6 +542,26 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		String clusterId = Optional.ofNullable(settingsService.getByKey("cluster")).map(Settings::getId).orElse("");
 		apiDefinitionVo.setClusterId(clusterId);
 		return apiDefinitionVo;
+	}
+
+	public ApiDefinitionVo simplifyApiInfo(ApiDefinitionVo infoVo) {
+		List<?> apis = infoVo.getApis();
+		if (null == apis) {
+			infoVo.setApiInfo(new ArrayList<>());
+			return infoVo;
+		}
+		List<PublishApi> simplify = new ArrayList<>();
+		apis.forEach(api -> {
+			if (api instanceof ModulesDto apiInfo) {
+				PublishApi from = PublishApi.from(apiInfo);
+				if (null != from) {
+					from.setId(apiInfo.getId().toHexString());
+					simplify.add(from);
+				}
+			}
+		});
+		infoVo.setApis(simplify);
+		return infoVo;
 	}
 
 	protected List<ModulesDto> activeApis(ApiDefinitionVo apiDefinitionVo, UserDetail userDetail) {
@@ -1164,6 +1213,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				field1.setField_type(StringUtils.isNotBlank(field.getJavaType()) ? field.getJavaType() : field.getField_type());
 				field1.setRequired(required);
 				field1.setExample("");
+				FieldTypeUtil.parseTapType(field1);
 				newField.add(field1);
 			}
 		}

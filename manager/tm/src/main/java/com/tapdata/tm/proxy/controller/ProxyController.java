@@ -2,15 +2,15 @@ package com.tapdata.tm.proxy.controller;
 
 import cn.hutool.crypto.digest.MD5;
 import com.google.common.collect.Sets;
-import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.async.AsyncContextManager;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.proxy.service.impl.RemoteCaller;
+import com.tapdata.tm.proxy.utils.RemoteCallerUtil;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -22,21 +22,18 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.FileMeta;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.entity.SubscribeToken;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.MessageEntity;
-import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.modules.api.net.service.EventQueueService;
 import io.tapdata.modules.api.net.service.MessageEntityService;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.modules.api.net.service.node.connection.entity.NodeMessage;
 import io.tapdata.modules.api.proxy.constants.ProxyConstants;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
-import io.tapdata.pdk.apis.entity.message.EngineMessage;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -46,13 +43,10 @@ import io.tapdata.wsserver.channels.websocket.impl.WebSocketProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.apache.http.entity.ContentType;
 import org.bson.types.ObjectId;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,7 +55,6 @@ import java.io.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -75,17 +68,14 @@ import static org.apache.http.HttpStatus.*;
 public class ProxyController extends BaseController {
 	private static final String TAG = ProxyController.class.getSimpleName();
 	private final AsyncContextManager asyncContextManager = new AsyncContextManager();
-	private final int[] checkCloudLock = new int[0];
 	@Value("${gateway.secret:}")
 	private String gatewaySecret;
 	@Value("#{'${spring.profiles.include:idaas}'.split(',')}")
 	private List<String> productList;
-	@Autowired
-	private SettingsService settingsService;
     @Autowired
     private WorkerService workerService;
 	@Autowired
-	ProductComponent productComponent;
+	RemoteCaller remoteCaller;
 
 	private static final int wsPort = 8246;
 
@@ -315,7 +305,7 @@ public class ProxyController extends BaseController {
             }
         }
 //        configContext(commandInfo, userDetail);
-		executeEngineMessage(commandInfo, request, response);
+		remoteCaller.executeEngineMessage(commandInfo, request, response);
 
 //        if(service == null || subscribeId == null) {
 //            throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
@@ -450,7 +440,7 @@ public class ProxyController extends BaseController {
 				if (error == null) {
 
 					if (result instanceof FileMeta && ((FileMeta) result).isTransferFile()) {
-						responseForFileMeta((FileMeta) result, response);
+						RemoteCallerUtil.responseForFileMeta((FileMeta) result, response, log);
 						return;
 					}
 
@@ -647,23 +637,7 @@ public class ProxyController extends BaseController {
 			newArgs[args.length] = context;
 			serviceCaller.setArgs(newArgs);
 		}
-		executeEngineMessage(serviceCaller, request, response);
-	}
-
-	public void executeServiceCaller(ServiceCaller serviceCaller, BiConsumer<Object, Throwable> resultCallback) {
-		serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
-		serviceCaller.setReturnClass(Object.class.getName());
-		Object[] args = serviceCaller.getArgs();
-		DataMap context = null;
-		if (args == null) {
-			return;
-		} else {
-			Object[] newArgs = new Object[args.length + 1];
-			System.arraycopy(args, 0, newArgs, 0, args.length);
-			newArgs[args.length] = context;
-			serviceCaller.setArgs(newArgs);
-		}
-		executeEngineMessage(serviceCaller, resultCallback);
+		remoteCaller.executeEngineMessage(serviceCaller, request, response);
 	}
 
 	@Operation(summary = "External callback url")
@@ -709,22 +683,7 @@ public class ProxyController extends BaseController {
 	@Operation(summary = "External callback url")
 	@PostMapping("call")
 	public void call(@RequestBody ServiceCaller serviceCaller, HttpServletRequest request, HttpServletResponse response) {
-		if (serviceCaller == null)
-			throw new BizException("serviceCaller is illegal");
-		if (serviceCaller.getClassName() == null)
-			throw new BizException("Missing className");
-		if (serviceCaller.getMethod() == null)
-			throw new BizException("Missing method");
-
-        UserDetail userDetail = getLoginUser();
-        if(productComponent.isCloud()) {
-            serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
-            WorkerExpireDto shareWorker = workerService.getShareWorker(userDetail);
-            if (shareWorker != null) {
-                serviceCaller.orSubscribeIdSets(Sets.newHashSet("userId_" + shareWorker.getShareTmUserId()));
-            }
-        }
-		executeServiceCaller(request, response, serviceCaller, userDetail);
+		remoteCaller.callMethod(serviceCaller, request, response, getLoginUser());
 	}
 
 
@@ -775,97 +734,6 @@ public class ProxyController extends BaseController {
         }
         return data;
     }
-
-    private void executeEngineMessage(EngineMessage engineMessage, HttpServletRequest request, HttpServletResponse response) {
-        EngineMessageExecutionService engineMessageExecutionService = getEngineMessageExecutionService();
-        registerAsyncJob(engineMessage.getId(), request, response);
-        try {
-            engineMessageExecutionService.call(engineMessage, (result, throwable) -> {
-                asyncContextManager.applyAsyncJobResult(engineMessage.getId(), result, throwable);
-            });
-        } catch(Throwable throwable) {
-            asyncContextManager.applyAsyncJobResult(engineMessage.getId(), null, throwable);
-        }
-    }
-
-	private void executeEngineMessage(EngineMessage engineMessage, BiConsumer<Object, Throwable> resultCallback) {
-		EngineMessageExecutionService engineMessageExecutionService = getEngineMessageExecutionService();
-		try {
-			engineMessageExecutionService.call(engineMessage, resultCallback);
-		} catch(Throwable throwable) {
-			throw new RuntimeException(String.format("Error executing engineMessage: %s", engineMessage), throwable);
-		}
-	}
-
-	private void registerAsyncJob(String id, HttpServletRequest request, HttpServletResponse response) {
-		asyncContextManager.registerAsyncJob(id, request, (result, error) -> {
-			String responseStr;
-			if (error != null) {
-				int code = NetErrors.UNKNOWN_ERROR;
-				Object data = null;
-				if (error instanceof CoreException) {
-					CoreException coreException = (CoreException) error;
-					code = coreException.getCode();
-					data = coreException.getData();
-				}
-				responseStr =
-						"{\n" +
-								"    \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
-								"    \"ts\": " + System.currentTimeMillis() + ",\n" +
-								"    \"code\": \"" + code + "\",\n" +
-								"    \"message\": \"" + error.getMessage() + "\"" +
-								(null != data ? ",\n    \"data\": " + toJson(data, JsonParser.ToJsonFeature.PrettyFormat) + "\n" : "\n") +
-								"}";
-			} else {
-				responseStr =
-						"{\n" +
-								"    \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
-								"    \"ts\": " + System.currentTimeMillis() + ",\n" +
-								"    \"data\": " + (result != null ? toJson(result, JsonParser.ToJsonFeature.PrettyFormat) : "{}") + ",\n" +
-								"    \"code\": \"ok\"\n" +
-								"}";
-			}
-
-			try {
-				if (result instanceof FileMeta && ((FileMeta) result).isTransferFile()) {
-					responseForFileMeta(((FileMeta) result), response);
-				} else {
-					response.setContentType("application/json; charset=utf-8");
-					response.getOutputStream().write(responseStr.getBytes(StandardCharsets.UTF_8));
-				}
-
-			} catch (IOException e) {
-				response.sendError(500, e.getMessage());
-			}
-		});
-	}
-
-	private void responseForFileMeta(FileMeta fileMeta, HttpServletResponse response) throws IOException {
-		response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_OCTET_STREAM.getMimeType());
-		response.setHeader(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=%s", fileMeta.getFilename()));
-		response.setHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileMeta.getFileSize()));
-		response.setHeader("X-FileMeta-Code", fileMeta.getCode());
-		try (InputStream inputStream = fileMeta.getFileInputStream();
-			 OutputStream outputStream = response.getOutputStream()) {
-			long count = 0;
-			int n;
-			byte[] buffer = new byte[8192];
-			while (-1 != (n = inputStream.read(buffer))) {
-				outputStream.write(buffer, 0, n);
-				count += n;
-			}
-			log.debug("Write file length {}", count);
-		}
-	}
-
-	@NotNull
-	private EngineMessageExecutionService getEngineMessageExecutionService() {
-		EngineMessageExecutionService engineMessageExecutionService = InstanceFactory.instance(EngineMessageExecutionService.class, true);
-		if (engineMessageExecutionService == null) {
-			throw new BizException("commandExecutionService is null");
-		}
-		return engineMessageExecutionService;
-	}
 
 	@GetMapping("table/count")
 	public void count(@RequestParam String connectionId, @RequestParam String table, @RequestParam String readType, HttpServletRequest request, HttpServletResponse response) {

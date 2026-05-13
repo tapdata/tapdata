@@ -59,6 +59,7 @@ import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.metadatainstance.vo.TableListVo;
 import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
+import com.tapdata.tm.modules.util.FieldTypeUtil;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.dto.UserDto;
@@ -70,6 +71,7 @@ import io.tapdata.entity.mapping.type.TapStringMapping;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import lombok.NonNull;
 import lombok.Setter;
@@ -602,6 +604,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                     if (field.getIsNullable() != null && field.getIsNullable() instanceof String) {
                         field.setIsNullable("YES".equals(field.getIsNullable()));
                     }
+                    FieldTypeUtil.parseTapType(field);
                 });
             }
 
