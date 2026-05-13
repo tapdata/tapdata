@@ -151,7 +151,9 @@ public class MessageServiceImpl extends MessageService{
             if (StringUtils.isEmpty(messageListVo.getServerName())) {
                 messageListVo.setServerName(messageListVo.getAgentName());
             }
-            if (MsgTypeEnum.ALARM.getValue().equals(messageListVo.getMsg()) && Objects.nonNull(messageListVo.getParam())) {
+            if ((MsgTypeEnum.ALARM.getValue().equals(messageListVo.getMsg())
+                    || MsgTypeEnum.EXPIRED.getValue().equals(messageListVo.getMsg())
+                    || MsgTypeEnum.EXPIRING.getValue().equals(messageListVo.getMsg())) && Objects.nonNull(messageListVo.getParam())) {
                 String template = MessageUtil.getAlarmMsg(locale, messageListVo.getTemplate());
                 String content = parser.parseExpression(template, parserContext).getValue(messageListVo.getParam(), String.class);
                 messageListVo.setTitle(content);
