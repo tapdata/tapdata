@@ -127,7 +127,7 @@ public class PdkSourceUtilsTest {
             Files.write(file.toPath(), "test".getBytes(StandardCharsets.UTF_8));
             String fileMD5 = PdkSourceUtils.calculateFileMD5(file);
             file.delete();
-            assertEquals("98f6bcd4621d373cade4e832627b4f6", fileMD5);
+            assertEquals("098f6bcd4621d373cade4e832627b4f6", fileMD5);
         }
     }
     @Nested

@@ -36,7 +36,7 @@ class QueryUtilTest {
         @BeforeEach
         void init() {
             filter = new Filter();
-            filter.setSort(Lists.newArrayList("add DESC", "edd ASC", "err", "kk cc"));
+            filter.setSort(List.of("add DESC", "edd ASC", "err", "kk cc"));
         }
 
         @Test
@@ -44,6 +44,34 @@ class QueryUtilTest {
             List<Sort> sorts = QueryUtil.parseOrder(filter);
             Assertions.assertNotNull(sorts);
             Assertions.assertEquals(3, sorts.size());
+        }
+    }
+
+    @Nested
+    class FilterPaginationFallback {
+        @Test
+        void testFallbackToPageAndSizeWhenSkipAndLimitAreZero() {
+            Filter filter = new Filter(2, 15, List.of("createTime DESC"));
+
+            Assertions.assertEquals(15, filter.getSkip());
+            Assertions.assertEquals(15, filter.getLimit());
+        }
+
+        @Test
+        void testPageIsClampedToOneForSkipCalculation() {
+            Filter filter = new Filter(0, 15, List.of("createTime DESC"));
+
+            Assertions.assertEquals(1, filter.getPage());
+            Assertions.assertEquals(0, filter.getSkip());
+        }
+
+        @Test
+        void testGetSortHandlesNullSortList() {
+            Filter filter = new Filter();
+            filter.setSort(null);
+
+            Assertions.assertDoesNotThrow(filter::getSort);
+            Assertions.assertTrue(filter.getSort().isEmpty());
         }
     }
 
