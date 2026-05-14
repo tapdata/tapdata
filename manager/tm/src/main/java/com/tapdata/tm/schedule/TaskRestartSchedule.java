@@ -19,9 +19,10 @@ import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-import lombok.AccessLevel;
+import org.apache.commons.lang3.StringUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -37,6 +38,7 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -60,12 +62,6 @@ public class TaskRestartSchedule {
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
     private MetadataDefinitionService metadataDefinitionService;
-
-    @Setter(AccessLevel.NONE)
-    private long lastCheckTime = 0L;
-
-    // TM启动时间
-    private static final long TM_START_TIME = System.currentTimeMillis();
 
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
@@ -91,29 +87,14 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 600 * 1000, fixedDelay = 5000)
-    @SchedulerLock(name ="engineRestartNeedStartTask_lock2", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(initialDelay = 10 * 1000, fixedDelay = 10 * 1000)
+    @SchedulerLock(name ="engineRestartNeedStartTask_lock2", lockAtMostFor = "30s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
-
-        // 检查TM自身启动时间，如果小于10分钟则直接返回
-        long currentTime = System.currentTimeMillis();
-        long tmRunningTime = currentTime - getTmStartTime();
-        if (tmRunningTime < 600000L) { // 10分钟 = 600000毫秒
-            log.debug("TM started less than 10 minutes ago, skipping engineRestartNeedStartTask. TM running time: {} ms ({} minutes)",
-                tmRunningTime, tmRunningTime / 1000 / 60);
-            return;
-        }
 
         //云版不需要这个重新调度的逻辑
         boolean isCloud = isCloud();
         long heartExpire = getHeartExpire();
-
-        if (System.currentTimeMillis() - lastCheckTime < heartExpire / 2) {
-            return;
-        }
-
-        lastCheckTime = System.currentTimeMillis();
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("pingTime").lt(System.currentTimeMillis() - heartExpire);
@@ -132,6 +113,15 @@ public class TaskRestartSchedule {
             UserDetail user = userDetailMap.get(taskDto.getUserId());
             if (null == user || restartInCloud(isCloud, taskDto, user)) continue;
 
+            // Skip OVERTIME if the task's current agent is still alive — a stale task.pingTime
+            // alone is not enough evidence that the engine is dead. Without this guard, a brief
+            // ping update glitch (GC pause, MongoDB write delay, network blip) on a healthy
+            // engine causes its tasks to be wrongly rescheduled.
+            if (isAgentAlive(taskDto.getAgentId(), user)) {
+                logSkipReschedule("engineRestartNeedStartTask", taskDto, "task_ping_stale_but_worker_alive");
+                continue;
+            }
+
             List<Worker> workerList = getUserWorkList(isCloud, userWorkerMap, user.getUserId());
             if (CollectionUtils.isNotEmpty(workerList)) {
                 StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
@@ -143,6 +133,35 @@ public class TaskRestartSchedule {
         }
     }
 
+    /**
+     * Returns true iff the given agent is still alive (worker.ping_time within
+     * WORKER_HEART_OVERTIME). Used by TM-side reschedule paths to suppress false-positive
+     * OVERTIME events caused by transient task.pingTime staleness on otherwise healthy
+     * engines. Reads worker.ping_time from MongoDB once per call (cheap; drill scenarios
+     * have ≤ a few hundred running tasks).
+     */
+    private boolean isAgentAlive(String agentId, UserDetail user) {
+        if (StringUtils.isBlank(agentId)) return false;
+        try {
+            WorkerDto worker = workerService.findByProcessId(agentId, user, "process_id", "ping_time");
+            if (worker == null || worker.getPingTime() == null) return false;
+            return !workerService.isAgentTimeout(worker.getPingTime());
+        } catch (Exception e) {
+            log.warn("isAgentAlive lookup failed for agentId={}, treating as dead: {}", agentId, e.getMessage());
+            return false;
+        }
+    }
+
+    private final AtomicLong lastSkipWarnAt = new AtomicLong(0L);
+
+    private void logSkipReschedule(String scheduler, TaskDto taskDto, String reason) {
+        // Day-throttled warn — without this, every 10s scan that finds the same false-positive
+        // would spam the log with the same message (≥ 8640 lines/day per affected task).
+        warnThrottled(lastSkipWarnAt,
+                () -> log.warn("TaskHA event=skip_reschedule scheduler={} taskId={} agentId={} reason={}",
+                        scheduler, taskDto.getId().toHexString(), taskDto.getAgentId(), reason));
+    }
+
     @NotNull
     private Map<String, UserDetail> getUserDetailMap(List<TaskDto> all) {
         List<String> userIds = all.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
@@ -150,15 +169,41 @@ public class TaskRestartSchedule {
         return userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
     }
 
+    /**
+     * Lower bound covers one missed 5s ping plus a 5s HTTP timeout — going below
+     * this risks false-positive failover on transient network hiccups.
+     */
+    static final long MIN_JOB_HEART_TIMEOUT_MS = 25_000L;
+    private static final long WARN_LOG_INTERVAL_MS = 24 * 60 * 60 * 1000L;
+    private final AtomicLong lastMissingSettingWarnAt = new AtomicLong(0L);
+    private final AtomicLong lastClampWarnAt = new AtomicLong(0L);
+
     private long getHeartExpire() {
         long heartExpire;
         Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.JOB, KeyEnum.JOB_HEART_TIMEOUT);
         if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
             heartExpire = Long.parseLong(settings.getValue().toString());
         } else {
-            heartExpire = 1800000L;
+            heartExpire = 300000L;
+            warnThrottled(lastMissingSettingWarnAt,
+                    () -> log.warn("getHeartExpire: JOB_HEART_TIMEOUT not found in Settings, using default {}ms", 300000L));
+        }
+        if (heartExpire < MIN_JOB_HEART_TIMEOUT_MS) {
+            long original = heartExpire;
+            heartExpire = MIN_JOB_HEART_TIMEOUT_MS;
+            warnThrottled(lastClampWarnAt,
+                    () -> log.warn("getHeartExpire: configured value {}ms is below minimum {}ms, clamping",
+                            original, MIN_JOB_HEART_TIMEOUT_MS));
         }
         return heartExpire;
+    }
+
+    private void warnThrottled(AtomicLong lastAt, Runnable logFn) {
+        long now = System.currentTimeMillis();
+        long prev = lastAt.get();
+        if (now - prev >= WARN_LOG_INTERVAL_MS && lastAt.compareAndSet(prev, now)) {
+            logFn.run();
+        }
     }
 
 
@@ -230,6 +275,14 @@ public class TaskRestartSchedule {
                 continue;
             }
 
+            // Same guard as engineRestartNeedStartTask: a stuck-in-SCHEDULING task whose
+            // current agent is still alive should not trigger OVERTIME — let the existing
+            // start flow finish.
+            if (!isCloud() && isAgentAlive(agentId, user)) {
+                logSkipReschedule("schedulingTask", taskDto, "stuck_in_scheduling_but_worker_alive");
+                continue;
+            }
+
             long heartExpire = getHeartExpire();
             if (Objects.nonNull(taskDto.getSchedulingTime()) && (
                 System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
@@ -245,7 +298,7 @@ public class TaskRestartSchedule {
     }
 
     public void waitRunTask() {
-        long heartExpire = 30000L;
+        long heartExpire = getHeartExpire();
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_RUN)
                 .and("scheduledTime").lt(new Date(System.currentTimeMillis() - heartExpire));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
@@ -260,6 +313,13 @@ public class TaskRestartSchedule {
             UserDetail user = userMap.get(taskDto.getUserId());
             if (Objects.isNull(user)
                 || (isCloud() && skipCloudEngineOffline(agentId, user))) {
+                continue;
+            }
+
+            // Same liveness guard for WAIT_RUN: if the new owner is alive, the engine is
+            // simply slow to acknowledge — don't roll back to SCHEDULING.
+            if (!isCloud() && isAgentAlive(agentId, user)) {
+                logSkipReschedule("waitRunTask", taskDto, "wait_run_but_worker_alive");
                 continue;
             }
 
@@ -329,6 +389,37 @@ public class TaskRestartSchedule {
         }
     }
 
+    @Scheduled(fixedDelay = 60000)
+    @SchedulerLock(name = "retrySchedulingFailedTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    public void retrySchedulingFailedTask() {
+        Thread.currentThread().setName("taskSchedule-retrySchedulingFailed");
+        if (isCloud()) return;
+
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULE_FAILED)
+                .and("last_updated").lt(new Date(System.currentTimeMillis() - 60000L));
+        List<TaskDto> all = taskService.findAll(Query.query(criteria));
+        if (CollectionUtils.isEmpty(all)) return;
+
+        Map<String, UserDetail> userDetailMap = getUserDetailMap(all);
+        Map<String, List<Worker>> userWorkerMap = this.getUserWorkMap();
+        if (userWorkerMap == null || userWorkerMap.isEmpty()) return;
+
+        for (TaskDto taskDto : all) {
+            UserDetail user = userDetailMap.get(taskDto.getUserId());
+            if (null == user) continue;
+            List<Worker> workerList = getUserWorkList(false, userWorkerMap, user.getUserId());
+            if (CollectionUtils.isNotEmpty(workerList)) {
+                StateMachineResult result = stateMachineService.executeAboutTask(
+                        taskDto, DataFlowEvent.OVERTIME, user);
+                if (result.isOk()) {
+                    log.info("Auto-retrying scheduling_failed task [{}]", taskDto.getName());
+                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
+                    taskScheduleService.scheduling(taskDto, user, true);
+                }
+            }
+        }
+    }
+
     protected void asyncTaskWarnLog(TaskDto taskDto, UserDetail user, String template, Object... arguments) {
         CompletableFuture.runAsync(() -> {
             String msg = MessageFormat.format(template, arguments);
@@ -336,11 +427,4 @@ public class TaskRestartSchedule {
         });
     }
 
-    /**
-     * 获取TM启动时间
-     * @return TM启动时间戳
-     */
-    private long getTmStartTime() {
-        return TM_START_TIME;
-    }
 }

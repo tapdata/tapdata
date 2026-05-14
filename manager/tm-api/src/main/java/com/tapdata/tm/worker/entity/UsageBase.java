@@ -1,10 +1,12 @@
 package com.tapdata.tm.worker.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.worker.dto.ConnectionPoolInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.Date;
+import java.util.List;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -53,5 +55,26 @@ public class UsageBase extends BaseEntity {
 
     protected Long lastUpdateTime;
 
+    protected Integer poolMaxConnections;
+
+    protected Integer poolUsedConnections;
+
+    protected Integer poolAvailable;
+
+    protected Integer poolQueueSize;
+
+    protected List<ConnectionPoolEntity> poolConnections;
+
     protected Date ttlKey;
+
+    public void withConnectionPollInfo(ConnectionPoolInfo info) {
+        if (null == info) {
+            return;
+        }
+        this.poolAvailable = info.getPoolAvailable();
+        this.poolMaxConnections = info.getPoolMaxConnections();
+        this.poolUsedConnections = info.getPoolUsedConnections();
+        this.poolQueueSize = info.getPoolQueueSize();
+        this.poolConnections = info.getConnections();
+    }
 }

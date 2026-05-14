@@ -10,8 +10,10 @@ import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
+import com.tapdata.tm.modules.dto.PublishApi;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.param.UpdateEncryptionParam;
+import com.tapdata.tm.modules.vo.ApiDefinitionVo;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
@@ -312,14 +314,14 @@ public class ModulesController extends BaseController {
   }
 
   /**
-   * 查询api列表
+   * 查询api列表(API -Server monitor.js 定时刷新检查API发布状态)
    *
    * @return
    */
   @GetMapping("apiDefinition")
-  public ResponseMessage apiDefinition() {
+  public ResponseMessage<ApiDefinitionVo> apiDefinition() {
     return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.View,
-            () -> modulesService.apiDefinition(getLoginUser())));
+            () -> modulesService.simplifyApiInfo(modulesService.apiDefinition(getLoginUser()))));
   }
   /**
    * 用于api-server 服务：更新api的发布状态

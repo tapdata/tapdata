@@ -19,11 +19,15 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.client5.http.HttpHostConnectException;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.entity.GzipCompressingEntity;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.core5.util.TimeValue;
 
 import org.apache.hc.core5.http.HttpEntityContainer;
 import org.apache.hc.core5.http.NoHttpResponseException;
@@ -50,6 +54,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -81,6 +87,12 @@ public class RestTemplateOperator {
 	private long retryInterval = 500;
 
 	private final AtomicLong logCount = new AtomicLong(0);
+
+	/**
+	 * Held so {@link #retryWrap} can evict stale pooled sockets after I/O failure
+	 * (typical when nginx upstream dies and the keep-alive socket is poisoned).
+	 */
+	private PoolingHttpClientConnectionManager connectionManager;
 
 	private RestTemplateOperator() {
 	}
@@ -149,12 +161,23 @@ public class RestTemplateOperator {
 	private ClientHttpRequestFactory getRequestFactory(int connectTimeout, int readTimeout, int connectRequestTimeout) {
 		int threshold = 1024;
 
-		PoolingHttpClientConnectionManager poolingHttpClientConnectionManager = new PoolingHttpClientConnectionManager();
-		poolingHttpClientConnectionManager.setMaxTotal(2000);
-		poolingHttpClientConnectionManager.setDefaultMaxPerRoute(2000);
+		long connTtlSeconds = CommonUtils.getPropertyLong("HTTP_CONN_TTL_SECONDS", 30L);
+		long connIdleSeconds = CommonUtils.getPropertyLong("HTTP_CONN_IDLE_SECONDS", 30L);
+		long connValidateAfterSeconds = CommonUtils.getPropertyLong("HTTP_CONN_VALIDATE_AFTER_SECONDS", 5L);
+
+		PoolingHttpClientConnectionManager poolingHttpClientConnectionManager =
+				PoolingHttpClientConnectionManagerBuilder.create()
+						.setMaxConnTotal(2000)
+						.setMaxConnPerRoute(2000)
+						.setConnectionTimeToLive(TimeValue.ofSeconds(connTtlSeconds))
+						.setValidateAfterInactivity(TimeValue.ofSeconds(connValidateAfterSeconds))
+						.build();
+		this.connectionManager = poolingHttpClientConnectionManager;
 		CloseableHttpClient httpClient = HttpClientBuilder.create()
 				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build())
 				.disableAutomaticRetries()
+				.evictExpiredConnections()
+				.evictIdleConnections(TimeValue.ofSeconds(connIdleSeconds))
 				.addRequestInterceptorFirst((request, entityDetails, context) -> {
 					if(request instanceof HttpEntityContainer entityContainer && entityDetails != null){
                         if (entityDetails instanceof ByteArrayEntity byteArrayEntity) {
@@ -728,11 +751,9 @@ public class RestTemplateOperator {
 				break;
 			} catch (Exception e) {
 				boolean changeURL = true;
-				// TmUnavailableException need to retry for cloud
+				// TmUnavailableException: retry in all modes to handle F5 VIP failover scenarios
 				if (e instanceof TmUnavailableException) {
-					if (!AppType.currentType().isCloud()) {
-						throw (TmUnavailableException) e;
-					}
+					// allow retry with URL switching for all deployment modes
 				} else if (e instanceof HttpClientErrorException) {
 					// If the parameter is incorrect, no retry will be performed
 					if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
@@ -741,11 +762,16 @@ public class RestTemplateOperator {
 					if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
 						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
 					}
-				} else {
-					// 'NoHttpResponseException' may occur with multithreaded requests, There is no need to switch services
-					if (null != CommonUtils.matchThrowable(e, NoHttpResponseException.class)) {
-						changeURL = false;
-					}
+				}
+
+				// Evict idle pooled sockets after I/O failure so the next retry opens a
+				// fresh TCP connection. Stale keep-alive sockets are the root cause of
+				// slow recovery when nginx fronts a dead TM upstream — the pool's
+				// validate-after-inactivity check does not detect this fast enough.
+				// This replaces the previous NoHttpResponseException → changeURL=false
+				// workaround, which only masked the symptom in single-URL deployments.
+				if (CommonUtils.getPropertyBool("HTTP_EVICT_ON_IO_ERROR", true) && isIoFailure(e)) {
+					evictIdleConnections();
 				}
 
 				// Print the first exception message
@@ -785,6 +811,31 @@ public class RestTemplateOperator {
 							+ " " + retryInfo.lastError.getMessage()), retryInfo.lastError);
 		} else {
 			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), retryInfo.lastError.getMessage()), retryInfo.lastError);
+		}
+	}
+
+	/**
+	 * True when the throwable (or any cause) indicates a transport-level failure that
+	 * leaves a pooled keep-alive socket in a poisoned state. Matches both client5 and
+	 * java.net exception classes seen in nginx-fronted HA drill failures.
+	 */
+	static boolean isIoFailure(Throwable t) {
+		return CommonUtils.matchThrowable(t, NoHttpResponseException.class) != null
+				|| CommonUtils.matchThrowable(t, SocketTimeoutException.class) != null
+				|| CommonUtils.matchThrowable(t, ConnectTimeoutException.class) != null
+				|| CommonUtils.matchThrowable(t, HttpHostConnectException.class) != null
+				|| CommonUtils.matchThrowable(t, SocketException.class) != null;
+	}
+
+	void evictIdleConnections() {
+		PoolingHttpClientConnectionManager cm = this.connectionManager;
+		if (cm == null) {
+			return;
+		}
+		try {
+			cm.closeIdle(TimeValue.ZERO_MILLISECONDS);
+		} catch (Exception evictErr) {
+			logger.debug("Failed to evict idle pool connections: {}", evictErr.getMessage());
 		}
 	}
 

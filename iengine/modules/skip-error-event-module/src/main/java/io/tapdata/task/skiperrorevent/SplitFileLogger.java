@@ -15,6 +15,7 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.message.EntryMessage;
+import org.apache.logging.log4j.message.FlowMessageFactory;
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.MessageFactory;
 import org.apache.logging.log4j.util.MessageSupplier;
@@ -887,6 +888,11 @@ public class SplitFileLogger implements AutoCloseable, Logger {
   @Override
   public <MF extends MessageFactory> MF getMessageFactory() {
     return this.logger.getMessageFactory();
+  }
+
+  @Override
+  public FlowMessageFactory getFlowMessageFactory() {
+    return this.logger.getFlowMessageFactory();
   }
 
   @Override
