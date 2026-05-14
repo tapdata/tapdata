@@ -511,4 +511,43 @@ public class CommonUtilTest {
             assertTrue(result2, "不同内容的嵌套List应该不相等，返回true");
         }
     }
+
+    @Nested
+    class CompareTreatEmptyStringAsNullTest {
+
+        @Test
+        void testEmptyStringEqualsNullWhenEnabled() throws CompareException {
+            assertFalse(CommonUtil.compare("", null, false, null, true), "\"\" equals null, return false");
+            assertFalse(CommonUtil.compare(null, "", false, null, true), "null equals \"\", return false");
+        }
+
+        @Test
+        void testBothEmptyStringEqualWhenEnabled() throws CompareException {
+            assertFalse(CommonUtil.compare("", "", false, null, true), "equals, return false");
+        }
+
+        @Test
+        void testEmptyStringNotEqualsNullWhenDisabled() throws CompareException {
+            assertTrue(CommonUtil.compare("", null, false, null, false), "\"\" and null not equals, return true");
+            assertTrue(CommonUtil.compare(null, "", false, null, false), "null and \"\" not equals, return true");
+        }
+
+        @Test
+        void testEmptyStringVsNonEmptyStringStillNotEqual() throws CompareException {
+            assertTrue(CommonUtil.compare("", "a", false, null, true), "\"\" and \"a\" not equals, return true");
+            assertTrue(CommonUtil.compare("a", "", false, null, true), "\"a\" and \"\" not equals, return true");
+        }
+
+        @Test
+        void testWhitespaceStringNotTreatedAsNull() throws CompareException {
+            assertTrue(CommonUtil.compare(" ", null, false, null, true), "\" \" not equals, return true");
+            assertTrue(CommonUtil.compare("   ", null, false, null, true), "\"   \" not equals, return true");
+        }
+
+        @Test
+        void testFourArgOverloadKeepsOriginalBehavior() throws CompareException {
+            assertTrue(CommonUtil.compare("", null, false, null), "\"\" and null not euqals, return true");
+            assertTrue(CommonUtil.compare(null, "", false, null), "null and \"\" not euqals, return true");
+        }
+    }
 }
