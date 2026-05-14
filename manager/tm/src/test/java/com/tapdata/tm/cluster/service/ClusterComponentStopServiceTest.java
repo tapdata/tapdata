@@ -184,10 +184,25 @@ class ClusterComponentStopServiceTest {
     }
 
     @Test
+    void frontendStop_onlyFlipsClusterState_noWorkerNoTasks() {
+        ComponentStoppedRequest req = new ComponentStoppedRequest();
+        req.setUuid("uuid-1");
+        req.setComponent(ComponentStoppedRequest.COMPONENT_FRONTEND);
+
+        Map<String, Object> result = service.componentStopped(req, caller);
+
+        assertEquals(false, result.get("workerUpdated"));
+        assertEquals(true, result.get("clusterStateUpdated"));
+        assertEquals(0, result.get("taskRescheduled"));
+        verify(workerService, never()).sendStopWorkWs(anyString(), any(UserDetail.class));
+        verify(taskService, never()).findAll(any(Query.class));
+        verify(mongoTemplate, times(1)).updateMulti(any(Query.class), any(), anyString());
+    }
+
+    @Test
     void invalidRequest_throws() {
         ComponentStoppedRequest noUuid = new ComponentStoppedRequest();
-        noUuid.setComponent(ComponentStoppedRequest.COMPONENT_ENGINE);
-        noUuid.setProcessId("pid");
+        noUuid.setComponent(ComponentStoppedRequest.COMPONENT_FRONTEND);
         assertThrows(IllegalArgumentException.class, () -> service.componentStopped(noUuid, caller));
 
         ComponentStoppedRequest unknownComp = new ComponentStoppedRequest();
@@ -199,10 +214,5 @@ class ClusterComponentStopServiceTest {
         engineNoPid.setUuid("u");
         engineNoPid.setComponent(ComponentStoppedRequest.COMPONENT_ENGINE);
         assertThrows(IllegalArgumentException.class, () -> service.componentStopped(engineNoPid, caller));
-
-        ComponentStoppedRequest frontendUnknown = new ComponentStoppedRequest();
-        frontendUnknown.setUuid("u");
-        frontendUnknown.setComponent("frontend");
-        assertThrows(IllegalArgumentException.class, () -> service.componentStopped(frontendUnknown, caller));
     }
 }

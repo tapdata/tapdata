@@ -71,6 +71,9 @@ public class ClusterComponentStopService {
                 clusterStateUpdated = setClusterStateComponentStopped(uuid, "apiServer");
                 safeSendStopWorkWs(processId, caller);
                 break;
+            case ComponentStoppedRequest.COMPONENT_FRONTEND:
+                clusterStateUpdated = setClusterStateComponentStopped(uuid, "management");
+                break;
             default:
                 throw new IllegalArgumentException("Unknown component: " + component);
         }
