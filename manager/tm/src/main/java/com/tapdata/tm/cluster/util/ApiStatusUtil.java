@@ -56,15 +56,6 @@ public final class ApiStatusUtil {
         if (null == apiInfo || null == apiInfo.getWorkerStatus() || null == apiInfo.getWorkerStatus().getMetricValues()) {
             return false;
         }
-        // 显式 stop 信号优先于 lastUpdateTime。markWorkerStopped (agent 通知 stop apiserver 触发)
-        // 会同时把 stopping=true 写库，但 apiserver 自身 /health 心跳记录的 lastUpdateTime 仍可能
-        // 在 30s 新鲜窗口内 —— 若只看 lastUpdateTime，会把 setClusterStateComponentStopped 已经
-        // 写进 ClusterState.apiServer.status="stopped" 的值用 apiserver 自报的旧值覆盖回 running，
-        // UI 等 30s 才能收敛到 stopped。这里与 connector 路径的 getAvailableAgentCriteria 的
-        // `stopping != true` 语义对齐。
-        if (Boolean.TRUE.equals(apiInfo.getStopping())) {
-            return false;
-        }
         Object activeTime = apiInfo.getWorkerStatus().getMetricValues().getLastUpdateTime();
         long threshold = System.currentTimeMillis() - (SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) * 1_000L);
         return activeTime instanceof Number iTime && iTime.longValue() >= threshold;
