@@ -792,6 +792,9 @@ public class WorkerServiceImpl extends WorkerService{
 //        }else{
             worker.setPingTime(System.currentTimeMillis());
 //        }
+        // 心跳即生命证明：清掉 markWorkerStopped 残留的 stopping=true，否则 worker 重启后
+        // 仍会被 getAvailableAgentCriteria 排除、isApiWorkerFresh 判为非活，UI 一直显示 stopped。
+        worker.setStopping(false);
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
