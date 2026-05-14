@@ -1,6 +1,8 @@
 package com.tapdata.tm.cluster.service;
 
+import com.tapdata.tm.cluster.dto.Component;
 import com.tapdata.tm.cluster.dto.ComponentStoppedRequest;
+import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
@@ -110,15 +112,40 @@ public class ClusterComponentStopService {
 
     private boolean setClusterStateComponentStopped(String uuid, String componentField) {
         Query query = Query.query(Criteria.where("systemInfo.uuid").is(uuid));
+
+        // Decide whether this write will leave ALL three components stopped, so we can flip the top-level
+        // status and expire ttl in the SAME update. For single-component stops, ttl is left intact so the UI
+        // aggregator (ApiStatusUtil.clusterStopped) does not paint the other components stopped.
+        ClusterStateEntity current = mongoTemplate.findOne(query, ClusterStateEntity.class, "ClusterState");
+        if (current == null) {
+            log.warn("ClusterComponent setClusterStateComponentStopped: no ClusterState found uuid={} field={}", uuid, componentField);
+            return false;
+        }
+        boolean engineWillStopped     = "engine".equals(componentField)     || isStoppedOrAbsent(current.getEngine());
+        boolean apiServerWillStopped  = "apiServer".equals(componentField)  || isStoppedOrAbsent(current.getApiServer());
+        boolean managementWillStopped = "management".equals(componentField) || isStoppedOrAbsent(current.getManagement());
+        boolean willAllStopped = engineWillStopped && apiServerWillStopped && managementWillStopped;
+
         Update update = new Update()
                 .set(componentField + ".status", "stopped")
-                .set("ttl", new Date(System.currentTimeMillis() - 1000L))
                 .set("last_updated", new Date());
+        if (willAllStopped) {
+            update.set("status", "stopped");
+            update.set("ttl", new Date(System.currentTimeMillis() - 1000L));
+        }
         long modified = mongoTemplate.updateMulti(query, update, "ClusterState").getModifiedCount();
         if (modified == 0) {
-            log.warn("ClusterComponent setClusterStateComponentStopped: no ClusterState found uuid={} field={}", uuid, componentField);
+            log.warn("ClusterComponent setClusterStateComponentStopped: no ClusterState updated uuid={} field={}", uuid, componentField);
+            return false;
         }
-        return modified > 0;
+        if (willAllStopped) {
+            log.info("ClusterComponent allComponentsStopped uuid={} - flipped top-level status to stopped (cluster fully down)", uuid);
+        }
+        return true;
+    }
+
+    private boolean isStoppedOrAbsent(Component c) {
+        return c == null || "stopped".equals(c.getStatus());
     }
 
     private int failoverTasksOf(String processId) {
