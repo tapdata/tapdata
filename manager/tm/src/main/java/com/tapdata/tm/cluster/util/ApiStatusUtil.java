@@ -58,6 +58,23 @@ public final class ApiStatusUtil {
         }
         Object activeTime = apiInfo.getWorkerStatus().getMetricValues().getLastUpdateTime();
         long threshold = System.currentTimeMillis() - (SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) * 1_000L);
-        return activeTime instanceof Number iTime && iTime.longValue() >= threshold;
+        // MetricInfo.lastUpdateTime 是 Object，BSON 编码后可能落地为 Number / Date / String 三种。
+        // 对齐 MetricInfo.toUsage() 的三态处理（同文件里已存在的样板），否则 Date 类型会让
+        // instanceof Number 静默失败，serviceStatus 永远卡 stopped。
+        Long activeMillis = toEpochMillis(activeTime);
+        return activeMillis != null && activeMillis >= threshold;
+    }
+
+    private static Long toEpochMillis(Object value) {
+        if (value instanceof Number n) return n.longValue();
+        if (value instanceof Date d) return d.getTime();
+        if (value instanceof String s) {
+            try {
+                return Long.parseLong(s);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 }

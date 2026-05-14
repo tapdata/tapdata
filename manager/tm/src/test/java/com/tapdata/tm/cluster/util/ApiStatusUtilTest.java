@@ -163,6 +163,71 @@ class ApiStatusUtilTest {
     }
 
     @Test
+    void statusOfApi_lastUpdateTimeIsDate_treatsAsFresh() {
+        // MongoDB 会把某些 lastUpdateTime 字段以 BSON Date 形式返回。原 instanceof Number
+        // 判定会静默失败，导致 serviceStatus 卡在 stopped。修复后必须按 Date 走时间比对。
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", new Date());
+            Component api = apiComponent("running");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("running", setStatus.get());
+            assertEquals("running", setServiceStatus.get());
+        }
+    }
+
+    @Test
+    void statusOfApi_lastUpdateTimeIsStringEpoch_treatsAsFresh() {
+        // 部分写路径可能把 epoch ms 序列化成 String。也应被识别为新鲜。
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", String.valueOf(System.currentTimeMillis()));
+            Component api = apiComponent("running");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("running", setStatus.get());
+            assertEquals("running", setServiceStatus.get());
+        }
+    }
+
+    @Test
+    void statusOfApi_lastUpdateTimeIsUnparsableString_treatsAsStale() {
+        // 异常 String：无法解析就视为非新鲜，回退到 DB 兜底 → serviceStatus=stopped。
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", "not-a-number");
+            Component api = apiComponent("running");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("running", setStatus.get());
+            assertEquals("stopped", setServiceStatus.get());
+        }
+    }
+
+    @Test
+    void statusOfApi_lastUpdateTimeIsStaleDate_treatsAsStale() {
+        // 过期 Date（apiserver 心跳停超过 WORKER_HEART_OVERTIME）→ 非新鲜，serviceStatus 报 stopped。
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", new Date(System.currentTimeMillis() - 60_000L));
+            Component api = apiComponent("running");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("running", setStatus.get());
+            assertEquals("stopped", setServiceStatus.get());
+        }
+    }
+
+    @Test
     void statusOfApi_workerClusterStatusNull_skipsStatusCallback() {
         // ApiMetricsChartQuery 第 328 行调用：workerClusterStatus 为 null，setStatus 不应被调用
         try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
