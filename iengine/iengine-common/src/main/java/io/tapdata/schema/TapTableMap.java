@@ -396,8 +396,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 				qualifiedName = TapTableUtil.getHeartbeatQualifiedName(nodeId);
 			}
 			if (StringUtils.isBlank(qualifiedName)) {
-				throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName
-					+ " tableNameAndQualifiedNameMap: " + tableNameAndQualifiedNameMap);
+				return null;
 			}
 		}
 		ClientMongoOperator clientMongoOperator = createClientMongoOperator();
