@@ -163,6 +163,26 @@ class ApiStatusUtilTest {
     }
 
     @Test
+    void statusOfApi_apiWorkerStopping_reportsStoppedImmediately() {
+        // stop apiserver 路径：markWorkerStopped 已把 Worker.stopping=true、ping_time=0 写库，
+        // 同时 setClusterStateComponentStopped 把 apiServer.status="stopped" 写库。但 apiserver
+        // 自己 /health 写的 lastUpdateTime 仍然新鲜（<30s）。如果 isApiWorkerFresh 不看 stopping，
+        // 会把 ClusterState 里的 stopped 状态覆盖回 apiserver 自报的 running，UI 等心跳超时才收敛。
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", System.currentTimeMillis());
+            apiInfo.setStopping(true);
+            Component api = apiComponent("stopped");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("stopped", setStatus.get());
+            assertEquals("stopped", setServiceStatus.get());
+        }
+    }
+
+    @Test
     void statusOfApi_workerClusterStatusNull_skipsStatusCallback() {
         // ApiMetricsChartQuery 第 328 行调用：workerClusterStatus 为 null，setStatus 不应被调用
         try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
