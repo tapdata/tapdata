@@ -65,7 +65,8 @@ public class PdkSourceUtils {
             CommonUtils.logError(TAG,"get md5 failed",e);
             return null;
         }
-        return String.format("%032x", new BigInteger(1, digest.digest()));
+        BigInteger bigInt = new BigInteger(1, digest.digest());
+        return bigInt.toString(16);
     }
     protected static void transformToFile(MultipartFile originFile, BiConsumer consumer) throws IOException {
         File file;
