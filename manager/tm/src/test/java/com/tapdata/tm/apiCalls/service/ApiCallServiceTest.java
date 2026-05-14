@@ -854,7 +854,7 @@ class ApiCallServiceTest {
             ReflectionTestUtils.setField(service, "ruleService", ruleService);
             ReflectionTestUtils.setField(service, "modulesService", modulesService);
 
-            when(service.parseCustomParam(anyBoolean(), anyString(), any(Map.class)))
+            when(service.parseCustomParam(anyBoolean(), anyString(), any(Map.class), any(Map.class)))
                     .thenAnswer(invocation -> "ENC:" + invocation.getArgument(1));
             when(service.parse(anyString(), anyBoolean(), any(Map.class)))
                     .thenAnswer(invocation -> "PARSED:" + invocation.getArgument(0));
@@ -990,7 +990,7 @@ class ApiCallServiceTest {
             ReflectionTestUtils.setField(service, "ruleService", ruleService);
             ReflectionTestUtils.setField(service, "modulesService", modulesService);
 
-            when(service.parseCustomParam(anyBoolean(), anyString(), any(Map.class)))
+            when(service.parseCustomParam(anyBoolean(), anyString(), any(Map.class), any(Map.class)))
                     .thenAnswer(invocation -> "ENC:" + invocation.getArgument(1));
 
             ObjectId ruleObjectId = new ObjectId();
