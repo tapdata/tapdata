@@ -11,7 +11,6 @@ import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +31,6 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -44,7 +42,6 @@ class ClusterComponentStopServiceTest {
 
     private ClusterComponentStopService service;
     private MongoTemplate mongoTemplate;
-    private WorkerService workerService;
     private TaskService taskService;
     private TaskScheduleService taskScheduleService;
     private StateMachineService stateMachineService;
@@ -56,7 +53,6 @@ class ClusterComponentStopServiceTest {
     void init() {
         service = new ClusterComponentStopService();
         mongoTemplate = mock(MongoTemplate.class);
-        workerService = mock(WorkerService.class);
         taskService = mock(TaskService.class);
         taskScheduleService = mock(TaskScheduleService.class);
         stateMachineService = mock(StateMachineService.class);
@@ -65,7 +61,6 @@ class ClusterComponentStopServiceTest {
         caller = mock(UserDetail.class);
 
         ReflectionTestUtils.setField(service, "mongoTemplate", mongoTemplate);
-        ReflectionTestUtils.setField(service, "workerService", workerService);
         ReflectionTestUtils.setField(service, "taskService", taskService);
         ReflectionTestUtils.setField(service, "taskScheduleService", taskScheduleService);
         ReflectionTestUtils.setField(service, "stateMachineService", stateMachineService);
@@ -120,7 +115,6 @@ class ClusterComponentStopServiceTest {
         assertEquals(3, result.get("taskRescheduled"));
         verify(stateMachineService, times(3)).executeAboutTask(any(TaskDto.class), eq(DataFlowEvent.OVERTIME), any(UserDetail.class));
         verify(taskScheduleService, times(3)).scheduling(any(TaskDto.class), any(UserDetail.class), eq(true));
-        verify(workerService, atLeastOnce()).sendStopWorkWs(eq("engine-A"), any(UserDetail.class));
         verify(mongoTemplate, times(2)).updateMulti(any(Query.class), any(), anyString());
     }
 
@@ -180,7 +174,6 @@ class ClusterComponentStopServiceTest {
         assertEquals(0, result.get("taskRescheduled"));
         verify(taskService, never()).findAll(any(Query.class));
         verify(taskScheduleService, never()).scheduling(any(TaskDto.class), any(UserDetail.class), any());
-        verify(workerService, atLeastOnce()).sendStopWorkWs(eq("api-A"), any(UserDetail.class));
     }
 
     @Test
@@ -194,7 +187,6 @@ class ClusterComponentStopServiceTest {
         assertEquals(false, result.get("workerUpdated"));
         assertEquals(true, result.get("clusterStateUpdated"));
         assertEquals(0, result.get("taskRescheduled"));
-        verify(workerService, never()).sendStopWorkWs(anyString(), any(UserDetail.class));
         verify(taskService, never()).findAll(any(Query.class));
         verify(mongoTemplate, times(1)).updateMulti(any(Query.class), any(), anyString());
     }

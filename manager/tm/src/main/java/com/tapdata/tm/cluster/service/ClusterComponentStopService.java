@@ -11,7 +11,6 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.worker.entity.field.WorkerType;
-import com.tapdata.tm.worker.service.WorkerService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -35,7 +34,6 @@ import java.util.stream.Collectors;
 public class ClusterComponentStopService {
 
     private MongoTemplate mongoTemplate;
-    private WorkerService workerService;
     private TaskService taskService;
     private TaskScheduleService taskScheduleService;
     private StateMachineService stateMachineService;
@@ -64,12 +62,10 @@ public class ClusterComponentStopService {
                 workerUpdated = markWorkerStopped(processId, "connector");
                 taskRescheduled = failoverTasksOf(processId);
                 clusterStateUpdated = setClusterStateComponentStopped(uuid, "engine");
-                safeSendStopWorkWs(processId, caller);
                 break;
             case ComponentStoppedRequest.COMPONENT_APISERVER:
                 workerUpdated = markWorkerStopped(processId, WorkerType.API_SERVER.getType());
                 clusterStateUpdated = setClusterStateComponentStopped(uuid, "apiServer");
-                safeSendStopWorkWs(processId, caller);
                 break;
             case ComponentStoppedRequest.COMPONENT_FRONTEND:
                 clusterStateUpdated = setClusterStateComponentStopped(uuid, "management");
@@ -164,11 +160,4 @@ public class ClusterComponentStopService {
         return rescheduled;
     }
 
-    private void safeSendStopWorkWs(String processId, UserDetail caller) {
-        try {
-            workerService.sendStopWorkWs(processId, caller);
-        } catch (Exception e) {
-            log.warn("ClusterComponent sendStopWorkWs failed processId={} msg={}", processId, e.getMessage());
-        }
-    }
 }
