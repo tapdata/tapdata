@@ -37,7 +37,7 @@ public interface MonitoringLogsService {
 
     void startTaskErrorStackTrace(TaskDto taskDto, UserDetail user, Throwable e, Level level);
 
-    void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user, Date now);
+    void agentAssignMonitoringLog(TaskDto taskDto, String assigned, String assignedName, Integer available, boolean manually, UserDetail user, Date now);
 
     void deleteLogs(String taskId);
 

@@ -1,7 +1,6 @@
 package com.tapdata.tm.sdk.available;
 
 import io.tapdata.utils.AppType;
-import io.tapdata.utils.UnitTestUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,8 +21,13 @@ public class TmStatusServiceTest {
 
         @Test
         void testDAAS() {
-            boolean result = TmStatusService.isEnable();
-            Assertions.assertFalse(result, "Can't open TmStatus.");
+            System.setProperty("TM_STATUS_SERVICE_ENABLE", "false");
+            try {
+                boolean result = TmStatusService.isEnable();
+                Assertions.assertFalse(result, "Can't open TmStatus.");
+            } finally {
+                System.clearProperty("TM_STATUS_SERVICE_ENABLE");
+            }
         }
 
         @Test
@@ -38,10 +42,12 @@ public class TmStatusServiceTest {
 
         @Test
         void testNotFoundAppType() {
-            try (MockedStatic<UnitTestUtils> mocked = Mockito.mockStatic(UnitTestUtils.class)) {
-                mocked.when(UnitTestUtils::isTesting).thenReturn(false);
+            System.setProperty("TM_STATUS_SERVICE_ENABLE", "false");
+            try {
                 boolean result = TmStatusService.isEnable();
                 Assertions.assertFalse(result, "Can't open TmStatus.");
+            } finally {
+                System.clearProperty("TM_STATUS_SERVICE_ENABLE");
             }
         }
     }

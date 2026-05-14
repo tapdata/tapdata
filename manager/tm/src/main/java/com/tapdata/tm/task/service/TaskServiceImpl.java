@@ -37,6 +37,7 @@ import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
 import com.tapdata.tm.lineage.entity.LineageType;
 import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.monitor.service.BatchService;
+import com.tapdata.tm.proxy.utils.RemoteCallerUtil;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
@@ -3133,21 +3134,7 @@ public class TaskServiceImpl extends TaskService{
         io.tapdata.modules.api.net.data.FileMeta fileMeta = callEngineRpc(engineId, io.tapdata.modules.api.net.data.FileMeta.class, className, method, args);
 
         if (fileMeta.isTransferFile()) {
-            response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_OCTET_STREAM.getMimeType());
-            response.setHeader(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=%s", fileMeta.getFilename()));
-            response.setHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileMeta.getFileSize()));
-            response.setHeader("X-FileMeta-Code", fileMeta.getCode());
-            try (InputStream inputStream = fileMeta.getFileInputStream();
-                 OutputStream outputStream = response.getOutputStream()) {
-                long count = 0;
-                int n;
-                byte[] buffer = new byte[8192];
-                while (-1 != (n = inputStream.read(buffer))) {
-                    outputStream.write(buffer, 0, n);
-                    count += n;
-                }
-                log.debug("Write file length {}", count);
-            }
+            RemoteCallerUtil.responseForFileMeta(fileMeta, response, log);
             return;
         }
 
@@ -3728,11 +3715,14 @@ public class TaskServiceImpl extends TaskService{
                // 根据导入模式处理
                switch (importMode) {
                    case REPLACE,REUSE_EXISTING: {
-                       // 按名称查找现有任务
-                       Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
-                       nameQuery.fields().include("_id", USER_ID, "name");
-                       TaskDto existingTaskByName = findOne(nameQuery, user);
-                       handleReplaceMode(taskDto, existingTaskByName, user, tagList, conMap, nodeMap, taskMap, importResult);
+                       // 基于 _id 查找现有任务，不使用 name 匹配，避免不同用户相同名称任务相互覆盖
+                       if (taskDto.getId() == null) {
+                           throw new BizException("Task.ImportMissingId", taskDto.getName());
+                       }
+                       Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
+                       idQuery.fields().include("_id", USER_ID, "name");
+                       TaskDto existingTaskById = findOne(idQuery, user);
+                       handleReplaceMode(taskDto, existingTaskById, user, tagList, conMap, nodeMap, taskMap, importResult);
                        break;
                    }
                    case GROUP_IMPORT: {
@@ -3750,10 +3740,14 @@ public class TaskServiceImpl extends TaskService{
                        handleImportAsCopyMode(taskDto, user, tagList, conMap,nodeMap,taskMap);
                        break;
                    case CANCEL_IMPORT: {
-                       Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
-                       nameQuery.fields().include("_id", USER_ID, "name");
-                       TaskDto existingTaskByName = findOne(nameQuery, user);
-                       if(null != existingTaskByName){
+                       // 基于 _id 查找现有任务
+                       TaskDto existingTaskById = null;
+                       if (taskDto.getId() != null) {
+                           Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
+                           idQuery.fields().include("_id", USER_ID, "name");
+                           existingTaskById = findOne(idQuery, user);
+                       }
+                       if(null != existingTaskById){
                            throw new BizException("Task.RepeatName");
                        }else{
                            if(checkConnectionIdDuplicate(taskDto, conMap)){
@@ -3798,13 +3792,11 @@ public class TaskServiceImpl extends TaskService{
                 && taskDto.getId() != null
                 && resetTaskList.contains(taskDto.getId().toHexString());
 
-        // GROUP_IMPORT 按 _id 查，其他模式按 name 查
-        Query existingQuery;
-        if (importMode == ImportModeEnum.GROUP_IMPORT && taskDto.getId() != null) {
-            existingQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
-        } else {
-            existingQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
+        // 统一基于 _id 查找现有任务，避免不同用户相同名称任务相互覆盖
+        if (taskDto.getId() == null) {
+            return false;
         }
+        Query existingQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
         existingQuery.fields().exclude("user_id","create_user","pingTime","taskRecordId","last_updated");
 
         // 使用工具类比较任务配置是否一致
@@ -4007,9 +3999,7 @@ public class TaskServiceImpl extends TaskService{
         Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
         idQuery.fields().include("_id", USER_ID, "name");
         TaskDto existingTaskByID= findOne(idQuery);
-        while (checkTaskNameNotError(taskDto.getName(), user, null)) {
-            taskDto.setName(taskDto.getName() + "_import");
-        }
+        // 不再基于名称重命名，使用 _id 保证唯一性
 
         if(null != existingTaskByID){
             // 分配新ID
@@ -6067,9 +6057,18 @@ public class TaskServiceImpl extends TaskService{
                 if(CollectionUtils.isNotEmpty(metadataInstancesDtoList)){
                     metadataInstancesDtoList.forEach(metadataInstancesDto -> {
                         if(org.apache.commons.collections4.MapUtils.isNotEmpty(metadataInstancesDto.getTableAttr()) && metadataInstancesDto.getTableAttr().containsKey("avgObjSize")){
-                            Integer avgSize = (Integer) metadataInstancesDto.getTableAttr().get("avgObjSize");
-                            if(null != avgSize){
-                                tableMap.put(metadataInstancesDto.getOriginalName(),Long.valueOf(avgSize));
+                            Object avgSizeObj = metadataInstancesDto.getTableAttr().get("avgObjSize");
+                            Long avgSize = null;
+                            if (avgSizeObj instanceof Number) {
+                                avgSize = ((Number) avgSizeObj).longValue();
+                            } else if (avgSizeObj instanceof String s && !s.isBlank()) {
+                                try {
+                                    avgSize = Long.parseLong(s.trim());
+                                } catch (NumberFormatException ignored) {
+                                }
+                            }
+                            if (avgSize != null) {
+                                tableMap.put(metadataInstancesDto.getOriginalName(), avgSize);
                             }
                         }
                     });

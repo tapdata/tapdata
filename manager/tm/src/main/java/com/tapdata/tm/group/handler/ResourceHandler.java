@@ -294,9 +294,11 @@ public interface ResourceHandler {
                 MetadataDefinitionDto metadataDefinitionDto = JsonUtil.parseJsonUseJackson(taskUpAndLoadDto.getJson(),
                         MetadataDefinitionDto.class);
                 if (metadataDefinitionDto != null) {
-                    String key = metadataDefinitionDto.getId() == null ? metadataDefinitionDto.getValue()
-                            : metadataDefinitionDto.getId().toHexString();
-                    metadataDefinitions.putIfAbsent(key, metadataDefinitionDto);
+                    if (metadataDefinitionDto.getId() != null) {
+                        metadataDefinitions.putIfAbsent(metadataDefinitionDto.getId().toHexString(), metadataDefinitionDto);
+                    } else {
+                        log.warn("MetadataDefinition has no _id, skip: value={}", metadataDefinitionDto.getValue());
+                    }
                 }
             }
 

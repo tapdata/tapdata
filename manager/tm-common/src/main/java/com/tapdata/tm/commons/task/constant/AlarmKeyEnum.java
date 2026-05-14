@@ -26,6 +26,10 @@ public enum AlarmKeyEnum {
     SYSTEM_FLOW_EGINGE_DOWN(Constant.TYPE_METRIC),
 
     SYSTEM_FLOW_EGINGE_UP(Constant.TYPE_METRIC),
+
+    ENGINE_OFFLINE(Constant.TYPE_METRIC),
+
+    ENGINE_ONLINE(Constant.TYPE_METRIC),
 	INSPECT_TASK_ERROR(Constant.TYPE_EVENT),
 	INSPECT_COUNT_ERROR(Constant.TYPE_EVENT),
 	INSPECT_VALUE_ERROR(Constant.TYPE_EVENT),
@@ -71,6 +75,8 @@ public enum AlarmKeyEnum {
     API_SERVER_P99_WARN(Constant.TYPE_API_SERVER, "API Server每分钟请求延迟P99 >= ${rate}s 并持续${min}分钟时邮件告警", 200),
     API_SERVER_ERROR_RATE_WARN(Constant.TYPE_API_SERVER, "API Server每分钟错误率 >= ${rate}s 并持续${min}分钟时邮件告警", 210),
 
+    API_SERVER_CONNECTION_POOL_DEFICIENCY_WARN(Constant.TYPE_API_SERVER, "When the number of connections in any API Server connection pool exceeds the alarm threshold", 220),
+    API_SERVER_CONNECTION_POOL_IDLE_WARN(Constant.TYPE_API_SERVER, "When the number of connections in the connection pool of any API Server falls below the alarm threshold", 230)
     ;
 
 

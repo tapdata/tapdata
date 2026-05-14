@@ -44,7 +44,9 @@ public class DataPermissionHelper {
     }
 
     public static <E extends BaseEntity, D extends BaseDto> void convert(E entity, D dto) {
-        iDataPermissionHelper.convert(entity, dto);
+        if (null != iDataPermissionHelper) {
+            iDataPermissionHelper.convert(entity, dto);
+        }
     }
 
     public static void cleanAuthOfRoleDelete(Set<String> roleIds) {

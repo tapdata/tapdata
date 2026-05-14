@@ -5,6 +5,7 @@ import com.tapdata.constant.ConnectorConstant;
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.firedome.MultiTaggedGauge;
 import io.tapdata.firedome.PrometheusName;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkBaseNode;
 import io.tapdata.flow.engine.V2.task.OpType;
 import io.tapdata.flow.engine.V2.util.TaskOperationQueue;
 import io.tapdata.utils.AppType;
@@ -338,7 +339,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			List<TaskDto> allWaitRunTasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 			for (TaskDto waitRunTask : allWaitRunTasks) {
 				logger.info("Staring task from http query: {}[{}]", waitRunTask.getName(), waitRunTask.getId());
-				query = new Query(Criteria.where("id").is(waitRunTask.getId()));
+				query = new Query(Criteria.where("_id").is(waitRunTask.getId()));
 				Update update = new Update();
 				update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
 				addAgentIdUpdate(update);
@@ -543,19 +544,22 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 
-		// 应用批量限流控制
-		applyBatchStartTaskRateLimit(taskDto);
-
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		try {
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 
+			// Claim the task first so TM immediately moves wait_run→running; if this fails the
+			// task is still in scheduling/wait_run and we abort rather than start a phantom job.
 			TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskOpRespDto.class);
 			if (null == taskOpRespDto || !taskOpRespDto.getSuccessIds().contains(taskId)) {
 				// 防止任务异常状态下再次启动任务
 				throw new RuntimeException("Update task status to 'running' failed");
 			}
+
+			// Apply rate limiting after claiming: TM already knows the task is running so the
+			// wait_run overtime timer will not fire while we wait here.
+			applyBatchStartTaskRateLimit(taskDto);
 
 			// 使用 computeIfAbsent 防止创建重复的 TaskClient
 			taskClientMap.computeIfAbsent(taskId, id -> hazelcastTaskService.startTask(taskDto));
@@ -736,6 +740,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				long taskRetrySucceedTimeMs = TimeUnit.HOURS.toMillis(1L);
 				long currentTimeMillis = System.currentTimeMillis();
 				if (currentTimeMillis - taskRetryStartTimeMs >= taskRetrySucceedTimeMs) {
+					// Silent-recovery fallback: drive milestone.retrying=false and clear functionRetryStatus
+					// for each PDK invoker before releasing the engine-side retry state. Without this,
+					// storeMilestone() keeps re-persisting retrying=true every 5s.
+					HazelcastPdkBaseNode.triggerTaskRetryCleanupHooks(taskId);
 					taskRetryService.reset();
 					ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId);
 					if (null != obsLogger) {

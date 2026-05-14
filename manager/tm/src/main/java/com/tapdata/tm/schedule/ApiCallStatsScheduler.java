@@ -3,6 +3,7 @@ package com.tapdata.tm.schedule;
 import com.tapdata.tm.apiCalls.service.SupplementApiCallServer;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.v2.api.monitor.service.ApiMetricsRawScheduleExecutor;
+import com.tapdata.tm.v2.api.pool.service.ConnectionPoolScheduleExecutor;
 import com.tapdata.tm.v2.api.usage.service.ServerUsageMetricScheduleExecutor;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -42,6 +43,9 @@ public class ApiCallStatsScheduler {
     @Resource(name = "workerCallServiceImpl")
     WorkerCallServiceImpl workerCallServiceImpl;
 
+    @Resource(name = "connectionPoolScheduleExecutor")
+    ConnectionPoolScheduleExecutor connectionPoolScheduleExecutor;
+
 
     public ApiCallStatsScheduler() {
 
@@ -55,6 +59,11 @@ public class ApiCallStatsScheduler {
             usageMetricScheduleExecutor.aggregateUsage();
         } catch (Exception e) {
             log.warn("Aggregate api server usage failed, will skip it, error: {}", e.getMessage(), e);
+        }
+        try {
+            connectionPoolScheduleExecutor.aggregateUsage();
+        } catch (Exception e) {
+            log.warn("Aggregate api server connection pool usage failed, will skip it, error: {}", e.getMessage(), e);
         }
     }
 

@@ -1,0 +1,25 @@
+[
+  {
+    "insert": "Settings_Alarm",
+    "documents": [
+      {
+        "type": "SYSTEM",
+        "open": true,
+        "key": "ENGINE_OFFLINE",
+        "sort": 1,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "SYSTEM",
+        "open": true,
+        "key": "ENGINE_ONLINE",
+        "sort": 1,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      }
+    ]
+  }
+]

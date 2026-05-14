@@ -209,8 +209,11 @@ public class TaskResourceHandler implements ResourceHandler {
             if (GroupConstants.COLLECTION_TASK.equals(item.getCollectionName())) {
                 TaskDto taskDto = JsonUtil.parseJsonUseJackson(item.getJson(), TaskDto.class);
                 if (taskDto != null) {
-                    String key = taskDto.getId() == null ? taskDto.getName() : taskDto.getId().toHexString();
-                    taskMap.putIfAbsent(key, taskDto);
+                    if (taskDto.getId() != null) {
+                        taskMap.putIfAbsent(taskDto.getId().toHexString(), taskDto);
+                    } else {
+                        log.warn("Task has no _id, skip: name={}", taskDto.getName());
+                    }
                 }
             } else if (GroupConstants.COLLECTION_METADATA_INSTANCES.equals(item.getCollectionName())) {
                 MetadataInstancesDto metadataInstancesDto = JsonUtil.parseJsonUseJackson(item.getJson(),

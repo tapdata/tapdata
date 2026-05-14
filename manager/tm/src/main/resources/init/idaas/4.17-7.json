@@ -1,0 +1,47 @@
+[
+  {
+    "update": "RoleMapping",
+    "updates": [
+      {
+        "q": {
+          "principalId": "v2_project_management",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_project_management",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_project_import_and_export",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_project_import_and_export",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

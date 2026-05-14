@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
 import com.tapdata.tm.commons.base.DecimalFormat;
+import com.tapdata.tm.worker.entity.ConnectionPoolEntity;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import com.tapdata.tm.worker.entity.UsageBase;
 import lombok.Data;
@@ -21,6 +22,7 @@ import java.util.Optional;
 @Data
 public class ServerChart extends ValueBase {
     private Usage usage;
+    private PoolUsage poolUsage;
     private Request request;
     private Delay delay;
     private DBCost dBCost;
@@ -45,6 +47,38 @@ public class ServerChart extends ValueBase {
     }
 
     @Data
+    public static class PoolUsage {
+        String connectionId;
+
+        List<Integer> poolUsedConnections;
+        List<Integer> poolMaxConnections;
+        List<Integer> poolQueueSize;
+
+        List<Long> ts;
+
+        public PoolUsage() {
+            this.poolUsedConnections = new ArrayList<>();
+            this.poolMaxConnections = new ArrayList<>();
+            this.poolQueueSize = new ArrayList<>();
+            this.ts = new ArrayList<>();
+        }
+
+        public void addEmpty(Long timestamp) {
+            this.ts.add(timestamp);
+            this.poolUsedConnections.add(null);
+            this.poolMaxConnections.add(null);
+            this.poolQueueSize.add(null);
+        }
+
+        public void add(ConnectionPoolEntity usage) {
+            ts.add(usage.getLastUpdateTime() / 1000L);
+            poolUsedConnections.add(usage.getUsedConnections());
+            poolMaxConnections.add(usage.getMaxConnections());
+            poolQueueSize.add(usage.getQueueSize());
+        }
+    }
+
+    @Data
     public static class Usage {
         @DecimalFormat
         List<Double> cpuUsage;
@@ -59,11 +93,19 @@ public class ServerChart extends ValueBase {
         List<Double> maxMemoryUsage;
         @DecimalFormat
         List<Double> minMemoryUsage;
+
+        List<Integer> poolUsedConnections;
+        List<Integer> poolMaxConnections;
+        List<Integer> poolQueueSize;
+
         List<Long> ts;
 
         public Usage() {
             this.cpuUsage = new ArrayList<>();
             this.memoryUsage = new ArrayList<>();
+            this.poolUsedConnections = new ArrayList<>();
+            this.poolMaxConnections = new ArrayList<>();
+            this.poolQueueSize = new ArrayList<>();
             this.ts = new ArrayList<>();
         }
 
@@ -72,15 +114,18 @@ public class ServerChart extends ValueBase {
         }
 
         public void addEmpty(Long timestamp, boolean statistics) {
-            ts.add(timestamp);
+            this.ts.add(timestamp);
             getCpuUsage().add(null);
             getMemoryUsage().add(null);
+            this.poolUsedConnections.add(null);
+            this.poolMaxConnections.add(null);
+            this.poolQueueSize.add(null);
             if (statistics) {
                 initStatisticsData();
-                maxCpuUsage.add(null);
-                minCpuUsage.add(null);
-                maxMemoryUsage.add(null);
-                minMemoryUsage.add(null);
+                this.maxCpuUsage.add(null);
+                this.minCpuUsage.add(null);
+                this.maxMemoryUsage.add(null);
+                this.minMemoryUsage.add(null);
             }
         }
 
@@ -103,6 +148,9 @@ public class ServerChart extends ValueBase {
                 getMemoryUsage().add(null);
             }
             ts.add(usage.getLastUpdateTime() / 1000L);
+            poolUsedConnections.add(usage.getPoolUsedConnections());
+            poolMaxConnections.add(usage.getPoolMaxConnections());
+            poolQueueSize.add(usage.getPoolQueueSize());
             if (usage instanceof ServerUsageMetric metric) {
                 initStatisticsData();
                 maxCpuUsage.add(metric.getMaxCpuUsage());
