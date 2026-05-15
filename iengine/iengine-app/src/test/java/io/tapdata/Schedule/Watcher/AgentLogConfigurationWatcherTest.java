@@ -117,6 +117,7 @@ public class AgentLogConfigurationWatcherTest {
         @Test
         void updateLogLevelTest2(){
             org.apache.logging.log4j.core.Logger logger = (Logger) LogManager.getLogger("com.tapdata.CustomProcessor.Test2");
+            logger.setAdditive(true);
             LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("debug").scriptEngineHttpAppender("false").build();
             doCallRealMethod().when(agentLogConfigurationWatcher).updateLogLevel(logConfiguration);
             agentLogConfigurationWatcher.updateLogLevel(logConfiguration);
