@@ -128,7 +128,10 @@ public class ClusterComponentStopService {
 
         Update update = new Update()
                 .set(componentField + ".status", "stopped")
-                .set("last_updated", new Date());
+                .set("last_updated", new Date())
+                // 时序锚：statusInfo 在 executor 任务里用 receivedAt 比这个字段判 stale。
+                // 必须每次 componentStopped 都刷，保证最近的 stop 时刻被记录。
+                .set("componentStoppedAt", new Date());
         if (willAllStopped) {
             update.set("status", "stopped");
             update.set("ttl", new Date(System.currentTimeMillis() - 1000L));
