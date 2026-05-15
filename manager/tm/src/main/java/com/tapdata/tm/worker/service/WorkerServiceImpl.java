@@ -122,6 +122,7 @@ public class WorkerServiceImpl extends WorkerService{
 
     private final MultiTaggedCounter workerPing;
     private Random random = new Random();
+    private static final String STATUS = "status";
 
     public WorkerServiceImpl(@NonNull WorkerRepository repository) {
         super(repository);
@@ -323,8 +324,8 @@ public class WorkerServiceImpl extends WorkerService{
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
                     .and("is_deleted").ne(true)
                     .and("user_id").is(userDetail.getUserId())
-                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
-                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN));
+                    .and(STATUS).nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
+                    .orOperator(Criteria.where(STATUS).in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN));
             Query query = Query.query(criteria);
             query.fields().include("id", "name", "syncType");
             //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
@@ -602,7 +603,7 @@ public class WorkerServiceImpl extends WorkerService{
             String processId = MapUtil.getStr(data, "process_id");
             if (StringUtils.isNotBlank(processId)) {
                 String progress = MapUtil.getStr(data, "progres");
-                String status = MapUtil.getStr(data, "status");
+                String status = MapUtil.getStr(data, STATUS);
                 String msg = MapUtil.getStr(data, "msg");
                 Date now = new Date();
 
@@ -869,7 +870,7 @@ public class WorkerServiceImpl extends WorkerService{
     public void sendStopWorkWs(String processId, UserDetail userDetail) {
         UpdataStatusRequest updataStatusRequest = new UpdataStatusRequest();
         ClusterStateDto clusterStateDto = clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").
-                is(processId).and("status").is("running")));
+                is(processId).and(STATUS).is("running")));
         updataStatusRequest.setUuid(clusterStateDto.getUuid());
         updataStatusRequest.setOperation("stop");
         updataStatusRequest.setServer("backend");
