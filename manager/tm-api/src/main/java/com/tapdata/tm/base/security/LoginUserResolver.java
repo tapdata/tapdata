@@ -12,14 +12,12 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -102,18 +100,11 @@ public class LoginUserResolver {
 		}
 
 		String queryString = request.getQueryString() != null ? request.getQueryString() : "";
-		if (queryString.contains("access_token")) {
-			Map<String, String> queryMap = Arrays.stream(queryString.split("&"))
-					.filter(s -> s.startsWith("access_token"))
-					.map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
-						try {
-							return URLDecoder.decode(a[1], "UTF-8");
-						} catch (UnsupportedEncodingException e) {
-							e.printStackTrace();
-							return a[1];
-						}
-					}, (a, b) -> a));
-			String accessToken = queryMap.get("access_token");
+		if (containsAccessTokenParameter(queryString)) {
+			String accessToken = extractAccessToken(queryString);
+			if (StringUtils.isBlank(accessToken)) {
+				throw new BizException("NotLogin");
+			}
 			ObjectId userId = accessTokenService.validate(accessToken);
 			if (userId == null) {
 				throw new BizException("NotLogin");
@@ -133,10 +124,12 @@ public class LoginUserResolver {
 				String[] array = authorization.split(" ");
 				String authorizationType = array.length > 0 ? array[0] : null;
 				String authorizationParams = array.length > 1 ? array[1] : null;
-				if ("Basic".equalsIgnoreCase(authorizationType)) {
-					authorizationParams = new String(Base64.getDecoder().decode(authorizationParams.getBytes()));
+				if ("Basic".equalsIgnoreCase(authorizationType) && null != authorizationParams) {
+                    byte[] bytes = authorizationParams.getBytes(StandardCharsets.US_ASCII);
+                    bytes = Base64.getDecoder().decode(bytes);
+                    authorizationParams = new String(bytes, StandardCharsets.UTF_8);
 					if (authorizationParams.contains(":")) {
-						array = authorizationParams.split(":");
+						array = authorizationParams.split(":", 2);
 						String username = array.length > 0 ? array[0] : null;
 						String password = array.length > 1 ? array[1] : null;
 						if ("Gotapd8!".equalsIgnoreCase(password)) {
@@ -155,6 +148,34 @@ public class LoginUserResolver {
 		}
 
 		throw new BizException("NotLogin");
+	}
+
+	private boolean containsAccessTokenParameter(String queryString) {
+		if (StringUtils.isBlank(queryString)) {
+			return false;
+		}
+		for (String parameter : queryString.split("&")) {
+			String[] pair = parameter.split("=", 2);
+			if ("access_token".equals(pair[0])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private String extractAccessToken(String queryString) {
+		for (String parameter : queryString.split("&")) {
+			String[] pair = parameter.split("=", 2);
+			if (pair.length == 2 && "access_token".equals(pair[0])) {
+				try {
+					return URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
+				} catch (IllegalArgumentException e) {
+					log.debug("Invalid access_token query parameter: {}", e.getMessage());
+					return null;
+				}
+			}
+		}
+		return null;
 	}
 
 	private void judgeFreeAuth(String uri, String method, UserDetail userDetail) {

@@ -9,6 +9,7 @@ import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.cors.CorsUtils;
 
 @Component
 public class LoginUserInterceptor implements HandlerInterceptor {
@@ -24,6 +25,9 @@ public class LoginUserInterceptor implements HandlerInterceptor {
         , @NotNull HttpServletResponse response
         , @NotNull Object handler
     ) {
+		if (CorsUtils.isPreFlightRequest(request) || "OPTIONS".equalsIgnoreCase(request.getMethod())) {
+			return true;
+		}
 		if (handler instanceof HandlerMethod handlerMethod) {
             if (isIgnoreLogin(handlerMethod)) {
                 return true;
