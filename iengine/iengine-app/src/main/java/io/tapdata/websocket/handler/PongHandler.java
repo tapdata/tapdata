@@ -1,11 +1,11 @@
 package io.tapdata.websocket.handler;
 
 import com.tapdata.tm.commons.ping.PingDto;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.websocket.EventHandlerAnnotation;
 
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -17,7 +17,7 @@ import java.util.function.Consumer;
 public class PongHandler extends BaseEventHandler {
 	private final static int MAX_SIZE = 1000000;
 	private static final LinkedList<Map<String, Object>> cacheList;
-	public static final long MAX_WAIT_MS = TimeUnit.SECONDS.toMillis(30L);
+	public static final long MAX_WAIT_MS = CommonUtils.getPropertyLong("WS_PONG_WAIT_MS", 5000L);
 
 	static {
 		cacheList = new LinkedList<>();

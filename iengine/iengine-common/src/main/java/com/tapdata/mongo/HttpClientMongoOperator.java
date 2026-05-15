@@ -582,7 +582,9 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 				for (ScheduleTask scheduleTask : scheduleTasks) {
 					String taskId = scheduleTask.getId();
 
-					query.addCriteria(new Criteria().and("_id").is(taskId));
+					if (!query.getQueryObject().containsKey("_id")) {
+						query.addCriteria(new Criteria().and("_id").is(taskId));
+					}
 					UpdateResult result = update(query, update, collection);
 					if (result.getModifiedCount() > 0) {
 
@@ -673,7 +675,9 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 				for (DataFlow dataFlow : dataFlows) {
 					String dataFlowId = dataFlow.getId();
 
-					query.addCriteria(new Criteria().and("_id").is(dataFlowId));
+					if (!query.getQueryObject().containsKey("_id")) {
+						query.addCriteria(new Criteria().and("_id").is(dataFlowId));
+					}
 					UpdateResult result = update(query, update, collection);
 					if (result.getModifiedCount() > 0) {
 
@@ -714,7 +718,9 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 				for (TaskDto taskDto : taskDtos) {
 					String taskId = taskDto.getId().toHexString();
 
-					query.addCriteria(new Criteria().and("_id").is(taskId));
+					if (!query.getQueryObject().containsKey("_id")) {
+						query.addCriteria(new Criteria().and("_id").is(taskId));
+					}
 					UpdateResult result = update(query, update, collection);
 					if (result.getModifiedCount() > 0) {
 

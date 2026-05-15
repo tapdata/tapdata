@@ -1,6 +1,8 @@
 package com.tapdata.tm.module.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.module.entity.ApiAlarmConfig;
@@ -20,7 +22,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ModulesDto extends BaseDto {
+public class ModulesDto extends BaseDto implements IDataPermissionDto {
 
     @NotBlank
     private String name;
@@ -74,6 +76,7 @@ public class ModulesDto extends BaseDto {
     private String user;
 
     @Deprecated
+    @JsonIgnore
     private ObjectId user_id;
 
     private Date last_updated;
@@ -113,6 +116,8 @@ public class ModulesDto extends BaseDto {
     private List<PathSetting> pathSetting;
 
     ApiAlarmConfig apiAlarmConfig;
+
+    private String publishStatus;
 
     public void withPathSettingIfNeed() {
         if (null == pathSetting) {

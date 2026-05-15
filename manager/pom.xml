@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.7</version>
+		<version>3.5.14</version>
 		<relativePath/>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
@@ -28,25 +28,23 @@
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>5.5.1</mongo.version>
-		<tapdata-api.version>2.0.7-SNAPSHOT</tapdata-api.version>
-		<tapdata-pdk-api.version>2.0.7-SNAPSHOT</tapdata-pdk-api.version>
-		<tapdata-common.version>2.7-SNAPSHOT</tapdata-common.version>
-		<modules-api.version>2.7-SNAPSHOT</modules-api.version>
+		<tapdata-api.version>2.0.8-SNAPSHOT</tapdata-api.version>
+		<tapdata-pdk-api.version>2.0.8-SNAPSHOT</tapdata-pdk-api.version>
+		<tapdata-common.version>2.8-SNAPSHOT</tapdata-common.version>
+		<modules-api.version>2.8-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
 		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
 		<mongodb-storage-module.version>${modules-api.version}</mongodb-storage-module.version>
 		<tcm.artifactId>tcm</tcm.artifactId>
 		<tcm.module>tcm-module</tcm.module>
-		<tapdata-pdk-runner.version>2.7-SNAPSHOT</tapdata-pdk-runner.version>
+		<tapdata-pdk-runner.version>2.8-SNAPSHOT</tapdata-pdk-runner.version>
 		<commons-net.version>3.11.1</commons-net.version>
 		<gson.version>2.12.1</gson.version>
 		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
-
+		<org.bouncycastle.version>1.84</org.bouncycastle.version>
 		<!-- Override spring boot version -->
-		<netty.version>4.1.127.Final</netty.version>
-		<spring-framework.version>6.2.11</spring-framework.version>
-		<spring-security.version>6.5.4</spring-security.version>
+		<netty.version>4.1.133.Final</netty.version>
 		<hutool.version>5.8.40</hutool.version>
         <github-api.version>1.330</github-api.version>
         <jgit.version>7.5.0.202512021534-r</jgit.version>
@@ -100,11 +98,6 @@
 				<groupId>com.tapdata</groupId>
 				<artifactId>tm-enterprise</artifactId>
 				<version>1.0.0-SNAPSHOT</version>
-			</dependency>
-			<dependency>
-				<groupId>io.tapdata</groupId>
-				<artifactId>tapdata-common</artifactId>
-				<version>${tapdata-common.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>io.tapdata</groupId>
@@ -216,6 +209,22 @@
                 <artifactId>org.eclipse.jgit</artifactId>
                 <version>${jgit.version}</version>
             </dependency>
+
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcprov-jdk18on</artifactId>
+				<version>${org.bouncycastle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcpkix-jdk18on</artifactId>
+				<version>${org.bouncycastle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcutil-jdk18on</artifactId>
+				<version>${org.bouncycastle.version}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 	<repositories>

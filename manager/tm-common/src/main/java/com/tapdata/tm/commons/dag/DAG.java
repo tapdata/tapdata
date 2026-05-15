@@ -712,6 +712,9 @@ public class DAG implements Serializable, Cloneable {
      * @return all node
      */
     public List<Node> getNodes(){
+        if (null == this.graph) {
+            return null;
+        }
         return graph.getNodes().stream().map(graph::getNode).collect(Collectors.toList());
     }
 
@@ -720,6 +723,9 @@ public class DAG implements Serializable, Cloneable {
      * @return all edge
      */
     public LinkedList<Edge> getEdges() {
+        if (null == graph) {
+            return null;
+        }
         return graph.getEdges().stream().map(graph::getEdge).collect(Collectors.toCollection(LinkedList::new));
     }
 
@@ -1267,7 +1273,7 @@ public class DAG implements Serializable, Cloneable {
             if (null == fieldChangeRules) return;
             String nodeId = dto.getNodeId();
             for (Field f : dto.getFields()) {
-                fieldChangeRules.process(nodeId, dto.getQualifiedName(), f, map);
+                fieldChangeRules.process(nodeId, dto.getAncestorsName(), f, map);
             }
         }
         public void processDifferenceField(MetadataInstancesDto dto) {

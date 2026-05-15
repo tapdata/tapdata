@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Schema;
@@ -29,10 +30,13 @@ public class MigrateDateProcessorNode extends MigrateProcessorNode {
     }
 
     /** 需要修改时间的类型 */
+    @EqField
     private List<String> dataTypes;
     /** 增加或者减少 */
+    @EqField
     private boolean add;
     /** 增加或者减少的小时数 */
+    @EqField
     private int hours;
 
     @Override

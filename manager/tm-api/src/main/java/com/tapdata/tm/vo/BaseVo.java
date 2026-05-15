@@ -2,11 +2,13 @@ package com.tapdata.tm.vo;
 
 import lombok.*;
 
+import java.io.Serializable;
 import java.util.Date;
+import java.util.Set;
 
 @Data
-@EqualsAndHashCode(callSuper=false)
-public class BaseVo {
+@EqualsAndHashCode
+public class BaseVo implements Serializable {
     private String id;
     private String customId;
     private Date createAt;
@@ -14,4 +16,5 @@ public class BaseVo {
     private String userId;
     private String lastUpdBy;
     private String createUser;
+    private Set<String> permissionActions;
 }

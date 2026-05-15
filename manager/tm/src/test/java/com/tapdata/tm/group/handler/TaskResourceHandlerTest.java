@@ -4,17 +4,20 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.dto.ResourceType;
+import com.tapdata.tm.group.handler.InspectResourceHandler;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.service.TaskService;
@@ -38,6 +41,8 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+
+
 @ExtendWith(MockitoExtension.class)
 public class TaskResourceHandlerTest {
 
@@ -53,6 +58,15 @@ public class TaskResourceHandlerTest {
     @Mock
     private InspectService inspectService;
 
+    @Mock
+    private InspectResourceHandler inspectResourceHandler;
+
+    @Mock
+    private ExternalStorageService externalStorageService;
+
+    @Mock
+    private MetadataDefinitionService metadataDefinitionService;
+
     private TaskResourceHandler taskResourceHandler;
 
     private UserDetail user;
@@ -64,6 +78,9 @@ public class TaskResourceHandlerTest {
         ReflectionTestUtils.setField(taskResourceHandler, "metadataInstancesService", metadataInstancesService);
         ReflectionTestUtils.setField(taskResourceHandler, "dataSourceService", dataSourceService);
         ReflectionTestUtils.setField(taskResourceHandler, "inspectService", inspectService);
+        ReflectionTestUtils.setField(taskResourceHandler, "inspectResourceHandler", inspectResourceHandler);
+        ReflectionTestUtils.setField(taskResourceHandler, "externalStorageService", externalStorageService);
+        ReflectionTestUtils.setField(taskResourceHandler, "metadataDefinitionService", metadataDefinitionService);
         user = new UserDetail("userId123", "customerId", "testuser", "password", "customerType",
                 "accessCode", false, false, false, false,
                 Arrays.asList(new SimpleGrantedAuthority("role")));
@@ -324,7 +341,7 @@ public class TaskResourceHandlerTest {
         }
 
         @Test
-        @DisplayName("Should use name as key when id is null")
+        @DisplayName("Should skip task when id is null")
         void testCollectPayloadUsesNameAsKey() {
             TaskDto task = new TaskDto();
             task.setId(null);
@@ -339,7 +356,7 @@ public class TaskResourceHandlerTest {
 
             taskResourceHandler.collectPayload(Arrays.asList(payload), resourceMap, metadataList);
 
-            assertTrue(resourceMap.containsKey("Test Task"));
+            assertTrue(resourceMap.isEmpty());
         }
     }
 
@@ -350,14 +367,14 @@ public class TaskResourceHandlerTest {
         @Test
         @DisplayName("Should return empty list when resources is null")
         void testLoadConnectionsNullResources() {
-            List<DataSourceConnectionDto> result = taskResourceHandler.loadConnections(null);
+            List<DataSourceEntity> result = taskResourceHandler.loadConnections(null);
             assertTrue(result.isEmpty());
         }
 
         @Test
         @DisplayName("Should return empty list when resources is empty")
         void testLoadConnectionsEmptyResources() {
-            List<DataSourceConnectionDto> result = taskResourceHandler.loadConnections(new ArrayList<>());
+            List<DataSourceEntity> result = taskResourceHandler.loadConnections(new ArrayList<>());
             assertTrue(result.isEmpty());
         }
 
@@ -367,29 +384,29 @@ public class TaskResourceHandlerTest {
             TaskDto task = new TaskDto();
             task.setDag(null);
 
-            when(dataSourceService.findInfoByConnectionIdList(anyList())).thenReturn(new ArrayList<>());
+            List<DataSourceEntity> result = taskResourceHandler.loadConnections(Arrays.asList(task));
 
-            taskResourceHandler.loadConnections(Arrays.asList(task));
-
-            verify(dataSourceService).findInfoByConnectionIdList(argThat(List::isEmpty));
+            assertTrue(result.isEmpty());
+            verify(dataSourceService, never()).findAllEntity(any(Query.class));
         }
 
         @Test
         @DisplayName("Should extract connection ids from DAG nodes")
         void testLoadConnectionsExtractsFromDagNodes() {
+            String connId = new ObjectId().toHexString();
             TaskDto task = new TaskDto();
             DAG dag = mock(DAG.class);
             task.setDag(dag);
 
             DatabaseNode node = mock(DatabaseNode.class);
-            when(node.getConnectionId()).thenReturn("conn123");
+            when(node.getConnectionId()).thenReturn(connId);
             when(dag.getNodes()).thenReturn(Arrays.asList(node));
 
-            when(dataSourceService.findInfoByConnectionIdList(anyList())).thenReturn(new ArrayList<>());
+            when(dataSourceService.findAllEntity(any(Query.class))).thenReturn(new ArrayList<>());
 
             taskResourceHandler.loadConnections(Arrays.asList(task));
 
-            verify(dataSourceService).findInfoByConnectionIdList(argThat(list -> list.contains("conn123")));
+            verify(dataSourceService).findAllEntity(any(Query.class));
         }
     }
 
@@ -400,10 +417,12 @@ public class TaskResourceHandlerTest {
         @Test
         @DisplayName("Should return empty map when no duplicates")
         void testFindDuplicateNamesNoDuplicates() {
+            ObjectId taskId = new ObjectId();
             TaskDto task = new TaskDto();
+            task.setId(taskId);
             task.setName("Unique Task");
 
-            when(taskService.findOne(any(Query.class), eq(user))).thenReturn(null);
+            // taskService.findOne returns null by default (mock default), so no stubbing needed
 
             Map<String, String> result = taskResourceHandler.findDuplicateNames(Arrays.asList(task), user);
 
@@ -411,13 +430,15 @@ public class TaskResourceHandlerTest {
         }
 
         @Test
-        @DisplayName("Should find duplicate names")
+        @DisplayName("Should find duplicate by id")
         void testFindDuplicateNamesWithDuplicates() {
+            ObjectId taskId = new ObjectId();
             TaskDto task = new TaskDto();
+            task.setId(taskId);
             task.setName("Duplicate Task");
 
             TaskDto existing = new TaskDto();
-            existing.setId(new ObjectId());
+            existing.setId(taskId);
             existing.setName("Duplicate Task");
 
             when(taskService.findOne(any(Query.class), eq(user))).thenReturn(existing);
@@ -425,43 +446,38 @@ public class TaskResourceHandlerTest {
             Map<String, String> result = taskResourceHandler.findDuplicateNames(Arrays.asList(task), user);
 
             assertEquals(1, result.size());
-            assertTrue(result.containsKey("Duplicate Task"));
-            assertEquals("duplicate", result.get("Duplicate Task"));
+            assertTrue(result.containsKey(taskId.toHexString()));
+            assertEquals("duplicate", result.get(taskId.toHexString()));
         }
 
         @Test
-        @DisplayName("Should skip null tasks")
-        void testFindDuplicateNamesSkipsNull() {
-            List<TaskDto> tasks = Arrays.asList(null, new TaskDto());
+        @DisplayName("Should skip null tasks and tasks without id")
+        void testFindDuplicateNamesSkipsNullAndNoId() {
+            TaskDto taskNoId = new TaskDto();
+            taskNoId.setName("No Id Task");
+            List<TaskDto> tasks = Arrays.asList(null, taskNoId);
 
             Map<String, String> result = taskResourceHandler.findDuplicateNames(tasks, user);
-
-            assertTrue(result.isEmpty());
-        }
-
-        @Test
-        @DisplayName("Should skip tasks with blank name")
-        void testFindDuplicateNamesSkipsBlankName() {
-            TaskDto task = new TaskDto();
-            task.setName("");
-
-            Map<String, String> result = taskResourceHandler.findDuplicateNames(Arrays.asList(task), user);
 
             assertTrue(result.isEmpty());
             verify(taskService, never()).findOne(any(Query.class), any(UserDetail.class));
         }
 
         @Test
-        @DisplayName("Should not check same name twice")
+        @DisplayName("Should not check same id twice")
         void testFindDuplicateNamesSkipsAlreadyChecked() {
+            ObjectId taskId = new ObjectId();
+
             TaskDto task1 = new TaskDto();
+            task1.setId(taskId);
             task1.setName("Same Name");
 
             TaskDto task2 = new TaskDto();
+            task2.setId(taskId);
             task2.setName("Same Name");
 
             TaskDto existing = new TaskDto();
-            existing.setId(new ObjectId());
+            existing.setId(taskId);
             existing.setName("Same Name");
 
             when(taskService.findOne(any(Query.class), eq(user))).thenReturn(existing);
@@ -556,8 +572,12 @@ public class TaskResourceHandlerTest {
             Map<String, List<TaskUpAndLoadDto>> payloadsByType = new HashMap<>();
 
             when(inspectService.findByTaskIdList(anyList())).thenReturn(Arrays.asList(inspect));
+            TaskUpAndLoadDto inspectPayload = new TaskUpAndLoadDto();
+            inspectPayload.setCollectionName(GroupConstants.COLLECTION_INSPECT);
+            inspectPayload.setJson(JsonUtil.toJsonUseJackson(inspect));
+            when(inspectResourceHandler.buildExportPayload(anyList(), eq(user))).thenReturn(Arrays.asList(inspectPayload));
 
-            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user,new HashSet<>());
+            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user, new HashSet<>());
 
             assertTrue(payloadsByType.containsKey(ResourceType.INSPECT_TASK.name()));
         }

@@ -18,6 +18,7 @@ public class JsResultDto {
     private String code;
     private String message;
     private String taskId;
+    private String stackTrace;
     private List<Map<String, Object>> before;
     private List<Map<String, Object>> after;
     private Long version;

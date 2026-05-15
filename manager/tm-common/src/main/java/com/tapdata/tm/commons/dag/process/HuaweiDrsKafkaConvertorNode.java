@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -35,7 +36,9 @@ import java.util.stream.Collectors;
 public class HuaweiDrsKafkaConvertorNode extends ProcessorNode {
     public static final String TYPE = "huawei_drs_kafka_convertor";
 
+    @EqField
     private String storeType;
+    @EqField
     private String fromDBType;
     private int sampleSize = 10;
 

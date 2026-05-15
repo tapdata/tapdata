@@ -1,8 +1,11 @@
 package com.tapdata.tm.v2.api.monitor.service;
 
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.Component;
+import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
+import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.service.ModulesService;
@@ -29,9 +32,12 @@ import com.tapdata.tm.v2.api.usage.repository.UsageRepository;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.MetricInfo;
+import com.tapdata.tm.worker.entity.ConnectionPoolEntity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
+import com.tapdata.tm.v2.api.pool.repository.ConnectionPoolInfoRepository;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,6 +68,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 class ApiMetricsChartQueryTest {
@@ -73,7 +82,7 @@ class ApiMetricsChartQueryTest {
     private ServerUsageMetricRepository serverUsageMetricRepository;
     private ApiMetricsRawMergeService metricsRawMergeService;
     private ApiMetricsChartQuery apiMetricsChartQuery;
-
+    ClusterStateService clusterStateService;
     @BeforeEach
     void setUp() {
         service = mock(ApiMetricsRawService.class);
@@ -83,6 +92,7 @@ class ApiMetricsChartQueryTest {
         modulesService = mock(ModulesService.class);
         serverUsageMetricRepository = mock(ServerUsageMetricRepository.class);
         metricsRawMergeService = mock(ApiMetricsRawMergeService.class);
+        clusterStateService = mock(ClusterStateService.class);
 
         apiMetricsChartQuery = mock(ApiMetricsChartQuery.class);
         ReflectionTestUtils.setField(apiMetricsChartQuery, "service", service);
@@ -92,6 +102,7 @@ class ApiMetricsChartQueryTest {
         ReflectionTestUtils.setField(apiMetricsChartQuery, "modulesService", modulesService);
         ReflectionTestUtils.setField(apiMetricsChartQuery, "serverUsageMetricRepository", serverUsageMetricRepository);
         ReflectionTestUtils.setField(apiMetricsChartQuery, "metricsRawMergeService", metricsRawMergeService);
+        ReflectionTestUtils.setField(apiMetricsChartQuery, "clusterStateService", clusterStateService);
         when(apiMetricsChartQuery.serverTopOnHomepage(any(QueryBase.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.serverOverviewList(any(ServerListParam.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.queryCpuUsageRecords(any(Criteria.class), anyLong(), anyLong(), any(TimeGranularity.class))).thenCallRealMethod();
@@ -104,6 +115,7 @@ class ApiMetricsChartQueryTest {
         when(apiMetricsChartQuery.findRowByApiId(anyString(), any(QueryBase.class), any(MetricTypes.class), any(String[].class))).thenCallRealMethod();
         when(apiMetricsChartQuery.apiOfEachServer(any(ApiWithServerDetail.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.delayOfApi(any(ApiChart.class))).thenCallRealMethod();
+        when(apiMetricsChartQuery.homepageRequestTrend(any(QueryBase.class))).thenCallRealMethod();
         when(apiMetricsChartQuery.extractIndex(anyString())).thenCallRealMethod();
         when(apiMetricsChartQuery.topWorkerInServer(anyList(), any(ServerDetail.class))).thenCallRealMethod();
         doCallRealMethod().when(apiMetricsChartQuery).handler(any(ServerChart.Item.class));
@@ -481,10 +493,15 @@ class ApiMetricsChartQueryTest {
             param.setStartAt(1765209600L);
             param.setEndAt(1765209660L);
             param.setGranularity(TimeGranularity.SECOND_FIVE);
+            ClusterStateDto one = new ClusterStateDto();
+            one.setSystemInfo(new SystemInfo(null, null, null, null, 0L,null, null, null, null, null,null,null,null,null));
+            one.getSystemInfo().setProcess_id("pid");
+            when( clusterStateService.findOne(any(Query.class))).thenReturn(one);
+            when(workerRepository.findAll(any(Query.class))).thenReturn(new ArrayList<>());
             apiMetricsChartQuery.asServerItemInfo("server1", item, usageMap, worker, clusterStateMap, param);
             assertEquals("server1", item.getServerId());
             assertEquals("test-host", item.getServerName());
-            assertEquals("running", item.getServerStatus());
+            assertEquals("stopped", item.getServiceStatus());
         }
 
         @Test
@@ -953,6 +970,157 @@ class ApiMetricsChartQueryTest {
             Map<String, Worker> result = apiMetricsChartQuery.activeWorkers(new HashSet<>(Arrays.asList("server1", "server2")));
             assertNotNull(result);
         }
+    }
+
+    //com.tapdata.tm.v2.api.monitor.service.ApiMetricsChartQuery.collectionConnectionPoolUsage,
+    @Nested
+    class collectionConnectionPoolUsageTest {
+        private ConnectionPoolInfoRepository poolInfoRepository;
+
+        @BeforeEach
+        void setUp() {
+            poolInfoRepository = mock(ConnectionPoolInfoRepository.class);
+            ReflectionTestUtils.setField(apiMetricsChartQuery, "poolInfoRepository", poolInfoRepository);
+            doCallRealMethod().when(apiMetricsChartQuery).collectionConnectionPoolUsage(any(ServerChartParam.class), any(TimeGranularity.class), anyLong(), anyLong());
+            doCallRealMethod().when(apiMetricsChartQuery).mapPoolUsage(anyList(), anyLong(), anyLong(), any(TimeGranularity.class));
+        }
+
+        @Test
+        void testConnectionIdIsBlank() {
+            ServerChartParam param = new ServerChartParam();
+            param.setServerId("server-id");
+            param.setConnectionId(" ");
+
+            ServerChart.PoolUsage result = apiMetricsChartQuery.collectionConnectionPoolUsage(param, TimeGranularity.SECOND_FIVE, 1L, 2L);
+            assertNotNull(result);
+            verifyNoInteractions(poolInfoRepository);
+        }
+
+        @Test
+        void testSecondFiveEndGreaterThanNow() {
+            String serverId = "server-id";
+            String connectionId = new ObjectId().toHexString();
+            ServerChartParam param = new ServerChartParam();
+            param.setServerId(serverId);
+            param.setConnectionId(connectionId);
+
+            long startOf = System.currentTimeMillis() / 1000L - 60L;
+            long endOf = System.currentTimeMillis() / 1000L + 60L;
+
+            when(poolInfoRepository.findAll(any(Query.class))).thenAnswer(invocation -> {
+                Query query = invocation.getArgument(0);
+                Document doc = query.getQueryObject();
+                assertEquals(serverId, doc.getString("processId"));
+                assertEquals(connectionId, doc.getString("connectionId"));
+                assertEquals(TimeGranularity.SECOND_FIVE.getType(), ((Number) doc.get("timeGranularity")).intValue());
+
+                Document lastUpdateTime = (Document) doc.get("lastUpdateTime");
+                assertNotNull(lastUpdateTime);
+                assertEquals(startOf * 1000L, ((Number) lastUpdateTime.get("$gte")).longValue());
+
+                long lte = ((Number) lastUpdateTime.get("$lte")).longValue();
+                long now = System.currentTimeMillis() / 5000L * 5000L - 5000L;
+                Assertions.assertTrue(lte == now || lte == now + 5000L);
+                return new ArrayList<ConnectionPoolEntity>();
+            });
+
+            ServerChart.PoolUsage result = apiMetricsChartQuery.collectionConnectionPoolUsage(param, TimeGranularity.SECOND_FIVE, startOf, endOf);
+            assertNotNull(result);
+            verify(poolInfoRepository, times(1)).findAll(any(Query.class));
+        }
+
+        @Test
+        void testSecondFiveEndNotGreaterThanNow() {
+            String serverId = "server-id";
+            String connectionId = new ObjectId().toHexString();
+            ServerChartParam param = new ServerChartParam();
+            param.setServerId(serverId);
+            param.setConnectionId(connectionId);
+
+            long startOf = System.currentTimeMillis() / 1000L - 120L;
+            long endOf = System.currentTimeMillis() / 1000L - 60L;
+
+            when(poolInfoRepository.findAll(any(Query.class))).thenAnswer(invocation -> {
+                Query query = invocation.getArgument(0);
+                Document doc = query.getQueryObject();
+                assertEquals(serverId, doc.getString("processId"));
+                assertEquals(connectionId, doc.getString("connectionId"));
+                assertEquals(TimeGranularity.SECOND_FIVE.getType(), ((Number) doc.get("timeGranularity")).intValue());
+
+                Document lastUpdateTime = (Document) doc.get("lastUpdateTime");
+                assertNotNull(lastUpdateTime);
+                assertEquals(startOf * 1000L, ((Number) lastUpdateTime.get("$gte")).longValue());
+                assertEquals(endOf * 1000L, ((Number) lastUpdateTime.get("$lte")).longValue());
+                return new ArrayList<ConnectionPoolEntity>();
+            });
+
+            ServerChart.PoolUsage result = apiMetricsChartQuery.collectionConnectionPoolUsage(param, TimeGranularity.SECOND_FIVE, startOf, endOf);
+            assertNotNull(result);
+            verify(poolInfoRepository, times(1)).findAll(any(Query.class));
+        }
+
+        @Test
+        void testMinuteStartRounded() {
+            String serverId = "server-id";
+            String connectionId = new ObjectId().toHexString();
+            ServerChartParam param = new ServerChartParam();
+            param.setServerId(serverId);
+            param.setConnectionId(connectionId);
+
+            long startOf = 12345L;
+            long endOf = 12399L;
+            long expectedStartMs = startOf * 1000L / 60000L * 60000L;
+
+            when(poolInfoRepository.findAll(any(Query.class))).thenAnswer(invocation -> {
+                Query query = invocation.getArgument(0);
+                Document doc = query.getQueryObject();
+                assertEquals(serverId, doc.getString("processId"));
+                assertEquals(connectionId, doc.getString("connectionId"));
+                assertEquals(TimeGranularity.MINUTE.getType(), ((Number) doc.get("timeGranularity")).intValue());
+
+                Document lastUpdateTime = (Document) doc.get("lastUpdateTime");
+                assertNotNull(lastUpdateTime);
+                assertEquals(expectedStartMs, ((Number) lastUpdateTime.get("$gte")).longValue());
+                assertEquals(endOf * 1000L, ((Number) lastUpdateTime.get("$lte")).longValue());
+                return new ArrayList<ConnectionPoolEntity>();
+            });
+
+            ServerChart.PoolUsage result = apiMetricsChartQuery.collectionConnectionPoolUsage(param, TimeGranularity.MINUTE, startOf, endOf);
+            assertNotNull(result);
+            verify(poolInfoRepository, times(1)).findAll(any(Query.class));
+        }
+
+        @Test
+        void testHourStartRounded() {
+            String serverId = "server-id";
+            String connectionId = new ObjectId().toHexString();
+            ServerChartParam param = new ServerChartParam();
+            param.setServerId(serverId);
+            param.setConnectionId(connectionId);
+
+            long startOf = 12345L;
+            long endOf = 12500L;
+            long expectedStartMs = startOf * 1000L / 3600000L * 3600000L;
+
+            when(poolInfoRepository.findAll(any(Query.class))).thenAnswer(invocation -> {
+                Query query = invocation.getArgument(0);
+                Document doc = query.getQueryObject();
+                assertEquals(serverId, doc.getString("processId"));
+                assertEquals(connectionId, doc.getString("connectionId"));
+                assertEquals(TimeGranularity.HOUR.getType(), ((Number) doc.get("timeGranularity")).intValue());
+
+                Document lastUpdateTime = (Document) doc.get("lastUpdateTime");
+                assertNotNull(lastUpdateTime);
+                assertEquals(expectedStartMs, ((Number) lastUpdateTime.get("$gte")).longValue());
+                assertEquals(endOf * 1000L, ((Number) lastUpdateTime.get("$lte")).longValue());
+                return new ArrayList<ConnectionPoolEntity>();
+            });
+
+            ServerChart.PoolUsage result = apiMetricsChartQuery.collectionConnectionPoolUsage(param, TimeGranularity.HOUR, startOf, endOf);
+            assertNotNull(result);
+            verify(poolInfoRepository, times(1)).findAll(any(Query.class));
+        }
+
     }
 
     // Helper methods

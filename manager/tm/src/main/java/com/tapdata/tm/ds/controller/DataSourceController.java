@@ -18,6 +18,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
 import com.tapdata.tm.ds.dto.ConnectionStats;
+import com.tapdata.tm.ds.dto.ConnectionWithName;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.param.ValidateTableParam;
@@ -180,6 +181,13 @@ public class DataSourceController extends BaseController {
 			final NoSchemaFilter finalFilter = filter;
 			final Boolean finalNoSchema = noSchema;
 			return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.View, () -> dataSourceService.list(finalFilter, finalNoSchema, userDetail)));
+    }
+
+    @Operation(summary = "Find all connection <id:name>")
+    @GetMapping("allConnections/{serverId}")
+    public ResponseMessage<List<ConnectionWithName>> findAllConnections(@PathVariable("serverId") String serverId) {
+        UserDetail userDetail = getLoginUser();
+        return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.View, () -> dataSourceService.findAllConnections(serverId, getLoginUser())));
     }
 
 
@@ -469,6 +477,24 @@ public class DataSourceController extends BaseController {
         } else {
             DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(reqBody, DataSourceConnectionDto.class);
             count = dataSourceService.upsertByWhere(where, null, connectionDto, user);
+        }
+        HashMap<String, Long> countValue = new HashMap<>();
+        countValue.put("count", count);
+        return success(countValue);
+    }
+    @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
+    @PostMapping("module/update")
+    public ResponseMessage<Map<String, Long>> refreshModel(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        Where where = parseWhere(whereJson);
+
+        long count;
+        UserDetail user = getLoginUser();
+        if (reqBody.indexOf("\"$set\"") > 0 || reqBody.indexOf("\"$setOnInsert\"") > 0 || reqBody.indexOf("\"$unset\"") > 0) {
+            Document updateDto = InstanceFactory.instance(JsonParser.class).fromJson(reqBody, Document.class);
+            count = dataSourceService.refreshModel(where, updateDto, null, user);
+        } else {
+            DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(reqBody, DataSourceConnectionDto.class);
+            count = dataSourceService.refreshModel(where, null, connectionDto, user);
         }
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);

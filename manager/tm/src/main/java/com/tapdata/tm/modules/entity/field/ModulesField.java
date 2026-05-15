@@ -38,7 +38,10 @@ public enum ModulesField implements CollectionField {
     PATH_ACCESS_METHOD("pathAccessMethod"),
     LIMIT("limit"),
     PATH_SETTING("pathSetting"),
-    API_ALARM_CONFIG("apiAlarmConfig");
+    API_ALARM_CONFIG("apiAlarmConfig"),
+    PUBLISH_STATUS("publishStatus"),
+    LAST_UPDATE_TIME("lastUpdateTime")
+    ;
     final String field;
 
     ModulesField(String field) {

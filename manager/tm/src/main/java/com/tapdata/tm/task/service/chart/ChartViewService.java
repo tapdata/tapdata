@@ -46,7 +46,7 @@ public class ChartViewService {
                 //共享缓存的任务设计的有点问题
                 .and("shareCache").ne(true);
         Query query = Query.query(criteria);
-        query.fields().include(TaskServiceImpl.SYNC_TYPE, TaskServiceImpl.STATUS, "statuses");
+        query.fields().include(TaskServiceImpl.SYNC_TYPE, TaskServiceImpl.STATUS, "statuses", "name","dag");
         return taskService.findAllDto(query, user);
     }
 

@@ -35,6 +35,8 @@ public class Field implements Serializable {
     private Integer dataType1;
     @JsonProperty("tapType")
     private String tapType;
+    private String simpleTypeName;
+
     @JsonProperty("data_type")
     @org.springframework.data.mongodb.core.mapping.Field("data_type")
     private String dataType;
@@ -60,6 +62,7 @@ public class Field implements Serializable {
 
     /** 字段别名 */
     @JsonProperty("field_alias")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @org.springframework.data.mongodb.core.mapping.Field("field_alias")
     private String fieldAlias;
 
@@ -185,6 +188,12 @@ public class Field implements Serializable {
     private String changeRuleId; // 如果命中字段变更规则则存在值
 
     private boolean useDefaultValue = true;
+
+    /**
+     * @see com.tapdata.tm.commons.schema.enums.TableFieldTag
+     * （API Server）Currently, only when users add new fields on the front end, they are marked as follows: USER_CREATE
+     * */
+    private String tag;
 
     /**
      * Sensitive Fields - Encryption Rule List

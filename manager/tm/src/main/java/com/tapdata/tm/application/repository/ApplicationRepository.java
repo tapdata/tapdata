@@ -2,8 +2,10 @@ package com.tapdata.tm.application.repository;
 
 import com.tapdata.tm.application.entity.ApplicationEntity;
 import com.tapdata.tm.base.reporitory.BaseRepository;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -31,6 +33,11 @@ public class ApplicationRepository extends BaseRepository<ApplicationEntity, Obj
         Assert.notNull(query, "Entity must not be null!");
         Assert.notNull(userDetail, "UserDetail must not be null!");
 
+        removeFilter("customId", query);
+        query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
+        if (DataPermissionHelper.setFilterConditions(true, query, userDetail)) {
+            return query;
+        }
         boolean hasAdminRole = userDetail.getAuthorities().contains(new SimpleGrantedAuthority("ADMIN"));
         if (hasAdminRole) {
             removeFilter("customId", query);

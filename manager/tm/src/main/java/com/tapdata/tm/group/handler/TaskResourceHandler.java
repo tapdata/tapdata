@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -62,6 +63,9 @@ public class TaskResourceHandler implements ResourceHandler {
     private InspectService inspectService;
 
     @Autowired
+    private InspectResourceHandler inspectResourceHandler;
+
+    @Autowired
     private ExternalStorageService externalStorageService;
 
     @Autowired
@@ -78,7 +82,7 @@ public class TaskResourceHandler implements ResourceHandler {
 
     /**
      * 带参构造函数，支持指定的任务类型
-     * 
+     *
      * @param resourceType 资源类型（MIGRATE_TASK 或 SYNC_TASK）
      */
     public TaskResourceHandler(ResourceType resourceType) {
@@ -122,10 +126,8 @@ public class TaskResourceHandler implements ResourceHandler {
 
         for (TaskDto taskDto : tasks) {
             // 清理敏感和非必要字段
-            taskDto.setCreateUser(null);
             taskDto.setCustomId(null);
             taskDto.setLastUpdBy(null);
-            taskDto.setUserId(null);
             taskDto.setAgentId(null);
             taskDto.setStatus(TaskDto.STATUS_EDIT);
             taskDto.setSyncStatus(SyncStatus.NORMAL);
@@ -173,10 +175,8 @@ public class TaskResourceHandler implements ResourceHandler {
                         continue;
                     }
                     for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
-                        metadataInstancesDto.setCreateUser(null);
                         metadataInstancesDto.setCustomId(null);
                         metadataInstancesDto.setLastUpdBy(null);
-                        metadataInstancesDto.setUserId(null);
                         payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_METADATA_INSTANCES,
                                 JsonUtil.toJsonUseJackson(metadataInstancesDto)));
                         metadataCount++;
@@ -209,8 +209,11 @@ public class TaskResourceHandler implements ResourceHandler {
             if (GroupConstants.COLLECTION_TASK.equals(item.getCollectionName())) {
                 TaskDto taskDto = JsonUtil.parseJsonUseJackson(item.getJson(), TaskDto.class);
                 if (taskDto != null) {
-                    String key = taskDto.getId() == null ? taskDto.getName() : taskDto.getId().toHexString();
-                    taskMap.putIfAbsent(key, taskDto);
+                    if (taskDto.getId() != null) {
+                        taskMap.putIfAbsent(taskDto.getId().toHexString(), taskDto);
+                    } else {
+                        log.warn("Task has no _id, skip: name={}", taskDto.getName());
+                    }
                 }
             } else if (GroupConstants.COLLECTION_METADATA_INSTANCES.equals(item.getCollectionName())) {
                 MetadataInstancesDto metadataInstancesDto = JsonUtil.parseJsonUseJackson(item.getJson(),
@@ -223,7 +226,7 @@ public class TaskResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<DataSourceConnectionDto> loadConnections(List<?> resources) {
+    public List<DataSourceEntity> loadConnections(List<?> resources) {
         Set<String> connectionIds = new HashSet<>();
         if (CollectionUtils.isEmpty(resources)) {
             return new ArrayList<>();
@@ -245,8 +248,11 @@ public class TaskResourceHandler implements ResourceHandler {
                 }
             }
         }
-        return dataSourceService.findInfoByConnectionIdList(new ArrayList<>(connectionIds));
-
+        if (connectionIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<ObjectId> objectIds = connectionIds.stream().map(ObjectId::new).collect(Collectors.toList());
+        return dataSourceService.findAllEntity(new Query(Criteria.where("_id").in(objectIds)));
     }
 
     @Override
@@ -256,18 +262,20 @@ public class TaskResourceHandler implements ResourceHandler {
         Iterable<TaskDto> tasks = (Iterable<TaskDto>) resources;
 
         for (TaskDto taskDto : tasks) {
-            if (taskDto == null || StringUtils.isBlank(taskDto.getName())) {
+            if (taskDto == null || taskDto.getId() == null) {
                 continue;
             }
-            if (duplicates.containsKey(taskDto.getName())) {
+            String taskId = taskDto.getId().toHexString();
+            if (duplicates.containsKey(taskId)) {
                 continue;
             }
-            Query query = new Query(Criteria.where("name").is(taskDto.getName())
+            // 按 _id 查重：_id 已在导出时保留
+            Query query = new Query(Criteria.where("_id").is(taskDto.getId())
                     .and("is_deleted").ne(true));
             query.fields().include("_id", "name");
             TaskDto existing = taskService.findOne(query, user);
             if (existing != null) {
-                duplicates.put(taskDto.getName(), "duplicate");
+                duplicates.put(taskId, "duplicate");
             }
         }
         return duplicates;
@@ -316,13 +324,11 @@ public class TaskResourceHandler implements ResourceHandler {
                 .findByTaskIdList(tasks.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList()));
         if (CollectionUtils.isNotEmpty(inspectDtoList)) {
             inspectDtoList.forEach(inspectDto -> {
-                if(CollectionUtils.isNotEmpty(inspectDto.getListtags())){
+                if (CollectionUtils.isNotEmpty(inspectDto.getListtags())) {
                     tagIds.addAll(inspectDto.getListtags().stream().map(tag -> MongoUtils.toObjectId(tag.getId())).toList());
                 }
             });
-            List<TaskUpAndLoadDto> payload = new ArrayList<>(inspectDtoList.stream()
-                    .map(t -> new TaskUpAndLoadDto(GroupConstants.COLLECTION_INSPECT, JsonUtil.toJsonUseJackson(t)))
-                    .toList());
+            List<TaskUpAndLoadDto> payload = inspectResourceHandler.buildExportPayload(inspectDtoList, user);
             payloadsByType.computeIfAbsent(ResourceType.INSPECT_TASK.name(), k -> new ArrayList<>()).addAll(payload);
         }
 

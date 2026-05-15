@@ -2,6 +2,7 @@ package com.tapdata.tm.modules.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.module.entity.ApiAlarmConfig;
 import com.tapdata.tm.module.dto.PathSetting;
@@ -21,7 +22,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("Modules")
-public class ModulesEntity extends BaseEntity {
+public class ModulesEntity extends BaseEntity implements IDataPermissionEntity {
     private String name;
 
     @Field("datasource")
@@ -102,4 +103,6 @@ public class ModulesEntity extends BaseEntity {
     private List<PathSetting> pathSetting;
 
     ApiAlarmConfig apiAlarmConfig;
+
+    private String publishStatus;
 }

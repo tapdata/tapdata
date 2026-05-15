@@ -785,6 +785,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		contextMap.put("before", before);
 		contextMap.put("info", tapEvent.getInfo());
 		contextMap.put("global", globalTaskContent);
+		contextMap.put("opList", null);
 		contextMap.put("isReplace", tapEvent instanceof TapUpdateRecordEvent && Boolean.TRUE.equals(((TapUpdateRecordEvent) tapEvent).getIsReplaceEvent()));
 		contextMap.put("removedFields", TapEventUtil.getRemoveFields(tapEvent));
 		Map<String, Object> context = processContextThreadLocal.get();

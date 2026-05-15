@@ -56,7 +56,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         }
     }
 
-    void append(Document info) {
+    protected void append(Document info) {
         String reqPath = info.getString("req_path");
         if (MetricInstanceFactory.IGNORE_PATH.contains(reqPath)) {
             return;
@@ -67,7 +67,11 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setApiId(info.getString("allPathId"));
         item.setLatency(ApiMetricsCompressValueUtil.getNum(info, "latency"));
         item.setCode(info.getString("code"));
-        item.setFailed(!Optional.ofNullable(info.getBoolean("succeed")).orElse("200".equals(info.getString("code"))));
+        Boolean succeed = info.get("succeed") instanceof Boolean iBool ? iBool : null;
+        if (null == succeed) {
+            succeed = ApiMetricsCompressValueUtil.checkByCode(item.getCode(), info.getString("httpStatus"));
+        }
+        item.setFailed(!succeed);
         item.setHttpStatus(info.getString("httpStatus"));
         item.setReqTime(info.getLong("reqTime"));
         item.setResTime(info.getLong("resTime"));

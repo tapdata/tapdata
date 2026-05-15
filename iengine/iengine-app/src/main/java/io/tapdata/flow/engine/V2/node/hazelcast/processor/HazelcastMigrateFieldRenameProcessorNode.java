@@ -76,6 +76,11 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		public void renameField(TapAlterFieldNameEvent param, String fromName, String toName) {
 			param.getNameChange().setBefore(toName);
 		}
+
+		@Override
+		public void renameAfterField(TapAlterFieldNameEvent param, String fromName, String toName) {
+			param.getNameChange().setAfter(toName);
+		}
 	};
 	private final MigrateFieldRenameProcessorNode.IOperator<TapDropFieldEvent> dropFieldOperator = new MigrateFieldRenameProcessorNode.IOperator<TapDropFieldEvent>() {
 		@Override

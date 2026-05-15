@@ -7,11 +7,14 @@ import com.tapdata.tm.base.dto.PageParameter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -19,6 +22,8 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
@@ -28,13 +33,23 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.task.service.TaskScheduleService;
+import io.tapdata.pdk.apis.entity.Capability;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,6 +62,8 @@ class TaskNodeServiceImplTest {
 
     UserDetail userDetail;
     MetadataInstancesService metadataInstancesService;
+    TaskService taskService;
+    MonitoringLogsService monitoringLogService;
 
     @BeforeEach
     void init() {
@@ -60,6 +77,10 @@ class TaskNodeServiceImplTest {
         ReflectionTestUtils.setField(taskNodeService, "dataSourceService", mock(DataSourceService.class));
         metadataInstancesService = mock(MetadataInstancesService.class);
         ReflectionTestUtils.setField(taskNodeService, "metadataInstancesService", metadataInstancesService);
+        taskService = mock(TaskService.class);
+        ReflectionTestUtils.setField(taskNodeService, "taskService", taskService);
+        monitoringLogService = mock(MonitoringLogsService.class);
+        ReflectionTestUtils.setField(taskNodeService, "monitoringLogService", monitoringLogService);
 
         userDetail = mock(UserDetail.class);
     }
@@ -554,6 +575,340 @@ class TaskNodeServiceImplTest {
             Assertions.assertTrue(tableNames.contains("table1"));
             Assertions.assertTrue(tableNames.contains("table2"));
             Assertions.assertTrue(tableNames.contains("new_table"));
+        }
+    }
+
+    @Nested
+    class TestRunInputEventTest {
+        @Test
+        void testApplyTestRunInputEventSetsFieldsWhenJsonProvided() {
+            doCallRealMethod().when(taskNodeService).applyTestRunInputEvent(any(TaskDto.class), any(TestRunDto.class));
+
+            TaskDto taskDtoCopy = new TaskDto();
+            TestRunDto dto = new TestRunDto();
+            dto.setTestRunInputEventJson("{\"after\":{\"id\":1}}");
+
+            taskNodeService.applyTestRunInputEvent(taskDtoCopy, dto);
+
+            Assertions.assertEquals("{\"after\":{\"id\":1}}", taskDtoCopy.getTestRunInputEventJson());
+        }
+
+        @Test
+        void testApplyTestRunInputEventSkipsWhenJsonBlank() {
+            doCallRealMethod().when(taskNodeService).applyTestRunInputEvent(any(TaskDto.class), any(TestRunDto.class));
+
+            TaskDto taskDtoCopy = new TaskDto();
+            TestRunDto dto = new TestRunDto();
+            // testRunInputEventJson is null by default
+
+            taskNodeService.applyTestRunInputEvent(taskDtoCopy, dto);
+
+            Assertions.assertNull(taskDtoCopy.getTestRunInputEventJson());
+        }
+
+        @Test
+        void testApplyTestRunInputEventSkipsWhenJsonEmpty() {
+            doCallRealMethod().when(taskNodeService).applyTestRunInputEvent(any(TaskDto.class), any(TestRunDto.class));
+
+            TaskDto taskDtoCopy = new TaskDto();
+            TestRunDto dto = new TestRunDto();
+            dto.setTestRunInputEventJson("");
+
+            taskNodeService.applyTestRunInputEvent(taskDtoCopy, dto);
+
+            Assertions.assertNull(taskDtoCopy.getTestRunInputEventJson());
+        }
+    }
+
+    @Nested
+    class MockDateRPCTest {
+        TestRunDto dto;
+        TaskDto taskDto;
+        DAG dag;
+        DataSourceService dataSourceService;
+        TaskScheduleService taskScheduleService;
+        String taskId;
+        String nodeId;
+
+        @BeforeEach
+        void setUp() {
+            taskId = new ObjectId().toHexString();
+            nodeId = "testNodeId";
+
+            dto = new TestRunDto();
+            dto.setTaskId(taskId);
+            dto.setJsNodeId(nodeId);
+            dto.setTableName("test_table");
+            dto.setRows(10);
+
+            taskDto = mock(TaskDto.class);
+            dag = mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(dag);
+
+            dataSourceService = mock(DataSourceService.class);
+            taskScheduleService = mock(TaskScheduleService.class);
+            ReflectionTestUtils.setField(taskNodeService, "dataSourceService", dataSourceService);
+            ReflectionTestUtils.setField(taskNodeService, "taskScheduleService", taskScheduleService);
+
+            when(taskService.findById(any(ObjectId.class))).thenReturn(taskDto);
+            doCallRealMethod().when(taskNodeService).mockDateRPC(any(TestRunDto.class), any(UserDetail.class));
+        }
+
+        @Test
+        void testTaskNotFound() {
+            when(taskService.findById(any(ObjectId.class))).thenReturn(null);
+            Assertions.assertThrows(BizException.class, () -> taskNodeService.mockDateRPC(dto, userDetail));
+        }
+
+        @Test
+        void testPreNodesEmpty() {
+            when(dag.getPreNodes(nodeId)).thenReturn(new LinkedList<>());
+            Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
+            Assertions.assertNotNull(result);
+            Assertions.assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testPreNodesNull() {
+            when(dag.getPreNodes(nodeId)).thenReturn(null);
+            Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
+            Assertions.assertNotNull(result);
+            Assertions.assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testNoDataParentNodeInPreNodes() {
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(mock(MigrateJsProcessorNode.class));
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            Assertions.assertThrows(BizException.class, () -> taskNodeService.mockDateRPC(dto, userDetail));
+        }
+
+        @Test
+        void testAgentIdBlank_callsCloudTaskLimitNum() {
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            List<Capability> caps = new ArrayList<>();
+            caps.add(Capability.create("query_by_advance_filter_function"));
+            when(connDto.getCapabilities()).thenReturn(caps);
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            try {
+                when(taskService.callEngineRpc(anyString(), any(), anyString(), anyString(), anyString(), anyString(), any()))
+                        .thenReturn(Map.of("sampleData", List.of(Map.of("id", 1))));
+            } catch (Throwable ignored) {}
+
+            taskNodeService.mockDateRPC(dto, userDetail);
+            verify(taskScheduleService, times(1)).cloudTaskLimitNum(taskDto, userDetail, false);
+        }
+
+        @Test
+        void testAgentIdNotBlank_skipsCloudTaskLimitNum() {
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            List<Capability> caps = new ArrayList<>();
+            caps.add(Capability.create("query_by_advance_filter_function"));
+            when(connDto.getCapabilities()).thenReturn(caps);
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            try {
+                when(taskService.callEngineRpc(anyString(), any(), anyString(), anyString(), anyString(), anyString(), any()))
+                        .thenReturn(Map.of("sampleData", List.of(Map.of("id", 1))));
+            } catch (Throwable ignored) {}
+
+            taskNodeService.mockDateRPC(dto, userDetail);
+            verify(taskScheduleService, never()).cloudTaskLimitNum(any(), any(), eq(false));
+        }
+
+        @Test
+        void testConnectionNotFound() {
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+            when(dataSourceService.findOne(any())).thenReturn(null);
+
+            Assertions.assertThrows(BizException.class, () -> taskNodeService.mockDateRPC(dto, userDetail));
+        }
+
+        @Test
+        void testWithSql_connectionNotSupportRawCommand() {
+            dto.setSql("SELECT * FROM test");
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            when(connDto.getCapabilities()).thenReturn(new ArrayList<>());
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            Assertions.assertThrows(BizException.class, () -> taskNodeService.mockDateRPC(dto, userDetail));
+        }
+
+        @Test
+        void testWithoutSql_connectionNotSupportQuery() {
+            dto.setSql(null);
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            when(connDto.getCapabilities()).thenReturn(new ArrayList<>());
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            Assertions.assertThrows(BizException.class, () -> taskNodeService.mockDateRPC(dto, userDetail));
+        }
+
+        @Test
+        void testWithSql_querySampleDataBySql() throws Throwable {
+            dto.setSql("SELECT * FROM test");
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            List<Capability> caps = new ArrayList<>();
+            caps.add(Capability.create("run_raw_command_function"));
+            when(connDto.getCapabilities()).thenReturn(caps);
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            List<Map<String, Object>> sampleData = List.of(Map.of("col1", "val1"), Map.of("col1", "val2"));
+            when(taskService.callEngineRpc(eq("agent-123"), eq(List.class), eq("QueryDataBaseDataService"), eq("queryV2"),
+                    eq("connId"), eq("test_table"), eq("SELECT * FROM test"), eq(true), eq(100)))
+                    .thenReturn(sampleData);
+
+            Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
+            Assertions.assertNotNull(result);
+            Assertions.assertTrue(result.containsKey("sampleData"));
+            List<?> resultData = (List<?>) result.get("sampleData");
+            Assertions.assertEquals(2, resultData.size());
+        }
+
+        @Test
+        void testWithoutSql_querySampleDataByFilter() throws Throwable {
+            dto.setSql(null);
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            List<Capability> caps = new ArrayList<>();
+            caps.add(Capability.create("query_by_advance_filter_function"));
+            when(connDto.getCapabilities()).thenReturn(caps);
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            List<Map<String, Object>> sampleList = List.of(Map.of("id", 1));
+            Map<String, Object> rpcResult = new HashMap<>();
+            rpcResult.put("sampleData", sampleList);
+            when(taskService.callEngineRpc(eq("agent-123"), eq(Map.class), eq("QueryDataBaseDataService"), eq("getDataV2"),
+                    eq("connId"), eq("test_table"), eq(10)))
+                    .thenReturn(rpcResult);
+
+            Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
+            Assertions.assertNotNull(result);
+            List<?> resultData = (List<?>) result.get("sampleData");
+            Assertions.assertEquals(1, resultData.size());
+            Map<?, ?> record = (Map<?, ?>) resultData.get(0);
+            Assertions.assertTrue(record.containsKey("after"));
+        }
+
+        @Test
+        void testRpcThrowsBizException_rethrown() throws Throwable {
+            dto.setSql(null);
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            List<Capability> caps = new ArrayList<>();
+            caps.add(Capability.create("query_by_advance_filter_function"));
+            when(connDto.getCapabilities()).thenReturn(caps);
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            when(taskService.callEngineRpc(anyString(), any(), anyString(), anyString(), anyString(), anyString(), any()))
+                    .thenThrow(new BizException("MockData.SampleDataError"));
+
+            BizException ex = Assertions.assertThrows(BizException.class, () -> taskNodeService.mockDateRPC(dto, userDetail));
+            Assertions.assertEquals("MockData.SampleDataError", ex.getErrorCode());
+        }
+
+        @Test
+        void testRpcThrowsRuntimeException_wrappedAsBizException() throws Throwable {
+            dto.setSql(null);
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            List<Capability> caps = new ArrayList<>();
+            caps.add(Capability.create("query_by_advance_filter_function"));
+            when(connDto.getCapabilities()).thenReturn(caps);
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            when(taskService.callEngineRpc(anyString(), any(), anyString(), anyString(), anyString(), anyString(), any()))
+                    .thenThrow(new RuntimeException("connection error"));
+
+            Assertions.assertThrows(BizException.class, () -> taskNodeService.mockDateRPC(dto, userDetail));
+        }
+
+        @Test
+        void testFilterResult_sampleDataNotCollection() throws Throwable {
+            dto.setSql(null);
+            TableNode dataNode = mock(TableNode.class);
+            when(dataNode.getConnectionId()).thenReturn("connId");
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(dataNode);
+            when(dag.getPreNodes(nodeId)).thenReturn(preNodes);
+            when(taskDto.getAgentId()).thenReturn("agent-123");
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            List<Capability> caps = new ArrayList<>();
+            caps.add(Capability.create("query_by_advance_filter_function"));
+            when(connDto.getCapabilities()).thenReturn(caps);
+            when(dataSourceService.findOne(any())).thenReturn(connDto);
+
+            Map<String, Object> rpcResult = new HashMap<>();
+            rpcResult.put("sampleData", "not a collection");
+            when(taskService.callEngineRpc(eq("agent-123"), eq(Map.class), eq("QueryDataBaseDataService"), eq("getDataV2"),
+                    eq("connId"), eq("test_table"), eq(10)))
+                    .thenReturn(rpcResult);
+
+            Map<String, Object> result = taskNodeService.mockDateRPC(dto, userDetail);
+            Assertions.assertNotNull(result);
+            List<?> resultData = (List<?>) result.get("sampleData");
+            Assertions.assertTrue(resultData.isEmpty());
         }
     }
 }

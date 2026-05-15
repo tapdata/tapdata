@@ -46,6 +46,25 @@ public class JsonUtil {
 		if (gson == null) {
 			GsonBuilder builder = new GsonBuilder();
 			builder.registerTypeAdapter(TimeZone.class, new TimeZoneAdapter());
+            builder.registerTypeAdapter(java.time.Instant.class, new TypeAdapter<java.time.Instant>() {
+                @Override
+                public void write(JsonWriter out, java.time.Instant value) throws IOException {
+                    if (value == null) {
+                        out.nullValue();
+                    } else {
+                        out.value(value.toString());
+                    }
+                }
+
+                @Override
+                public java.time.Instant read(JsonReader in) throws IOException {
+                    if (in.peek() == com.google.gson.stream.JsonToken.NULL) {
+                        in.nextNull();
+                        return null;
+                    }
+                    return java.time.Instant.parse(in.nextString());
+                }
+            });
 			if (_pretty) {
 				builder.setPrettyPrinting();
 			}
@@ -109,8 +128,7 @@ public class JsonUtil {
 			try {
 				return objectMapper.readValue(json, typeReference);
 			} catch (JsonProcessingException var4) {
-				var4.printStackTrace();
-				return null;
+				throw new RuntimeException(var4);
 			}
 		}
 

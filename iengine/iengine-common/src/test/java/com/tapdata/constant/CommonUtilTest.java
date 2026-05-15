@@ -357,6 +357,141 @@ public class CommonUtilTest {
             assertTrue(result3, "不同大小的Map应该不相等，返回true");
         }
 
+        @DisplayName("测试Map与JSON字符串比较忽略JSON格式空格")
+        @Test
+        void testMapAndJsonStringComparisonShouldIgnoreJsonWhitespace() throws CompareException {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("_id", "xxx");
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("name", "harsen");
+            body.put("title", "body");
+            source.put("b", body);
+            source.put("c", Collections.singletonList(body));
+
+            String target = "{\"_id\":\"xxx\",\"b\":{\"name\": \"harsen\", \"title\": \"body\"},\"c\":[{\"name\": \"harsen\", \"title\": \"body\"}]}";
+
+            boolean result = CommonUtil.compare(source, target, false, null);
+
+            assertFalse(result, "结构相同但JSON格式空格不同的值应该相等，返回false");
+        }
+
+        @DisplayName("测试Map与JSON字符串比较忽略JSON对象字段顺序")
+        @Test
+        void testMapAndJsonStringComparisonShouldIgnoreJsonObjectFieldOrder() throws CompareException {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("_id", "xxx");
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("name", "harsen");
+            body.put("title", "body");
+            source.put("b", body);
+
+            String target = "{\"b\":{\"title\":\"body\",\"name\":\"harsen\"},\"_id\":\"xxx\"}";
+
+            boolean result = CommonUtil.compare(source, target, false, null);
+
+            assertFalse(result, "JSON对象字段顺序不同但结构相同的值应该相等，返回false");
+        }
+
+        @DisplayName("测试Map与JSON字符串比较保留数组顺序语义")
+        @Test
+        void testMapAndJsonStringComparisonShouldKeepArrayOrderSignificant() throws CompareException {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("c", Arrays.asList(
+                    Collections.singletonMap("name", "harsen"),
+                    Collections.singletonMap("name", "tom")
+            ));
+
+            String target = "{\"c\":[{\"name\":\"tom\"},{\"name\":\"harsen\"}]}";
+
+            boolean result = CommonUtil.compare(source, target, false, null);
+
+            assertTrue(result, "JSON数组元素顺序不同应该不相等，返回true");
+        }
+
+        @DisplayName("测试Map与JSON字符串比较按数字语义比较")
+        @Test
+        void testMapAndJsonStringComparisonShouldCompareNumbersSemantically() throws CompareException {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("intValue", 1);
+            source.put("decimalValue", new BigDecimal("1.00"));
+            source.put("items", Arrays.asList(1, new BigDecimal("2.0")));
+
+            String target = "{\"intValue\":1.0,\"decimalValue\":1,\"items\":[1.0,2]}";
+
+            boolean result = CommonUtil.compare(source, target, false, null);
+
+            assertFalse(result, "数值表示不同但数值语义相等的JSON应该相等，返回false");
+        }
+
+        @DisplayName("测试Map与JSON字符串比较保留高精度数字差异")
+        @Test
+        void testMapAndJsonStringComparisonShouldKeepHighPrecisionNumberDifference() throws CompareException {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("decimalValue", new BigDecimal("0.123456789012345678901234567890"));
+
+            String target = "{\"decimalValue\":0.123456789012345678901234567891}";
+
+            boolean result = CommonUtil.compare(source, target, false, null);
+
+            assertTrue(result, "高精度数字数值不同应该不相等，返回true");
+        }
+
+        @DisplayName("测试Map与JSON字符串比较保留JSON字符串内部空格语义")
+        @Test
+        void testMapAndJsonStringComparisonShouldKeepStringWhitespaceSignificant() throws CompareException {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("title", "body");
+
+            String target = "{\"title\":\" body\"}";
+
+            boolean result = CommonUtil.compare(source, target, false, null);
+
+            assertTrue(result, "JSON字符串值内部空格不同应该不相等，返回true");
+        }
+
+        @DisplayName("测试Map与非法JSON字符串比较回退原始字符串语义")
+        @Test
+        void testMapAndInvalidJsonStringComparisonShouldFallbackToRawStringComparison() throws CompareException {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("bad", "json");
+
+            String target = "{bad: json}";
+
+            boolean result = CommonUtil.compare(source, target, false, null);
+
+            assertTrue(result, "目标不是合法JSON时应该按原始字符串比较，返回true");
+        }
+
+        @DisplayName("测试Mongo正则JSON字符串和目标正则字符串比较")
+        @Test
+        void testMongoRegularExpressionJsonStringAndStringComparison() throws CompareException {
+            String source = "{\"pattern\":\"test\",\"options\":\"iu\",\"bsonType\":\"REGULAR_EXPRESSION\",\"number\":false,\"array\":false,\"null\":false,\"double\":false,\"boolean\":false,\"binary\":false,\"decimal128\":false,\"dbpointer\":false,\"timestamp\":false,\"regularExpression\":true,\"javaScript\":false,\"javaScriptWithScope\":false,\"document\":false,\"string\":false,\"int32\":false,\"int64\":false,\"objectId\":false,\"dateTime\":false,\"symbol\":false}";
+
+            boolean result = CommonUtil.compare(source, "/test/iu", false, null);
+
+            assertTrue(result, "一边是JSON字符串一边是普通字符串时应该按原始字符串比较，返回true");
+        }
+
+        @DisplayName("测试Mongo Timestamp JSON字符串和目标ISO时间字符串比较")
+        @Test
+        void testMongoTimestampJsonStringAndIsoStringComparison() throws CompareException {
+            String source = "{\"value\":7631795725487047000,\"time\":1776915911,\"bsonType\":\"TIMESTAMP\",\"inc\":1,\"number\":false,\"array\":false,\"null\":false,\"double\":false,\"boolean\":false,\"binary\":false,\"decimal128\":false,\"dbpointer\":false,\"timestamp\":true,\"regularExpression\":false,\"javaScript\":false,\"javaScriptWithScope\":false,\"document\":false,\"string\":false,\"int32\":false,\"int64\":false,\"objectId\":false,\"dateTime\":false,\"symbol\":false}";
+
+            boolean result = CommonUtil.compare(source, "1970-01-21T13:35:15.911Z", false, null);
+
+            assertTrue(result, "一边是JSON字符串一边是普通字符串时应该按原始字符串比较，返回true");
+        }
+
+        @DisplayName("测试普通字符串不以JSON对象或数组开头时不执行JSON比较")
+        @Test
+        void testPlainStringShouldNotBeParsedAsJsonScalar() throws CompareException {
+            boolean result = CommonUtil.compare("\"value\"", "value", false, null);
+
+            assertTrue(result, "普通字符串不以{或[开头时应该按原始字符串比较，返回true");
+        }
+
         @DisplayName("测试Collection比较")
         @Test
         void testCollectionComparison() throws CompareException {
@@ -511,4 +646,5 @@ public class CommonUtilTest {
             assertTrue(result2, "不同内容的嵌套List应该不相等，返回true");
         }
     }
+
 }

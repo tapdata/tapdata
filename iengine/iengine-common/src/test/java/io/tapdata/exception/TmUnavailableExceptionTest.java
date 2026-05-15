@@ -15,8 +15,11 @@ class TmUnavailableExceptionTest {
 
 	@Test
 	void testIsInstanceTrue() {
-		ResponseBody responseBody = Mockito.mock(ResponseBody.class);
-		Assertions.assertFalse(TmUnavailableException.isInstance(new TmUnavailableException(new RuntimeException("test"), "test-url", "post", null, responseBody)));
+		try (MockedStatic<TmStatusService> tmStatusServiceMockedStatic = Mockito.mockStatic(TmStatusService.class)) {
+			tmStatusServiceMockedStatic.when(TmStatusService::isNotEnable).thenReturn(true);
+			ResponseBody responseBody = Mockito.mock(ResponseBody.class);
+			Assertions.assertFalse(TmUnavailableException.isInstance(new TmUnavailableException(new RuntimeException("test"), "test-url", "post", null, responseBody)));
+		}
 	}
 
 	@Test

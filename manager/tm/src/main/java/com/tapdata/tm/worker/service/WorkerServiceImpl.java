@@ -13,9 +13,11 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.field.BaseEntityFields;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
@@ -39,14 +41,17 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.v2.api.pool.service.ConnectionPoolScheduleExecutor;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.WorkSchedule;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
+import com.tapdata.tm.worker.entity.ConnectionPoolEntity;
 import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
+import com.tapdata.tm.worker.entity.field.ServerUsageField;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -112,6 +117,8 @@ public class WorkerServiceImpl extends WorkerService{
     private UserService userService;
     @Autowired
     private MongoTemplate mongoTemplate;
+    @Autowired
+    private ConnectionPoolScheduleExecutor connectionPoolExecutor;
 
     private final MultiTaggedCounter workerPing;
     private Random random = new Random();
@@ -178,11 +185,36 @@ public class WorkerServiceImpl extends WorkerService{
     }
 
     private Criteria getAvailableAgentCriteria() {
-        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        // +1L makes the gte boundary effectively a strict gt: a worker whose ping_time
+        // exactly equals (now - overTime*1000) is treated as DEAD, matching calculationEngine.
         return Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
+                .and("ping_time").gte(getEvictionFindTimeMillis())
                 .and("isDeleted").ne(true).and("stopping").ne(true)
                 .and("agentTags").ne("disabledScheduleTask");
+    }
+
+    /**
+     * Threshold for "is this worker still alive" — used by liveness/availability checks
+     * (UI, isAgentTimeout-style queries). Boundary +1L excludes the worker whose ping
+     * is exactly at WORKER_HEART_OVERTIME.
+     */
+    private long getEvictionFindTimeMillis() {
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        return System.currentTimeMillis() - (overTime * 1000L) + 1L;
+    }
+
+    /**
+     * Stricter threshold for SCHEDULING (selecting which worker to assign a task to).
+     * Subtracts WORKER_SCHEDULE_SAFETY_MARGIN_S so a worker whose ping is on the verge
+     * of timing out is not picked — protects against the "switch to dead engine" race
+     * during HA failover. Floored at overTime/2 (and at least 1s) so misconfiguration
+     * cannot collapse the window to zero.
+     */
+    private long getSelectionFindTimeMillis() {
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        int margin = SettingsEnum.WORKER_SCHEDULE_SAFETY_MARGIN_S.getIntValue(5);
+        int effective = Math.max(overTime - margin, Math.max(overTime / 2, 1));
+        return System.currentTimeMillis() - (effective * 1000L) + 1L;
     }
 
     public List<Worker> findAvailableAgentBySystem(UserDetail userDetail) {
@@ -367,12 +399,12 @@ public class WorkerServiceImpl extends WorkerService{
 
         AtomicReference<String> scheduleAgentId = new AtomicReference<>("");
 
-        Object jobHeartTimeout = settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT).getValue();
         boolean isCloud = settingsService.isCloud();
         if ((userDetail.getUserId() == null || userDetail.getUserId().equals("")) && isCloud) {
             throw new BizException("NotFoundUserId");
         }
-        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout) * 1000L;
+        // Use selection (not eviction) threshold so a worker about to die is not picked.
+        Long findTime = getSelectionFindTimeMillis();
 
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();
@@ -390,6 +422,7 @@ public class WorkerServiceImpl extends WorkerService{
                 taskLimit = getLimitTaskNum(worker, userDetail);
 
                 calculationEngineVo.setProcessId(agentId);
+                calculationEngineVo.setProcessName(worker.getHostname());
                 scheduleAgentId.set(agentId);
                 calculationEngineVo.setManually(true);
 
@@ -457,6 +490,7 @@ public class WorkerServiceImpl extends WorkerService{
         AtomicInteger scheduleRunNum = new AtomicInteger();
         AtomicInteger scheduleTaskLimit = new AtomicInteger();
         AtomicInteger totalTaskLimit = new AtomicInteger();
+        AtomicReference<String> scheduleAgentHostname = new AtomicReference<>("");
 
         for (int i = 0; i < workers.size(); i++) {
             WorkerDto worker = workers.get(i);
@@ -481,16 +515,19 @@ public class WorkerServiceImpl extends WorkerService{
 
             if (i == 0 || workSchedule.getProcessId() == null) {
                 scheduleAgentId.set(processId);
+                scheduleAgentHostname.set(worker.getHostname());
                 scheduleWeight.set(weight);
                 scheduleRunNum.set(runningNum);
                 scheduleTaskLimit.set(taskLimit);
             } else if (worker.getWeight() > scheduleWeight.get()) {
                 scheduleAgentId.set(processId);
+                scheduleAgentHostname.set(worker.getHostname());
                 scheduleWeight.set(weight);
                 scheduleRunNum.set(runningNum);
                 scheduleTaskLimit.set(taskLimit);
             } else if (worker.getWeight().equals(scheduleWeight.get()) &&  (taskLimit - runningNum) > (scheduleTaskLimit.get() - scheduleRunNum.get())) {
                 scheduleAgentId.set(processId);
+                scheduleAgentHostname.set(worker.getHostname());
                 scheduleWeight.set(weight);
                 scheduleRunNum.set(runningNum);
                 scheduleTaskLimit.set(taskLimit);
@@ -504,6 +541,7 @@ public class WorkerServiceImpl extends WorkerService{
         entity.setScheduleTime(System.currentTimeMillis());
 
         calculationEngineVo.setProcessId(processId);
+        calculationEngineVo.setProcessName(scheduleAgentHostname.get());
         calculationEngineVo.setFilter(filter);
         calculationEngineVo.setThreadLog(threadLog);
         calculationEngineVo.setAvailable(availableNum);
@@ -650,6 +688,31 @@ public class WorkerServiceImpl extends WorkerService{
     @Override
     public void appendUsage(List<ServerUsage> usages) {
         bulkUpsert(usages);
+        List<ConnectionPoolEntity> entities = new ArrayList<>();
+        for (ServerUsage usage : usages) {
+            int processType = usage.getProcessType();
+            if (processType != ServerUsage.ProcessType.API_SERVER.getType()) {
+                continue;
+            }
+            Long lastUpdateTime = usage.getLastUpdateTime();
+            String processId = usage.getProcessId();
+            List<ConnectionPoolEntity> poolConnections = usage.getPoolConnections();
+            if (CollectionUtils.isEmpty(poolConnections)) {
+                continue;
+            }
+            poolConnections.stream()
+                    .filter(Objects::nonNull)
+                    .peek(e -> {
+                        e.setLastUpdateTime(lastUpdateTime);
+                        e.setProcessId(processId);
+                        e.setTimeGranularity(TimeGranularity.SECOND_FIVE.getType());
+                    })
+                    .forEach(entities::add);
+        }
+        if (entities.isEmpty()) {
+            return;
+        }
+        connectionPoolExecutor.bulkUpsert(entities);
     }
 
     public void bulkUpsert(List<ServerUsage> entities) {
@@ -677,27 +740,31 @@ public class WorkerServiceImpl extends WorkerService{
     }
 
     private Query buildDefaultQuery(ServerUsage entity) {
-        Criteria criteria = Criteria.where("processId").is(entity.getProcessId())
-                .and("workOid").is(entity.getWorkOid())
-                .and("lastUpdateTime").is(entity.getLastUpdateTime());
+        Criteria criteria = Criteria.where(ServerUsageField.PROCESS_ID.field()).is(entity.getProcessId())
+                .and(ServerUsageField.WORK_OID.field()).is(entity.getWorkOid())
+                .and(ServerUsageField.LAST_UPDATE_TIME.field()).is(entity.getLastUpdateTime());
         return Query.query(criteria);
     }
 
     private Update buildDefaultUpdate(ServerUsage entity) {
         Update update = new Update();
-        update.set("cpuUsage", entity.getCpuUsage());
-        update.set("heapMemoryMax", entity.getHeapMemoryMax());
-        update.set("heapMemoryUsage", entity.getHeapMemoryUsage());
-        update.set("lastUpdateTime", entity.getLastUpdateTime());
-        update.set("type", entity.getType());
-        update.set("processType", entity.getProcessType());
+        update.set(ServerUsageField.CPU_USAGE.field(), entity.getCpuUsage());
+        update.set(ServerUsageField.HEAP_MEMORY_MAX.field(), entity.getHeapMemoryMax());
+        update.set(ServerUsageField.HEAP_MEMORY_USAGE.field(), entity.getHeapMemoryUsage());
+        update.set(ServerUsageField.LAST_UPDATE_TIME.field(), entity.getLastUpdateTime());
+        update.set(ServerUsageField.TYPE.field(), entity.getType());
+        update.set(ServerUsageField.PROCESS_TYPE.field(), entity.getProcessType());
         if (ServerUsage.ProcessType.API_SERVER.getType() == entity.getProcessType()) {
-            update.set("selfCpuUsage", entity.getSelfCpuUsage());
+            update.set(ServerUsageField.SELF_CPU_USAGE.field(), entity.getSelfCpuUsage());
+            update.set(ServerUsageField.POOL_MAX_CONNECTIONS.field(), entity.getPoolMaxConnections());
+            update.set(ServerUsageField.POOL_USED_CONNECTIONS.field(), entity.getPoolUsedConnections());
+            update.set(ServerUsageField.POOL_AVAILABLE.field(), entity.getPoolAvailable());
+            update.set(ServerUsageField.POOL_QUEUE_SIZE.field(), entity.getPoolQueueSize());
         }
-        update.set("processId", entity.getProcessId());
-        update.set("workOid", entity.getWorkOid());
-        update.set("ttlKey", entity.getTtlKey());
-        update.currentDate("updatedAt");
+        update.set(ServerUsageField.PROCESS_ID.field(), entity.getProcessId());
+        update.set(ServerUsageField.WORK_OID.field(), entity.getWorkOid());
+        update.set(ServerUsageField.TTL_KEY.field(), entity.getTtlKey());
+        update.currentDate(BaseEntityFields.UPDATED_AT.field());
         return update;
     }
 

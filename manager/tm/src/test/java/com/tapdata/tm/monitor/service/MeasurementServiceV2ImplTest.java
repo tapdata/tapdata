@@ -23,6 +23,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
+import com.tapdata.tm.monitor.vo.TaskMetricsTrendVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
@@ -150,6 +151,324 @@ class MeasurementServiceV2ImplTest {
             verify(mongoOperations).findOne(any(Query.class), any(Class.class), anyString());
         }
     }
+
+    @Nested
+    class FindLastMinuteSamplesByTaskIdsTest {
+        @BeforeEach
+        void init() {
+            when(measurementServiceV2.findLastMinuteSamplesByTaskIds(any())).thenCallRealMethod();
+        }
+
+        @Test
+        @DisplayName("空列表返回空Map")
+        void testEmptyTaskIds() {
+            Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(new ArrayList<>());
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("null列表返回空Map")
+        void testNullTaskIds() {
+            Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(null);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("跳过空白taskId")
+        void testBlankTaskIdSkipped() {
+            when(measurementServiceV2.findLastMinuteByTaskId(anyString())).thenReturn(null);
+            Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("", "  "));
+            assertTrue(result.isEmpty());
+            verify(measurementServiceV2, never()).findLastMinuteByTaskId(anyString());
+        }
+
+        @Test
+        @DisplayName("findLastMinuteByTaskId返回null时跳过")
+        void testEntityNull() {
+            when(measurementServiceV2.findLastMinuteByTaskId("task-1")).thenReturn(null);
+            Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("entity的samples为空时跳过")
+        void testEntityEmptySamples() {
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setSamples(new ArrayList<>());
+            when(measurementServiceV2.findLastMinuteByTaskId("task-1")).thenReturn(entity);
+            Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("正常返回最新Sample")
+        void testReturnLatestSample() {
+            MeasurementEntity entity = new MeasurementEntity();
+            Sample older = new Sample();
+            older.setDate(new Date(1000L));
+            older.setVs(new HashMap<>());
+            Sample newer = new Sample();
+            newer.setDate(new Date(2000L));
+            newer.setVs(new HashMap<>());
+            entity.setSamples(List.of(older, newer));
+            when(measurementServiceV2.findLastMinuteByTaskId("task-1")).thenReturn(entity);
+
+            Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
+            assertEquals(1, result.size());
+            assertSame(newer, result.get("task-1"));
+        }
+
+        @Test
+        @DisplayName("多个taskId正常聚合")
+        void testMultipleTaskIds() {
+            MeasurementEntity entity1 = new MeasurementEntity();
+            Sample s1 = new Sample();
+            s1.setDate(new Date(1000L));
+            s1.setVs(new HashMap<>());
+            entity1.setSamples(List.of(s1));
+            when(measurementServiceV2.findLastMinuteByTaskId("t1")).thenReturn(entity1);
+
+            when(measurementServiceV2.findLastMinuteByTaskId("t2")).thenReturn(null);
+
+            MeasurementEntity entity3 = new MeasurementEntity();
+            Sample s3 = new Sample();
+            s3.setDate(new Date(3000L));
+            s3.setVs(new HashMap<>());
+            entity3.setSamples(List.of(s3));
+            when(measurementServiceV2.findLastMinuteByTaskId("t3")).thenReturn(entity3);
+
+            Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("t1", "t2", "t3"));
+            assertEquals(2, result.size());
+            assertSame(s1, result.get("t1"));
+            assertSame(s3, result.get("t3"));
+        }
+
+        @Test
+        @DisplayName("samples中有null和date为null的条目被过滤")
+        void testFilterNullSamplesAndNullDate() {
+            MeasurementEntity entity = new MeasurementEntity();
+            Sample validSample = new Sample();
+            validSample.setDate(new Date(5000L));
+            validSample.setVs(new HashMap<>());
+            Sample nullDateSample = new Sample();
+            nullDateSample.setDate(null);
+            List<Sample> samples = new ArrayList<>();
+            samples.add(null);
+            samples.add(nullDateSample);
+            samples.add(validSample);
+            entity.setSamples(samples);
+            when(measurementServiceV2.findLastMinuteByTaskId("task-1")).thenReturn(entity);
+
+            Map<String, Sample> result = measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
+            assertEquals(1, result.size());
+            assertSame(validSample, result.get("task-1"));
+        }
+    }
+
+    @Nested
+    class AggregateTaskMetricsByTaskIdsTest {
+        @BeforeEach
+        void init() {
+            mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            when(measurementServiceV2.aggregateTaskMetricsByTaskIds(any(), anyLong(), anyLong())).thenCallRealMethod();
+        }
+
+        @Test
+        void testOneHourWindowUsesMinuteMeasurements() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setGranularity(Granularity.GRANULARITY_MINUTE);
+            entity.setTags(Map.of("taskId", "task-1"));
+            entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 120D, 12D)));
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenAnswer(invocation -> {
+                        Query query = invocation.getArgument(0);
+                        return query.getQueryObject().toJson().contains("\"grnty\": \"minute\"")
+                                ? List.of(entity)
+                                : new ArrayList<>();
+                    });
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
+
+            assertTrue(result.getOutputQps().stream().anyMatch(value -> value != null && value > 0D));
+            assertEquals(120D, result.getOutputQps().get(result.getOutputQps().size() - 1));
+            assertEquals(12D, result.getOutputSizeQps().get(result.getOutputSizeQps().size() - 1));
+        }
+
+        @Test
+        void testOneDayWindowUsesHourMeasurements() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 24L * 60L * 60L * 1000L;
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setGranularity(Granularity.GRANULARITY_HOUR);
+            entity.setTags(Map.of("taskId", "task-1"));
+            entity.setSamples(List.of(sample(new Date(endAt - 60L * 60L * 1000L), 300D, 30D)));
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenAnswer(invocation -> {
+                        Query query = invocation.getArgument(0);
+                        return query.getQueryObject().toJson().contains("\"grnty\": \"hour\"")
+                                ? List.of(entity)
+                                : new ArrayList<>();
+                    });
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
+
+            assertTrue(result.getOutputQps().stream().anyMatch(value -> value != null && value > 0D));
+            assertEquals(300D, result.getOutputQps().get(result.getOutputQps().size() - 1));
+            assertEquals(30D, result.getOutputSizeQps().get(result.getOutputSizeQps().size() - 1));
+        }
+
+        @Test
+        void testAggregateTaskMetricsFiltersByTaskRecordId() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            MeasurementEntity matched = new MeasurementEntity();
+            matched.setGranularity(Granularity.GRANULARITY_MINUTE);
+            matched.setTags(Map.of("taskId", "task-1", "taskRecordId", "record-1"));
+            matched.setSamples(List.of(sample(new Date(endAt - 60_000L), 120D, 12D)));
+            MeasurementEntity stale = new MeasurementEntity();
+            stale.setGranularity(Granularity.GRANULARITY_MINUTE);
+            stale.setTags(Map.of("taskId", "task-1", "taskRecordId", "record-old"));
+            stale.setSamples(List.of(sample(new Date(endAt - 60_000L), 900D, 90D)));
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenAnswer(invocation -> {
+                        Query query = invocation.getArgument(0);
+                        String json = query.getQueryObject().toJson();
+                        assertTrue(json.contains("\"grnty\": \"minute\""));
+                        return List.of(matched);
+                    });
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
+
+            assertTrue(result.getOutputQps().stream().anyMatch(value -> value != null && value > 0D));
+            assertEquals(120D, result.getOutputQps().get(result.getOutputQps().size() - 1));
+            assertEquals(12D, result.getOutputSizeQps().get(result.getOutputSizeQps().size() - 1));
+        }
+
+        @Test
+        @DisplayName("空taskIds返回空结果")
+        void testEmptyTaskIds() {
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(new ArrayList<>(), 0L, 100L);
+            assertTrue(result.getTs().isEmpty());
+            assertTrue(result.getOutputQps().isEmpty());
+            assertTrue(result.getOutputSizeQps().isEmpty());
+        }
+
+        @Test
+        @DisplayName("null taskIds返回空结果")
+        void testNullTaskIds() {
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(null, 0L, 100L);
+            assertTrue(result.getTs().isEmpty());
+        }
+
+        @Test
+        @DisplayName("startAt >= endAt返回空结果")
+        void testStartGreaterOrEqualEnd() {
+            TaskMetricsTrendVo result1 = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), 100L, 100L);
+            assertTrue(result1.getTs().isEmpty());
+
+            TaskMetricsTrendVo result2 = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), 200L, 100L);
+            assertTrue(result2.getTs().isEmpty());
+        }
+
+        @Test
+        @DisplayName("entity为null时跳过")
+        void testNullEntitySkipped() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            List<MeasurementEntity> entities = new ArrayList<>();
+            entities.add(null);
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(entities);
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
+            assertFalse(result.getTs().isEmpty());
+            assertTrue(result.getOutputQps().stream().allMatch(v -> v == 0D));
+        }
+
+        @Test
+        @DisplayName("entity的tags为null时跳过")
+        void testNullTagsSkipped() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setTags(null);
+            entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 100D, 10D)));
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(List.of(entity));
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
+            assertTrue(result.getOutputQps().stream().allMatch(v -> v == 0D));
+        }
+
+        @Test
+        @DisplayName("entity的taskId为空白时跳过")
+        void testBlankTaskIdInTagsSkipped() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setTags(Map.of("taskId", ""));
+            entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 100D, 10D)));
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(List.of(entity));
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
+            assertTrue(result.getOutputQps().stream().allMatch(v -> v == 0D));
+        }
+
+        @Test
+        @DisplayName("无数据时所有bucket值为0")
+        void testNoEntitiesAllZero() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(new ArrayList<>());
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
+            assertFalse(result.getTs().isEmpty());
+            assertTrue(result.getOutputQps().stream().allMatch(v -> v == 0D));
+            assertTrue(result.getOutputSizeQps().stream().allMatch(v -> v == 0D));
+        }
+
+        @Test
+        @DisplayName("多个taskId的值跨taskId求和")
+        void testMultipleTaskIdsSummed() {
+            long endAt = 1_710_000_000_000L;
+            long startAt = endAt - 60L * 60L * 1000L;
+            long sampleTs = endAt - 60_000L;
+
+            MeasurementEntity entity1 = new MeasurementEntity();
+            entity1.setTags(Map.of("taskId", "task-1"));
+            entity1.setSamples(List.of(sample(new Date(sampleTs), 100D, 10D)));
+
+            MeasurementEntity entity2 = new MeasurementEntity();
+            entity2.setTags(Map.of("taskId", "task-2"));
+            entity2.setSamples(List.of(sample(new Date(sampleTs), 200D, 20D)));
+
+            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(List.of(entity1, entity2));
+
+            TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1", "task-2"), startAt, endAt);
+            // 最后一个bucket应该是两个task的和: 100+200=300, 10+20=30
+            Double lastQps = result.getOutputQps().get(result.getOutputQps().size() - 1);
+            Double lastSizeQps = result.getOutputSizeQps().get(result.getOutputSizeQps().size() - 1);
+            assertEquals(300D, lastQps);
+            assertEquals(30D, lastSizeQps);
+        }
+
+        private Sample sample(Date date, double outputQps, double outputSizeQps) {
+            Sample sample = new Sample();
+            sample.setDate(date);
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("outputQps", outputQps);
+            vs.put("outputSizeQps", outputSizeQps);
+            sample.setVs(vs);
+            return sample;
+        }
+    }
+
     @Nested
     class AddBulkAgentMeasurementTest{
         private MongoTemplate mongoOperations;
@@ -250,6 +569,44 @@ class MeasurementServiceV2ImplTest {
             verify(taskService, new Times(1)).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 0L);
             verify(taskService, new Times(1)).updateDelayTime(new ObjectId("665d2b9b889245e73373cf50"), 111L);
             verify(taskService, new Times(2)).updateDelayTime(any(ObjectId.class),anyLong());
+        }
+
+        @Test
+        @DisplayName("test addBulkAgentMeasurement reuses share cdc task delay when task is idle")
+        void testReuseShareCdcDelayWhenTaskIdle(){
+            String taskId = "665d2b9b889245e73373cf49";
+            String logCollectorTaskId = "665d2b9b889245e73373cf51";
+            long taskEventTime = System.currentTimeMillis() - 300_000L;
+            long logCollectorEventTime = System.currentTimeMillis() - 10_000L;
+
+            Sample sample = new Sample();
+            sample.setDate(new Date());
+            Map vs = new HashMap();
+            vs.put("replicateLag", 300_000L);
+            vs.put("currentEventTimestamp", taskEventTime);
+            vs.put("inputQps", 0);
+            vs.put("outputQps", 0);
+            sample.setVs(vs);
+            when(sampleRequest.getSample()).thenReturn(sample);
+
+            Map<String, String> shareCdcTaskId = new HashMap<>();
+            shareCdcTaskId.put("connectionId", logCollectorTaskId);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setShareCdcEnable(true);
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+            taskDto.setShareCdcTaskId(shareCdcTaskId);
+            TaskDto logCollectorTask = new TaskDto();
+            logCollectorTask.setStatus(TaskDto.STATUS_RUNNING);
+            logCollectorTask.setCurrentEventTimestamp(logCollectorEventTime);
+            logCollectorTask.setDelayTime(10_000L);
+            when(taskService.findByTaskId(eq(new ObjectId(taskId)), any(String[].class))).thenReturn(taskDto);
+            when(taskService.findByTaskId(eq(new ObjectId(logCollectorTaskId)), any(String[].class))).thenReturn(logCollectorTask);
+
+            doCallRealMethod().when(measurementServiceV2).addAgentMeasurement(samples);
+            measurementServiceV2.addAgentMeasurement(samples);
+
+            verify(taskService).updateDelayTime(new ObjectId(taskId), 10_000L);
+            assertEquals(10_000L, sample.getVs().get("replicateLag"));
         }
         @Test
         @DisplayName("test addBulkAgentMeasurement method when type is table")

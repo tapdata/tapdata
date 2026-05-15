@@ -4,7 +4,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.7</version>
+        <version>3.5.14</version>
         <relativePath/>
     </parent>
 
@@ -24,12 +24,11 @@
         <maven.compiler.target>17</maven.compiler.target>
 
         <!-- Kafka and it's dependencies MUST reflect what the Kafka version uses -->
-        <version.kafka>3.9.1</version.kafka>
+        <version.kafka>3.9.2</version.kafka>
         <version.kafka.scala>2.13</version.kafka.scala>
         <version.curator>2.11.0</version.curator>
         <version.zookeeper>3.8.4</version.zookeeper>
-        <version.jackson>2.18.3</version.jackson>
-        <version.jackson.databind>2.18.3</version.jackson.databind>
+        <version.jackson>2.21.1</version.jackson>
         <!--    <version.org.slf4j>1.7.26</version.org.slf4j>-->
         <!-- check new release version at https://github.com/confluentinc/schema-registry/releases -->
         <version.confluent.platform>5.1.2</version.confluent.platform>
@@ -44,7 +43,7 @@
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
         <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
-        <version.spring>6.2.8</version.spring>
+        <version.spring>6.2.18</version.spring>
 
         <!-- Connectors -->
         <version.com.google.protobuf>4.29.3</version.com.google.protobuf>
@@ -82,7 +81,7 @@
         <debug.argline/>
 
         <!-- Java implementation of cryptographic algorithms -->
-        <org.bouncycastle.version>1.80</org.bouncycastle.version>
+        <org.bouncycastle.version>1.84</org.bouncycastle.version>
 
         <!-- json lib -->
         <org.json.version>20250107</org.json.version>
@@ -134,7 +133,7 @@
         <graalvm.py.version>2.7.4</graalvm.py.version>
 
         <jna.version>5.10.0</jna.version>
-        <log4j.version>2.17.1</log4j.version>
+        <log4j.version>2.25.4</log4j.version>
 
         <hutool.version>5.8.40</hutool.version>
 
@@ -161,30 +160,26 @@
         <!-- lombok -->
         <lombok.version>1.18.36</lombok.version>
 
-        <error-code-core.version>2.7-SNAPSHOT</error-code-core.version>
-        <pdk-error-code.version>2.7-SNAPSHOT</pdk-error-code.version>
-        <error-code-scanner.version>2.7-SNAPSHOT</error-code-scanner.version>
+        <error-code-core.version>2.8-SNAPSHOT</error-code-core.version>
+        <pdk-error-code.version>2.8-SNAPSHOT</pdk-error-code.version>
+        <error-code-scanner.version>2.8-SNAPSHOT</error-code-scanner.version>
         <lucene-core.version>9.12.1</lucene-core.version>
         <junit-jupiter.version>5.8.1</junit-jupiter.version>
         <mockito.version>4.11.0</mockito.version>
         <iengine.impl.artifactId>iengine-oss</iengine.impl.artifactId>
         <iengine.oss.module>iengine-oss</iengine.oss.module>
-        <tapdata-api.version>2.0.7-SNAPSHOT</tapdata-api.version>
-        <modules-api.version>2.7-SNAPSHOT</modules-api.version>
-        <websocket-client-module.version>2.7-SNAPSHOT</websocket-client-module.version>
-        <service-skeleton-module.version>2.7-SNAPSHOT</service-skeleton-module.version>
-        <tapdata-storage-module.version>2.7-SNAPSHOT</tapdata-storage-module.version>
-        <tapdata-pdk-runner.version>2.7-SNAPSHOT</tapdata-pdk-runner.version>
-        <tapdata-common.version>2.7-SNAPSHOT</tapdata-common.version>
-        <async-tools-module.version>2.7-SNAPSHOT</async-tools-module.version>
-        <script-engine-module.version>2.7-SNAPSHOT</script-engine-module.version>
+        <tapdata-api.version>2.0.8-SNAPSHOT</tapdata-api.version>
+        <modules-api.version>2.8-SNAPSHOT</modules-api.version>
+        <websocket-client-module.version>2.8-SNAPSHOT</websocket-client-module.version>
+        <service-skeleton-module.version>2.8-SNAPSHOT</service-skeleton-module.version>
+        <tapdata-storage-module.version>2.8-SNAPSHOT</tapdata-storage-module.version>
+        <tapdata-pdk-runner.version>2.8-SNAPSHOT</tapdata-pdk-runner.version>
+        <tapdata-common.version>2.8-SNAPSHOT</tapdata-common.version>
+        <async-tools-module.version>2.8-SNAPSHOT</async-tools-module.version>
+        <script-engine-module.version>2.8-SNAPSHOT</script-engine-module.version>
         <gson.version>2.12.1</gson.version>
         <httpclient5.version>5.4.4</httpclient5.version>
-
-        <!-- Override spring boot version -->
-        <netty.version>4.1.127.Final</netty.version>
-        <spring-framework.version>6.2.11</spring-framework.version>
-        <spring-security.version>6.5.4</spring-security.version>
+        <netty.version>4.1.133.Final</netty.version>
     </properties>
 
     <modules>
@@ -209,30 +204,11 @@
             </dependency>
             <!-- Major dependencies -->
             <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-core</artifactId>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
                 <version>${version.jackson}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-annotations</artifactId>
-                <version>${version.jackson}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-databind</artifactId>
-                <version>${version.jackson.databind}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.fasterxml.jackson.dataformat</groupId>
-                <artifactId>jackson-dataformat-xml</artifactId>
-                <version>${version.jackson}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.datatype</groupId>
-                <artifactId>jackson-datatype-jsr310</artifactId>
-                <version>${version.jackson}</version>
+                <scope>import</scope>
+                <type>pom</type>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.woodstox</groupId>

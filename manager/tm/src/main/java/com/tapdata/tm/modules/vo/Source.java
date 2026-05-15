@@ -3,6 +3,7 @@ package com.tapdata.tm.modules.vo;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * database_type: "mongodb"
@@ -10,6 +11,7 @@ import lombok.Data;
  * name: "mongo_changan_car_st"
  * status: "ready"
  */
+@NoArgsConstructor
 @AllArgsConstructor
 @Data
 public class Source {

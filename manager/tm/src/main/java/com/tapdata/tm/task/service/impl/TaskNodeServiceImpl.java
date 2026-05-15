@@ -10,6 +10,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
@@ -33,6 +34,7 @@ import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.constant.SyncStatus;
 import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskRecordService;
+import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
@@ -58,6 +60,8 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -89,6 +93,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private MonitoringLogsService monitoringLogService;
     private DAGDataService dagDataService;
     private AgentGroupService agentGroupService;
+    private TaskScheduleService taskScheduleService;
 
     @SneakyThrows
     @Override
@@ -545,6 +550,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
         taskDtoCopy.setSyncStatus(SyncStatus.NORMAL);
+        applyTestRunInputEvent(taskDtoCopy, dto);
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
@@ -644,6 +650,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
         taskDtoCopy.setSyncStatus(SyncStatus.NORMAL);
+        applyTestRunInputEvent(taskDtoCopy, dto);
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
@@ -734,7 +741,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
-        return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeIds.toString()) : wsTestRun(userDetail, taskDto, taskDtoCopy);
+        return rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeIds.toString());
+    }
+
+    void applyTestRunInputEvent(TaskDto taskDtoCopy, TestRunDto dto) {
+        if(StringUtils.isNotBlank(dto.getTestRunInputEventJson())){
+            taskDtoCopy.setTestRunInputEventJson(dto.getTestRunInputEventJson());
+        }
     }
 
     private Map<String, Object> rpcTestRun(String testTaskId, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
@@ -887,6 +900,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 log.error("getRun JsResultVo error:{}", dto.getMessage());
                 res.setCode("SystemError");
                 res.setMessage(dto.getMessage());
+                res.setStack(dto.getStackTrace());
             });
         } else {
             result.setOver(false);
@@ -930,6 +944,94 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             });
         }
 
+    }
+
+    @Override
+    public Map<String, Object> mockDateRPC(TestRunDto dto, UserDetail userDetail) {
+        String taskId = dto.getTaskId();
+        String nodeId = dto.getJsNodeId();
+        String tableName = dto.getTableName();
+        Integer rows = dto.getRows();
+
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        if (taskDto == null) {
+            throw new BizException("MockData.TaskNotFound", taskId);
+        }
+
+        LinkedList<Node<?>> preNodes = taskDto.getDag().getPreNodes(nodeId);
+        if (CollectionUtils.isEmpty(preNodes)) {
+            return Map.of();
+        }
+
+        DataParentNode<?> dataParentNode = preNodes.stream()
+                .filter(DataParentNode.class::isInstance)
+                .map(node -> (DataParentNode<?>) node)
+                .findFirst()
+                .orElse(null);
+        if (dataParentNode == null) {
+            throw new BizException("MockData.PreNodeNotFound", nodeId);
+        }
+        if(StringUtils.isBlank(tableName) && dataParentNode instanceof TableNode){
+            tableName = ((TableNode) dataParentNode).getTableName();
+        }
+
+        if (StringUtils.isBlank(taskDto.getAgentId())) {
+            taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);
+        }
+
+        String connectionId = dataParentNode.getConnectionId();
+        DataSourceConnectionDto connection = findConnectionWithCapabilities(connectionId);
+
+        try {
+            List<Map<String, Object>> sampleData;
+            if (StringUtils.isNotBlank(dto.getSql())) {
+                checkCapability(connection, "run_raw_command_function", "MockData.ConnectionNotSupportRawCommand", connectionId);
+                sampleData = querySampleDataBySql(taskDto.getAgentId(), connectionId, tableName, dto.getSql(),100);
+            } else {
+                checkCapability(connection, "query_by_advance_filter_function", "MockData.ConnectionNotSupportQuery", connectionId);
+                sampleData = querySampleDataByFilter(taskDto.getAgentId(), connectionId, tableName, rows);
+            }
+            List<Map<String, Object>> result = sampleData.stream()
+                    .map(after -> Map.<String, Object>of("after", after))
+                    .collect(Collectors.toList());
+            return Map.of("sampleData", result);
+        } catch (BizException e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new BizException("MockData.SampleDataError", e, e.getMessage());
+        }
+    }
+
+    private DataSourceConnectionDto findConnectionWithCapabilities(String connectionId) {
+        Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(connectionId)));
+        query.fields().include("capabilities");
+        DataSourceConnectionDto connection = dataSourceService.findOne(query);
+        if (connection == null) {
+            throw new BizException("MockData.ConnectionNotFound", connectionId);
+        }
+        return connection;
+    }
+
+    private void checkCapability(DataSourceConnectionDto connection, String capabilityId, String errorCode, String connectionId) {
+        boolean supported = CollectionUtils.isNotEmpty(connection.getCapabilities())
+                && connection.getCapabilities().stream()
+                        .anyMatch(capability -> capability.getId().equals(capabilityId));
+        if (!supported) {
+            throw new BizException(errorCode, connectionId);
+        }
+    }
+
+    private List<Map<String, Object>> querySampleDataBySql(String agentId, String connectionId, String tableName, String sql,int limit) throws Throwable {
+        return taskService.callEngineRpc(agentId, List.class, "QueryDataBaseDataService", "queryV2", connectionId, tableName, sql, true,limit);
+    }
+
+    private List<Map<String, Object>> querySampleDataByFilter(String agentId, String connectionId, String tableName, Integer rows) throws Throwable {
+        Map<String, Object> map = taskService.callEngineRpc(agentId, Map.class, "QueryDataBaseDataService", "getDataV2", connectionId, tableName, rows);
+        Object sampleData = map.get("sampleData");
+        if (sampleData instanceof Collection<?>) {
+            return (List<Map<String, Object>>) sampleData;
+        }
+        return Collections.emptyList();
     }
 
     /**

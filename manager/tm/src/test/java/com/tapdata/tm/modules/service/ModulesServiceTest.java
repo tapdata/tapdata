@@ -25,6 +25,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
@@ -58,6 +59,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -210,6 +212,25 @@ class ModulesServiceTest {
 			modules.setPaths(paths);
 			modulesService.beforeSave(modules, mock(UserDetail.class));
 			Assertions.assertEquals(0, modules.getPaths().get(0).getFields().size());
+		}
+	}
+
+	@Nested
+	class DataPermissionFindByIdTest {
+		@Test
+		void test_fillFieldsAndDelegateFindById() {
+			ModulesService spyService = spy(modulesService);
+			ObjectId moduleId = new ObjectId();
+			com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
+			ModulesDto modulesDto = new ModulesDto();
+			doReturn(modulesDto).when(spyService).findById(eq(moduleId), same(field));
+
+			Supplier<ModulesDto> supplier = spyService.dataPermissionFindById(moduleId, field);
+
+			assertSame(modulesDto, supplier.get());
+			assertEquals(Boolean.TRUE, field.get(ModulesService.USER_ID));
+			assertEquals(Boolean.TRUE, field.get(DataPermissionHelper.FIELD_NAME));
+			verify(spyService).findById(eq(moduleId), same(field));
 		}
 	}
 
@@ -657,20 +678,22 @@ class ModulesServiceTest {
 			when(settings.getId()).thenReturn("cluster");
 			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
+			ObjectId connectionId = new ObjectId();
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
 			modulesDto.setId(new ObjectId());
-			modulesDto.setConnection(new ObjectId());
+			modulesDto.setConnection(connectionId);
 			apis.add(modulesDto);
 			doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
 			List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
 			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
 			Map<String, Object> config = new HashMap<>();
 			config.put("isUri", true);
 			config.put("ssl", true);
-			config.put("uri", "mongodb://root:******@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true");
+			config.put("uri", "mongodb://root:test123@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true");
 			config.put("sslKey", "----test key----");
 			config.put("sslValidate", true);
 			config.put("sslCA", "----test ca----");
@@ -681,6 +704,7 @@ class ModulesServiceTest {
 			dataSourceConnectionDtoList.add(dataSourceConnectionDto);
 			when(dataSourceService.findAll(any(Query.class))).thenReturn(dataSourceConnectionDtoList);
 			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
 			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
 			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
 			LinkedHashMap<String, Object> prop = new LinkedHashMap<>();
@@ -717,7 +741,9 @@ class ModulesServiceTest {
 			connection.put("properties", prop);
 			properties.put("connection", connection);
 			definitionDto.setProperties(properties);
-			when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
 			ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
 			assertEquals(1, actual.getConnections().size());
 			assertTrue(actual.getConnections().get(0).getSsl());
@@ -730,16 +756,18 @@ class ModulesServiceTest {
 			when(settings.getId()).thenReturn("cluster");
 			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
+			ObjectId connectionId = new ObjectId();
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
 			modulesDto.setId(new ObjectId());
-			modulesDto.setConnection(new ObjectId());
+			modulesDto.setConnection(connectionId);
 			apis.add(modulesDto);
 			doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
 			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.PENDING);
 			List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
 			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
 			Map<String, Object> config = new HashMap<>();
 			config.put("isUri", true);
 			config.put("user", "root");
@@ -755,16 +783,355 @@ class ModulesServiceTest {
 			dataSourceConnectionDtoList.add(dataSourceConnectionDto);
 			when(dataSourceService.findAll(any(Query.class))).thenReturn(dataSourceConnectionDtoList);
 			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
 			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
 			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
 			connection.put("properties", new LinkedHashMap<>());
 			properties.put("connection", connection);
 			definitionDto.setProperties(properties);
-			when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
 			ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
 			assertEquals(1, actual.getConnections().size());
 			assertNull(actual.getConnections().get(0).getSsl());
 			assertNull(actual.getConnections().get(0).getSslCA());
+		}
+	}
+
+	@Nested
+	@DisplayName("ActiveApis Method Tests")
+	class ActiveApisTest {
+		UserDetail userDetail;
+
+		@BeforeEach
+		void beforeEach() {
+			userDetail = mock(UserDetail.class);
+			when(userDetail.getCustomerId()).thenReturn("testCustomerId");
+			when(userDetail.getUserId()).thenReturn("testUserId");
+			modulesService = spy(modulesService);
+		}
+
+		@Test
+		@DisplayName("test activeApis when apis list is empty")
+		void testActiveApisWhenApisEmpty() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			doReturn(new ArrayList<>()).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertTrue(result.isEmpty());
+			assertNull(apiDefinitionVo.getApis());
+			assertNull(apiDefinitionVo.getConnections());
+		}
+
+		@Test
+		@DisplayName("test activeApis when apis list is null")
+		void testActiveApisWhenApisNull() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			doReturn(null).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test activeApis with MongoDB connection using URI")
+		void testActiveApisWithMongoDBUsingUri() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
+			Map<String, Object> config = new HashMap<>();
+			config.put("uri", "mongodb://root:test123@localhost:27017/test?authSource=admin");
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+			assertNotNull(apiDefinitionVo.getApis());
+		}
+
+		@Test
+		@DisplayName("test activeApis with MongoDB connection using params (no URI)")
+		void testActiveApisWithMongoDBUsingParams() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
+			Map<String, Object> config = new HashMap<>();
+			config.put("user", "root");
+			config.put("password", "test123");
+			config.put("host", "localhost:27017");
+			config.put("database", "test");
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+		}
+
+		@Test
+		@DisplayName("test activeApis with non-MongoDB connection type")
+		void testActiveApisWithNonMongoDBConnection() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("MySQL");
+			Map<String, Object> config = new HashMap<>();
+			config.put("host", "localhost");
+			config.put("port", 3306);
+			config.put("database", "testdb");
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MySQL");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+		}
+
+		@Test
+		@DisplayName("test activeApis with Oracle connection type and SID config")
+		void testActiveApisWithOracleAndSIDConfig() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("Oracle");
+			Map<String, Object> config = new HashMap<>();
+			config.put("thinType", "SID");
+			config.put("sid", "ORCL");
+			config.put("host", "localhost");
+			config.put("port", 1521);
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("Oracle");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+			assertEquals("ORCL", apiDefinitionVo.getConnections().get(0).getDatabase_name());
+		}
+
+		@Test
+		@DisplayName("test activeApis with multiple connections")
+		void testActiveApisWithMultipleConnections() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId1 = new ObjectId();
+			ObjectId connectionId2 = new ObjectId();
+
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto1 = new ModulesDto();
+			modulesDto1.setId(new ObjectId());
+			modulesDto1.setConnection(connectionId1);
+			apis.add(modulesDto1);
+			ModulesDto modulesDto2 = new ModulesDto();
+			modulesDto2.setId(new ObjectId());
+			modulesDto2.setConnection(connectionId2);
+			apis.add(modulesDto2);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto conn1 = new DataSourceConnectionDto();
+			conn1.setId(connectionId1);
+			conn1.setDatabase_type("MongoDB");
+			Map<String, Object> config1 = new HashMap<>();
+			config1.put("uri", "mongodb://root:test@localhost:27017/db1");
+			conn1.setConfig(config1);
+
+			DataSourceConnectionDto conn2 = new DataSourceConnectionDto();
+			conn2.setId(connectionId2);
+			conn2.setDatabase_type("MySQL");
+			Map<String, Object> config2 = new HashMap<>();
+			config2.put("host", "localhost");
+			conn2.setConfig(config2);
+
+			List<DataSourceConnectionDto> connectionDtoList = Arrays.asList(conn1, conn2);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto defMongo = new DataSourceDefinitionDto();
+			defMongo.setType("MongoDB");
+			LinkedHashMap<String, Object> propMongo = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connMongo = new LinkedHashMap<>();
+			connMongo.put("properties", new LinkedHashMap<>());
+			propMongo.put("connection", connMongo);
+			defMongo.setProperties(propMongo);
+
+			DataSourceDefinitionDto defMysql = new DataSourceDefinitionDto();
+			defMysql.setType("MySQL");
+			LinkedHashMap<String, Object> propMysql = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connMysql = new LinkedHashMap<>();
+			connMysql.put("properties", new LinkedHashMap<>());
+			propMysql.put("connection", connMysql);
+			defMysql.setProperties(propMysql);
+
+			List<DataSourceDefinitionDto> definitionDtoList = Arrays.asList(defMongo, defMysql);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertFalse(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(2, apiDefinitionVo.getConnections().size());
+		}
+
+		@Test
+		@DisplayName("test activeApis when exception occurs during processing")
+		void testActiveApisWhenExceptionOccurs() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
+			Map<String, Object> config = new HashMap<>();
+			config.put("uri", "invalid-uri");
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			List<DataSourceDefinitionDto> definitionDtoList = new ArrayList<>();
+			definitionDtoList.add(definitionDto);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail))).thenReturn(definitionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertTrue(result.isEmpty());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(0, apiDefinitionVo.getConnections().size());
+		}
+
+		@Test
+		@DisplayName("test activeApis with empty database types")
+		void testActiveApisWithEmptyDatabaseTypes() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId connectionId = new ObjectId();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			modulesDto.setConnection(connectionId);
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(connectionId);
+			dataSourceConnectionDto.setDatabase_type(null);
+			Map<String, Object> config = new HashMap<>();
+			dataSourceConnectionDto.setConfig(config);
+			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
+			connectionDtoList.add(dataSourceConnectionDto);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertTrue(result.isEmpty());
+			verify(dataSourceDefinitionService, never()).findAllDto(any(Query.class), eq(userDetail));
 		}
 	}
 
@@ -1386,7 +1753,7 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
 
-            doReturn(existingModule).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(existingModule).when(modulesService).findOne(any(Query.class), eq(user));
             doNothing().when(modulesService).handleReplaceMode(moduleDto, existingModule, user, conMap,new HashMap<>());
 
             // Execute
@@ -1404,7 +1771,7 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
 
-            doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(null).when(modulesService).findOne(any(Query.class), eq(user));
             doNothing().when(modulesService).handleReplaceMode(moduleDto, null, user, conMap,new HashMap<>());
 
             // Execute
@@ -1435,7 +1802,7 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
 
-            doReturn(existingModule).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(existingModule).when(modulesService).findOne(any(Query.class), eq(user));
 
             // Execute
             modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
@@ -1451,7 +1818,7 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
 
-            doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(null).when(modulesService).findOne(any(Query.class), eq(user));
             doReturn(true).when(modulesService).checkConnectionIdDuplicate(moduleDto, conMap);
 
             // Execute
@@ -1468,7 +1835,7 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
 
-            doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(null).when(modulesService).findOne(any(Query.class), eq(user));
             doReturn(false).when(modulesService).checkConnectionIdDuplicate(moduleDto, conMap);
             doNothing().when(modulesService).handleImportAsCopyMode(moduleDto, user, conMap);
 
@@ -1605,7 +1972,6 @@ class ModulesServiceTest {
         void testHandleImportAsCopyModeWithExistingById() {
             // Setup
             doReturn(existingModuleById).when(modulesService).findOne(any(Query.class));
-            doReturn(false).when(modulesService).checkTaskNameNotError("test_module", user, null);
             doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
             when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
@@ -1623,7 +1989,6 @@ class ModulesServiceTest {
         void testHandleImportAsCopyModeNoExistingById() {
             // Setup
             doReturn(null).when(modulesService).findOne(any(Query.class));
-            doReturn(false).when(modulesService).checkTaskNameNotError("test_module", user, null);
             doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
             when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
@@ -1638,11 +2003,10 @@ class ModulesServiceTest {
         }
 
         @Test
-        @DisplayName("test handleImportAsCopyMode with name conflict")
+        @DisplayName("test handleImportAsCopyMode preserves name even with conflict")
         void testHandleImportAsCopyModeWithNameConflict() {
             // Setup
             doReturn(null).when(modulesService).findOne(any(Query.class));
-            doReturn(true, true, false).when(modulesService).checkTaskNameNotError(anyString(), eq(user), eq(null));
             doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
             when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
@@ -1650,9 +2014,9 @@ class ModulesServiceTest {
             // Execute
             modulesService.handleImportAsCopyMode(moduleDto, user, conMap);
 
-            // Verify
-            assertEquals("test_module_import_import", moduleDto.getName()); // Name should be modified to avoid conflict
-            verify(modulesService, times(3)).checkTaskNameNotError(anyString(), eq(user), eq(null));
+            // Verify: name should NOT be modified (no _import suffix), use _id for uniqueness
+            assertEquals("test_module", moduleDto.getName());
+            verify(modulesService, never()).checkTaskNameNotError(anyString(), eq(user), eq(null));
             verify(repository, times(1)).importEntity(any(ModulesEntity.class), eq(user));
         }
     }
@@ -1712,6 +2076,8 @@ class ModulesServiceTest {
             // Setup
             DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
             connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+            connectionDto.setDatabase_type("mysql");
+            connectionDto.setName("test-mysql-connection");
             conMap.put("662877df9179877be8b37074", connectionDto);
 
             // Execute
@@ -1720,6 +2086,9 @@ class ModulesServiceTest {
             // Verify
             assertEquals("662877df9179877be8b37077", moduleDto.getConnectionId());
             assertEquals(new ObjectId("662877df9179877be8b37077"), moduleDto.getConnection());
+            assertEquals("662877df9179877be8b37077", moduleDto.getDataSource());
+            assertEquals("test-mysql-connection", moduleDto.getConnectionName());
+            assertEquals("mysql", moduleDto.getConnectionType());
         }
 
         @Test
@@ -2365,4 +2734,69 @@ class ModulesServiceTest {
             assertEquals(0, result.getOutputCount());
         }
     }
+
+	@Nested
+	class parseTapTypeTest {
+		@Test
+		void testParseTapTypeListNullAndEmpty() {
+			modulesService.parseTapType((List<ModulesDto>) null);
+			modulesService.parseTapType(Collections.emptyList());
+		}
+
+		@Test
+		void testParseTapTypeListFilterNullAndParse() {
+			com.tapdata.tm.commons.schema.Field field = new com.tapdata.tm.commons.schema.Field();
+			field.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("String"));
+
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setPaths(null);
+			modulesDto.setFields(List.of(field));
+
+			List<ModulesDto> list = new ArrayList<>();
+			list.add(null);
+			list.add(modulesDto);
+			modulesService.parseTapType(list);
+
+			assertEquals("String", field.getSimpleTypeName());
+		}
+
+		@Test
+		void testParseTapTypeModulesDtoNull() {
+			modulesService.parseTapType((ModulesDto) null);
+		}
+
+		@Test
+		void testParseTapTypeModulesDtoWithPathsAndFields() {
+			com.tapdata.tm.commons.schema.Field pathField = new com.tapdata.tm.commons.schema.Field();
+			pathField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("Array"));
+			com.tapdata.tm.commons.schema.Field availableField = new com.tapdata.tm.commons.schema.Field();
+			availableField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("Map"));
+			com.tapdata.tm.commons.schema.Field requiredField = new com.tapdata.tm.commons.schema.Field();
+			requiredField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("Boolean"));
+
+			Path path1 = new Path();
+			path1.setFields(List.of(pathField));
+			path1.setAvailableQueryField(List.of(availableField));
+			path1.setRequiredQueryField(List.of(requiredField));
+
+			Path path2 = new Path();
+			path2.setFields(null);
+			path2.setAvailableQueryField(null);
+			path2.setRequiredQueryField(null);
+
+			com.tapdata.tm.commons.schema.Field rootField = new com.tapdata.tm.commons.schema.Field();
+			rootField.setTapType(com.tapdata.tm.modules.util.FieldTypeUtil.FILED_TYPE.get("DateTime"));
+
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setPaths(List.of(path1, path2));
+			modulesDto.setFields(List.of(rootField));
+
+			modulesService.parseTapType(modulesDto);
+
+			assertEquals("Array", pathField.getSimpleTypeName());
+			assertEquals("Map", availableField.getSimpleTypeName());
+			assertEquals("Boolean", requiredField.getSimpleTypeName());
+			assertEquals("DateTime", rootField.getSimpleTypeName());
+		}
+	}
 }

@@ -59,6 +59,7 @@ import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.metadatainstance.vo.TableListVo;
 import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
+import com.tapdata.tm.modules.util.FieldTypeUtil;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.dto.UserDto;
@@ -70,6 +71,7 @@ import io.tapdata.entity.mapping.type.TapStringMapping;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import lombok.NonNull;
 import lombok.Setter;
@@ -90,6 +92,7 @@ import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
@@ -602,6 +605,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                     if (field.getIsNullable() != null && field.getIsNullable() instanceof String) {
                         field.setIsNullable("YES".equals(field.getIsNullable()));
                     }
+                    FieldTypeUtil.parseTapType(field);
                 });
             }
 
@@ -1258,6 +1262,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         for (MetadataInstancesDto dto : metadataInstancesDtos) {
             num++;
 
+            dto.deduplicateListtags();
 
             Criteria criteria = Criteria.where(QUALIFIED_NAME).is(dto.getQualifiedName());
             dto.setId(null);
@@ -1270,15 +1275,23 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
             //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
             bulkOperations.upsert(query, update);
             if (num % 1000 == 0) {
-                BulkWriteResult execute = bulkOperations.execute();
-                modifyCount += execute.getModifiedCount();
-                insertCount += execute.getInsertedCount();
+                try {
+                    BulkWriteResult execute = bulkOperations.execute();
+                    modifyCount += execute.getModifiedCount();
+                    insertCount += execute.getInsertedCount();
+                } catch (DuplicateKeyException e) {
+                    log.warn("Duplicate key error during bulk upsert MetadataInstances, some records already exist: {}", e.getMessage());
+                }
             }
         }
 
-        BulkWriteResult execute = bulkOperations.execute();
-        modifyCount += execute.getModifiedCount();
-        insertCount += execute.getInsertedCount();
+        try {
+            BulkWriteResult execute = bulkOperations.execute();
+            modifyCount += execute.getModifiedCount();
+            insertCount += execute.getInsertedCount();
+        } catch (DuplicateKeyException e) {
+            log.warn("Duplicate key error during bulk upsert MetadataInstances, some records already exist: {}", e.getMessage());
+        }
 
         return ImmutablePair.of(modifyCount, insertCount);
     }
@@ -2511,7 +2524,11 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
         Criteria criteria = Criteria.where(QUALIFIED_NAME).is(metadataInstancesDto.getQualifiedName());
         Query query = new Query(criteria);
-        upsert(query, metadataInstancesDto, userDetail);
+        try {
+            upsert(query, metadataInstancesDto, userDetail);
+        } catch (DuplicateKeyException e) {
+            log.warn("Duplicate key on MetadataInstances import for qualified_name={}, document already exists", metadataInstancesDto.getQualifiedName());
+        }
         return findByQualifiedNameNotDelete(metadataInstancesDto.getQualifiedName(), userDetail);
     }
 
