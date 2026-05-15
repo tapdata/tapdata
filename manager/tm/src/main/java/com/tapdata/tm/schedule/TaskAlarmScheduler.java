@@ -260,6 +260,30 @@ public class TaskAlarmScheduler {
         }
     }
 
+    @Scheduled(fixedDelay = 30000)
+    @SchedulerLock(name ="task_increment_delay_cleanup_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    public void cleanupTaskIncrementDelayAlarm() {
+        Thread.currentThread().setName(getClass().getSimpleName() + "-cleanupTaskIncrementDelayAlarm");
+        Query query = new Query(Criteria.where("taskIncrementDelay").ne(null)
+                .and("status").is(TaskDto.STATUS_RUNNING)
+                .and("is_deleted").is(false));
+        query.fields().include("_id", "delayTime", "taskIncrementDelay", "taskIncrementDelayThreshold");
+        List<TaskDto> taskDtos = taskService.findAll(query);
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return;
+        }
+        for (TaskDto task : taskDtos) {
+            Long delayTime = task.getDelayTime();
+            Long threshold = task.getTaskIncrementDelayThreshold();
+            if (null == threshold) {
+                continue;
+            }
+            if (null == delayTime || delayTime < threshold) {
+                taskService.updateTaskIncrementDelayAlarm(task.getId(),null,null);
+            }
+        }
+    }
+
     protected List<Worker> findWorkerList(TaskDto data, UserDetail userDetail) {
         if (null == workerService) {
             return Lists.newArrayList();
