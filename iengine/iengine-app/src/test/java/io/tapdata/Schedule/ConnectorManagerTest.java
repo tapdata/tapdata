@@ -3,6 +3,7 @@ package io.tapdata.Schedule;
 import base.BaseTest;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.SSLUtil;
 import com.tapdata.entity.*;
 import com.tapdata.entity.values.CheckEngineValidResultDto;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -31,6 +32,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
 
+import javax.net.ssl.SSLContext;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -566,4 +568,152 @@ class ConnectorManagerTest extends BaseTest {
 			assertTrue(value.containsKey("platformInfo"));
 		}
 	}
+
+	@Nested
+	class InitMongoOperatorTest {
+
+		private ConnectorManager spyConnectorManager;
+
+		@BeforeEach
+		void beforeSet() {
+			spyConnectorManager = spy(ConnectorManager.class);
+		}
+
+		@Test
+		void testInitMongoOperatorWithValidUri() throws Exception {
+			String mongoURI = "mongodb://localhost:27017/testdb";
+			ReflectionTestUtils.setField(spyConnectorManager, "mongoURI", mongoURI);
+			ReflectionTestUtils.setField(spyConnectorManager, "ssl", false);
+
+			RestTemplateOperator restTemplateOperator = mock(RestTemplateOperator.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "restTemplateOperator", restTemplateOperator);
+
+			ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "configCenter", configCenter);
+
+			ClientMongoOperator result = spyConnectorManager.initMongoOperator();
+
+			assertNotNull(result);
+		}
+
+		@Test
+		void testInitMongoOperatorWithAllowInvalidCertificates() throws Exception {
+			String mongoURI = "mongodb://localhost:27017/testdb?ssl=true&tlsAllowInvalidCertificates=true";
+			ReflectionTestUtils.setField(spyConnectorManager, "mongoURI", mongoURI);
+			ReflectionTestUtils.setField(spyConnectorManager, "ssl", true);
+			ReflectionTestUtils.setField(spyConnectorManager, "sslCA", "");
+			ReflectionTestUtils.setField(spyConnectorManager, "sslPEM", "");
+
+			RestTemplateOperator restTemplateOperator = mock(RestTemplateOperator.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "restTemplateOperator", restTemplateOperator);
+
+			ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "configCenter", configCenter);
+			try(MockedStatic<SSLUtil> sslUtilMockedStatic = mockStatic(SSLUtil.class)) {
+				ClientMongoOperator result = spyConnectorManager.initMongoOperator();
+				sslUtilMockedStatic.verify(SSLUtil::createSSLContext,times(1));
+				assertNotNull(result);
+			}
+		}
+
+		@Test
+		void testInitMongoOperatorWithSSL() throws Exception {
+			String mongoURI = "mongodb://localhost:27017/testdb";
+			ReflectionTestUtils.setField(spyConnectorManager, "mongoURI", mongoURI);
+			ReflectionTestUtils.setField(spyConnectorManager, "ssl", true);
+			ReflectionTestUtils.setField(spyConnectorManager, "sslCA", "sslCA");
+			ReflectionTestUtils.setField(spyConnectorManager, "sslPEM", "sslCA");
+
+			RestTemplateOperator restTemplateOperator = mock(RestTemplateOperator.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "restTemplateOperator", restTemplateOperator);
+
+			ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "configCenter", configCenter);
+			try(MockedStatic<SSLUtil> sslUtilMockedStatic = mockStatic(SSLUtil.class)) {
+				sslUtilMockedStatic.when(()->SSLUtil.createSSLContext(any(),any(),any(),any())).thenReturn(mock(SSLContext.class));
+				ClientMongoOperator result = spyConnectorManager.initMongoOperator();
+				sslUtilMockedStatic.verify(()->SSLUtil.createSSLContext(any(),any(),any(),any()),times(1));
+				assertNotNull(result);
+			}
+		}
+
+		@Test
+		void testInitMongoOperatorWithException() {
+			ReflectionTestUtils.setField(spyConnectorManager, "mongoURI", null);
+
+			RestTemplateOperator restTemplateOperator = mock(RestTemplateOperator.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "restTemplateOperator", restTemplateOperator);
+
+			ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "configCenter", configCenter);
+
+			assertThrows(RuntimeException.class, () -> spyConnectorManager.initMongoOperator());
+		}
+	}
+
+	@Nested
+	class InitPingMongoOperatorTest {
+
+		private ConnectorManager spyConnectorManager;
+
+		@BeforeEach
+		void beforeSet() {
+			spyConnectorManager = spy(ConnectorManager.class);
+			List<String> baseURLs = Arrays.asList("http://localhost:3000/api/");
+			ReflectionTestUtils.setField(spyConnectorManager, "baseURLs", baseURLs);
+			ReflectionTestUtils.setField(spyConnectorManager, "restRetryTime", 3);
+		}
+
+		@Test
+		void testInitPingMongoOperatorWithValidUri() throws Exception {
+			String mongoURI = "mongodb://localhost:27017/testdb";
+			ReflectionTestUtils.setField(spyConnectorManager, "mongoURI", mongoURI);
+			ReflectionTestUtils.setField(spyConnectorManager, "ssl", false);
+			ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "configCenter", configCenter);
+			ClientMongoOperator result = spyConnectorManager.initPingMongoOperator();
+
+			assertNotNull(result);
+		}
+		@Test
+		void testInitMongoOperatorWithAllowInvalidCertificates() throws Exception {
+			String mongoURI = "mongodb://localhost:27017/testdb?ssl=true&tlsAllowInvalidCertificates=true";
+			ReflectionTestUtils.setField(spyConnectorManager, "mongoURI", mongoURI);
+			ReflectionTestUtils.setField(spyConnectorManager, "ssl", true);
+			ReflectionTestUtils.setField(spyConnectorManager, "sslCA", "");
+			ReflectionTestUtils.setField(spyConnectorManager, "sslPEM", "");
+			RestTemplateOperator restTemplateOperator = mock(RestTemplateOperator.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "restTemplateOperator", restTemplateOperator);
+
+			ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "configCenter", configCenter);
+			try(MockedStatic<SSLUtil> sslUtilMockedStatic = mockStatic(SSLUtil.class)) {
+				ClientMongoOperator result = spyConnectorManager.initPingMongoOperator();
+				sslUtilMockedStatic.verify(SSLUtil::createSSLContext,times(1));
+				assertNotNull(result);
+			}
+		}
+
+		@Test
+		void testInitMongoOperatorWithSSL() throws Exception {
+			String mongoURI = "mongodb://localhost:27017/testdb";
+			ReflectionTestUtils.setField(spyConnectorManager, "mongoURI", mongoURI);
+			ReflectionTestUtils.setField(spyConnectorManager, "ssl", true);
+			ReflectionTestUtils.setField(spyConnectorManager, "sslCA", "sslCA");
+			ReflectionTestUtils.setField(spyConnectorManager, "sslPEM", "sslCA");
+			RestTemplateOperator restTemplateOperator = mock(RestTemplateOperator.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "restTemplateOperator", restTemplateOperator);
+
+			ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "configCenter", configCenter);
+			try(MockedStatic<SSLUtil> sslUtilMockedStatic = mockStatic(SSLUtil.class)) {
+				sslUtilMockedStatic.when(()->SSLUtil.createSSLContext(any(),any(),any(),any())).thenReturn(mock(SSLContext.class));
+				ClientMongoOperator result = spyConnectorManager.initPingMongoOperator();
+				sslUtilMockedStatic.verify(()->SSLUtil.createSSLContext(any(),any(),any(),any()),times(1));
+				assertNotNull(result);
+			}
+		}
+	}
+
+
 }

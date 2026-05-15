@@ -262,7 +262,11 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;
     private String shareCdcStopMessage;
-    private long delayTime;
+    private Long delayTime;
+    /** 任务增量延迟告警的当前最大延迟 */
+    private Long taskIncrementDelay;
+    /** 任务增量延迟告警阈值 */
+    private Long taskIncrementDelayThreshold;
 
     /**
      * 开启动态调整队列内存使用
@@ -289,6 +293,8 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      */
     private Boolean dataSaving = true;
 
+    private Boolean fileLog = false;
+
     private List<ErrorEvent> errorEvents;
     /**
      * Compatible with old versions of timezone processing
@@ -310,6 +316,8 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      * time: lastUpdateTime<Long>
      */
     private Map<String, Object> metricInfo;
+
+    private Boolean checkMemoryHeap;
 
     public String getAccessNodeProcessId() {
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {

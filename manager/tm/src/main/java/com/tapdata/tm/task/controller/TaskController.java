@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
@@ -44,6 +45,7 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.group.service.GroupInfoService;
 import io.github.openlg.graphlib.Graph;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -102,6 +104,7 @@ public class TaskController extends BaseController {
     private UserService userService;
     private TaskErrorEventService taskErrorEventService;
     private CpuMemoryService cpuMemoryService;
+    private GroupInfoService groupInfoService;
 
 		private <T> T dataPermissionUnAuth() {
 			throw new RuntimeException("Un auth");
@@ -193,11 +196,10 @@ public class TaskController extends BaseController {
         if (where.get("id") instanceof Map && ((Map) where.get("id")).containsKey("$in")) {
             userDetail = getLoginUser();
         } else if (where.containsKey("_id") || where.containsKey("id")) {
-            Object objectId = where.get("_id");
-            String taskId;
-            if (objectId != null)
-                taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
-            else taskId = where.get("id").toString();
+            Object objectId = where.containsKey("_id") ? where.get("_id") : where.get("id");
+            String taskId = objectId instanceof Map
+                    ? ((Map) objectId).get("$oid").toString()
+                    : objectId.toString();
             TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
             if (taskDto == null) {
                 return success(new Page<>());
@@ -211,6 +213,9 @@ public class TaskController extends BaseController {
         Page<TaskDto> result = DataPermissionMenuEnums.checkAndSetFilter(
             userDetail, filter, DataPermissionActionEnums.View, () -> taskService.find(finalFilter, userDetail)
         );
+        if (result != null) {
+            taskService.appendHeartbeatTaskRunning(result.getItems());
+        }
         return success(result);
     }
 
@@ -362,6 +367,7 @@ public class TaskController extends BaseController {
 		) {
 			Field fields = parseField(fieldsJson);
 			UserDetail user = getLoginUser();
+            ObjectId oid = MongoUtils.toObjectId(id);
             Field finalFields;
             if(null == fields){
                 finalFields = new Field();
@@ -370,8 +376,8 @@ public class TaskController extends BaseController {
             }
             finalFields.put("errorEvents.stacks",false);
             finalFields.put("attrs.SNAPSHOT_ORDER_LIST",false);
-			TaskDto taskDto = dataPermissionCheckOfId(request, user, MongoUtils.toObjectId(id), DataPermissionActionEnums.View,
-				() -> taskService.findById(MongoUtils.toObjectId(id), finalFields, user)
+			TaskDto taskDto = dataPermissionCheckOfId(request, user, oid, DataPermissionActionEnums.View,
+				() -> taskService.findById(oid, finalFields, user)
 			);
 			if (taskDto != null) {
 				if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
@@ -398,6 +404,7 @@ public class TaskController extends BaseController {
 					taskDto.setCrontabScheduleMsg(MessageUtil.getMessage(taskDto.getCrontabScheduleMsg()));
 				}
                 taskService.checkSourceTimeDifference(taskDto,user);
+                taskDto.setHeartbeatTaskRunning(taskService.getHeartbeatTaskRunningByTaskId(oid.toHexString()));
 			}
 			return success(taskDto);
 		}
@@ -410,10 +417,15 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "获取任务详情")
     @GetMapping("findTaskDetailById/{id}")
-    public ResponseMessage<TaskDetailVo> findTaskDetailById(@PathVariable("id") String id,
-                                                            @RequestParam(value = "fields", required = false) String fieldsJson) {
+    public ResponseMessage<TaskDetailVo> findTaskDetailById(
+        @PathVariable("id") String id,
+        @RequestParam(value = "fields", required = false) String fieldsJson
+    ) {
         Field fields = parseField(fieldsJson);
         TaskDetailVo taskDetailVo = taskService.findTaskDetailById(id, fields, getLoginUser());
+        if (taskDetailVo != null) {
+            taskDetailVo.setHeartbeatTaskRunning(taskService.getHeartbeatTaskRunningByTaskId(id));
+        }
         return success(taskDetailVo);
     }
 
@@ -472,7 +484,9 @@ public class TaskController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        taskService.remove(MongoUtils.toObjectId(id), getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        taskService.remove(MongoUtils.toObjectId(id), userDetail);
+        groupInfoService.removeResourceReferences(Collections.singletonList(id), userDetail);
         return success();
     }
 
@@ -561,11 +575,10 @@ public class TaskController extends BaseController {
 
         UserDetail userDetail;
         if (where.containsKey("_id") || where.containsKey("id")) {
-            Object objectId = where.get("_id");
-            String taskId;
-            if (objectId != null)
-                taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
-            else taskId = where.get("id").toString();
+            Object objectId = where.containsKey("_id") ? where.get("_id") : where.get("id");
+            String taskId = objectId instanceof Map
+                    ? ((Map) objectId).get("$oid").toString()
+                    : objectId.toString();
             TaskDto taskDto = taskService.findById(new ObjectId(taskId));
             Assert.notNull(taskDto, "task not found");
             userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
@@ -898,6 +911,7 @@ public class TaskController extends BaseController {
                                                                  HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Start,
 				() -> taskService.batchStart(taskObjectIds, userDetail, request, response)
 			);
@@ -911,6 +925,7 @@ public class TaskController extends BaseController {
                                                                 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Stop,
 				() -> taskService.batchStop(taskObjectIds, userDetail, request, response)
 			);
@@ -940,9 +955,22 @@ public class TaskController extends BaseController {
 																																	HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Delete,
 				() -> taskService.batchDelete(taskObjectIds, userDetail, request, response)
 			);
+			List<String> removedTaskIds = taskIds;
+			if (CollectionUtils.isNotEmpty(responseMessages)) {
+				List<String> okIds = responseMessages.stream()
+					.filter(message -> ResponseMessage.OK.equals(message.getCode()))
+					.map(MutiResponseMessage::getId)
+					.filter(StringUtils::isNotBlank)
+					.collect(Collectors.toList());
+				if (CollectionUtils.isNotEmpty(okIds)) {
+					removedTaskIds = okIds;
+				}
+			}
+			groupInfoService.removeResourceReferences(removedTaskIds, userDetail);
 			return success(responseMessages);
 		}
 
@@ -954,7 +982,7 @@ public class TaskController extends BaseController {
 																																 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-
+            syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Reset,
 					() -> taskService.batchRenew(taskObjectIds, userDetail, request, response)
 				);
@@ -1071,15 +1099,14 @@ public class TaskController extends BaseController {
         return success(result);
     }
 
-    /**
-     * 首页图
-     *
-     * @return map
-     */
-    @Operation(summary = "Chart")
-    @GetMapping("/chart")
-    public ResponseMessage<Map<String, Object>> chart() {
-        return success(taskService.chart(getLoginUser()));
+
+    @Operation(summary = "Task Dashboard")
+    @GetMapping("/dashboard")
+    public ResponseMessage<TaskDashboardVo> dashboard(@RequestParam(required = false) String type,
+                                                      @RequestParam(required = false) Long step,
+                                                      @RequestParam(required = false) String dashboardType,
+                                                      @RequestParam(required = false) Integer top) {
+        return success(taskService.dashboard(getLoginUser(), type, step, dashboardType, top));
     }
 
 
@@ -1247,6 +1274,13 @@ public class TaskController extends BaseController {
         taskNodeService.testRunJsNode(dto, getLoginUser());
         return success();
     }
+
+    @PostMapping("migrate-js/mock-data")
+    @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    public ResponseMessage<Map<String,Object>> mockDate(@RequestBody TestRunDto dto) {
+        return success(taskNodeService.mockDateRPC(dto,getLoginUser()));
+    }
+
 
     @PostMapping("migrate-js/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
@@ -1523,5 +1557,25 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> saveMergeTableCacheInfo(@PathVariable("id") String id) {
         taskService.saveMergeTableCacheInfo(id);
         return success();
+    }
+
+    @Operation(summary = "任务启动检查内存")
+    @GetMapping("/checkTaskMemoryHeap/{id}")
+    public ResponseMessage<CheckTaskMemoryResult> checkTaskMemoryHeap(@PathVariable("id") String id) {
+        TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(id));
+        if(taskDto == null){
+            throw new BizException("Task.NotFound");
+        }
+        return success(taskService.checkTaskMemoryHeap(taskDto,true,getLoginUser()));
+    }
+
+    private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {
+        if (StringUtils.isBlank(syncType) && CollectionUtils.isNotEmpty(taskObjectIds)) {
+            TaskDto taskDto = taskService.findByTaskId(taskObjectIds.get(0), "syncType");
+            if (taskDto != null) {
+                return taskDto.getSyncType();
+            }
+        }
+        return syncType;
     }
 }

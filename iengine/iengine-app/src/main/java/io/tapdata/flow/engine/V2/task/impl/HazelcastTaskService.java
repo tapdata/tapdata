@@ -14,6 +14,7 @@ import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
+import com.mongodb.ConnectionString;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.cache.external.ExternalStorageCacheService;
 import com.tapdata.constant.ConfigurationCenter;
@@ -101,6 +102,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
@@ -179,6 +181,43 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		cacheService = new ExternalStorageCacheService(hazelcastInstance, clientMongoOperator);
 		messageDao.setCacheService(cacheService);
 		GlobalConstant.getInstance().hazelcastInstance(hazelcastInstance);
+
+		// 初始化缓存失效服务
+		initCacheInvalidationService(agentId);
+	}
+
+	@PreDestroy
+	public void destroy() {
+		try {
+			HazelcastUtil.shutdownCacheInvalidationService();
+		} catch (Exception e) {
+			logger.warn("Failed to shutdown cache invalidation service", e);
+		}
+	}
+
+	/**
+	 * 初始化缓存失效服务
+	 */
+	private void initCacheInvalidationService(String nodeId) {
+		try {
+			ConnectionString connectionString = clientMongoOperator.getConnectionString();
+
+			if (connectionString != null) {
+				String mongoUri = connectionString.getConnectionString();
+				String databaseName = connectionString.getDatabase();
+
+				if (mongoUri != null && databaseName != null) {
+					HazelcastUtil.initCacheInvalidationService(hazelcastInstance, mongoUri, databaseName, nodeId);
+					logger.info("Cache invalidation service initialized successfully for database: {}", databaseName);
+				} else {
+					logger.warn("Cannot initialize cache invalidation service: MongoDB URI or database name is null");
+				}
+			} else {
+				logger.warn("Cannot initialize cache invalidation service: ConnectionString is null");
+			}
+		} catch (Exception e) {
+			logger.error("Failed to initialize cache invalidation service", e);
+		}
 	}
 
 	public static HazelcastInstance getHazelcastInstance() {
@@ -266,7 +305,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				throw new IllegalArgumentException("After the master-slave merges nodes, the connection Python node is not supported. Please change to the Enhanced JS node.");
 			} else if (successors.stream().anyMatch(n -> n instanceof CustomProcessorNode)) {
 				throw new IllegalArgumentException("After the master-slave merges nodes, the connection Custom processor node is not supported. Please change to the Enhanced JS node.");
-			} else if (successors.stream().anyMatch(n -> n instanceof JsProcessorNode && ProcessorNodeType.Standard_JS.contrast(Optional.ofNullable(((JsProcessorNode) n).getJsType()).orElse(ProcessorNodeType.DEFAULT.type())))) {
+			} else if (successors.stream().anyMatch(JsProcessorNode.class::isInstance)) {
 				throw new IllegalArgumentException("After the master-slave merges nodes, the connection standard js type is not supported. Please change the standard js to the default.");
 			}
 			return true;
@@ -400,7 +439,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				TableNode tableNode = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node, tapTableMapHashMap);
-				CpuMemoryCollector.listening(node.getId(), tapTableMap);
+				CpuMemoryCollector.listeningTables(node.getId(), tapTableMap);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
@@ -1197,7 +1236,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 
 	protected void checkMergeTaskReBuildCache(TaskDto taskDto) {
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
-		if (null == dag || !dag.isMergeTableDag() || (taskDto.isInitialSyncTask() && !taskDto.hasSyncProgress())){
+		if (null == dag || !dag.isMergeTableDag()){
 			return;
 		}
 		List<Node> nodes = taskDto.getDag().getNodes();
@@ -1208,18 +1247,23 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			MergeTableNode mergeTableNode = (MergeTableNode) node;
 			Map<String, List<MergeTableProperties>> lookupMap = new HashMap<>();
 			MergeTablePropertiesUtil.initLookupMergeProperties(mergeTableNode.getMergeProperties(),lookupMap);
+			//清除失效缓存
+			if(MapUtils.isNotEmpty(cacheIdsMap) && cacheIdsMap.containsKey(mergeTableNode.getId())){
+				List<String> newCacheIdList = new ArrayList<>();
+			    lookupMap.values().forEach(lockkupList ->{
+					if(CollectionUtils.isNotEmpty(lockkupList)){
+						newCacheIdList.addAll(lockkupList.stream().map(MergeTableProperties::getId).toList());
+					}
+				});
+				List<Map<String, String>> cacheIdList = cacheIdsMap.get(mergeTableNode.getId());
+				List<Map<String, String>> deleteCacheIdList = cacheIdList.stream().filter(info -> !newCacheIdList.contains(info.get("id"))).toList();
+				deleteMergeTableCache(node,deleteCacheIdList);
+			}
 			lookupMap.values().forEach(lookupList -> {
 				List<MergeTableProperties> cacheRebuildList = lookupList.stream()
 						.filter(mergeTableProperties -> null !=mergeTableProperties
 								&& null != mergeTableProperties.getCacheRebuildStatus()
 								&& CacheRebuildStatus.PENDING.equals(mergeTableProperties.getCacheRebuildStatus())).toList();
-				//清除失效缓存
-				if(MapUtils.isNotEmpty(cacheIdsMap) && cacheIdsMap.containsKey(mergeTableNode.getId()) && CollectionUtils.isNotEmpty(cacheRebuildList)){
-					List<String> newCacheIdList = lookupList.stream().map(MergeTableProperties::getId).toList();
-					List<Map<String, String>> cacheIdList = cacheIdsMap.get(mergeTableNode.getId());
-					List<Map<String, String>> deleteCacheIdList = cacheIdList.stream().filter(info -> !newCacheIdList.contains(info.get("id"))).toList();
-					deleteMergeTableCache(node,deleteCacheIdList);
-				}
 				if(CollectionUtils.isNotEmpty(cacheRebuildList)){
 					deleteMergeTableCache(node,cacheRebuildList.stream().map(mergeTableProperties -> {
 						Map<String, String> cacheInfo = new HashMap<>();

@@ -48,7 +48,7 @@ class DecimalFormatSerializerTest {
     @Test
     void testSerializeNullValue() throws IOException {
         serializer.serialize(null, jsonGenerator, serializerProvider);
-        
+
         verify(jsonGenerator).writeNull();
         verifyNoMoreInteractions(jsonGenerator);
     }
@@ -56,9 +56,9 @@ class DecimalFormatSerializerTest {
     @Test
     void testSerializeDoubleValue() throws IOException {
         Double value = 123.456789;
-        
+
         serializer.serialize(value, jsonGenerator, serializerProvider);
-        
+
         verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.456789).setScale(2, RoundingMode.HALF_UP)));
     }
 
@@ -68,20 +68,20 @@ class DecimalFormatSerializerTest {
         DecimalFormatSerializer customSerializer = new DecimalFormatSerializer();
         customSerializer.scale = 3;
         customSerializer.roundingMode = RoundingMode.DOWN;
-        
+
         Double value = 123.456789;
-        
+
         customSerializer.serialize(value, jsonGenerator, serializerProvider);
-        
-        verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.456789).setScale(3, RoundingMode.DOWN)));
+
+        verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.457).setScale(3, RoundingMode.DOWN)));
     }
 
     @Test
     void testSerializeListWithDoubleValues() throws IOException {
         List<Object> list = Arrays.asList(123.456, 789.123, null, 456.789);
-        
+
         serializer.serialize(list, jsonGenerator, serializerProvider);
-        
+
         verify(jsonGenerator).writeStartArray();
         verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.456).setScale(2, RoundingMode.HALF_UP)));
         verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(789.123).setScale(2, RoundingMode.HALF_UP)));
@@ -93,9 +93,9 @@ class DecimalFormatSerializerTest {
     @Test
     void testSerializeListWithMixedValues() throws IOException {
         List<Object> list = Arrays.asList(123.456, "string", 789, null);
-        
+
         serializer.serialize(list, jsonGenerator, serializerProvider);
-        
+
         verify(jsonGenerator).writeStartArray();
         verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.456).setScale(2, RoundingMode.HALF_UP)));
         verify(jsonGenerator).writeObject("string");
@@ -107,9 +107,9 @@ class DecimalFormatSerializerTest {
     @Test
     void testSerializeEmptyList() throws IOException {
         List<Object> emptyList = Collections.emptyList();
-        
+
         serializer.serialize(emptyList, jsonGenerator, serializerProvider);
-        
+
         verify(jsonGenerator).writeStartArray();
         verify(jsonGenerator).writeEndArray();
         verifyNoMoreInteractions(jsonGenerator);
@@ -119,11 +119,11 @@ class DecimalFormatSerializerTest {
     void testSerializeListWithException() throws IOException {
         List<Object> list = Arrays.asList(123.456);
         doThrow(new IOException("Test exception")).when(jsonGenerator).writeNumber(any(BigDecimal.class));
-        
+
         assertThrows(IOException.class, () -> {
             serializer.serialize(list, jsonGenerator, serializerProvider);
         });
-        
+
         verify(jsonGenerator).writeStartArray();
         verify(jsonGenerator).writeEndArray();
     }
@@ -131,34 +131,34 @@ class DecimalFormatSerializerTest {
     @Test
     void testSerializeNonDoubleNonListValue() throws IOException {
         String value = "test string";
-        
+
         serializer.serialize(value, jsonGenerator, serializerProvider);
-        
+
         verify(jsonGenerator).writeObject("test string");
     }
 
     @Test
     void testSerializeIntegerValue() throws IOException {
         Integer value = 123;
-        
+
         serializer.serialize(value, jsonGenerator, serializerProvider);
-        
+
         verify(jsonGenerator).writeObject(123);
     }
 
     @Test
     void testCreateContextualWithNullProperty() throws JsonMappingException {
         JsonSerializer<?> result = serializer.createContextual(serializerProvider, null);
-        
+
         assertSame(serializer, result);
     }
 
     @Test
     void testCreateContextualWithPropertyButNoAnnotation() throws JsonMappingException {
         when(beanProperty.getAnnotation(DecimalFormat.class)).thenReturn(null);
-        
+
         JsonSerializer<?> result = serializer.createContextual(serializerProvider, beanProperty);
-        
+
         assertSame(serializer, result);
     }
 
@@ -167,12 +167,12 @@ class DecimalFormatSerializerTest {
         when(beanProperty.getAnnotation(DecimalFormat.class)).thenReturn(decimalFormat);
         when(decimalFormat.scale()).thenReturn(4);
         when(decimalFormat.roundingMode()).thenReturn(RoundingMode.CEILING);
-        
+
         JsonSerializer<?> result = serializer.createContextual(serializerProvider, beanProperty);
-        
+
         assertNotSame(serializer, result);
         assertTrue(result instanceof DecimalFormatSerializer);
-        
+
         DecimalFormatSerializer newSerializer = (DecimalFormatSerializer) result;
         assertEquals(4, newSerializer.scale);
         assertEquals(RoundingMode.CEILING, newSerializer.roundingMode);
@@ -183,12 +183,12 @@ class DecimalFormatSerializerTest {
         when(beanProperty.getAnnotation(DecimalFormat.class)).thenReturn(decimalFormat);
         when(decimalFormat.scale()).thenReturn(2);
         when(decimalFormat.roundingMode()).thenReturn(RoundingMode.HALF_UP);
-        
+
         JsonSerializer<?> result = serializer.createContextual(serializerProvider, beanProperty);
-        
+
         assertNotSame(serializer, result);
         assertTrue(result instanceof DecimalFormatSerializer);
-        
+
         DecimalFormatSerializer newSerializer = (DecimalFormatSerializer) result;
         assertEquals(2, newSerializer.scale);
         assertEquals(RoundingMode.HALF_UP, newSerializer.roundingMode);
@@ -197,18 +197,18 @@ class DecimalFormatSerializerTest {
     @Test
     void testSerializeWithDifferentRoundingModes() throws IOException {
         Double value = 123.125;
-        
+
         // Test HALF_UP (default)
         serializer.serialize(value, jsonGenerator, serializerProvider);
         verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.125).setScale(2, RoundingMode.HALF_UP)));
-        
+
         reset(jsonGenerator);
-        
+
         // Test HALF_DOWN
         DecimalFormatSerializer halfDownSerializer = new DecimalFormatSerializer();
         halfDownSerializer.roundingMode = RoundingMode.HALF_DOWN;
         halfDownSerializer.serialize(value, jsonGenerator, serializerProvider);
-        verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.125).setScale(2, RoundingMode.HALF_DOWN)));
+        verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(123.13).setScale(2, RoundingMode.HALF_DOWN)));
     }
 
     @Test

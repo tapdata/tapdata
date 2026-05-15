@@ -145,6 +145,16 @@ public class MetadataInstancesDto extends BaseDto {
         return Objects.isNull(ancestorsName) ? originalName : ancestorsName;
     }
 
+    public void deduplicateListtags() {
+        if (CollectionUtils.isNotEmpty(this.listtags)) {
+            this.listtags = this.listtags.stream()
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toMap(Tag::getId, t -> t, (t1, t2) -> t1))
+                    .values().stream()
+                    .collect(Collectors.toList());
+        }
+    }
+
     public static void sortField(List<Field> fields) {
         if (CollectionUtils.isNotEmpty(fields)) {
             List<Field> noPrimarys = fields.stream().filter(f -> {

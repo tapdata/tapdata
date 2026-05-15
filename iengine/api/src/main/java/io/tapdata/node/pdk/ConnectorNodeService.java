@@ -129,6 +129,7 @@ public class ConnectorNodeService {
 			PdkStateMap globalStateMap = new PdkStateMemoryHashMap();
 			ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
 			Map<String, Object> nodeConfig = new HashMap<>();
+			Map<String, Map<String, Object>> tableNodeConfig = new HashMap<>();
 			String associateId = ConnectorNodeService.globalAssociateId(connection);
 			globalConnectorResult.setAssociateId(associateId);
 			ConnectorNodeService.getInstance().globalConnectorNode(associateId, id -> {
@@ -138,6 +139,7 @@ public class ConnectorNodeService {
 						id,
 						connectionConfig,
 						nodeConfig,
+						tableNodeConfig,
 						pdkTableMap,
 						pdkStateMap,
 						globalStateMap,

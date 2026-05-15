@@ -16,7 +16,6 @@
 *.sublime-workspace
 .stackname
 *.pyc
-.env
 .venv
 *.lock
 .cache
@@ -138,3 +137,5 @@ sybase-poc-temp/
 .tmStartMsg.json
 
 run-resources
+data/
+ll

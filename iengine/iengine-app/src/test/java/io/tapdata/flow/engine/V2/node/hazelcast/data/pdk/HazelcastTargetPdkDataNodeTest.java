@@ -55,8 +55,11 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.task.skiperrortable.ISkipErrorTable;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
@@ -88,6 +91,13 @@ import static org.mockito.Mockito.*;
  **/
 class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 	private HazelcastTargetPdkDataNode hazelcastTargetPdkDataNode = mock(HazelcastTargetPdkDataNode.class);;
+    ISkipErrorTable skipErrorTable;
+
+    @BeforeEach
+    void beforeEach() {
+        skipErrorTable = mock(ISkipErrorTable.class);
+        ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "skipErrorTable", skipErrorTable);
+    }
 
 	@Nested
 	@DisplayName("ProcessEvents Method Test")
@@ -104,6 +114,10 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		@SneakyThrows
 		@DisplayName("Main process test, all dml event")
 		void mainProcessTest() {
+			try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+				cm.when(() -> CpuMemoryCollector.listening(any(), any())).thenAnswer(invocation -> {
+					return null;
+				});
 			int tableCount = 10;
 			int rows = 3000;
 			List<TapEvent> tapEvents = mockTapEvents(tableCount, rows);
@@ -115,22 +129,32 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				assertEquals(rows / tableCount, list.size());
 				return null;
 			}).when(hazelcastTargetPdkDataNode).writeRecord(anyList(),anyBoolean());
+				Node node = mock(TableNode.class);
+				when(node.getId()).thenReturn(new ObjectId().toHexString());
+				when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
 			hazelcastTargetPdkDataNode.processEvents(tapEvents);
 			verify(hazelcastTargetPdkDataNode, times(tableCount)).writeRecord(anyList(),anyBoolean());
-		}
+		}}
 		@DisplayName("test write record without tableName")
 		@Test
 		void test1(){
+			try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+				cm.when(() -> CpuMemoryCollector.listening(any(), any())).thenAnswer(invocation -> {
+					return null;
+				});
 			List<TapEvent> tapEvents=new ArrayList<>();
 			TapUpdateRecordEvent tapEvent=TapUpdateRecordEvent.create();
 			tapEvents.add(tapEvent);
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).writeRecord(tapEvents,true);
+			Node node = mock(TableNode.class);
+			when(node.getId()).thenReturn(new ObjectId().toHexString());
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
 				hazelcastTargetPdkDataNode.writeRecord(tapEvents,true);
 			});
 			assertEquals(TaskTargetProcessorExCode_15.WRITE_RECORD_GET_TARGET_TABLE_NAME_FAILED,tapCodeException.getCode());
 
-		}
+		}}
 		@Nested
 		class testExecuteTruncateFunction{
 			ConnectorNode connectorNode;
@@ -251,6 +275,10 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			@DisplayName("test throw tapBaseException with tableName")
 			@Test
 			void test1() throws Throwable {
+				try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+					cm.when(() -> CpuMemoryCollector.listening(any(), any())).thenAnswer(invocation -> {
+						return null;
+					});
 				TapPdkRetryableEx retryWrite = new TapPdkRetryableEx("Mysql", new RuntimeException("Can not find id"));
 				retryWrite.setTableName("testId");
 				doThrow(retryWrite).when(writePolicyService).writeRecordWithPolicyControl(any(),any(),any());
@@ -261,6 +289,9 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				after.put("name", "testName");
 				List<TapEvent> events = new ArrayList<>();
 				events.add(tapInsertRecordEvent);
+				Node node = mock(TableNode.class);
+				when(node.getId()).thenReturn(new ObjectId().toHexString());
+				when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
 				when(hazelcastTargetPdkDataNode.getTgtTableNameFromTapEvent(any())).thenReturn("testId");
 				TapTableMap tapTableMap = mock(TapTableMap.class);
 				TapTable tapTable = mock(TapTable.class);
@@ -308,9 +339,13 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 
 					hazelcastTargetPdkDataNode.writeRecord(events,true);
 				}
-			}
+			}}
 			@Test
 			void test2() throws Throwable {
+				try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+					cm.when(() -> CpuMemoryCollector.listening(any(), any())).thenAnswer(invocation -> {
+						return null;
+					});
 				TapPdkRunnerUnknownException retryWrite = new TapPdkRunnerUnknownException( new RuntimeException("Can not find id"));
 				retryWrite.setTableName("testId");
 				doThrow(retryWrite).when(writePolicyService).writeRecordWithPolicyControl(any(),any(),any());
@@ -321,6 +356,9 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				after.put("name", "testName");
 				List<TapEvent> events = new ArrayList<>();
 				events.add(tapInsertRecordEvent);
+				Node node = mock(TableNode.class);
+				when(node.getId()).thenReturn(new ObjectId().toHexString());
+				when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
 				when(hazelcastTargetPdkDataNode.getTgtTableNameFromTapEvent(any())).thenReturn("testId");
 				TapTableMap tapTableMap = mock(TapTableMap.class);
 				TapTable tapTable = mock(TapTable.class);
@@ -369,7 +407,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 					hazelcastTargetPdkDataNode.writeRecord(events,true);
 				}
 			}
-		}
+		}}
 		@Nested
 		class testeventExactlyOnceWriteCheckExists{
 			@Test

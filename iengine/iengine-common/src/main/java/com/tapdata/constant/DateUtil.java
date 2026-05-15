@@ -1,6 +1,7 @@
 package com.tapdata.constant;
 
 import com.tapdata.entity.MysqlYear;
+import io.tapdata.entity.schema.value.DateTime;
 import org.apache.commons.lang3.StringUtils;
 
 import java.math.BigDecimal;
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
+import java.util.function.UnaryOperator;
 
 public class DateUtil {
 
@@ -664,6 +666,115 @@ public class DateUtil {
 		return addMillis(Date.from(instant), millis);
 	}
 
+	public static DateTime addYears(Object value, int years) {
+		return addDateTime(value, dateTime -> dateTime.plusYears(years));
+	}
+
+	public static DateTime addMonths(Object value, int months) {
+		return addDateTime(value, dateTime -> dateTime.plusMonths(months));
+	}
+
+	public static DateTime addDays(Object value, int days) {
+		return addDateTime(value, dateTime -> dateTime.plusDays(days));
+	}
+
+	public static DateTime addHours(Object value, int hours) {
+		return addDateTime(value, dateTime -> dateTime.plusHours(hours));
+	}
+
+	public static DateTime addMinutes(Object value, int minutes) {
+		return addDateTime(value, dateTime -> dateTime.plusMinutes(minutes));
+	}
+
+	public static DateTime addSeconds(Object value, int seconds) {
+		return addDateTime(value, dateTime -> dateTime.plusSeconds(seconds));
+	}
+
+	public static boolean isBefore(Object a, Object b) {
+		return compare(a, b) < 0;
+	}
+
+	public static boolean isAfter(Object a, Object b) {
+		return compare(a, b) > 0;
+	}
+
+	public static boolean isEqual(Object a, Object b) {
+		return compare(a, b) == 0;
+	}
+
+	public static boolean isSameDay(Object a, Object b, ZoneId zoneId) {
+		ZoneId actualZoneId = zoneId == null ? ZoneId.systemDefault() : zoneId;
+		return toDateTimeValue(a).toInstant().atZone(actualZoneId).toLocalDate()
+				.equals(toDateTimeValue(b).toInstant().atZone(actualZoneId).toLocalDate());
+	}
+
+	public static boolean isSameMonth(Object a, Object b, ZoneId zoneId) {
+		ZoneId actualZoneId = zoneId == null ? ZoneId.systemDefault() : zoneId;
+		ZonedDateTime left = toDateTimeValue(a).toInstant().atZone(actualZoneId);
+		ZonedDateTime right = toDateTimeValue(b).toInstant().atZone(actualZoneId);
+		return left.getYear() == right.getYear() && left.getMonthValue() == right.getMonthValue();
+	}
+
+	public static int compare(Object a, Object b) {
+		return toDateTimeValue(a).compareTo(toDateTimeValue(b));
+	}
+
+	public static long diffMillis(Object a, Object b) {
+		return Duration.between(toDateTimeValue(b).toInstant(), toDateTimeValue(a).toInstant()).toMillis();
+	}
+
+	public static long diffSeconds(Object a, Object b) {
+		return Duration.between(toDateTimeValue(b).toInstant(), toDateTimeValue(a).toInstant()).getSeconds();
+	}
+
+	public static long diffMinutes(Object a, Object b) {
+		return Duration.between(toDateTimeValue(b).toInstant(), toDateTimeValue(a).toInstant()).toMinutes();
+	}
+
+	public static long diffHours(Object a, Object b) {
+		return Duration.between(toDateTimeValue(b).toInstant(), toDateTimeValue(a).toInstant()).toHours();
+	}
+
+	public static long diffDays(Object a, Object b) {
+		return Duration.between(toDateTimeValue(b).toInstant(), toDateTimeValue(a).toInstant()).toDays();
+	}
+
+	private static DateTime addDateTime(Object value, UnaryOperator<ZonedDateTime> updater) {
+		DateTime dateTime = toDateTimeValue(value);
+		ZonedDateTime updated = updater.apply(dateTime.toZonedDateTime());
+		DateTime result = new DateTime(updated.toInstant());
+		if (dateTime.getTimeZone() != null) {
+			result.setTimeZone((TimeZone) dateTime.getTimeZone().clone());
+		}
+		return result;
+	}
+
+	private static DateTime toDateTimeValue(Object value) {
+		if (value == null) {
+			throw new IllegalArgumentException("Date value is null");
+		}
+		if (value instanceof DateTime) {
+			DateTime source = (DateTime) value;
+			return source;
+		}
+		if (value instanceof Instant) {
+			return new DateTime((Instant) value);
+		}
+		if (value instanceof java.sql.Timestamp) {
+			return new DateTime((java.sql.Timestamp) value);
+		}
+		if (value instanceof java.sql.Date) {
+			return new DateTime((java.sql.Date) value);
+		}
+		if (value instanceof java.sql.Time) {
+			return new DateTime((java.sql.Time) value);
+		}
+		if (value instanceof Date) {
+			return new DateTime((Date) value);
+		}
+		throw new IllegalArgumentException("Unsupported date value type: " + value.getClass().getName());
+	}
+
 	// Comparators --------------------------------------------------------------------------------
 
 	/**
@@ -934,5 +1045,9 @@ public class DateUtil {
 			mysqlYear.setYear(year);
 		}
 		return mysqlYear;
+	}
+
+	public static Date localDate() {
+		return new Date(new Date().getTime() + TimeZone.getDefault().getRawOffset());
 	}
 }

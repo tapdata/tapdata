@@ -1,274 +1,152 @@
 package com.tapdata.tm.v2.api.usage.service;
 
+import com.tapdata.tm.apiServer.enums.TimeGranularity;
+import com.tapdata.tm.worker.entity.ServerUsage;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
+import com.tapdata.tm.worker.entity.field.ServerUsageField;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ServerUsageMetricInstanceAcceptorTest {
 
-    @Mock
-    private Consumer<ServerUsageMetric> consumer;
-
-    private ServerUsageMetricInstanceAcceptor acceptor;
-    private ServerUsageMetric lastBucketMin;
-    private ServerUsageMetric lastBucketHour;
-
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-        lastBucketMin = ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0);
-        lastBucketHour = ServerUsageMetric.instance(2, 3600000L, "server1", "work1", 0);
-        acceptor = new ServerUsageMetricInstanceAcceptor(lastBucketMin, lastBucketHour, consumer);
+    private static Document doc(String serverId, Object workOid, long lastUpdateMs, long heapUsage, long heapMax, double cpu, int poolMax, int poolUsed, int poolQueue) {
+        Document d = new Document()
+                .append(ServerUsageField.PROCESS_ID.field(), serverId)
+                .append(ServerUsageField.LAST_UPDATE_TIME.field(), lastUpdateMs)
+                .append(ServerUsageField.HEAP_MEMORY_USAGE.field(), heapUsage)
+                .append(ServerUsageField.HEAP_MEMORY_MAX.field(), heapMax)
+                .append(ServerUsageField.CPU_USAGE.field(), cpu)
+                .append(ServerUsageField.POOL_MAX_CONNECTIONS.field(), poolMax)
+                .append(ServerUsageField.POOL_USED_CONNECTIONS.field(), poolUsed)
+                .append(ServerUsageField.POOL_QUEUE_SIZE.field(), poolQueue);
+        if (workOid != null) {
+            d.append(ServerUsageField.WORK_OID.field(), workOid);
+        }
+        return d;
     }
 
-    @Nested
-    class AcceptTest {
-        @Test
-        void testAcceptWithNullEntity() {
-            acceptor.accept(null);
-            
-            verifyNoInteractions(consumer);
-        }
-
-        @Test
-        void testAcceptWithValidEntity() {
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", "work1")
-                    .append("lastUpdateTime", 120000L); // 2 minutes
-            
-            acceptor.accept(entity);
-            
-            verify(consumer, times(2)).accept(any(ServerUsageMetric.class));
-        }
-
-        @Test
-        void testAcceptWithDifferentBucketMin() {
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", "work1")
-                    .append("lastUpdateTime", 180000L); // 3 minutes, different bucket
-            
-            acceptor.accept(entity);
-            
-            verify(consumer, times(1)).accept(eq(lastBucketMin));
-        }
-
-        @Test
-        void testAcceptWithDifferentBucketHour() {
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", "work1")
-                    .append("lastUpdateTime", 7200000L); // 2 hours, different bucket
-            
-            acceptor.accept(entity);
-            
-            verify(consumer, times(1)).accept(eq(lastBucketHour));
-        }
-
-        @Test
-        void testAcceptWithNullWorkOid() {
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", null)
-                    .append("lastUpdateTime", 120000L);
-            
-            acceptor.accept(entity);
-            
-            // Should create new metrics for API_SERVER type
-            verify(consumer, times(2)).accept(any());
-        }
-
-        @Test
-        void testAcceptWithStringWorkOid() {
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", "work123")
-                    .append("lastUpdateTime", 120000L);
-            
-            acceptor.accept(entity);
-            
-            // Should handle string workOid
-            verify(consumer, times(2)).accept(any());
-        }
-
-        @Test
-        void testAcceptWithNonStringWorkOid() {
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", 12345)
-                    .append("lastUpdateTime", 120000L);
-            
-            acceptor.accept(entity);
-            
-            // Should convert to string
-            verify(consumer, times(2)).accept(any());
-        }
-
-        @Test
-        void testAcceptWithNullLastUpdateTime() {
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", "work1")
-                    .append("lastUpdateTime", null);
-            
-            acceptor.accept(entity);
-            
-            // Should handle null lastUpdateTime (defaults to 0)
-            verify(consumer, times(2)).accept(any());
-        }
-
-        @Test
-        void testAcceptWithNullBuckets() {
-            acceptor = new ServerUsageMetricInstanceAcceptor(null, null, consumer);
-            
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", "work1")
-                    .append("lastUpdateTime", 120000L);
-            
-            acceptor.accept(entity);
-            
-            // Should create new buckets
-            verify(consumer, never()).accept(any());
-        }
-
-        @Test
-        void testAcceptWithOnlyNullBucketMin() {
-            acceptor = new ServerUsageMetricInstanceAcceptor(null, lastBucketHour, consumer);
-            
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", "work1")
-                    .append("lastUpdateTime", 120000L);
-            
-            acceptor.accept(entity);
-            
-            // Should create new bucket min
-            verify(consumer, times(1)).accept(any());
-        }
-
-        @Test
-        void testAcceptWithOnlyNullBucketHour() {
-            acceptor = new ServerUsageMetricInstanceAcceptor(lastBucketMin, null, consumer);
-            
-            Document entity = new Document()
-                    .append("processId", "server1")
-                    .append("workOid", "work1")
-                    .append("lastUpdateTime", 120000L);
-            
-            acceptor.accept(entity);
-            
-            // Should create new bucket hour
-            verify(consumer, times(1)).accept(any());
-        }
+    @Test
+    void testAcceptNull() {
+        List<ServerUsageMetric> consumed = new ArrayList<>();
+        ServerUsageMetricInstanceAcceptor acceptor = new ServerUsageMetricInstanceAcceptor(null, null, consumed::add);
+        acceptor.accept(null);
+        acceptor.close();
+        assertTrue(consumed.isEmpty());
     }
 
-    @Nested
-    class AcceptOnceTest {
-        @Test
-        void testAcceptOnceWithValidItem() {
-            ServerUsageMetric metric = ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0);
+    @Test
+    void testAcceptMemoryMemMaxCpuAvg() {
+        ServerUsageMetricInstanceAcceptor acceptor = new ServerUsageMetricInstanceAcceptor(null, null, e -> {
+        });
 
-            ReflectionTestUtils.setField(acceptor, "lastBucketHour", metric);
-            acceptor.acceptHour();
-            
-            verify(consumer, times(1)).accept(metric);
-        }
+        ServerUsageMetric usage = new ServerUsageMetric();
 
-        @Test
-        void testAcceptOnceWithNullItem() {
-            ReflectionTestUtils.setField(acceptor, "lastBucketHour", null);
-            
-            verifyNoInteractions(consumer);
-        }
+        acceptor.acceptMemMax(usage, new ArrayList<>());
+        acceptor.acceptMemory(usage, new ArrayList<>());
+        acceptor.acceptCpu(usage, new ArrayList<>());
+        assertNull(usage.getHeapMemoryMax());
+        assertNull(usage.getHeapMemoryUsage());
+        assertNull(usage.getCpuUsage());
+
+        List<Long> mem = List.of(10L, 30L, 20L);
+        List<Long> memMax = List.of(100L, 300L);
+        List<Double> cpu = List.of(0.5D, 0.2D, 0.9D);
+        acceptor.acceptMemory(usage, mem);
+        acceptor.acceptMemMax(usage, memMax);
+        acceptor.acceptCpu(usage, cpu);
+
+        assertEquals(10L, usage.getMinHeapMemoryUsage());
+        assertEquals(30L, usage.getMaxHeapMemoryUsage());
+        assertEquals(20L, usage.getHeapMemoryUsage());
+        assertEquals(200L, usage.getHeapMemoryMax());
+        assertEquals(0.2D, usage.getMinCpuUsage());
+        assertEquals(0.9D, usage.getMaxCpuUsage());
+        assertEquals(0.5333333333333333D, usage.getCpuUsage());
+
+        AtomicInteger avg = new AtomicInteger(-1);
+        acceptor.acceptAvg(new ArrayList<>(), avg::set);
+        assertEquals(-1, avg.get());
+        List<Number> numbers = new ArrayList<>();
+        numbers.add(null);
+        numbers.add(0);
+        numbers.add(5);
+        numbers.add(15);
+        acceptor.acceptAvg(numbers, avg::set);
+        assertEquals(10, avg.get());
     }
 
-    @Nested
-    class acceptTest {
-        @Test
-        void testNormal() {
-            ServerUsageMetric metric = ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0);
-            List<Long> memory = new ArrayList<>();
-            memory.add(1L);
-            List<Long> memoryMax = new ArrayList<>();
-            memoryMax.add(1L);
-            List<Double> cpu = new ArrayList<>();
-            cpu.add(1D);
-            acceptor.accept(metric, memory, memoryMax, cpu);
-            Assertions.assertEquals(1L, metric.getHeapMemoryMax());
-            Assertions.assertEquals(1L, metric.getHeapMemoryUsage());
-            Assertions.assertEquals(1D, metric.getCpuUsage());
-            Assertions.assertEquals(1L, metric.getMaxHeapMemoryUsage());
-            Assertions.assertEquals(1L, metric.getMinHeapMemoryUsage());
-            Assertions.assertEquals(1D, metric.getMaxCpuUsage());
-            Assertions.assertEquals(1D, metric.getMinCpuUsage());
-        }
-        @Test
-        void testNormal2() {
-            ServerUsageMetric metric = ServerUsageMetric.instance(1, 60000L, "server1", "work1", 0);
-            List<Long> memory = new ArrayList<>();
-            memory.add(1L);
-            memory.add(7L);
-            List<Long> memoryMax = new ArrayList<>();
-            memoryMax.add(1L);
-            memoryMax.add(9L);
-            List<Double> cpu = new ArrayList<>();
-            cpu.add(1D);
-            cpu.add(3D);
-            acceptor.accept(metric, memory, memoryMax, cpu);
-            Assertions.assertEquals(4L, metric.getHeapMemoryMax());
-            Assertions.assertEquals(5L, metric.getHeapMemoryUsage());
-            Assertions.assertEquals(2D, metric.getCpuUsage());
-            Assertions.assertEquals(7L, metric.getMaxHeapMemoryUsage());
-            Assertions.assertEquals(1L, metric.getMinHeapMemoryUsage());
-            Assertions.assertEquals(3D, metric.getMaxCpuUsage());
-            Assertions.assertEquals(1D, metric.getMinCpuUsage());
-        }
+    @Test
+    void testBucketChangeAndProcessType() {
+        List<ServerUsageMetric> consumed = new ArrayList<>();
+        ServerUsageMetricInstanceAcceptor acceptor = new ServerUsageMetricInstanceAcceptor(null, null, consumed::add);
+
+        String serverId = "server-id";
+        long baseSeconds = 120L;
+        long baseMs = baseSeconds * 1000L;
+
+        acceptor.accept(doc(serverId, null, baseMs, 10, 100, 0.1D, 10, 3, 1));
+        acceptor.accept(doc(serverId, new ObjectId(), baseMs + 60_000L, 20, 200, 0.2D, 20, 6, 2));
+
+        assertEquals(1, consumed.size());
+        assertEquals(TimeGranularity.MINUTE.getType(), consumed.get(0).getTimeGranularity());
+        assertEquals(TimeGranularity.MINUTE.fixTime(baseSeconds) * 1000L, consumed.get(0).getLastUpdateTime());
+        assertEquals(ServerUsage.ProcessType.API_SERVER.getType(), consumed.get(0).getProcessType());
+
+        acceptor.close();
+        assertEquals(3, consumed.size());
+
+        assertEquals(ServerUsage.ProcessType.API_SERVER_WORKER.getType(), consumed.get(1).getProcessType());
+        assertEquals(TimeGranularity.HOUR.getType(), consumed.get(2).getTimeGranularity());
+        assertNotNull(consumed.get(2).getPoolMaxConnections());
     }
 
-    @Nested
-    class CloseTest {
-        @Test
-        void testClose() {
-            acceptor.close();
-            
-            verify(consumer, times(2)).accept(any(ServerUsageMetric.class));
-        }
+    @Test
+    void testTimeShiftTriggersEarlyAccept() {
+        List<ServerUsageMetric> consumed = new ArrayList<>();
 
-        @Test
-        void testCloseWithNullBuckets() {
-            acceptor = new ServerUsageMetricInstanceAcceptor(null, null, consumer);
-            
-            acceptor.close();
-            
-            verifyNoInteractions(consumer);
-        }
+        ServerUsageMetric lastMin = ServerUsageMetric.instance(TimeGranularity.MINUTE.getType(), 0L, "s", null, ServerUsage.ProcessType.API_SERVER.getType());
+        ServerUsageMetric lastHour = ServerUsageMetric.instance(TimeGranularity.HOUR.getType(), 0L, "s", null, ServerUsage.ProcessType.API_SERVER.getType());
 
-        @Test
-        void testCloseWithOnlyOneBucket() {
-            acceptor = new ServerUsageMetricInstanceAcceptor(lastBucketMin, null, consumer);
-            
-            acceptor.close();
-            
-            verify(consumer, times(1)).accept(lastBucketMin);
-        }
+        ServerUsageMetricInstanceAcceptor acceptor = new ServerUsageMetricInstanceAcceptor(lastMin, lastHour, consumed::add);
+        long tsMs = (3600L + 120L) * 1000L;
+        Document d = new Document()
+                .append(ServerUsageField.PROCESS_ID.field(), "s")
+                .append(ServerUsageField.LAST_UPDATE_TIME.field(), tsMs);
+
+        Assertions.assertDoesNotThrow(() -> acceptor.accept(d));
+        assertEquals(2, consumed.size());
+    }
+
+    @Test
+    void testPushDefaultValue() {
+        List<ServerUsageMetric> consumed = new ArrayList<>();
+        ServerUsageMetricInstanceAcceptor acceptor = new ServerUsageMetricInstanceAcceptor(null, null, consumed::add);
+
+        String serverId = "server-id";
+        long baseMs = 120_000L;
+        Document d1 = new Document()
+                .append(ServerUsageField.PROCESS_ID.field(), serverId)
+                .append(ServerUsageField.LAST_UPDATE_TIME.field(), baseMs);
+        Document d2 = new Document()
+                .append(ServerUsageField.PROCESS_ID.field(), serverId)
+                .append(ServerUsageField.LAST_UPDATE_TIME.field(), baseMs + 60_000L);
+
+        acceptor.accept(d1);
+        acceptor.accept(d2);
+        assertEquals(1, consumed.size());
+        ServerUsageMetric m = consumed.get(0);
+        assertNotNull(m);
+        assertNotNull(m.getHeapMemoryUsage());
     }
 }

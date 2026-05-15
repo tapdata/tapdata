@@ -9,6 +9,7 @@ import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
+import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.service.MessageService;
@@ -28,6 +29,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -248,6 +250,52 @@ class ClusterStateServiceTest {
             result = clusterStateService.deleteCluster(id, user);
             assertTrue(result);
 
+        }
+    }
+
+    @Nested
+    class ShouldSkipStaleStatusInfoTest {
+        // 用 60s 边界把毫秒级时间漂移甩到几个数量级之外，避免 flaky。
+
+        @Test
+        void currentNull_returnsFalse() {
+            // 首次 statusInfo、历史数据没有 ClusterState 文档 → 不 skip。
+            assertFalse(ClusterStateService.shouldSkipStaleStatusInfo(System.currentTimeMillis(), null));
+        }
+
+        @Test
+        void componentStoppedAtNull_returnsFalse() {
+            // 集群从未调过 componentStopped → 不 skip。
+            ClusterStateEntity current = new ClusterStateEntity();
+            current.setComponentStoppedAt(null);
+            assertFalse(ClusterStateService.shouldSkipStaleStatusInfo(System.currentTimeMillis(), current));
+        }
+
+        @Test
+        void receivedBeforeStopped_returnsTrue() {
+            // race 路径：statusInfo 早于 componentStopped → 携带旧 snapshot → skip。
+            ClusterStateEntity current = new ClusterStateEntity();
+            long now = System.currentTimeMillis();
+            current.setComponentStoppedAt(new Date(now + 60_000L));
+            assertTrue(ClusterStateService.shouldSkipStaleStatusInfo(now, current));
+        }
+
+        @Test
+        void receivedAfterStopped_returnsFalse() {
+            // 重启 / 单组件 stop 后续 statusInfo：早于 stopped 写入 → 正常应用。
+            ClusterStateEntity current = new ClusterStateEntity();
+            long now = System.currentTimeMillis();
+            current.setComponentStoppedAt(new Date(now - 60_000L));
+            assertFalse(ClusterStateService.shouldSkipStaleStatusInfo(now, current));
+        }
+
+        @Test
+        void receivedEqualToStopped_returnsTrue() {
+            // 同毫秒并发：让 componentStopped 赢（>= 语义）。
+            ClusterStateEntity current = new ClusterStateEntity();
+            long ts = System.currentTimeMillis();
+            current.setComponentStoppedAt(new Date(ts));
+            assertTrue(ClusterStateService.shouldSkipStaleStatusInfo(ts, current));
         }
     }
 }

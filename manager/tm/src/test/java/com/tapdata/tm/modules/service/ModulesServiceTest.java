@@ -25,6 +25,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
@@ -58,6 +59,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -210,6 +212,25 @@ class ModulesServiceTest {
 			modules.setPaths(paths);
 			modulesService.beforeSave(modules, mock(UserDetail.class));
 			Assertions.assertEquals(0, modules.getPaths().get(0).getFields().size());
+		}
+	}
+
+	@Nested
+	class DataPermissionFindByIdTest {
+		@Test
+		void test_fillFieldsAndDelegateFindById() {
+			ModulesService spyService = spy(modulesService);
+			ObjectId moduleId = new ObjectId();
+			com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
+			ModulesDto modulesDto = new ModulesDto();
+			doReturn(modulesDto).when(spyService).findById(eq(moduleId), same(field));
+
+			Supplier<ModulesDto> supplier = spyService.dataPermissionFindById(moduleId, field);
+
+			assertSame(modulesDto, supplier.get());
+			assertEquals(Boolean.TRUE, field.get(ModulesService.USER_ID));
+			assertEquals(Boolean.TRUE, field.get(DataPermissionHelper.FIELD_NAME));
+			verify(spyService).findById(eq(moduleId), same(field));
 		}
 	}
 
@@ -850,7 +871,7 @@ class ModulesServiceTest {
 
 			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
 
-			assertTrue(result.isEmpty());
+			assertFalse(result.isEmpty());
 			assertNotNull(apiDefinitionVo.getConnections());
 			assertEquals(1, apiDefinitionVo.getConnections().size());
 			assertNotNull(apiDefinitionVo.getApis());
@@ -894,7 +915,7 @@ class ModulesServiceTest {
 
 			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
 
-			assertTrue(result.isEmpty());
+			assertFalse(result.isEmpty());
 			assertNotNull(apiDefinitionVo.getConnections());
 			assertEquals(1, apiDefinitionVo.getConnections().size());
 		}
@@ -936,7 +957,7 @@ class ModulesServiceTest {
 
 			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
 
-			assertTrue(result.isEmpty());
+			assertFalse(result.isEmpty());
 			assertNotNull(apiDefinitionVo.getConnections());
 			assertEquals(1, apiDefinitionVo.getConnections().size());
 		}
@@ -979,7 +1000,7 @@ class ModulesServiceTest {
 
 			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
 
-			assertTrue(result.isEmpty());
+			assertFalse(result.isEmpty());
 			assertNotNull(apiDefinitionVo.getConnections());
 			assertEquals(1, apiDefinitionVo.getConnections().size());
 			assertEquals("ORCL", apiDefinitionVo.getConnections().get(0).getDatabase_name());
@@ -1041,7 +1062,7 @@ class ModulesServiceTest {
 
 			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
 
-			assertTrue(result.isEmpty());
+			assertFalse(result.isEmpty());
 			assertNotNull(apiDefinitionVo.getConnections());
 			assertEquals(2, apiDefinitionVo.getConnections().size());
 		}
@@ -1732,14 +1753,14 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
 
-            doReturn(existingModule).when(modulesService).findExistingModuleByName("test_module", user);
-            doNothing().when(modulesService).handleReplaceMode(moduleDto, existingModule, user, conMap);
+            doReturn(existingModule).when(modulesService).findOne(any(Query.class), eq(user));
+            doNothing().when(modulesService).handleReplaceMode(moduleDto, existingModule, user, conMap,new HashMap<>());
 
             // Execute
             modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
 
             // Verify
-            verify(modulesService, times(1)).handleReplaceMode(moduleDto, existingModule, user, conMap);
+            verify(modulesService, times(1)).handleReplaceMode(moduleDto, existingModule, user, conMap,new HashMap<>());
             assertEquals(false, moduleDto.getIsDeleted());
             assertEquals(ModuleStatusEnum.PENDING.getValue(), moduleDto.getStatus());
         }
@@ -1750,14 +1771,14 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
 
-            doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
-            doNothing().when(modulesService).handleReplaceMode(moduleDto, null, user, conMap);
+            doReturn(null).when(modulesService).findOne(any(Query.class), eq(user));
+            doNothing().when(modulesService).handleReplaceMode(moduleDto, null, user, conMap,new HashMap<>());
 
             // Execute
             modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
 
             // Verify
-            verify(modulesService, times(1)).handleReplaceMode(moduleDto, null, user, conMap);
+            verify(modulesService, times(1)).handleReplaceMode(moduleDto, null, user, conMap,new HashMap<>());
         }
 
         @Test
@@ -1781,13 +1802,13 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
 
-            doReturn(existingModule).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(existingModule).when(modulesService).findOne(any(Query.class), eq(user));
 
             // Execute
             modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
 
             // Verify - should return early without calling any handle methods
-            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any());
+            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any(),any());
             verify(modulesService, never()).handleImportAsCopyMode(any(), any(), any());
         }
 
@@ -1797,14 +1818,14 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
 
-            doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(null).when(modulesService).findOne(any(Query.class), eq(user));
             doReturn(true).when(modulesService).checkConnectionIdDuplicate(moduleDto, conMap);
 
             // Execute
             modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
 
             // Verify - should return early without calling handle methods
-            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any());
+            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any(),any());
             verify(modulesService, never()).handleImportAsCopyMode(any(), any(), any());
         }
 
@@ -1814,7 +1835,7 @@ class ModulesServiceTest {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
 
-            doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(null).when(modulesService).findOne(any(Query.class), eq(user));
             doReturn(false).when(modulesService).checkConnectionIdDuplicate(moduleDto, conMap);
             doNothing().when(modulesService).handleImportAsCopyMode(moduleDto, user, conMap);
 
@@ -1866,7 +1887,7 @@ class ModulesServiceTest {
             doReturn(1L).when(modulesService).updateByWhere(any(Query.class), eq(moduleDto), eq(user));
 			existingModule.setStatus(ModuleStatusEnum.PENDING.getValue());
             // Execute
-            modulesService.handleReplaceMode(moduleDto, existingModule, user, conMap);
+            modulesService.handleReplaceMode(moduleDto, existingModule, user, conMap,new HashMap<>());
 
             // Verify
             assertEquals(existingModule.getId(), moduleDto.getId());
@@ -1884,7 +1905,7 @@ class ModulesServiceTest {
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
 
             // Execute
-            modulesService.handleReplaceMode(moduleDto, null, user, conMap);
+            modulesService.handleReplaceMode(moduleDto, null, user, conMap,new HashMap<>());
 
             // Verify
             assertEquals(new ObjectId("662877df9179877be8b37075"), moduleDto.getId()); // ID should remain unchanged
@@ -1905,7 +1926,7 @@ class ModulesServiceTest {
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
 
             // Execute
-            modulesService.handleReplaceMode(moduleDto, null, user, conMap);
+            modulesService.handleReplaceMode(moduleDto, null, user, conMap,new HashMap<>());
 
             // Verify
             assertNotEquals(new ObjectId("662877df9179877be8b37075"), moduleDto.getId()); // ID should be changed
@@ -1951,7 +1972,6 @@ class ModulesServiceTest {
         void testHandleImportAsCopyModeWithExistingById() {
             // Setup
             doReturn(existingModuleById).when(modulesService).findOne(any(Query.class));
-            doReturn(false).when(modulesService).checkTaskNameNotError("test_module", user, null);
             doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
             when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
@@ -1969,7 +1989,6 @@ class ModulesServiceTest {
         void testHandleImportAsCopyModeNoExistingById() {
             // Setup
             doReturn(null).when(modulesService).findOne(any(Query.class));
-            doReturn(false).when(modulesService).checkTaskNameNotError("test_module", user, null);
             doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
             when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
@@ -1984,11 +2003,10 @@ class ModulesServiceTest {
         }
 
         @Test
-        @DisplayName("test handleImportAsCopyMode with name conflict")
+        @DisplayName("test handleImportAsCopyMode preserves name even with conflict")
         void testHandleImportAsCopyModeWithNameConflict() {
             // Setup
             doReturn(null).when(modulesService).findOne(any(Query.class));
-            doReturn(true, true, false).when(modulesService).checkTaskNameNotError(anyString(), eq(user), eq(null));
             doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
             when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
             doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
@@ -1996,9 +2014,9 @@ class ModulesServiceTest {
             // Execute
             modulesService.handleImportAsCopyMode(moduleDto, user, conMap);
 
-            // Verify
-            assertEquals("test_module_import_import", moduleDto.getName()); // Name should be modified to avoid conflict
-            verify(modulesService, times(3)).checkTaskNameNotError(anyString(), eq(user), eq(null));
+            // Verify: name should NOT be modified (no _import suffix), use _id for uniqueness
+            assertEquals("test_module", moduleDto.getName());
+            verify(modulesService, never()).checkTaskNameNotError(anyString(), eq(user), eq(null));
             verify(repository, times(1)).importEntity(any(ModulesEntity.class), eq(user));
         }
     }
@@ -2058,6 +2076,8 @@ class ModulesServiceTest {
             // Setup
             DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
             connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+            connectionDto.setDatabase_type("mysql");
+            connectionDto.setName("test-mysql-connection");
             conMap.put("662877df9179877be8b37074", connectionDto);
 
             // Execute
@@ -2066,6 +2086,9 @@ class ModulesServiceTest {
             // Verify
             assertEquals("662877df9179877be8b37077", moduleDto.getConnectionId());
             assertEquals(new ObjectId("662877df9179877be8b37077"), moduleDto.getConnection());
+            assertEquals("662877df9179877be8b37077", moduleDto.getDataSource());
+            assertEquals("test-mysql-connection", moduleDto.getConnectionName());
+            assertEquals("mysql", moduleDto.getConnectionType());
         }
 
         @Test

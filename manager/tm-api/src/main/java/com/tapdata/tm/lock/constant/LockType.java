@@ -14,6 +14,9 @@ public enum LockType {
     /** 启动挖掘任务 */
     START_LOG_COLLECTOR,
 
+    /** 添加挖掘列表 */
+    ADD_LOG_COLLECTOR,
+
     /** 启动LDP-FDM任务 */
     START_LDP_FDM,
     /** 启动CHECK_ENGINE_VALID任务 */

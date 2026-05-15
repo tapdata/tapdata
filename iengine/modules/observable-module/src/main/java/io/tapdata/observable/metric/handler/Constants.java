@@ -1,8 +1,13 @@
 package io.tapdata.observable.metric.handler;
 
+import com.tapdata.tm.commons.metrics.MetricCons;
+
 /**
+ * 替代方案 {@link MetricCons.SS.VS}（统一管理指标属性）
+ * @deprecated since release-v4.12.0
  * @author Dexter
  */
+@Deprecated(since = "release-v4.12.0", forRemoval = true)
 public class Constants {
     static final String INPUT_DDL_TOTAL     = "inputDdlTotal";
     static final String INPUT_INSERT_TOTAL  = "inputInsertTotal";

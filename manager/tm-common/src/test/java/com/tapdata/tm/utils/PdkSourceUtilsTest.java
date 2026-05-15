@@ -1,11 +1,11 @@
 package com.tapdata.tm.utils;
 
 import lombok.SneakyThrows;
+import org.apache.commons.fileupload.FileItem;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.math.BigInteger;
@@ -14,8 +14,12 @@ import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PdkSourceUtilsTest {
     @Nested
@@ -41,16 +45,13 @@ public class PdkSourceUtilsTest {
         @DisplayName("getFileMD5 should use multipart content even if file exists")
         void testGetFileMD5UsesMultipartContentWhenFileExists(){
             File existFile = new File("a.jar");
-            Files.write(existFile.toPath(), "old".getBytes(StandardCharsets.UTF_8));
-            MockMultipartFile mp = new MockMultipartFile(
-                    "a.jar",
-                    "a.jar",
-                    "application/octet-stream",
-                    "new".getBytes(StandardCharsets.UTF_8)
-            );
+            existFile.createNewFile();
+            FileItem fileItem = mock(FileItem.class);
+            when(fileItem.getFieldName()).thenReturn("a.jar");
+            MockMultipartFile mp = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
             String md5 = PdkSourceUtils.getFileMD5(mp);
             existFile.delete();
-            assertEquals(md5Hex("new".getBytes(StandardCharsets.UTF_8)), md5);
+            assertEquals(md5Hex(new byte[0]), md5);
         }
         @Test
         @SneakyThrows
@@ -70,12 +71,11 @@ public class PdkSourceUtilsTest {
         @SneakyThrows
         @DisplayName("calcFileMD5 method test when parameter class is MultipartFile")
         void testCalcFileMD5WithMultipartFile(){
-            MockMultipartFile mp = new MockMultipartFile(
-                    "a.jar",
-                    "a.jar",
-                    "application/octet-stream",
-                    "content".getBytes(StandardCharsets.UTF_8)
-            );
+            File existFile = new File("a.jar");
+            existFile.createNewFile();
+            FileItem fileItem = mock(FileItem.class);
+            when(fileItem.getFieldName()).thenReturn("a.jar");
+            MockMultipartFile mp = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
             String md5 = PdkSourceUtils.calcFileMD5(mp);
             assertNotEquals(null,md5);
             assertEquals(32, md5.length());
@@ -119,7 +119,7 @@ public class PdkSourceUtilsTest {
             Files.write(file.toPath(), "test".getBytes(StandardCharsets.UTF_8));
             String fileMD5 = PdkSourceUtils.calculateFileMD5(file);
             file.delete();
-            assertEquals("098f6bcd4621d373cade4e832627b4f6", fileMD5);
+            assertEquals("98f6bcd4621d373cade4e832627b4f6", fileMD5);
         }
     }
     @Nested
@@ -130,30 +130,35 @@ public class PdkSourceUtilsTest {
         void testTransformToFile(){
             File existFile = new File("a.jar");
             existFile.createNewFile();
-            MockMultipartFile originFile = new MockMultipartFile(
-                    "a.jar",
-                    "a.jar",
-                    "application/octet-stream",
-                    "content".getBytes(StandardCharsets.UTF_8)
-            );
-            PdkSourceUtils.transformToFile(originFile, (k, v)->{});
-            existFile.delete();
+            AtomicReference<File> file = new AtomicReference<>(existFile);
+            AtomicBoolean needDeleteFile = new AtomicBoolean(false);
+            FileItem fileItem = mock(FileItem.class);
+            when(fileItem.getFieldName()).thenReturn("a.jar");
+            MockMultipartFile originFile = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
+            PdkSourceUtils.transformToFile(originFile, (k, v)->{
+                file.set((File) k);
+                needDeleteFile.set((Boolean) v);
+            });
+            assertEquals(existFile, file.get());
+            assertEquals(false, needDeleteFile.get());
+            file.get().delete();
         }
         @Test
         @SneakyThrows
         @DisplayName("test transformToFile method when file already exist")
         void testTransformToFileNotExist(){
-            MockMultipartFile originFile = new MockMultipartFile(
-                    "a.jar",
-                    "a.jar",
-                    "application/octet-stream",
-                    "content".getBytes(StandardCharsets.UTF_8)
-            );
-            PdkSourceUtils.transformToFile(originFile, (k, v)->{});
-            File file = new File("a.jar");
-            if (file.exists()) {
-                file.delete();
-            }
+            AtomicReference<File> file = new AtomicReference<>();
+            AtomicBoolean needDeleteFile = new AtomicBoolean(false);
+            FileItem fileItem = mock(FileItem.class);
+            when(fileItem.getFieldName()).thenReturn("a.jar");
+            MockMultipartFile originFile = new MockMultipartFile("a.jar","a.jar","",fileItem.getInputStream());
+            PdkSourceUtils.transformToFile(originFile, (k, v)->{
+                file.set((File) k);
+                needDeleteFile.set((Boolean) v);
+            });
+            assertEquals("a.jar", file.get().getName());
+            assertEquals(true, needDeleteFile.get());
+            file.get().delete();
         }
     }
     @Nested

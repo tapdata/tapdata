@@ -20,10 +20,10 @@ import org.springframework.data.mongodb.core.MongoTemplate;
  * @version v1.0 2026/1/22 18:38 Create
  * @description
  */
-@PatchAnnotation(appType = AppType.DAAS, version = "4.14-21")
-public class V4_14_21_ApiCallAppend extends AbsPatch {
-    private static final Logger logger = LogManager.getLogger(V4_14_21_ApiCallAppend.class);
-    public V4_14_21_ApiCallAppend(PatchType patchType, PatchVersion version) {
+@PatchAnnotation(appType = AppType.DAAS, version = "4.14-31")
+public class V4_14_31_ApiCallAppend extends AbsPatch {
+    private static final Logger logger = LogManager.getLogger(V4_14_31_ApiCallAppend.class);
+    public V4_14_31_ApiCallAppend(PatchType patchType, PatchVersion version) {
         super(patchType, version);
     }
 

@@ -1,0 +1,18 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "cluster"
+        },
+        "u": {
+          "$set": {
+            "value": "Unique identifier for the cluster"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

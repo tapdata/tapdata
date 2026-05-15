@@ -9,6 +9,8 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.utils.UnitTestUtils;
 import org.bson.types.ObjectId;
@@ -43,6 +45,10 @@ class TaskPdkConnectorTest {
     @Mock
     DataParentNode<?> targetNode;
     @Mock
+    DatabaseNode databaseNode;
+    @Mock
+    TableNode tableNode;
+    @Mock
     Connections connections;
     @Mock
     TaskPdkConnector taskPdkConnector;
@@ -60,6 +66,8 @@ class TaskPdkConnectorTest {
         when(dag.getTargets()).thenReturn(Collections.singletonList(targetNode));
         when(sourceNode.getConnectionId()).thenReturn("sourceConnectionId");
         when(targetNode.getConnectionId()).thenReturn("targetConnectionId");
+        when(databaseNode.getConnectionId()).thenReturn("databaseConnectionId");
+        when(tableNode.getConnectionId()).thenReturn("tableConnectionId");
         when(connections.getPdkHash()).thenReturn("pdkHash");
     }
 
@@ -162,16 +170,18 @@ class TaskPdkConnectorTest {
                 connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(eq(clientMongoOperator), anyString()))
                     .thenReturn(null);
                 TaskNodePdkConnector pdkConnector = mock(TaskNodePdkConnector.class);
-                connectorMockedStatic.when(() -> TaskNodePdkConnector.create(any(), anyString(), any(), anyString(), any(), any(), any(),any()))
+                connectorMockedStatic.when(() -> TaskNodePdkConnector.create(any(), anyString(), any(), anyString(), any(), any(), any(), any(), any()))
                     .thenReturn(pdkConnector);
 
 
                 // Act
                 IPdkConnector connector = taskPdkConnector.create(sourceNode, "associateId");
+                taskPdkConnector.create(databaseNode, "associateId");
+                taskPdkConnector.create(tableNode, "associateId");
 
                 // Assert
                 assertEquals(pdkConnector, connector);
-                verify(taskPdkConnector, times(1)).getConnections(anyString());
+                verify(taskPdkConnector, times(3)).getConnections(anyString());
             }
         }
     }

@@ -113,6 +113,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
 	private static final String DOUBLE_ACTIVE = "doubleActive";
 	private static final String DATA_SAVING = "dataSaving";
+	private static final String FILE_LOG = "fileLog";
 	private static final String WRITE_THREAD_SIZE = "writeThreadSize";
 	protected TapRecordSkipDetector skipDetector;
 	protected PdkStateMap pdkStateMap;
@@ -276,12 +277,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		connectorCapabilities = ConnectorCapabilities.create();
 		initDmlPolicy(node, connectorCapabilities);
 		Map<String, Object> nodeConfig = generateNodeConfig(node, taskDto);
+		Map<String, Map<String, Object>> tableNodeConfig = generateTableNodeConfig(node);
 		ConnectorNode connectorNode = PdkUtil.createNode(taskDto.getId().toHexString(),
 				databaseType,
 				clientMongoOperator,
 				generateNodePdkAssociateId(dataProcessorContext),
 				connectionConfig,
 				nodeConfig,
+				tableNodeConfig,
 				pdkTableMap,
 				pdkStateMap,
 				globalStateMap,
@@ -325,10 +328,19 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
         }
 		nodeConfig.put(DOUBLE_ACTIVE, taskDto.getDoubleActive());
 		nodeConfig.put(DATA_SAVING, taskDto.getDataSaving());
+		nodeConfig.put(FILE_LOG, taskDto.getFileLog());
 		Boolean oldVersionTimezone = taskDto.getOldVersionTimezone();
 		oldVersionTimezone = CommonUtils.getPropertyBool(OLD_VERSION_TIME_ZONE_PROP_KEY, oldVersionTimezone);
 		nodeConfig.put(OLD_VERSION_TIMEZONE, oldVersionTimezone);
 		return nodeConfig;
+	}
+
+	protected Map<String, Map<String, Object>> generateTableNodeConfig(Node<?> node) {
+		Map<String, Map<String, Object>> tableNodeConfig = null;
+		if (node instanceof DatabaseNode) {
+			tableNodeConfig = ((DatabaseNode) node).getTableNodeConfig();
+		}
+		return tableNodeConfig;
 	}
 
 	protected void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {

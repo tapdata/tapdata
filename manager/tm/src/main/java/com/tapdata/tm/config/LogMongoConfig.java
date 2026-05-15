@@ -41,6 +41,8 @@ public class LogMongoConfig {
     private String caPath;
     @Value("${spring.data.mongodb.keyPath}")
     private String keyPath;
+    @Value("${spring.data.mongodb.sslPass}")
+    private String sslPass;
 
     @Bean(name = "logMongoTemplate")
     public CompletableFuture<MongoTemplate> mongoTemplate() {
@@ -50,7 +52,7 @@ public class LogMongoConfig {
                 MongoTemplate mongoTemplate = null;
                 if (ssl) {
                     String database = new ConnectionString(uri).getDatabase();
-                    MongoClientSettings settings = SSLUtil.mongoClientSettings(ssl, keyPath, caPath, uri);
+                    MongoClientSettings settings = SSLUtil.mongoClientSettings(ssl, keyPath, caPath, sslPass, uri);
                     MongoClient mongoClient = MongoClients.create(settings, SpringDataMongoDB.driverInformation());
                     mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(mongoClient, database));
                 } else {

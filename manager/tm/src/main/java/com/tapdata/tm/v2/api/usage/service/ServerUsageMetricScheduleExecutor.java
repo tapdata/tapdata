@@ -139,6 +139,10 @@ public class ServerUsageMetricScheduleExecutor {
                 .map(BigDecimal::valueOf)
                 .map(v -> v.setScale(4, RoundingMode.HALF_DOWN).doubleValue())
                 .ifPresent(v -> update.set(ServerUsageField.CPU_USAGE.field(), v));
+        Optional.ofNullable(entity.getPoolMaxConnections()).ifPresent(v -> update.set(ServerUsageField.POOL_MAX_CONNECTIONS.field(), v));
+        Optional.ofNullable(entity.getPoolUsedConnections()).ifPresent(v -> update.set(ServerUsageField.POOL_USED_CONNECTIONS.field(), v));
+        Optional.ofNullable(entity.getPoolAvailable()).ifPresent(v -> update.set(ServerUsageField.POOL_AVAILABLE.field(), v));
+        Optional.ofNullable(entity.getPoolQueueSize()).ifPresent(v -> update.set(ServerUsageField.POOL_QUEUE_SIZE.field(), v));
         update.set(ServerUsageMetricField.MAX_HEAP_MEMORY_USAGE.field(), entity.getMaxHeapMemoryUsage());
         update.set(ServerUsageMetricField.MIN_HEAP_MEMORY_USAGE.field(), entity.getMinHeapMemoryUsage());
         update.set(ServerUsageField.HEAP_MEMORY_USAGE.field(), entity.getHeapMemoryUsage());

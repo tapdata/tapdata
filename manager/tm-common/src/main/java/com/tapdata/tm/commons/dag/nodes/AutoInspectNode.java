@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.dag.nodes;
 
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.Schema;
@@ -23,6 +24,7 @@ import java.util.List;
 @Setter
 @ToString
 public class AutoInspectNode extends DataParentNode<List<Schema>> {
+    @EqField
     private String targetNodeId;
     private DatabaseNode fromNode;
     private DatabaseNode toNode;

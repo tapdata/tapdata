@@ -6,7 +6,7 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 
 public interface TaskScheduleService {
 
-    void scheduling(TaskDto taskDto, UserDetail user);
+    void scheduling(TaskDto taskDto, UserDetail user,Boolean isReStart);
     void sendStartMsg(String taskId, String agentId, UserDetail user);
     CalculationEngineVo cloudTaskLimitNum(TaskDto taskDto, UserDetail user, boolean limitNum);
 

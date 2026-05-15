@@ -5,6 +5,7 @@ import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.aspect.*;
@@ -42,9 +43,9 @@ public class ObservableAspectTask extends AspectTask {
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
 	protected TaskSampleHandler taskSampleHandler;
-	private Map<String, TableSampleHandler> tableSampleHandlers;
-	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
-	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;
+	private final Map<String, TableSampleHandler> tableSampleHandlers = new ConcurrentHashMap<>();
+	private final Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new ConcurrentHashMap<>();
+	private final Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers = new ConcurrentHashMap<>();
 	private static final String TAG = ObservableAspectTask.class.getSimpleName();
 
 	public ObservableAspectTask() {
@@ -138,22 +139,16 @@ public class ObservableAspectTask extends AspectTask {
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
 		pipelineDelay.clear(stopAspect.getTask().getId().toHexString());
-		if (null != tableSampleHandlers) {
-			for (TableSampleHandler handler : tableSampleHandlers.values()) {
-				handler.close();
-			}
+		for (TableSampleHandler handler : tableSampleHandlers.values()) {
+			handler.close();
 		}
 
-		if (null != dataNodeSampleHandlers) {
-			for (DataNodeSampleHandler handler : dataNodeSampleHandlers.values()) {
-				handler.close();
-			}
+		for (DataNodeSampleHandler handler : dataNodeSampleHandlers.values()) {
+			handler.close();
 		}
 
-		if (null != processorNodeSampleHandlers) {
-			for (ProcessorNodeSampleHandler handler : processorNodeSampleHandlers.values()) {
-				handler.close();
-			}
+		for (ProcessorNodeSampleHandler handler : processorNodeSampleHandlers.values()) {
+			handler.close();
 		}
 
 		closeCompletableFuture();
@@ -163,9 +158,6 @@ public class ObservableAspectTask extends AspectTask {
 	// data node related
 
 	public Void handleDataNodeInit(DataNodeInitAspect aspect) {
-		if (null == dataNodeSampleHandlers) {
-			dataNodeSampleHandlers = new HashMap<>();
-		}
 		Node<?> node = aspect.getDataProcessorContext().getNode();
 		if (node instanceof TableNode && ((TableNode) node).isIgnoreMetrics()) {
 			return null;
@@ -226,9 +218,6 @@ public class ObservableAspectTask extends AspectTask {
 					taskSampleHandler.addTable(table);
 				}
 				aspect.tableCountConsumer((table, cnt) -> {
-					if (null == tableSampleHandlers) {
-						tableSampleHandlers = new HashMap<>();
-					}
 					TableSampleHandler handler = new TableSampleHandler(task, table, cnt, taskRetrievedTableValues.getOrDefault(table, new HashMap<>()), BigDecimal.ZERO);
 					tableSampleHandlers.put(table, handler);
 					handler.init();
@@ -513,15 +502,19 @@ public class ObservableAspectTask extends AspectTask {
 										String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
 										if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
 											return handlers.values().stream().findFirst();
-										} else {
-											LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
-											String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
-											if (handlers.containsKey(targetTableName)) {
-												return Optional.ofNullable(handlers.get(targetTableName));
-											}
-											return Optional.ofNullable(handlers.get(table));
-
-										}
+										} else if (node instanceof DatabaseNode databaseNode) {
+                                            String targetTableName = Optional.ofNullable(databaseNode.getSyncObjects())
+                                                .map(list -> {
+                                                    if (list.isEmpty()) return null;
+                                                    return list.get(0);
+                                                }).map(SyncObjects::getTableNameRelation)
+                                                .map(tableNameRelation -> tableNameRelation.get(table))
+                                                .orElse(null);
+                                            if (targetTableName != null && handlers.containsKey(targetTableName)) {
+                                                return Optional.ofNullable(handlers.get(targetTableName));
+                                            }
+                                        }
+                                        return Optional.ofNullable(handlers.get(table));
 									})
 									.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
 
@@ -547,21 +540,29 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handleSnapshotWriteTableCompleteFunc(SnapshotWriteTableCompleteAspect aspect) {
-		String nodeId = aspect.getSourceNodeId();
-		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-			handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis())
-		);
-		tableSampleHandlers.get(aspect.getSourceTableName()).setSnapshotDone();
-		taskSampleHandler.handleBatchReadFuncEnd();
-		return null;
-	}
+        String nodeId = aspect.getSourceNodeId();
+        Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
+            handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis())
+        );
+
+        boolean errorSkipped = aspect.isErrorSkipped();
+        Optional.ofNullable(aspect.getSourceTableName())
+            .map(tableSampleHandlers::get)
+            .ifPresent(sample -> {
+                sample.setSnapshotDone();
+                sample.setErrorSkipped(errorSkipped);
+            });
+
+        // 错误表，不统计完成数量
+        if (!errorSkipped) {
+            taskSampleHandler.handleBatchReadFuncEnd();
+        }
+        return null;
+    }
 
 	// processor node related
 
 	public Void handleProcessorNodeInit(ProcessorNodeInitAspect aspect) {
-		if (null == processorNodeSampleHandlers) {
-			processorNodeSampleHandlers = new HashMap<>();
-		}
 		Node<?> node = aspect.getProcessorBaseContext().getNode();
 		ProcessorNodeSampleHandler handler = new ProcessorNodeSampleHandler(task, node);
 		processorNodeSampleHandlers.put(node.getId(), handler);

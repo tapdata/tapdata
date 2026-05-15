@@ -11,7 +11,9 @@ import com.tapdata.tm.task.constant.SyncStatus;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -81,12 +83,73 @@ public class TaskRestartScheduleTest {
             taskRestartSchedule.waitRunTask();
 
             verify(stateMachineService, times(1)).executeAboutTask(any(TaskDto.class), any(DataFlowEvent.class), any(UserDetail.class));
-            verify(taskScheduleService, times(1)).scheduling(any(), any());
+            verify(taskScheduleService, times(1)).scheduling(any(), any(),any());
+        }
+
+        @Test
+        void testWaitRunTaskSkipsWhenAgentAlive() {
+            // Regression for HA drill test: a wait_run task whose current agent is still
+            // alive must NOT roll back to scheduling. Earlier behavior triggered OVERTIME
+            // purely on scheduledTime, which falsely tore down tasks on healthy engines
+            // whenever the engine's task-pingTime update was momentarily delayed.
+            String userId = "test-user-id";
+            String agentId = "test-agent-id";
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setUserId(userId);
+            taskDto.setAgentId(agentId);
+            taskDto.setStatus(TaskDto.STATUS_WAIT_RUN);
+            taskDto.setSyncStatus(SyncStatus.NORMAL);
+            taskDto.setScheduledTime(new Date(System.currentTimeMillis() - 40000));
+            List<TaskDto> all = new ArrayList<>();
+            all.add(taskDto);
+
+            SettingsService settingsService = mock(SettingsService.class);
+            taskRestartSchedule.setSettingsService(settingsService);
+            TaskService taskService = mock(TaskService.class);
+            when(taskService.findAll(any(Query.class))).thenReturn(all);
+            taskRestartSchedule.setTaskService(taskService);
+
+            MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
+            taskRestartSchedule.setMonitoringLogsService(monitoringLogsService);
+
+            StateMachineService stateMachineService = mock(StateMachineService.class);
+            taskRestartSchedule.setStateMachineService(stateMachineService);
+
+            TaskScheduleService taskScheduleService = mock(TaskScheduleService.class);
+            taskRestartSchedule.setTaskScheduleService(taskScheduleService);
+
+            UserService userService = mock(UserService.class);
+            List<UserDetail> userDetails = new ArrayList<>();
+            UserDetail userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn(userId);
+            userDetails.add(userDetail);
+            when(userService.getUserByIdList(anyList())).thenReturn(userDetails);
+            taskRestartSchedule.setUserService(userService);
+
+            WorkerService workerService = mock(WorkerService.class);
+            WorkerDto worker = new WorkerDto();
+            worker.setProcessId(agentId);
+            worker.setPingTime(System.currentTimeMillis() - 1000L);
+            when(workerService.findByProcessId(eq(agentId), any(UserDetail.class), any(), any())).thenReturn(worker);
+            when(workerService.isAgentTimeout(anyLong())).thenReturn(false);
+            taskRestartSchedule.setWorkerService(workerService);
+
+            taskRestartSchedule.waitRunTask();
+
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), any(DataFlowEvent.class), any(UserDetail.class));
+            verify(taskScheduleService, never()).scheduling(any(), any(), any());
         }
 
         @Test
         void testWaitRunTaskNegative() {
             List<TaskDto> all = new ArrayList<>();
+
+            // waitRunTask reads getHeartExpire() at the top before checking the result list,
+            // so settingsService must be present even when the list is empty.
+            SettingsService settingsService = mock(SettingsService.class);
+            taskRestartSchedule.setSettingsService(settingsService);
 
             TaskService taskService = mock(TaskService.class);
             when(taskService.findAll(any(Query.class))).thenReturn(all);

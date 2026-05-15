@@ -1,5 +1,6 @@
 package com.tapdata.constant;
 
+import com.tapdata.tm.utils.TrustAllX509TrustManager;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -10,15 +11,15 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import jakarta.xml.bind.DatatypeConverter;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.security.KeyFactory;
-import java.security.KeyStore;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
+import org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder;
+import org.bouncycastle.operator.InputDecryptorProvider;
+import org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo;
+
+import java.io.*;
+import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -42,6 +43,21 @@ public class SSLUtil {
 				trustManagers,
 				null);
 
+		return sslContext;
+	}
+
+	public static SSLContext createSSLContext(){
+		SSLContext sslContext = null;
+		try {
+			sslContext = SSLContext.getInstance("TLS");
+		} catch (NoSuchAlgorithmException e) {
+			throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
+		}
+		try {
+			sslContext.init(null, new TrustManager[]{ new TrustAllX509TrustManager()}, new SecureRandom());
+		} catch (KeyManagementException e) {
+			throw new RuntimeException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
+		}
 		return sslContext;
 	}
 
@@ -99,7 +115,7 @@ public class SSLUtil {
 		final KeyStore keystore = KeyStore.getInstance("JKS");
 		keystore.load(null);
 		// Import private key
-		final PrivateKey key = createPrivateKey(privateKey);
+		final PrivateKey key = createPrivateKey(privateKey, password);
 		keystore.setKeyEntry("", key, password.toCharArray(), x509Certificates);
 		return keystore;
 	}
@@ -211,6 +227,47 @@ public class SSLUtil {
 
 		final byte[] bytes = DatatypeConverter.parseBase64Binary(privateKey);
 		return generatePrivateKeyFromDER(bytes);
+	}
+
+	protected static PrivateKey createPrivateKey(String privateKey, String password) throws Exception {
+		final byte[] keyBytes = DatatypeConverter.parseBase64Binary(privateKey);
+
+		if (password != null && !password.isEmpty()) {
+			java.security.Security.addProvider(
+					new org.bouncycastle.jce.provider.BouncyCastleProvider()
+			);
+			String pemContent = "-----BEGIN ENCRYPTED PRIVATE KEY-----\n"
+					+ privateKey + "\n"
+					+ "-----END ENCRYPTED PRIVATE KEY-----";
+
+			try (PEMParser pemParser = new PEMParser(new StringReader(pemContent))) {
+				Object object = pemParser.readObject();
+
+				if (object instanceof PKCS8EncryptedPrivateKeyInfo) {
+					PKCS8EncryptedPrivateKeyInfo encryptedInfo = (PKCS8EncryptedPrivateKeyInfo) object;
+
+					InputDecryptorProvider decryptorProvider =
+							new JceOpenSSLPKCS8DecryptorProviderBuilder()
+									.setProvider("BC")
+									.build(password.toCharArray());
+
+					PrivateKeyInfo privateKeyInfo = encryptedInfo.decryptPrivateKeyInfo(decryptorProvider);
+
+					return new JcaPEMKeyConverter()
+							.setProvider("BC")
+							.getPrivateKey(privateKeyInfo);
+				} else if (object instanceof PrivateKeyInfo) {
+					return new JcaPEMKeyConverter()
+							.setProvider("BC")
+							.getPrivateKey((PrivateKeyInfo) object);
+				}
+			} catch (Exception e) {
+				throw new Exception("Failed to decrypt private key: " + e.getMessage(), e);
+			}
+		}
+
+		// 未加密的私钥
+		return generatePrivateKeyFromDER(keyBytes);
 	}
 
 	private static X509Certificate[] createCertificates(List<String> certificates) throws Exception {

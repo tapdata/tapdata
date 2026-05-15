@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.error.TapDynamicTableNameExCode_35;
 import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.exception.TapCodeException;
+import com.tapdata.tm.commons.dag.EqField;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
     /**
      * 源表名-新表名
      */
+    @EqField
     private LinkedHashSet<TableRenameTableInfo> tableNames;
 
 
@@ -45,10 +47,15 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
     }
 
 
+    @EqField
     private String prefix;
+    @EqField
     private String suffix;
+    @EqField
     private String replaceBefore;
+    @EqField
     private String replaceAfter;
+    @EqField
     private String transferCase;
 
 

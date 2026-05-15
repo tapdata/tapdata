@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesCompareDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.task.dto.CheckTaskMemoryResult;
 import com.tapdata.tm.commons.task.dto.MergeTablePropertiesInfo;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
@@ -26,6 +27,7 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
+import com.tapdata.tm.task.vo.TaskDashboardVo;
 import com.tapdata.tm.task.vo.TaskStatsDto;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -75,7 +77,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     //@Transactional
     public abstract TaskDto updateById(TaskDto taskDto, UserDetail user);
 
-    public abstract TaskDto updateById(TaskDto taskDto, UserDetail user,Boolean importTask);
+    public abstract UpdateResult updateById(TaskDto taskDto, UserDetail user,Boolean importTask);
 
     public abstract TaskDto updateAfter(TaskDto taskDto, UserDetail user);
 
@@ -155,7 +157,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract ShareCacheDetailVo findShareCacheById(String id);
 
-    public abstract Map<String, Object> chart(UserDetail user);
+    public abstract TaskDashboardVo dashboard(UserDetail user, String type, Long step, String dashboardType, Integer top);
 
     public abstract Map<String, Integer> inspectChart(UserDetail user);
 
@@ -197,13 +199,21 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags);
 
-    public abstract void batchImport(List<TaskDto> taskDtos, UserDetail user, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, String> taskMap,Map<String, String> nodeMap);
+    public abstract Map<String, Object> batchImport(List<TaskDto> taskDtos, UserDetail user, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, String> taskMap, Map<String, String> nodeMap, List<String> resetTaskList);
 
     public abstract Criteria parseOrToCriteria(Where where);
 
     public abstract void getTableDDL(TaskDto taskDto);
 
     public abstract List<TaskDto> findAllTasksByIds(List<String> list);
+
+    public abstract Boolean getHeartbeatTaskRunningByTaskId(String taskId);
+
+    public abstract Map<String, Boolean> batchGetHeartbeatTaskRunningByTaskIds(List<String> taskIds);
+
+    public abstract void appendHeartbeatTaskRunning(TaskDto taskDto);
+
+    public abstract void appendHeartbeatTaskRunning(List<TaskDto> taskDtos);
 
     public abstract void renewAgentMeasurement(String taskId);
 
@@ -301,6 +311,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
     public abstract void updateDelayTime(ObjectId taskId, long delayTime);
+    public abstract void updateTaskIncrementDelayAlarm(ObjectId taskId, Long taskIncrementDelay, Long taskIncrementDelayThreshold);
     public abstract void refreshSchemas(TaskDto taskDto, String nodeIds, String keys, UserDetail userDetail);
     public abstract void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail);
     public abstract <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable;
@@ -313,6 +324,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract void updateMergeTablePropertiesRebuildStatus(String taskId, String nodeId, String mergeTablePropertiesId,UserDetail userDetail,String status);
     public abstract void saveMergeTableCacheInfo(String taskId);
     public abstract List<String> getTargetConnectionIds(String taskId);
+    public abstract CheckTaskMemoryResult checkTaskMemoryHeap(TaskDto taskDto, boolean isManual,UserDetail userDetail);
+
 
     @Data
     @AllArgsConstructor
@@ -336,4 +349,3 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
         private long totalDeleteSize = 0;
     }
 }
-

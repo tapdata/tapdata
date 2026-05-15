@@ -28,6 +28,7 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.util.TokenBucketRateLimiter;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -67,6 +68,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private AtomicBoolean retrying;
 	private final ITaskInspect taskInspect;
 	private final AutoRecovery autoRecovery;
+	private final ISkipErrorTable skipErrorTable;
     private final long createTime = System.currentTimeMillis();
 
 	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ClientMongoOperator pingClientMongoOperator,
@@ -98,6 +100,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		} else {
 			this.autoRecovery = null;
         }
+        this.skipErrorTable = ISkipErrorTable.create(taskDto, clientMongoOperator);
 		Optional<Node> cacheNode = taskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
 		this.retryCounter = new AtomicInteger(0);
@@ -233,6 +236,15 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
                 },
                 err -> {
                     obsLogger.warn(String.format("Closed task auto recovery instance failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
+                }
+            );
+            CommonUtils.handleAnyError(
+                () -> {
+					skipErrorTable.close();
+                    obsLogger.trace(String.format("Closed task skip error table instance %s", skipErrorTable));
+                },
+                err -> {
+                    obsLogger.warn(String.format("Closed task skip error table failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
                 }
             );
 		CommonUtils.handleAnyError(

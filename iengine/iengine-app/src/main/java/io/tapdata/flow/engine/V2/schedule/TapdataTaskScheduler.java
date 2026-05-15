@@ -7,6 +7,7 @@ import io.tapdata.firedome.MultiTaggedGauge;
 import io.tapdata.firedome.PrometheusName;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkBaseNode;
 import io.tapdata.flow.engine.V2.task.OpType;
+import io.tapdata.flow.engine.V2.util.TaskOperationQueue;
 import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -60,6 +61,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -96,7 +98,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	@Qualifier("taskControlScheduler")
 	@Autowired
 	private TaskScheduler taskScheduler;
-	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
+	private final TaskOperationQueue taskOperationQueue = new TaskOperationQueue(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
 	private final Map<String, ScheduleTaskConfig> scheduleTaskConfigs = new ConcurrentHashMap<>();
@@ -118,6 +120,13 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private final Object startTaskLock = new Object();
 	private volatile long lastStartTaskTime = 0L;
 	private static final long START_TASK_RATE_LIMIT_MILLIS = 5000L; // 5秒限流间隔
+
+	// 批量启动任务的并发控制
+	private static final double BATCH_SIZE_RATIO = 0.7; // 使用线程池70%的线程用于批量启动
+	private static final int MIN_BATCH_SIZE = 1; // 最小批次大小
+	private final Semaphore startTaskSemaphore = new Semaphore(calculateBatchSize()); // 控制并发启动任务数量
+	private volatile long lastBatchStartTime = 0L; // 上一批次启动时间
+	private final AtomicInteger currentBatchCount = new AtomicInteger(0); // 当前批次已启动任务数
 
 	@Bean(name = "taskControlScheduler")
 	public TaskScheduler taskControlScheduler() {
@@ -163,9 +172,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			Thread.currentThread().setName("Task-Operation-Consumer");
 			while (true) {
 				try {
-					TaskOperation taskOperation = taskOperationsQueue.poll(1L, TimeUnit.SECONDS);
-					if (null == taskOperation) continue;
-					handleTaskOperation(taskOperation);
+					TaskOperation taskOperation = taskOperationQueue.poll(1L, TimeUnit.SECONDS);
+					if (null != taskOperation) {
+						handleTaskOperation(taskOperation);
+					}
 				} catch (InterruptedException e) {
 					break;
 				} catch (Throwable throwable) {
@@ -230,17 +240,16 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		return () -> {
 			String taskId;
 			try {
-				if (taskOperation instanceof StartTaskOperation) {
-					StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
+				if (taskOperation instanceof StartTaskOperation startTaskOperation) {
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
 					taskId = startTaskOperation.getTaskDto().getId().toHexString();
 					TaskDto taskDto = startTaskOperation.getTaskDto();
 					if (!taskLock.tryRun(taskId, ()-> startTask(taskDto), 1L, TimeUnit.SECONDS)) {
 						logger.warn("Start task {} failed because of task lock, will ignored", taskDto.getName());
 						ObsLoggerFactory.getInstance().getObsLogger(taskDto).warn("Start task failed because of task lock, will ignored");
+						ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
 					}
-				} else if (taskOperation instanceof StopTaskOperation) {
-					StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
+				} else if (taskOperation instanceof StopTaskOperation stopTaskOperation) {
 					Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
 					taskId = stopTaskOperation.getTaskId();
 					if (!taskLock.tryRun(taskId, () -> stopTask(taskId), 1L, TimeUnit.SECONDS)) {
@@ -260,9 +269,14 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		};
 	}
 
-	protected void handleTaskOperation(TaskOperation taskOperation) {
+	protected void handleTaskOperation(TaskOperation taskOperation) throws InterruptedException, ExecutionException {
+		// 将处理变成单线程处理，避免操作在线程池中积压
 		Runnable runnable = getHandleTaskOperationRunnable(taskOperation);
-		taskOperationThreadPool.submit(runnable);
+		Future<?> future = taskOperationThreadPool.submit(runnable);
+		if (taskOperation.getOpType() == OpType.START) {
+			// 启动任务有限流，单线程处理
+			future.get();
+		}
 	}
 
 	public void sendStartTask(TaskDto taskDto) {
@@ -289,9 +303,13 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (null == taskOperation) return;
 		while (true) {
 			try {
-				if (taskOperationsQueue.offer(taskOperation)) {
+				if (taskOperationQueue.offer(taskOperation)) {
 					break;
 				}
+				TimeUnit.MILLISECONDS.sleep(500);
+			} catch (InterruptedException ignore) {
+				Thread.currentThread().interrupt();
+				break;
 			} catch (Exception e) {
 				break;
 			}
@@ -321,7 +339,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			List<TaskDto> allWaitRunTasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 			for (TaskDto waitRunTask : allWaitRunTasks) {
 				logger.info("Staring task from http query: {}[{}]", waitRunTask.getName(), waitRunTask.getId());
-				query = new Query(Criteria.where("id").is(waitRunTask.getId()));
+				query = new Query(Criteria.where("_id").is(waitRunTask.getId()));
 				Update update = new Update();
 				update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
 				addAgentIdUpdate(update);
@@ -402,9 +420,32 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	/**
+	 * Calculate batch size for concurrent task startup
+	 * Uses 70% of thread pool size, with minimum guarantee of 1
+	 *
+	 * @return batch size for concurrent task startup
+	 */
+	private static int calculateBatchSize() {
+		int threadPoolSize = Runtime.getRuntime().availableProcessors() + 1;
+		int batchSize = (int) Math.ceil(threadPoolSize * BATCH_SIZE_RATIO);
+		int result = Math.max(batchSize, MIN_BATCH_SIZE);
+
+		LogManager.getLogger(TapdataTaskScheduler.class).info(
+			"Calculated batch size for task startup: {} (thread pool size: {}, ratio: {}%, min: {})",
+			result, threadPoolSize, (int)(BATCH_SIZE_RATIO * 100), MIN_BATCH_SIZE
+		);
+
+		return result;
+	}
+
+	/**
 	 * 应用 startTask 方法的限流控制
 	 * 确保任何调用 startTask 的方法都不会超过 5 秒一个的频率
+	 * 已废弃，使用 applyBatchStartTaskRateLimit 替代
+	 *
+	 * @deprecated Use {@link #applyBatchStartTaskRateLimit(TaskDto)} instead
 	 */
+	@Deprecated
 	public void applyStartTaskRateLimit(TaskDto taskDto) {
 		synchronized (startTaskLock) {
 			long currentTime = System.currentTimeMillis();
@@ -432,53 +473,114 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 	}
 
-	protected void startTask(TaskDto taskDto) {
-		// 应用限流控制
-		applyStartTaskRateLimit(taskDto);
+	/**
+	 * Apply batch-based rate limiting for task startup
+	 * Allows concurrent task startup within batch size limit, with 5-second interval between batches
+	 *
+	 * @param taskDto the task to start
+	 */
+	public void applyBatchStartTaskRateLimit(TaskDto taskDto) {
+		try {
+			// Acquire semaphore permit (blocks if batch is full)
+			startTaskSemaphore.acquire();
 
-		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
-		final String taskId = taskDto.getId().toHexString();
-		AtomicBoolean isReturn = new AtomicBoolean(false);
-		taskClientMap.computeIfPresent(taskId, (id, taskClient)->{
-			if (taskClientMap.containsKey(taskId)) {
-				String status = taskClient.getStatus();
-				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
-				Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
-						.ifPresent(log -> log.info("This task is already running"));
-				try {
-					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-				} catch (Exception e) {
-					if (e instanceof RestDoNotRetryException && "Transition.Not.Supported".equals(((RestDoNotRetryException) e).getCode())) {
-						// ignored Transition.Not.Supported error
-					} else {
-						throw e;
+			synchronized (startTaskLock) {
+				int batchCount = currentBatchCount.incrementAndGet();
+				int batchSize = calculateBatchSize();
+
+				logger.debug("Task {} ({}) acquired startup permit, current batch count: {}/{}",
+					taskDto.getName(), taskDto.getId().toHexString(), batchCount, batchSize);
+
+				// Check if this is the first task in a new batch
+				if (batchCount == 1) {
+					long currentTime = System.currentTimeMillis();
+					long timeSinceLastBatch = currentTime - lastBatchStartTime;
+
+					// If less than 5 seconds since last batch, wait
+					if (lastBatchStartTime > 0 && timeSinceLastBatch < START_TASK_RATE_LIMIT_MILLIS) {
+						long waitTime = START_TASK_RATE_LIMIT_MILLIS - timeSinceLastBatch;
+						logger.info("Rate limiting batch startup, waiting {}ms to maintain 5-second batch interval", waitTime);
+
+						try {
+							startTaskLock.wait(waitTime);
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+							logger.warn("Batch rate limit wait interrupted");
+							throw new RuntimeException("Batch rate limit wait interrupted", e);
+						}
 					}
+
+					// Update last batch start time
+					lastBatchStartTime = System.currentTimeMillis();
+					logger.info("Starting new batch of tasks, batch size limit: {}, batch start time: {}",
+						batchSize, lastBatchStartTime);
 				}
-				isReturn.compareAndSet(false, true);
+
+				// If batch is full, reset counter and release all permits for next batch
+				if (batchCount >= batchSize) {
+					logger.info("Batch full ({}/{}), resetting for next batch", batchCount, batchSize);
+					currentBatchCount.set(0);
+					startTaskSemaphore.release(batchSize);
+				}
 			}
-			return taskClient;
-		});
-		if (isReturn.get()) {
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			logger.error("Failed to acquire startup permit for task {} ({}): {}",
+				taskDto.getName(), taskDto.getId().toHexString(), e.getMessage());
+			throw new RuntimeException("Failed to acquire startup permit", e);
+		}
+	}
+
+	protected void startTask(TaskDto taskDto) {
+		final String taskId = taskDto.getId().toHexString();
+		TaskClient<TaskDto> taskClient = getTaskClient(taskId);
+		if (null != taskClient) {
+			// 正在执行的任务，只更新状态
+			String status = taskClient.getStatus();
+			logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
+			Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
+				.ifPresent(log -> log.info("This task is already running"));
+			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskOpRespDto.class);
 			return;
 		}
+
+		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		try {
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
-			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
+
+			// Claim the task first so TM immediately moves wait_run→running; if this fails the
+			// task is still in scheduling/wait_run and we abort rather than start a phantom job.
+			TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskOpRespDto.class);
+			if (null == taskOpRespDto || !taskOpRespDto.getSuccessIds().contains(taskId)) {
+				// 防止任务异常状态下再次启动任务
+				throw new RuntimeException("Update task status to 'running' failed");
+			}
+
+			// Apply rate limiting after claiming: TM already knows the task is running so the
+			// wait_run overtime timer will not fire while we wait here.
+			applyBatchStartTaskRateLimit(taskDto);
+
+			// 使用 computeIfAbsent 防止创建重复的 TaskClient
+			taskClientMap.computeIfAbsent(taskId, id -> hazelcastTaskService.startTask(taskDto));
 		} catch (Throwable e) {
 			if (TmUnavailableException.isInstance(e)) {
 				logger.warn("Start task {} failed because TM unavailable: {}", taskDto.getName(), e.getMessage());
 			} else {
-				logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
+				taskClient = getTaskClient(taskId);
+				if (null != taskClient) {
+					taskClient.stop();
+					logger.error("Start task {} failed, current status '{}', {}", taskDto.getName(), taskClient.getStatus(), e.getMessage(), e);
+				} else {
+					logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
+				}
 				CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class)).join();
 			}
 			if (ObsLoggerFactory.getInstance().getObsLogger(taskDto) != null) {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDto).error( "Start task failed: " + e.getMessage(), e);
 			}
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
-			Optional.of(taskDto).ifPresent(task -> ConnectorConstant.TASK_STATUS_GAUGE.set(1, task.getId().toHexString(), task.getName(), task.getSyncType()));
+			Optional.of(taskDto).ifPresent(task -> ConnectorConstant.TASK_STATUS_GAUGE.set(1, taskId, task.getName(), task.getSyncType()));
 		} finally {
 			ThreadContext.clearAll();
 		}

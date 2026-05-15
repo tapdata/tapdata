@@ -421,7 +421,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 					.dynamicDescriptionParameters(k);
 		}
 		if (null == tapTable) {
-			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName);
+			return null;
 		}
 
 		TapTableUtil.sortFieldMap(tapTable);

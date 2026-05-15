@@ -129,10 +129,6 @@ public class Application {
 			logger.info("Starting application, code version {}", formatVersion);
 			AgentRuntime.version = (configurationCenter == null || configurationCenter.getConfig("version") == null) ? "-" : configurationCenter.getConfig("version").toString();
 			initTimeZoneInfo();
-			SpringApplication springApplication = new SpringApplicationBuilder(Application.class).allowCircularReferences(true).listeners(new MonitorConfigListener()).build();
-			springApplication.setWebApplicationType(WebApplicationType.NONE);
-			ConfigurableApplicationContext run = springApplication.run(args);
-
 			TapLogger.setLogListener(new TapLogger.LogListener() {
 				@Override
 				public void debug(String log) {
@@ -167,7 +163,9 @@ public class Application {
 					pdkLogger.info(memoryLog);
 				}
 			});
-
+			SpringApplication springApplication = new SpringApplicationBuilder(Application.class).allowCircularReferences(true).listeners(new MonitorConfigListener()).build();
+			springApplication.setWebApplicationType(WebApplicationType.NONE);
+			ConfigurableApplicationContext run = springApplication.run(args);
 			TapRuntime.getInstance();
 			configurationCenter = run.getBean(ConfigurationCenter.class);
 			configurationCenter.putConfig("version", "@env.VERSION@".equals(buildInfo.get("version")) ? "-" : buildInfo.get("version"));

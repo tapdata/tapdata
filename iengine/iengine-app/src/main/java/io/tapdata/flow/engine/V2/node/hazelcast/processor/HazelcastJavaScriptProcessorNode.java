@@ -100,8 +100,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	}
 
 	protected Invocable getOrInitEngine() {
-		String threadName = Thread.currentThread().getName();
-		return engineMap.computeIfAbsent(threadName, tn -> {
+		String nodeId = getNode().getId();
+		return engineMap.computeIfAbsent(nodeId, tn -> {
 			Node<?> node = getNode();
 			String script;
 			if (node instanceof JsProcessorNode) {
@@ -139,6 +139,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 			ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 			Invocable engine;
+			ObsScriptLogger obsScriptLogger;
+			if(getProcessorBaseContext().getTaskDto().isNormalTask()){
+				obsScriptLogger = new ObsScriptLogger(getScriptObsLogger(),logger);
+			}else{
+				obsScriptLogger = new ObsScriptLogger(obsLogger,logger);
+			}
 			try {
 				engine = finalJs ?
 						ScriptStandardizationUtil.getScriptStandardizationEngine(
@@ -147,7 +153,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 								javaScriptFunctions,
 								clientMongoOperator,
 								scriptCacheService,
-								new ObsScriptLogger(getScriptObsLogger(), logger),
+								obsScriptLogger,
 								this.standard)
 						: ScriptUtil.getScriptEngine(
 						JSEngineEnum.GRAALVM_JS.getEngineName(),
@@ -157,7 +163,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 						null,
 						null,
 						scriptCacheService,
-						new ObsScriptLogger(getScriptObsLogger(), logger),
+						obsScriptLogger,
 						this.standard);
 			} catch (ScriptException e) {
 				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e)
@@ -172,8 +178,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 				List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
 
-				ScriptExecutorsManager.ScriptExecutor source = sourceMap.computeIfAbsent(threadName, k -> getDefaultScriptExecutor(predecessors, SOURCE_TAG));
-				ScriptExecutorsManager.ScriptExecutor target = targetMap.computeIfAbsent(threadName, k -> getDefaultScriptExecutor(successors, TARGET_TAG));
+				ScriptExecutorsManager.ScriptExecutor source = sourceMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(predecessors, SOURCE_TAG));
+				ScriptExecutorsManager.ScriptExecutor target = targetMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(successors, TARGET_TAG));
 				((ScriptEngine) engine).put(SOURCE_TAG, source);
 				((ScriptEngine) engine).put(TARGET_TAG, target);
 			}
@@ -271,6 +277,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			op = (String) context.get("op");
 		}
 
+		Map<String, Object> contextBefore = (Map<String, Object>) context.get("before");
 		context.clear();
 
 		if (null == scriptInvokeResult.get()) {
@@ -284,7 +291,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
 				TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
 				CpuMemoryCollector.listening(getNode().getId(), cloneTapdataEvent);
-				TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op);
+				TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op, contextBefore);
 				setRecordMap(returnTapEvent, op, recordMap);
 				flushBeforeIfNeed(scriptInvokeBeforeResult.get(), returnTapEvent, beforeIndex);
 				cloneTapdataEvent.setTapEvent(returnTapEvent);
@@ -294,7 +301,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		} else {
 			Map<String, Object> recordMap = new HashMap<>();
 			MapUtil.copyToNewMap((Map<String, Object>) scriptInvokeResult.get(), recordMap);
-			TapEvent returnTapEvent = getTapEvent(tapEvent, op);
+			TapEvent returnTapEvent = getTapEvent(tapEvent, op, contextBefore);
 			CpuMemoryCollector.listening(getNode().getId(), returnTapEvent);
 			setRecordMap(returnTapEvent, op, recordMap);
 			flushBeforeIfNeed(scriptInvokeBeforeResult.get(), returnTapEvent, null);
@@ -320,30 +327,42 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		}
 	}
 
-	private TapEvent getTapEvent(TapEvent tapEvent, String op) {
-		if (StringUtils.equals(TapEventUtil.getOp(tapEvent), op)) {
-			return tapEvent;
-		}
-		OperationType operationType = OperationType.fromOp(op);
-		TapEvent result;
+    private TapEvent getTapEvent(TapEvent tapEvent, String op, Map<String, Object> before) {
+        if (StringUtils.equals(TapEventUtil.getOp(tapEvent), op)) {
+            return tapEvent;
+        }
+        OperationType operationType = OperationType.fromOp(op);
+        TapEvent result;
 
-		switch (operationType) {
-			case INSERT:
-				result = TapInsertRecordEvent.create();
-				break;
-			case UPDATE:
-				result = TapUpdateRecordEvent.create();
-				break;
-			case DELETE:
-				result = TapDeleteRecordEvent.create();
-				break;
-			default:
-				throw new IllegalArgumentException("Unsupported operation type: " + op);
-		}
-		tapEvent.clone(result);
+        if (operationType == null) {
+            throw new IllegalArgumentException("Unsupported operation type: " + op);
+        }
+        switch (operationType) {
+            case INSERT:
+                result = TapInsertRecordEvent.create();
+                tapEvent.clone(result);
+                break;
+            case UPDATE:
+                result = TapUpdateRecordEvent.create();
+                tapEvent.clone(result);
+				if (before != null) {
+					if (StringUtils.equals(TapEventUtil.getOp(tapEvent), OperationType.INSERT.getOp())) {
+						TapEventUtil.setBefore(result, before);
+					} else {
+						TapEventUtil.setAfter(result, before);
+					}
+				}
+                break;
+            case DELETE:
+                result = TapDeleteRecordEvent.create();
+                tapEvent.clone(result);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported operation type: " + op);
+        }
 
-		return result;
-	}
+        return result;
+    }
 
 	private static void setRecordMap(TapEvent tapEvent, String op, Map<String, Object> recordMap) {
 		if (ConnectorConstant.MESSAGE_OPERATION_DELETE.equals(op)) {

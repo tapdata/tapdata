@@ -614,4 +614,51 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         }
     }
 
+    /**
+     * 批量导入标签定义
+     * 按 _id 查重：已存在则覆盖更新，不存在则以原 _id 插入，保持两端 _id 一致。
+     *
+     * @param tags 标签定义列表
+     * @param user 用户信息
+     * @return 标签 ID 映射（_id 不变，为恒等映射，保留接口兼容性）
+     */
+    public Map<String, String> batchImport(List<MetadataDefinitionDto> tags, UserDetail user) {
+        Map<String, String> tagIdMap = new HashMap<>();
+        if (CollectionUtils.isEmpty(tags)) {
+            return tagIdMap;
+        }
+        // 父节点优先排序，确保父标签先于子标签处理
+        List<MetadataDefinitionDto> sortTags = tags.stream()
+                .sorted(Comparator.comparing((MetadataDefinitionDto dto) -> org.apache.commons.lang3.StringUtils.isNotBlank(dto.getParent_id()))).toList();
+        for (MetadataDefinitionDto tag : sortTags) {
+            if (tag.getId() == null || StringUtils.isBlank(tag.getValue())) {
+                continue;
+            }
+            String tagId = tag.getId().toHexString();
+            // _id 保持不变，映射为恒等
+            tagIdMap.put(tagId, tagId);
+
+            tag.setCreateUser(null);
+            tag.setCustomId(null);
+            tag.setLastUpdBy(null);
+            tag.setUserId(null);
+
+            // 按 _id 查重
+            Query idQuery = Query.query(Criteria.where("_id").is(tag.getId()));
+            MetadataDefinitionDto existing = findOne(idQuery);
+
+            if (existing != null) {
+                // 已存在，覆盖更新
+                update(idQuery, tag);
+            } else {
+                // 不存在，以原 _id 插入：使用 upsert 而非 save，
+                // 因为 save() 对已有 _id 的 entity 执行 updateFirst（而非 insert），
+                // 导致 document 不存在时无任何效果，MetadataDefinition 记录丢失。
+                upsert(idQuery, tag, user);
+            }
+        }
+
+        return tagIdMap;
+    }
+
 }

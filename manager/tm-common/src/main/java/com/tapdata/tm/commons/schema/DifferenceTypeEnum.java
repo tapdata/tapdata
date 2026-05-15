@@ -1,7 +1,5 @@
 package com.tapdata.tm.commons.schema;
 
-import org.apache.commons.lang3.StringUtils;
-
 import java.util.List;
 
 public enum DifferenceTypeEnum {
@@ -38,7 +36,6 @@ public enum DifferenceTypeEnum {
                 differenceField.getTargetField().setFieldName(field.getFieldName());
                 differenceField.getTargetField().setColumnPosition(field.getColumnPosition());
                 differenceField.getTargetField().setPrimaryKeyPosition(field.getPrimaryKeyPosition());
-                differenceField.getTargetField().setDataTypeTemp(differenceField.getTargetField().getDataType());
                 fields.remove(field);
                 fields.add(differenceField.getTargetField());
             }
@@ -59,7 +56,6 @@ public enum DifferenceTypeEnum {
                 differenceField.getTargetField().setFieldName(field.getFieldName());
                 differenceField.getTargetField().setColumnPosition(field.getColumnPosition());
                 differenceField.getTargetField().setPrimaryKeyPosition(field.getPrimaryKeyPosition());
-                differenceField.getTargetField().setDataTypeTemp(differenceField.getTargetField().getDataType());
                 fields.remove(field);
                 fields.add(differenceField.getTargetField());
             }
@@ -82,6 +78,16 @@ public enum DifferenceTypeEnum {
             if(!fields.contains(differenceField.getSourceField())) {
                 fields.add(differenceField.getSourceField());
             }
+        }
+    },
+    PrimaryKeyInconsistency{
+        @Override
+        public void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField) {
+
+        }
+        @Override
+        public void recoverField(Field field, List<Field> fields, DifferenceField differenceField) {
+
         }
     };
 

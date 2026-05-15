@@ -78,8 +78,8 @@ class TaskNodePdkConnectorTest {
             ConnectorNode connectorNode = mock(ConnectorNode.class);
             doReturn(connectorFunctions).when(connectorNode).getConnectorFunctions();
             doReturn(associateId).when(connectorNode).getAssociateId();
-            Map<String,Object> nodeConfig=new HashMap<>();
-
+            Map<String, Object> nodeConfig = new HashMap<>();
+            Map<String, Map<String, Object>> tableNodeConfig = new HashMap<>();
             PdkTableMap pdkTableMap = mock(PdkTableMap.class);
             mockStatic.when(() -> TaskNodePdkConnector.createPdkTableMap(nodeId)).thenReturn(pdkTableMap);
             PdkStateMap pdkStateMap = mock(PdkStateMap.class);
@@ -96,15 +96,16 @@ class TaskNodePdkConnectorTest {
                     , eq(associateId)
                     , eq(connectionConfig)
                     , eq(nodeConfig)
+                    , eq(tableNodeConfig)
                     , eq(pdkTableMap)
                     , eq(pdkStateMap)
                     , eq(globalStateMap)
-                    , eq(null),
-                    eq(null)
+                    , eq(null)
+                    , eq(null)
                     , eq(log)
             )).thenReturn(connectorNode);
 
-            try (TaskNodePdkConnector pdkConnector = new TaskNodePdkConnector(clientMongoOperator, taskId, node, associateId, connections, databaseType, taskRetryConfig,nodeConfig)) {
+            try (TaskNodePdkConnector pdkConnector = new TaskNodePdkConnector(clientMongoOperator, taskId, node, associateId, connections, databaseType, taskRetryConfig, nodeConfig, tableNodeConfig)) {
                 assertNotNull(pdkConnector);
                 pdkConnector.init();
             }

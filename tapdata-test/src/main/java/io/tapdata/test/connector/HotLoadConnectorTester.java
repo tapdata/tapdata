@@ -52,6 +52,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -66,6 +67,8 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
  * @author TapData
  */
 public class HotLoadConnectorTester {
+
+    private static final int MAX_LATENCY_SAMPLE_SIZE = 100_000;
 
     private static final Log logger = new TapLog();
 
@@ -344,7 +347,7 @@ public class HotLoadConnectorTester {
         TapConnector connectorInstance = createConnectorInstance(connectorClass, connectionConfig);
 
         // 创建连接上下文
-        TapConnectionContext connectionContext = new TapConnectionContext(null, connectionConfig, null, new TapLog());
+        TapConnectionContext connectionContext = new TapConnectionContext(null, connectionConfig, null, null, new TapLog());
 
         // 创建连接器功能注册器
         ConnectorFunctions connectorFunctions = new ConnectorFunctions();
@@ -520,7 +523,7 @@ public class HotLoadConnectorTester {
         ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
         // 创建连接器上下文
         TapConnectorContext connectorContext = new TapConnectorContext(
-                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+                null, connectorInfo.getConnectionConfig(), null, null, new TapLog()
         );
         connectorContext.setStateMap(stateMap);
         try {
@@ -611,7 +614,7 @@ public class HotLoadConnectorTester {
         PerformanceResult result = new PerformanceResult("StreamRead");
         ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
         TapConnectorContext connectorContext = new TapConnectorContext(
-                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+                null, connectorInfo.getConnectionConfig(), null, null, new TapLog()
         );
         connectorContext.setStateMap(stateMap);
         connectorContext.setTableMap(new KVReadOnlyMap<>() {
@@ -672,17 +675,47 @@ public class HotLoadConnectorTester {
                     }
                     Object finalStreamOffset = streamOffset;
                     AtomicLong recordCount = new AtomicLong(0);
+                    AtomicLong eventCount = new AtomicLong(0);
+                    AtomicLong nonRecordEventCount = new AtomicLong(0);
                     AtomicLong startTime = new AtomicLong(0);
+                    AtomicLong latencyCount = new AtomicLong(0);
+                    AtomicLong latencyTotal = new AtomicLong(0);
+                    AtomicLong minLatency = new AtomicLong(Long.MAX_VALUE);
+                    AtomicLong maxLatency = new AtomicLong(0);
+                    AtomicLong latencySeen = new AtomicLong(0);
+                    Map<Long, AtomicLong> throughputBuckets = new ConcurrentHashMap<>();
+                    List<Long> latencySamples = Collections.synchronizedList(new ArrayList<>());
                     StreamReadConsumer streamReadConsumer = StreamReadConsumer.create((events, offset) -> {
-                        if (startTime.get() == 0) {
-                            if (events.stream().anyMatch(v -> v instanceof TapRecordEvent)) {
-                                startTime.set(System.currentTimeMillis());
-                            }
+                        long now = System.currentTimeMillis();
+                        long recordEventSize = events.stream().filter(TapRecordEvent.class::isInstance).count();
+                        if (recordEventSize > 0 && startTime.get() == 0) {
+                            startTime.compareAndSet(0, now);
                         }
                         events.forEach(event -> logger.debug(event.toString()));
-                        recordCount.addAndGet(events.size());
+                        eventCount.addAndGet(events.size());
+                        nonRecordEventCount.addAndGet(events.size() - recordEventSize);
+                        recordCount.addAndGet(recordEventSize);
+                        long measureStartTime = startTime.get();
+                        if (recordEventSize > 0 && measureStartTime > 0) {
+                            long secondBucket = Math.max(0, (now - measureStartTime) / 1000);
+                            throughputBuckets.computeIfAbsent(secondBucket, key -> new AtomicLong()).addAndGet(recordEventSize);
+                        }
+                        events.stream()
+                                .filter(TapRecordEvent.class::isInstance)
+                                .map(TapRecordEvent.class::cast)
+                                .forEach(recordEvent -> {
+                                    Long eventTime = recordEvent.getReferenceTime();
+                                    if (eventTime != null && eventTime > 0) {
+                                        long latency = Math.max(0, now - eventTime);
+                                        latencyCount.incrementAndGet();
+                                        latencyTotal.addAndGet(latency);
+                                        updateMin(minLatency, latency);
+                                        updateMax(maxLatency, latency);
+                                        addLatencySample(latencySamples, latencySeen, latency);
+                                    }
+                                });
                         // 隐藏debug日志，只在需要时输出
-                        logger.info("Stream read progress: {} records", recordCount.get());
+                        logger.info("Stream read progress: {} records, {} total events", recordCount.get(), eventCount.get());
                     });
                     new Thread(() -> {
                         try {
@@ -705,7 +738,7 @@ public class HotLoadConnectorTester {
                             logger.error("Error sleeping: {}", e.getMessage());
                         }
                     }
-                    long actualDuration = System.currentTimeMillis() - startTime.get();
+                    long actualDuration = startTime.get() > 0 ? System.currentTimeMillis() - startTime.get() : 0;
                     try {
                         ReleaseExternalFunction releaseExternalFunction = functions.getReleaseExternalFunction();
                         if (releaseExternalFunction != null) {
@@ -721,6 +754,14 @@ public class HotLoadConnectorTester {
                     result.setThroughput(actualDuration > 0 ? (recordCount.get() * 1000.0 / actualDuration) : 0);
                     result.addMetadata("tableNames", tableNames);
                     result.addMetadata("requestedDuration", durationMs);
+                    result.addMetadata("eventCount", eventCount.get());
+                    result.addMetadata("nonRecordEventCount", nonRecordEventCount.get());
+                    result.addMetadata("throughputStats", buildThroughputStats(throughputBuckets, actualDuration, recordCount.get()));
+                    result.addMetadata("latencyStats", buildLatencyStats(latencySamples, latencyCount.get(), latencyTotal.get(), minLatency.get(), maxLatency.get()));
+                    logger.info("Stream read summary: throughput={}, throughputStats={}, latencyStats={}",
+                            result.getThroughput(),
+                            result.getMetadata().get("throughputStats"),
+                            result.getMetadata().get("latencyStats"));
 
                 } catch (Throwable e) {
                     result.setErrorMessage(e.getMessage());
@@ -748,6 +789,87 @@ public class HotLoadConnectorTester {
         return result;
     }
 
+    private void addLatencySample(List<Long> latencySamples, AtomicLong latencySeen, long latency) {
+        long seen = latencySeen.incrementAndGet();
+        synchronized (latencySamples) {
+            if (latencySamples.size() < MAX_LATENCY_SAMPLE_SIZE) {
+                latencySamples.add(latency);
+                return;
+            }
+            long index = ThreadLocalRandom.current().nextLong(seen);
+            if (index < MAX_LATENCY_SAMPLE_SIZE) {
+                latencySamples.set((int) index, latency);
+            }
+        }
+    }
+
+    private Map<String, Object> buildThroughputStats(Map<Long, AtomicLong> throughputBuckets, long actualDuration, long recordCount) {
+        Map<String, Object> stats = new LinkedHashMap<>();
+        List<Long> perSecond = throughputBuckets.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> entry.getValue().get())
+                .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
+        stats.put("actualDurationMs", actualDuration);
+        stats.put("recordCount", recordCount);
+        stats.put("avgRecordsPerSecond", actualDuration > 0 ? recordCount * 1000.0 / actualDuration : 0D);
+        stats.put("sampledSeconds", perSecond.size());
+        stats.put("perSecondRecords", perSecond);
+        stats.put("minRecordsPerSecond", percentile(perSecond, 0));
+        stats.put("p50RecordsPerSecond", percentile(perSecond, 50));
+        stats.put("p95RecordsPerSecond", percentile(perSecond, 95));
+        stats.put("p99RecordsPerSecond", percentile(perSecond, 99));
+        stats.put("maxRecordsPerSecond", percentile(perSecond, 100));
+        return stats;
+    }
+
+    private Map<String, Object> buildLatencyStats(List<Long> latencySamples, long latencyCount, long latencyTotal, long minLatency, long maxLatency) {
+        Map<String, Object> stats = new LinkedHashMap<>();
+        List<Long> snapshot;
+        synchronized (latencySamples) {
+            snapshot = new ArrayList<>(latencySamples);
+        }
+        stats.put("latencyCount", latencyCount);
+        stats.put("sampleSize", snapshot.size());
+        stats.put("avgLatencyMs", latencyCount > 0 ? latencyTotal * 1.0 / latencyCount : 0D);
+        stats.put("minLatencyMs", latencyCount > 0 ? minLatency : 0L);
+        stats.put("p50LatencyMs", percentile(snapshot, 50));
+        stats.put("p95LatencyMs", percentile(snapshot, 95));
+        stats.put("p99LatencyMs", percentile(snapshot, 99));
+        stats.put("maxLatencyMs", latencyCount > 0 ? maxLatency : 0L);
+        return stats;
+    }
+
+    private long percentile(List<Long> values, int percentile) {
+        if (values == null || values.isEmpty()) {
+            return 0L;
+        }
+        List<Long> sorted = new ArrayList<>(values);
+        sorted.sort(Long::compareTo);
+        if (percentile <= 0) {
+            return sorted.get(0);
+        }
+        if (percentile >= 100) {
+            return sorted.get(sorted.size() - 1);
+        }
+        int index = (int) Math.ceil(percentile / 100.0 * sorted.size()) - 1;
+        index = Math.max(0, Math.min(index, sorted.size() - 1));
+        return sorted.get(index);
+    }
+
+    private void updateMin(AtomicLong target, long candidate) {
+        long current = target.get();
+        while (candidate < current && !target.compareAndSet(current, candidate)) {
+            current = target.get();
+        }
+    }
+
+    private void updateMax(AtomicLong target, long candidate) {
+        long current = target.get();
+        while (candidate > current && !target.compareAndSet(current, candidate)) {
+            current = target.get();
+        }
+    }
+
     /**
      * 测试写入记录性能
      */
@@ -755,7 +877,7 @@ public class HotLoadConnectorTester {
         PerformanceResult result = new PerformanceResult("WriteRecord");
         ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
         TapConnectorContext connectorContext = new TapConnectorContext(
-                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+                null, connectorInfo.getConnectionConfig(), null, null, new TapLog()
         );
         connectorContext.setStateMap(stateMap);
         try {
@@ -1196,7 +1318,7 @@ public class HotLoadConnectorTester {
 
         // 从连接器上下文获取规范
         TapConnectorContext connectorContext = new TapConnectorContext(
-                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+                null, connectorInfo.getConnectionConfig(), null, null, new TapLog()
         );
 
         // 获取连接器的数据类型映射规范

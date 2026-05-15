@@ -72,6 +72,7 @@ setup_jvm_args() {
     JVM_ARGS="$JVM_ARGS --add-opens=java.base/java.net=ALL-UNNAMED"
     JVM_ARGS="$JVM_ARGS --add-opens=java.base/java.security=ALL-UNNAMED"
     JVM_ARGS="$JVM_ARGS --add-opens=java.base/java.util=ALL-UNNAMED"
+    JVM_ARGS="$JVM_ARGS --add-opens=java.base/java.time=ALL-UNNAMED"
     JVM_ARGS="$JVM_ARGS --add-opens=java.base/java.util.concurrent=ALL-UNNAMED"
     JVM_ARGS="$JVM_ARGS --add-opens=java.base/sun.net.util=ALL-UNNAMED"
     JVM_ARGS="$JVM_ARGS --add-opens=java.base/sun.security.util=ALL-UNNAMED"

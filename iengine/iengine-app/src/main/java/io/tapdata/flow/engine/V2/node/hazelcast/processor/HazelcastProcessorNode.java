@@ -344,7 +344,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	@Override
 	public boolean needTransformValue() {
-		if (null != getNode() && NodeTypeEnum.FIELD_MOD_TYPE_PROCESSOR.type.equals(getNode().getType())){
+		if (null != getNode() && (NodeTypeEnum.FIELD_MOD_TYPE_PROCESSOR.type.equals(getNode().getType()) || NodeTypeEnum.ROW_FILTER_PROCESSOR.type.equals(getNode().getType()))){
 			return true;
 		}
 		return false;

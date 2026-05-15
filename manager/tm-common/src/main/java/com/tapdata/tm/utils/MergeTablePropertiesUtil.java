@@ -29,6 +29,45 @@ public class MergeTablePropertiesUtil {
         lookupMap.put(mergeTableProperties.getId(), lookupList);
     }
 
+
+    /**
+     * 递归获取所有节点（拍平整棵树）
+     * 时间复杂度：O(n)，其中 n 是所有节点的总数
+     * 空间复杂度：O(h)，其中 h 是树的高度（递归调用栈）
+     *
+     * @param mergeTableProperties 当前节点
+     * @return 包含当前节点及其所有后代节点的列表（完全拍平）
+     */
+    public static List<MergeTableProperties> recursiveGetLookupList(MergeTableProperties mergeTableProperties) {
+        List<MergeTableProperties> result = new ArrayList<>();
+        if (mergeTableProperties == null) {
+            return result;
+        }
+        flattenTree(mergeTableProperties, result);
+        return result;
+    }
+
+    /**
+     * 递归拍平树形结构，将当前节点及其所有后代节点添加到结果列表中
+     *
+     * @param node 当前节点
+     * @param result 结果列表（累积所有节点）
+     */
+    private static void flattenTree(MergeTableProperties node, List<MergeTableProperties> result) {
+        if (node == null) {
+            return;
+        }
+        // 先添加当前节点
+        result.add(node);
+        // 再递归添加所有子节点
+        List<MergeTableProperties> children = node.getChildren();
+        if (CollectionUtils.isNotEmpty(children)) {
+            for (MergeTableProperties child : children) {
+                flattenTree(child, result);
+            }
+        }
+    }
+
     /**
      * 递归查找MergeTableProperties，包括children
      * @param mergeProperties 属性列表

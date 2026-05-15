@@ -33,16 +33,23 @@ public class CpuMemoryScheduler {
 
     @Autowired
     private SettingService settingService;
+    //@Scheduled(cron = "0/2 * * * * ?")
+    public void clean() {
+        try {
+            //CpuMemoryCollector.clean();
+        } catch (Exception e) {
+            log.warn("Remove empty weak reference object failed: {}", e.getMessage());
+        }
+    }
 
     @Scheduled(cron = "0/10 * * * * ?")
     public void collectCpuUsage() {
-        try {
-            CpuMemoryCollector.cleanOnce();
-        } catch (Exception e) {
-            log.warn("Clean task empty reference object failed: {}", e.getMessage());
-        }
         CpuMemoryCollector.switchChange(hasOpenSwitch());
-        reportOnce(null);
+        try {
+            reportOnce(null);
+        } catch (Exception e) {
+            log.warn("Unable collect task's cpu&mem usage: {}", e.getMessage());
+        }
     }
 
     boolean hasOpenSwitch() {
@@ -60,7 +67,7 @@ public class CpuMemoryScheduler {
         stringUsageMap.forEach((id, usage) -> {
             Map<String, Number> usageInfoMap = new HashMap<>();
             usageInfoMap.put("memoryUsage", usage.getHeapMemoryUsage());
-            usageInfoMap.put("cpuUsage", usage.getCpuUsage());
+            usageInfoMap.put("cpuUsage", usage.getCpuUsageCore());
             usageInfoMap.put("lastUpdateTime", System.currentTimeMillis());
             AspectTask aspectTask = TaskAspectManager.get(id);
             metricInfo.put(id, usageInfoMap);

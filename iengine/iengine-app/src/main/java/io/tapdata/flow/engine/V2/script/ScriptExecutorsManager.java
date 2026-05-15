@@ -186,7 +186,7 @@ public class ScriptExecutorsManager {
 		 * @param executeObj
 		 * @return
 		 */
-		public long execute(Map<String, Object> executeObj) throws Throwable {
+		public Object execute(Map<String, Object> executeObj) throws Throwable {
 			if (trialRun) {
 				scriptLogger.info("Trial run, skip execute");
 				return 0;
@@ -287,7 +287,7 @@ public class ScriptExecutorsManager {
 	public static class DummyScriptExecutor extends ScriptExecutor {
 
 		@Override
-		public long execute(Map<String, Object> executeObj) throws Throwable {
+		public Object execute(Map<String, Object> executeObj) throws Throwable {
 			return 0;
 		}
 

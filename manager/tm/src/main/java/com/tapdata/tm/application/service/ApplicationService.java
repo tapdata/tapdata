@@ -4,6 +4,7 @@ import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.entity.ApplicationEntity;
 import com.tapdata.tm.application.repository.ApplicationRepository;
 import com.tapdata.tm.application.vo.ModulePermissionVo;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -12,6 +13,7 @@ import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.repository.ModulesRepository;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.role.entity.RoleEntity;
 import com.tapdata.tm.role.repository.RoleRepository;
 import com.tapdata.tm.utils.MongoUtils;
@@ -29,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -39,6 +42,8 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class ApplicationService extends BaseService<ApplicationDto, ApplicationEntity, ObjectId, ApplicationRepository> {
+    public static final String USER_ID = "user_id";
+
     public ApplicationService(@NonNull ApplicationRepository repository) {
         super(repository, ApplicationDto.class, ApplicationEntity.class);
     }
@@ -47,12 +52,22 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
 
     }
 
+    public Supplier<ApplicationDto> dataPermissionFindById(ObjectId applicationId, Field fields) {
+        return () -> {
+            if (null != fields) {
+                fields.put(USER_ID, true);
+                fields.put(DataPermissionHelper.FIELD_NAME, true);
+            }
+            return findById(applicationId, fields);
+        };
+    }
+
 
     public Page find(Filter filter, UserDetail userDetail) {
+        Page<ApplicationDto> pageApplications = super.find(filter, userDetail);
         RoleRepository roleRepository = SpringContextHelper.getBean(RoleRepository.class);
         Map<ObjectId, String> roleMap = roleRepository.findAll(Query.query(Criteria.where("_id").ne(null))).stream()
                 .collect(Collectors.toMap(RoleEntity::getId,RoleEntity::getName,(key1, key2) -> key2));
-        Page<ApplicationDto> pageApplications = super.find(filter, userDetail);
         pageApplications.getItems().stream().forEach(applicationDto -> {
             List scopeNames = new ArrayList<>();
             applicationDto.getScopes().forEach(s->{

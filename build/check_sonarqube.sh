@@ -2,7 +2,7 @@
 
 . log.sh
 
-BASE_URI='http://58.251.34.123:29000'
+BASE_URI='http://fileserver.tapdata.io:29000'
 PROJECT_KEY=''
 BRANCH=''
 GITHUB_TOKEN=""

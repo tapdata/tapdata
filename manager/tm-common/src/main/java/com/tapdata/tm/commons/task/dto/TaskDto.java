@@ -153,6 +153,10 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private String testTaskId;
     /**
+     * js 试运行输入事件 JSON
+     */
+    private String testRunInputEventJson;
+    /**
      * js模型推演id
      */
     private String transformTaskId;
@@ -173,7 +177,12 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;
     private String shareCdcStopMessage;
-    private long delayTime;
+    private Boolean heartbeatTaskRunning;
+    private Long delayTime;
+    /** 任务增量延迟告警的当前最大延迟 */
+    private Long taskIncrementDelay;
+    /** 任务增量延迟告警阈值 */
+    private Long taskIncrementDelayThreshold;
 
     /**
      * 同构或异构标记
@@ -204,6 +213,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      * 是否开启省流
      */
     private Boolean dataSaving;
+
+    private Boolean fileLog;
 
     /**
      * 是否启用同步指标收集，启用时任务停止打印同步指标
@@ -248,6 +259,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      * Automatically adjust the batch size of the source node during increment
      * */
     private Boolean autoIncrementalBatchSize;
+
+    private Boolean checkMemoryHeap;
 
 
     public DAG getDag() {
@@ -414,6 +427,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
             Disable,
             SkipTable,
             SkipData,
+            SkipTableForMigrateSnapshot,
             ;
         }
 

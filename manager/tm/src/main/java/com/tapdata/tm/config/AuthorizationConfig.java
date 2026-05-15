@@ -8,6 +8,7 @@ import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
+import com.tapdata.tm.config.security.JsonToFormUrlEncodedFilter;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.oauth2.filter.OAuth2JsonSupportFilter;
 import com.tapdata.tm.role.entity.RoleEntity;
@@ -15,6 +16,7 @@ import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.bson.types.ObjectId;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -33,7 +35,6 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 
-import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
@@ -273,6 +274,16 @@ public class AuthorizationConfig {
             }
         });
     }*/
+
+
+    @Bean
+    public FilterRegistrationBean<JsonToFormUrlEncodedFilter> jsonToFormFilter() {
+        FilterRegistrationBean<JsonToFormUrlEncodedFilter> bean =
+                new FilterRegistrationBean<>();
+        bean.setFilter(new JsonToFormUrlEncodedFilter());
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return bean;
+    }
 
 
 

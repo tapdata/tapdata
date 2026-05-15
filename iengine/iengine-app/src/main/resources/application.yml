@@ -1,7 +1,7 @@
 spring:
   data:
     mongodb:
-      uri: mongodb://mongo:27017/tapdata
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://mongo:27017/tapdata}
       ssl: false
       sslCA: ""
       sslCertKey: ""

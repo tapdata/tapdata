@@ -27,4 +27,6 @@ public interface TaskNodeService {
     ResponseMessage<JsResultVo> getRun(String taskId, String jsNodeId, Long version);
 
     void checkFieldNode(TaskDto taskDto, UserDetail userDetail);
+
+    Map<String, Object> mockDateRPC(TestRunDto dto, UserDetail userDetail);
 }

@@ -94,9 +94,19 @@ public class DataSyncEventHandler extends BaseEventHandler {
 			throw new IllegalArgumentException("Start task failed, task id cannot be blank");
 		}
 		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
-		Query query = Query.query(where("id").is(taskId));
+		// FIX: was where("id"), which silently failed because MongoDB's task collection
+		// uses `_id` (ObjectId) as the primary key. The find() inside
+		// HttpClientMongoOperator.findAndModifyTask never matched any row, so this
+		// method returned null and the WS-dispatched start was a no-op (taskDto==null
+		// → t.sendStartTask(null) silent fail). All other callers (e.g.
+		// TapdataTaskScheduler.scheduledTask line 342) already use where("_id").
+		Query query = Query.query(where("_id").is(taskId));
 		Update update = Update.update(TaskDto.PING_TIME_FIELD, System.currentTimeMillis());
 		TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
+		if (taskDto == null) {
+			logger.warn("Start task from websocket event: task not found by _id={}, event={}", taskId, event);
+			return;
+		}
 
 		Optional.ofNullable(tapdataTaskScheduler).ifPresent(t -> {
 			logger.info("Start task from websocket event: {}", event);

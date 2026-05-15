@@ -8,6 +8,8 @@ import io.tapdata.exception.TmUnavailableException;
 import lombok.SneakyThrows;
 import org.apache.commons.io.input.BrokenInputStream;
 import org.apache.commons.io.input.NullInputStream;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.core5.util.TimeValue;
 import org.apache.http.NoHttpResponseException;
 import org.assertj.core.util.Files;
 import org.assertj.core.util.Lists;
@@ -413,7 +415,7 @@ public class RestTemplateOperatorTest {
 		RestTemplateOperator.TryFunc func = mock(RestTemplateOperator.TryFunc.class);
 		Predicate<?> stop = mock(Predicate.class);
 		doThrow(new TmUnavailableException("uri", "method", new Object(), mock(ResponseBody.class))).when(func).tryFunc(any());
-		assertThrows(TmUnavailableException.class, () -> restTemplateOperatorUnderTest.retryWrap(func,stop));
+		assertThrows(ManagementException.class, () -> restTemplateOperatorUnderTest.retryWrap(func,stop));
 	}
 
 	@Test
@@ -424,5 +426,94 @@ public class RestTemplateOperatorTest {
 		assertThrows(RestDoNotRetryException.class, () -> {
 			ReflectionTestUtils.invokeMethod(restTemplateOperatorUnderTest, "handleRequestFailed", "http://localhost:3000/api/", "post", null, responseBody);
 		});
+	}
+
+	@Test
+	@SneakyThrows
+	public void testRetryWrap_ioException_evictsIdleConnections() {
+		PoolingHttpClientConnectionManager mockCm = mock(PoolingHttpClientConnectionManager.class);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "connectionManager", mockCm);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "getRetryTimeout", (Supplier<Long>) () -> 3000L);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "retryInterval", 50L);
+
+		RestTemplateOperator.TryFunc<String> func = mock(RestTemplateOperator.TryFunc.class);
+		when(func.tryFunc(any()))
+				.thenThrow(new org.apache.hc.core5.http.NoHttpResponseException("simulated stale pool socket"))
+				.thenReturn("ok");
+
+		String result = restTemplateOperatorUnderTest.retryWrap(func, null);
+
+		assertEquals("ok", result);
+		verify(mockCm, atLeastOnce()).closeIdle(any(TimeValue.class));
+	}
+
+	@Test
+	@SneakyThrows
+	public void testRetryWrap_socketTimeoutException_evictsIdleConnections() {
+		PoolingHttpClientConnectionManager mockCm = mock(PoolingHttpClientConnectionManager.class);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "connectionManager", mockCm);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "getRetryTimeout", (Supplier<Long>) () -> 1500L);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "retryInterval", 50L);
+
+		RestTemplateOperator.TryFunc<String> func = mock(RestTemplateOperator.TryFunc.class);
+		when(func.tryFunc(any()))
+				.thenThrow(new java.net.SocketTimeoutException("read timed out"))
+				.thenReturn("ok");
+
+		String result = restTemplateOperatorUnderTest.retryWrap(func, null);
+
+		assertEquals("ok", result);
+		verify(mockCm, atLeastOnce()).closeIdle(any(TimeValue.class));
+	}
+
+	@Test
+	@SneakyThrows
+	public void testRetryWrap_noHttpResponseException_rotatesUrl() {
+		// baseURLs from setUp() = ["test1", "test2"]; the no-arg constructor leaves baseURL/size unset.
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "baseURL", "test1");
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "size", 2);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "getRetryTimeout", (Supplier<Long>) () -> 3000L);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "retryInterval", 50L);
+
+		java.util.concurrent.atomic.AtomicInteger callCount = new java.util.concurrent.atomic.AtomicInteger(0);
+		java.util.List<String> seenBaseURLs = java.util.Collections.synchronizedList(new ArrayList<>());
+		RestTemplateOperator.TryFunc<String> func = retryInfo -> {
+			seenBaseURLs.add((String) ReflectionTestUtils.getField(retryInfo, "baseURL"));
+			if (callCount.getAndIncrement() == 0) {
+				throw new org.apache.hc.core5.http.NoHttpResponseException("simulated stale pool socket");
+			}
+			return "ok";
+		};
+
+		String result = restTemplateOperatorUnderTest.retryWrap(func, null);
+
+		assertEquals("ok", result);
+		assertEquals("First attempt should hit baseURLs[0]", "test1", seenBaseURLs.get(0));
+		assertEquals("After NoHttpResponseException, URL must rotate (regression for removed changeURL=false branch)",
+				"test2", seenBaseURLs.get(1));
+	}
+
+	@Test
+	@SneakyThrows
+	public void testRetryWrap_evictionDisabledViaSystemProperty_skipsCloseIdle() {
+		PoolingHttpClientConnectionManager mockCm = mock(PoolingHttpClientConnectionManager.class);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "connectionManager", mockCm);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "getRetryTimeout", (Supplier<Long>) () -> 1000L);
+		ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "retryInterval", 50L);
+
+		System.setProperty("HTTP_EVICT_ON_IO_ERROR", "false");
+		try {
+			RestTemplateOperator.TryFunc<String> func = mock(RestTemplateOperator.TryFunc.class);
+			when(func.tryFunc(any()))
+					.thenThrow(new org.apache.hc.core5.http.NoHttpResponseException("simulated stale pool socket"))
+					.thenReturn("ok");
+
+			String result = restTemplateOperatorUnderTest.retryWrap(func, null);
+
+			assertEquals("ok", result);
+			verify(mockCm, never()).closeIdle(any(TimeValue.class));
+		} finally {
+			System.clearProperty("HTTP_EVICT_ON_IO_ERROR");
+		}
 	}
 }
