@@ -228,6 +228,72 @@ class ApiStatusUtilTest {
     }
 
     @Test
+    void statusOfApi_stoppingTrue_shortCircuitsToStopped_evenWithFreshHeartbeat() {
+        // 手动停止后 markWorkerStopped 写 stopping=true，但 worker_status.metricValues.lastUpdateTime
+        // 仍是 kill 前的新鲜值（apiserver 多子进程结构，停止窗口内可能有 in-flight 心跳写入）。
+        // 读路径必须以 stopping=true 短路，避免 UI 卡在 running 等到 30s 心跳过期。
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", System.currentTimeMillis());
+            apiInfo.setStopping(true);
+            Component api = apiComponent("running");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("stopped", setStatus.get());
+            assertEquals("stopped", setServiceStatus.get());
+        }
+    }
+
+    @Test
+    void statusOfApi_stoppingTrue_clusterStopped_returnsStopped() {
+        // 同时 clusterStopped + stopping=true：仍走 stopping 短路返回 stopped（结果一致，保险起见单测）
+        Worker apiInfo = apiWorker("running", System.currentTimeMillis());
+        apiInfo.setStopping(true);
+        Component api = apiComponent("running");
+        AtomicReference<String> setStatus = new AtomicReference<>();
+        AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+        ApiStatusUtil.statusOfApi(true, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+        assertEquals("stopped", setStatus.get());
+        assertEquals("stopped", setServiceStatus.get());
+    }
+
+    @Test
+    void statusOfApi_stoppingFalse_fallsThroughToFreshnessCheck() {
+        // stopping=false 走原有逻辑：lastUpdateTime 新鲜 → 提升到 running
+        try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
+            Worker apiInfo = apiWorker("running", System.currentTimeMillis());
+            apiInfo.setStopping(false);
+            Component api = apiComponent("stopped");
+            AtomicReference<String> setStatus = new AtomicReference<>();
+            AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+            ApiStatusUtil.statusOfApi(false, apiInfo, api, setStatus::set, setServiceStatus::set);
+
+            assertEquals("running", setStatus.get());
+            assertEquals("running", setServiceStatus.get());
+        }
+    }
+
+    @Test
+    void statusOfApi_stoppingTrue_workerClusterStatusNull_skipsAgentCallback() {
+        // workerClusterStatus 为 null（ApiMetricsChartQuery 路径）：setStatus 不应被调用，
+        // setServiceStatus 仍按 stopping 短路返回 stopped。
+        Worker apiInfo = apiWorker("running", System.currentTimeMillis());
+        apiInfo.setStopping(true);
+        AtomicReference<String> setStatus = new AtomicReference<>();
+        AtomicReference<String> setServiceStatus = new AtomicReference<>();
+
+        ApiStatusUtil.statusOfApi(false, apiInfo, null, setStatus::set, setServiceStatus::set);
+
+        assertNull(setStatus.get());
+        assertEquals("stopped", setServiceStatus.get());
+    }
+
+    @Test
     void statusOfApi_workerClusterStatusNull_skipsStatusCallback() {
         // ApiMetricsChartQuery 第 328 行调用：workerClusterStatus 为 null，setStatus 不应被调用
         try (MockedStatic<SettingUtil> ignored = stubHeartOvertime(30)) {
