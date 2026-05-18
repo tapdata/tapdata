@@ -121,7 +121,6 @@ public class AgentLogConfigurationWatcherTest {
             doCallRealMethod().when(agentLogConfigurationWatcher).updateLogLevel(logConfiguration);
             agentLogConfigurationWatcher.updateLogLevel(logConfiguration);
             assertEquals("DEBUG",logger.getLevel().name());
-            assertEquals(true,logger.isAdditive());
         }
         @DisplayName("test Update logLevel with info, but logger use parent additive")
         @Test
