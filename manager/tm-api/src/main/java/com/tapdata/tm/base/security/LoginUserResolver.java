@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,32 +24,21 @@ public class LoginUserResolver {
 
 	public static final String LOGIN_USER_ATTRIBUTE = LoginUserResolver.class.getName() + ".LOGIN_USER";
 
-	private static final Map<String, Set<String>> authWhiteListMap = new HashMap<>() {{
+	private static final Set<String> FREE_AUTH_PATTERNS = Set.of(
+			"/api/Javascript_functions/**",
+			"/api/customNode/**",
+			"/api/clusterStates/**",
+			"/api/Workers/**"
+	);
 
-		put("GET", new java.util.HashSet<>() {{
-//			add("/api/MetadataInstances/**");
-//			add("/api/MetadataDefinition/**");
-			add("/api/Javascript_functions/**");
-			add("/api/customNode/**");
-			add("/api/clusterStates/**");
-			add("/api/Workers/**");
-//			add("/api/discovery/**");
-//			add("/api/shareCache/**");
-		}});
+	private static final Map<String, Set<String>> authWhiteListMap = Map.of(
+			"GET", FREE_AUTH_PATTERNS,
+			"PATCH", FREE_AUTH_PATTERNS
+	);
 
-		put("PATCH", new java.util.HashSet<String>() {{
-			add("/api/Javascript_functions/**");
-			add("/api/customNode/**");
-			add("/api/clusterStates/**");
-			add("/api/Workers/**");
-		}});
-	}};
-
-	private static final Map<String, Set<String>> authWhitoutListMap = new HashMap<>() {{
-		put("GET", new java.util.HashSet<>() {{
-			add("/api/clusterStates/findAccessNodeInfo");
-		}});
-	}};
+	private static final Map<String, Set<String>> authWhitoutListMap = Map.of(
+			"GET", Set.of("/api/clusterStates/findAccessNodeInfo")
+	);
 
 	@Autowired
 	private UserService userService;
