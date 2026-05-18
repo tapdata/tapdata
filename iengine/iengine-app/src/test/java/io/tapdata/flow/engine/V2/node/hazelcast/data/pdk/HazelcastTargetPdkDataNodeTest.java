@@ -1761,6 +1761,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		void beforeEach() {
 			context = mock(DataProcessorContext.class);
 			TaskDto taskDto = new TaskDto();
+            taskDto.setId(ObjectId.get());
 			taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
 			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
 			when(context.getTaskDto()).thenReturn(taskDto);
