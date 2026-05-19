@@ -38,6 +38,14 @@ public class ClusterStateEntity extends BaseEntity {
 
     private String custIp;
 
+    /**
+     * 最近一次 ClusterComponentStopService.setClusterStateComponentStopped 写入时刻。
+     * 用于 statusInfo 异步执行器判定本任务是否携带过期快照
+     * （receivedAt &lt;= componentStoppedAt 即过期，整条 upsert skip）。
+     * 仅 setClusterStateComponentStopped 写；statusInfo 路径必须 doc.remove("componentStoppedAt") 防止抹掉。
+     */
+    private Date componentStoppedAt;
+
     private List<CustomMonitorInfo> customMonitor;
 
 //    @Data
