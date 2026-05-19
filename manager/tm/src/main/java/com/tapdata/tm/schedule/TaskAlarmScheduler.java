@@ -184,38 +184,13 @@ public class TaskAlarmScheduler {
         String alarmDate = DateUtil.now();
 
         if (!offlineMap.isEmpty()) {
-            Query runningTaskQuery = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                    .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
-                    .and("is_deleted").is(false));
-            List<TaskDto> runningTasks = taskService.findAll(runningTaskQuery);
-            Map<String, Long> taskCountByAgent = runningTasks.stream()
-                    .filter(t -> StringUtils.isNotBlank(t.getAgentId()))
-                    .collect(Collectors.groupingBy(TaskDto::getAgentId, Collectors.counting()));
-
             for (Map.Entry<String, WorkerDto> entry : offlineMap.entrySet()) {
                 String agentId = entry.getKey();
                 if (alreadyAlarmedAgentIds.contains(agentId)) {
                     continue;
                 }
-                WorkerDto w = entry.getValue();
-                String agentName = StringUtils.isNotBlank(w.getHostname()) ? w.getHostname() : agentId;
-                long taskCount = taskCountByAgent.getOrDefault(agentId, 0L);
-                Map<String, Object> param = Maps.newHashMap();
-                param.put("agentName", agentName);
-                param.put("agentId", agentId);
-                param.put("taskCount", taskCount);
-                param.put("alarmDate", alarmDate);
-                AlarmInfo info = AlarmInfo.builder()
-                        .status(AlarmStatusEnum.ING).level(Level.WARNING)
-                        .component(AlarmComponentEnum.FE).type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
-                        .agentId(agentId).name(agentName).summary("ENGINE_OFFLINE")
-                        .metric(AlarmKeyEnum.ENGINE_OFFLINE).build();
-                info.setParam(param);
-                info.setFirstOccurrenceTime(currentDate);
-                info.setLastOccurrenceTime(currentDate);
-                info.setLastNotifyTime(currentDate);
-                mongoTemplate.insert(info);
-                log.warn("Engine offline detected agentId={}, agentName={}, taskCount={}", agentId, agentName, taskCount);
+                WorkerDto worker = entry.getValue();
+                createEngineOfflineAlarm(agentId, worker);
             }
         }
 
@@ -300,5 +275,72 @@ public class TaskAlarmScheduler {
             workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
         }
         return workerList;
+    }
+
+    public boolean createEngineOfflineAlarm(String processId, WorkerDto worker) {
+        if (StringUtils.isBlank(processId)) {
+            log.warn("createEngineOfflineAlarm: processId is blank");
+            return false;
+        }
+
+        try {
+            Query alreadyAlarmedQuery = new Query(Criteria.where("status").is(AlarmStatusEnum.ING)
+                    .and("metric").is(AlarmKeyEnum.ENGINE_OFFLINE.name())
+                    .and("agentId").is(processId));
+            long alarmCount = mongoTemplate.count(alreadyAlarmedQuery, AlarmInfo.class);
+            if (alarmCount > 0) {
+                log.debug("createEngineOfflineAlarm: alarm already exists processId={}", processId);
+                return false;
+            }
+
+            if (worker == null) {
+                Query workerQuery = Query.query(Criteria.where("process_id").is(processId)
+                        .and("worker_type").is("connector"));
+                worker = mongoTemplate.findOne(workerQuery, WorkerDto.class, "Workers");
+                if (worker == null) {
+                    log.warn("createEngineOfflineAlarm: worker not found processId={}", processId);
+                    worker = new WorkerDto();
+                    worker.setProcessId(processId);
+                }
+            }
+
+            Query runningTaskQuery = new Query(Criteria.where("agentId").is(processId)
+                    .and("status").is(TaskDto.STATUS_RUNNING)
+                    .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                    .and("is_deleted").is(false));
+            long taskCount = taskService.count(runningTaskQuery);
+
+            String agentName = StringUtils.isNotBlank(worker.getHostname()) ? worker.getHostname() : processId;
+            Date currentDate = new Date();
+            String alarmDate = DateUtil.now();
+
+            Map<String, Object> param = Maps.newHashMap();
+            param.put("agentName", agentName);
+            param.put("agentId", processId);
+            param.put("taskCount", taskCount);
+            param.put("alarmDate", alarmDate);
+
+            AlarmInfo alarmInfo = AlarmInfo.builder()
+                    .status(AlarmStatusEnum.ING)
+                    .level(Level.WARNING)
+                    .component(AlarmComponentEnum.FE)
+                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
+                    .agentId(processId)
+                    .name(agentName)
+                    .summary("ENGINE_OFFLINE")
+                    .metric(AlarmKeyEnum.ENGINE_OFFLINE)
+                    .build();
+            alarmInfo.setParam(param);
+            alarmInfo.setFirstOccurrenceTime(currentDate);
+            alarmInfo.setLastOccurrenceTime(currentDate);
+            alarmInfo.setLastNotifyTime(currentDate);
+
+            mongoTemplate.insert(alarmInfo);
+            log.warn("Engine offline alarm created agentId={} agentName={} taskCount={}", processId, agentName, taskCount);
+            return true;
+        } catch (Exception e) {
+            log.error("createEngineOfflineAlarm failed processId={}", processId, e);
+            return false;
+        }
     }
 }

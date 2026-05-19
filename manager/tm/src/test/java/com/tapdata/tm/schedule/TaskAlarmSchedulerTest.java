@@ -180,7 +180,7 @@ class TaskAlarmSchedulerTest {
             when(mongoTemplate.find(any(Query.class), eq(AlarmInfo.class))).thenReturn(new ArrayList<>());
             TaskDto t = new TaskDto();
             t.setAgentId("agent-1");
-            when(taskSvc.findAll(any(Query.class))).thenReturn(Arrays.asList(t, t, t));
+            when(taskSvc.count(any(Query.class))).thenReturn(3L);
 
             scheduler.engineHeartbeatAlarm();
 
