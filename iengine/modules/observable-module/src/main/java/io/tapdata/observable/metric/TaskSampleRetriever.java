@@ -1,7 +1,7 @@
 package io.tapdata.observable.metric;
 
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.mongo.RestTemplateOperator;
+import com.tapdata.mongo.HttpClientMongoOperator;
 import lombok.Data;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,9 +25,9 @@ public class TaskSampleRetriever {
 	private TaskSampleRetriever() {
 	}
 
-	private RestTemplateOperator operator;
+	private HttpClientMongoOperator operator;
 
-	public void start(RestTemplateOperator operator) {
+	public void start(HttpClientMongoOperator operator) {
 		if (this.operator == null) {
 			this.operator = operator;
 		}
@@ -109,4 +109,3 @@ public class TaskSampleRetriever {
 		private List<Map<String, Object>> retriever;
 	}
 }
-
