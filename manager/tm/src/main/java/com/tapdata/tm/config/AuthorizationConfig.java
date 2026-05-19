@@ -1,5 +1,6 @@
 package com.tapdata.tm.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.JWKSource;
@@ -10,7 +11,6 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.config.security.JsonToFormUrlEncodedFilter;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.oauth2.filter.OAuth2JsonSupportFilter;
 import com.tapdata.tm.role.entity.RoleEntity;
 import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +31,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
@@ -42,13 +44,24 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponseWrapper;
 import javax.annotation.Resource;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
@@ -143,7 +156,8 @@ public class AuthorizationConfig {
         http.securityMatcher(endpointsMatcher)
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         .anyRequest().authenticated())
-                .with(authorizationServerConfigurer, Customizer.withDefaults())
+                .with(authorizationServerConfigurer, configurer -> configurer
+                        .tokenEndpoint(tokenEndpoint -> tokenEndpoint.errorResponseHandler(new LoggingOAuth2ErrorResponseHandler())))
                 .headers(headers -> {
                     headers.frameOptions((HeadersConfigurer.FrameOptionsConfig::sameOrigin));
                 })
@@ -285,6 +299,91 @@ public class AuthorizationConfig {
         return bean;
     }
 
+    private static class LoggingOAuth2ErrorResponseHandler implements AuthenticationFailureHandler {
+        private static final ObjectMapper objectMapper = new ObjectMapper();
+        private final AuthenticationFailureHandler delegate =
+                new org.springframework.security.oauth2.server.authorization.web.authentication.OAuth2ErrorAuthenticationFailureHandler();
 
+        @Override
+        public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
+                                            org.springframework.security.core.AuthenticationException exception)
+                throws IOException, ServletException {
+            if (exception instanceof OAuth2AuthenticationException oauth2AuthenticationException) {
+                OAuth2Error error = oauth2AuthenticationException.getError();
+                if (error != null) {
+                    log.error("OAuth2 token endpoint error, uri={}, error={}, description={}",
+                            request.getRequestURI(), error.getErrorCode(), error.getDescription());
+                } else {
+                    log.error("OAuth2 token endpoint error, uri={}, message={}",
+                            request.getRequestURI(), oauth2AuthenticationException.getMessage());
+                }
+            } else {
+                log.error("OAuth2 token endpoint authentication failure, uri={}, message={}",
+                        request.getRequestURI(), exception.getMessage());
+            }
 
+            BufferingHttpServletResponseWrapper bufferingResponse = new BufferingHttpServletResponseWrapper(response);
+            delegate.onAuthenticationFailure(request, bufferingResponse, exception);
+
+            byte[] originBodyBytes = bufferingResponse.getBodyBytes();
+            if (originBodyBytes.length == 0) {
+                return;
+            }
+
+            Map<String, Object> body = objectMapper.readValue(originBodyBytes, Map.class);
+            body.put("code", response.getStatus());
+
+            if (!response.isCommitted()) {
+                response.resetBuffer();
+                objectMapper.writeValue(response.getOutputStream(), body);
+            }
+        }
+    }
+
+    private static class BufferingHttpServletResponseWrapper extends HttpServletResponseWrapper {
+        private final ByteArrayOutputStream buffer = new ByteArrayOutputStream(256);
+        private PrintWriter writer;
+
+        BufferingHttpServletResponseWrapper(HttpServletResponse response) {
+            super(response);
+        }
+
+        byte[] getBodyBytes() {
+            if (writer != null) {
+                writer.flush();
+            }
+            return buffer.toByteArray();
+        }
+
+        @Override
+        public ServletOutputStream getOutputStream() {
+            return new ServletOutputStream() {
+                @Override
+                public boolean isReady() {
+                    return true;
+                }
+
+                @Override
+                public void setWriteListener(WriteListener writeListener) {
+                }
+
+                @Override
+                public void write(int b) {
+                    buffer.write(b);
+                }
+            };
+        }
+
+        @Override
+        public PrintWriter getWriter() {
+            if (writer == null) {
+                writer = new PrintWriter(new OutputStreamWriter(buffer, StandardCharsets.UTF_8));
+            }
+            return writer;
+        }
+
+        @Override
+        public void flushBuffer() {
+        }
+    }
 }
