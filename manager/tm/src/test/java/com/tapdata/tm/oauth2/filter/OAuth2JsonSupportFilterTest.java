@@ -123,6 +123,7 @@ class OAuth2JsonSupportFilterTest {
             verify(response).setContentType(MediaType.APPLICATION_JSON_VALUE);
             assertTrue(responseWriter.toString().contains("invalid_request"));
             assertTrue(responseWriter.toString().contains("Missing required parameter: grant_type"));
+            assertTrue(responseWriter.toString().contains("\"code\":400"));
         }
 
         @Test
@@ -138,6 +139,7 @@ class OAuth2JsonSupportFilterTest {
 
             verify(response).setStatus(HttpServletResponse.SC_BAD_REQUEST);
             assertTrue(responseWriter.toString().contains("Missing required parameters: client_id and client_secret"));
+            assertTrue(responseWriter.toString().contains("\"code\":400"));
         }
 
         @Test
@@ -153,6 +155,7 @@ class OAuth2JsonSupportFilterTest {
 
             verify(response).setStatus(HttpServletResponse.SC_BAD_REQUEST);
             assertTrue(responseWriter.toString().contains("Missing required parameters: client_id and client_secret"));
+            assertTrue(responseWriter.toString().contains("\"code\":400"));
         }
 
         @Test
@@ -169,6 +172,7 @@ class OAuth2JsonSupportFilterTest {
             verify(response).setStatus(HttpServletResponse.SC_BAD_REQUEST);
             assertTrue(responseWriter.toString().contains("invalid_request"));
             assertTrue(responseWriter.toString().contains("Invalid JSON format"));
+            assertTrue(responseWriter.toString().contains("\"code\":400"));
         }
 
         @Test
