@@ -1068,6 +1068,20 @@
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <configuration>
                         <!-- executable>true</executable-->
+                        <requiresUnpack>
+                            <dependency>
+                                <groupId>org.bouncycastle</groupId>
+                                <artifactId>bcprov-jdk18on</artifactId>
+                            </dependency>
+                            <dependency>
+                                <groupId>org.bouncycastle</groupId>
+                                <artifactId>bcpkix-jdk18on</artifactId>
+                            </dependency>
+                            <dependency>
+                                <groupId>org.bouncycastle</groupId>
+                                <artifactId>bcutil-jdk18on</artifactId>
+                            </dependency>
+                        </requiresUnpack>
                     </configuration>
                 </plugin>
 
