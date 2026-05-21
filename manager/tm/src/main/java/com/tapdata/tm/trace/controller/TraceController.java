@@ -1,5 +1,15 @@
 package com.tapdata.tm.trace.controller;
 
+import com.tapdata.tm.trace.param.WideTableTraceRequest;
+import com.tapdata.tm.trace.service.TraceService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.trace.dto.TaskLineageDto;
@@ -26,6 +36,8 @@ import java.util.List;
 public class TraceController extends BaseController {
     @Resource(name = "bloodlineFinder")
     private BloodlineFinder bloodlineFinder;
+    @Autowired
+    private TraceService traceService;
 
     @GetMapping("/wide-table/bloodline-diagram")
     public ResponseMessage<TaskLineageDto> findDataTraceDag(
@@ -38,4 +50,13 @@ public class TraceController extends BaseController {
                 .traceFilterFieldNames(trackedFields);
         return success(bloodlineFinder.findTaskLineage(param));
     }
+
+    @PostMapping(value = "/wide-table/trace/stream",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = "application/x-ndjson")
+    public StreamingResponseBody streamWideTableTrace(@RequestBody WideTableTraceRequest request) {
+        return outputStream -> traceService.streamWideTableTrace(request, outputStream);
+    }
+
 }
+

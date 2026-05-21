@@ -1,5 +1,6 @@
 package com.tapdata.tm.trace.param;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.List;
  * @description
  */
 @Data
+@AllArgsConstructor
 public class TaskLineageParam {
     String connectionId;
     String table;
