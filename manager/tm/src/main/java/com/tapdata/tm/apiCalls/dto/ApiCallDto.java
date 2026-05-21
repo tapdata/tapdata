@@ -66,6 +66,10 @@ public class ApiCallDto extends BaseDto {
     @Field("req_bytes")
     private Long reqBytes;
 
+    @JsonProperty("res_bytes")
+    @Field("res_bytes")
+    private Long resBytes;
+
     private String code;
     private String codeMsg;
 
