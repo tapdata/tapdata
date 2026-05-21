@@ -16,4 +16,28 @@ public class TaskLineageParam {
     String table;
     String type;
     List<String> traceFilterFieldNames;
+
+    public static TaskLineageParam instance() {
+        return new TaskLineageParam();
+    }
+
+    public TaskLineageParam connectionId(String connectionId) {
+        this.connectionId = connectionId;
+        return this;
+    }
+
+    public TaskLineageParam table(String table) {
+        this.table = table;
+        return this;
+    }
+
+    public TaskLineageParam type(String type) {
+        this.type = type;
+        return this;
+    }
+
+    public TaskLineageParam traceFilterFieldNames(List<String> traceFilterFieldNames) {
+        this.traceFilterFieldNames = traceFilterFieldNames;
+        return this;
+    }
 }

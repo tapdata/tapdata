@@ -30,6 +30,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -53,6 +54,7 @@ import java.util.stream.Collectors;
  **/
 @Service("tableAnalyzerV1")
 @Slf4j
+@Primary
 public class TableAnalyzerV1 extends BaseAnalyzer {
 
 	private static final String[] TASK_INCLUDE_FIELDS = new String[]{"_id", "name", "dag", "syncType", "status", "startTime"};
@@ -330,7 +332,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			Criteria taskCriteria = buildTaskCriteria(connectionId, table);
 			Query query;
 			query = Query.query(taskCriteria);
-			taskQueryFields(query);
+			query.fields().include(taskIncludeFields());
 			resultTasks = taskRepository.findAll(query);
 			addFoundedTask(connectionId, table, resultTasks);
 		}
@@ -349,10 +351,6 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 				notDeleteCriteria,
 				new Criteria().orOperator(syncTaskCriteria, migrateCriteria)
 		);
-	}
-
-	private static void taskQueryFields(Query query) {
-		query.fields().include(TASK_INCLUDE_FIELDS);
 	}
 
 	private Node findNodeInTask(TaskEntity task, String connectionId, String table) {
@@ -397,7 +395,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		}
 		dataSource = dataSourceEntityMap.computeIfAbsent(id, k -> {
 			Query query = Query.query(Criteria.where("_id").is(new ObjectId(k)));
-			query.fields().include(DATASOURCE_INCLUDE_FIELDS);
+			query.fields().include(datasourceIncludeFields());
 			return dataSourceRepository.findOne(query).orElse(null);
 		});
 		if (null == dataSource) {
@@ -428,23 +426,23 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		return lineageTableNode;
 	}
 
-	private LineageMetadataInstance getMetadata(String connectionId, String tableName) {
+	protected LineageMetadataInstance getMetadata(String connectionId, String tableName) {
 		Criteria baseCriteria = new Criteria("source._id").is(connectionId)
 				.and("original_name").is(tableName);
 		Criteria sourceCriteria = new Criteria("sourceType").is(SourceTypeEnum.SOURCE.name());
 		Criteria virtualCriteria = new Criteria("sourceType").is(SourceTypeEnum.VIRTUAL.name());
 		Query query = Query.query(new Criteria().andOperator(baseCriteria, sourceCriteria));
-		query.fields().include(METADATA_INCLUDE_FIELDS);
+		query.fields().include(metadataIncludeFields());
 		LineageMetadataInstance lineageMetadataInstance = getMetadata(query);
 		if (null == lineageMetadataInstance) {
 			query = Query.query(new Criteria().andOperator(baseCriteria, virtualCriteria));
-			query.fields().include(METADATA_INCLUDE_FIELDS);
+			query.fields().include(metadataIncludeFields());
 			lineageMetadataInstance = getMetadata(query);
 		}
 		return lineageMetadataInstance;
 	}
 
-	private LineageMetadataInstance getMetadata(Query query) {
+	protected LineageMetadataInstance getMetadata(Query query) {
 		MetadataInstancesEntity metadataInstancesEntity = metadataInstancesRepository.findOne(query).orElse(null);
 		if (null == metadataInstancesEntity || null == metadataInstancesEntity.getId()) return null;
 		LineageMetadataInstance lineageMetadataInstance = new LineageMetadataInstance();
@@ -529,7 +527,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		Criteria criteria = new Criteria("datasource").is(connectionId)
 				.and("tableName").is(table).and("is_deleted").ne(true);
 		Query query = Query.query(criteria);
-		query.fields().include(MODULES_INCLUDE_FIELDS);
+		query.fields().include(moduleIncludeFields());
 		return modulesRepository.findAll(query);
 	}
 
@@ -574,5 +572,25 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			return null;
 		}
 		return map.get(key);
+	}
+
+	@Override
+	protected String[] taskIncludeFields() {
+		return TASK_INCLUDE_FIELDS;
+	}
+
+	@Override
+	protected String[] datasourceIncludeFields() {
+		return DATASOURCE_INCLUDE_FIELDS;
+	}
+
+	@Override
+	protected String[] moduleIncludeFields() {
+		return MODULES_INCLUDE_FIELDS;
+	}
+
+	@Override
+	protected String[] metadataIncludeFields() {
+		return METADATA_INCLUDE_FIELDS;
 	}
 }
