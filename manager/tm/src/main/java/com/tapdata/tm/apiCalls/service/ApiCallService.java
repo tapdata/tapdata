@@ -118,8 +118,8 @@ public class ApiCallService {
         apiCallDetailVo.setVisitTotalCount(Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getResRows).orElse(0L));
         double latency = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getLatency).map(Number::doubleValue).orElse(0D);
         apiCallDetailVo.setLatency(latency);
-        long reqBytes = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getReqBytes).orElse(0L);
-        double speed = latency <= 0 ? 0D : (1000.0D * reqBytes / latency);
+        long resBytes = Optional.ofNullable(apiCallEntity).map(ApiCallEntity::getResBytes).orElse(0L);
+        double speed = latency <= 0 ? 0D : (1000.0D * resBytes / latency);
         apiCallDetailVo.setSpeed(BigDecimal.valueOf(speed).setScale(2, RoundingMode.HALF_UP).doubleValue());
         ObjectId apiId = Optional.ofNullable(apiCallEntity)
                 .map(ApiCallEntity::getAllPathId)
@@ -152,18 +152,10 @@ public class ApiCallService {
     protected void addMoreParam(ApiCallEntity apiCallEntity, ApiCallDetailVo apiCallDetailVo) {
         apiCallDetailVo.setCallStart(apiCallEntity.getReqTime());
         apiCallDetailVo.setCallEnd(apiCallEntity.getResTime());
-        apiCallDetailVo.setResponseBytes(apiCallEntity.getReqBytes());
-        Long bytes = apiCallEntity.getReqBytes();
-        if (null != bytes && bytes > 0L && null != apiCallEntity.getDataQueryEndTime()) {
-            double dbCountMs = apiCallEntity.getDataQueryTotalTime().doubleValue();
-            if (dbCountMs == 0D) {
-                //Compatible with boundary scenarios (at very high speeds)
-                dbCountMs = 0.1D;
-            }
-            apiCallDetailVo.setDbRate(1000D * bytes / dbCountMs);
+        apiCallDetailVo.setResponseBytes(apiCallEntity.getResBytes());
+        if (null != apiCallEntity.getDataQueryEndTime()) {
             apiCallDetailVo.setHttpTime(apiCallDetailVo.getLatency() - apiCallDetailVo.getDataQueryTotalTime().doubleValue());
         } else {
-            apiCallDetailVo.setDbRate(0D);
             if (null != apiCallEntity.getResTime() && null != apiCallEntity.getReqTime()) {
                 apiCallDetailVo.setHttpTime(((Long) (apiCallEntity.getResTime() - apiCallEntity.getReqTime())).doubleValue());
             } else {
