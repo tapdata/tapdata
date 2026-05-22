@@ -15,7 +15,7 @@ import java.util.Map;
  * @description
  */
 @EqualsAndHashCode(callSuper = true)
-public class TaskLineageDto extends TableLineageDto {
+public class TaskLineageDto extends TaskLineageBaseDto {
     /**
      * <nodeId, <filedName, originName>>
      * */

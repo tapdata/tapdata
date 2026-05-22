@@ -13,7 +13,7 @@ import java.util.List;
  * @description
  */
 @EqualsAndHashCode(callSuper = true)
-public class TargetWithLineageDto extends TableLineageDto {
+public class TargetWithLineageDto extends TaskLineageBaseDto {
     /**
      * List of update condition fields for the target table
      */
