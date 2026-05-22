@@ -81,7 +81,7 @@ public class BloodlineFinder {
         TaskLineageDto taskLineage = new TaskLineageDto(findLineage(param));
         Dag dag = taskLineage.getDag();
         Map<String, Map<String, String>> fieldNameMapping = groupFieldNameMappingByNodeId(dag.getNodes());
-        Map<String, DAG> taskDagMap = markJoinState(dag);
+        Map<String, DAG> taskDagMap = markJoinState(dag, fieldNameMapping);
         Map<String, List<FieldNameMapping>> updateConditionFieldList = getUpdateConditionFieldList(dag, taskDagMap, fieldNameMapping);
         taskLineage.setUpdateConditionFieldList(updateConditionFieldList);
         taskLineage.setFieldNameMapping(fieldNameMapping);
@@ -92,7 +92,8 @@ public class BloodlineFinder {
     public TargetWithLineageDto findTaskLineageSimply(TaskLineageParam param) {
         TargetWithLineageDto taskLineage = new TargetWithLineageDto(findLineage(param));
         Dag dag = taskLineage.getDag();
-        Map<String, DAG> taskDagMap = markJoinState(dag);
+        Map<String, Map<String, String>> fieldNameMapping = groupFieldNameMappingByNodeId(dag.getNodes());
+        Map<String, DAG> taskDagMap = markJoinState(dag, fieldNameMapping);
         List<String> targetTableUpdateFields = getTargetTableUpdateFields(dag, taskDagMap);
         taskLineage.setTargetTableUpdateFields(targetTableUpdateFields);
         removeUselessFields(dag);
@@ -266,9 +267,18 @@ public class BloodlineFinder {
         return null;
     }
 
-    protected Map<String, DAG> markJoinState(Dag dag) {
+    protected Map<String, DAG> markJoinState(Dag dag, Map<String, Map<String, String>> fieldNameMapping) {
         if (null == dag || CollectionUtils.isEmpty(dag.getNodes())) {
             return new HashMap<>();
+        }
+        Map<String, LineageTableNode> lineageTableNodeByTableKey = new HashMap<>();
+        for (Node<?> n : dag.getNodes()) {
+            if (n instanceof LineageTableNode tableNode) {
+                String tableKey = toTableKey(tableNode.getConnectionId(), tableNode.getTable());
+                if (StringUtils.isNotBlank(tableKey)) {
+                    lineageTableNodeByTableKey.putIfAbsent(tableKey, tableNode);
+                }
+            }
         }
         Set<String> taskIds = new HashSet<>();
         for (Node<?> node : dag.getNodes()) {
@@ -291,6 +301,28 @@ public class BloodlineFinder {
         Map<String, Boolean> hasMergeMap = new HashMap<>();
         Map<String, Boolean> hasAppendMap = new HashMap<>();
         Map<String, Map<String, TableProperties>> mergeTablePropertiesMap = new HashMap<>();
+        Map<String, Map<String, String>> fieldNameMappingByNodeId = MapUtils.isEmpty(fieldNameMapping) ? new HashMap<>() : fieldNameMapping;
+        Map<String, Map<String, String>> lineageNodeIdByTaskNodeIdByTaskId = new HashMap<>();
+        for (Node<?> n : dag.getNodes()) {
+            if (!(n instanceof LineageTableNode tableNode)) {
+                continue;
+            }
+            if (MapUtils.isEmpty(tableNode.getTasks())) {
+                continue;
+            }
+            for (LineageTask t : tableNode.getTasks().values()) {
+                if (null == t || StringUtils.isBlank(t.getId())) {
+                    continue;
+                }
+                Node<?> taskNode = t.getTaskNode();
+                if (null == taskNode || StringUtils.isBlank(taskNode.getId())) {
+                    continue;
+                }
+                lineageNodeIdByTaskNodeIdByTaskId
+                        .computeIfAbsent(t.getId(), k -> new HashMap<>())
+                        .putIfAbsent(taskNode.getId(), tableNode.getId());
+            }
+        }
         taskDagMap.forEach((taskId, taskDag) -> {
             if (null == taskDag || CollectionUtils.isEmpty(taskDag.getNodes())) {
                 return;
@@ -300,12 +332,14 @@ public class BloodlineFinder {
                     .stream()
                     .filter(Objects::nonNull)
                     .collect(Collectors.toMap(Node::getId, n -> n, (n1, n2) -> n2));
+            MergeTableNode mergeNode = null;
             for (Node<?> taskNode : nodeMap.values()) {
-                if (taskNode instanceof JoinProcessorNode joinNode) {
+                if (taskNode instanceof JoinProcessorNode) {
                     hasJoinMap.put(taskId, true);
-                } else if (taskNode instanceof MergeTableNode mergeNode) {
+                } else if (taskNode instanceof MergeTableNode mergeTableNode) {
+                    mergeNode = mergeTableNode;
                     hasMergeMap.put(taskId, true);
-                    List<MergeTableProperties> mergeProperties = mergeNode.getMergeProperties();
+                    List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
                     mergeProperties.forEach(properties -> {
                         String nodeId = properties.getId();
                         Map<String, TableProperties> mainPropertiesMap = loadRootInfo(nodeId, taskDag, properties);
@@ -321,9 +355,64 @@ public class BloodlineFinder {
                             mergePropertiesMap.putAll(loadRootInfo(id, taskDag, child));
                         });
                     });
-                    if (containsAppendMergeType(mergeNode)) {
+                    if (containsAppendMergeType(mergeTableNode)) {
                         hasAppendMap.put(taskId, true);
                     }
+                }
+            }
+            if (MapUtils.isEmpty(lineageTableNodeByTableKey) || MapUtils.isEmpty(fieldNameMappingByNodeId)) {
+                return;
+            }
+            TableNode finalTargetTableNode = taskDag.getTargets().stream()
+                    .filter(TableNode.class::isInstance)
+                    .map(TableNode.class::cast)
+                    .findFirst()
+                    .orElse(null);
+            if (null == finalTargetTableNode) {
+                return;
+            }
+            Map<String, List<String>> targetCandidatesBySourceFieldName = buildTargetCandidatesBySourceFieldName(
+                    taskId,
+                    finalTargetTableNode,
+                    lineageTableNodeByTableKey,
+                    fieldNameMappingByNodeId,
+                    lineageNodeIdByTaskNodeIdByTaskId
+            );
+            if (MapUtils.isEmpty(targetCandidatesBySourceFieldName)) {
+                return;
+            }
+            for (Node<?> sourceNode : CollectionUtils.emptyIfNull(taskDag.getSources())) {
+                if (!(sourceNode instanceof TableNode)) {
+                    continue;
+                }
+                String sourceNodeId = sourceNode.getId();
+                if (StringUtils.isBlank(sourceNodeId)) {
+                    continue;
+                }
+                JoinProcessorNode firstJoinNode = findFirstDownstreamJoinNode(taskDag, sourceNodeId);
+                if (null != firstJoinNode) {
+                    List<String> joinKeys = extractJoinKeyFieldNamesForSource(taskDag, sourceNodeId, firstJoinNode);
+                    if (CollectionUtils.isNotEmpty(joinKeys)) {
+                        TableProperties props = mergePropertiesMap.computeIfAbsent(sourceNodeId, k -> {
+                            TableProperties p = new TableProperties();
+                            p.setRootNodeId(sourceNodeId);
+                            p.setPreNodeId(sourceNodeId);
+                            return p;
+                        });
+                        List<FieldNameMapping> mappings = new ArrayList<>();
+                        for (String originName : joinKeys) {
+                            String targetFieldName = pickBestTargetFieldName(targetCandidatesBySourceFieldName.get(originName), originName);
+                            if (StringUtils.isBlank(targetFieldName)) {
+                                continue;
+                            }
+                            addFieldNameMapping(mappings, originName, targetFieldName);
+                        }
+                        props.setJoinKeys(mappings);
+                        continue;
+                    }
+                }
+                if (null != mergeNode) {
+                    continue;
                 }
             }
         });
@@ -373,6 +462,129 @@ public class BloodlineFinder {
             }
         }
         return taskDagMap;
+    }
+
+    private Map<String, List<String>> buildTargetCandidatesBySourceFieldName(
+            String taskId,
+            TableNode finalTargetTableNode,
+            Map<String, LineageTableNode> lineageTableNodeByTableKey,
+            Map<String, Map<String, String>> fieldNameMappingByNodeId,
+            Map<String, Map<String, String>> lineageNodeIdByTaskNodeIdByTaskId
+    ) {
+        if (StringUtils.isBlank(taskId) || null == finalTargetTableNode) {
+            return new HashMap<>();
+        }
+        String targetTableKey = toTableKey(finalTargetTableNode.getConnectionId(), finalTargetTableNode.getTableName());
+        String targetLineageNodeId = Optional.ofNullable(lineageTableNodeByTableKey.get(targetTableKey)).map(Node::getId).orElse(null);
+        if (StringUtils.isBlank(targetLineageNodeId)) {
+            targetLineageNodeId = Optional.ofNullable(lineageNodeIdByTaskNodeIdByTaskId.get(taskId))
+                    .map(m -> m.get(finalTargetTableNode.getId()))
+                    .orElse(null);
+        }
+        Map<String, String> targetFieldNameMapping = StringUtils.isBlank(targetLineageNodeId)
+                ? new HashMap<>()
+                : fieldNameMappingByNodeId.getOrDefault(targetLineageNodeId, new HashMap<>());
+        Map<String, List<String>> targetCandidatesBySourceFieldName = new HashMap<>();
+        if (MapUtils.isNotEmpty(targetFieldNameMapping)) {
+            targetFieldNameMapping.forEach((targetFieldName, sourceFieldName) -> {
+                if (StringUtils.isBlank(targetFieldName) || StringUtils.isBlank(sourceFieldName)) {
+                    return;
+                }
+                targetCandidatesBySourceFieldName.computeIfAbsent(sourceFieldName, k -> new ArrayList<>()).add(targetFieldName);
+            });
+        }
+        return targetCandidatesBySourceFieldName;
+    }
+
+    private JoinProcessorNode findFirstDownstreamJoinNode(DAG taskDag, String startNodeId) {
+        if (null == taskDag || StringUtils.isBlank(startNodeId)) {
+            return null;
+        }
+        Set<String> visited = new HashSet<>();
+        Queue<String> queue = new java.util.ArrayDeque<>();
+        visited.add(startNodeId);
+        queue.add(startNodeId);
+        while (!queue.isEmpty()) {
+            String current = queue.poll();
+            if (StringUtils.isBlank(current)) {
+                continue;
+            }
+            List<Node> successors = taskDag.getTarget(current);
+            if (CollectionUtils.isEmpty(successors)) {
+                continue;
+            }
+            for (Node<?> succ : successors) {
+                if (null == succ || StringUtils.isBlank(succ.getId())) {
+                    continue;
+                }
+                if (!visited.add(succ.getId())) {
+                    continue;
+                }
+                if (succ instanceof JoinProcessorNode) {
+                    return (JoinProcessorNode) succ;
+                }
+                queue.add(succ.getId());
+            }
+        }
+        return null;
+    }
+
+    private boolean isAncestorInTaskDag(DAG taskDag, String ancestorId, String nodeId) {
+        if (null == taskDag || StringUtils.isBlank(ancestorId) || StringUtils.isBlank(nodeId)) {
+            return false;
+        }
+        if (ancestorId.equals(nodeId)) {
+            return true;
+        }
+        Set<String> visited = new HashSet<>();
+        Queue<String> queue = new java.util.ArrayDeque<>();
+        visited.add(nodeId);
+        queue.add(nodeId);
+        while (!queue.isEmpty()) {
+            String current = queue.poll();
+            List<Node> pres = taskDag.predecessors(current);
+            if (CollectionUtils.isEmpty(pres)) {
+                continue;
+            }
+            for (Node<?> pre : pres) {
+                if (null == pre || StringUtils.isBlank(pre.getId())) {
+                    continue;
+                }
+                if (ancestorId.equals(pre.getId())) {
+                    return true;
+                }
+                if (visited.add(pre.getId())) {
+                    queue.add(pre.getId());
+                }
+            }
+        }
+        return false;
+    }
+
+    private List<String> extractJoinKeyFieldNamesForSource(DAG taskDag, String sourceNodeId, JoinProcessorNode joinNode) {
+        if (null == taskDag || StringUtils.isBlank(sourceNodeId) || null == joinNode || CollectionUtils.isEmpty(joinNode.getJoinExpressions())) {
+            return new ArrayList<>();
+        }
+        String leftNodeId = joinNode.getLeftNodeId();
+        String rightNodeId = joinNode.getRightNodeId();
+        boolean inLeft = StringUtils.isNotBlank(leftNodeId) && isAncestorInTaskDag(taskDag, sourceNodeId, leftNodeId);
+        boolean inRight = StringUtils.isNotBlank(rightNodeId) && isAncestorInTaskDag(taskDag, sourceNodeId, rightNodeId);
+        if (!inLeft && !inRight) {
+            return new ArrayList<>();
+        }
+        List<String> keys = new ArrayList<>();
+        for (JoinProcessorNode.JoinExpression expr : joinNode.getJoinExpressions()) {
+            if (null == expr) {
+                continue;
+            }
+            if (inLeft && StringUtils.isNotBlank(expr.getLeft())) {
+                keys.add(expr.getLeft());
+            }
+            if (inRight && StringUtils.isNotBlank(expr.getRight())) {
+                keys.add(expr.getRight());
+            }
+        }
+        return keys.stream().filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
     }
 
     protected Map<String, List<FieldNameMapping>> getUpdateConditionFieldList(Dag lineageDag, Map<String, DAG> taskDagMap, Map<String, Map<String, String>> fieldNameMapping) {
