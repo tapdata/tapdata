@@ -3407,6 +3407,7 @@ class TaskServiceImplTest {
         @DisplayName("test clearAgentAffinityForManualStart builds manual start affinity cleanup query")
         void testClearAgentAffinityForManualStart() {
             ObjectId taskId = new ObjectId();
+            when(user.getUserId()).thenReturn("userId");
             doCallRealMethod().when(taskService).clearAgentAffinityForManualStart(any(ObjectId.class), any(UserDetail.class));
             doCallRealMethod().when(taskService).clearAgentAffinityForManualStart(anyList(), any(UserDetail.class));
 
@@ -3430,6 +3431,7 @@ class TaskServiceImplTest {
             Document update = updateCaptor.getValue().getUpdateObject();
             assertTrue(update.get("$unset", Document.class).containsKey(AGENT_ID));
             assertTrue(update.get("$set", Document.class).containsKey("last_updated"));
+            assertEquals("userId", update.get("$set", Document.class).get("lastUpdBy"));
         }
 
         @Test
