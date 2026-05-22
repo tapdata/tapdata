@@ -1,5 +1,6 @@
 package com.tapdata.tm.trace.controller;
 
+import com.tapdata.tm.trace.dto.TargetWithLineageDto;
 import com.tapdata.tm.trace.param.WideTableTraceRequest;
 import com.tapdata.tm.trace.service.TraceService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +41,7 @@ public class TraceController extends BaseController {
     private TraceService traceService;
 
     @GetMapping("/wide-table/bloodline-diagram")
-    public ResponseMessage<TaskLineageDto> findDataTraceDag(
+    public ResponseMessage<TargetWithLineageDto> findDataTraceDag(
             @RequestParam(required = true, name = "connectionId") String connectionId,
             @RequestParam(required = true, name = "table") String table,
             @RequestParam(required = false, name = "trackedFields") List<String> trackedFields) {
@@ -48,7 +49,7 @@ public class TraceController extends BaseController {
                 .connectionId(connectionId)
                 .table(table)
                 .traceFilterFieldNames(trackedFields);
-        return success(bloodlineFinder.findTaskLineage(param));
+        return success(bloodlineFinder.findTaskLineageSimply(param));
     }
 
     @PostMapping(value = "/wide-table/trace/stream",
