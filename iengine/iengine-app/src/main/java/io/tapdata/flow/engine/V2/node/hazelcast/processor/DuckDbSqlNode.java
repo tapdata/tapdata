@@ -5,14 +5,16 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperator;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperatorImpl;
+import io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext;
+import io.tapdata.flow.engine.V2.node.duckdb.SmartMerger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -20,7 +22,7 @@ import org.jetbrains.annotations.NotNull;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * DuckDB SQL 处理器节点
@@ -45,6 +47,8 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     private final List<Map<String, Object>> batchBuffer = new ArrayList<>();
     private static final int DEFAULT_BATCH_SIZE = 1000;
     private int batchSize = DEFAULT_BATCH_SIZE;
+    private static final String DEFAULT_SOURCE_ID = "default_source";
+    private final Map<String, PerSourceContext> sourceContexts = new ConcurrentHashMap<>();
 
     public DuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -88,21 +92,22 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
         try {
             // 获取表名
             String tableId = TapEventUtil.getTableId(recordEvent);
-            if (tableId != null && !tableId.isEmpty()) {
-                currentTableName = tableId;
+            String sourceId = resolveSourceId(tapdataEvent, recordEvent);
+            if (tableId == null || tableId.isEmpty()) {
+                tableId = "unknown_table";
             }
+            String contextKey = buildContextKey(sourceId, tableId);
+            String targetTableName = buildTargetTableName(sourceId, tableId);
+            PerSourceContext context = getOrCreateContext(contextKey, targetTableName);
 
             // 获取记录数据
             Map<String, Object> recordData = extractRecordData(recordEvent);
             
             if (recordData != null && !recordData.isEmpty()) {
-                // 添加到批处理缓冲区
-                synchronized (batchBuffer) {
-                    batchBuffer.add(recordData);
-                    
-                    // 达到批处理大小阈值时刷新
-                    if (batchBuffer.size() >= batchSize) {
-                        flushBatch();
+                synchronized (context.getCommitLock()) {
+                    context.addRecord(recordData);
+                    if (context.getBatchBuffer().size() >= context.getBatchSize()) {
+                        flushContext(context);
                     }
                 }
             }
@@ -161,16 +166,59 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
         try {
             // 确保表存在
             ensureTableExists(dataToWrite);
-            
-            // 使用 DuckDB 操作器写入数据
-            duckDbOperator.writeBatch(dataToWrite, currentTableName);
-            logger.debug("Flushed {} records to DuckDB table: {}", dataToWrite.size(), currentTableName);
-            
+
+            // 使用 SmartMerger 做简单的 last-wins 合并，减少重复/冗余操作
+            List<Map<String, Object>> merged = SmartMerger.mergeLastWins(dataToWrite);
+
+            if (merged == null || merged.isEmpty()) {
+                logger.debug("No merged records to write for table: {}", currentTableName);
+                return;
+            }
+
+            // 优先使用 upsert 批量写入以保证幂等性和 PK 迁移的基本支持
+            duckDbOperator.upsertBatch(currentTableName, merged);
+            logger.debug("Flushed {} merged records to DuckDB table: {} (original {})", merged.size(), currentTableName, dataToWrite.size());
+
         } catch (Exception e) {
             logger.error("Failed to flush batch to DuckDB: {}", e.getMessage(), e);
             // 将数据重新放回缓冲区
             synchronized (batchBuffer) {
                 batchBuffer.addAll(0, dataToWrite);
+            }
+        }
+    }
+
+    private void flushContext(PerSourceContext context) throws SQLException {
+        if (context == null) {
+            return;
+        }
+
+        List<Map<String, Object>> dataToWrite = context.drainBuffer();
+        if (dataToWrite.isEmpty()) {
+            return;
+        }
+
+        try {
+            ensureTableExists(context, dataToWrite);
+
+            List<Map<String, Object>> merged = SmartMerger.mergeLastWins(dataToWrite);
+            if (merged == null || merged.isEmpty()) {
+                logger.debug("No merged records to write for context: {}", context.getKey());
+                return;
+            }
+
+            DuckDbOperator operator = context.getOperator() != null ? context.getOperator() : duckDbOperator;
+            if (operator == null) {
+                throw new SQLException("DuckDbOperator not initialized");
+            }
+
+            operator.upsertBatch(context.getTargetTableName(), merged);
+            logger.debug("Flushed {} merged records to DuckDB table: {} (original {})", merged.size(), context.getTargetTableName(), dataToWrite.size());
+        } catch (Exception e) {
+            logger.error("Failed to flush context {} to DuckDB: {}", context.getKey(), e.getMessage(), e);
+            synchronized (context.getCommitLock()) {
+                context.getBatchBuffer().addAll(0, dataToWrite);
+                context.getAccumulatedRecordCount().addAndGet(dataToWrite.size());
             }
         }
     }
@@ -196,6 +244,26 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
             duckDbOperator.createTempTable(tapTable, tempTableName);
             tableInitialized = true;
             logger.info("Created temp table: {}", tempTableName);
+        }
+    }
+
+    private void ensureTableExists(PerSourceContext context, List<Map<String, Object>> data) throws SQLException {
+        if (context.isTableInitialized() && context.getTargetTableName() != null) {
+            return;
+        }
+        if (data == null || data.isEmpty()) {
+            return;
+        }
+
+        TapTable tapTable = inferTapTable(data, context.getTargetTableName());
+        if (tapTable != null && tapTable.getNameFieldMap() != null && !tapTable.getNameFieldMap().isEmpty()) {
+            DuckDbOperator operator = context.getOperator() != null ? context.getOperator() : duckDbOperator;
+            if (operator == null) {
+                throw new SQLException("DuckDbOperator not initialized");
+            }
+            operator.createTempTable(tapTable, context.getTargetTableName());
+            context.setTableInitialized(true);
+            logger.info("Created temp table for context {}: {}", context.getKey(), context.getTargetTableName());
         }
     }
 
@@ -280,10 +348,60 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
         return new io.tapdata.entity.schema.type.TapDate();
     }
 
+    private String resolveSourceId(TapdataEvent tapdataEvent, TapEvent tapEvent) {
+        if (tapEvent instanceof TapBaseEvent baseEvent) {
+            String associateId = baseEvent.getAssociateId();
+            if (associateId != null && !associateId.isBlank()) {
+                return associateId;
+            }
+        }
+        String fromNodeId = tapdataEvent != null ? tapdataEvent.getFromNodeId() : null;
+        return (fromNodeId != null && !fromNodeId.isBlank()) ? fromNodeId : DEFAULT_SOURCE_ID;
+    }
+
+    private String buildContextKey(String sourceId, String tableId) {
+        return sourceId + ":" + tableId;
+    }
+
+    private String buildTargetTableName(String sourceId, String tableId) {
+        return sanitizeIdentifier(sourceId) + "__" + sanitizeIdentifier(tableId);
+    }
+
+    private String sanitizeIdentifier(String value) {
+        if (value == null || value.isBlank()) {
+            return "unknown";
+        }
+        String sanitized = value.replaceAll("[^A-Za-z0-9_]", "_");
+        if (Character.isDigit(sanitized.charAt(0))) {
+            return "_" + sanitized;
+        }
+        return sanitized;
+    }
+
+    private PerSourceContext getOrCreateContext(String contextKey, String targetTableName) {
+        return sourceContexts.computeIfAbsent(contextKey, key -> {
+            PerSourceContext context = new PerSourceContext(key, duckDbOperator);
+            context.setBatchSize(batchSize);
+            context.setTargetTableName(targetTableName);
+            return context;
+        });
+    }
+
+    private void flushAllContexts() {
+        for (PerSourceContext context : sourceContexts.values()) {
+            try {
+                flushContext(context);
+            } catch (Exception e) {
+                logger.warn("Failed to flush context {} during close: {}", context.getKey(), e.getMessage(), e);
+            }
+        }
+    }
+
     @Override
     protected void doClose() {
         super.doClose();
-        
+        flushAllContexts();
+
         // 刷新剩余数据
         if (!batchBuffer.isEmpty()) {
             flushBatch();
