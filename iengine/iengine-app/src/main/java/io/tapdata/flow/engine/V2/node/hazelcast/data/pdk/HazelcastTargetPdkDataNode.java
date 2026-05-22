@@ -1302,6 +1302,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						LinkedHashMap::new,
 						Collectors.toList()));
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>(groupedByTable.size());
+		String nodeId = getNode().getId().replace("-", "");
+		String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + (isSQLMode ? "" : "_" + nodeId);
 		for (Map.Entry<String, List<TapInsertRecordEvent>> entry : groupedByTable.entrySet()) {
 			String tableName = entry.getKey();
 			List<TapInsertRecordEvent> group = entry.getValue();
@@ -1328,10 +1330,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			after.put(ExactlyOnceUtil.TABLE_NAME_COL_NAME, tableName);
 			after.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, compressedIds);
 			after.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, maxTs);
-			tapRecordEvents.add(insertRecordEvent(after, tableName));
+			tapRecordEvents.add(insertRecordEvent(after, exactlyOnceTableName));
 		}
-		String nodeId = getNode().getId().replace("-", "");
-		String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + (isSQLMode ? "" : "_" + nodeId);
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
 				pdkMethodInvoker.runnable(() -> {
 							try {
