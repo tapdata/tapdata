@@ -3,9 +3,13 @@ package com.tapdata.tm.lineage.analyzer.impl;
 import com.tapdata.tm.lineage.analyzer.entity.LineageMetadataInstance;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import com.tapdata.tm.modules.entity.ModulesEntity;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -52,5 +56,10 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
         lineageMetadataInstance.setId(metadataInstancesEntity.getId().toHexString());
         lineageMetadataInstance.setSourceType(metadataInstancesEntity.getSourceType());
         return lineageMetadataInstance;
+    }
+
+    @Override
+    protected List<ModulesEntity> findModules(String connectionId, String table) {
+        return new ArrayList<>();
     }
 }
