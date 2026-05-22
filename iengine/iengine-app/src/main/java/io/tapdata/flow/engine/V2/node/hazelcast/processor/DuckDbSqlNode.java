@@ -5,6 +5,7 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.mongodb.client.MongoDatabase;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -12,17 +13,22 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperator;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperatorImpl;
+import io.tapdata.flow.engine.V2.node.duckdb.DlqWriter;
 import io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext;
 import io.tapdata.flow.engine.V2.node.duckdb.SmartMerger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.SQLException;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * DuckDB SQL 处理器节点
@@ -48,7 +54,16 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     private static final int DEFAULT_BATCH_SIZE = 1000;
     private int batchSize = DEFAULT_BATCH_SIZE;
     private static final String DEFAULT_SOURCE_ID = "default_source";
+    private static final int DEFAULT_MAX_ACTIVE_SOURCES = 50;
+    private static final int DEFAULT_COMMIT_INTERVAL_MS = 5000;
+    private static final String DLQ_COLLECTION = "duckdb_dlq_records";
     private final Map<String, PerSourceContext> sourceContexts = new ConcurrentHashMap<>();
+    private final LinkedHashMap<String, Boolean> sourceAccessOrder = new LinkedHashMap<>(16, 0.75f, true);
+    private final Object sourceContextLock = new Object();
+    private final int maxActiveSources = DEFAULT_MAX_ACTIVE_SOURCES;
+    private final int commitIntervalMs = DEFAULT_COMMIT_INTERVAL_MS;
+    private ScheduledExecutorService contextFlusher;
+    private DlqWriter dlqWriter;
 
     public DuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -61,6 +76,13 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
         // 初始化 DuckDB 操作器（内存数据库模式）
         try {
             duckDbOperator = new DuckDbOperatorImpl(true, batchSize, 5000);
+            contextFlusher = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread thread = new Thread(r, "duckdb-multi-source-flusher");
+                thread.setDaemon(true);
+                return thread;
+            });
+            contextFlusher.scheduleAtFixedRate(this::flushAllContextsSafely, commitIntervalMs, commitIntervalMs, TimeUnit.MILLISECONDS);
+            dlqWriter = new DlqWriter(clientMongoOperator, DLQ_COLLECTION);
             logger.info("DuckDbSqlNode initialized with batchSize={}", batchSize);
         } catch (SQLException e) {
             throw new TapCodeException("Failed to initialize DuckDbOperator", e);
@@ -99,6 +121,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
             String contextKey = buildContextKey(sourceId, tableId);
             String targetTableName = buildTargetTableName(sourceId, tableId);
             PerSourceContext context = getOrCreateContext(contextKey, targetTableName);
+            currentTableName = targetTableName;
 
             // 获取记录数据
             Map<String, Object> recordData = extractRecordData(recordEvent);
@@ -220,6 +243,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
                 context.getBatchBuffer().addAll(0, dataToWrite);
                 context.getAccumulatedRecordCount().addAndGet(dataToWrite.size());
             }
+            writeToDlq(context, dataToWrite, e);
         }
     }
 
@@ -379,27 +403,94 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     private PerSourceContext getOrCreateContext(String contextKey, String targetTableName) {
-        return sourceContexts.computeIfAbsent(contextKey, key -> {
-            PerSourceContext context = new PerSourceContext(key, duckDbOperator);
+        synchronized (sourceContextLock) {
+            PerSourceContext existing = sourceContexts.get(contextKey);
+            if (existing != null) {
+                sourceAccessOrder.put(contextKey, Boolean.TRUE);
+                return existing;
+            }
+            evictIfNecessary();
+            PerSourceContext context = new PerSourceContext(contextKey, duckDbOperator);
             context.setBatchSize(batchSize);
             context.setTargetTableName(targetTableName);
+            sourceContexts.put(contextKey, context);
+            sourceAccessOrder.put(contextKey, Boolean.TRUE);
             return context;
-        });
+        }
     }
 
     private void flushAllContexts() {
-        for (PerSourceContext context : sourceContexts.values()) {
-            try {
-                flushContext(context);
-            } catch (Exception e) {
-                logger.warn("Failed to flush context {} during close: {}", context.getKey(), e.getMessage(), e);
+        for (PerSourceContext context : new ArrayList<>(sourceContexts.values())) {
+            synchronized (context.getCommitLock()) {
+                try {
+                    flushContext(context);
+                } catch (Exception e) {
+                    logger.warn("Failed to flush context {} during close: {}", context.getKey(), e.getMessage(), e);
+                }
             }
+        }
+    }
+
+    private void flushAllContextsSafely() {
+        if (sourceContexts.isEmpty()) {
+            return;
+        }
+        try {
+            flushAllContexts();
+        } catch (Exception e) {
+            logger.warn("Scheduled DuckDB context flush failed: {}", e.getMessage(), e);
+        }
+    }
+
+    private void evictIfNecessary() {
+        while (sourceContexts.size() >= maxActiveSources && !sourceAccessOrder.isEmpty()) {
+            Iterator<Map.Entry<String, Boolean>> iterator = sourceAccessOrder.entrySet().iterator();
+            if (!iterator.hasNext()) {
+                return;
+            }
+            String eldestKey = iterator.next().getKey();
+            iterator.remove();
+            PerSourceContext evicted = sourceContexts.remove(eldestKey);
+            if (evicted != null) {
+                try {
+                    flushContext(evicted);
+                } catch (Exception e) {
+                    logger.warn("Failed to flush evicted context {}: {}", eldestKey, e.getMessage(), e);
+                } finally {
+                    closeContextOperator(evicted);
+                }
+            }
+        }
+    }
+
+    private void closeContextOperator(PerSourceContext context) {
+        if (context == null || context.getOperator() == null || context.getOperator() == duckDbOperator) {
+            return;
+        }
+        try {
+            context.getOperator().close();
+        } catch (Exception e) {
+            logger.warn("Failed to close context operator for {}: {}", context.getKey(), e.getMessage(), e);
+        }
+    }
+
+    private void writeToDlq(PerSourceContext context, List<Map<String, Object>> payload, Exception error) {
+        if (dlqWriter == null || context == null) {
+            return;
+        }
+        try {
+            dlqWriter.write(context.getKey(), context.getTargetTableName(), payload, error);
+        } catch (RuntimeException dlqError) {
+            logger.warn("Failed to persist DuckDB DLQ record for {}: {}", context.getKey(), dlqError.getMessage(), dlqError);
         }
     }
 
     @Override
     protected void doClose() {
         super.doClose();
+        if (contextFlusher != null) {
+            contextFlusher.shutdownNow();
+        }
         flushAllContexts();
 
         // 刷新剩余数据
