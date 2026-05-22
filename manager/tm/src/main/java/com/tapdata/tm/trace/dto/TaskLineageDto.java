@@ -26,6 +26,11 @@ public class TaskLineageDto extends TableLineageDto {
      * */
     Map<String, List<BloodlineFinder.FieldNameMapping>> updateConditionFieldList;
 
+    /**
+     * List of update condition fields for the target table
+     */
+    List<String> targetTableUpdateFields;
+
     public TaskLineageDto(Dag dag) {
         super(dag);
     }
@@ -44,5 +49,13 @@ public class TaskLineageDto extends TableLineageDto {
 
     public void setUpdateConditionFieldList(Map<String, List<BloodlineFinder.FieldNameMapping>> updateConditionFieldList) {
         this.updateConditionFieldList = updateConditionFieldList;
+    }
+
+    public List<String> getTargetTableUpdateFields() {
+        return targetTableUpdateFields;
+    }
+
+    public void setTargetTableUpdateFields(List<String> targetTableUpdateFields) {
+        this.targetTableUpdateFields = targetTableUpdateFields;
     }
 }
