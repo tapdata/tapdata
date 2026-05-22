@@ -484,12 +484,10 @@ public class BloodlineFinder {
                     .stream()
                     .filter(Objects::nonNull)
                     .collect(Collectors.toMap(Node::getId, n -> n, (n1, n2) -> n2));
-            MergeTableNode mergeNode = null;
             for (Node<?> taskNode : nodeMap.values()) {
                 if (taskNode instanceof JoinProcessorNode) {
                     hasJoinMap.put(taskId, true);
                 } else if (taskNode instanceof MergeTableNode mergeTableNode) {
-                    mergeNode = mergeTableNode;
                     hasMergeMap.put(taskId, true);
                     List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
                     mergeProperties.forEach(properties -> {
@@ -537,20 +535,21 @@ public class BloodlineFinder {
                 if (!(sourceNode instanceof TableNode)) {
                     continue;
                 }
-                String sourceNodeId = sourceNode.getId();
+                TableNode sourceTableNode = (TableNode) sourceNode;
+                String sourceNodeId = sourceTableNode.getId();
                 if (StringUtils.isBlank(sourceNodeId)) {
                     continue;
                 }
                 JoinProcessorNode firstJoinNode = findFirstDownstreamJoinNode(taskDag, sourceNodeId);
                 if (null != firstJoinNode) {
+                    TableProperties props = mergePropertiesMap.computeIfAbsent(sourceNodeId, k -> {
+                        TableProperties p = new TableProperties();
+                        p.setRootNodeId(sourceNodeId);
+                        p.setPreNodeId(sourceNodeId);
+                        return p;
+                    });
                     List<String> joinKeys = extractJoinKeyFieldNamesForSource(taskDag, sourceNodeId, firstJoinNode);
                     if (CollectionUtils.isNotEmpty(joinKeys)) {
-                        TableProperties props = mergePropertiesMap.computeIfAbsent(sourceNodeId, k -> {
-                            TableProperties p = new TableProperties();
-                            p.setRootNodeId(sourceNodeId);
-                            p.setPreNodeId(sourceNodeId);
-                            return p;
-                        });
                         List<FieldNameMapping> mappings = new ArrayList<>();
                         for (String originName : joinKeys) {
                             String targetFieldName = pickBestTargetFieldName(targetCandidatesBySourceFieldName.get(originName), originName);
@@ -913,7 +912,7 @@ public class BloodlineFinder {
             TableProperties isSelf = new TableProperties();
             isSelf.setRootNodeId(preNodeId);
             isSelf.setPreNodeId(preNodeId);
-            isSelf.setPath(mergeTableProperties.getArrayPath());
+            isSelf.setPath(resolveMergePropertiesPath(mergeTableProperties));
             List<Map<String, String>> joinKeys = mergeTableProperties.getJoinKeys();
             if (CollectionUtils.isNotEmpty(joinKeys)) {
                 List<FieldNameMapping> joinKeyMappings = new ArrayList<>();
@@ -962,7 +961,9 @@ public class BloodlineFinder {
                     if (null == tableProperties.getTablePk()) {
                         tableProperties.setTablePk(new ArrayList<>());
                     }
-                    tableProperties.setPath(mergeTableProperties.getArrayPath());
+                    if (StringUtils.isBlank(tableProperties.getPath())) {
+                        tableProperties.setPath(resolveMergePropertiesPath(mergeTableProperties));
+                    }
                     addFieldNameMapping(tableProperties.getTablePk(), tf.rootFieldName, arrayKey);
                 });
             }
@@ -985,11 +986,21 @@ public class BloodlineFinder {
                     if (null == tableProperties.getJoinKeys()) {
                         tableProperties.setJoinKeys(new ArrayList<>());
                     }
+                    if (StringUtils.isBlank(tableProperties.getPath())) {
+                        tableProperties.setPath(resolveMergePropertiesPath(mergeTableProperties));
+                    }
                     addFieldNameMapping(tableProperties.getJoinKeys(), tf.rootFieldName, targetName);
                 });
             }
         }
         return result;
+    }
+
+    private String resolveMergePropertiesPath(MergeTableProperties mergeTableProperties) {
+        if (null == mergeTableProperties) {
+            return null;
+        }
+        return StringUtils.defaultIfBlank(mergeTableProperties.getArrayPath(), mergeTableProperties.getTargetPath());
     }
 
     protected Map<String, Map<String, String>> groupFieldOriginalNameMappingByNodeId(List<Node> nodes) {
