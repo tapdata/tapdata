@@ -48,6 +48,7 @@
 		<hutool.version>5.8.40</hutool.version>
         <github-api.version>1.330</github-api.version>
         <jgit.version>7.5.0.202512021534-r</jgit.version>
+		<tomcat.version>10.1.55</tomcat.version>
     </properties>
 
 	<modules>
