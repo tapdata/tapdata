@@ -4431,6 +4431,26 @@ public class TaskServiceImpl extends TaskService{
         return noAgent;
     }
 
+    @Override
+    public void clearAgentAffinityForManualStart(ObjectId taskId, UserDetail user) {
+        if (Objects.isNull(taskId)) {
+            return;
+        }
+        clearAgentAffinityForManualStart(Collections.singletonList(taskId), user);
+    }
+
+    @Override
+    public void clearAgentAffinityForManualStart(List<ObjectId> taskIds, UserDetail user) {
+        if (CollectionUtils.isEmpty(taskIds)) {
+            return;
+        }
+        Query query = Query.query(Criteria.where("_id").in(taskIds)
+                .and(STATUS).in(TaskOpStatusEnum.to_start_status.v())
+                .and(AGENT_ID).exists(true).ne(null)
+                .and("accessNodeType").ne(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name()));
+        Update update = new Update().unset(AGENT_ID).set("last_updated", new Date());
+        update(query, update, user);
+    }
 
     private String judgePostgreClearSlot(TaskDto taskDto, String opType) {
         Node node = getSourceNode(taskDto);
