@@ -155,104 +155,91 @@ public class BloodlineFinder {
             return new HashMap<>();
         }
 
-        Map<String, LineageTableNode> lineageTableNodeById = new HashMap<>();
-        for (Node<?> n : dag.getNodes()) {
-            if (n instanceof LineageTableNode tn && StringUtils.isNotBlank(tn.getId())) {
-                lineageTableNodeById.put(tn.getId(), tn);
-            }
-        }
-
+        Map<String, String> targetNodeFieldToOrigin = fieldNameMappingByNodeId.getOrDefault(targetNodeId, new HashMap<>());
         Map<String, String> targetFieldToOriginName = new HashMap<>();
-        Map<String, String> targetNodeMapping = getNodeFieldToOriginMapping(fieldNameMappingByNodeId, targetNodeId, lineageTableNodeById.get(targetNodeId));
         for (String targetField : targetFields) {
-            String originName = targetNodeMapping.get(targetField);
+            String originName = targetNodeFieldToOrigin.get(targetField);
             if (StringUtils.isBlank(originName)) {
                 continue;
             }
             targetFieldToOriginName.put(targetField, originName);
         }
 
-        Map<String, Map<String, String>> result = new HashMap<>();
         Set<String> keptNodeIds = new HashSet<>();
         keptNodeIds.add(targetNodeId);
+        Map<String, Map<String, String>> result = new HashMap<>();
 
         for (Node<?> n : dag.getNodes()) {
-            if (null == n || StringUtils.isBlank(n.getId())) {
+            if (!(n instanceof LineageTableNode) || StringUtils.isBlank(n.getId())) {
                 continue;
             }
             String nodeId = n.getId();
-            Map<String, String> nodeFieldToOrigin = getNodeFieldToOriginMapping(fieldNameMappingByNodeId, nodeId, lineageTableNodeById.get(nodeId));
-            Map<String, String> filtered = new HashMap<>();
 
             if (targetNodeId.equals(nodeId)) {
+                Map<String, String> mapping = new HashMap<>();
                 for (String targetField : targetFields) {
-                    filtered.put(targetField, targetField);
+                    mapping.put(targetField, targetField);
                 }
-            } else if (MapUtils.isNotEmpty(nodeFieldToOrigin)) {
-                for (Map.Entry<String, String> entry : targetFieldToOriginName.entrySet()) {
-                    String targetField = entry.getKey();
-                    String originName = entry.getValue();
-                    String nodeField = findBestNodeFieldByOrigin(nodeFieldToOrigin, originName, targetField);
-                    if (StringUtils.isNotBlank(nodeField)) {
-                        filtered.put(targetField, nodeField);
+                result.put(nodeId, mapping);
+                continue;
+            }
+
+            Map<String, String> nodeFieldToOrigin = fieldNameMappingByNodeId.get(nodeId);
+            if (MapUtils.isEmpty(nodeFieldToOrigin) || MapUtils.isEmpty(targetFieldToOriginName)) {
+                continue;
+            }
+
+            Map<String, String> mapping = new HashMap<>();
+            for (Map.Entry<String, String> entry : targetFieldToOriginName.entrySet()) {
+                String targetField = entry.getKey();
+                String originName = entry.getValue();
+                if (StringUtils.isBlank(originName)) {
+                    continue;
+                }
+                String best = null;
+                for (Map.Entry<String, String> e : nodeFieldToOrigin.entrySet()) {
+                    if (StringUtils.isBlank(e.getKey()) || StringUtils.isBlank(e.getValue())) {
+                        continue;
                     }
+                    if (!originName.equals(e.getValue())) {
+                        continue;
+                    }
+                    if (targetField.equals(e.getKey())) {
+                        best = e.getKey();
+                        break;
+                    }
+                    if (null == best || e.getKey().compareTo(best) < 0) {
+                        best = e.getKey();
+                    }
+                }
+                if (StringUtils.isNotBlank(best)) {
+                    mapping.put(targetField, best);
                 }
             }
 
-            if (MapUtils.isNotEmpty(filtered)) {
+            if (MapUtils.isNotEmpty(mapping)) {
                 keptNodeIds.add(nodeId);
-                result.put(nodeId, filtered);
+                result.put(nodeId, mapping);
             }
         }
 
-        List<Node> newNodes = dag.getNodes()
-                .stream()
+        List<Node> newNodes = dag.getNodes().stream()
                 .filter(Objects::nonNull)
+                .filter(n -> StringUtils.isNotBlank(n.getId()))
                 .filter(n -> keptNodeIds.contains(n.getId()))
                 .collect(Collectors.toList());
         dag.setNodes(newNodes);
 
         if (CollectionUtils.isNotEmpty(dag.getEdges())) {
-            List<Edge> newEdges = dag.getEdges()
-                    .stream()
+            List<Edge> newEdges = dag.getEdges().stream()
                     .filter(Objects::nonNull)
+                    .filter(e -> StringUtils.isNotBlank(e.getSource()) && StringUtils.isNotBlank(e.getTarget()))
                     .filter(e -> keptNodeIds.contains(e.getSource()) && keptNodeIds.contains(e.getTarget()))
                     .collect(Collectors.toList());
             dag.setEdges(newEdges);
         }
 
-        for (Node<?> n : newNodes) {
-            if (null == n || StringUtils.isBlank(n.getId())) {
-                continue;
-            }
-            result.putIfAbsent(n.getId(), new HashMap<>());
-        }
         return result;
-    }
-
-    private String findBestNodeFieldByOrigin(Map<String, String> nodeFieldToOrigin, String originName, String preferredFieldName) {
-        if (MapUtils.isEmpty(nodeFieldToOrigin) || StringUtils.isBlank(originName)) {
-            return null;
-        }
-        String best = null;
-        for (Map.Entry<String, String> e : nodeFieldToOrigin.entrySet()) {
-            String nodeField = e.getKey();
-            String nodeOrigin = e.getValue();
-            if (StringUtils.isBlank(nodeField)) {
-                continue;
-            }
-            boolean match = originName.equals(nodeOrigin) || (StringUtils.isBlank(nodeOrigin) && originName.equals(nodeField));
-            if (!match) {
-                continue;
-            }
-            if (StringUtils.isNotBlank(preferredFieldName) && preferredFieldName.equals(nodeField)) {
-                return nodeField;
-            }
-            if (best == null || nodeField.compareTo(best) < 0) {
-                best = nodeField;
-            }
-        }
-        return best;
     }
 
     private Map<String, String> getNodeFieldToOriginMapping(Map<String, Map<String, String>> fieldNameMappingByNodeId, String nodeId, LineageTableNode lineageTableNode) {
@@ -573,11 +560,7 @@ public class BloodlineFinder {
                             addFieldNameMapping(mappings, originName, targetFieldName);
                         }
                         props.setJoinKeys(mappings);
-                        continue;
                     }
-                }
-                if (null != mergeNode) {
-                    continue;
                 }
             }
         });
@@ -930,6 +913,7 @@ public class BloodlineFinder {
             TableProperties isSelf = new TableProperties();
             isSelf.setRootNodeId(preNodeId);
             isSelf.setPreNodeId(preNodeId);
+            isSelf.setPath(mergeTableProperties.getArrayPath());
             List<Map<String, String>> joinKeys = mergeTableProperties.getJoinKeys();
             if (CollectionUtils.isNotEmpty(joinKeys)) {
                 List<FieldNameMapping> joinKeyMappings = new ArrayList<>();
@@ -978,6 +962,7 @@ public class BloodlineFinder {
                     if (null == tableProperties.getTablePk()) {
                         tableProperties.setTablePk(new ArrayList<>());
                     }
+                    tableProperties.setPath(mergeTableProperties.getArrayPath());
                     addFieldNameMapping(tableProperties.getTablePk(), tf.rootFieldName, arrayKey);
                 });
             }
@@ -1007,139 +992,6 @@ public class BloodlineFinder {
         return result;
     }
 
-    protected Map<String, Map<String, String>> groupFieldNameMappingByNodeId(List<Node> nodes, Map<String, DAG> taskDagMap) {
-        Map<String, Map<String, String>> mapMap = new HashMap<>();
-        if (CollectionUtils.isEmpty(nodes)) {
-            return mapMap;
-        }
-        Set<String> taskIds = new HashSet<>();
-        List<LineageTableNode> lineageNodes = new ArrayList<>();
-        for (Node<?> node : nodes) {
-            if (!(node instanceof LineageTableNode)) {
-                continue;
-            }
-            LineageTableNode tableNode = (LineageTableNode) node;
-            lineageNodes.add(tableNode);
-            Map<String, LineageTask> tasks = tableNode.getTasks();
-            if (MapUtils.isEmpty(tasks)) {
-                continue;
-            }
-            for (LineageTask lineageTask : tasks.values()) {
-                if (null == lineageTask || StringUtils.isBlank(lineageTask.getId())) {
-                    continue;
-                }
-                taskIds.add(lineageTask.getId());
-            }
-        }
-        Map<String, Map<String, Map<String, Field>>> fieldsCacheByTaskId = new HashMap<>();
-        for (LineageTableNode node : lineageNodes) {
-            if (null == node || StringUtils.isBlank(node.getId())) {
-                continue;
-            }
-            Map<String, String> fieldNameMapping = new HashMap<>();
-            LineageMetadataInstance metadata = node.getMetadata();
-            if (null != metadata && "SOURCE".equalsIgnoreCase(metadata.getSourceType())) {
-                ProducingTaskInfo producingTaskInfo = findProducingTaskInfo(node);
-                if (null != producingTaskInfo && StringUtils.isNotBlank(producingTaskInfo.taskId) && StringUtils.isNotBlank(producingTaskInfo.nodeId)) {
-                    DAG taskDag = taskDagMap.get(producingTaskInfo.taskId);
-                    if (null != taskDag) {
-                        Map<String, Map<String, Field>> fieldsByNodeIdCache = fieldsCacheByTaskId.computeIfAbsent(producingTaskInfo.taskId, k -> new HashMap<>());
-                        String resolvedNodeId = producingTaskInfo.nodeId;
-                        String resolvedTableName = node.getTable();
-                        Map<String, Field> taskFieldMap = getFieldMapForNode(producingTaskInfo.taskId, resolvedNodeId, resolvedTableName, fieldsByNodeIdCache);
-                        if (MapUtils.isEmpty(taskFieldMap)) {
-                            String candidateNodeId = findTableNodeIdInTaskDag(taskDag, node.getConnectionId(), node.getTable(), true);
-                            if (StringUtils.isNotBlank(candidateNodeId)) {
-                                resolvedNodeId = candidateNodeId;
-                                resolvedTableName = StringUtils.defaultIfBlank(resolveNodeTableName(taskDag, resolvedNodeId), resolvedTableName);
-                                taskFieldMap = getFieldMapForNode(producingTaskInfo.taskId, resolvedNodeId, resolvedTableName, fieldsByNodeIdCache);
-                            }
-                        }
-                        if (MapUtils.isNotEmpty(taskFieldMap)) {
-                            for (String targetFieldName : taskFieldMap.keySet()) {
-                                if (StringUtils.isBlank(targetFieldName)) {
-                                    continue;
-                                }
-                                String originName = resolveTaskInternalOriginFieldName(taskDag, producingTaskInfo.taskId, resolvedNodeId, resolvedTableName, targetFieldName, fieldsByNodeIdCache);
-                                fieldNameMapping.putIfAbsent(targetFieldName, StringUtils.defaultString(originName));
-                            }
-                        }
-                    }
-                }
-                if (fieldNameMapping.isEmpty()) {
-                    List<String> fieldNames = new ArrayList<>();
-                    List<Field> fields = metadata.getFields();
-                    if (CollectionUtils.isNotEmpty(fields)) {
-                        for (Field field : fields) {
-                            if (null == field || field.isDeleted() || StringUtils.isBlank(field.getFieldName())) {
-                                continue;
-                            }
-                            fieldNames.add(field.getFieldName());
-                        }
-                    }
-                    if (fieldNames.isEmpty()) {
-                        fieldNames.addAll(getAllFieldNamesForSource(node.getConnectionId(), node.getTable()));
-                    }
-                    for (String fieldName : fieldNames) {
-                        if (StringUtils.isBlank(fieldName)) {
-                            continue;
-                        }
-                        fieldNameMapping.putIfAbsent(fieldName, "");
-                    }
-                }
-                metadata.setFields(null);
-                mapMap.put(node.getId(), fieldNameMapping);
-                continue;
-            }
-
-            ProducingTaskInfo producingTaskInfo = findProducingTaskInfo(node);
-            if (null != producingTaskInfo && StringUtils.isNotBlank(producingTaskInfo.taskId) && StringUtils.isNotBlank(producingTaskInfo.nodeId)) {
-                DAG taskDag = taskDagMap.get(producingTaskInfo.taskId);
-                if (null != taskDag) {
-                    Map<String, Map<String, Field>> fieldsByNodeIdCache = fieldsCacheByTaskId.computeIfAbsent(producingTaskInfo.taskId, k -> new HashMap<>());
-                    String resolvedNodeId = producingTaskInfo.nodeId;
-                    String resolvedTableName = node.getTable();
-                    Map<String, Field> taskFieldMap = getFieldMapForNode(producingTaskInfo.taskId, resolvedNodeId, resolvedTableName, fieldsByNodeIdCache);
-                    if (MapUtils.isEmpty(taskFieldMap)) {
-                        String candidateNodeId = findTableNodeIdInTaskDag(taskDag, node.getConnectionId(), node.getTable(), true);
-                        if (StringUtils.isNotBlank(candidateNodeId)) {
-                            resolvedNodeId = candidateNodeId;
-                            resolvedTableName = StringUtils.defaultIfBlank(resolveNodeTableName(taskDag, resolvedNodeId), resolvedTableName);
-                            taskFieldMap = getFieldMapForNode(producingTaskInfo.taskId, resolvedNodeId, resolvedTableName, fieldsByNodeIdCache);
-                        }
-                    }
-                    if (MapUtils.isNotEmpty(taskFieldMap)) {
-                        for (String targetFieldName : taskFieldMap.keySet()) {
-                            if (StringUtils.isBlank(targetFieldName)) {
-                                continue;
-                            }
-                            String originName = resolveTaskInternalOriginFieldName(taskDag, producingTaskInfo.taskId, resolvedNodeId, resolvedTableName, targetFieldName, fieldsByNodeIdCache);
-                            fieldNameMapping.putIfAbsent(targetFieldName, StringUtils.defaultIfBlank(originName, targetFieldName));
-                        }
-                    }
-                }
-            }
-            if (fieldNameMapping.isEmpty() && null != metadata && CollectionUtils.isNotEmpty(metadata.getFields())) {
-                for (Field field : metadata.getFields()) {
-                    if (null == field || field.isDeleted() || StringUtils.isBlank(field.getFieldName())) {
-                        continue;
-                    }
-                    String originName = StringUtils.defaultIfBlank(field.getPreviousFieldName(), field.getFieldName());
-                    fieldNameMapping.putIfAbsent(field.getFieldName(), originName);
-                }
-                metadata.setFields(null);
-            }
-            mapMap.put(node.getId(), fieldNameMapping);
-        }
-        for (Node<?> node : nodes) {
-            if (null == node || StringUtils.isBlank(node.getId())) {
-                continue;
-            }
-            mapMap.putIfAbsent(node.getId(), new HashMap<>());
-        }
-        return mapMap;
-    }
-
     protected Map<String, Map<String, String>> groupFieldOriginalNameMappingByNodeId(List<Node> nodes) {
         Map<String, Map<String, String>> result = new HashMap<>();
         if (CollectionUtils.isEmpty(nodes)) {
@@ -1161,9 +1013,6 @@ public class BloodlineFinder {
                         fieldNameToOriginalName.putIfAbsent(field.getFieldName(), StringUtils.defaultString(field.getOriginalFieldName()));
                     }
                 }
-                if (null != metadata) {
-                    metadata.setFields(null);
-                }
             }
             result.put(node.getId(), fieldNameToOriginalName);
         }
@@ -1175,105 +1024,7 @@ public class BloodlineFinder {
         }
         return result;
     }
-
-    protected List<String> getAllFieldNamesForSource(String connectionId, String tableName) {
-        if (StringUtils.isBlank(connectionId) || StringUtils.isBlank(tableName)) {
-            return new ArrayList<>();
-        }
-        Criteria criteria = Criteria.where("source._id").is(connectionId)
-                .and("original_name").is(tableName)
-                .and("sourceType").is("SOURCE")
-                .and("is_deleted").ne(true);
-        Query query = Query.query(criteria);
-        query.fields().include("fields");
-        MetadataInstancesEntity entity = metadataInstancesRepository.findOne(query).orElse(null);
-        List<Field> fields = null == entity ? null : entity.getFields();
-        if (CollectionUtils.isEmpty(fields)) {
-            return new ArrayList<>();
-        }
-        List<String> names = new ArrayList<>();
-        for (Field field : fields) {
-            if (null == field || field.isDeleted() || StringUtils.isBlank(field.getFieldName())) {
-                continue;
-            }
-            names.add(field.getFieldName());
-        }
-        return names;
-    }
-
-    protected String findTableNodeIdInTaskDag(DAG taskDag, String connectionId, String tableName, boolean preferTarget) {
-        if (null == taskDag || StringUtils.isBlank(connectionId) || StringUtils.isBlank(tableName)) {
-            return null;
-        }
-        if (preferTarget && CollectionUtils.isNotEmpty(taskDag.getTargets())) {
-            for (Node<?> n : taskDag.getTargets()) {
-                if (!(n instanceof TableNode)) {
-                    continue;
-                }
-                TableNode t = (TableNode) n;
-                if (connectionId.equals(t.getConnectionId()) && tableName.equals(t.getTableName()) && StringUtils.isNotBlank(t.getId())) {
-                    return t.getId();
-                }
-            }
-        }
-        if (CollectionUtils.isEmpty(taskDag.getNodes())) {
-            return null;
-        }
-        for (Node<?> n : taskDag.getNodes()) {
-            if (!(n instanceof TableNode)) {
-                continue;
-            }
-            TableNode t = (TableNode) n;
-            if (connectionId.equals(t.getConnectionId()) && tableName.equals(t.getTableName()) && StringUtils.isNotBlank(t.getId())) {
-                return t.getId();
-            }
-        }
-        return null;
-    }
-
-    protected String resolveTaskInternalOriginFieldName(
-            DAG taskDag,
-            String taskId,
-            String nodeId,
-            String tableName,
-            String targetFieldName,
-            Map<String, Map<String, Field>> fieldsByNodeIdCache
-    ) {
-        if (null == taskDag || StringUtils.isBlank(taskId) || StringUtils.isBlank(nodeId) || StringUtils.isBlank(targetFieldName)) {
-            return null;
-        }
-        Optional<TracedField> traced = traceToRoot(taskDag, taskId, nodeId, tableName, targetFieldName, fieldsByNodeIdCache);
-        return traced.map(TracedField::getRootFieldName).orElse(null);
-    }
-
-    protected ProducingTaskInfo findProducingTaskInfo(LineageTableNode lineageTableNode) {
-        if (null == lineageTableNode) {
-            return null;
-        }
-        LineageMetadataInstance metadata = lineageTableNode.getMetadata();
-        String metadataNodeId = null == metadata ? null : metadata.getNodeId();
-        Map<String, LineageTask> tasks = lineageTableNode.getTasks();
-        if (MapUtils.isEmpty(tasks)) {
-            return null;
-        }
-        for (LineageTask lineageTask : tasks.values()) {
-            if (null == lineageTask || StringUtils.isBlank(lineageTask.getId()) || null == lineageTask.getTaskNode()) {
-                continue;
-            }
-            Node<?> taskNode = lineageTask.getTaskNode();
-            if (!(taskNode instanceof com.tapdata.tm.lineage.analyzer.entity.LineageTaskNode)) {
-                continue;
-            }
-            String pos = ((com.tapdata.tm.lineage.analyzer.entity.LineageTaskNode) taskNode).getTaskNodePos();
-            if (!StringUtils.equalsIgnoreCase(pos, com.tapdata.tm.lineage.analyzer.entity.LineageTaskNode.TASK_NODE_TARGET_POS)) {
-                continue;
-            }
-            String nodeId = StringUtils.isNotBlank(metadataNodeId) ? metadataNodeId : taskNode.getId();
-            return new ProducingTaskInfo(lineageTask.getId(), nodeId);
-        }
-        return null;
-    }
-
+    
     protected Map<String, DAG> loadTaskDagByTaskId(Collection<String> taskId) {
         List<ObjectId> oIds = taskId.stream().map(MongoUtils::toObjectId).filter(Objects::nonNull).toList();
         if (CollectionUtils.isEmpty(oIds)) {
@@ -1681,6 +1432,7 @@ public class BloodlineFinder {
         String nodeType;
         List<FieldNameMapping> joinKeys;
         List<FieldNameMapping> tablePk;
+        String path;
         String tableType = SUB_TABLE;
     }
 

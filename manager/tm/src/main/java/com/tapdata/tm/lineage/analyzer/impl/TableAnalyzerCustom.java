@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -19,7 +20,7 @@ import java.util.List;
  */
 @Service("tableAnalyzerCustom")
 public class TableAnalyzerCustom extends TableAnalyzerV1 {
-    protected static final String[] METADATA_INCLUDE_FIELDS_CUSTOM  = new String[]{"_id", "sourceType","fields.tapType","fields.dataType","fields.fieldName","fields.originalFieldName","fields.primaryKey","fields.columnPosition","custom_properties","nodeId"};
+    protected static final String[] METADATA_INCLUDE_FIELDS_CUSTOM  = new String[]{"_id", "sourceType", "original_name", "ancestorsName","fields.tapType","fields.dataType","fields.fieldName","fields.originalFieldName","fields.primaryKey","fields.columnPosition","custom_properties","nodeId"};
 
     @Override
     protected String[] metadataIncludeFields() {
@@ -45,7 +46,12 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
 
     @Override
     protected LineageMetadataInstance getMetadata(Query query) {
-        MetadataInstancesEntity metadataInstancesEntity = metadataInstancesRepository.findOne(query).orElse(null);
+        List<MetadataInstancesEntity> metadataInstancesEntities = metadataInstancesRepository.findAll(query);
+        MetadataInstancesEntity metadataInstancesEntity = metadataInstancesEntities.size() == 1 ? metadataInstancesEntities.get(0) : metadataInstancesEntities.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> e.getOriginalName().equals(e.getAncestorsName()))
+                .findFirst()
+                .orElse(null);
         if (null == metadataInstancesEntity || null == metadataInstancesEntity.getId()) {
             return null;
         }
