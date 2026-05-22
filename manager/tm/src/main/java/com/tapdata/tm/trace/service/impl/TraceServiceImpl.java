@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.trace.dto.TraceStreamEvent;
 import com.tapdata.tm.trace.param.WideTableTraceRequest;
 import com.tapdata.tm.trace.service.TraceService;
-import com.tapdata.tm.trace.service.date.TraceDataService;
+import com.tapdata.tm.trace.service.data.TraceDataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
