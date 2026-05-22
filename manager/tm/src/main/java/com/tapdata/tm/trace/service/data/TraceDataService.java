@@ -7,6 +7,8 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.Dag;
+import com.tapdata.tm.lineage.analyzer.entity.LineageNode;
+import com.tapdata.tm.lineage.analyzer.entity.LineageTableNode;
 import com.tapdata.tm.trace.dto.TaskLineageDto;
 import com.tapdata.tm.trace.dto.TraceFieldMapping;
 import com.tapdata.tm.trace.dto.TraceNodeError;
@@ -217,8 +219,8 @@ public class TraceDataService {
         }
         Map<String, Object> filters = new HashMap<>();
         for (Map<String, String> joinKey : joinKeys) {
-            String sourceField = firstNotBlank(joinKey.get("originName"), joinKey.get("source"), joinKey.get("SOURCE"));
-            String targetField = firstNotBlank(joinKey.get("targetName"), joinKey.get("target"), joinKey.get("TARGET"));
+            String sourceField = firstNotBlank(joinKey.get("originName"));
+            String targetField = firstNotBlank(joinKey.get("targetName"));
             if (StringUtils.isAnyBlank(sourceField, targetField)) {
                 errors.add(traceError(ERROR_FIELD_MAPPING_NOT_FOUND,null, sourceField, targetField, null, null,
                         "joinKey=" + joinKey));
@@ -535,84 +537,73 @@ public class TraceDataService {
     }
 
     private boolean isMergeNode(Node node) {
-        Map<String, Object> attrs = resolveMergeAttrs(node, null);
-        if (attrs == null || attrs.isEmpty()) {
-            return false;
-        }
-        Object type = attrs.get("type");
-        Object nodeType = attrs.get("nodeType");
-        return StringUtils.equalsAnyIgnoreCase(String.valueOf(type), "merge", "MERGE")
-                || StringUtils.equalsAnyIgnoreCase(String.valueOf(nodeType), "merge", "MERGE")
-                || attrs.containsKey("joinKeys")
-                || attrs.containsKey("joinkeys");
+        BloodlineFinder.TableProperties properties = resolveTableProperties(node, null);
+        return properties != null
+                && StringUtils.equalsAnyIgnoreCase(properties.getNodeType(), "MERGE", "JOIN", "APPEND");
     }
 
     private boolean isMergeSubTable(Node node, Edge edge) {
-        Map<String, Object> attrs = resolveMergeAttrs(node, edge);
-        return isMergeAttrs(attrs) && StringUtils.equalsIgnoreCase(String.valueOf(attrs.get("tableType")), "subTable");
+        BloodlineFinder.TableProperties properties = resolveTableProperties(node, edge);
+        return properties != null && StringUtils.equalsIgnoreCase(properties.getTableType(), "subTable");
+    }
+
+    private BloodlineFinder.TableProperties resolveTableProperties(Node node, Edge edge) {
+        Map<String, Object> attrs = node == null ? null : node.getAttrs();
+        if (attrs == null || attrs.isEmpty()) {
+            return null;
+        }
+        String taskId = resolveTaskId(edge);
+        if (StringUtils.isNotBlank(taskId)) {
+            BloodlineFinder.TableProperties properties = toTableProperties(attrs.get(taskId));
+            if (properties != null) {
+                return properties;
+            }
+        }
+        for (Object value : attrs.values()) {
+            BloodlineFinder.TableProperties properties = toTableProperties(value);
+            if (properties != null) {
+                return properties;
+            }
+        }
+        return null;
+    }
+
+    private BloodlineFinder.TableProperties toTableProperties(Object value) {
+        if (value instanceof BloodlineFinder.TableProperties) {
+            return (BloodlineFinder.TableProperties) value;
+        }
+        if (value instanceof Map && ((Map<?, ?>) value).containsKey("tableType")) {
+            try {
+                return objectMapper.convertValue(value, BloodlineFinder.TableProperties.class);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private List<Map<String, String>> extractJoinKeys(Node node, Edge edge) {
-        Map<String, Object> attrs = resolveMergeAttrs(node, edge);
-        if (attrs == null || attrs.isEmpty()) {
-            return Collections.emptyList();
-        }
-        Object joinKeysValue = attrs.containsKey("joinKeys") ? attrs.get("joinKeys") : attrs.get("joinkeys");
-        if (!(joinKeysValue instanceof List)) {
+        BloodlineFinder.TableProperties properties = resolveTableProperties(node, edge);
+        if (properties == null || CollectionUtils.isEmpty(properties.getJoinKeys())) {
             return Collections.emptyList();
         }
         List<Map<String, String>> joinKeys = new ArrayList<>();
-        for (Object joinKeyValue : (List<?>) joinKeysValue) {
-            if (!(joinKeyValue instanceof Map)) {
+        for (BloodlineFinder.FieldNameMapping mapping : properties.getJoinKeys()) {
+            if (mapping == null) {
                 continue;
             }
             Map<String, String> joinKey = new HashMap<>();
-            ((Map<?, ?>) joinKeyValue).forEach((key, value) -> {
-                if (key != null && value != null) {
-                    joinKey.put(String.valueOf(key), String.valueOf(value));
-                }
-            });
+            if (StringUtils.isNotBlank(mapping.getOriginName())) {
+                joinKey.put("originName", mapping.getOriginName());
+            }
+            if (StringUtils.isNotBlank(mapping.getTargetName())) {
+                joinKey.put("targetName", mapping.getTargetName());
+            }
             if (!joinKey.isEmpty()) {
                 joinKeys.add(joinKey);
             }
         }
         return joinKeys;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> resolveMergeAttrs(Node node, Edge edge) {
-        Map<String, Object> attrs = node == null ? null : node.getAttrs();
-        if (attrs == null || attrs.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        if (isMergeAttrs(attrs)) {
-            return attrs;
-        }
-        String taskId = resolveTaskId(edge);
-        if (StringUtils.isNotBlank(taskId) && attrs.get(taskId) instanceof Map) {
-            Map<String, Object> taskAttrs = (Map<String, Object>) attrs.get(taskId);
-            if (isMergeAttrs(taskAttrs)) {
-                return taskAttrs;
-            }
-        }
-        for (Object value : attrs.values()) {
-            if (value instanceof Map && isMergeAttrs((Map<String, Object>) value)) {
-                return (Map<String, Object>) value;
-            }
-        }
-        return attrs;
-    }
-
-    private boolean isMergeAttrs(Map<String, Object> attrs) {
-        if (attrs == null || attrs.isEmpty()) {
-            return false;
-        }
-        Object type = attrs.get("type");
-        Object nodeType = attrs.get("nodeType");
-        return StringUtils.equalsAnyIgnoreCase(String.valueOf(type), "merge", "MERGE")
-                || StringUtils.equalsAnyIgnoreCase(String.valueOf(nodeType), "merge", "MERGE")
-                || attrs.containsKey("joinKeys")
-                || attrs.containsKey("joinkeys");
     }
 
     private String resolveTaskId(Edge edge) {
@@ -643,22 +634,22 @@ public class TraceDataService {
     }
 
     private String resolveConnectionId(Node node) {
-        if (node instanceof DataParentNode) {
-            return ((DataParentNode<?>) node).getConnectionId();
+        if (node instanceof LineageTableNode) {
+            return ((LineageTableNode) node).getConnectionId();
         }
         return null;
     }
 
     private String resolveConnectionName(Node node) {
-        if (node instanceof TableNode && ((TableNode) node).getConnectionDto() != null) {
-            return ((TableNode) node).getConnectionDto().getName();
+        if (node instanceof LineageTableNode && ((LineageTableNode) node).getConnectionName() != null) {
+            return ((LineageTableNode) node).getConnectionName();
         }
         return null;
     }
 
     private String resolveTableName(Node node) {
-        if (node instanceof TableNode) {
-            return ((TableNode) node).getTableName();
+        if (node instanceof LineageTableNode) {
+            return ((LineageTableNode) node).getTable();
         }
         return node.getName();
     }
