@@ -22,22 +22,22 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
         return METADATA_INCLUDE_FIELDS_CUSTOM;
     }
 
-//    @Override
-//    protected LineageMetadataInstance getMetadata(String connectionId, String tableName) {
-//        Criteria baseCriteria = new Criteria("source._id").is(connectionId)
-//                .and("original_name").is(tableName);
-//        Criteria virtualCriteria = new Criteria("sourceType").is(SourceTypeEnum.VIRTUAL.name());
-//        Query query = Query.query(new Criteria().andOperator(baseCriteria, virtualCriteria));
-//        query.fields().include(metadataIncludeFields());
-//        LineageMetadataInstance lineageMetadataInstance = getMetadata(query);
-//        if (null == lineageMetadataInstance) {
-//            Criteria sourceCriteria = new Criteria("sourceType").is(SourceTypeEnum.SOURCE.name());
-//            query = Query.query(new Criteria().andOperator(baseCriteria, sourceCriteria));
-//            query.fields().include(metadataIncludeFields());
-//            lineageMetadataInstance = getMetadata(query);
-//        }
-//        return lineageMetadataInstance;
-//    }
+    @Override
+    protected LineageMetadataInstance getMetadata(String connectionId, String tableName) {
+        Criteria baseCriteria = new Criteria("source._id").is(connectionId)
+                .and("original_name").is(tableName);
+        Criteria virtualCriteria = new Criteria("sourceType").is(SourceTypeEnum.VIRTUAL.name());
+        Query query = Query.query(new Criteria().andOperator(baseCriteria, virtualCriteria));
+        query.fields().include(metadataIncludeFields());
+        LineageMetadataInstance lineageMetadataInstance = getMetadata(query);
+        if (null == lineageMetadataInstance) {
+            Criteria sourceCriteria = new Criteria("sourceType").is(SourceTypeEnum.SOURCE.name());
+            query = Query.query(new Criteria().andOperator(baseCriteria, sourceCriteria));
+            query.fields().include(metadataIncludeFields());
+            lineageMetadataInstance = getMetadata(query);
+        }
+        return lineageMetadataInstance;
+    }
 
     @Override
     protected LineageMetadataInstance getMetadata(Query query) {
