@@ -3,6 +3,7 @@ package com.tapdata.tm.task.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
@@ -189,7 +190,10 @@ public class CacheTaskController extends BaseController {
     @Operation(summary = "启动同步任务")
     @PutMapping("start/{id}")
     public ResponseMessage<Void> start(@PathVariable("id") String id) {
-        taskService.start(MongoUtils.toObjectId(id), getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        taskService.clearAgentAffinityForManualStart(objectId, userDetail);
+        taskService.start(objectId, userDetail);
         return success();
     }
 
@@ -222,7 +226,9 @@ public class CacheTaskController extends BaseController {
                                                                  HttpServletRequest request,
                                                                  HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, getLoginUser(), request, response);
+        UserDetail userDetail = getLoginUser();
+        taskService.clearAgentAffinityForManualStart(taskObjectIds, userDetail);
+        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, userDetail, request, response);
         return success(responseMessages);
     }
 
