@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.context.ProcessContextEvent;
@@ -70,7 +71,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     private final int commitIntervalMs = DEFAULT_COMMIT_INTERVAL_MS;
     private ScheduledExecutorService contextFlusher;
     private DlqWriter dlqWriter;
-    
+
     // Integration helpers for full/CDC flow
     private MultiTableInputManager multiTableInputManager;
     private SyncStageTracker syncStageTracker;
@@ -78,11 +79,21 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     private DuckDbQueryEngine queryEngine;
     private ErrorHandler errorHandler;
     private SchemaRegistry schemaRegistry;
-    
+
     private static final int ERROR_THRESHOLD_COUNT = 100;
     private static final double ERROR_THRESHOLD_RATE = 0.01; // 1%
     private static final int OUTPUT_BATCH_SIZE = 1000;
     private static final int QUERY_TIMEOUT_MS = 5000;
+
+    // SQL configuration
+    private String querySql = "SELECT * FROM %s";
+    private String outputTableName = "duckdb_output";
+    private boolean executeQueryOnFullSyncComplete = true;
+    private volatile boolean queryExecuted = false;
+
+    // Pending events to emit
+    private final Queue<TapdataEvent> pendingEvents = new LinkedList<>();
+    private BiConsumer<TapdataEvent, ProcessResult> currentConsumer;
 
     public DuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -92,9 +103,57 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     protected void doInit(@NotNull Context context) throws TapCodeException {
         super.doInit(context);
         
+        io.tapdata.flow.engine.V2.node.duckdb.DuckLakeConfig duckLakeConfig = 
+                io.tapdata.flow.engine.V2.node.duckdb.DuckLakeConfig.disabled();
+
+        // 读取节点配置
+        try {
+            com.tapdata.tm.commons.dag.process.DuckDbSqlNode nodeConfig =
+                    (com.tapdata.tm.commons.dag.process.DuckDbSqlNode) getNode();
+
+            if (nodeConfig != null) {
+                // 读取 SQL 查询
+                if (nodeConfig.getSqlQuery() != null) {
+                    this.querySql = nodeConfig.getSqlQuery();
+                } else if (nodeConfig.getQuerySql() != null) {
+                    this.querySql = nodeConfig.getQuerySql();
+                }
+
+                // 读取输出表名
+                if (nodeConfig.getOutputTableName() != null) {
+                    this.outputTableName = nodeConfig.getOutputTableName();
+                }
+
+                // 读取批大小
+                if (nodeConfig.getBatchSize() != null) {
+                    this.batchSize = nodeConfig.getBatchSize();
+                }
+
+                // 读取是否在全量结束后执行查询
+                if (nodeConfig.getExecuteQueryOnFullSyncComplete() != null) {
+                    this.executeQueryOnFullSyncComplete = nodeConfig.getExecuteQueryOnFullSyncComplete();
+                }
+                
+                // 读取 DuckLake 配置
+                if (Boolean.TRUE.equals(nodeConfig.getDuckLakeEnabled())) {
+                    duckLakeConfig = new io.tapdata.flow.engine.V2.node.duckdb.DuckLakeConfig(
+                            true,
+                            nodeConfig.getDuckLakeStorageType(),
+                            nodeConfig.getDuckLakeStoragePath(),
+                            nodeConfig.getDuckLakeMetadataDbUrl()
+                    );
+                }
+
+                logger.info("DuckDbSqlNode loaded config: querySql={}, outputTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, duckLake={}",
+                        querySql, outputTableName, batchSize, executeQueryOnFullSyncComplete, duckLakeConfig.isEnabled());
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to load DuckDbSqlNode config, using defaults: {}", e.getMessage());
+        }
+
         // 初始化 DuckDB 操作器（内存数据库模式）
         try {
-            duckDbOperator = new DuckDbOperatorImpl(true, batchSize, 5000);
+            duckDbOperator = new io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperatorImpl(true, batchSize, 5000, duckLakeConfig);
             contextFlusher = Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread thread = new Thread(r, "duckdb-multi-source-flusher");
                 thread.setDaemon(true);
@@ -102,7 +161,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
             });
             contextFlusher.scheduleAtFixedRate(this::flushAllContextsSafely, commitIntervalMs, commitIntervalMs, TimeUnit.MILLISECONDS);
             dlqWriter = new DlqWriter(clientMongoOperator, DLQ_COLLECTION);
-            
+
             // Initialize integration helpers for full/CDC flow
             multiTableInputManager = new MultiTableInputManager();
             syncStageTracker = new SyncStageTracker();
@@ -110,7 +169,16 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
             queryEngine = new DuckDbQueryEngine(1024, QUERY_TIMEOUT_MS);
             errorHandler = new ErrorHandler(ERROR_THRESHOLD_COUNT, ERROR_THRESHOLD_RATE);
             schemaRegistry = new SchemaRegistry();
-            
+
+            // Register callback for when all tables enter CDC
+            syncStageTracker.setOnAllTablesCdcCallback(v -> {
+                try {
+                    handleAllTablesCdcTransition();
+                } catch (Exception e) {
+                    logger.error("Error handling all tables CDC transition: {}", e.getMessage(), e);
+                }
+            });
+
             logger.info("DuckDbSqlNode initialized with batchSize={}, output batch size={}, error threshold={}% (count: {})",
                     batchSize, OUTPUT_BATCH_SIZE, ERROR_THRESHOLD_RATE * 100, ERROR_THRESHOLD_COUNT);
         } catch (SQLException e) {
@@ -118,18 +186,126 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
     }
 
+    /**
+     * Handle the transition when all tables have entered CDC stage
+     */
+    private void handleAllTablesCdcTransition() {
+        logger.info("All tables transitioned to CDC, executing query and emitting results...");
+
+        if (executeQueryOnFullSyncComplete && !queryExecuted) {
+            try {
+                // First, flush all remaining data
+                flushAllContexts();
+
+                // Execute query and emit results
+                executeAndEmitQueryResults();
+
+                queryExecuted = true;
+                logger.info("Query executed and results emitted successfully");
+            } catch (Exception e) {
+                logger.error("Error executing query on full sync complete: {}", e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Execute SQL query and emit results as TapdataEvents
+     */
+    private void executeAndEmitQueryResults() {
+        try {
+            // Determine which tables to query
+            List<String> tableNames = new ArrayList<>();
+            for (PerSourceContext context : sourceContexts.values()) {
+                if (context.getTargetTableName() != null) {
+                    tableNames.add(context.getTargetTableName());
+                }
+            }
+
+            if (tableNames.isEmpty()) {
+                logger.warn("No tables to query, skipping result emission");
+                return;
+            }
+
+            // For each table, execute query
+            for (String tableName : tableNames) {
+                String sql = String.format(querySql, tableName);
+                logger.info("Executing query for table {}: {}", tableName, sql);
+
+                List<Map<String, Object>> results = duckDbOperator.executeQuery(sql);
+
+                if (results != null && !results.isEmpty()) {
+                    logger.info("Query returned {} results for table {}", results.size(), tableName);
+
+                    // Emit results as TapInsertRecordEvents
+                    for (Map<String, Object> result : results) {
+                        emitResultAsTapEvent(result, tableName);
+                    }
+                } else {
+                    logger.info("Query returned no results for table {}", tableName);
+                }
+            }
+
+        } catch (Exception e) {
+            logger.error("Error executing and emitting query results: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Emit a single result as a TapdataEvent
+     */
+    private void emitResultAsTapEvent(Map<String, Object> result, String tableName) {
+        try {
+            // Create TapInsertRecordEvent
+            io.tapdata.entity.event.dml.TapInsertRecordEvent insertEvent =
+                    new io.tapdata.entity.event.dml.TapInsertRecordEvent();
+            insertEvent.setTableId(tableName);
+            insertEvent.setAfter(result);
+
+            // Create TapdataEvent
+            TapdataEvent tapdataEvent = new TapdataEvent();
+            tapdataEvent.setTapEvent(insertEvent);
+            tapdataEvent.setSyncStage(com.tapdata.entity.SyncStage.CDC);
+
+            // Add to pending events queue
+            pendingEvents.offer(tapdataEvent);
+
+            logger.debug("Added query result to pending events for table: {}", tableName);
+
+        } catch (Exception e) {
+            logger.warn("Failed to emit result as TapEvent: {}", e.getMessage());
+        }
+    }
+
+    public void setQuerySql(String querySql) {
+        this.querySql = querySql;
+    }
+
+    public void setOutputTableName(String outputTableName) {
+        this.outputTableName = outputTableName;
+    }
+
+    public void setExecuteQueryOnFullSyncComplete(boolean executeQueryOnFullSyncComplete) {
+        this.executeQueryOnFullSyncComplete = executeQueryOnFullSyncComplete;
+    }
+
     @Override
     protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+        // Save the current consumer for emitting pending events
+        currentConsumer = consumer;
+
+        // First, emit any pending events
+        emitPendingEvents();
+
         if (tapdataEvent == null) {
             return;
         }
 
         TapEvent tapEvent = tapdataEvent.getTapEvent();
-        
+
         // Record event in error handler for rate tracking
         if (errorHandler != null) {
             errorHandler.recordEvent();
-            
+
             // Check if task should stop due to error threshold
             if (errorHandler.shouldStopTask()) {
                 logger.error("Error threshold exceeded. Task should stop.");
@@ -137,10 +313,13 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
                 return;
             }
         }
-        
+
+        // Track sync stage for the event
+        trackSyncStage(tapdataEvent);
+
         // 处理 DML 事件
         if (tapEvent instanceof TapRecordEvent) {
-            processRecordEvent((TapRecordEvent) tapEvent, tapdataEvent, consumer);
+            processRecordEventWithStage((TapRecordEvent) tapEvent, tapdataEvent, consumer);
         } else {
             // 非 DML 事件直接透传
             consumer.accept(tapdataEvent, null);
@@ -148,9 +327,147 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     /**
+     * Emit any pending events
+     */
+    private void emitPendingEvents() {
+        if (currentConsumer != null && !pendingEvents.isEmpty()) {
+            TapdataEvent event;
+            while ((event = pendingEvents.poll()) != null) {
+                try {
+                    currentConsumer.accept(event, null);
+                } catch (Exception e) {
+                    logger.warn("Failed to emit pending event: {}", e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
+     * Track sync stage from tapdataEvent
+     */
+    private void trackSyncStage(TapdataEvent tapdataEvent) {
+        if (syncStageTracker != null && tapdataEvent != null) {
+            SyncStage stage = tapdataEvent.getSyncStage();
+            TapEvent tapEvent = tapdataEvent.getTapEvent();
+
+            if (tapEvent instanceof TapRecordEvent) {
+                String tableName = TapEventUtil.getTableId((TapRecordEvent) tapEvent);
+                if (tableName != null) {
+                    syncStageTracker.updateTableStageFromEvent(tableName, stage);
+                }
+            }
+        }
+    }
+
+    /**
+     * Process record event with sync stage awareness
+     */
+    private void processRecordEventWithStage(TapRecordEvent recordEvent, TapdataEvent tapdataEvent,
+                                             BiConsumer<TapdataEvent, ProcessResult> consumer) {
+        try {
+            // 获取表名
+            String tableId = TapEventUtil.getTableId(recordEvent);
+            String sourceId = resolveSourceId(tapdataEvent, recordEvent);
+            if (tableId == null || tableId.isEmpty()) {
+                tableId = "unknown_table";
+            }
+            String contextKey = buildContextKey(sourceId, tableId);
+            String targetTableName = buildTargetTableName(sourceId, tableId);
+            PerSourceContext context = getOrCreateContext(contextKey, targetTableName);
+            currentTableName = targetTableName;
+
+            // 获取记录数据
+            Map<String, Object> recordData = extractRecordData(recordEvent);
+
+            if (recordData != null && !recordData.isEmpty()) {
+                synchronized (context.getCommitLock()) {
+                    context.addRecord(recordData);
+                    if (context.getBatchBuffer().size() >= context.getBatchSize()) {
+                        flushContext(context);
+                    }
+                }
+            }
+
+            // 检查是否需要执行输出逻辑
+            handleOutputWithStage(tapdataEvent, consumer);
+
+        } catch (Exception e) {
+            logger.error("Failed to process record event: {}", e.getMessage(), e);
+
+            // Record error in handler
+            if (errorHandler != null) {
+                try {
+                    Map<String, Object> sourceData = extractRecordData(recordEvent);
+                    errorHandler.recordError(sourceData != null ? sourceData : new HashMap<>(), e);
+
+                    // Write to DLQ if needed
+                    if (dlqWriter != null && sourceData != null) {
+                        try {
+                            String tableId = TapEventUtil.getTableId(recordEvent);
+                            String sourceId = resolveSourceId(tapdataEvent, recordEvent);
+                            String contextKey = buildContextKey(sourceId, tableId);
+                            dlqWriter.write(contextKey, buildTargetTableName(sourceId, tableId),
+                                    Collections.singletonList(sourceData), e);
+                        } catch (Exception dlqError) {
+                            logger.warn("Failed to write to DLQ: {}", dlqError.getMessage());
+                        }
+                    }
+                } catch (Exception handlerError) {
+                    logger.warn("Failed to record error in ErrorHandler: {}", handlerError.getMessage());
+                }
+            }
+
+            // 处理失败时仍然透传事件
+            consumer.accept(tapdataEvent, null);
+        }
+    }
+
+    /**
+     * Handle output logic based on sync stage
+     */
+    private void handleOutputWithStage(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+        if (syncStageTracker != null) {
+            // Check if all tables have transitioned to CDC
+            if (syncStageTracker.isTransitionCompleted()) {
+                // CDC stage: emit events normally or in batches
+                handleCdcOutput(tapdataEvent, consumer);
+            } else {
+                // Initial sync stage: cache events, don't emit yet
+                handleInitialSyncOutput(tapdataEvent, consumer);
+            }
+        } else {
+            // No stage tracking: fall back to normal behavior
+            consumer.accept(tapdataEvent, null);
+        }
+    }
+
+    /**
+     * Handle output during initial sync stage
+     */
+    private void handleInitialSyncOutput(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+        // During initial sync, we don't emit events immediately
+        // Events are cached in DuckDB and will be emitted after all tables transition to CDC
+        logger.debug("Initial sync in progress, caching event for later emission");
+
+        // Still pass through non-record events
+        if (!(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) {
+            consumer.accept(tapdataEvent, null);
+        }
+    }
+
+    /**
+     * Handle output during CDC stage
+     */
+    private void handleCdcOutput(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+        // In CDC stage, we can emit events in batches
+        // For now, just pass through normally
+        consumer.accept(tapdataEvent, null);
+    }
+
+    /**
      * 处理记录事件
      */
-    private void processRecordEvent(TapRecordEvent recordEvent, TapdataEvent tapdataEvent, 
+    private void processRecordEvent(TapRecordEvent recordEvent, TapdataEvent tapdataEvent,
                                     BiConsumer<TapdataEvent, ProcessResult> consumer) {
         try {
             // 获取表名
@@ -166,7 +483,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // 获取记录数据
             Map<String, Object> recordData = extractRecordData(recordEvent);
-            
+
             if (recordData != null && !recordData.isEmpty()) {
                 synchronized (context.getCommitLock()) {
                     context.addRecord(recordData);
@@ -178,23 +495,23 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // 将原始事件透传下去
             consumer.accept(tapdataEvent, null);
-            
+
         } catch (Exception e) {
             logger.error("Failed to process record event: {}", e.getMessage(), e);
-            
+
             // Record error in handler
             if (errorHandler != null) {
                 try {
                     Map<String, Object> sourceData = extractRecordData(recordEvent);
                     errorHandler.recordError(sourceData != null ? sourceData : new HashMap<>(), e);
-                    
+
                     // Write to DLQ if needed
                     if (dlqWriter != null && sourceData != null) {
                         try {
                             String tableId = TapEventUtil.getTableId(recordEvent);
                             String sourceId = resolveSourceId(tapdataEvent, recordEvent);
                             String contextKey = buildContextKey(sourceId, tableId);
-                            dlqWriter.write(contextKey, buildTargetTableName(sourceId, tableId), 
+                            dlqWriter.write(contextKey, buildTargetTableName(sourceId, tableId),
                                     Collections.singletonList(sourceData), e);
                         } catch (Exception dlqError) {
                             logger.warn("Failed to write to DLQ: {}", dlqError.getMessage());
@@ -204,7 +521,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
                     logger.warn("Failed to record error in ErrorHandler: {}", handlerError.getMessage());
                 }
             }
-            
+
             // 处理失败时仍然透传事件
             consumer.accept(tapdataEvent, null);
         }
@@ -326,7 +643,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
 
         // 根据第一条数据推断表结构
         TapTable tapTable = inferTapTable(data, currentTableName);
-        
+
         if (tapTable != null && tapTable.getNameFieldMap() != null && !tapTable.getNameFieldMap().isEmpty()) {
             // 创建临时表用于处理
             String tempTableName = "temp_" + currentTableName;
@@ -475,12 +792,22 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
                 return existing;
             }
             evictIfNecessary();
-            PerSourceContext context = new PerSourceContext(contextKey, duckDbOperator);
+            DuckDbOperator contextOperator = createContextOperator();
+            PerSourceContext context = new PerSourceContext(contextKey, contextOperator);
             context.setBatchSize(batchSize);
             context.setTargetTableName(targetTableName);
             sourceContexts.put(contextKey, context);
             sourceAccessOrder.put(contextKey, Boolean.TRUE);
             return context;
+        }
+    }
+
+    private DuckDbOperator createContextOperator() {
+        try {
+            return new DuckDbOperatorImpl(true, batchSize, commitIntervalMs);
+        } catch (SQLException e) {
+            logger.warn("Failed to create dedicated DuckDB operator, fallback to shared operator: {}", e.getMessage());
+            return duckDbOperator;
         }
     }
 
@@ -557,6 +884,13 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
             contextFlusher.shutdownNow();
         }
         flushAllContexts();
+        for (PerSourceContext context : new ArrayList<>(sourceContexts.values())) {
+            closeContextOperator(context);
+        }
+        sourceContexts.clear();
+        synchronized (sourceContextLock) {
+            sourceAccessOrder.clear();
+        }
 
         // 刷新剩余数据
         if (!batchBuffer.isEmpty()) {
