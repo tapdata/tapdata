@@ -55,21 +55,28 @@ public class ArrowWriter implements AutoCloseable {
 
     private final Connection connection;
     private final boolean zeroCopyEnabled;
+    private final DuckLakeConfig duckLakeConfig;
     private final BufferAllocator allocator;
     
     // 用于生成唯一的临时表名
     private static volatile int tempTableCounter = 0;
 
     public ArrowWriter(Connection connection) {
-        this(connection, true);
+        this(connection, true, DuckLakeConfig.disabled());
     }
 
     public ArrowWriter(Connection connection, boolean zeroCopyEnabled) {
+        this(connection, zeroCopyEnabled, DuckLakeConfig.disabled());
+    }
+
+    public ArrowWriter(Connection connection, boolean zeroCopyEnabled, DuckLakeConfig duckLakeConfig) {
         this.connection = connection;
         this.zeroCopyEnabled = zeroCopyEnabled;
+        this.duckLakeConfig = duckLakeConfig;
         // 创建 RootAllocator，管理 Arrow 内存
         this.allocator = new RootAllocator(Long.MAX_VALUE);
-        logger.info("ArrowWriter initialized with zero-copy mode: {}", zeroCopyEnabled);
+        logger.info("ArrowWriter initialized with zero-copy: {}, DuckLake: {}", 
+            zeroCopyEnabled, duckLakeConfig.isEnabled());
     }
 
     /**
@@ -473,6 +480,141 @@ public class ArrowWriter implements AutoCloseable {
         return value.toString();
     }
 
+    /**
+     * 使用Arrow写入数据到表（支持普通DuckDB表或DuckLake表）
+     */
+    public void writeWithArrow(List<Map<String, Object>> data, String tableName, TapTable tapTable, boolean useDuckLake) throws SQLException {
+        if (useDuckLake && duckLakeConfig.isEnabled()) {
+            writeToDuckLake(data, tableName, tapTable);
+        } else {
+            writeWithArrow(data, tableName, tapTable);
+        }
+    }
+    
+    /**
+     * 写入数据到DuckLake表
+     */
+    private void writeToDuckLake(List<Map<String, Object>> data, String tableName, TapTable tapTable) throws SQLException {
+        if (data.isEmpty()) {
+            return;
+        }
+        
+        long startTime = System.currentTimeMillis();
+        
+        // 1. 确保DuckLake表存在
+        createDuckLakeTableIfNotExists(tableName, tapTable);
+        
+        // 2. 使用Arrow写入数据
+        writeWithArrow(data, tableName, tapTable);
+        
+        long duration = System.currentTimeMillis() - startTime;
+        logger.info("Successfully wrote {} rows to DuckLake table {} in {} ms", 
+            data.size(), tableName, duration);
+    }
+    
+    /**
+     * 确保DuckLake表存在，不存在则创建
+     */
+    private void createDuckLakeTableIfNotExists(String tableName, TapTable tapTable) throws SQLException {
+        String createTableSql = buildDuckLakeCreateTableSql(tableName, tapTable);
+        
+        try (java.sql.Statement stmt = connection.createStatement()) {
+            stmt.execute(createTableSql);
+            logger.debug("Successfully created/verified DuckLake table: {}", tableName);
+        }
+    }
+    
+    /**
+     * 构建DuckLake表的CREATE TABLE语句
+     */
+    private String buildDuckLakeCreateTableSql(String tableName, TapTable tapTable) {
+        StringBuilder sql = new StringBuilder();
+        sql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
+        
+        java.util.List<String> columnDefs = new java.util.ArrayList<>();
+        java.util.List<String> primaryKeyCols = new java.util.ArrayList<>();
+        
+        for (io.tapdata.entity.schema.TapField tapField : tapTable.getNameFieldMap().values()) {
+            String colDef = buildColumnDefinition(tapField);
+            columnDefs.add(colDef);
+            
+            if (Boolean.TRUE.equals(tapField.getPrimaryKey())) {
+                primaryKeyCols.add(tapField.getName());
+            }
+        }
+        
+        sql.append(String.join(",\n", columnDefs));
+        
+        // 主键定义
+        if (!primaryKeyCols.isEmpty()) {
+            sql.append(",\nPRIMARY KEY (").append(String.join(",", primaryKeyCols)).append(")");
+        }
+        
+        sql.append("\n) WITH (\n    SNAPSHOTS = TRUE");
+        
+        // 存储配置
+        if (duckLakeConfig != null && duckLakeConfig.isEnabled()) {
+            if (duckLakeConfig.isS3Storage()) {
+                sql.append(",\n    S3 = '").append(escapeSqlString(duckLakeConfig.getStoragePath())).append("'");
+            } else if (duckLakeConfig.isLocalStorage()) {
+                sql.append(",\n    LOCAL = '").append(escapeSqlString(duckLakeConfig.getStoragePath())).append("'");
+            }
+        }
+        
+        sql.append("\n);");
+        return sql.toString();
+    }
+    
+    /**
+     * 构建列定义
+     */
+    private String buildColumnDefinition(io.tapdata.entity.schema.TapField tapField) {
+        StringBuilder colDef = new StringBuilder();
+        colDef.append("\"").append(tapField.getName()).append("\" ");
+        
+        // 类型映射（简化）
+        String dataType = tapField.getDataType();
+        if (dataType != null) {
+            String upperType = dataType.toUpperCase();
+            if (upperType.contains("INT")) {
+                if (upperType.contains("BIG")) {
+                    colDef.append("BIGINT");
+                } else {
+                    colDef.append("INTEGER");
+                }
+            } else if (upperType.contains("FLOAT") || upperType.contains("DOUBLE")) {
+                colDef.append("DOUBLE");
+            } else if (upperType.contains("BOOL")) {
+                colDef.append("BOOLEAN");
+            } else if (upperType.contains("BLOB") || upperType.contains("BINARY")) {
+                colDef.append("BINARY");
+            } else if (upperType.contains("DATE") || upperType.contains("TIME")) {
+                colDef.append("TIMESTAMP");
+            } else {
+                colDef.append("VARCHAR");
+            }
+        } else {
+            colDef.append("VARCHAR");
+        }
+        
+        // 可选：可空性
+        if (tapField.getNullable() != null && !tapField.getNullable()) {
+            colDef.append(" NOT NULL");
+        }
+        
+        return colDef.toString();
+    }
+    
+    /**
+     * 转义SQL字符串
+     */
+    private String escapeSqlString(String str) {
+        if (str == null) {
+            return "";
+        }
+        return str.replace("'", "''");
+    }
+    
     @Override
     public void close() {
         // 释放 Arrow 内存分配器

@@ -27,12 +27,15 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     private final long batchWritingTimeoutMs;
     private final Collection<Map<String, Object>> batchBuffer = new ArrayList<>();
     private long lastFlushTime = System.currentTimeMillis();
+    
+    // DuckLake配置
+    private final DuckLakeConfig duckLakeConfig;
 
     /**
      * 创建内存数据库实例
      */
     public DuckDbOperatorImpl() throws SQLException {
-        this(true, 1000, 5000);
+        this(true, 1000, 5000, DuckLakeConfig.disabled());
     }
 
     /**
@@ -42,30 +45,50 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
      * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
      */
     public DuckDbOperatorImpl(boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs) throws SQLException {
+        this(batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, DuckLakeConfig.disabled());
+    }
+    
+    /**
+     * 创建带批处理和DuckLake配置的实例
+     * @param batchWritingEnabled 是否启用批处理
+     * @param batchWritingSize 批处理大小
+     * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
+     * @param duckLakeConfig DuckLake配置
+     */
+    public DuckDbOperatorImpl(boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig) throws SQLException {
         this.batchWritingEnabled = batchWritingEnabled;
         this.batchWritingSize = batchWritingSize;
         this.batchWritingTimeoutMs = batchWritingTimeoutMs;
+        this.duckLakeConfig = duckLakeConfig;
         
         initConnection();
-        this.arrowWriter = new ArrowWriter(connection);
+        this.arrowWriter = new ArrowWriter(connection, true, duckLakeConfig);
     }
 
     /**
      * 使用现有连接创建实例
      */
     public DuckDbOperatorImpl(Connection connection) {
-        this(connection, true, 1000, 5000);
+        this(connection, true, 1000, 5000, DuckLakeConfig.disabled());
     }
 
     /**
      * 使用现有连接创建带批处理配置的实例
      */
     public DuckDbOperatorImpl(Connection connection, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs) {
+        this(connection, batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, DuckLakeConfig.disabled());
+    }
+    
+    /**
+     * 使用现有连接创建带批处理和DuckLake配置的实例
+     */
+    public DuckDbOperatorImpl(Connection connection, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig) {
         this.connection = connection;
         this.batchWritingEnabled = batchWritingEnabled;
         this.batchWritingSize = batchWritingSize;
         this.batchWritingTimeoutMs = batchWritingTimeoutMs;
-        this.arrowWriter = new ArrowWriter(connection);
+        this.duckLakeConfig = duckLakeConfig;
+        this.arrowWriter = new ArrowWriter(connection, true, duckLakeConfig);
     }
 
     /**
@@ -145,7 +168,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
                 }
             }
         } else {
-            arrowWriter.writeWithArrow(data, tableName, tapTable);
+            writeWithArrow(data, tableName, tapTable);
         }
     }
 
@@ -161,8 +184,19 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
             List<Map<String, Object>> batchData = new ArrayList<>(batchBuffer);
             batchBuffer.clear();
             
-            arrowWriter.writeWithArrow(batchData, tableName, tapTable);
+            writeWithArrow(batchData, tableName, tapTable);
             logger.debug("Flushed {} records to table {}", batchData.size(), tableName);
+        }
+    }
+    
+    /**
+     * 使用Arrow写入数据（自动判断是否使用DuckLake）
+     */
+    private void writeWithArrow(List<Map<String, Object>> data, String tableName, TapTable tapTable) throws SQLException, java.io.IOException {
+        if (duckLakeConfig.isEnabled()) {
+            arrowWriter.writeWithArrow(data, tableName, tapTable, true);
+        } else {
+            arrowWriter.writeWithArrow(data, tableName, tapTable);
         }
     }
 
