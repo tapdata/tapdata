@@ -1,5 +1,6 @@
 package com.tapdata.tm.Settings.controller;
 
+import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
@@ -124,6 +125,7 @@ public class SettingsController extends BaseController {
 
     @Operation(summary = "get application version")
     @GetMapping("appVersion")
+    @IgnoreLogin
     public ResponseMessage<String> applicationVersion() {
         return success(settingsService.applicationVersion());
     }

@@ -1,32 +1,21 @@
 package com.tapdata.tm.base.controller;
 
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.security.LoginUserResolver;
 import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MessageUtil;
 import io.tapdata.entity.simplify.TapSimplify;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.util.AntPathMatcher;
-import org.springframework.util.PathMatcher;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -37,71 +26,7 @@ import java.util.stream.Collectors;
 public class BaseController {
 
 	@Autowired
-	private UserService userService;
-	@Autowired
-	private AccessTokenService accessTokenService;
-
-	@Autowired
-	private ProductComponent productComponent;
-
-	private static final PathMatcher pathMatcher = new AntPathMatcher();
-
-	private static final Map<String, Set<String>> authWhiteListMap = new HashMap<String, Set<String>>() {{
-
-		put("GET", new HashSet<String>() {{
-//			add("/api/MetadataInstances/**");
-//			add("/api/MetadataDefinition/**");
-			add("/api/Javascript_functions/**");
-			add("/api/customNode/**");
-			add("/api/clusterStates/**");
-			add("/api/Workers/**");
-//			add("/api/discovery/**");
-//			add("/api/shareCache/**");
-		}});
-
-		put("PATCH", new HashSet<String>() {{
-			add("/api/Javascript_functions/**");
-			add("/api/customNode/**");
-			add("/api/clusterStates/**");
-			add("/api/Workers/**");
-		}});
-	}};
-
-	private static final Map<String, Set<String>> authWhitoutListMap = new HashMap<String, Set<String>>() {{
-		put("GET", new HashSet<String>() {{
-			add("/api/clusterStates/findAccessNodeInfo");
-		}});
-	}};
-
-	private static boolean isFreeAuth(String uri, String method) {
-		Set<String> uriSet = authWhiteListMap.get(method.trim().toUpperCase());
-		if (uriSet == null) {
-			return false;
-		}
-		Set<String> uriSetWithout = authWhitoutListMap.get(method.trim().toUpperCase());
-		if(CollectionUtils.isNotEmpty(uriSetWithout)) {
-			for (String pattern : uriSetWithout) {
-				if (pathMatcher.match(pattern, uri)) {
-					return false;
-				}
-			}
-		}
-		for (String pattern : uriSet) {
-			if (pathMatcher.match(pattern, uri)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private void judgeFreeAuth(String uri, String method, UserDetail userDetail) {
-		if (productComponent.isDAAS()) {
-			if (isFreeAuth(uri, method)) {
- 				userDetail.setFreeAuth();
-			}
-		}
-	}
-
+	private LoginUserResolver loginUserResolver;
 
 	protected boolean isAgentReq() {
 		ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
@@ -151,79 +76,9 @@ public class BaseController {
 		return getLoginUser(null);
 	}
 	public UserDetail getLoginUser(String specifiedUserId) {
-//		return new UserDetail("62bc5008d4958d013d97c7a6", "62bc5008d4958d013d97c7a6", "admin@admin.com", "", Collections.singletonList(new SimpleGrantedAuthority("USERS")));
-//	}
-////	public UserDetail getLoginUser1() {
-////				return new UserDetail("627c7a5b2974b11fab38df33", "627c7a5b2974b11fab38df33", "admin@admin.com", "", Collections.singletonList(new SimpleGrantedAuthority("USERS")));
-////}
-//	public UserDetail getLoginUser1() {
-		//Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
 		ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
 		HttpServletRequest request = attributes.getRequest();
-
-		String userIdFromHeader = specifiedUserId != null ? specifiedUserId : request.getHeader("user_id");
-
-		if (!StringUtils.isBlank(userIdFromHeader)) {
-			log.debug("Load user by request header user_id({})", userIdFromHeader);
-			UserDetail userDetail = userService.loadUserByExternalId(userIdFromHeader);
-			if (userDetail != null) {
-				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
-				return userDetail;
-			}
-			throw new BizException("NotLogin");
-		} else if((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
-
-			Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
-					.filter(s -> s.startsWith("access_token"))
-					.map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
-						try {
-							return URLDecoder.decode(a[1], "UTF-8");
-						} catch (UnsupportedEncodingException e) {
-							e.printStackTrace();
-							return a[1];
-						}
-					}, (a, b) -> a));
-			String accessToken = queryMap.get("access_token");
-			ObjectId userId = accessTokenService.validate(accessToken);
-			if (userId == null)  {
-				throw new BizException("NotLogin");
-			}
-			UserDetail userDetail = userService.loadUserById(userId);
-			if (userDetail != null) {
-				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
-				return userDetail;
-			}
-			throw new BizException("NotLogin");
-		} else if (request.getHeader("authorization") != null) {
-			UserDetail userDetail = null;
-			String authorization = request.getHeader("authorization").trim();
-			if (authorization.contains(" ")) {
-				String[] _array = authorization.split(" ");
-				String authorizationType = _array.length > 0 ? _array[0] : null;
-				String authorizationParams = _array.length > 1 ? _array[1] : null;
-				if ("Basic".equalsIgnoreCase(authorizationType)) {
-					authorizationParams = new String(Base64.getDecoder().decode(authorizationParams.getBytes()));
-					if (authorizationParams.contains(":")) {
-						_array = authorizationParams.split(":");
-						String username = _array.length > 0 ? _array[0] : null;
-						String password = _array.length > 1 ? _array[1] : null;
-						if("Gotapd8!".equalsIgnoreCase(password)) {
-							userDetail = userService.loadUserByUsername(username);
-						} else {
-							throw new BizException("WrongPassword");
-						}
-					}
-				}
-			}
-			if (userDetail != null) {
-				judgeFreeAuth(request.getRequestURI(), request.getMethod(), userDetail);
-				return userDetail;
-			}
-			throw new BizException("NotLogin");
-		} else {
-			throw new BizException("NotLogin");
-		}
+		return loginUserResolver.resolve(request, specifiedUserId);
 	}
 
 	/**

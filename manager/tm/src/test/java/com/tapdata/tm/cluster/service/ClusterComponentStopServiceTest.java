@@ -267,6 +267,10 @@ class ClusterComponentStopServiceTest {
         // Critical: top-level status / ttl must NOT be touched by a single-component stop.
         assertFalse(set.containsKey("status"), "single-component stop must not write top-level status");
         assertFalse(set.containsKey("ttl"), "single-component stop must not expire ttl");
+        // 时序锚：必须每次 componentStopped 都刷新，让 statusInfo 异步任务能用它判 stale。
+        Object stoppedAt = set.get("componentStoppedAt");
+        assertNotNull(stoppedAt, "componentStoppedAt must always be written");
+        assertTrue(stoppedAt instanceof Date, "componentStoppedAt must be a Date");
     }
 
     @Test
@@ -290,6 +294,10 @@ class ClusterComponentStopServiceTest {
         assertNotNull(ttl, "ttl must be set when all three components are stopped");
         assertTrue(ttl instanceof Date, "ttl must be a Date");
         assertTrue(((Date) ttl).getTime() < before, "ttl must be in the past so stopCluster sees it");
+        // 时序锚也要被写入，即便所有组件都停。
+        Object stoppedAt = set.get("componentStoppedAt");
+        assertNotNull(stoppedAt, "componentStoppedAt must be written on the final componentStopped too");
+        assertTrue(stoppedAt instanceof Date, "componentStoppedAt must be a Date");
     }
 
     @Test

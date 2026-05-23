@@ -8,6 +8,7 @@ import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
+import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -135,6 +136,7 @@ public class UserController extends BaseController {
      * @return
      */
     @PostMapping("generatetoken")
+    @IgnoreLogin
     public ResponseMessage<AccessTokenDto> generateToken(@RequestBody GenerateAccessTokenDto accessCodeDto) {
         String accessCode = accessCodeDto.getAccesscode();
         if (StringUtils.isEmpty(accessCode)) {
@@ -160,6 +162,7 @@ public class UserController extends BaseController {
             method = RequestMethod.POST,
             consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     @ResponseBody
+    @IgnoreLogin
     public ResponseMessage<AccessTokenDto> generatetoken(HttpServletRequest request) throws IOException {
         String accessCode = request.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
         //传过来的的  accesscode形式位： accesscode=3324cfdf-7d3e-4792-bd32-571638d4562f
@@ -290,6 +293,7 @@ public class UserController extends BaseController {
      **/
     @Operation(summary = "user login")
     @PostMapping("/login")
+    @IgnoreLogin
     public ResponseMessage<AccessTokenDto> login(@RequestBody @Validated LoginRequest loginRequest) {
         String password;
         try {
@@ -497,6 +501,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = "企业版重置密码,发送验证码")
     @PostMapping("/sendValidateCode")
+    @IgnoreLogin
     public ResponseMessage sendValidateCode(@RequestBody ResetPasswordParam resetPasswordParam) {
         String email = resetPasswordParam.getEmail();
         if (StringUtils.isEmpty(email)) {
@@ -516,6 +521,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = "企业版重置密码")
     @PostMapping("/reset")
+    @IgnoreLogin
     public ResponseMessage<Long> reset(@RequestBody ResetPasswordParam resetPasswordParam) {
         return success(userService.reset(resetPasswordParam));
     }
@@ -529,6 +535,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = "test ldap login")
     @PostMapping("testLdapLogin")
+    @IgnoreLogin
     public ResponseMessage<TestResponseDto> testLoginByLdap(@RequestBody TestLdapDto testldapDto) {
         TestResponseDto res = userService.testLoginByLdap(testldapDto);
         return success(res);
@@ -536,6 +543,7 @@ public class UserController extends BaseController {
 
     @Operation(summary = "check ldap login enable")
     @GetMapping("checkLdapLoginEnable")
+    @IgnoreLogin
     public ResponseMessage<Boolean> checkADLoginEnable() {
         Boolean res = userService.checkLdapLoginEnable();
         return success(res);
