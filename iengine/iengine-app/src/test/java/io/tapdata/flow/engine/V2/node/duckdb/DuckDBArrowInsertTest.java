@@ -38,8 +38,12 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Test inserting an Apache Arrow stream into DuckDB and verify the SQL query result.
@@ -59,6 +63,12 @@ class DuckDBArrowInsertTest {
 
         // Open an in-memory DuckDB connection
         try (DuckDBConnection conn = (DuckDBConnection) DriverManager.getConnection("jdbc:duckdb:")) {
+            try (Statement stmt = conn.createStatement()) {
+                boolean duckLakeLoaded = tryEnableDuckLake(stmt);
+                System.out.println("DuckLake enabled: " + duckLakeLoaded);
+                stmt.execute("CREATE TABLE t(id BIGINT)");
+            }
+
             try (RootAllocator allocator = new RootAllocator();
                  InputStream in = new ByteArrayInputStream(arrowBytes);
                  ArrowStreamReader reader = new ArrowStreamReader(in, allocator);
@@ -69,8 +79,23 @@ class DuckDBArrowInsertTest {
 
                 // Create table, insert from the stream, then query to verify
                 try (Statement stmt = conn.createStatement()) {
-                    stmt.execute("CREATE TABLE t(id BIGINT)");
-                    stmt.executeUpdate("INSERT INTO t SELECT * FROM test_stream");
+                    stmt.execute("DELETE FROM t");
+
+                    List<Map<String, Object>> changelog = new ArrayList<>();
+                    try (ResultSet rs = executeInsertReturning(stmt)) {
+                        while (rs.next()) {
+                            long id = rs.getLong("id");
+                            Map<String, Object> change = new LinkedHashMap<>();
+                            change.put("op", "INSERT");
+                            change.put("table", "t");
+                            change.put("id", id);
+                            changelog.add(change);
+                            System.out.println("CDC Changelog => " + change);
+                        }
+                    }
+
+                    assertEquals(1, changelog.size(), "Expected exactly one CDC changelog entry");
+                    assertEquals(100L, ((Number) changelog.get(0).get("id")).longValue());
 
                     try (ResultSet rs = stmt.executeQuery("SELECT id FROM t")) {
                         int rowCount = 0;
@@ -85,6 +110,33 @@ class DuckDBArrowInsertTest {
                 }
             }
         }
+    }
+
+    private boolean tryEnableDuckLake(Statement stmt) {
+        try {
+            stmt.execute("INSTALL ducklake");
+        } catch (Exception e) {
+            System.out.println("DuckLake install skipped: " + e.getMessage());
+        }
+
+        try {
+            stmt.execute("LOAD ducklake");
+            try (ResultSet rs = stmt.executeQuery("SELECT loaded FROM duckdb_extensions() WHERE extension_name = 'ducklake'")) {
+                if (rs.next()) {
+                    return rs.getBoolean(1);
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            System.out.println("DuckLake load skipped: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private ResultSet executeInsertReturning(Statement stmt) throws Exception {
+        boolean hasResultSet = stmt.execute("INSERT INTO t SELECT * FROM test_stream RETURNING id");
+        assertTrue(hasResultSet, "INSERT ... RETURNING should produce a result set for CDC changelog capture");
+        return stmt.getResultSet();
     }
 
     private byte[] createArrowBytes(Schema schema) throws Exception {
