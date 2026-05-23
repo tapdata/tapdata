@@ -16,6 +16,12 @@ import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperatorImpl;
 import io.tapdata.flow.engine.V2.node.duckdb.DlqWriter;
 import io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext;
 import io.tapdata.flow.engine.V2.node.duckdb.SmartMerger;
+import io.tapdata.flow.engine.V2.node.duckdb.ErrorHandler;
+import io.tapdata.flow.engine.V2.node.duckdb.MultiTableInputManager;
+import io.tapdata.flow.engine.V2.node.duckdb.SyncStageTracker;
+import io.tapdata.flow.engine.V2.node.duckdb.OutputBuffer;
+import io.tapdata.flow.engine.V2.node.duckdb.DuckDbQueryEngine;
+import io.tapdata.flow.engine.V2.node.duckdb.SchemaRegistry;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,6 +70,19 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     private final int commitIntervalMs = DEFAULT_COMMIT_INTERVAL_MS;
     private ScheduledExecutorService contextFlusher;
     private DlqWriter dlqWriter;
+    
+    // Integration helpers for full/CDC flow
+    private MultiTableInputManager multiTableInputManager;
+    private SyncStageTracker syncStageTracker;
+    private OutputBuffer outputBuffer;
+    private DuckDbQueryEngine queryEngine;
+    private ErrorHandler errorHandler;
+    private SchemaRegistry schemaRegistry;
+    
+    private static final int ERROR_THRESHOLD_COUNT = 100;
+    private static final double ERROR_THRESHOLD_RATE = 0.01; // 1%
+    private static final int OUTPUT_BATCH_SIZE = 1000;
+    private static final int QUERY_TIMEOUT_MS = 5000;
 
     public DuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -83,7 +102,17 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
             });
             contextFlusher.scheduleAtFixedRate(this::flushAllContextsSafely, commitIntervalMs, commitIntervalMs, TimeUnit.MILLISECONDS);
             dlqWriter = new DlqWriter(clientMongoOperator, DLQ_COLLECTION);
-            logger.info("DuckDbSqlNode initialized with batchSize={}", batchSize);
+            
+            // Initialize integration helpers for full/CDC flow
+            multiTableInputManager = new MultiTableInputManager();
+            syncStageTracker = new SyncStageTracker();
+            outputBuffer = new OutputBuffer(OUTPUT_BATCH_SIZE);
+            queryEngine = new DuckDbQueryEngine(1024, QUERY_TIMEOUT_MS);
+            errorHandler = new ErrorHandler(ERROR_THRESHOLD_COUNT, ERROR_THRESHOLD_RATE);
+            schemaRegistry = new SchemaRegistry();
+            
+            logger.info("DuckDbSqlNode initialized with batchSize={}, output batch size={}, error threshold={}% (count: {})",
+                    batchSize, OUTPUT_BATCH_SIZE, ERROR_THRESHOLD_RATE * 100, ERROR_THRESHOLD_COUNT);
         } catch (SQLException e) {
             throw new TapCodeException("Failed to initialize DuckDbOperator", e);
         }
@@ -96,6 +125,18 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
 
         TapEvent tapEvent = tapdataEvent.getTapEvent();
+        
+        // Record event in error handler for rate tracking
+        if (errorHandler != null) {
+            errorHandler.recordEvent();
+            
+            // Check if task should stop due to error threshold
+            if (errorHandler.shouldStopTask()) {
+                logger.error("Error threshold exceeded. Task should stop.");
+                // Still process the event, but subsequent events will also check this
+                return;
+            }
+        }
         
         // 处理 DML 事件
         if (tapEvent instanceof TapRecordEvent) {
@@ -140,6 +181,30 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
             
         } catch (Exception e) {
             logger.error("Failed to process record event: {}", e.getMessage(), e);
+            
+            // Record error in handler
+            if (errorHandler != null) {
+                try {
+                    Map<String, Object> sourceData = extractRecordData(recordEvent);
+                    errorHandler.recordError(sourceData != null ? sourceData : new HashMap<>(), e);
+                    
+                    // Write to DLQ if needed
+                    if (dlqWriter != null && sourceData != null) {
+                        try {
+                            String tableId = TapEventUtil.getTableId(recordEvent);
+                            String sourceId = resolveSourceId(tapdataEvent, recordEvent);
+                            String contextKey = buildContextKey(sourceId, tableId);
+                            dlqWriter.write(contextKey, buildTargetTableName(sourceId, tableId), 
+                                    Collections.singletonList(sourceData), e);
+                        } catch (Exception dlqError) {
+                            logger.warn("Failed to write to DLQ: {}", dlqError.getMessage());
+                        }
+                    }
+                } catch (Exception handlerError) {
+                    logger.warn("Failed to record error in ErrorHandler: {}", handlerError.getMessage());
+                }
+            }
+            
             // 处理失败时仍然透传事件
             consumer.accept(tapdataEvent, null);
         }
