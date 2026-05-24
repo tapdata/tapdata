@@ -776,4 +776,46 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     int getBatchBufferSize() {
         return batchBuffer.size();
     }
+
+    // ==================== 新增: 物化视图相关方法的实现 ====================
+
+    @Override
+    public java.util.Map<Object, java.util.Map<String, Object>> queryForMap(String sql, String primaryKeyField) throws SQLException {
+        checkClosed();
+        java.util.List<java.util.Map<String, Object>> results = executeQuery(sql);
+        java.util.Map<Object, java.util.Map<String, Object>> map = new java.util.LinkedHashMap<>();
+        for (java.util.Map<String, Object> row : results) {
+            Object pk = row.get(primaryKeyField);
+            if (pk != null) {
+                map.put(pk, row);
+            }
+        }
+        return map;
+    }
+
+    @Override
+    public void executeInTransaction(ThrowingConsumer action) throws SQLException {
+        checkClosed();
+        boolean originalAutoCommit = connection.getAutoCommit();
+        try {
+            connection.setAutoCommit(false);
+            action.accept();
+            connection.commit();
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(originalAutoCommit);
+        }
+    }
+
+    @Override
+    public int batchInsert(String tableName, java.util.List<java.util.Map<String, Object>> dataList) throws SQLException, java.io.IOException {
+        checkClosed();
+        if (dataList.isEmpty()) {
+            return 0;
+        }
+        writeBatch(dataList, tableName);
+        return dataList.size();
+    }
 }
