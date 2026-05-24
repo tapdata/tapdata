@@ -23,6 +23,9 @@ import io.tapdata.flow.engine.V2.node.duckdb.SyncStageTracker;
 import io.tapdata.flow.engine.V2.node.duckdb.OutputBuffer;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbQueryEngine;
 import io.tapdata.flow.engine.V2.node.duckdb.SchemaRegistry;
+import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
+import io.tapdata.flow.engine.V2.node.duckdb.IncrementalViewUpdater;
+import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -79,6 +82,11 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     private DuckDbQueryEngine queryEngine;
     private ErrorHandler errorHandler;
     private SchemaRegistry schemaRegistry;
+    // ========== 新增: 实时增量物化视图组件 ==========
+    private AffectedKeyCalculator affectedKeyCalculator;
+    private IncrementalViewUpdater incrementalViewUpdater;
+    private List<Map<String, Object>> cdcEventBuffer = new ArrayList<>();
+    private static final int CDC_BUFFER_SIZE = 100;
 
     private static final int ERROR_THRESHOLD_COUNT = 100;
     private static final double ERROR_THRESHOLD_RATE = 0.01; // 1%
@@ -99,34 +107,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     private List<FromTableConfig> fromTables = new ArrayList<>();
     private Map<String, String> customJoinQueries = new HashMap<>();
 
-    // ========== 内部类: 从表配置 ==========
-    public static class FromTableConfig {
-        private String tableName;
-        private String primaryKey;
 
-        public FromTableConfig() {}
-
-        public FromTableConfig(String tableName, String primaryKey) {
-            this.tableName = tableName;
-            this.primaryKey = primaryKey;
-        }
-
-        public String getTableName() {
-            return tableName;
-        }
-
-        public void setTableName(String tableName) {
-            this.tableName = tableName;
-        }
-
-        public String getPrimaryKey() {
-            return primaryKey;
-        }
-
-        public void setPrimaryKey(String primaryKey) {
-            this.primaryKey = primaryKey;
-        }
-    }
 
     // ========== 新增: 获取表主键的辅助方法 ==========
     public String getTablePrimaryKey(String tableName) {
@@ -220,8 +201,18 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
                     this.mainTablePrimaryKey = nodeConfig.getMainTablePrimaryKey();
                 }
                 if (nodeConfig.getFromTables() != null) {
+                    // 将 Manager 端配置转换为 Engine 端 FromTableConfig
                     this.fromTables = nodeConfig.getFromTables().stream()
-                            .map(ft -> new FromTableConfig(ft.getTableName(), ft.getPrimaryKey()))
+                            .map(ft -> {
+                                FromTableConfig config = new FromTableConfig();
+                                try {
+                                    config.setTableName((String) ft.getClass().getMethod("getTableName").invoke(ft));
+                                    config.setPrimaryKey((String) ft.getClass().getMethod("getPrimaryKey").invoke(ft));
+                                } catch (Exception e) {
+                                    logger.warn("Failed to convert FromTableConfig: {}", e.getMessage());
+                                }
+                                return config;
+                            })
                             .collect(java.util.stream.Collectors.toList());
                 }
                 if (nodeConfig.getCustomJoinQueries() != null) {
@@ -254,6 +245,40 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
             queryEngine = new DuckDbQueryEngine(1024, QUERY_TIMEOUT_MS);
             errorHandler = new ErrorHandler(ERROR_THRESHOLD_COUNT, ERROR_THRESHOLD_RATE);
             schemaRegistry = new SchemaRegistry();
+
+            // ========== 新增: 初始化实时增量物化视图组件 ==========
+            if (wideTablePrimaryKey != null && !wideTablePrimaryKey.isEmpty()) {
+                // 初始化 AffectedKeyCalculator
+                affectedKeyCalculator = new AffectedKeyCalculator(
+                        wideTablePrimaryKey,
+                        mainTableName,
+                        mainTablePrimaryKey,
+                        fromTables, // 直接使用我们已经转换好的 fromTables
+                        customJoinQueries,
+                        duckDbOperator
+                );
+
+                // 初始化 IncrementalViewUpdater
+                incrementalViewUpdater = new IncrementalViewUpdater(
+                        outputTableName,
+                        wideTablePrimaryKey,
+                        querySql,
+                        outputChangelogEnabled,
+                        duckDbOperator
+                );
+
+                // 注册变更事件监听器
+                if (outputChangelogEnabled) {
+                    incrementalViewUpdater.addChangelogListener(changelogEvent -> {
+                        // 在这里处理变更事件输出
+                        logger.debug("Generated changelog event: {}", changelogEvent);
+                        // TODO: 将变更事件转换为 TapRecordEvent 并输出
+                    });
+                }
+
+                logger.info("Materialized view components initialized: affectedKeyCalculator={}, incrementalViewUpdater={}",
+                        affectedKeyCalculator != null, incrementalViewUpdater != null);
+            }
 
             // Register callback for when all tables enter CDC
             syncStageTracker.setOnAllTablesCdcCallback(v -> {
@@ -522,6 +547,13 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
                 }
             }
 
+            // ========== 新增: 实时增量物化视图处理 ==========
+            if (syncStageTracker != null && syncStageTracker.isTransitionCompleted()
+                    && affectedKeyCalculator != null && incrementalViewUpdater != null) {
+                // CDC 阶段，处理实时增量更新
+                processCdcEventForMaterializedView(tableId, recordEvent, recordData);
+            }
+
             // 检查是否需要执行输出逻辑
             handleOutputWithStage(tapdataEvent, consumer);
 
@@ -553,6 +585,76 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // 处理失败时仍然透传事件
             consumer.accept(tapdataEvent, null);
+        }
+    }
+
+    // ========== 新增: 处理 CDC 事件用于物化视图 ==========
+    private void processCdcEventForMaterializedView(String tableName, TapRecordEvent recordEvent, Map<String, Object> recordData) {
+        try {
+            // 将事件添加到缓冲区
+            Map<String, Object> eventMap = new HashMap<>();
+            eventMap.put("table", tableName);
+            eventMap.put("record", recordData);
+
+            // 提取 op 类型
+            String opType = "INSERT";
+            if (recordEvent instanceof io.tapdata.entity.event.dml.TapInsertRecordEvent) {
+                opType = "INSERT";
+            } else if (recordEvent instanceof io.tapdata.entity.event.dml.TapUpdateRecordEvent) {
+                opType = "UPDATE";
+                eventMap.put("before", TapEventUtil.getBefore(recordEvent));
+            } else if (recordEvent instanceof io.tapdata.entity.event.dml.TapDeleteRecordEvent) {
+                opType = "DELETE";
+            }
+            eventMap.put("op", opType);
+
+            cdcEventBuffer.add(eventMap);
+
+            // 缓冲区满或需要时，触发批量更新
+            if (cdcEventBuffer.size() >= CDC_BUFFER_SIZE) {
+                flushCdcBuffer();
+            }
+        } catch (Exception e) {
+            logger.error("Failed to process CDC event for materialized view: {}", e.getMessage(), e);
+        }
+    }
+
+    // ========== 新增: 刷新 CDC 事件缓冲区并更新宽表 ==========
+    private void flushCdcBuffer() {
+        if (cdcEventBuffer.isEmpty()) {
+            return;
+        }
+
+        try {
+            logger.info("Flushing CDC buffer: {} events", cdcEventBuffer.size());
+
+            // 按表名分组
+            Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
+            for (Map<String, Object> event : cdcEventBuffer) {
+                String table = (String) event.get("table");
+                eventsByTable.computeIfAbsent(table, k -> new ArrayList<>()).add(event);
+            }
+
+            // 对每个表计算受影响的主键并更新宽表
+            for (Map.Entry<String, List<Map<String, Object>>> entry : eventsByTable.entrySet()) {
+                String tableName = entry.getKey();
+                List<Map<String, Object>> events = entry.getValue();
+
+                // 计算受影响的宽表主键
+                Set<Object> affectedKeys = affectedKeyCalculator.calculateAffectedKeys(tableName, events);
+
+                if (!affectedKeys.isEmpty()) {
+                    // 批量更新宽表
+                    int updatedRows = incrementalViewUpdater.updateWideTable(affectedKeys);
+                    logger.info("Updated {} rows in wide table for table {} and {} affected keys",
+                            updatedRows, tableName, affectedKeys.size());
+                }
+            }
+
+            // 清空缓冲区
+            cdcEventBuffer.clear();
+        } catch (Exception e) {
+            logger.error("Failed to flush CDC buffer: {}", e.getMessage(), e);
         }
     }
 
@@ -1024,6 +1126,11 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
         sourceContexts.clear();
         synchronized (sourceContextLock) {
             sourceAccessOrder.clear();
+        }
+
+        // ========== 新增: 刷新 CDC 缓冲区 ==========
+        if (!cdcEventBuffer.isEmpty()) {
+            flushCdcBuffer();
         }
 
         // 刷新剩余数据
