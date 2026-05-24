@@ -794,14 +794,17 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     }
 
     @Override
-    public void executeInTransaction(ThrowingConsumer action) throws SQLException {
+    public void executeInTransaction(ThrowingConsumer action) throws SQLException, java.io.IOException {
         checkClosed();
         boolean originalAutoCommit = connection.getAutoCommit();
         try {
             connection.setAutoCommit(false);
             action.accept();
             connection.commit();
-        } catch (Exception e) {
+        } catch (SQLException | java.io.IOException e) {
+            connection.rollback();
+            throw e;
+        } catch (RuntimeException e) {
             connection.rollback();
             throw e;
         } finally {
