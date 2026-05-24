@@ -252,8 +252,9 @@ public interface DuckDbOperator extends AutoCloseable {
      * 在事务中执行操作
      * @param action 事务内的操作
      * @throws SQLException SQL执行异常
+     * @throws java.io.IOException IO异常
      */
-    void executeInTransaction(ThrowingConsumer action) throws SQLException;
+    void executeInTransaction(ThrowingConsumer action) throws SQLException, java.io.IOException;
 
     /**
      * 批量插入数据
@@ -269,6 +270,6 @@ public interface DuckDbOperator extends AutoCloseable {
      */
     @FunctionalInterface
     interface ThrowingConsumer {
-        void accept() throws SQLException;
+        void accept() throws SQLException, java.io.IOException;
     }
 }
