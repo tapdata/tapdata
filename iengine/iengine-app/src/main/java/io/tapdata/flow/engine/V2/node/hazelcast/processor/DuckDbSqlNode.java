@@ -91,6 +91,68 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     private boolean executeQueryOnFullSyncComplete = true;
     private volatile boolean queryExecuted = false;
 
+    // ========== 新增: 实时增量物化视图配置 ==========
+    private String wideTablePrimaryKey;
+    private boolean outputChangelogEnabled = false;
+    private String mainTableName;
+    private String mainTablePrimaryKey;
+    private List<FromTableConfig> fromTables = new ArrayList<>();
+    private Map<String, String> customJoinQueries = new HashMap<>();
+
+    // ========== 内部类: 从表配置 ==========
+    public static class FromTableConfig {
+        private String tableName;
+        private String primaryKey;
+
+        public FromTableConfig() {}
+
+        public FromTableConfig(String tableName, String primaryKey) {
+            this.tableName = tableName;
+            this.primaryKey = primaryKey;
+        }
+
+        public String getTableName() {
+            return tableName;
+        }
+
+        public void setTableName(String tableName) {
+            this.tableName = tableName;
+        }
+
+        public String getPrimaryKey() {
+            return primaryKey;
+        }
+
+        public void setPrimaryKey(String primaryKey) {
+            this.primaryKey = primaryKey;
+        }
+    }
+
+    // ========== 新增: 获取表主键的辅助方法 ==========
+    public String getTablePrimaryKey(String tableName) {
+        if (tableName.equals(mainTableName)) {
+            return mainTablePrimaryKey;
+        }
+        if (fromTables != null) {
+            for (FromTableConfig fromTable : fromTables) {
+                if (fromTable.getTableName().equals(tableName)) {
+                    return fromTable.getPrimaryKey();
+                }
+            }
+        }
+        return null;
+    }
+
+    public String getCustomJoinQuery(String fromTableName, java.util.Set<Object> fromTablePks) {
+        String template = customJoinQueries.get(fromTableName);
+        if (template != null) {
+            return template.replace("${pkValues}", fromTablePks.stream()
+                    .map(String::valueOf)
+                    .collect(java.util.stream.Collectors.joining(",")));
+        }
+        throw new IllegalStateException("No custom join query configured for table: " + fromTableName);
+    }
+
     // Pending events to emit
     private final Queue<TapdataEvent> pendingEvents = new LinkedList<>();
     private BiConsumer<TapdataEvent, ProcessResult> currentConsumer;
@@ -144,8 +206,31 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
                     );
                 }
 
-                logger.info("DuckDbSqlNode loaded config: querySql={}, outputTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, duckLake={}",
-                        querySql, outputTableName, batchSize, executeQueryOnFullSyncComplete, duckLakeConfig.isEnabled());
+                // ========== 新增: 读取实时增量物化视图配置 ==========
+                if (nodeConfig.getWideTablePrimaryKey() != null) {
+                    this.wideTablePrimaryKey = nodeConfig.getWideTablePrimaryKey();
+                }
+                if (nodeConfig.getOutputChangelogEnabled() != null) {
+                    this.outputChangelogEnabled = nodeConfig.getOutputChangelogEnabled();
+                }
+                if (nodeConfig.getMainTableName() != null) {
+                    this.mainTableName = nodeConfig.getMainTableName();
+                }
+                if (nodeConfig.getMainTablePrimaryKey() != null) {
+                    this.mainTablePrimaryKey = nodeConfig.getMainTablePrimaryKey();
+                }
+                if (nodeConfig.getFromTables() != null) {
+                    this.fromTables = nodeConfig.getFromTables().stream()
+                            .map(ft -> new FromTableConfig(ft.getTableName(), ft.getPrimaryKey()))
+                            .collect(java.util.stream.Collectors.toList());
+                }
+                if (nodeConfig.getCustomJoinQueries() != null) {
+                    this.customJoinQueries = new HashMap<>(nodeConfig.getCustomJoinQueries());
+                }
+
+                logger.info("DuckDbSqlNode loaded config: querySql={}, outputTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, duckLake={}, materializedView={}",
+                        querySql, outputTableName, batchSize, executeQueryOnFullSyncComplete, duckLakeConfig.isEnabled(),
+                        wideTablePrimaryKey != null ? "enabled" : "disabled");
             }
         } catch (Exception e) {
             logger.warn("Failed to load DuckDbSqlNode config, using defaults: {}", e.getMessage());
@@ -286,6 +371,55 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     public void setExecuteQueryOnFullSyncComplete(boolean executeQueryOnFullSyncComplete) {
         this.executeQueryOnFullSyncComplete = executeQueryOnFullSyncComplete;
+    }
+
+    // ========== 新增: 实时增量物化视图的 getter/setter ==========
+    public String getWideTablePrimaryKey() {
+        return wideTablePrimaryKey;
+    }
+
+    public void setWideTablePrimaryKey(String wideTablePrimaryKey) {
+        this.wideTablePrimaryKey = wideTablePrimaryKey;
+    }
+
+    public boolean isOutputChangelogEnabled() {
+        return outputChangelogEnabled;
+    }
+
+    public void setOutputChangelogEnabled(boolean outputChangelogEnabled) {
+        this.outputChangelogEnabled = outputChangelogEnabled;
+    }
+
+    public String getMainTableName() {
+        return mainTableName;
+    }
+
+    public void setMainTableName(String mainTableName) {
+        this.mainTableName = mainTableName;
+    }
+
+    public String getMainTablePrimaryKey() {
+        return mainTablePrimaryKey;
+    }
+
+    public void setMainTablePrimaryKey(String mainTablePrimaryKey) {
+        this.mainTablePrimaryKey = mainTablePrimaryKey;
+    }
+
+    public List<FromTableConfig> getFromTables() {
+        return fromTables;
+    }
+
+    public void setFromTables(List<FromTableConfig> fromTables) {
+        this.fromTables = fromTables;
+    }
+
+    public Map<String, String> getCustomJoinQueries() {
+        return customJoinQueries;
+    }
+
+    public void setCustomJoinQueries(Map<String, String> customJoinQueries) {
+        this.customJoinQueries = customJoinQueries;
     }
 
     @Override

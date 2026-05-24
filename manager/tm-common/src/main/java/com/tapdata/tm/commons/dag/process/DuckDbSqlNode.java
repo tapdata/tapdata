@@ -10,7 +10,10 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @NodeType("duckdb_sql")
 @Getter
@@ -71,6 +74,50 @@ public class DuckDbSqlNode extends ProcessorNode {
     
     @EqField
     private String duckLakeMetadataDbUrl = null;
+
+    // ========== 新增: 实时增量物化视图配置 ==========
+    
+    /** 宽表主键字段名（必填） */
+    @EqField
+    private String wideTablePrimaryKey;
+    
+    /** 是否启用宽表 CDC 输出（默认 false） */
+    @EqField
+    private Boolean outputChangelogEnabled = false;
+    
+    /** 主表名 */
+    @EqField
+    private String mainTableName;
+    
+    /** 主表主键字段 */
+    @EqField
+    private String mainTablePrimaryKey;
+    
+    /** 从表配置列表 */
+    @EqField
+    private List<FromTableConfig> fromTables = new ArrayList<>();
+    
+    /** 自定义 JOIN 查询（当 SQL 自动解析失败时使用） */
+    @EqField
+    private Map<String, String> customJoinQueries = new HashMap<>();
+
+    // ========== 内部类: 从表配置 ==========
+    @Getter
+    @Setter
+    public static class FromTableConfig {
+        /** 从表名 */
+        private String tableName;
+        
+        /** 从表主键字段 */
+        private String primaryKey;
+        
+        public FromTableConfig() {}
+        
+        public FromTableConfig(String tableName, String primaryKey) {
+            this.tableName = tableName;
+            this.primaryKey = primaryKey;
+        }
+    }
 
     public DuckDbSqlNode() {
         super("duckdb_sql");
