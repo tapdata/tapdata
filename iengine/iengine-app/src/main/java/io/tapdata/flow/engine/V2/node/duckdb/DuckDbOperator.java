@@ -236,4 +236,39 @@ public interface DuckDbOperator extends AutoCloseable {
      * @throws SQLException SQL执行异常
      */
     void flushBatch(String tableName, TapTable tapTable) throws SQLException, java.io.IOException;
+
+    // ==================== 新增: 用于物化视图的扩展方法 ====================
+
+    /**
+     * 执行查询，返回主键 -> 行数据的 Map
+     * @param sql 查询语句
+     * @param primaryKeyField 主键字段名
+     * @return 主键到行数据的映射
+     * @throws SQLException SQL执行异常
+     */
+    java.util.Map<Object, java.util.Map<String, Object>> queryForMap(String sql, String primaryKeyField) throws SQLException;
+
+    /**
+     * 在事务中执行操作
+     * @param action 事务内的操作
+     * @throws SQLException SQL执行异常
+     */
+    void executeInTransaction(ThrowingConsumer action) throws SQLException;
+
+    /**
+     * 批量插入数据
+     * @param tableName 表名
+     * @param dataList 数据列表
+     * @return 插入行数
+     * @throws SQLException SQL执行异常
+     */
+    int batchInsert(String tableName, java.util.List<java.util.Map<String, Object>> dataList) throws SQLException, java.io.IOException;
+
+    /**
+     * 事务操作回调接口
+     */
+    @FunctionalInterface
+    interface ThrowingConsumer {
+        void accept() throws SQLException;
+    }
 }
