@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
 
-class NazelcastDuckDbSqlNodeMultiSourceTest {
+class HazelcastDuckDbSqlNodeMultiSourceTest {
 
     @Mock
     private ProcessorBaseContext processorBaseContext;
@@ -30,7 +30,7 @@ class NazelcastDuckDbSqlNodeMultiSourceTest {
     @Mock
     private Node node;
 
-    private NazelcastDuckDbSqlNode nazelcastDuckDbSqlNode;
+    private HazelcastDuckDbSqlNode hazelcastDuckDbSqlNode;
 
     @BeforeEach
     void setUp() {
@@ -41,16 +41,16 @@ class NazelcastDuckDbSqlNodeMultiSourceTest {
         when(node.getName()).thenReturn("TestNode");
         when(taskDto.isNormalTask()).thenReturn(true);
 
-        nazelcastDuckDbSqlNode = new NazelcastDuckDbSqlNode(processorBaseContext);
-        nazelcastDuckDbSqlNode.setBatchSize(100);
+        hazelcastDuckDbSqlNode = new HazelcastDuckDbSqlNode(processorBaseContext);
+        hazelcastDuckDbSqlNode.setBatchSize(100);
     }
 
     @Test
     void routesEventsToIndependentPerSourceContexts() throws Exception {
         AtomicInteger consumerCalls = new AtomicInteger(0);
 
-        nazelcastDuckDbSqlNode.tryProcess(buildInsertEvent("source-a", "orders", 1), (event, result) -> consumerCalls.incrementAndGet());
-        nazelcastDuckDbSqlNode.tryProcess(buildInsertEvent("source-b", "orders", 2), (event, result) -> consumerCalls.incrementAndGet());
+        hazelcastDuckDbSqlNode.tryProcess(buildInsertEvent("source-a", "orders", 1), (event, result) -> consumerCalls.incrementAndGet());
+        hazelcastDuckDbSqlNode.tryProcess(buildInsertEvent("source-b", "orders", 2), (event, result) -> consumerCalls.incrementAndGet());
 
         assertEquals(2, consumerCalls.get());
 
@@ -69,9 +69,9 @@ class NazelcastDuckDbSqlNodeMultiSourceTest {
 
     @SuppressWarnings("unchecked")
     private Map<String, ?> getContexts() throws Exception {
-        Field field = NazelcastDuckDbSqlNode.class.getDeclaredField("sourceContexts");
+        Field field = HazelcastDuckDbSqlNode.class.getDeclaredField("sourceContexts");
         field.setAccessible(true);
-        return (Map<String, ?>) field.get(nazelcastDuckDbSqlNode);
+        return (Map<String, ?>) field.get(hazelcastDuckDbSqlNode);
     }
 
     @SuppressWarnings("unchecked")

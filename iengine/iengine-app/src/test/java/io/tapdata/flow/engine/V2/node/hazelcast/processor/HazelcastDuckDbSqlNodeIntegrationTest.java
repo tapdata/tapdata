@@ -11,26 +11,26 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-public class NazelcastDuckDbSqlNodeIntegrationTest {
+public class HazelcastDuckDbSqlNodeIntegrationTest {
 
     @Test
     public void testFlushUsesSmartMergerAndCallsUpsertBatch() throws Exception {
         ProcessorBaseContext ctx = mock(ProcessorBaseContext.class);
-        NazelcastDuckDbSqlNode node = new NazelcastDuckDbSqlNode(ctx);
+        HazelcastDuckDbSqlNode node = new HazelcastDuckDbSqlNode(ctx);
 
         // set currentTableName
-        Field tableField = NazelcastDuckDbSqlNode.class.getDeclaredField("currentTableName");
+        Field tableField = HazelcastDuckDbSqlNode.class.getDeclaredField("currentTableName");
         tableField.setAccessible(true);
         tableField.set(node, "test_table");
 
         // mock operator and set to node
         DuckDbOperator operator = mock(DuckDbOperator.class);
-        Field opField = NazelcastDuckDbSqlNode.class.getDeclaredField("duckDbOperator");
+        Field opField = HazelcastDuckDbSqlNode.class.getDeclaredField("duckDbOperator");
         opField.setAccessible(true);
         opField.set(node, operator);
 
         // access batchBuffer and add events that should be merged (same id, last wins)
-        Field bufferField = NazelcastDuckDbSqlNode.class.getDeclaredField("batchBuffer");
+        Field bufferField = HazelcastDuckDbSqlNode.class.getDeclaredField("batchBuffer");
         bufferField.setAccessible(true);
         List<Map<String, Object>> buffer = (List<Map<String, Object>>) bufferField.get(node);
 
@@ -46,7 +46,7 @@ public class NazelcastDuckDbSqlNodeIntegrationTest {
         buffer.add(a2);
 
         // call private flushBatch
-        Method flush = NazelcastDuckDbSqlNode.class.getDeclaredMethod("flushBatch");
+        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushBatch");
         flush.setAccessible(true);
         flush.invoke(node);
 
@@ -63,20 +63,20 @@ public class NazelcastDuckDbSqlNodeIntegrationTest {
     @Test
     public void testFlushRestoresBufferOnOperatorFailure() throws Exception {
         ProcessorBaseContext ctx = mock(ProcessorBaseContext.class);
-        NazelcastDuckDbSqlNode node = new NazelcastDuckDbSqlNode(ctx);
+        HazelcastDuckDbSqlNode node = new HazelcastDuckDbSqlNode(ctx);
 
-        Field tableField = NazelcastDuckDbSqlNode.class.getDeclaredField("currentTableName");
+        Field tableField = HazelcastDuckDbSqlNode.class.getDeclaredField("currentTableName");
         tableField.setAccessible(true);
         tableField.set(node, "test_table");
 
         // mock operator to throw
         DuckDbOperator operator = mock(DuckDbOperator.class);
         doThrow(new RuntimeException("boom")).when(operator).upsertBatch(anyString(), anyList());
-        Field opField = NazelcastDuckDbSqlNode.class.getDeclaredField("duckDbOperator");
+        Field opField = HazelcastDuckDbSqlNode.class.getDeclaredField("duckDbOperator");
         opField.setAccessible(true);
         opField.set(node, operator);
 
-        Field bufferField = NazelcastDuckDbSqlNode.class.getDeclaredField("batchBuffer");
+        Field bufferField = HazelcastDuckDbSqlNode.class.getDeclaredField("batchBuffer");
         bufferField.setAccessible(true);
         List<Map<String, Object>> buffer = (List<Map<String, Object>>) bufferField.get(node);
 
@@ -91,7 +91,7 @@ public class NazelcastDuckDbSqlNodeIntegrationTest {
         buffer.add(r1);
         buffer.add(r2);
 
-        Method flush = NazelcastDuckDbSqlNode.class.getDeclaredMethod("flushBatch");
+        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushBatch");
         flush.setAccessible(true);
         flush.invoke(node);
 
