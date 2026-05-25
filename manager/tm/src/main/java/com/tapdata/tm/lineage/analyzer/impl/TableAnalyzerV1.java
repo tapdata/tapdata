@@ -91,7 +91,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 					analyzeLayer.setPreNode(node);
 					analyzeLayer.setPreInvalidNode(node);
 					DataSourceEntity dataSource = findDataSource(connectionId);
-					lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table))
+					lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table, node.getId()))
 							.addTask(lineageTask);
 					setGraphNode(analyzeLayer, lineageTask, node);
 					analyzeLayer.setPreLineageTableNode(lineageTableNode);
@@ -128,7 +128,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		}
 		if (CollectionUtils.isEmpty(analyzeLayer.getGraph().getNodes()) && CollectionUtils.isEmpty(analyzeLayer.getGraph().getEdges())) {
 			DataSourceEntity dataSource = findDataSource(connectionId);
-			LineageMetadataInstance metadata = getMetadata(connectionId, table);
+			LineageMetadataInstance metadata = getMetadata(connectionId, table, null);
 			lineageTableNode = new LineageTableNode(table, connectionId, dataSource.getName(), dataSource.getPdkHash(), metadata);
 			setGraphNode(graph, lineageTableNode);
 		}
@@ -419,14 +419,14 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			lineageTableNode.addTask(lineageTask);
 		} else {
 			DataSourceEntity dataSource = findDataSource(analyzeLayer.getConnectionId());
-			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable()));
+			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable(), graphNode.getId()));
 			lineageTableNode.addTask(lineageTask);
 			setGraphNode(graph, lineageTableNode);
 		}
 		return lineageTableNode;
 	}
 
-	protected LineageMetadataInstance getMetadata(String connectionId, String tableName) {
+	protected LineageMetadataInstance getMetadata(String connectionId, String tableName, String nodeId) {
 		Criteria baseCriteria = new Criteria("source._id").is(connectionId)
 				.and("original_name").is(tableName);
 		Criteria sourceCriteria = new Criteria("sourceType").is(SourceTypeEnum.SOURCE.name());

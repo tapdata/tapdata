@@ -20,7 +20,7 @@ import java.util.Objects;
  */
 @Service("tableAnalyzerCustom")
 public class TableAnalyzerCustom extends TableAnalyzerV1 {
-    protected static final String[] METADATA_INCLUDE_FIELDS_CUSTOM  = new String[]{"_id", "sourceType", "original_name", "ancestorsName","fields.tapType","fields.dataType","fields.fieldName","fields.originalFieldName","fields.primaryKey","fields.columnPosition","custom_properties","nodeId"};
+    protected static final String[] METADATA_INCLUDE_FIELDS_CUSTOM  = new String[]{"_id", "sourceType", "original_name", "ancestorsName","fields.tapType","fields.dataType","fields.fieldName","fields.originalFieldName","fields.primaryKey","fields.columnPosition","custom_properties","nodeId","name"};
 
     @Override
     protected String[] metadataIncludeFields() {
@@ -28,9 +28,12 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
     }
 
     @Override
-    protected LineageMetadataInstance getMetadata(String connectionId, String tableName) {
+    protected LineageMetadataInstance getMetadata(String connectionId, String tableName, String nodeId) {
         Criteria baseCriteria = new Criteria("source._id").is(connectionId)
-                .and("original_name").is(tableName);
+                .and("name").is(tableName);
+        if (null != nodeId) {
+            baseCriteria.and("nodeId").is(nodeId);
+        }
         Criteria virtualCriteria = new Criteria("sourceType").is(SourceTypeEnum.VIRTUAL.name());
         Query query = Query.query(new Criteria().andOperator(baseCriteria, virtualCriteria));
         query.fields().include(metadataIncludeFields());
@@ -49,7 +52,7 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
         List<MetadataInstancesEntity> metadataInstancesEntities = metadataInstancesRepository.findAll(query);
         MetadataInstancesEntity metadataInstancesEntity = metadataInstancesEntities.size() == 1 ? metadataInstancesEntities.get(0) : metadataInstancesEntities.stream()
                 .filter(Objects::nonNull)
-                .filter(e -> e.getOriginalName().equals(e.getAncestorsName()))
+                .filter(e -> !e.getName().equals(e.getAncestorsName()))
                 .findFirst()
                 .orElse(null);
         if (null == metadataInstancesEntity || null == metadataInstancesEntity.getId()) {
