@@ -386,7 +386,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	}
 
 	@NotNull
-	private DataSourceEntity findDataSource(String id) {
+	protected DataSourceEntity findDataSource(String id) {
 		DataSourceEntity dataSource;
 		if (StringUtils.isBlank(id)) {
 			dataSource = new DataSourceEntity();
@@ -406,7 +406,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		return dataSource;
 	}
 
-	private LineageTableNode setGraphNode(AnalyzeLayer analyzeLayer, LineageTask task, Node node) {
+	protected LineageTableNode setGraphNode(AnalyzeLayer analyzeLayer, LineageTask task, Node node) {
 		if (null == task || null == node) {
 			return null;
 		}
@@ -495,13 +495,13 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		}
 	}
 
-	private void setGraphNode(Graph<Node, Edge> graph, LineageNode lineageNode) {
+	protected void setGraphNode(Graph<Node, Edge> graph, LineageNode lineageNode) {
 		if (null == graph || null == lineageNode) return;
 		graph.setNode(lineageNode.getId(), lineageNode);
 	}
 
 	@NotNull
-	private static LineageTask wrapLineageTask(LineageTask task, Node node) {
+	protected static LineageTask wrapLineageTask(LineageTask task, Node node) {
 		return new LineageTask(
 				task.getId(),
 				task.getName(),

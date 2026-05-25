@@ -1,9 +1,23 @@
 package com.tapdata.tm.lineage.analyzer.impl;
 
+import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.lineage.analyzer.AnalyzeLayer;
 import com.tapdata.tm.lineage.analyzer.entity.LineageMetadataInstance;
+import com.tapdata.tm.lineage.analyzer.entity.LineageNode;
+import com.tapdata.tm.lineage.analyzer.entity.LineageTableNode;
+import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.entity.ModulesEntity;
+import com.tapdata.tm.task.entity.TaskEntity;
+import io.github.openlg.graphlib.Graph;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -70,5 +84,106 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
     @Override
     protected List<ModulesEntity> findModules(String connectionId, String table) {
         return new ArrayList<>();
+    }
+
+    @Override
+    protected LineageTableNode setGraphNode(AnalyzeLayer analyzeLayer, LineageTask task, Node node) {
+        if (null == task || null == node) {
+            return null;
+        }
+        LineageTask lineageTask = wrapLineageTask(task, node);
+        Graph<Node, Edge> graph = analyzeLayer.getGraph();
+        Node graphNode = graph.getNode(LineageNode.genId(LineageTableNode.NODE_TYPE, analyzeLayer.getConnectionId(), analyzeLayer.getTable()));
+        LineageTableNode lineageTableNode;
+        if (graphNode instanceof LineageTableNode) {
+            lineageTableNode = (LineageTableNode) graphNode;
+            lineageTableNode.addTask(lineageTask);
+        } else {
+            DataSourceEntity dataSource = findDataSource(analyzeLayer.getConnectionId());
+            String graphNodeId = null == graphNode ? null : graphNode.getId();
+            if (StringUtils.isBlank(graphNodeId)) {
+                String upstreamNodeId = findUpstreamTaskNodeId(analyzeLayer.getConnectionId(), analyzeLayer.getTable());
+                if (StringUtils.isNotBlank(upstreamNodeId)) {
+                    graphNodeId = upstreamNodeId;
+                } else if (StringUtils.isNotBlank(node.getId())) {
+                    graphNodeId = node.getId();
+                }
+            }
+            lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable(), graphNodeId));
+            lineageTableNode.addTask(lineageTask);
+            setGraphNode(graph, lineageTableNode);
+        }
+        return lineageTableNode;
+    }
+
+    private String findUpstreamTaskNodeId(String connectionId, String table) {
+        if (StringUtils.isBlank(connectionId) || StringUtils.isBlank(table)) {
+            return null;
+        }
+        Criteria taskCriteria = buildTaskCriteria(connectionId, table);
+        Query query = Query.query(taskCriteria);
+        query.fields().include(taskIncludeFields());
+        List<TaskEntity> tasks = taskRepository.findAll(query);
+        if (CollectionUtils.isEmpty(tasks)) {
+            return null;
+        }
+        for (TaskEntity task : tasks) {
+            Node nodeInTask = findNodeInTask(task, connectionId, table);
+            if (null == nodeInTask) {
+                continue;
+            }
+            if (CollectionUtils.isEmpty(nodeInTask.successors()) && StringUtils.isNotBlank(nodeInTask.getId())) {
+                return nodeInTask.getId();
+            }
+        }
+        return null;
+    }
+
+    private static Criteria buildTaskCriteria(String connectionId, String table) {
+        Criteria syncTaskCriteria = new Criteria("dag.nodes.connectionId").is(connectionId).and("dag.nodes.tableName").is(table);
+        Criteria migrateSrcCriteria = new Criteria("dag.nodes.tableNames").is(table);
+        Criteria migrateTgtCriteria = new Criteria("dag.nodes.syncObjects.objectNames").is(table);
+        Criteria migrateCriteria = new Criteria("dag.nodes.connectionId").is(connectionId)
+                .andOperator(new Criteria().orOperator(migrateSrcCriteria, migrateTgtCriteria));
+        Criteria notDeleteCriteria = new Criteria("is_deleted").is(false);
+        return new Criteria().andOperator(
+                notDeleteCriteria,
+                new Criteria().orOperator(syncTaskCriteria, migrateCriteria)
+        );
+    }
+
+    private Node findNodeInTask(TaskEntity task, String connectionId, String table) {
+        if (null == task || null == task.getDag()) {
+            return null;
+        }
+        List<Node> nodes = task.getDag().getNodes();
+        if (CollectionUtils.isEmpty(nodes)) {
+            return null;
+        }
+        return nodes.stream().filter(node -> {
+            if (node instanceof TableNode) {
+                TableNode tableNode = (TableNode) node;
+                return connectionId.equals(tableNode.getConnectionId()) && table.equals(tableNode.getTableName());
+            } else if (node instanceof DatabaseNode) {
+                DatabaseNode databaseNode = (DatabaseNode) node;
+                if (!connectionId.equals(databaseNode.getConnectionId())) {
+                    return false;
+                }
+                List<String> tableNames = databaseNode.getTableNames();
+                if (CollectionUtils.isNotEmpty(tableNames)) {
+                    return tableNames.contains(table);
+                }
+                List<SyncObjects> syncObjects = databaseNode.getSyncObjects();
+                if (CollectionUtils.isNotEmpty(syncObjects)) {
+                    SyncObjects objects = syncObjects.stream().filter(so -> CollectionUtils.isNotEmpty(so.getObjectNames())).findFirst().orElse(null);
+                    if (null != objects) {
+                        return objects.getObjectNames().contains(table);
+                    }
+                }
+                return false;
+            } else {
+                return false;
+            }
+        }).findFirst().orElse(null);
     }
 }
