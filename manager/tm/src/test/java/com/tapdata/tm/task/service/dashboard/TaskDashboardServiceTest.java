@@ -83,6 +83,29 @@ class TaskDashboardServiceTest {
     }
 
     @Test
+    void testDashboardFillsThroughputTrendTimelineWhenMetricsEmpty() {
+        when(chartViewService.getViewTaskDtoByUser(user)).thenReturn(new ArrayList<>());
+        when(measurementServiceV2.findLastMinuteSamplesByTaskIds(any())).thenReturn(new HashMap<>());
+        when(measurementServiceV2.aggregateTaskMetricsByTaskIds(any(), anyLong(), anyLong())).thenReturn(new TaskMetricsTrendVo());
+
+        TaskDashboardVo result = taskDashboardService.dashboard(user, "minute", 5L, null, null);
+
+        assertFilledZeroTrend(result.getTrends().getThroughput(), result.getQuery().getStartAt(), result.getQuery().getEndAt(), 5L);
+    }
+
+    @Test
+    void testDashboardFillsApiRequestTrendTimelineWhenMetricsEmpty() {
+        when(chartViewService.getViewTaskDtoByUser(user)).thenReturn(new ArrayList<>());
+        when(measurementServiceV2.findLastMinuteSamplesByTaskIds(any())).thenReturn(new HashMap<>());
+        when(measurementServiceV2.aggregateTaskMetricsByTaskIds(any(), anyLong(), anyLong())).thenReturn(new TaskMetricsTrendVo());
+        when(apiMetricsChartQuery.homepageRequestTrend(any(QueryBase.class))).thenReturn(ApiRequestTrend.create(TimeGranularity.SECOND_FIVE));
+
+        TaskDashboardVo result = taskDashboardService.dashboard(user, "minute", 5L, null, null);
+
+        assertFilledZeroTrend(result.getTrends().getApiRequests(), result.getQuery().getStartAt(), result.getQuery().getEndAt(), 5L);
+    }
+
+    @Test
     void testDashboardUsesMeasurementsForLagAndThroughput() {
         TaskDto lagTask = task("Lag Task", TaskDto.STATUS_RUNNING, 999_999L);
         TaskDto fastTask = task("Fast Task", TaskDto.STATUS_RUNNING, 888_888L);
@@ -261,5 +284,18 @@ class TaskDashboardServiceTest {
         dto.setName(name);
         dto.setTableCount(tableCount);
         return dto;
+    }
+
+    private void assertFilledZeroTrend(TaskDashboardVo.Trend trend, long startAt, long endAt, long stepSeconds) {
+        assertNotNull(trend.getTs());
+        assertNotNull(trend.getValues());
+        assertEquals(trend.getTs().size(), trend.getValues().size());
+        assertEquals((endAt / stepSeconds) - (startAt / stepSeconds) + 1, trend.getTs().size());
+        assertEquals((startAt / stepSeconds) * stepSeconds, trend.getTs().get(0));
+        assertEquals((endAt / stepSeconds) * stepSeconds, trend.getTs().get(trend.getTs().size() - 1));
+        for (int i = 1; i < trend.getTs().size(); i++) {
+            assertEquals(stepSeconds, trend.getTs().get(i) - trend.getTs().get(i - 1));
+        }
+        trend.getValues().forEach(value -> assertEquals(0D, value));
     }
 }

@@ -104,6 +104,7 @@ public class InspectDto extends SchedulableDto implements IDataPermissionDto {
 
 	private Boolean ignoreTimePrecision;
 	private String roundingMode;
+	private Boolean treatEmptyStringAsNull;
 
 	/**
 	 * 标志是否是二次校验，如果是，值就是父校验的id,

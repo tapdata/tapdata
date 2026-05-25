@@ -66,7 +66,6 @@ public class TaskConfigCompareUtil {
             // 高级配置 (Advanced Settings)
             "shareCache",                   // 共享缓存
             "isAutoInspect",                // 是否开启数据校验
-            "skipErrorEvent",               // 跳过错误事件配置
             "doubleActive",                 // 是否开启双活
             "dynamicAdjustMemoryUsage",     // 动态调整队列内存
             "dynamicAdjustMemoryThresholdByte", // 动态调整阈值
@@ -207,7 +206,6 @@ public class TaskConfigCompareUtil {
         // 高级配置
         config.put("shareCache", task.getShareCache());
         config.put("isAutoInspect", task.getIsAutoInspect());
-        config.put("skipErrorEvent", task.getSkipErrorEvent());
         config.put("doubleActive", task.getDoubleActive());
         config.put("dynamicAdjustMemoryUsage", task.getDynamicAdjustMemoryUsage());
         config.put("dynamicAdjustMemoryThresholdByte", task.getDynamicAdjustMemoryThresholdByte());

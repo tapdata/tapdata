@@ -19,6 +19,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.*;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.cluster.repository.ClusterStateRepository;
+import com.tapdata.tm.cluster.util.ApiStatusUtil;
 import com.tapdata.tm.clusterOperation.constant.AgentStatusEnum;
 import com.tapdata.tm.clusterOperation.constant.ClusterOperationTypeEnum;
 import com.tapdata.tm.clusterOperation.dto.ClusterOperationDto;
@@ -28,8 +29,10 @@ import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.field.WorkerType;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
 import lombok.Setter;
@@ -74,6 +77,17 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
     private AgentGroupService agentGroupService;
+
+    private final java.util.concurrent.ThreadPoolExecutor statusInfoExecutor =
+        new java.util.concurrent.ThreadPoolExecutor(
+            1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+            new java.util.concurrent.LinkedBlockingQueue<>(16),
+            r -> {
+                Thread t = new Thread(r, "cluster-statusInfo-writer");
+                t.setDaemon(true);
+                return t;
+            },
+            new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy());
 
     public ClusterStateService(@NonNull ClusterStateRepository repository) {
         super(repository, ClusterStateDto.class, ClusterStateEntity.class);
@@ -294,6 +308,10 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
      * @param map
      */
     public void statusInfo(Map map) {
+        // 接收瞬间 capture：用来跟 ClusterState.componentStoppedAt 比对，识别"携带 componentStopped
+        // 之前快照"的过期 statusInfo。capture 必须在异步提交之前完成，否则跟 executor 消费时刻没区别。
+        final long receivedAt = System.currentTimeMillis();
+
         Map data = (Map) map.get("data");
         Double reportInterval = (Double) data.get("reportInterval");
         Map systemInfo = (Map) data.get("systemInfo");
@@ -308,23 +326,57 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         String uuid = (String) systemInfo.get("uuid");
 
         Date now = new Date();
-        Double newTtl = now.getTime() + reportInterval * 2;
+        // TTL 直接取 lastHeartbeat 配置：与 Worker.ping_time 存活判定口径完全一致，
+        // 避免之前 max(reportInterval*3, lastHeartbeat) 中 reportInterval*3 取胜导致 status
+        // 翻转滞后于 lastHeartbeat 设置（reportInterval 通常 20s 以上 → 60s+）
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
+        long heartbeatFloorMs = Math.max(overTime, 1) * 1000L;
+        long newTtl = now.getTime() + heartbeatFloorMs;
 
         Query query = Query.query(Criteria.where("systemInfo.uuid").is(uuid));
 
         ClusterStateEntity clusterStateEntity = BeanUtil.mapToBean(data, ClusterStateEntity.class, false, CopyOptions.create());
         Document doc = new Document();
         repository.getMongoOperations().getConverter().write(clusterStateEntity, doc);
+        // 时序锚仅由 ClusterComponentStopService.setClusterStateComponentStopped 写。
+        // Entity 上 componentStoppedAt 在本上下文里恒为 null，converter 会把 null 写进 doc，
+        // 不剔除则 Update.fromDocument 会生成 $set:{componentStoppedAt:null}，每条正常 statusInfo
+        // 都把锚抹掉，下一轮 race 的 stale statusInfo 不再 skip → 修复失效。
+        doc.remove("componentStoppedAt");
         Update update = Update.fromDocument(doc);
         update.set("status", "running");
         update.set("uuid",uuid);
         update.setOnInsert("insertTime", now);
-        update.set("ttl", new Date(newTtl.longValue()));
+        update.set("ttl", new Date(newTtl));
         update.set("last_updated",new Date());
         log.info("insert ClusterState data:{} ", JSON.toJSONString(update));
 
-        repository.getMongoOperations().upsert(query, update, "ClusterState");
+        statusInfoExecutor.execute(() -> {
+            try {
+                // race-safe：当本 statusInfo 接收时刻早于（或并发于）最近一次 componentStopped，
+                // 整条丢弃 —— 它携带的是 componentStopped 之前的 snapshot，写入会回滚 stopped 状态。
+                ClusterStateEntity current = repository.getMongoOperations()
+                        .findOne(query, ClusterStateEntity.class, "ClusterState");
+                if (shouldSkipStaleStatusInfo(receivedAt, current)) {
+                    log.info("statusInfo skipped (stale snapshot) uuid={} receivedAt={} componentStoppedAt={}",
+                            uuid, receivedAt, current.getComponentStoppedAt().getTime());
+                    return;
+                }
+                repository.getMongoOperations().upsert(query, update, "ClusterState");
+            } catch (Exception e) {
+                log.warn("ClusterState upsert failed for uuid={}, will retry on next statusInfo", uuid, e);
+            }
+        });
+    }
 
+    /**
+     * 判定一条 statusInfo 是否携带"早于最近一次 componentStopped"的过期快照，应被整条丢弃。
+     * 抽成 package-private 纯函数便于单测，不需要 mock Mongo。
+     * 语义：receivedAt &lt;= current.componentStoppedAt 即 stale（同毫秒并发让 componentStopped 赢）。
+     */
+    static boolean shouldSkipStaleStatusInfo(long receivedAt, ClusterStateEntity current) {
+        if (current == null || current.getComponentStoppedAt() == null) return false;
+        return current.getComponentStoppedAt().getTime() >= receivedAt;
     }
 
 
@@ -393,9 +445,31 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             return;
         }
 
+        List<String> candidateProcessIds = list.stream()
+                .map(c -> c.getSystemInfo() == null ? null : c.getSystemInfo().getProcess_id())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        Set<String> aliveProcessIds = new HashSet<>();
+        if (!candidateProcessIds.isEmpty()) {
+            List<Worker> aliveWorkers = workerService.findAvailableAgentBySystem(candidateProcessIds);
+            if (aliveWorkers != null) {
+                aliveWorkers.forEach(w -> aliveProcessIds.add(w.getProcessId()));
+            }
+        }
+        List<ObjectId> idsToStop = list.stream()
+                .filter(c -> c.getSystemInfo() != null
+                        && !aliveProcessIds.contains(c.getSystemInfo().getProcess_id()))
+                .map(ClusterStateDto::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (idsToStop.isEmpty()) {
+            return;
+        }
+
+        Query stopQuery = Query.query(Criteria.where("_id").in(idsToStop));
         Update update = new Update();
         update.set("status", "stopped");
-        mongoTemplate.updateFirst(query, update, ClusterStateEntity.class);
+        mongoTemplate.updateMulti(stopQuery, update, ClusterStateEntity.class);
     }
 
     public Page<ClusterStateDto> getAll(Filter filter) {
@@ -403,21 +477,35 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
 
         Optional.ofNullable(page).flatMap(p -> Optional.ofNullable(p.getItems())).ifPresent(items -> {
             List<String> processIds = items.stream().map(n -> n.getSystemInfo().getProcess_id()).collect(Collectors.toList());
-
+            List<String> apiServerId = items.stream().map(ClusterStateDto::getApiServer).map(Component::getServerId).distinct().toList();
             List<String> availableProcessIds = Lists.newArrayList();
             List<Worker> workers = workerService.findAvailableAgentBySystem(processIds);
+            Map<String, Worker> apiMap;
+            if (!apiServerId.isEmpty()) {
+                List<Worker> allApiServerInfo = workerService.findAllEntity(Query.query(Criteria.where("process_id").in(apiServerId).and("worker_type").is(WorkerType.API_SERVER.getType())));
+                apiMap = allApiServerInfo.stream()
+                        .filter(Objects::nonNull)
+                        .filter(e -> WorkerType.API_SERVER.getType().equals(e.getWorkerType()))
+                        .collect(Collectors.toMap(Worker::getProcessId, e -> e, (e1, e2) -> e2));
+            } else {
+                apiMap = new HashMap<>();
+            }
             Optional.ofNullable(workers).ifPresent(w -> w.forEach(k -> availableProcessIds.add(k.getProcessId())));
 
             items.forEach(m -> {
-                Optional.ofNullable(m.getManagement()).ifPresent(management -> management.setServiceStatus(management.getStatus()));
-                Optional.ofNullable(m.getApiServer()).ifPresent(api -> api.setServiceStatus(api.getStatus()));
-                Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
-                    if (availableProcessIds.contains(m.getSystemInfo().getProcess_id())) {
-                        fe.setServiceStatus(fe.getStatus());
-                    } else {
-                        fe.setServiceStatus("stopped");
-                    }
+                boolean workerAlive = availableProcessIds.contains(m.getSystemInfo().getProcess_id());
+                boolean clusterStopped = ApiStatusUtil.clusterStopped(m, workerAlive);
 
+                Optional.ofNullable(m.getManagement()).ifPresent(management -> {
+                    management.setServiceStatus(clusterStopped ? "stopped" : management.getStatus());
+                });
+                Optional.ofNullable(m.getApiServer()).ifPresent(api -> {
+                    String apiId = api.getServerId();
+                    Worker apiInfo = apiMap.get(apiId);
+                    ApiStatusUtil.statusOfApi(clusterStopped, apiInfo, api, api::setStatus, api::setServiceStatus);
+                });
+                Optional.ofNullable(m.getEngine()).ifPresent(fe -> {
+                    fe.setServiceStatus(clusterStopped ? "stopped" : fe.getStatus());
                 });
             });
         });

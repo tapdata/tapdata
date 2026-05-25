@@ -20,11 +20,13 @@ import java.util.Objects;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ServerItem extends DataValueBase {
-    String serverStatus;
-
-    String serverPingStatus;
-
     Long serverPingTime;
+
+    //api server进程状态
+    private String status;
+
+    //启动器服务状态
+    private String serviceStatus;
 
     String serverName;
 
@@ -42,6 +44,9 @@ public class ServerItem extends DataValueBase {
 
     @DecimalFormat
     Double errorRate;
+
+    Integer poolMaxConnections;
+    Integer poolUsedConnections;
 
     long errorCount;
 

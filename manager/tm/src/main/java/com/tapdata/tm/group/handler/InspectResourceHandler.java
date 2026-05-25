@@ -124,8 +124,11 @@ public class InspectResourceHandler implements ResourceHandler {
             if (GroupConstants.COLLECTION_INSPECT.equals(item.getCollectionName())) {
                 InspectDto inspectDto = JsonUtil.parseJsonUseJackson(item.getJson(), InspectDto.class);
                 if (inspectDto != null) {
-                    String key = inspectDto.getId() == null ? inspectDto.getName() : inspectDto.getId().toHexString();
-                    inspectMap.putIfAbsent(key, inspectDto);
+                    if (inspectDto.getId() != null) {
+                        inspectMap.putIfAbsent(inspectDto.getId().toHexString(), inspectDto);
+                    } else {
+                        log.warn("Inspect has no _id, skip: name={}", inspectDto.getName());
+                    }
                 }
             }
         }
@@ -141,18 +144,19 @@ public class InspectResourceHandler implements ResourceHandler {
         Map<String, String> duplicates = new HashMap<>();
         Iterable<InspectDto> inspects = (Iterable<InspectDto>) resources;
         for (InspectDto inspectDto : inspects) {
-            if (inspectDto == null || StringUtils.isBlank(inspectDto.getName())) {
+            if (inspectDto == null || inspectDto.getId() == null) {
                 continue;
             }
-            if (duplicates.containsKey(inspectDto.getName())) {
+            String inspectId = inspectDto.getId().toHexString();
+            if (duplicates.containsKey(inspectId)) {
                 continue;
             }
-            Query query = new Query(Criteria.where("name").is(inspectDto.getName())
+            Query query = new Query(Criteria.where("_id").is(inspectDto.getId())
                     .and("is_deleted").ne(true));
             query.fields().include("_id", "name");
             InspectDto existing = inspectService.findOne(query, user);
             if (existing != null) {
-                duplicates.put(inspectDto.getName(), GroupConstants.DUPLICATE_MARKER);
+                duplicates.put(inspectId, GroupConstants.DUPLICATE_MARKER);
             }
         }
         return duplicates;

@@ -799,36 +799,38 @@ public class UserServiceImpl extends UserService{
 			return permissionService.find(new Filter(where));
     }
 
-		private final static Set<String> topPermissionCodes = new HashSet<String>() {{
-			add("v2_dashboard");
-			add("v2_data-console");
-			add("v2_datasource_menu");
-			add("v2_data_pipeline");
-			add("v2_advanced_features");
-			add("v2_data_replication");
-			add("v2_data_flow");
-			add("v2_data_check");
-			add("v2_log_collector");
-			add("v2_function_management");
-			add("v2_custom_node");
-			add("v2_shared_cache");
-			add("v2_data_discovery");
-			add("v2_data_object");
-			add("v2_data_catalogue");
-			add("v2_data");
-			add("v2_data-server");
-			add("v2_api-application");
-			add("v2_data-server-list");
-			add("v2_api-client");
-			add("v2_api-servers");
-			add("v2_data_server_audit");
-			add("v2_api_monitor");
-			add("v2_system-management");
-			add("v2_external-storage_menu");
-			add("v2_cluster-management_menu");
-			add("v2_user_management_menu");
-			add("v2_role_management");
-		}};
+		private final static Set<String> topPermissionCodes = Set.of(
+			"v2_dashboard",
+			"v2_data-console",
+			"v2_datasource_menu",
+			"v2_data_pipeline",
+			"v2_advanced_features",
+			"v2_data_replication",
+			"v2_data_flow",
+			"v2_data_check",
+			"v2_log_collector",
+			"v2_function_management",
+			"v2_custom_node",
+			"v2_shared_cache",
+			"v2_data_discovery",
+			"v2_data_object",
+			"v2_data_catalogue",
+			"v2_data",
+			"v2_data-server",
+			"v2_api-application",
+			"v2_data-server-list",
+			"v2_api-client",
+			"v2_api-servers",
+			"v2_data_server_audit",
+			"v2_api_monitor",
+			"v2_system-management",
+			"v2_external-storage_menu",
+			"v2_cluster-management_menu",
+			"v2_user_management_menu",
+			"v2_role_management",
+			"v2_project_management",
+			"v2_project_import_and_export"
+		);
 
     @Override
     public boolean checkLdapLoginEnable() {

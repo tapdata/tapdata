@@ -8,10 +8,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 
 import java.io.Serializable;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * @author samuel
@@ -45,6 +42,7 @@ public class LogContent implements Serializable {
 
 	private Boolean isReplaceEvent = false;
 	protected String exactlyOnceId;
+	private Map<String, Object> info;
 
 	public LogContent() {
 	}
@@ -253,6 +251,14 @@ public class LogContent implements Serializable {
 		this.exactlyOnceId = exactlyOnceId;
 	}
 
+	public Map<String, Object> getInfo() {
+		return info;
+	}
+
+	public void setInfo(Map<String, Object> info) {
+		this.info = info;
+	}
+
 	public static LogContent valueOf(Document document) {
 		LogContent logContent = new LogContent();
 		logContent.setFromTable(document.getOrDefault("fromTable", "").toString());
@@ -294,6 +300,10 @@ public class LogContent implements Serializable {
 		}
 		logContent.setType(logContentType.name());
 		logContent.setExactlyOnceId(document.getOrDefault("exactlyOnceId", "").toString());
+		Object infoObject = document.getOrDefault("info", null);
+		if (infoObject instanceof Map<?, ?>) {
+			logContent.setInfo((Map<String, Object>) infoObject);
+		}
 		return logContent;
 	}
 

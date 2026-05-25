@@ -151,7 +151,7 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
 
             Map<String, TapField> createMap = jsResult.stream()
                     .filter(n -> "CREATE".equals(n.getOp()))
-                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, MigrateJsResultVo::getTapField, (e1, e2) -> e1));
+                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, MigrateJsResultVo::getTapField, (e1, e2) -> e1, LinkedHashMap::new));
 
             Map<String, MigrateJsResultVo> setPkMap = jsResult.stream()
                     .filter(n -> "SET_PK".equals(n.getOp()))

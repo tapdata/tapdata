@@ -94,6 +94,13 @@ public class DataSourceRepository extends BaseRepository<DataSourceEntity, Objec
                 entity.getUserId(), update.getUpdateObject().get("$set"));
 
         // 覆盖回原始 userId 和 createUser（buildUpdateSet 中 applyUserDetail 已将其改为 admin）
+        // 先从 $setOnInsert 移除，再放入 $set，避免同一字段同时出现在两个操作符中导致 MongoDB 路径冲突
+        Object setOnInsertObj = update.getUpdateObject().get("$setOnInsert");
+        if (setOnInsertObj instanceof org.bson.Document) {
+            org.bson.Document setOnInsert = (org.bson.Document) setOnInsertObj;
+            setOnInsert.remove("userId");
+            setOnInsert.remove("createUser");
+        }
         if (originalUserId != null && !originalUserId.isEmpty()) {
             update.set("userId", originalUserId);
             entity.setUserId(originalUserId);

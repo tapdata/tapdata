@@ -152,6 +152,17 @@
 <!--		</profile>-->
 	</profiles>
 
+	<dependencyManagement>
+		<dependencies>
+			<!-- 修复 CVE-2024-47554/GHSA-3w8q-xq97-5j7x 等：rhino 由 swagger-parser → json-schema-validator 传递引入 -->
+			<dependency>
+				<groupId>org.mozilla</groupId>
+				<artifactId>rhino</artifactId>
+				<version>1.8.1</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<dependencies>
 		<dependency>
 			<groupId>com.tapdata</groupId>
@@ -328,23 +339,20 @@
 			<version>0.1.55</version>
 		</dependency>
 
-		<dependency>
-			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-webmvc-core</artifactId>
-			<version>1.8.0</version>
-		</dependency>
-		<dependency>
-			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-ui</artifactId>
-			<version>1.8.0</version>
-		</dependency>
+        <!-- Springdoc OpenAPI for Spring Boot 3.x -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.7.0</version>
+        </dependency>
 
-		<!-- Swagger Parser for OpenAPI Generator -->
-		<dependency>
-			<groupId>io.swagger.parser.v3</groupId>
-			<artifactId>swagger-parser</artifactId>
-			<version>2.1.31</version>
-		</dependency>
+        <!-- Swagger Parser for OpenAPI Generator -->
+        <dependency>
+            <groupId>io.swagger.parser.v3</groupId>
+            <artifactId>swagger-parser</artifactId>
+            <version>2.1.41</version>
+        </dependency>
+
 		<dependency>
 			<groupId>io.swagger.core.v3</groupId>
 			<artifactId>swagger-core</artifactId>
@@ -413,7 +421,6 @@
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>
-            <version>1.80</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -710,6 +717,20 @@
 					<classifier>exec</classifier>
 					<!--<executable>true</executable>-->
 					<!--<outputDirectory>${project.basedir}/../dist/${project.name}-${project.version}-${profile.active}/lib/</outputDirectory>-->
+                    <requiresUnpack>
+                        <dependency>
+                            <groupId>org.bouncycastle</groupId>
+                            <artifactId>bcprov-jdk18on</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.bouncycastle</groupId>
+                            <artifactId>bcpkix-jdk18on</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.bouncycastle</groupId>
+                            <artifactId>bcutil-jdk18on</artifactId>
+                        </dependency>
+                    </requiresUnpack>
 				</configuration>
 			</plugin>
 			<plugin>

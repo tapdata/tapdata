@@ -4,6 +4,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.group.dto.GroupGitInfoDto;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.kohsuke.github.GHIssueState;
 import org.kohsuke.github.GHPullRequest;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GHTag;
@@ -69,9 +70,10 @@ public class GitHubService extends GitBaseService {
 	}
 
 	/**
-	 * Create a pull request using GitHub API (hub4j)
+	 * Create a pull request using GitHub API (hub4j).
+	 * If an open PR with the same head and base already exists, returns its URL.
 	 *
-	 * @return URL of the created pull request
+	 * @return URL of the created or existing pull request
 	 */
 	@Override
 	public String createPullRequest(GroupGitInfoDto gitInfoDto, String branchName,
@@ -93,6 +95,21 @@ public class GitHubService extends GitBaseService {
 
 			String baseBranch = StringUtils.isNotBlank(gitInfoDto.getBranch())
 					? gitInfoDto.getBranch() : repository.getDefaultBranch();
+
+			// Check for existing open PR with same head -> base
+			String head = owner + ":" + branchName;
+			List<GHPullRequest> existingPRs = repository.queryPullRequests()
+					.head(head)
+					.base(baseBranch)
+					.state(GHIssueState.OPEN)
+					.list()
+					.toList();
+			if (existingPRs != null && !existingPRs.isEmpty()) {
+				String prUrl = existingPRs.get(0).getHtmlUrl().toString();
+				log.info("Found existing open pull request: {}", prUrl);
+				return prUrl;
+			}
+
 			String title = StringUtils.isNotBlank(prTitle) ? prTitle
 					: "Export: " + branchName;
 			String body = StringUtils.isNotBlank(prDescription) ? prDescription : "";

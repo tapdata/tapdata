@@ -1033,7 +1033,6 @@ class DataSourceServiceImplTest {
         void testHandleImportAsCopyConnectionWithExistingById() {
             // Setup
             doReturn(existingConnectionById).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
@@ -1052,7 +1051,6 @@ class DataSourceServiceImplTest {
         void testHandleImportAsCopyConnectionNoExistingById() {
             // Setup
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
@@ -1067,21 +1065,20 @@ class DataSourceServiceImplTest {
         }
 
         @Test
-        @DisplayName("test handleImportAsCopyConnection with name conflict")
+        @DisplayName("test handleImportAsCopyConnection with name conflict - name preserved")
         void testHandleImportAsCopyConnectionWithNameConflict() {
             // Setup
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(true, true, false).when(dataSourceService).checkRepeatNameBool(eq(user), anyString(), eq(null));
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
             // Execute
             DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
 
-            // Verify
+            // Verify - name should NOT be modified, _id is used for uniqueness
             assertNotNull(result);
-            assertEquals("test_connection_import_import", connectionDto.getName()); // Name should be modified to avoid conflict
-            verify(dataSourceService, times(3)).checkRepeatNameBool(eq(user), anyString(), eq(null));
+            assertEquals("test_connection", connectionDto.getName());
+            verify(dataSourceService, never()).checkRepeatNameBool(eq(user), anyString(), eq(null));
             verify(dataSourceService, times(1)).importEntity(connectionDto, user);
         }
 
@@ -1092,7 +1089,6 @@ class DataSourceServiceImplTest {
             connectionDto.setShareCDCExternalStorageId("662877df9179877be8b37079");
 
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
@@ -1115,7 +1111,6 @@ class DataSourceServiceImplTest {
             connectionDto.setShareCDCExternalStorageId("662877df9179877be8b37079");
 
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
@@ -1140,7 +1135,6 @@ class DataSourceServiceImplTest {
             connectionDto.setShareCDCExternalStorageId(""); // Blank storage ID
 
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
-            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
@@ -1308,6 +1302,121 @@ class DataSourceServiceImplTest {
             for (CapabilityEnum e : capabilities) {
                 assertTrue(notSupports.contains(e), e.name());
             }
+        }
+    }
+
+    @Nested
+    class findAllConnectionsTest {
+        private DataSourceServiceImpl dataSourceService;
+        private DataSourceRepository dataSourceRepository;
+        private com.tapdata.tm.v2.api.pool.repository.ConnectionPoolInfoRepository connectionPoolInfoRepository;
+        private com.tapdata.tm.modules.service.ModulesService modulesService;
+        private UserDetail userDetail;
+        
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            connectionPoolInfoRepository = mock(com.tapdata.tm.v2.api.pool.repository.ConnectionPoolInfoRepository.class);
+            modulesService = mock(com.tapdata.tm.modules.service.ModulesService.class);
+            
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "connectionPoolInfoRepository", connectionPoolInfoRepository);
+            ReflectionTestUtils.setField(dataSourceService, "modulesService", modulesService);
+            
+            userDetail = mock(UserDetail.class);
+        }
+
+        @Test
+        @DisplayName("test connectionsIds is empty")
+        void testConnectionsIdsEmpty() {
+            when(connectionPoolInfoRepository.findDistinct(any(), anyString(), any(), eq(String.class)))
+                    .thenReturn(new ArrayList<>());
+                    
+            List<com.tapdata.tm.ds.dto.ConnectionWithName> result = dataSourceService.findAllConnections("serverId", userDetail);
+            
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("test connectionsOIds is empty")
+        void testConnectionsOIdsEmpty() {
+            List<String> connectionIds = new ArrayList<>();
+            connectionIds.add(""); 
+            connectionIds.add("invalid_id");
+            
+            when(connectionPoolInfoRepository.findDistinct(any(), anyString(), any(), eq(String.class)))
+                    .thenReturn(connectionIds);
+                    
+            List<com.tapdata.tm.ds.dto.ConnectionWithName> result = dataSourceService.findAllConnections("serverId", userDetail);
+            
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("test repository findAll returns empty")
+        void testRepositoryFindAllEmpty() {
+            List<String> connectionIds = new ArrayList<>();
+            connectionIds.add(new ObjectId().toHexString());
+            
+            when(connectionPoolInfoRepository.findDistinct(any(), anyString(), any(), eq(String.class)))
+                    .thenReturn(connectionIds);
+                    
+            when(dataSourceRepository.findAll(any(Query.class), eq(userDetail)))
+                    .thenReturn(new ArrayList<>());
+                    
+            List<com.tapdata.tm.ds.dto.ConnectionWithName> result = dataSourceService.findAllConnections("serverId", userDetail);
+            
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("test normal process with modules and entities")
+        void testNormalProcess() {
+            String connId1 = new ObjectId().toHexString();
+            String connId2 = new ObjectId().toHexString();
+            
+            List<String> connectionIds = new ArrayList<>();
+            connectionIds.add(connId1);
+            connectionIds.add(connId2);
+            
+            when(connectionPoolInfoRepository.findDistinct(any(), anyString(), any(), eq(String.class)))
+                    .thenReturn(connectionIds);
+            
+            List<DataSourceEntity> entities = new ArrayList<>();
+            DataSourceEntity entity1 = new DataSourceEntity();
+            entity1.setId(new ObjectId(connId1));
+            entity1.setName("Conn1");
+            DataSourceEntity entity2 = new DataSourceEntity();
+            entity2.setId(new ObjectId(connId2));
+            entity2.setName("Conn2");
+            entities.add(entity1);
+            entities.add(entity2);
+            
+            when(dataSourceRepository.findAll(any(Query.class), eq(userDetail)))
+                    .thenReturn(entities);
+                    
+            List<com.tapdata.tm.module.dto.ModulesDto> modules = new ArrayList<>();
+            com.tapdata.tm.module.dto.ModulesDto module1 = new com.tapdata.tm.module.dto.ModulesDto();
+            module1.setDataSource(connId1);
+            com.tapdata.tm.module.dto.ModulesDto module2 = new com.tapdata.tm.module.dto.ModulesDto();
+            module2.setDataSource(connId1); // duplicate to cover !map.containsKey false branch
+            modules.add(module1);
+            modules.add(module2);
+            
+            when(modulesService.findAll(any(Query.class)))
+                    .thenReturn(modules);
+                    
+            List<com.tapdata.tm.ds.dto.ConnectionWithName> result = dataSourceService.findAllConnections("serverId", userDetail);
+            
+            assertNotNull(result);
+            assertEquals(2, result.size());
+            assertEquals(connId1, result.get(0).getId());
+            assertEquals("Conn1", result.get(0).getName());
+            assertEquals(connId2, result.get(1).getId());
+            assertEquals("Conn2", result.get(1).getName());
         }
     }
 }

@@ -809,10 +809,15 @@ public class ApiCallService {
                                     .filter(Objects::nonNull).toList()
                             ));
                 }
+                Map<String, Param> paramMap = new HashMap<>();
+                if (StringUtils.isNotBlank(apiCallDetailVo.getApiId())) {
+                    paramMap = findApiParamTypeMap(MongoUtils.toObjectId(apiCallDetailVo.getApiId()))
+                            .get(apiCallDetailVo.getApiId());
+                }
                 String query = apiCallDetailVo.getQuery();
                 String body = apiCallDetailVo.getBody();
-                apiCallDetailVo.setQuery(parseCustomParam(open, query, ruleMap));
-                apiCallDetailVo.setBody(parseCustomParam(open, body, ruleMap));
+                apiCallDetailVo.setQuery(parseCustomParam(open, query, ruleMap, paramMap));
+                apiCallDetailVo.setBody(parseCustomParam(open, body, ruleMap, paramMap));
                 return true;
             }
         }
@@ -848,20 +853,35 @@ public class ApiCallService {
         apiCallDetailVo.setReqParams(null);
     }
 
-    protected String parseCustomParam(boolean open, String json, Map<String, List<TextEncryptionRuleDto>> fieldEncryptionRule) {
+    protected String parseCustomParam(boolean open, String json, Map<String, List<TextEncryptionRuleDto>> fieldEncryptionRule, Map<String, Param> paramMap) {
         if (null == json) {
             return null;
         }
         try {
+            Map<String, Object> objectMap = defaultValueMap(paramMap);
             Map<String, Object> map = JSON.parseObject(json, Map.class);
+            objectMap.putAll(map);
             if (!Boolean.TRUE.equals(open)) {
-                return JSON.toJSONString(map);
+                return JSON.toJSONString(objectMap);
             }
-            return JSON.toJSONString(TextEncryptionUtil.encryptionCustomerField(map, fieldEncryptionRule));
+            return JSON.toJSONString(TextEncryptionUtil.encryptionCustomerField(objectMap, fieldEncryptionRule));
         } catch (Exception e) {
             log.warn("Parse and encryption customer param value failed, can not encrypt by config: {}, json: {}, msg: {}", open, json, e.getMessage());
             return json;
         }
+    }
+
+    public Map<String, Object> defaultValueMap(Map<String, Param> paramMap) {
+        Map<String, Object> defaultValueMap = new HashMap<>();
+        paramMap.forEach((k, v) -> {
+            String type = v.getType();
+            String defaultValue = v.getDefaultvalue();
+            if (StringUtils.isNotBlank(defaultValue)) {
+                Object val = TextEncryptionUtil.parseValue(type, defaultValue);
+                defaultValueMap.put(k, val);
+            }
+        });
+        return defaultValueMap;
     }
 
     protected List<ApiCallDataVo> afterFindDto(List<ApiCallDataVo> entities) {

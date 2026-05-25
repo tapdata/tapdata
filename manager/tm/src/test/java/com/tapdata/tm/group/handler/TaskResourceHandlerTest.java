@@ -11,10 +11,13 @@ import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.group.constant.GroupConstants;
 import com.tapdata.tm.group.dto.ResourceType;
+import com.tapdata.tm.group.handler.InspectResourceHandler;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.service.TaskService;
@@ -58,6 +61,12 @@ public class TaskResourceHandlerTest {
     @Mock
     private InspectResourceHandler inspectResourceHandler;
 
+    @Mock
+    private ExternalStorageService externalStorageService;
+
+    @Mock
+    private MetadataDefinitionService metadataDefinitionService;
+
     private TaskResourceHandler taskResourceHandler;
 
     private UserDetail user;
@@ -70,6 +79,8 @@ public class TaskResourceHandlerTest {
         ReflectionTestUtils.setField(taskResourceHandler, "dataSourceService", dataSourceService);
         ReflectionTestUtils.setField(taskResourceHandler, "inspectService", inspectService);
         ReflectionTestUtils.setField(taskResourceHandler, "inspectResourceHandler", inspectResourceHandler);
+        ReflectionTestUtils.setField(taskResourceHandler, "externalStorageService", externalStorageService);
+        ReflectionTestUtils.setField(taskResourceHandler, "metadataDefinitionService", metadataDefinitionService);
         user = new UserDetail("userId123", "customerId", "testuser", "password", "customerType",
                 "accessCode", false, false, false, false,
                 Arrays.asList(new SimpleGrantedAuthority("role")));
@@ -330,7 +341,7 @@ public class TaskResourceHandlerTest {
         }
 
         @Test
-        @DisplayName("Should use name as key when id is null")
+        @DisplayName("Should skip task when id is null")
         void testCollectPayloadUsesNameAsKey() {
             TaskDto task = new TaskDto();
             task.setId(null);
@@ -345,7 +356,7 @@ public class TaskResourceHandlerTest {
 
             taskResourceHandler.collectPayload(Arrays.asList(payload), resourceMap, metadataList);
 
-            assertTrue(resourceMap.containsKey("Test Task"));
+            assertTrue(resourceMap.isEmpty());
         }
     }
 
@@ -382,12 +393,13 @@ public class TaskResourceHandlerTest {
         @Test
         @DisplayName("Should extract connection ids from DAG nodes")
         void testLoadConnectionsExtractsFromDagNodes() {
+            String connId = new ObjectId().toHexString();
             TaskDto task = new TaskDto();
             DAG dag = mock(DAG.class);
             task.setDag(dag);
 
             DatabaseNode node = mock(DatabaseNode.class);
-            when(node.getConnectionId()).thenReturn(new ObjectId().toHexString());
+            when(node.getConnectionId()).thenReturn(connId);
             when(dag.getNodes()).thenReturn(Arrays.asList(node));
 
             when(dataSourceService.findAllEntity(any(Query.class))).thenReturn(new ArrayList<>());
@@ -410,7 +422,7 @@ public class TaskResourceHandlerTest {
             task.setId(taskId);
             task.setName("Unique Task");
 
-            when(taskService.findOne(any(Query.class), eq(user))).thenReturn(null);
+            // taskService.findOne returns null by default (mock default), so no stubbing needed
 
             Map<String, String> result = taskResourceHandler.findDuplicateNames(Arrays.asList(task), user);
 
@@ -455,6 +467,7 @@ public class TaskResourceHandlerTest {
         @DisplayName("Should not check same id twice")
         void testFindDuplicateNamesSkipsAlreadyChecked() {
             ObjectId taskId = new ObjectId();
+
             TaskDto task1 = new TaskDto();
             task1.setId(taskId);
             task1.setName("Same Name");
@@ -559,7 +572,9 @@ public class TaskResourceHandlerTest {
             Map<String, List<TaskUpAndLoadDto>> payloadsByType = new HashMap<>();
 
             when(inspectService.findByTaskIdList(anyList())).thenReturn(Arrays.asList(inspect));
-            TaskUpAndLoadDto inspectPayload = new TaskUpAndLoadDto("InspectTask", "{}");
+            TaskUpAndLoadDto inspectPayload = new TaskUpAndLoadDto();
+            inspectPayload.setCollectionName(GroupConstants.COLLECTION_INSPECT);
+            inspectPayload.setJson(JsonUtil.toJsonUseJackson(inspect));
             when(inspectResourceHandler.buildExportPayload(anyList(), eq(user))).thenReturn(Arrays.asList(inspectPayload));
 
             taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user, new HashSet<>());

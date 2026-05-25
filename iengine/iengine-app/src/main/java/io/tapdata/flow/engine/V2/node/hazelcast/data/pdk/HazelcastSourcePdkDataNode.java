@@ -119,6 +119,7 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
+import io.tapdata.pdk.core.utils.RetryLifeCycle;
 import io.tapdata.pdk.core.utils.RetryUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
@@ -309,11 +310,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				}
 			}
 			try {
-				if (need2InitialSync(syncProgress) || checkRebuildMergeTableCache(true)) {
+				if (need2InitialSync(syncProgress)) {
 					if (this.sourceRunnerFirstTime.get()) {
 						obsLogger.info("Starting batch read from {} tables", tables.size());
-						doSnapshotWithControl(new ArrayList<>(tables));
+						doSnapshotWithControl(new ArrayList<>(tables),true);
 					}
+				}else if(isReFullRunTask()){
+					doSnapshotWithControl(new ArrayList<>(tables),checkRebuildMergeTableCache(true));
 				}
 
 				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(newTables)) {
@@ -425,7 +428,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 	}
 
-	protected void doSnapshotWithControl(List<String> tableList) throws Throwable {
+	protected void doSnapshotWithControl(List<String> tableList,boolean needRun) throws Throwable {
 		Node<?> node = getNode();
 		if (node instanceof TableNode && ((TableNode) node).isSourceAndTarget()) {
 			doSnapshot(tableList);
@@ -433,7 +436,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		}
 		SnapshotOrderController controller = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
 		if (null != controller) {
-			CommonUtils.AnyError runner = () -> doSnapshot(tableList);
+			CommonUtils.AnyError runner;
+			if(needRun){
+				runner= () -> doSnapshot(tableList);
+			}else{
+				runner= () -> {};
+			}
 			controller.runWithControl(getNode(), runner);
 		}
 	}
@@ -1182,6 +1190,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 				sendCdcStartedEvent();
 				PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
+				// Async stream-read retries never set doRetry=true, so invokerRetrySetter
+				// above skips clearing. Drive the clear explicitly when a retry is in flight.
+				clearRetryLabelIfRetrying(pdkMethodInvoker);
 				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
@@ -1206,6 +1217,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				tapdataEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
 			}
 		}
+	}
+
+	private void clearRetryLabelIfRetrying(PDKMethodInvoker pdkMethodInvoker) {
+		if (null == pdkMethodInvoker) return;
+		RetryLifeCycle lifeCycle = pdkMethodInvoker.getRetryLifeCycle();
+		if (!(lifeCycle instanceof TaskRetryLifeCycle)) return;
+		if (!((TaskRetryLifeCycle) lifeCycle).isRetrying()) return;
+		lifeCycle.success();
+		Optional.ofNullable(pdkMethodInvoker.getClearFunctionRetry()).ifPresent(Runnable::run);
+		Optional.ofNullable(pdkMethodInvoker.getResetRetry()).ifPresent(Runnable::run);
 	}
 
 	protected void sendCdcStartedEvent() {
@@ -1730,7 +1751,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			return false;
 		}
 		if(getNode() instanceof TableNode tableNode) {
-			if(tableNode.isReFullRun()) {
+			if(isReFullRunTableNode()) {
 				if (first){
 					clientMongoOperator.update(Query.query(Criteria.where("taskId").is(dataProcessorContext.getTaskDto().getId().toHexString())
 							.and("nodeId").is(tableNode.getMergeNodeId())
@@ -1738,7 +1759,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					obsLogger.info("Rebuild merge table cache, table name: {}", tableNode.getTableName());
 				}
 				return true;
-			}else if(dataProcessorContext.getTaskDto().isReFullRun() && !tableNode.isReFullRun()) {
+			}else if(isReFullRunTask()){
 				if(first){
 					obsLogger.info("No need to rebuild the cache, skip directly, table name: {}", tableNode.getTableName());
 				}
@@ -1746,6 +1767,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			}
 		}
 		return false;
+	}
+
+	protected boolean isReFullRunTableNode(){
+		return getNode() instanceof TableNode tableNode && tableNode.isReFullRun();
+	}
+
+	protected boolean isReFullRunTask(){
+		return dataProcessorContext.getTaskDto().isReFullRun();
 	}
 
 	@Override

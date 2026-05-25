@@ -196,11 +196,10 @@ public class TaskController extends BaseController {
         if (where.get("id") instanceof Map && ((Map) where.get("id")).containsKey("$in")) {
             userDetail = getLoginUser();
         } else if (where.containsKey("_id") || where.containsKey("id")) {
-            Object objectId = where.get("_id");
-            String taskId;
-            if (objectId != null)
-                taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
-            else taskId = where.get("id").toString();
+            Object objectId = where.containsKey("_id") ? where.get("_id") : where.get("id");
+            String taskId = objectId instanceof Map
+                    ? ((Map) objectId).get("$oid").toString()
+                    : objectId.toString();
             TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
             if (taskDto == null) {
                 return success(new Page<>());
@@ -576,11 +575,10 @@ public class TaskController extends BaseController {
 
         UserDetail userDetail;
         if (where.containsKey("_id") || where.containsKey("id")) {
-            Object objectId = where.get("_id");
-            String taskId;
-            if (objectId != null)
-                taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
-            else taskId = where.get("id").toString();
+            Object objectId = where.containsKey("_id") ? where.get("_id") : where.get("id");
+            String taskId = objectId instanceof Map
+                    ? ((Map) objectId).get("$oid").toString()
+                    : objectId.toString();
             TaskDto taskDto = taskService.findById(new ObjectId(taskId));
             Assert.notNull(taskDto, "task not found");
             userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
