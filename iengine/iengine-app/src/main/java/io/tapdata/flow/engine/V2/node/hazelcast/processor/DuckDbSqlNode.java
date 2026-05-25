@@ -161,6 +161,9 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
                 } else if (nodeConfig.getQuerySql() != null) {
                     this.querySql = nodeConfig.getQuerySql();
                 }
+                
+                // 验证 SQL 必须是 SELECT 查询语句
+                DuckDbOperator.ensureSelectQuery(this.querySql, "DuckDbSqlNode querySql configuration");
 
                 // 读取输出表名
                 if (nodeConfig.getOutputTableName() != null) {
@@ -341,17 +344,22 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
                 String sql = String.format(querySql, tableName);
                 logger.info("Executing query for table {}: {}", tableName, sql);
 
-                List<Map<String, Object>> results = duckDbOperator.executeQuery(sql);
+                DuckDbOperator.ExecuteResult executeResult = duckDbOperator.execute(sql);
 
-                if (results != null && !results.isEmpty()) {
-                    logger.info("Query returned {} results for table {}", results.size(), tableName);
+                if (executeResult.isHasResultSet()) {
+                    List<Map<String, Object>> results = executeResult.getResultSet();
+                    if (results != null && !results.isEmpty()) {
+                        logger.info("Query returned {} results for table {}", results.size(), tableName);
 
-                    // Emit results as TapInsertRecordEvents
-                    for (Map<String, Object> result : results) {
-                        emitResultAsTapEvent(result, tableName);
+                        // Emit results as TapInsertRecordEvents
+                        for (Map<String, Object> result : results) {
+                            emitResultAsTapEvent(result, tableName);
+                        }
+                    } else {
+                        logger.info("Query returned no results for table {}", tableName);
                     }
                 } else {
-                    logger.info("Query returned no results for table {}", tableName);
+                    logger.info("SQL executed successfully, update count: {} for table {}", executeResult.getUpdateCount(), tableName);
                 }
             }
 
@@ -387,6 +395,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     public void setQuerySql(String querySql) {
+        DuckDbOperator.ensureSelectQuery(querySql, "DuckDbSqlNode querySql setter");
         this.querySql = querySql;
     }
 
@@ -883,9 +892,11 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
         if (tapTable != null && tapTable.getNameFieldMap() != null && !tapTable.getNameFieldMap().isEmpty()) {
             // 创建临时表用于处理
             String tempTableName = "temp_" + currentTableName;
-            duckDbOperator.createTempTable(tapTable, tempTableName);
+            boolean isPreview = processorBaseContext.getTaskDto() != null 
+                && processorBaseContext.getTaskDto().isPreviewTask();
+            duckDbOperator.createTempTable(tapTable, tempTableName, isPreview);
             tableInitialized = true;
-            logger.info("Created temp table: {}", tempTableName);
+            logger.info("Created temp table: {} (preview: {})", tempTableName, isPreview);
         }
     }
 
@@ -903,9 +914,11 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
             if (operator == null) {
                 throw new SQLException("DuckDbOperator not initialized");
             }
-            operator.createTempTable(tapTable, context.getTargetTableName());
+            boolean isPreview = processorBaseContext.getTaskDto() != null 
+                && processorBaseContext.getTaskDto().isPreviewTask();
+            operator.createTempTable(tapTable, context.getTargetTableName(), isPreview);
             context.setTableInitialized(true);
-            logger.info("Created temp table for context {}: {}", context.getKey(), context.getTargetTableName());
+            logger.info("Created temp table for context {}: {} (preview: {})", context.getKey(), context.getTargetTableName(), isPreview);
         }
     }
 

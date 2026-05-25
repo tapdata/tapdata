@@ -19,6 +19,8 @@ public class AffectedKeyCalculator {
 
     private static final Logger logger = LogManager.getLogger(AffectedKeyCalculator.class);
 
+    private static final int MAX_PK_VALUES_PER_QUERY = 1000;
+
     private final String wideTablePrimaryKey;
     private final String mainTableName;
     private final String mainTablePrimaryKey;
@@ -54,6 +56,7 @@ public class AffectedKeyCalculator {
             return Collections.emptySet();
         }
 
+        // Using LinkedHashSet to preserve insertion order (for consistent debugging)
         Set<Object> affectedPks = new LinkedHashSet<>();
 
         if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
@@ -66,8 +69,33 @@ public class AffectedKeyCalculator {
                 }
             }
         } else {
+            // Check if table is configured as a source table
+            boolean isKnownSourceTable = false;
+            for (FromTableConfig config : fromTables) {
+                if (config.getTableName().equalsIgnoreCase(tableName)) {
+                    isKnownSourceTable = true;
+                    break;
+                }
+            }
+            // Also check if there is a custom join query for this table
+            if (!isKnownSourceTable) {
+                for (String key : customJoinQueries.keySet()) {
+                    if (key.equalsIgnoreCase(tableName)) {
+                        isKnownSourceTable = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!isKnownSourceTable) {
+                // Unknown table: return empty set
+                logger.debug("Unknown table {}, skipping processing", tableName);
+                return Collections.emptySet();
+            }
+
             // Secondary table event: find related main table PKs
             logger.debug("Processing secondary table events from {}", tableName);
+            // Using LinkedHashSet to preserve insertion order (for consistent debugging)
             Set<Object> sourceTablePks = new LinkedHashSet<>();
             String sourcePkField = getSourceTablePrimaryKey(tableName);
 
@@ -137,6 +165,7 @@ public class AffectedKeyCalculator {
             }
         }
 
+        logger.debug("Failed to extract primary key '{}' from event (tried direct, after, before, o2, o)", pkField);
         return null;
     }
 
@@ -144,14 +173,13 @@ public class AffectedKeyCalculator {
      * Get primary key field name for a source table.
      */
     private String getSourceTablePrimaryKey(String tableName) {
-        if (fromTables != null) {
-            for (FromTableConfig config : fromTables) {
-                if (config.getTableName().equalsIgnoreCase(tableName)) {
-                    return config.getPrimaryKey();
-                }
+        for (FromTableConfig config : fromTables) {
+            if (config.getTableName().equalsIgnoreCase(tableName)) {
+                return config.getPrimaryKey();
             }
         }
-        // Default: try common PK field names
+        // Default: try common PK field name "id"
+        logger.warn("No primary key configured for table {}, using default 'id'", tableName);
         return "id";
     }
 
@@ -159,15 +187,23 @@ public class AffectedKeyCalculator {
      * Query main table primary keys related to given source table PKs.
      */
     private Set<Object> queryRelatedMainTablePks(String tableName, Set<Object> sourceTablePks) throws SQLException {
-        // First check for custom join query
-        if (customJoinQueries != null && customJoinQueries.containsKey(tableName)) {
-            return executeCustomJoinQuery(tableName, sourceTablePks);
+        // First check for custom join query (case-insensitive lookup)
+        String matchedTableKey = null;
+        for (String key : customJoinQueries.keySet()) {
+            if (key.equalsIgnoreCase(tableName)) {
+                matchedTableKey = key;
+                break;
+            }
+        }
+        
+        if (matchedTableKey != null) {
+            return executeCustomJoinQuery(matchedTableKey, sourceTablePks);
         }
 
         // TODO: Implement automatic SQL parsing from user's SELECT query
         // For now, use a generic approach that assumes simple JOIN
-        logger.warn("No custom join query found for table {}, using fallback approach", tableName);
-        return Collections.emptySet();
+        logger.error("No custom join query found for table {}, cannot determine affected primary keys", tableName);
+        throw new SQLException("No custom join query configured for table: " + tableName);
     }
 
     /**
@@ -179,33 +215,51 @@ public class AffectedKeyCalculator {
             return Collections.emptySet();
         }
 
-        // Replace ${pkValues} placeholder with CSV of PKs
-        String pkCsv = sourceTablePks.stream()
-                .map(pk -> {
-                    if (pk instanceof String) {
-                        return "'" + pk.toString().replace("'", "''") + "'";
-                    }
-                    return pk.toString();
-                })
-                .collect(Collectors.joining(","));
-
-        String query = queryTemplate.replace("${pkValues}", pkCsv);
-        logger.debug("Executing custom join query: {}", query);
-
-        List<Map<String, Object>> results = operator.executeQuery(query);
+        // Using LinkedHashSet to preserve insertion order (for consistent debugging)
         Set<Object> relatedPks = new LinkedHashSet<>();
+        
+        // Split into batches to avoid too long SQL statements
+        List<List<Object>> batches = partitionList(new ArrayList<>(sourceTablePks), MAX_PK_VALUES_PER_QUERY);
+        
+        for (List<Object> batch : batches) {
+            // Replace ${pkValues} placeholder with CSV of PKs
+            String pkCsv = batch.stream()
+                    .map(pk -> {
+                        if (pk instanceof String) {
+                            return "'" + pk.toString().replace("'", "''") + "'";
+                        }
+                        return pk.toString();
+                    })
+                    .collect(Collectors.joining(","));
 
-        for (Map<String, Object> row : results) {
-            Object pk = row.get(mainTablePrimaryKey);
-            if (pk == null) {
-                pk = row.get(wideTablePrimaryKey);
-            }
-            if (pk != null) {
-                relatedPks.add(pk);
+            String query = queryTemplate.replace("${pkValues}", pkCsv);
+            logger.debug("Executing custom join query (batch size: {}): {}", batch.size(), query);
+
+            List<Map<String, Object>> results = operator.executeQuery(query);
+
+            for (Map<String, Object> row : results) {
+                Object pk = row.get(mainTablePrimaryKey);
+                if (pk == null) {
+                    pk = row.get(wideTablePrimaryKey);
+                }
+                if (pk != null) {
+                    relatedPks.add(pk);
+                }
             }
         }
 
         return relatedPks;
+    }
+
+    /**
+     * Partition a list into batches of the given maximum size.
+     */
+    private <T> List<List<T>> partitionList(List<T> list, int size) {
+        List<List<T>> batches = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += size) {
+            batches.add(list.subList(i, Math.min(i + size, list.size())));
+        }
+        return batches;
     }
 
     public String getWideTablePrimaryKey() {

@@ -516,7 +516,17 @@ public class ArrowWriter implements AutoCloseable {
      * 确保DuckLake表存在，不存在则创建
      */
     private void createDuckLakeTableIfNotExists(String tableName, TapTable tapTable) throws SQLException {
-        String createTableSql = buildDuckLakeCreateTableSql(tableName, tapTable);
+        createDuckLakeTableIfNotExists(tableName, tapTable, false);
+    }
+
+    /**
+     * 确保DuckLake表存在，不存在则创建
+     * @param tableName 表名
+     * @param tapTable 表结构
+     * @param useTempTable 是否使用临时表
+     */
+    private void createDuckLakeTableIfNotExists(String tableName, TapTable tapTable, boolean useTempTable) throws SQLException {
+        String createTableSql = buildDuckLakeCreateTableSql(tableName, tapTable, useTempTable);
         
         try (java.sql.Statement stmt = connection.createStatement()) {
             stmt.execute(createTableSql);
@@ -528,8 +538,22 @@ public class ArrowWriter implements AutoCloseable {
      * 构建DuckLake表的CREATE TABLE语句
      */
     private String buildDuckLakeCreateTableSql(String tableName, TapTable tapTable) {
+        return buildDuckLakeCreateTableSql(tableName, tapTable, false);
+    }
+
+    /**
+     * 构建DuckLake表的CREATE TABLE语句
+     * @param tableName 表名
+     * @param tapTable 表结构
+     * @param useTempTable 是否使用临时表
+     */
+    private String buildDuckLakeCreateTableSql(String tableName, TapTable tapTable, boolean useTempTable) {
         StringBuilder sql = new StringBuilder();
-        sql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
+        if (useTempTable) {
+            sql.append("CREATE TEMP TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
+        } else {
+            sql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
+        }
         
         java.util.List<String> columnDefs = new java.util.ArrayList<>();
         java.util.List<String> primaryKeyCols = new java.util.ArrayList<>();

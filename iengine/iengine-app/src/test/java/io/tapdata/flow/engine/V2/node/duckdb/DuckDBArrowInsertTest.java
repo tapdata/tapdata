@@ -52,7 +52,7 @@ class DuckDBArrowInsertTest {
 
     @Test
     void testInsertArrowStreamIntoDuckDB() throws Exception {
-        System.out.println("🧪 DuckDB Arrow insert test...");
+        System.out.println(" DuckDB Arrow insert test...");
 
         // Build a simple Arrow schema: single BIGINT column named `id`
         Schema schema = new Schema(List.of(

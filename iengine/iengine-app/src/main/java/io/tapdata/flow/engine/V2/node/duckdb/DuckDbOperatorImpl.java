@@ -148,6 +148,41 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     }
 
     @Override
+    public ExecuteResult execute(String sql) throws SQLException {
+        checkClosed();
+        
+        try (Statement stmt = connection.createStatement()) {
+            boolean hasResultSet = stmt.execute(sql);
+            
+            if (hasResultSet) {
+                try (ResultSet rs = stmt.getResultSet()) {
+                    List<Map<String, Object>> results = new ArrayList<>();
+                    ResultSetMetaData metaData = rs.getMetaData();
+                    int columnCount = metaData.getColumnCount();
+                    List<String> columnNames = new ArrayList<>();
+                    
+                    for (int i = 1; i <= columnCount; i++) {
+                        columnNames.add(metaData.getColumnName(i));
+                    }
+                    
+                    while (rs.next()) {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        for (int i = 0; i < columnNames.size(); i++) {
+                            row.put(columnNames.get(i), rs.getObject(i + 1));
+                        }
+                        results.add(row);
+                    }
+                    
+                    return new ExecuteResult(true, results, 0);
+                }
+            } else {
+                int updateCount = stmt.getUpdateCount();
+                return new ExecuteResult(false, Collections.emptyList(), updateCount);
+            }
+        }
+    }
+
+    @Override
     public void writeBatch(List<Map<String, Object>> data, String tableName) throws SQLException, java.io.IOException {
         checkClosed();
         
@@ -298,22 +333,36 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
 
     @Override
     public void createTable(TapTable tapTable) throws SQLException {
-        createTable(tapTable, tapTable.getName());
+        createTable(tapTable, tapTable.getName(), false);
+    }
+
+    @Override
+    public void createTable(TapTable tapTable, boolean useTempTable) throws SQLException {
+        createTable(tapTable, tapTable.getName(), useTempTable);
     }
 
     @Override
     public void createTempTable(TapTable tapTable, String tempTableName) throws SQLException {
-        createTable(tapTable, tempTableName);
+        createTable(tapTable, tempTableName, false);
+    }
+
+    @Override
+    public void createTempTable(TapTable tapTable, String tempTableName, boolean useTempTable) throws SQLException {
+        createTable(tapTable, tempTableName, useTempTable);
     }
 
     /**
      * 创建表
      */
-    private void createTable(TapTable tapTable, String tableName) throws SQLException {
+    private void createTable(TapTable tapTable, String tableName, boolean useTempTable) throws SQLException {
         checkClosed();
         
         StringBuilder sql = new StringBuilder();
-        sql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (");
+        if (useTempTable) {
+            sql.append("CREATE TEMP TABLE IF NOT EXISTS ").append(tableName).append(" (");
+        } else {
+            sql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (");
+        }
         
         List<String> fieldDefs = new ArrayList<>();
         
@@ -815,7 +864,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     @Override
     public int batchInsert(String tableName, java.util.List<java.util.Map<String, Object>> dataList) throws SQLException, java.io.IOException {
         checkClosed();
-        if (dataList.isEmpty()) {
+        if (dataList == null || dataList.isEmpty()) {
             return 0;
         }
         writeBatch(dataList, tableName);
