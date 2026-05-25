@@ -19,7 +19,9 @@ public enum ServerUsageField implements CollectionField {
     POOL_USED_CONNECTIONS("poolUsedConnections"),
     POOL_AVAILABLE("poolAvailable"),
     POOL_QUEUE_SIZE("poolQueueSize"),
-    TTL_KEY("ttlKey");
+    TTL_KEY("ttlKey"),
+    CPU_CORES("cpuCores"),
+    ;
 
     final String field;
 
