@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
  * DuckDbSqlNode 集成测试，验证 CDC 事件处理和宽表更新功能
  */
 @DisplayName("DuckDbSqlNode 集成测试")
-public class DuckDbSqlNodeIntegrationTest {
+public class NazelcastDuckDbSqlNodeIntegrationTest {
 
     private static final String DB_PATH = ":memory:";
     private static Connection connection;

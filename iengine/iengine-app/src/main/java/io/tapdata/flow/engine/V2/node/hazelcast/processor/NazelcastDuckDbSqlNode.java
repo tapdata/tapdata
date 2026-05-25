@@ -3,33 +3,15 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.processor.context.ProcessContextEvent;
-import com.tapdata.tm.commons.dag.process.JsProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.mongodb.client.MongoDatabase;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperator;
-import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperatorImpl;
-import io.tapdata.flow.engine.V2.node.duckdb.DlqWriter;
-import io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext;
-import io.tapdata.flow.engine.V2.node.duckdb.SmartMerger;
-import io.tapdata.flow.engine.V2.node.duckdb.ErrorHandler;
-import io.tapdata.flow.engine.V2.node.duckdb.MultiTableInputManager;
-import io.tapdata.flow.engine.V2.node.duckdb.SyncStageTracker;
-import io.tapdata.flow.engine.V2.node.duckdb.OutputBuffer;
-import io.tapdata.flow.engine.V2.node.duckdb.DuckDbQueryEngine;
-import io.tapdata.flow.engine.V2.node.duckdb.SchemaRegistry;
-import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
-import io.tapdata.flow.engine.V2.node.duckdb.IncrementalViewUpdater;
-import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
+import io.tapdata.flow.engine.V2.node.duckdb.*;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
 import java.sql.SQLException;
@@ -45,10 +27,10 @@ import java.util.concurrent.TimeUnit;
  * 继承 HazelcastProcessorBaseNode，支持流式处理模式
  * 使用 Arrow 零拷贝写入实现高性能数据处理
  */
-public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
+public class NazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
-    private static final Logger logger = LogManager.getLogger(DuckDbSqlNode.class);
-    public static final String TAG = DuckDbSqlNode.class.getSimpleName();
+    private static final Logger logger = LogManager.getLogger(NazelcastDuckDbSqlNode.class);
+    public static final String TAG = NazelcastDuckDbSqlNode.class.getSimpleName();
 
     /** DuckDB 操作器 */
     private DuckDbOperator duckDbOperator;
@@ -138,7 +120,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     private final Queue<TapdataEvent> pendingEvents = new LinkedList<>();
     private BiConsumer<TapdataEvent, ProcessResult> currentConsumer;
 
-    public DuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
+    public NazelcastDuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
     }
 
@@ -146,8 +128,7 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
     protected void doInit(@NotNull Context context) throws TapCodeException {
         super.doInit(context);
         
-        io.tapdata.flow.engine.V2.node.duckdb.DuckLakeConfig duckLakeConfig = 
-                io.tapdata.flow.engine.V2.node.duckdb.DuckLakeConfig.disabled();
+        DuckLakeConfig duckLakeConfig = DuckLakeConfig.disabled();
 
         // 读取节点配置
         try {
@@ -156,8 +137,8 @@ public class DuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             if (nodeConfig != null) {
                 // 读取 SQL 查询
-                if (nodeConfig.getSqlQuery() != null) {
-                    this.querySql = nodeConfig.getSqlQuery();
+                if (nodeConfig.getQuerySql() != null) {
+                    this.querySql = nodeConfig.getQuerySql();
                 } else if (nodeConfig.getQuerySql() != null) {
                     this.querySql = nodeConfig.getQuerySql();
                 }
