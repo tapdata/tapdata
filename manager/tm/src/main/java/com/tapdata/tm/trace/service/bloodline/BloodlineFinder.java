@@ -100,6 +100,7 @@ public class BloodlineFinder {
         markJoinState(dag, fieldNameMapping, taskDagMap);
         List<String> targetTableUpdateFields = getTargetTableUpdateFields(dag, taskDagMap);
         taskLineage.setTargetTableUpdateFields(targetTableUpdateFields);
+        findUpdateConditionField(dag, taskDagMap, fieldNameMapping);
         Map<String, Map<String, String>> traceFilterFielMap = removeUselessFields(dag, param.getTraceFilterFieldNames(), fieldNameMapping);
         taskLineage.setTraceFilterFieldNameMapping(traceFilterFielMap);
         return taskLineage;
@@ -121,6 +122,129 @@ public class BloodlineFinder {
         } catch (Exception e) {
             throw new BizException("data.trace.findDag.error", TapSimplify.toJson(param), e.getMessage());
         }
+    }
+
+    protected void findUpdateConditionField(Dag dag, Map<String, DAG> taskDagMap, Map<String, Map<String, String>> fieldNameMapping) {
+        //把Dag中所有节点都补充节点当前表的更新条件字段
+        //作为源表时：更新条件字段来源于此表所在血缘关系中上游任务作为目标时的节点配置上，如果此表无上游任务则之间取此表的主键字段列表或者索引字段列表
+        //作为目标表时：直接从任务配置中获取节点配置的更新条件字段列表
+        //获取到的字段列表后需要找到最终目标表与之对应的字段名 --> CurrentFieldNameMapping
+        //需要将结果补充到dag.nodes对应的表节点的attr.$taskId下的com.tapdata.tm.trace.service.bloodline.BloodlineFinder.TableProperties.updateConditionField中的updateConditionField属性上
+
+        if (null == dag || CollectionUtils.isEmpty(dag.getNodes()) || MapUtils.isEmpty(taskDagMap)) {
+            return;
+        }
+        Map<String, Map<String, String>> fieldNameMappingByNodeId = MapUtils.isEmpty(fieldNameMapping) ? new HashMap<>() : fieldNameMapping;
+        LineageTableNode finalTarget = findFinalTargetLineageTableNode(dag);
+        String finalTargetNodeId = null == finalTarget ? null : finalTarget.getId();
+        Map<String, List<String>> targetCandidatesByOriginName = new HashMap<>();
+        if (StringUtils.isNotBlank(finalTargetNodeId)) {
+            Map<String, String> targetFieldToOrigin = fieldNameMappingByNodeId.getOrDefault(finalTargetNodeId, new HashMap<>());
+            if (MapUtils.isNotEmpty(targetFieldToOrigin)) {
+                targetFieldToOrigin.forEach((targetFieldName, originName) -> {
+                    if (StringUtils.isBlank(targetFieldName) || StringUtils.isBlank(originName)) {
+                        return;
+                    }
+                    targetCandidatesByOriginName.computeIfAbsent(originName, k -> new ArrayList<>()).add(targetFieldName);
+                });
+            }
+        }
+
+        for (Node<?> n : dag.getNodes()) {
+            if (!(n instanceof LineageTableNode lineageTableNode) || StringUtils.isBlank(lineageTableNode.getId())) {
+                continue;
+            }
+            Map<String, LineageTask> tasks = lineageTableNode.getTasks();
+            if (MapUtils.isEmpty(tasks)) {
+                continue;
+            }
+            Map<String, Object> attrs = lineageTableNode.getAttrs();
+            if (null == attrs) {
+                attrs = new HashMap<>();
+                lineageTableNode.setAttrs(attrs);
+            }
+
+            for (LineageTask lineageTask : tasks.values()) {
+                if (null == lineageTask || StringUtils.isBlank(lineageTask.getId())) {
+                    continue;
+                }
+                String taskId = lineageTask.getId();
+                DAG taskDag = taskDagMap.get(taskId);
+                if (null == taskDag) {
+                    continue;
+                }
+                String effectiveTaskId = taskId;
+                if (null == taskDag.getTaskId()) {
+                    ObjectId objectId = MongoUtils.toObjectId(taskId);
+                    if (null != objectId) {
+                        taskDag.setTaskId(objectId);
+                        effectiveTaskId = objectId.toHexString();
+                    }
+                } else {
+                    effectiveTaskId = taskDag.getTaskId().toHexString();
+                }
+
+                Node<?> lineageTaskNode = lineageTask.getTaskNode();
+                String taskNodeId = null == lineageTaskNode ? null : lineageTaskNode.getId();
+                boolean targetPos = isTaskNodeTargetPos(lineageTaskNode);
+
+                List<String> updateFields;
+                if (targetPos) {
+                    TableNode tableNodeInTaskDag = findTableNodeInTaskDag(taskDag, taskNodeId, lineageTableNode.getConnectionId(), lineageTableNode.getTable());
+                    updateFields = null == tableNodeInTaskDag ? new ArrayList<>() : Optional.ofNullable(tableNodeInTaskDag.getUpdateConditionFields()).orElse(new ArrayList<>());
+                    if (CollectionUtils.isEmpty(updateFields) && null != tableNodeInTaskDag) {
+                        updateFields = getPrimaryOrUniqueKeyFieldsForNodeOrSource(effectiveTaskId, tableNodeInTaskDag);
+                    }
+                } else {
+                    updateFields = tryGetUpdateFieldsFromUpstreamTarget(lineageTableNode, effectiveTaskId, taskDagMap);
+                    if (CollectionUtils.isEmpty(updateFields)) {
+                        TableNode tableNodeInTaskDag = findTableNodeInTaskDag(taskDag, taskNodeId, lineageTableNode.getConnectionId(), lineageTableNode.getTable());
+                        if (null != tableNodeInTaskDag) {
+                            updateFields = getPrimaryOrUniqueKeyFieldsForNodeOrSource(effectiveTaskId, tableNodeInTaskDag);
+                        } else {
+                            updateFields = getPrimaryOrUniqueKeyFieldsFromSource(lineageTableNode.getConnectionId(), lineageTableNode.getTable());
+                        }
+                    }
+                }
+                if (CollectionUtils.isEmpty(updateFields)) {
+                    continue;
+                }
+                TableProperties tableProperties;
+                Object existing = attrs.get(taskId);
+                if (existing instanceof TableProperties e) {
+                    tableProperties = e;
+                } else {
+                    tableProperties = newTableProperties(lineageTableNode.getId(), lineageTableNode.getId());
+                    attrs.put(taskId, tableProperties);
+                }
+                tableProperties.setUpdateConditionField(updateFields);
+            }
+        }
+    }
+
+    private TableNode findTableNodeInTaskDag(DAG taskDag, String nodeId, String connectionId, String tableName) {
+        if (null == taskDag) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(nodeId)) {
+            Node<?> n = taskDag.getNode(nodeId);
+            if (n instanceof TableNode) {
+                return (TableNode) n;
+            }
+        }
+        if (StringUtils.isBlank(connectionId) || StringUtils.isBlank(tableName)) {
+            return null;
+        }
+        for (Node<?> n : CollectionUtils.emptyIfNull(taskDag.getNodes())) {
+            if (!(n instanceof TableNode)) {
+                continue;
+            }
+            TableNode tn = (TableNode) n;
+            if (connectionId.equals(tn.getConnectionId()) && tableName.equals(tn.getTableName())) {
+                return tn;
+            }
+        }
+        return null;
     }
 
     protected Map<String, Map<String, String>> removeUselessFields(Dag dag, List<String> traceFilterFieldNames, Map<String, Map<String, String>> fieldNameMapping) {
@@ -240,38 +364,6 @@ public class BloodlineFinder {
         }
 
         return result;
-    }
-
-    private Map<String, String> getNodeFieldToOriginMapping(Map<String, Map<String, String>> fieldNameMappingByNodeId, String nodeId, LineageTableNode lineageTableNode) {
-        if (MapUtils.isEmpty(fieldNameMappingByNodeId) || StringUtils.isBlank(nodeId)) {
-            return new HashMap<>();
-        }
-        Map<String, String> direct = fieldNameMappingByNodeId.get(nodeId);
-        if (MapUtils.isNotEmpty(direct)) {
-            return direct;
-        }
-        if (null != lineageTableNode) {
-            LineageMetadataInstance metadata = lineageTableNode.getMetadata();
-            if (null != metadata && StringUtils.isNotBlank(metadata.getNodeId())) {
-                Map<String, String> byMetaNodeId = fieldNameMappingByNodeId.get(metadata.getNodeId());
-                if (MapUtils.isNotEmpty(byMetaNodeId)) {
-                    return byMetaNodeId;
-                }
-            }
-            Map<String, LineageTask> tasks = lineageTableNode.getTasks();
-            if (MapUtils.isNotEmpty(tasks)) {
-                for (LineageTask t : tasks.values()) {
-                    if (null == t || null == t.getTaskNode() || StringUtils.isBlank(t.getTaskNode().getId())) {
-                        continue;
-                    }
-                    Map<String, String> byTaskNodeId = fieldNameMappingByNodeId.get(t.getTaskNode().getId());
-                    if (MapUtils.isNotEmpty(byTaskNodeId)) {
-                        return byTaskNodeId;
-                    }
-                }
-            }
-        }
-        return new HashMap<>();
     }
 
     protected void removeUselessFields(Node<?> node) {
@@ -1443,6 +1535,7 @@ public class BloodlineFinder {
         String nodeType;
         List<FieldNameMapping> joinKeys;
         List<FieldNameMapping> tablePk;
+        List<String> updateConditionField;
         String path;
         String tableType = SUB_TABLE;
     }
@@ -1461,17 +1554,6 @@ public class BloodlineFinder {
         public TracedField(String rootNodeId, String rootFieldName) {
             this.rootNodeId = rootNodeId;
             this.rootFieldName = rootFieldName;
-        }
-    }
-
-    @Data
-    protected static final class ProducingTaskInfo {
-        private final String taskId;
-        private final String nodeId;
-
-        private ProducingTaskInfo(String taskId, String nodeId) {
-            this.taskId = taskId;
-            this.nodeId = nodeId;
         }
     }
 
