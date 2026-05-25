@@ -419,7 +419,8 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			lineageTableNode.addTask(lineageTask);
 		} else {
 			DataSourceEntity dataSource = findDataSource(analyzeLayer.getConnectionId());
-			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable(), graphNode.getId()));
+			String graphNodeId = null == graphNode ? null : graphNode.getId();
+			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable(), graphNodeId));
 			lineageTableNode.addTask(lineageTask);
 			setGraphNode(graph, lineageTableNode);
 		}
