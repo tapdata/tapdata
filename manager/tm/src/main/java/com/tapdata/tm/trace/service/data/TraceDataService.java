@@ -1,5 +1,6 @@
 package com.tapdata.tm.trace.service.data;
 
+import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.Edge;
@@ -22,6 +23,7 @@ import com.tapdata.tm.utils.MessageUtil;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -139,7 +142,9 @@ public class TraceDataService {
         traceValue.setDownStreamRecords(downStreamRecords);
         List<TraceNodeError> errors = new ArrayList<>();
         traceValue.setTracedFields(buildTracedFields(request.getTrackedFields(), targetFieldMapping, currentFieldMapping, errors));
-        traceValue.setResultFieldMapping(buildResultFieldMapping(currentFieldMapping, downstreamFieldMapping));
+        traceValue.setResultFieldMapping(buildResultFieldMapping(currentFieldMapping, downstreamFieldMapping,
+                resolveTablePath(currentNode)));
+        traceValue.setQueryConditions(buildQueryConditions(condition));
 
         TraceStreamEvent event = TraceStreamEvent.traceValue(
                 requestId,
@@ -154,6 +159,89 @@ public class TraceDataService {
         return traceValue;
     }
 
+    private List<Map<String, Object>> buildQueryConditions(TraceQueryCondition condition) {
+        if (condition == null) {
+            return Collections.emptyList();
+        }
+        List<Map<String, Object>> queryConditions = new ArrayList<>();
+        if (condition.isSqlMode() || StringUtils.isNotBlank(condition.getSql())) {
+            Map<String, Object> sqlCondition = new LinkedHashMap<>();
+            sqlCondition.put("sqlMode", condition.isSqlMode());
+            sqlCondition.put("sql", condition.getSql());
+            queryConditions.add(sqlCondition);
+        }
+        for (Map<String, Object> filter : safeFilters(condition)) {
+            Map<String, Object> sanitizedFilter = sanitizeFilter(filter);
+            if (MapUtils.isNotEmpty(sanitizedFilter)) {
+                queryConditions.add(sanitizedFilter);
+            }
+        }
+        CollectionUtils.emptyIfNull(condition.getQueryOperators()).stream()
+                .filter(Objects::nonNull)
+                .filter(operator -> StringUtils.isNotBlank(operator.getKey()))
+                .map(this::buildQueryOperatorCondition)
+                .forEach(queryConditions::add);
+        return queryConditions;
+    }
+
+    private Map<String, Object> buildQueryOperatorCondition(QueryOperator queryOperator) {
+        Map<String, Object> queryCondition = new LinkedHashMap<>();
+        queryCondition.put("key", queryOperator.getKey());
+        queryCondition.put("value", queryOperator.getValue());
+        queryCondition.put("operator", queryOperator.getOperator());
+        return queryCondition;
+    }
+
+    private void addFilter(TraceQueryCondition condition, String key, Object value) {
+        if (condition == null || StringUtils.isBlank(key)) {
+            return;
+        }
+        Map<String, Object> filter = new LinkedHashMap<>();
+        filter.put(key, value);
+        condition.getFilters().add(filter);
+    }
+
+    private List<Map<String, Object>> safeFilters(TraceQueryCondition condition) {
+        if (condition == null || CollectionUtils.isEmpty(condition.getFilters())) {
+            return Collections.emptyList();
+        }
+        return condition.getFilters();
+    }
+
+    private Map<String, Object> sanitizeFilter(Map<String, Object> filter) {
+        if (MapUtils.isEmpty(filter)) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> sanitized = new LinkedHashMap<>();
+        filter.forEach((key, value) -> {
+            if (StringUtils.isNotBlank(key)) {
+                sanitized.put(key, value);
+            }
+        });
+        return sanitized;
+    }
+
+    private List<Map<String, Object>> distinctFilters(List<Map<String, Object>> filters) {
+        if (CollectionUtils.isEmpty(filters)) {
+            return Collections.emptyList();
+        }
+        List<Map<String, Object>> result = new ArrayList<>();
+        Set<Map<String, Object>> seen = new HashSet<>();
+        for (Map<String, Object> filter : filters) {
+            if (MapUtils.isEmpty(filter)) {
+                continue;
+            }
+            Map<String, Object> copy = sanitizeFilter(filter);
+            if (MapUtils.isEmpty(copy)) {
+                continue;
+            }
+            if (seen.add(copy)) {
+                result.add(copy);
+            }
+        }
+        return result;
+    }
+
     private TraceQueryCondition buildTargetCondition(WideTableTraceRequest request, Node targetNode) {
         TraceQueryCondition condition = new TraceQueryCondition();
         condition.setConnectionId(StringUtils.defaultIfBlank(resolveConnectionId(targetNode), request.getConnectionId()));
@@ -161,6 +249,8 @@ public class TraceDataService {
         if (request.getFilters() != null && StringUtils.isNotBlank(request.getFilters().getSql())) {
             condition.setSqlMode(true);
             condition.setSql(request.getFilters().getSql());
+            Map<String, Object> filter = JSON.parseObject(request.getFilters().getSql(), Map.class);
+            condition.getConditionKeys().addAll(filter.keySet());
         }
         if (request.getFilters() != null && request.getFilters().getCustom() != null
                 && StringUtils.isNotBlank(request.getFilters().getCustom().getKey())) {
@@ -168,8 +258,9 @@ public class TraceDataService {
             if (isRangeOperator(custom.getOperator())) {
                 condition.getQueryOperators().add(custom);
             } else {
-                condition.getFilters().put(custom.getKey(), custom.getValue());
+                addFilter(condition, custom.getKey(), custom.getValue());
             }
+            condition.getConditionKeys().add(custom.getKey());
         }
         return condition;
     }
@@ -189,7 +280,7 @@ public class TraceDataService {
         condition.setConnectionId(resolveConnectionId(upstreamNode));
         condition.setTable(resolveTableName(upstreamNode));
         if (isMergeSubTable(upstreamNode, edge)) {
-            condition.getFilters().putAll(buildMergeJoinFilters(upstreamNode, edge, currentTraceValue,
+            condition.setFilters(buildMergeJoinFilters(upstreamNode, edge, currentTraceValue,
                     currentCondition, fallbackTraceValue, fallbackCondition, errors));
             addEmptyFilterError(condition, errors, upstreamNode, currentNode);
             return new TraceConditionBuildResult(condition, errors);
@@ -200,24 +291,73 @@ public class TraceDataService {
         Map<String, String> fallbackFieldMapping = fallbackNode == null
                 ? Collections.emptyMap()
                 : fieldNameMapping.getOrDefault(fallbackNode.getId(), Collections.emptyMap());
-        condition.getFilters().putAll(buildNormalUpstreamFilters(currentCondition, currentTraceValue,
+        condition.setFilters(buildNormalUpstreamFilters(currentCondition, currentTraceValue,
                 upstreamFieldMapping, currentFieldMapping, fallbackCondition, fallbackTraceValue, fallbackFieldMapping, errors));
         addEmptyFilterError(condition, errors, upstreamNode, currentNode);
         return new TraceConditionBuildResult(condition, errors);
     }
 
-    private Map<String, Object> buildMergeJoinFilters(Node upstreamNode, Edge edge, TraceValue downstreamTraceValue,
-                                                      TraceQueryCondition downstreamCondition,
-                                                      TraceValue fallbackTraceValue,
-                                                      TraceQueryCondition fallbackCondition,
-                                                      List<TraceNodeError> errors) {
+    private List<Map<String, Object>> buildMergeJoinFilters(Node upstreamNode, Edge edge, TraceValue downstreamTraceValue,
+                                                            TraceQueryCondition downstreamCondition,
+                                                            TraceValue fallbackTraceValue,
+                                                            TraceQueryCondition fallbackCondition,
+                                                            List<TraceNodeError> errors) {
         List<Map<String, String>> joinKeys = extractJoinKeys(upstreamNode, edge);
         if (CollectionUtils.isEmpty(joinKeys)) {
             errors.add(traceError(ERROR_MERGE_JOIN_KEY_NOT_FOUND,null, null, null, null, null,
                     "table=" + resolveTableName(upstreamNode)));
-            return Collections.emptyMap();
+            return Collections.emptyList();
         }
-        Map<String, Object> filters = new HashMap<>();
+        List<Map<String, Object>> filters = buildMergeJoinFiltersFromRecords(joinKeys, downstreamTraceValue, errors);
+        if (CollectionUtils.isEmpty(filters)) {
+            filters = buildMergeJoinFiltersFromCondition(joinKeys, downstreamCondition, errors);
+        }
+        if (CollectionUtils.isEmpty(filters)) {
+            filters = buildMergeJoinFiltersFromRecords(joinKeys, fallbackTraceValue, errors);
+        }
+        if (CollectionUtils.isEmpty(filters)) {
+            filters = buildMergeJoinFiltersFromCondition(joinKeys, fallbackCondition, errors);
+        }
+        return distinctFilters(filters);
+    }
+
+    private List<Map<String, Object>> buildMergeJoinFiltersFromRecords(List<Map<String, String>> joinKeys,
+                                                                       TraceValue traceValue,
+                                                                       List<TraceNodeError> errors) {
+        if (!hasCurrentRecords(traceValue)) {
+            return Collections.emptyList();
+        }
+        List<Map<String, Object>> filters = new ArrayList<>();
+        for (Map<String, Object> record : traceValue.getCurrentRecords()) {
+            Map<String, Object> filter = buildMergeJoinFilter(joinKeys, record, null, errors);
+            if (MapUtils.isNotEmpty(filter)) {
+                filters.add(filter);
+            }
+        }
+        return filters;
+    }
+
+    private List<Map<String, Object>> buildMergeJoinFiltersFromCondition(List<Map<String, String>> joinKeys,
+                                                                         TraceQueryCondition condition,
+                                                                         List<TraceNodeError> errors) {
+        if (!hasFilterCondition(condition)) {
+            return Collections.emptyList();
+        }
+        List<Map<String, Object>> filters = new ArrayList<>();
+        for (Map<String, Object> sourceFilter : safeFilters(condition)) {
+            Map<String, Object> filter = buildMergeJoinFilter(joinKeys, null, sourceFilter, errors);
+            if (MapUtils.isNotEmpty(filter)) {
+                filters.add(filter);
+            }
+        }
+        return filters;
+    }
+
+    private Map<String, Object> buildMergeJoinFilter(List<Map<String, String>> joinKeys,
+                                                     Map<String, Object> record,
+                                                     Map<String, Object> sourceFilter,
+                                                     List<TraceNodeError> errors) {
+        Map<String, Object> filter = new LinkedHashMap<>();
         for (Map<String, String> joinKey : joinKeys) {
             String sourceField = firstNotBlank(joinKey.get("originName"));
             String targetField = firstNotBlank(joinKey.get("targetName"));
@@ -226,103 +366,159 @@ public class TraceDataService {
                         "joinKey=" + joinKey));
                 continue;
             }
-            Object value = collectRecordValues(downstreamTraceValue, targetField);
-            if (value == null && downstreamCondition != null) {
-                value = downstreamCondition.getFilters().get(targetField);
-            }
-            if (value == null) {
-                value = collectRecordValues(fallbackTraceValue, targetField);
-            }
-            if (value == null && fallbackCondition != null) {
-                value = fallbackCondition.getFilters().get(targetField);
+            Object value = record == null ? null : readRecordValue(record, targetField);
+            if (value == null && sourceFilter != null) {
+                value = sourceFilter.get(targetField);
             }
             if (value != null) {
-                filters.put(sourceField, value);
+                filter.put(sourceField, value);
             } else {
                 errors.add(traceError(ERROR_VALUE_MISMATCH, targetField, sourceField, targetField, null, null,
                         "joinKey=" + joinKey));
             }
         }
-        return filters;
+        return filter;
     }
 
-    private Map<String, Object> buildNormalUpstreamFilters(TraceQueryCondition currentCondition,
-                                                           TraceValue currentTraceValue,
-                                                           Map<String, String> upstreamFieldMapping,
-                                                           Map<String, String> currentFieldMapping,
-                                                           TraceQueryCondition fallbackCondition,
-                                                           TraceValue fallbackTraceValue,
-                                                           Map<String, String> fallbackFieldMapping,
-                                                           List<TraceNodeError> errors) {
-        Map<String, Object> filters = rewriteFiltersByFieldMapping(currentCondition, currentTraceValue,
+    private List<Map<String, Object>> buildNormalUpstreamFilters(TraceQueryCondition currentCondition,
+                                                                 TraceValue currentTraceValue,
+                                                                 Map<String, String> upstreamFieldMapping,
+                                                                 Map<String, String> currentFieldMapping,
+                                                                 TraceQueryCondition fallbackCondition,
+                                                                 TraceValue fallbackTraceValue,
+                                                                 Map<String, String> fallbackFieldMapping,
+                                                                 List<TraceNodeError> errors) {
+        List<Map<String, Object>> filters = rewriteFiltersByFieldMapping(currentCondition, currentTraceValue,
                 upstreamFieldMapping, currentFieldMapping, errors);
-        if (filters.isEmpty()) {
-            filters.putAll(rewriteRecordValuesByFieldMapping(currentTraceValue, upstreamFieldMapping, currentFieldMapping, errors));
+        if (CollectionUtils.isEmpty(filters)) {
+            filters = rewriteRecordValuesByFieldMapping(currentTraceValue, upstreamFieldMapping, currentFieldMapping, errors);
         }
-        if (filters.isEmpty() && fallbackCondition != null && !fallbackFieldMapping.isEmpty()) {
-            filters.putAll(rewriteFiltersByFieldMapping(fallbackCondition, fallbackTraceValue,
-                    upstreamFieldMapping, fallbackFieldMapping, errors));
+        if (CollectionUtils.isEmpty(filters) && fallbackCondition != null && !fallbackFieldMapping.isEmpty()) {
+            filters = rewriteFiltersByFieldMapping(fallbackCondition, fallbackTraceValue,
+                    upstreamFieldMapping, fallbackFieldMapping, errors);
         }
-        if (filters.isEmpty() && !fallbackFieldMapping.isEmpty()) {
-            filters.putAll(rewriteRecordValuesByFieldMapping(fallbackTraceValue, upstreamFieldMapping, fallbackFieldMapping, errors));
+        if (CollectionUtils.isEmpty(filters) && !fallbackFieldMapping.isEmpty()) {
+            filters = rewriteRecordValuesByFieldMapping(fallbackTraceValue, upstreamFieldMapping, fallbackFieldMapping, errors);
         }
-        return filters;
+        return distinctFilters(filters);
     }
 
-    private Map<String, Object> rewriteFiltersByFieldMapping(TraceQueryCondition currentCondition, TraceValue currentTraceValue,
-                                                             Map<String, String> upstreamFieldMapping,
-                                                             Map<String, String> currentFieldMapping,
-                                                             List<TraceNodeError> errors) {
-        if (currentCondition == null || currentCondition.getFilters().isEmpty()
-                || upstreamFieldMapping.isEmpty() || currentFieldMapping.isEmpty()) {
-            return Collections.emptyMap();
+    private List<Map<String, Object>> rewriteFiltersByFieldMapping(TraceQueryCondition currentCondition, TraceValue currentTraceValue,
+                                                                   Map<String, String> upstreamFieldMapping,
+                                                                   Map<String, String> currentFieldMapping,
+                                                                   List<TraceNodeError> errors) {
+        if (currentCondition == null || upstreamFieldMapping.isEmpty() || currentFieldMapping.isEmpty()) {
+            return Collections.emptyList();
         }
         Map<String, String> upstreamByOrigin = new HashMap<>();
         upstreamFieldMapping.forEach((fieldName, originName) -> upstreamByOrigin.putIfAbsent(originName, fieldName));
 
-        Map<String, Object> filters = new HashMap<>();
-        currentCondition.getFilters().forEach((currentField, currentValue) -> {
-            String originName = currentFieldMapping.get(currentField);
-            String upstreamField = StringUtils.isBlank(originName) ? null : upstreamByOrigin.get(originName);
-            if (StringUtils.isBlank(upstreamField)) {
-                errors.add(traceError(ERROR_FIELD_MAPPING_NOT_FOUND, currentField, null, currentField, null, null,
-                        "originName=" + originName));
-                return;
+        List<Map<String, Object>> filters = new ArrayList<>();
+        if(CollectionUtils.isEmpty(currentCondition.getFilters())){
+            currentCondition.getConditionKeys().forEach(key -> {
+                if (hasCurrentRecords(currentTraceValue)) {
+                    filters.addAll(rewriteFilterWithRecords(null,currentCondition.getConditionKeys(), currentTraceValue, upstreamByOrigin, currentFieldMapping, errors));
+                }
+            });
+        }else{
+            for (Map<String, Object> sourceFilter : safeFilters(currentCondition)) {
+                if (hasCurrentRecords(currentTraceValue)) {
+                    filters.addAll(rewriteFilterWithRecords(sourceFilter, currentCondition.getConditionKeys(),currentTraceValue, upstreamByOrigin, currentFieldMapping, errors));
+                } else {
+                    Map<String, Object> filter = rewriteFilterByFieldMapping(sourceFilter, null,null, upstreamByOrigin, currentFieldMapping, errors);
+                    if (MapUtils.isNotEmpty(filter)) {
+                        filters.add(filter);
+                    }
+                }
             }
-            Object value = collectRecordValues(currentTraceValue, currentField);
-            if (value != null && currentValue != null && !valueMatches(value, currentValue)) {
-                errors.add(traceError(ERROR_VALUE_MISMATCH, currentField, upstreamField, currentField, currentValue, value,
-                        "originName=" + originName));
+        }
+
+        return distinctFilters(filters);
+    }
+
+    private List<Map<String, Object>> rewriteFilterWithRecords(Map<String, Object> sourceFilter,
+                                                               Set<String> sourceKeys,
+                                                               TraceValue currentTraceValue,
+                                                               Map<String, String> upstreamByOrigin,
+                                                               Map<String, String> currentFieldMapping,
+                                                               List<TraceNodeError> errors) {
+        List<Map<String, Object>> filters = new ArrayList<>();
+        for (Map<String, Object> record : currentTraceValue.getCurrentRecords()) {
+            Map<String, Object> filter = rewriteFilterByFieldMapping(sourceFilter, sourceKeys,record, upstreamByOrigin, currentFieldMapping, errors);
+            if (MapUtils.isNotEmpty(filter)) {
+                filters.add(filter);
             }
-            filters.put(upstreamField, value == null ? currentValue : value);
-        });
+        }
         return filters;
     }
 
-    private Map<String, Object> rewriteRecordValuesByFieldMapping(TraceValue currentTraceValue,
-                                                                  Map<String, String> upstreamFieldMapping,
-                                                                  Map<String, String> currentFieldMapping,
-                                                                  List<TraceNodeError> errors) {
+    private Map<String, Object> rewriteFilterByFieldMapping(Map<String, Object> sourceFilter,
+                                                            Set<String> sourceKeys,
+                                                            Map<String, Object> record,
+                                                            Map<String, String> upstreamByOrigin,
+                                                            Map<String, String> currentFieldMapping,
+                                                            List<TraceNodeError> errors) {
+        Map<String, Object> filter = new LinkedHashMap<>();
+        if (MapUtils.isEmpty(sourceFilter)) {
+            sourceKeys.forEach(key -> {
+                String originName = currentFieldMapping.get(key);
+                Object value = readRecordValue(record, key);
+                if (value == null ) {
+                    errors.add(traceError(ERROR_VALUE_MISMATCH, key, originName, key, null, null,
+                            "originName=" + originName));
+                }
+                if (value != null) {
+                    filter.put(originName, value);
+                }
+            });
+        }else{
+            sourceFilter.forEach((currentField, currentValue) -> {
+                String originName = currentFieldMapping.get(currentField);
+                Object value = record == null ? currentValue : readRecordValue(record, currentField);
+                if (value != null) {
+                    filter.put(originName, value);
+                }
+            });
+        }
+
+        return filter;
+    }
+
+    private List<Map<String, Object>> rewriteRecordValuesByFieldMapping(TraceValue currentTraceValue,
+                                                                        Map<String, String> upstreamFieldMapping,
+                                                                        Map<String, String> currentFieldMapping,
+                                                                        List<TraceNodeError> errors) {
         if (!hasCurrentRecords(currentTraceValue) || upstreamFieldMapping.isEmpty() || currentFieldMapping.isEmpty()) {
-            return Collections.emptyMap();
+            return Collections.emptyList();
         }
         Map<String, String> currentByOrigin = new HashMap<>();
         currentFieldMapping.forEach((fieldName, originName) -> currentByOrigin.putIfAbsent(originName, fieldName));
 
-        Map<String, Object> filters = new HashMap<>();
-        upstreamFieldMapping.forEach((upstreamField, originName) -> {
-            String currentField = currentByOrigin.get(originName);
-            if (StringUtils.isBlank(currentField)) {
-                errors.add(traceError(ERROR_FIELD_MAPPING_NOT_FOUND, null, upstreamField, null, null, null,
-                        "originName=" + originName));
-                return;
+        List<Map<String, Object>> filters = new ArrayList<>();
+        for (Map<String, Object> record : currentTraceValue.getCurrentRecords()) {
+            Map<String, Object> filter = new LinkedHashMap<>();
+            upstreamFieldMapping.forEach((upstreamField, originName) -> {
+                if (StringUtils.isBlank(upstreamField)) {
+                    errors.add(traceError(ERROR_FIELD_MAPPING_NOT_FOUND, null, upstreamField, null, null, null,
+                            "originName=" + originName));
+                    return;
+                }
+                String currentField = currentByOrigin.get(originName);
+                if (StringUtils.isBlank(currentField)) {
+                    errors.add(traceError(ERROR_FIELD_MAPPING_NOT_FOUND, null, upstreamField, null, null, null,
+                            "originName=" + originName));
+                    return;
+                }
+                Object value = readRecordValue(record, currentField);
+                if (value != null) {
+                    filter.put(upstreamField, value);
+                }
+            });
+            if (MapUtils.isNotEmpty(filter)) {
+                filters.add(filter);
             }
-            Object value = collectRecordValues(currentTraceValue, currentField);
-            if (value != null) {
-                filters.put(upstreamField, value);
-            }
-        });
-        return filters;
+        }
+        return distinctFilters(filters);
     }
 
     private boolean hasCurrentRecords(TraceValue traceValue) {
@@ -330,11 +526,11 @@ public class TraceDataService {
     }
 
     private boolean hasFilterCondition(TraceQueryCondition condition) {
-        return condition != null && !condition.getFilters().isEmpty();
+        return condition != null && CollectionUtils.isNotEmpty(condition.getFilters());
     }
 
     private void addEmptyFilterError(TraceQueryCondition condition, List<TraceNodeError> errors, Node upstreamNode, Node currentNode) {
-        if (condition == null || !condition.getFilters().isEmpty() || !condition.getQueryOperators().isEmpty()
+        if (condition == null || CollectionUtils.isNotEmpty(condition.getFilters()) || CollectionUtils.isNotEmpty(condition.getQueryOperators())
                 || StringUtils.isNotBlank(condition.getSql())) {
             return;
         }
@@ -396,8 +592,6 @@ public class TraceDataService {
             String originName = targetFieldMapping.getOrDefault(trackedField, trackedField);
             String currentName = findFieldByOrigin(currentFieldMapping, originName, trackedField);
             if (StringUtils.isBlank(currentName)) {
-                errors.add(traceError(ERROR_FIELD_MAPPING_NOT_FOUND, trackedField, null, trackedField, null, null,
-                        "originName=" + originName));
                 continue;
             }
             TraceFieldMapping mapping = new TraceFieldMapping();
@@ -409,16 +603,18 @@ public class TraceDataService {
     }
 
     private List<TraceFieldMapping> buildResultFieldMapping(Map<String, String> currentFieldMapping,
-                                                            Map<String, String> downstreamFieldMapping) {
+                                                            Map<String, String> downstreamFieldMapping,
+                                                            String path) {
         if (currentFieldMapping.isEmpty() || downstreamFieldMapping.isEmpty()) {
             return Collections.emptyList();
         }
-        Map<String, String> downstreamByOrigin = new HashMap<>();
-        downstreamFieldMapping.forEach((fieldName, originName) -> downstreamByOrigin.putIfAbsent(originName, fieldName));
+        Map<String, List<String>> downstreamByOrigin = new HashMap<>();
+        downstreamFieldMapping.forEach((fieldName, originName) ->
+                downstreamByOrigin.computeIfAbsent(originName, key -> new ArrayList<>()).add(fieldName));
 
         List<TraceFieldMapping> result = new ArrayList<>();
         currentFieldMapping.forEach((currentName, originName) -> {
-            String downstreamName = downstreamByOrigin.get(originName);
+            String downstreamName = chooseDownstreamFieldName(downstreamByOrigin.get(currentName), path, currentName);
             if (StringUtils.isBlank(downstreamName)) {
                 return;
             }
@@ -428,6 +624,44 @@ public class TraceDataService {
             result.add(mapping);
         });
         return result;
+    }
+
+    private String chooseDownstreamFieldName(List<String> downstreamNames, String path, String currentName) {
+        if (CollectionUtils.isEmpty(downstreamNames)) {
+            return null;
+        }
+        List<String> candidates = downstreamNames.stream()
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .sorted(String::compareTo)
+                .collect(Collectors.toList());
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(path)) {
+            String prefix = path + ".";
+            for (String candidate : candidates) {
+                if (StringUtils.equals(candidate, path) || StringUtils.startsWith(candidate, prefix)) {
+                    return candidate;
+                }
+            }
+        }
+        for (String candidate : candidates) {
+            if (!StringUtils.contains(candidate, ".")) {
+                return candidate;
+            }
+        }
+        for (String candidate : candidates) {
+            if (StringUtils.equals(candidate, currentName)) {
+                return candidate;
+            }
+        }
+        return candidates.get(0);
+    }
+
+    private String resolveTablePath(Node node) {
+        BloodlineFinder.TableProperties properties = resolveTableProperties(node, null);
+        return properties == null ? null : properties.getPath();
     }
 
     private String findFieldByOrigin(Map<String, String> fieldMapping, String originName, String fallbackFieldName) {
@@ -678,8 +912,8 @@ public class TraceDataService {
         }
 
         private boolean isTraceable() {
-            return condition != null && (!condition.getFilters().isEmpty()
-                    || !condition.getQueryOperators().isEmpty()
+            return condition != null && (CollectionUtils.isNotEmpty(condition.getFilters())
+                    || CollectionUtils.isNotEmpty(condition.getQueryOperators())
                     || StringUtils.isNotBlank(condition.getSql()));
         }
     }

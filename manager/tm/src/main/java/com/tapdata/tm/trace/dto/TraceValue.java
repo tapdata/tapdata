@@ -16,4 +16,5 @@ public class TraceValue {
     private List<TraceFieldMapping> tracedFields = new ArrayList<>();
     private boolean visable = true;
     private List<TraceFieldMapping> resultFieldMapping = new ArrayList<>();
+    private List<Map<String, Object>> queryConditions  = new ArrayList<>();
 }

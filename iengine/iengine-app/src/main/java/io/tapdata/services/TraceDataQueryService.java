@@ -67,7 +67,7 @@ public class TraceDataQueryService {
 	}
 
 	public List<Map<String, Object>> query(String connectionId, String tableName, String sql,
-										   Map<String, Object> filters, Boolean sqlMode,
+										   List<Map<String, Object>> filters, Boolean sqlMode,
 										   Integer limit, Integer batchSize,
 										   List<QueryOperator> queryOperators,
 										   Map<String, Object> executeParams) {
@@ -103,7 +103,7 @@ public class TraceDataQueryService {
 	}
 
 	private List<Map<String, Object>> queryByExecuteCommand(ConnectorNode connectorNode, TapTable tapTable, String tableName,
-															String sql, Map<String, Object> filters,
+															String sql, List<Map<String, Object>> filters,
 															List<QueryOperator> queryOperators, Integer limit,
 															Integer batchSize, Map<String, Object> executeParams) throws Throwable {
 		ExecuteCommandFunction executeCommandFunction = connectorNode.getConnectorFunctions().getExecuteCommandFunction();
@@ -135,7 +135,7 @@ public class TraceDataQueryService {
 	}
 
 	private List<Map<String, Object>> queryByAdvanceFilter(ConnectorNode connectorNode, TapTable tapTable,
-														   Map<String, Object> filters,
+														   List<Map<String, Object>> filters,
 														   List<QueryOperator> queryOperators, Integer limit,
 														   Integer batchSize) throws Throwable {
 		QueryByAdvanceFilterFunction queryFunction = connectorNode.getConnectorFunctions().getQueryByAdvanceFilterFunction();
@@ -144,27 +144,29 @@ public class TraceDataQueryService {
 			return Collections.emptyList();
 		}
 
-		TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create()
-				.limit(resolveLimit(limit))
-				.batchSize(resolveBatchSize(batchSize));
-		if (MapUtils.isNotEmpty(filters)) {
-			tapAdvanceFilter.match(DataMap.create(new LinkedHashMap<>(filters)));
-		}
-		if (CollectionUtils.isNotEmpty(queryOperators)) {
-			queryOperators.stream()
-					.filter(Objects::nonNull)
-					.forEach(tapAdvanceFilter::op);
-		}
 		AtomicReference<List<Map<String, Object>>> resultsRef = new AtomicReference<>(new ArrayList<>());
-		queryFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
-			if (filterResults != null && CollectionUtils.isNotEmpty(filterResults.getResults())) {
-				resultsRef.get().addAll(filterResults.getResults());
+		for (Map<String, Object> filter : normalizeFilters(filters)) {
+			TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create()
+					.limit(resolveLimit(limit))
+					.batchSize(resolveBatchSize(batchSize));
+			if (MapUtils.isNotEmpty(filter)) {
+				tapAdvanceFilter.match(DataMap.create(new LinkedHashMap<>(filter)));
 			}
-		});
+			if (CollectionUtils.isNotEmpty(queryOperators)) {
+				queryOperators.stream()
+						.filter(Objects::nonNull)
+						.forEach(tapAdvanceFilter::op);
+			}
+			queryFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+				if (filterResults != null && CollectionUtils.isNotEmpty(filterResults.getResults())) {
+					resultsRef.get().addAll(filterResults.getResults());
+				}
+			});
+		}
 		return transformResults(connectorNode, tapTable, resultsRef.get());
 	}
 
-	private Map<String, Object> buildMongoExecuteParams(String tableName, String sql, Map<String, Object> filters,
+	private Map<String, Object> buildMongoExecuteParams(String tableName, String sql, List<Map<String, Object>> filters,
 														List<QueryOperator> queryOperators, Integer limit,
 														Integer batchSize, Map<String, Object> executeParams) {
 		Map<String, Object> params = new LinkedHashMap<>();
@@ -172,20 +174,52 @@ public class TraceDataQueryService {
 			params.putAll(executeParams);
 		}
 		params.putIfAbsent("collection", tableName);
-		params.putIfAbsent("filter", parseSqlFilter(sql));
-		if (MapUtils.isNotEmpty(filters)) {
-			Object filter = params.get("filter");
-			if (filter instanceof Map) {
-				((Map<String, Object>) filter).putAll(filters);
-			}
-		}
 		Object filter = params.get("filter");
 		if (filter instanceof Map) {
-			appendQueryOperators((Map<String, Object>) filter, queryOperators);
+			List<Map<String, Object>> mergedFilters = buildMongoFilters((Map<String, Object>) filter, filters, queryOperators);
+			params.put("filter", mergedFilters.size() == 1 ? mergedFilters.get(0) : buildOrFilter(mergedFilters));
+		} else if (filter == null) {
+			List<Map<String, Object>> mergedFilters = buildMongoFilters(parseSqlFilter(sql), filters, queryOperators);
+			params.put("filter", mergedFilters.size() == 1 ? mergedFilters.get(0) : buildOrFilter(mergedFilters));
 		}
 		params.putIfAbsent("limit", resolveLimit(limit));
 		params.putIfAbsent("batchSize", resolveBatchSize(batchSize));
 		return params;
+	}
+
+	private List<Map<String, Object>> buildMongoFilters(Map<String, Object> baseFilter,
+														List<Map<String, Object>> filters,
+														List<QueryOperator> queryOperators) {
+		List<Map<String, Object>> mergedFilters = new ArrayList<>();
+		for (Map<String, Object> filter : normalizeFilters(filters)) {
+			Map<String, Object> mergedFilter = new LinkedHashMap<>();
+			if (MapUtils.isNotEmpty(baseFilter)) {
+				mergedFilter.putAll(baseFilter);
+			}
+			if (MapUtils.isNotEmpty(filter)) {
+				mergedFilter.putAll(filter);
+			}
+			appendQueryOperators(mergedFilter, queryOperators);
+			mergedFilters.add(mergedFilter);
+		}
+		return mergedFilters;
+	}
+
+	private Map<String, Object> buildOrFilter(List<Map<String, Object>> filters) {
+		Map<String, Object> filter = new LinkedHashMap<>();
+		filter.put("$or", filters);
+		return filter;
+	}
+
+	private List<Map<String, Object>> normalizeFilters(List<Map<String, Object>> filters) {
+		if (CollectionUtils.isEmpty(filters)) {
+			return Collections.singletonList(Collections.emptyMap());
+		}
+		List<Map<String, Object>> normalized = filters.stream()
+				.filter(MapUtils::isNotEmpty)
+				.map(LinkedHashMap::new)
+				.collect(java.util.stream.Collectors.toList());
+		return normalized.isEmpty() ? Collections.singletonList(Collections.emptyMap()) : normalized;
 	}
 
 	private void appendQueryOperators(Map<String, Object> filter, List<QueryOperator> queryOperators) {
