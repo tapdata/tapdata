@@ -113,7 +113,7 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     private Boolean applyCompareRule = false;
 
-    private List<String> applyCompareRules;
+    private List<String> applyCompareRules = new ArrayList<>(Arrays.asList(DifferenceTypeEnum.Different.name(), DifferenceTypeEnum.Precision.name()));
 
     private Boolean compareIgnoreCase = false;
 
