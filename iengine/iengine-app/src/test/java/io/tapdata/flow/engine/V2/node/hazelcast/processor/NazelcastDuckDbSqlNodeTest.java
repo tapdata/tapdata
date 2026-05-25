@@ -5,7 +5,6 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,7 +23,7 @@ import static org.mockito.Mockito.*;
 /**
  * DuckDbSqlNode 单元测试
  */
-class DuckDbSqlNodeTest {
+class NazelcastDuckDbSqlNodeTest {
 
     @Mock
     private ProcessorBaseContext processorBaseContext;
@@ -35,7 +34,7 @@ class DuckDbSqlNodeTest {
     @Mock
     private Node node;
 
-    private DuckDbSqlNode duckDbSqlNode;
+    private NazelcastDuckDbSqlNode nazelcastDuckDbSqlNode;
 
     @BeforeEach
     void setUp() {
@@ -47,14 +46,14 @@ class DuckDbSqlNodeTest {
         when(node.getName()).thenReturn("TestNode");
         when(taskDto.isNormalTask()).thenReturn(true);
         
-        duckDbSqlNode = new DuckDbSqlNode(processorBaseContext);
-        duckDbSqlNode.setBatchSize(10);
+        nazelcastDuckDbSqlNode = new NazelcastDuckDbSqlNode(processorBaseContext);
+        nazelcastDuckDbSqlNode.setBatchSize(10);
     }
 
     @Test
     void testBatchSize_SetAndGet() {
-        duckDbSqlNode.setBatchSize(100);
-        assertEquals(100, duckDbSqlNode.getBatchSize());
+        nazelcastDuckDbSqlNode.setBatchSize(100);
+        assertEquals(100, nazelcastDuckDbSqlNode.getBatchSize());
     }
 
     @Test
@@ -66,7 +65,7 @@ class DuckDbSqlNodeTest {
         // 使用反射设置 duckDbOperator
         setDuckDbOperator(mockOperator);
         
-        List<Map<String, Object>> result = duckDbSqlNode.executeQuery("SELECT * FROM test");
+        List<Map<String, Object>> result = nazelcastDuckDbSqlNode.executeQuery("SELECT * FROM test");
         
         assertNotNull(result);
         assertEquals(expected, result);
@@ -80,7 +79,7 @@ class DuckDbSqlNodeTest {
         // 使用反射设置 duckDbOperator
         setDuckDbOperator(mockOperator);
         
-        int result = duckDbSqlNode.executeUpdate("DELETE FROM test");
+        int result = nazelcastDuckDbSqlNode.executeUpdate("DELETE FROM test");
         
         assertEquals(10, result);
     }
@@ -90,7 +89,7 @@ class DuckDbSqlNodeTest {
         AtomicInteger consumerCallCount = new AtomicInteger(0);
         
         assertDoesNotThrow(() -> 
-            duckDbSqlNode.tryProcess(null, (event, result) -> consumerCallCount.incrementAndGet())
+            nazelcastDuckDbSqlNode.tryProcess(null, (event, result) -> consumerCallCount.incrementAndGet())
         );
         
         assertEquals(0, consumerCallCount.get());
@@ -105,7 +104,7 @@ class DuckDbSqlNodeTest {
         AtomicInteger consumerCallCount = new AtomicInteger(0);
         
         assertDoesNotThrow(() -> 
-            duckDbSqlNode.tryProcess(tapdataEvent, (event, result) -> consumerCallCount.incrementAndGet())
+            nazelcastDuckDbSqlNode.tryProcess(tapdataEvent, (event, result) -> consumerCallCount.incrementAndGet())
         );
         
         assertEquals(1, consumerCallCount.get());
@@ -116,9 +115,9 @@ class DuckDbSqlNodeTest {
      */
     private void setDuckDbOperator(DuckDbOperator operator) {
         try {
-            java.lang.reflect.Field opField = DuckDbSqlNode.class.getDeclaredField("duckDbOperator");
+            java.lang.reflect.Field opField = NazelcastDuckDbSqlNode.class.getDeclaredField("duckDbOperator");
             opField.setAccessible(true);
-            opField.set(duckDbSqlNode, operator);
+            opField.set(nazelcastDuckDbSqlNode, operator);
         } catch (Exception e) {
             fail("Failed to set duckDbOperator field: " + e.getMessage());
         }

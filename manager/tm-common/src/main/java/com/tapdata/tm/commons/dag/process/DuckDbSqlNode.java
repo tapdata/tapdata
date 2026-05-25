@@ -8,6 +8,8 @@ import com.tapdata.tm.commons.schema.Schema;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,11 +33,10 @@ public class DuckDbSqlNode extends ProcessorNode {
     public static final String DEFAULT_QUERY_SQL = "SELECT * FROM %s";
 
     @EqField
-    private String sqlQuery = DEFAULT_QUERY_SQL;
-    
-    @EqField
-    private String querySql = DEFAULT_QUERY_SQL; // 保持兼容
-    
+    @JsonProperty("sqlQuery")
+    @JsonAlias({"querySql"})
+    private String querySql = DEFAULT_QUERY_SQL; // 保持兼容 (serialize as "sqlQuery", accept "querySql" too)
+
     @EqField
     private String outputTableName = DEFAULT_OUTPUT_TABLE_NAME;
     
