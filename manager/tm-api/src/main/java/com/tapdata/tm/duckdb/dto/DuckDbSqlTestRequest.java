@@ -7,4 +7,7 @@ import lombok.Setter;
 @Setter
 public class DuckDbSqlTestRequest {
     private String sql;
+    private String taskId;
+    private String nodeId;
+    private Integer rows;
 }

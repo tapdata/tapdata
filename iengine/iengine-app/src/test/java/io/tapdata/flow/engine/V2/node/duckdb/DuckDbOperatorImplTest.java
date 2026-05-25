@@ -473,11 +473,96 @@ class DuckDbOperatorImplTest {
         return tapTable;
     }
 
-    private java.util.List<java.util.Map<String, Object>> createTestData() {
-        java.util.List<java.util.Map<String, Object>> data = new java.util.ArrayList<>();
+    // ==================== 新增：物化视图相关方法测试 ====================
+    
+    @Test
+    void testQueryForMap_Success() throws SQLException {
+        Map<Object, Map<String, Object>> result = duckDbOperator.queryForMap("SELECT * FROM test_table", "id");
+        
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertTrue(result.containsKey(1L));
+        assertTrue(result.containsKey(2L));
+        verify(mockStatement).executeQuery("SELECT * FROM test_table");
+    }
+    
+    @Test
+    void testQueryForMap_EmptyResult() throws SQLException {
+        when(mockResultSet.next()).thenReturn(false);
+        
+        Map<Object, Map<String, Object>> result = duckDbOperator.queryForMap("SELECT * FROM empty_table", "id");
+        
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+    
+    @Test
+    void testQueryForMap_NullKey() throws SQLException {
+        Map<Object, Map<String, Object>> result = duckDbOperator.queryForMap("SELECT * FROM test_table", null);
+        
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+    
+    @Test
+    void testQueryForMap_EmptyKey() throws SQLException {
+        Map<Object, Map<String, Object>> result = duckDbOperator.queryForMap("SELECT * FROM test_table", "");
+        
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+    
+    @Test
+    void testExecuteInTransaction_Success() throws Exception {
+        assertDoesNotThrow(() -> duckDbOperator.executeInTransaction(() -> {
+            mockStatement.executeUpdate("UPDATE test_table SET name = 'Updated' WHERE id = 1");
+        }));
+        
+        verify(mockConnection).commit();
+    }
+    
+    @Test
+    void testExecuteInTransaction_ThrowsException() throws Exception {
+        when(mockStatement.executeUpdate(anyString())).thenThrow(new SQLException("Transaction Error"));
+        
+        assertThrows(Exception.class, () -> duckDbOperator.executeInTransaction(() -> {
+            mockStatement.executeUpdate("INVALID SQL");
+        }));
+        
+        verify(mockConnection).rollback();
+    }
+    
+    @Test
+    void testBatchInsert_Success() throws Exception {
+        List<Map<String, Object>> dataList = createTestData();
+        
+        assertDoesNotThrow(() -> duckDbOperator.batchInsert("batch_test_table", dataList));
+        // batchInsert 使用 writeBatch 方法，不直接使用 Statement，所以我们不验证 executeUpdate
+    }
+    
+    @Test
+    void testBatchInsert_EmptyData() throws SQLException {
+        List<Map<String, Object>> dataList = new ArrayList<>();
+        
+        assertDoesNotThrow(() -> duckDbOperator.batchInsert("batch_test_table", dataList));
+        
+        verify(mockStatement, never()).executeUpdate(anyString());
+    }
+    
+    @Test
+    void testBatchInsert_NullData() throws SQLException {
+        assertDoesNotThrow(() -> duckDbOperator.batchInsert("batch_test_table", null));
+        
+        verify(mockStatement, never()).executeUpdate(anyString());
+    }
+    
+    // ==================== 辅助方法 ====================
+    
+    private List<Map<String, Object>> createTestData() {
+        List<Map<String, Object>> data = new ArrayList<>();
         
         for (long i = 1; i <= 3; i++) {
-            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", i);
             row.put("name", "User_" + i);
             data.add(row);

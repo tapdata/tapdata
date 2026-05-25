@@ -13,4 +13,6 @@ public class DuckDbSqlTestResponse {
     private int rowCount;
     private long executionTimeMs;
     private String errorMessage;
+    private String errorType;
+    private Map<String, Object> data;
 }
