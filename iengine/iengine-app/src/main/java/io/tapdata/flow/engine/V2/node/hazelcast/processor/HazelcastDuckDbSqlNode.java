@@ -27,10 +27,10 @@ import java.util.concurrent.TimeUnit;
  * 继承 HazelcastProcessorBaseNode，支持流式处理模式
  * 使用 Arrow 零拷贝写入实现高性能数据处理
  */
-public class NazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
+public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
-    private static final Logger logger = LogManager.getLogger(NazelcastDuckDbSqlNode.class);
-    public static final String TAG = NazelcastDuckDbSqlNode.class.getSimpleName();
+    private static final Logger logger = LogManager.getLogger(HazelcastDuckDbSqlNode.class);
+    public static final String TAG = HazelcastDuckDbSqlNode.class.getSimpleName();
 
     /** DuckDB 操作器 */
     private DuckDbOperator duckDbOperator;
@@ -120,7 +120,7 @@ public class NazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private final Queue<TapdataEvent> pendingEvents = new LinkedList<>();
     private BiConsumer<TapdataEvent, ProcessResult> currentConsumer;
 
-    public NazelcastDuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
+    public HazelcastDuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
     }
 
