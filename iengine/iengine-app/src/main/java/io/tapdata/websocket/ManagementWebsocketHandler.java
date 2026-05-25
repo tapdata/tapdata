@@ -531,7 +531,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			// mark the dead upstream as down (fail_timeout) before our caller retries.
 			if (size == 1 && WS_NGINX_FAIL_TIMEOUT_MS > 0 && System.currentTimeMillis() < deadline) {
 				try {
-					Thread.sleep(WS_NGINX_FAIL_TIMEOUT_MS);
+					this.wait(WS_NGINX_FAIL_TIMEOUT_MS);
 				} catch (InterruptedException ie) {
 					Thread.currentThread().interrupt();
 				}
