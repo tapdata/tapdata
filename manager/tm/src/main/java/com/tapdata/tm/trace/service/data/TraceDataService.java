@@ -112,7 +112,7 @@ public class TraceDataService {
             for (Edge edge : incomingEdges.getOrDefault(currentNode.getId(), Collections.emptyList())) {
                 Node upstreamNode = nodeMap.get(edge.getSource());
                 if (upstreamNode != null) {
-                    List<BloodlineFinder.FieldNameMapping> updateConditionField = updateConditionFieldList.get(upstreamNode.getId());
+                    List<BloodlineFinder.FieldNameMapping> updateConditionField = updateConditionFieldList.get(currentNode.getId());
                     TraceConditionBuildResult buildResult = buildUpstreamCondition(request, upstreamNode, currentNode,
                             edge, traceValue, step.getCondition(), filterTraceValue, filterNode, filterCondition, updateConditionField, fieldNameMapping);
                     writeNodeErrors(outputStream, requestId, upstreamNode, buildResult.getErrors());
