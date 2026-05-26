@@ -206,18 +206,14 @@ public class WideTableIncrementalUpdater {
                                                               Set<Object> affectedAfterKeys,
                                                               List<Map<String, Object>> afterRows,
                                                               String tableName) throws SQLException {
-        // 1. 计算纯 DELETE 的主键（在 before 中但不在 after 中）
-        Set<Object> pureDeleteKeys = new LinkedHashSet<>(affectedBeforeKeys);
-        pureDeleteKeys.removeAll(affectedAfterKeys);
-
-        // 2. 使用 WITH CTE 执行 after 查询
+        // 1. 使用 WITH CTE 执行 after 查询
         List<Map<String, Object>> results = Collections.emptyList();
         if (afterRows != null && !afterRows.isEmpty()) {
             String afterSql = withCteSqlGenerator.generateBatch(querySql, tableName, afterRows, fields);
             results = duckDbOperator.executeQuery(afterSql);
         }
 
-        // 3. 使用 FourStateJudge 进行四态判断
-        return fourStateJudge.judge(pureDeleteKeys, results);
+        // 2. 使用 FourStateJudge 进行四态判断（传入完整的 affectedBeforeKeys）
+        return fourStateJudge.judge(affectedBeforeKeys, results);
     }
 }
