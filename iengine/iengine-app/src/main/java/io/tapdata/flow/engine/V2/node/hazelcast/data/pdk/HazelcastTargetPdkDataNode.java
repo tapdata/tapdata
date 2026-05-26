@@ -1289,33 +1289,38 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		List<TapRecordEvent> tapRecordEvents = tapdataEvents.parallelStream().map(TapdataEvent::getExactlyOnceWriteCache)
-				.filter(Objects::nonNull)
-				.collect(Collectors.toList());
-		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
-				pdkMethodInvoker.runnable(() -> {
-							try {
-								transactionBegin();
-								processEvents(tapEvents,false);
-								writeRecordFunction.writeRecord(
-										connectorNode.getConnectorContext(),
-										tapRecordEvents,
-										dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME),
-										result -> {
-											Map<TapRecordEvent, Throwable> errorMap = result.getErrorMap();
-											if (MapUtils.isNotEmpty(errorMap)) {
-												Iterator<Map.Entry<TapRecordEvent, Throwable>> iterator = errorMap.entrySet().iterator();
-												Map.Entry<TapRecordEvent, Throwable> next = iterator.next();
-												throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
-											}
-										});
-								transactionCommit();
-							} catch (Exception e) {
-								transactionRollback();
-								throwTapCodeException(e,new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED));
+		try {
+			List<TapRecordEvent> tapRecordEvents = tapdataEvents.parallelStream().map(TapdataEvent::getExactlyOnceWriteCache)
+					.filter(Objects::nonNull)
+					.collect(Collectors.toList());
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
+					pdkMethodInvoker.runnable(() -> {
+								try {
+									transactionBegin();
+									processEvents(tapEvents,false);
+									writeRecordFunction.writeRecord(
+											connectorNode.getConnectorContext(),
+											tapRecordEvents,
+											dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME),
+											result -> {
+												Map<TapRecordEvent, Throwable> errorMap = result.getErrorMap();
+												if (MapUtils.isNotEmpty(errorMap)) {
+													Iterator<Map.Entry<TapRecordEvent, Throwable>> iterator = errorMap.entrySet().iterator();
+													Map.Entry<TapRecordEvent, Throwable> next = iterator.next();
+													throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
+												}
+											});
+									transactionCommit();
+								} catch (Exception e) {
+									transactionRollback();
+									throwTapCodeException(e,new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED));
+								}
 							}
-						}
-				));
+					));
+		} finally {
+			// Deregister from TASK_RETRY_CLEANUP_HOOKS to prevent ConnectorNode -> MongoClient leak.
+			removePdkMethodInvoker(pdkMethodInvoker);
+		}
 	}
 
 	@Override
