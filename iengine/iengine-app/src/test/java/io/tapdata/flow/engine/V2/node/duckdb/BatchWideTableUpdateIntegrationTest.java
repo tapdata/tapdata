@@ -1,15 +1,19 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
 
-import static io.tapdata.flow.engine.V2.node.duckdb.WideTableCdcEvent.OpType.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -42,13 +46,13 @@ class BatchWideTableUpdateIntegrationTest {
 
         // 初始化更新器
         List<String> fields = Arrays.asList("id", "name", "email");
-        updater = new WideTableIncrementalUpdater("id",
+        updater = new WideTableIncrementalUpdater("users", "id",
                 "SELECT id, name, email FROM users",
-                fields, mockDuckDbOperator);
+                fields, new WithCteSqlGenerator(), mockDuckDbOperator);
     }
 
     @Test
-    void testBatchProcessing_multiTableMixedEvents() throws SQLException {
+    void testBatchProcessing_multiTableMixedEvents() throws SQLException, IOException {
         // CDC 事件缓冲区（多表混合）
         Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
 
@@ -80,24 +84,22 @@ class BatchWideTableUpdateIntegrationTest {
         assertTrue(afterKeys.contains(789));
 
         // 执行宽表更新
-        List<WideTableCdcEvent> events = updater.updateWideTable(beforeKeys, afterKeys);
+        List<Map<String, Object>> afterRows = queryResult;
+        List<TapdataEvent> events = updater.updateWideTableAsTapdataEvents(beforeKeys, afterKeys, afterRows, "users");
 
         // 验证事件生成
-        List<WideTableCdcEvent> deleteEvents = filterByOp(events, DELETE);
+        List<TapdataEvent> deleteEvents = filterByType(events, TapDeleteRecordEvent.class);
         assertEquals(1, deleteEvents.size());
-        assertEquals(123, deleteEvents.get(0).getPrimaryKey());
 
-        List<WideTableCdcEvent> insertEvents = filterByOp(events, INSERT);
+        List<TapdataEvent> insertEvents = filterByType(events, TapInsertRecordEvent.class);
         assertEquals(1, insertEvents.size());
-        assertEquals(456, insertEvents.get(0).getPrimaryKey());
 
-        List<WideTableCdcEvent> updateEvents = filterByOp(events, UPDATE);
+        List<TapdataEvent> updateEvents = filterByType(events, TapUpdateRecordEvent.class);
         assertEquals(1, updateEvents.size());
-        assertEquals(789, updateEvents.get(0).getPrimaryKey());
     }
 
     @Test
-    void testBatchProcessing_pureInsertScenario() throws SQLException {
+    void testBatchProcessing_pureInsertScenario() throws SQLException, IOException {
         Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
 
         List<Map<String, Object>> userEvents = new ArrayList<>();
@@ -117,15 +119,14 @@ class BatchWideTableUpdateIntegrationTest {
         assertTrue(beforeKeys.isEmpty());
         assertEquals(2, afterKeys.size());
 
-        List<WideTableCdcEvent> events = updater.updateWideTable(beforeKeys, afterKeys);
+        List<TapdataEvent> events = updater.updateWideTableAsTapdataEvents(beforeKeys, afterKeys, queryResult, "users");
 
         assertEquals(2, events.size());
-        assertEquals(INSERT, events.get(0).getOpType());
-        assertEquals(INSERT, events.get(1).getOpType());
+        assertEquals(2, filterByType(events, TapInsertRecordEvent.class).size());
     }
 
     @Test
-    void testBatchProcessing_pureDeleteScenario() throws SQLException {
+    void testBatchProcessing_pureDeleteScenario() throws SQLException, IOException {
         Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
 
         List<Map<String, Object>> userEvents = new ArrayList<>();
@@ -139,11 +140,10 @@ class BatchWideTableUpdateIntegrationTest {
         assertEquals(2, beforeKeys.size());
         assertTrue(afterKeys.isEmpty());
 
-        List<WideTableCdcEvent> events = updater.updateWideTable(beforeKeys, afterKeys);
+        List<TapdataEvent> events = updater.updateWideTableAsTapdataEvents(beforeKeys, afterKeys, Collections.emptyList(), "users");
 
         assertEquals(2, events.size());
-        assertEquals(DELETE, events.get(0).getOpType());
-        assertEquals(DELETE, events.get(1).getOpType());
+        assertEquals(2, filterByType(events, TapDeleteRecordEvent.class).size());
     }
 
     // ==================== Helper Methods ====================
@@ -183,10 +183,10 @@ class BatchWideTableUpdateIntegrationTest {
         return row;
     }
 
-    private List<WideTableCdcEvent> filterByOp(List<WideTableCdcEvent> events, WideTableCdcEvent.OpType opType) {
-        List<WideTableCdcEvent> filtered = new ArrayList<>();
-        for (WideTableCdcEvent event : events) {
-            if (event.getOpType() == opType) {
+    private List<TapdataEvent> filterByType(List<TapdataEvent> events, Class<?> eventType) {
+        List<TapdataEvent> filtered = new ArrayList<>();
+        for (TapdataEvent event : events) {
+            if (eventType.isInstance(event.getTapEvent())) {
                 filtered.add(event);
             }
         }

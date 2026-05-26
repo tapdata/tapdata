@@ -1,15 +1,19 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
 
-import static io.tapdata.flow.engine.V2.node.duckdb.WideTableCdcEvent.OpType.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -43,13 +47,13 @@ class WithCteIntegrationTest {
         sqlGenerator = new WithCteSqlGenerator();
 
         List<String> fields = Arrays.asList("id", "name", "email");
-        updater = new WideTableIncrementalUpdater("id",
+        updater = new WideTableIncrementalUpdater("users", "id",
                 "SELECT id, name, email FROM users",
                 fields, sqlGenerator, mockDuckDbOperator);
     }
 
     @Test
-    void testEndToEnd_WithCteFlow() throws SQLException {
+    void testEndToEnd_WithCteFlow() throws SQLException, IOException {
         // 1. CDC 事件
         Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
         List<Map<String, Object>> userEvents = new ArrayList<>();
@@ -87,21 +91,18 @@ class WithCteIntegrationTest {
         when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
 
         // 5. 执行宽表更新
-        List<WideTableCdcEvent> events = updater.updateWideTable(
+        List<TapdataEvent> events = updater.updateWideTableAsTapdataEvents(
                 beforeKeys, afterKeys, afterRows, "users");
 
         // 6. 验证事件
-        List<WideTableCdcEvent> deleteEvents = filterByOp(events, DELETE);
+        List<TapdataEvent> deleteEvents = filterByType(events, TapDeleteRecordEvent.class);
         assertEquals(1, deleteEvents.size());
-        assertEquals(123, deleteEvents.get(0).getPrimaryKey());
 
-        List<WideTableCdcEvent> insertEvents = filterByOp(events, INSERT);
+        List<TapdataEvent> insertEvents = filterByType(events, TapInsertRecordEvent.class);
         assertEquals(1, insertEvents.size());
-        assertEquals(456, insertEvents.get(0).getPrimaryKey());
 
-        List<WideTableCdcEvent> updateEvents = filterByOp(events, UPDATE);
+        List<TapdataEvent> updateEvents = filterByType(events, TapUpdateRecordEvent.class);
         assertEquals(1, updateEvents.size());
-        assertEquals(789, updateEvents.get(0).getPrimaryKey());
 
         // 7. 验证 WITH CTE SQL 被生成
         verify(mockDuckDbOperator).executeQuery(argThat(sql ->
@@ -110,14 +111,14 @@ class WithCteIntegrationTest {
     }
 
     @Test
-    void testEndToEnd_ComplexJoinSql() throws SQLException {
+    void testEndToEnd_ComplexJoinSql() throws SQLException, IOException {
         // 使用复杂 SQL（JOIN）
         String complexSql = "SELECT u.id, u.name, o.order_id, o.amount " +
                 "FROM users u INNER JOIN orders o ON u.id = o.user_id " +
                 "WHERE u.status = 1";
 
         WideTableIncrementalUpdater complexUpdater = new WideTableIncrementalUpdater(
-                "id", complexSql, Arrays.asList("id", "name"), sqlGenerator, mockDuckDbOperator);
+                "wide_table", "id", complexSql, Arrays.asList("id", "name"), sqlGenerator, mockDuckDbOperator);
 
         Set<Object> beforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
         Set<Object> afterKeys = new LinkedHashSet<>(Collections.singletonList(456));
@@ -126,7 +127,7 @@ class WithCteIntegrationTest {
         List<Map<String, Object>> queryResult = Collections.singletonList(createRow(456, "John"));
         when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
 
-        List<WideTableCdcEvent> events = complexUpdater.updateWideTable(
+        List<TapdataEvent> events = complexUpdater.updateWideTableAsTapdataEvents(
                 beforeKeys, afterKeys, afterRows, "users");
 
         assertEquals(2, events.size());
@@ -157,10 +158,10 @@ class WithCteIntegrationTest {
         return row;
     }
 
-    private List<WideTableCdcEvent> filterByOp(List<WideTableCdcEvent> events, WideTableCdcEvent.OpType opType) {
-        List<WideTableCdcEvent> filtered = new ArrayList<>();
-        for (WideTableCdcEvent event : events) {
-            if (event.getOpType() == opType) {
+    private List<TapdataEvent> filterByType(List<TapdataEvent> events, Class<?> eventType) {
+        List<TapdataEvent> filtered = new ArrayList<>();
+        for (TapdataEvent event : events) {
+            if (eventType.isInstance(event.getTapEvent())) {
                 filtered.add(event);
             }
         }

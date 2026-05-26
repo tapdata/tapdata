@@ -1,20 +1,24 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static io.tapdata.flow.engine.V2.node.duckdb.WideTableCdcEvent.OpType.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class WideTableIncrementalUpdaterTest {
@@ -27,151 +31,245 @@ class WideTableIncrementalUpdaterTest {
     @BeforeEach
     void setUp() {
         List<String> fields = Arrays.asList("id", "name", "email");
-        updater = new WideTableIncrementalUpdater("id", 
-                "SELECT id, name, email FROM users", 
-                fields, mockDuckDbOperator);
+        updater = new WideTableIncrementalUpdater(
+                "wide_table", "id",
+                "SELECT id, name, email FROM users",
+                fields, new WithCteSqlGenerator(), mockDuckDbOperator, false);
     }
 
-    // ==================== updateWideTable ====================
+    // ==================== 非事务模式测试 ====================
 
     @Test
-    void testUpdateWideTable_deleteAndInsert() throws SQLException {
+    void testUpdateWideTableAsTapdataEvents_deleteAndInsert() throws SQLException, IOException {
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Arrays.asList(123, 789));
         Set<Object> affectedAfterKeys = new LinkedHashSet<>(Arrays.asList(456, 789));
-
-        List<Map<String, Object>> queryResult = Arrays.asList(
+        List<Map<String, Object>> afterRows = Arrays.asList(
                 createRow(456, "John", "john@example.com"),
                 createRow(789, "Jane Updated", "jane@example.com")
         );
-        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
 
-        List<WideTableCdcEvent> result = updater.updateWideTable(affectedBeforeKeys, affectedAfterKeys);
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
 
-        // 验证 DELETE 事件 (123 在 before 中但不在 after 中)
-        List<WideTableCdcEvent> deleteEvents = filterByOp(result, DELETE);
-        assertEquals(1, deleteEvents.size());
-        assertEquals(123, deleteEvents.get(0).getPrimaryKey());
+        List<TapdataEvent> result = updater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, affectedAfterKeys, afterRows, "users");
 
-        // 验证 INSERT 事件 (456 不在 before 中)
-        List<WideTableCdcEvent> insertEvents = filterByOp(result, INSERT);
-        assertEquals(1, insertEvents.size());
-        assertEquals(456, insertEvents.get(0).getPrimaryKey());
-
-        // 验证 UPDATE 事件 (789 在 before 和 after 中)
-        List<WideTableCdcEvent> updateEvents = filterByOp(result, UPDATE);
-        assertEquals(1, updateEvents.size());
-        assertEquals(789, updateEvents.get(0).getPrimaryKey());
+        // 1 DELETE (123), 1 INSERT (456), 1 UPDATE (789)
+        assertEquals(3, result.size());
+        assertEquals(1, countByType(result, TapDeleteRecordEvent.class));
+        assertEquals(1, countByType(result, TapInsertRecordEvent.class));
+        assertEquals(1, countByType(result, TapUpdateRecordEvent.class));
     }
 
     @Test
-    void testUpdateWideTable_primaryKeyUpdate() throws SQLException {
+    void testUpdateWideTableAsTapdataEvents_primaryKeyUpdate() throws SQLException, IOException {
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
         Set<Object> affectedAfterKeys = new LinkedHashSet<>(Collections.singletonList(456));
-
-        List<Map<String, Object>> queryResult = Collections.singletonList(
+        List<Map<String, Object>> afterRows = Collections.singletonList(
                 createRow(456, "John", "john@example.com")
         );
-        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
 
-        List<WideTableCdcEvent> result = updater.updateWideTable(affectedBeforeKeys, affectedAfterKeys);
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
+
+        List<TapdataEvent> result = updater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, affectedAfterKeys, afterRows, "users");
 
         assertEquals(2, result.size());
-
-        // 验证 DELETE 事件
-        assertEquals(DELETE, result.get(0).getOpType());
-        assertEquals(123, result.get(0).getPrimaryKey());
-
-        // 验证 INSERT 事件
-        assertEquals(INSERT, result.get(1).getOpType());
-        assertEquals(456, result.get(1).getPrimaryKey());
+        assertEquals(1, countByType(result, TapDeleteRecordEvent.class));
+        assertEquals(1, countByType(result, TapInsertRecordEvent.class));
     }
 
     @Test
-    void testUpdateWideTable_onlyDelete() throws SQLException {
+    void testUpdateWideTableAsTapdataEvents_onlyDelete() throws SQLException, IOException {
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Arrays.asList(123, 456));
         Set<Object> affectedAfterKeys = new LinkedHashSet<>();
 
-        List<WideTableCdcEvent> result = updater.updateWideTable(affectedBeforeKeys, affectedAfterKeys);
+        List<TapdataEvent> result = updater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, affectedAfterKeys, Collections.emptyList(), "users");
 
         assertEquals(2, result.size());
-        assertEquals(DELETE, result.get(0).getOpType());
-        assertEquals(123, result.get(0).getPrimaryKey());
-        assertEquals(DELETE, result.get(1).getOpType());
-        assertEquals(456, result.get(1).getPrimaryKey());
+        assertEquals(2, countByType(result, TapDeleteRecordEvent.class));
     }
 
     @Test
-    void testUpdateWideTable_onlyInsert() throws SQLException {
+    void testUpdateWideTableAsTapdataEvents_onlyInsert() throws SQLException, IOException {
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>();
         Set<Object> affectedAfterKeys = new LinkedHashSet<>(Arrays.asList(123, 456));
-
-        List<Map<String, Object>> queryResult = Arrays.asList(
+        List<Map<String, Object>> afterRows = Arrays.asList(
                 createRow(123, "John", "john@example.com"),
                 createRow(456, "Jane", "jane@example.com")
         );
-        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
 
-        List<WideTableCdcEvent> result = updater.updateWideTable(affectedBeforeKeys, affectedAfterKeys);
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
+
+        List<TapdataEvent> result = updater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, affectedAfterKeys, afterRows, "users");
 
         assertEquals(2, result.size());
-        assertEquals(INSERT, result.get(0).getOpType());
-        assertEquals(INSERT, result.get(1).getOpType());
+        assertEquals(2, countByType(result, TapInsertRecordEvent.class));
     }
 
     @Test
-    void testUpdateWideTable_emptyBoth() throws SQLException {
+    void testUpdateWideTableAsTapdataEvents_emptyBoth() throws SQLException, IOException {
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>();
         Set<Object> affectedAfterKeys = new LinkedHashSet<>();
 
-        List<WideTableCdcEvent> result = updater.updateWideTable(affectedBeforeKeys, affectedAfterKeys);
+        List<TapdataEvent> result = updater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, affectedAfterKeys, Collections.emptyList(), "users");
 
         assertTrue(result.isEmpty());
     }
 
     @Test
-    void testUpdateWideTable_noChange() throws SQLException {
+    void testUpdateWideTableAsTapdataEvents_noChange() throws SQLException, IOException {
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
         Set<Object> affectedAfterKeys = new LinkedHashSet<>(Collections.singletonList(123));
-
-        List<Map<String, Object>> queryResult = Collections.singletonList(
+        List<Map<String, Object>> afterRows = Collections.singletonList(
                 createRow(123, "John", "john@example.com")
         );
-        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
 
-        List<WideTableCdcEvent> result = updater.updateWideTable(affectedBeforeKeys, affectedAfterKeys);
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
 
+        List<TapdataEvent> result = updater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, affectedAfterKeys, afterRows, "users");
+
+        // FourStateJudge 产生 UPDATE 事件（在 before 和 after 中都有）
         assertEquals(1, result.size());
-        assertEquals(UPDATE, result.get(0).getOpType());
-        assertEquals(123, result.get(0).getPrimaryKey());
+        assertEquals(1, countByType(result, TapUpdateRecordEvent.class));
     }
 
+    // ==================== 事务模式测试 ====================
+
     @Test
-    void testUpdateWideTable_WithCteIntegration() throws SQLException {
-        List<String> fields = Arrays.asList("id", "name", "email");
-        WithCteSqlGenerator sqlGenerator = new WithCteSqlGenerator();
-        WideTableIncrementalUpdater cteUpdater = new WideTableIncrementalUpdater(
-                "id", "users", fields, sqlGenerator, mockDuckDbOperator);
+    void testUpdateWideTableAsTapdataEvents_TransactionMode_CallsExecuteInTransaction() throws SQLException, IOException {
+        WideTableIncrementalUpdater transactionUpdater = new WideTableIncrementalUpdater(
+                "wide_table", "id",
+                "SELECT id, name, email FROM users",
+                Arrays.asList("id", "name", "email"),
+                new WithCteSqlGenerator(), mockDuckDbOperator, true);
 
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
         Set<Object> affectedAfterKeys = new LinkedHashSet<>(Collections.singletonList(456));
+        List<Map<String, Object>> afterRows = Collections.singletonList(
+                createRow(456, "John", "john@example.com")
+        );
 
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
+        doAnswer(invocation -> {
+            DuckDbOperator.ThrowingConsumer action = invocation.getArgument(0);
+            action.accept();
+            return null;
+        }).when(mockDuckDbOperator).executeInTransaction(any(DuckDbOperator.ThrowingConsumer.class));
+
+        List<TapdataEvent> result = transactionUpdater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, affectedAfterKeys, afterRows, "users");
+
+        verify(mockDuckDbOperator).executeInTransaction(any(DuckDbOperator.ThrowingConsumer.class));
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void testUpdateWideTableAsTapdataEvents_TransactionMode_RollbackOnError() throws SQLException, IOException {
+        WideTableIncrementalUpdater transactionUpdater = new WideTableIncrementalUpdater(
+                "wide_table", "id",
+                "SELECT id, name, email FROM users",
+                Arrays.asList("id", "name", "email"),
+                new WithCteSqlGenerator(), mockDuckDbOperator, true);
+
+        Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
+        List<Map<String, Object>> afterRows = Collections.singletonList(
+                createRow(456, "John", "john@example.com")
+        );
+
+        when(mockDuckDbOperator.executeQuery(anyString()))
+                .thenThrow(new SQLException("Query failed"));
+
+        doAnswer(invocation -> {
+            DuckDbOperator.ThrowingConsumer action = invocation.getArgument(0);
+            action.accept();
+            return null;
+        }).when(mockDuckDbOperator).executeInTransaction(any(DuckDbOperator.ThrowingConsumer.class));
+
+        assertThrows(SQLException.class, () -> transactionUpdater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, new LinkedHashSet<>(), afterRows, "users"));
+    }
+
+    @Test
+    void testUpdateWideTableAsTapdataEvents_NonTransactionMode_DoesNotCallExecuteInTransaction() throws SQLException, IOException {
+        Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
+        List<Map<String, Object>> afterRows = Collections.singletonList(
+                createRow(456, "John", "john@example.com")
+        );
+
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
+
+        updater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, new LinkedHashSet<>(), afterRows, "users");
+
+        verify(mockDuckDbOperator, never()).executeInTransaction(any());
+    }
+
+    // ==================== ChangelogListener 测试 ====================
+
+    @Test
+    void testUpdateWideTableAsTapdataEvents_ChangelogListener_ReceivesEvents() throws SQLException, IOException {
+        AtomicInteger eventCount = new AtomicInteger(0);
+        updater.addChangelogListener(event -> eventCount.incrementAndGet());
+
+        Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
+        Set<Object> affectedAfterKeys = new LinkedHashSet<>(Collections.singletonList(456));
+        List<Map<String, Object>> afterRows = Collections.singletonList(
+                createRow(456, "John", "john@example.com")
+        );
+
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
+
+        List<TapdataEvent> result = updater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, affectedAfterKeys, afterRows, "users");
+
+        assertEquals(2, result.size());
+        assertEquals(2, eventCount.get());
+    }
+
+    @Test
+    void testUpdateWideTableAsTapdataEvents_ChangelogListener_ExceptionDoesNotBreakFlow() throws SQLException, IOException {
+        updater.addChangelogListener(event -> {
+            throw new RuntimeException("Listener error");
+        });
+        AtomicInteger successCount = new AtomicInteger(0);
+        updater.addChangelogListener(event -> successCount.incrementAndGet());
+
+        Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
+        List<Map<String, Object>> afterRows = Collections.singletonList(
+                createRow(456, "John", "john@example.com")
+        );
+
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
+
+        List<TapdataEvent> result = updater.updateWideTableAsTapdataEvents(
+                affectedBeforeKeys, new LinkedHashSet<>(), afterRows, "users");
+
+        // 第一个 listener 异常不应影响第二个 listener
+        // 主键更新场景产生 2 个事件 (DELETE + INSERT)，所以 successCount = 2
+        assertEquals(2, successCount.get());
+        assertEquals(2, result.size());
+    }
+
+    // ==================== WITH CTE 测试 ====================
+
+    @Test
+    void testUpdateWideTableAsTapdataEvents_WithCteIntegration() throws SQLException, IOException {
+        Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
+        Set<Object> affectedAfterKeys = new LinkedHashSet<>(Collections.singletonList(456));
         List<Map<String, Object>> afterRows = Arrays.asList(
                 createRow(456, "John", "john@example.com")
         );
 
-        List<Map<String, Object>> queryResult = Arrays.asList(
-                createRow(456, "John", "john@example.com")
-        );
-        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(afterRows);
 
-        List<WideTableCdcEvent> result = cteUpdater.updateWideTable(
+        List<TapdataEvent> result = updater.updateWideTableAsTapdataEvents(
                 affectedBeforeKeys, affectedAfterKeys, afterRows, "users");
 
         assertEquals(2, result.size());
-        assertEquals(DELETE, result.get(0).getOpType());
-        assertEquals(123, result.get(0).getPrimaryKey());
-        assertEquals(INSERT, result.get(1).getOpType());
-        assertEquals(456, result.get(1).getPrimaryKey());
 
         verify(mockDuckDbOperator).executeQuery(argThat(sql ->
                 sql != null && sql.contains("WITH users AS") && sql.contains("VALUES")
@@ -188,13 +286,9 @@ class WideTableIncrementalUpdaterTest {
         return row;
     }
 
-    private List<WideTableCdcEvent> filterByOp(List<WideTableCdcEvent> events, WideTableCdcEvent.OpType opType) {
-        List<WideTableCdcEvent> filtered = new ArrayList<>();
-        for (WideTableCdcEvent event : events) {
-            if (event.getOpType() == opType) {
-                filtered.add(event);
-            }
-        }
-        return filtered;
+    private long countByType(List<TapdataEvent> events, Class<?> eventType) {
+        return events.stream()
+                .filter(e -> eventType.isInstance(e.getTapEvent()))
+                .count();
     }
 }

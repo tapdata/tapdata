@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
 
@@ -39,7 +40,7 @@ class FourStateJudgeIntegrationTest {
     }
 
     @Test
-    void testEndToEnd_FourStateJudgeFlow() throws SQLException {
+    void testEndToEnd_FourStateJudgeFlow() throws SQLException, IOException {
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Arrays.asList(123, 789));
         Set<Object> affectedAfterKeys = new LinkedHashSet<>(Arrays.asList(456, 789));
 
