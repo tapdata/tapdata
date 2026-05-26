@@ -471,10 +471,6 @@ public class TraceDataService {
                 String originName = info.getOriginName();
                 String key = info.getTargetName();
                 Object value = readRecordValue(record, key);
-                if (value == null ) {
-                    errors.add(traceError(ERROR_VALUE_MISMATCH, key, originName, key, null, null,
-                            "originName=" + originName));
-                }
                 if (value != null) {
                     filter.put(originName, value);
                 }
@@ -485,10 +481,6 @@ public class TraceDataService {
             sourceKeys.forEach(key -> {
                 String originName = currentFieldMapping.get(key);
                 Object value = readRecordValue(record, key);
-                if (value == null ) {
-                    errors.add(traceError(ERROR_VALUE_MISMATCH, key, originName, key, null, null,
-                            "originName=" + originName));
-                }
                 if (value != null) {
                     filter.put(originName, value);
                 }
