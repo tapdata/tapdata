@@ -66,6 +66,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private SchemaRegistry schemaRegistry;
     // ========== 新增: 实时增量物化视图组件 ==========
     private AffectedKeyCalculator affectedKeyCalculator;
+    private WideTableIncrementalUpdater wideTableUpdater;
+    // @Deprecated: 使用 wideTableUpdater 替代
     private IncrementalViewUpdater incrementalViewUpdater;
     private List<Map<String, Object>> cdcEventBuffer = new ArrayList<>();
     private static final int CDC_BUFFER_SIZE = 100;
@@ -138,8 +140,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             if (nodeConfig != null) {
                 // 读取 SQL 查询
                 if (nodeConfig.getQuerySql() != null) {
-                    this.querySql = nodeConfig.getQuerySql();
-                } else if (nodeConfig.getQuerySql() != null) {
                     this.querySql = nodeConfig.getQuerySql();
                 }
                 
@@ -242,26 +242,49 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                         duckDbOperator
                 );
 
-                // 初始化 IncrementalViewUpdater
-                incrementalViewUpdater = new IncrementalViewUpdater(
-                        outputTableName,
-                        wideTablePrimaryKey,
-                        querySql,
-                        outputChangelogEnabled,
-                        duckDbOperator
-                );
+                // 根据全局配置选择新组件或旧组件
+                if (DuckDbSqlConfig.isUseNewWideTableUpdater()) {
+                    // 新组件：WideTableIncrementalUpdater（事务模式）
+                    wideTableUpdater = new WideTableIncrementalUpdater(
+                            "wide_table",
+                            wideTablePrimaryKey,
+                            querySql,
+                            extractFieldsFromQuery(),
+                            new WithCteSqlGenerator(),
+                            duckDbOperator,
+                            true // 启用事务模式
+                    );
 
-                // 注册变更事件监听器
-                if (outputChangelogEnabled) {
-                    incrementalViewUpdater.addChangelogListener(changelogEvent -> {
-                        // 在这里处理变更事件输出
-                        logger.debug("Generated changelog event: {}", changelogEvent);
-                        // TODO: 将变更事件转换为 TapRecordEvent 并输出
-                    });
+                    // 注册 Changelog 监听器
+                    if (outputChangelogEnabled) {
+                        wideTableUpdater.addChangelogListener(event -> {
+                            logger.debug("Generated changelog event: {}", event);
+                            // TODO: 将 TapdataEvent 转换为 TapRecordEvent 并输出
+                        });
+                    }
+
+                    logger.info("Using NEW WideTableIncrementalUpdater (batch SQL mode)");
+                } else {
+                    // 旧组件：IncrementalViewUpdater（fallback）
+                    incrementalViewUpdater = new IncrementalViewUpdater(
+                            outputTableName,
+                            wideTablePrimaryKey,
+                            querySql,
+                            outputChangelogEnabled,
+                            duckDbOperator
+                    );
+
+                    if (outputChangelogEnabled) {
+                        incrementalViewUpdater.addChangelogListener(changelogEvent -> {
+                            logger.debug("Generated changelog event (legacy): {}", changelogEvent);
+                        });
+                    }
+
+                    logger.warn("Using DEPRECATED IncrementalViewUpdater - consider switching to new component");
                 }
 
-                logger.info("Materialized view components initialized: affectedKeyCalculator={}, incrementalViewUpdater={}",
-                        affectedKeyCalculator != null, incrementalViewUpdater != null);
+                logger.info("Materialized view components initialized: affectedKeyCalculator={}, wideTableUpdater={}, incrementalViewUpdater={}",
+                        affectedKeyCalculator != null, wideTableUpdater != null, incrementalViewUpdater != null);
             }
 
             // Register callback for when all tables enter CDC
@@ -437,6 +460,29 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         this.customJoinQueries = customJoinQueries;
     }
 
+    /**
+     * 从查询 SQL 中提取字段列表
+     * 简单实现：解析 SELECT 后的字段名
+     */
+    private List<String> extractFieldsFromQuery() {
+        // 简单解析：SELECT field1, field2 FROM ...
+        String upperSql = querySql.toUpperCase();
+        int selectIndex = upperSql.indexOf("SELECT");
+        int fromIndex = upperSql.indexOf("FROM");
+        
+        if (selectIndex >= 0 && fromIndex > selectIndex) {
+            String fieldsPart = querySql.substring(selectIndex + 6, fromIndex).trim();
+            // 按逗号分割，去除空格
+            return Arrays.stream(fieldsPart.split(","))
+                    .map(String::trim)
+                    .filter(f -> !f.isEmpty())
+                    .collect(java.util.stream.Collectors.toList());
+        }
+        
+        // fallback: 返回空列表，由 WithCteSqlGenerator 处理
+        return Collections.emptyList();
+    }
+
     @Override
     protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
         // Save the current consumer for emitting pending events
@@ -539,7 +585,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // ========== 新增: 实时增量物化视图处理 ==========
             if (syncStageTracker != null && syncStageTracker.isTransitionCompleted()
-                    && affectedKeyCalculator != null && incrementalViewUpdater != null) {
+                    && affectedKeyCalculator != null
+                    && (wideTableUpdater != null || incrementalViewUpdater != null)) {
                 // CDC 阶段，处理实时增量更新
                 processCdcEventForMaterializedView(tableId, recordEvent, recordData);
             }
@@ -625,6 +672,48 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 eventsByTable.computeIfAbsent(table, k -> new ArrayList<>()).add(event);
             }
 
+            if (DuckDbSqlConfig.isUseNewWideTableUpdater() && wideTableUpdater != null) {
+                // 新组件：使用 updateWideTableAsTapdataEvents
+                flushCdcBufferWithNewComponent(eventsByTable);
+            } else if (incrementalViewUpdater != null) {
+                // 旧组件：使用 updateWideTable
+                flushCdcBufferWithOldComponent(eventsByTable);
+            }
+
+            // 清空缓冲区
+            cdcEventBuffer.clear();
+        } catch (Exception e) {
+            logger.error("Failed to flush CDC buffer: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 使用新组件刷新 CDC 缓冲区
+     */
+    private void flushCdcBufferWithNewComponent(Map<String, List<Map<String, Object>>> eventsByTable) {
+        try {
+            // 计算 before/after 主键
+            Set<Object> beforeKeys = affectedKeyCalculator.calculateAffectedBeforeKeys(eventsByTable);
+            Set<Object> afterKeys = affectedKeyCalculator.calculateAffectedAfterKeys(eventsByTable);
+
+            // 提取 after 数据行
+            List<Map<String, Object>> afterRows = extractAfterRowsFromBuffer(eventsByTable);
+
+            // 执行宽表更新
+            List<TapdataEvent> events = wideTableUpdater.updateWideTableAsTapdataEvents(
+                    beforeKeys, afterKeys, afterRows, "users");
+
+            logger.info("Updated wide table with {} events (new component)", events.size());
+        } catch (Exception e) {
+            logger.error("Failed to flush CDC buffer with new component: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 使用旧组件刷新 CDC 缓冲区
+     */
+    private void flushCdcBufferWithOldComponent(Map<String, List<Map<String, Object>>> eventsByTable) {
+        try {
             // 对每个表计算受影响的主键并更新宽表
             for (Map.Entry<String, List<Map<String, Object>>> entry : eventsByTable.entrySet()) {
                 String tableName = entry.getKey();
@@ -636,16 +725,29 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 if (!affectedKeys.isEmpty()) {
                     // 批量更新宽表
                     int updatedRows = incrementalViewUpdater.updateWideTable(affectedKeys);
-                    logger.info("Updated {} rows in wide table for table {} and {} affected keys",
+                    logger.info("Updated {} rows in wide table for table {} and {} affected keys (legacy)",
                             updatedRows, tableName, affectedKeys.size());
                 }
             }
-
-            // 清空缓冲区
-            cdcEventBuffer.clear();
         } catch (Exception e) {
-            logger.error("Failed to flush CDC buffer: {}", e.getMessage(), e);
+            logger.error("Failed to flush CDC buffer with old component: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * 从 CDC 缓冲区提取 after 数据行
+     */
+    private List<Map<String, Object>> extractAfterRowsFromBuffer(Map<String, List<Map<String, Object>>> eventsByTable) {
+        List<Map<String, Object>> afterRows = new ArrayList<>();
+        for (List<Map<String, Object>> events : eventsByTable.values()) {
+            for (Map<String, Object> event : events) {
+                Object record = event.get("record");
+                if (record instanceof Map) {
+                    afterRows.add((Map<String, Object>) record);
+                }
+            }
+        }
+        return afterRows;
     }
 
     /**

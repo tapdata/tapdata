@@ -16,7 +16,11 @@ import java.util.stream.Collectors;
  * - Compare old vs new values to generate differential updates
  * - Support optional CDC changelog output
  * - Atomic transaction execution
+ *
+ * @deprecated Use {@link WideTableIncrementalUpdater} instead.
+ *             This class will be removed in a future version.
  */
+@Deprecated
 public class IncrementalViewUpdater {
 
     private static final Logger logger = LogManager.getLogger(IncrementalViewUpdater.class);
