@@ -12,6 +12,8 @@ import java.util.*;
 import static io.tapdata.flow.engine.V2.node.duckdb.WideTableCdcEvent.OpType.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -141,6 +143,39 @@ class WideTableIncrementalUpdaterTest {
         assertEquals(1, result.size());
         assertEquals(UPDATE, result.get(0).getOpType());
         assertEquals(123, result.get(0).getPrimaryKey());
+    }
+
+    @Test
+    void testUpdateWideTable_WithCteIntegration() throws SQLException {
+        List<String> fields = Arrays.asList("id", "name", "email");
+        WithCteSqlGenerator sqlGenerator = new WithCteSqlGenerator();
+        WideTableIncrementalUpdater cteUpdater = new WideTableIncrementalUpdater(
+                "id", "users", fields, sqlGenerator, mockDuckDbOperator);
+
+        Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
+        Set<Object> affectedAfterKeys = new LinkedHashSet<>(Collections.singletonList(456));
+
+        List<Map<String, Object>> afterRows = Arrays.asList(
+                createRow(456, "John", "john@example.com")
+        );
+
+        List<Map<String, Object>> queryResult = Arrays.asList(
+                createRow(456, "John", "john@example.com")
+        );
+        when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
+
+        List<WideTableCdcEvent> result = cteUpdater.updateWideTable(
+                affectedBeforeKeys, affectedAfterKeys, afterRows, "users");
+
+        assertEquals(2, result.size());
+        assertEquals(DELETE, result.get(0).getOpType());
+        assertEquals(123, result.get(0).getPrimaryKey());
+        assertEquals(INSERT, result.get(1).getOpType());
+        assertEquals(456, result.get(1).getPrimaryKey());
+
+        verify(mockDuckDbOperator).executeQuery(argThat(sql ->
+                sql != null && sql.contains("WITH users AS") && sql.contains("VALUES")
+        ));
     }
 
     // ==================== Helper Methods ====================

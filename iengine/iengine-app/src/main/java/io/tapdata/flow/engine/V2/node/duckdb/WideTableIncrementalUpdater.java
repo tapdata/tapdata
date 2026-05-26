@@ -23,13 +23,29 @@ public class WideTableIncrementalUpdater {
     private final String wideTablePrimaryKey;
     private final String querySql;
     private final List<String> fields;
+    private final WithCteSqlGenerator withCteSqlGenerator;
     private final DuckDbOperator duckDbOperator;
 
+    /**
+     * 构造函数（向后兼容，使用 IN 子句方式）
+     * @deprecated Use constructor with WithCteSqlGenerator
+     */
+    @Deprecated
     public WideTableIncrementalUpdater(String wideTablePrimaryKey, String querySql,
                                        List<String> fields, DuckDbOperator duckDbOperator) {
+        this(wideTablePrimaryKey, querySql, fields, new WithCteSqlGenerator(), duckDbOperator);
+    }
+
+    /**
+     * 构造函数（使用 WITH CTE 方式）
+     */
+    public WideTableIncrementalUpdater(String wideTablePrimaryKey, String querySql,
+                                       List<String> fields, WithCteSqlGenerator withCteSqlGenerator,
+                                       DuckDbOperator duckDbOperator) {
         this.wideTablePrimaryKey = wideTablePrimaryKey;
         this.querySql = querySql;
         this.fields = fields;
+        this.withCteSqlGenerator = withCteSqlGenerator;
         this.duckDbOperator = duckDbOperator;
     }
 
@@ -63,6 +79,56 @@ public class WideTableIncrementalUpdater {
                 Object pk = row.get(wideTablePrimaryKey);
                 if (pk != null) {
                     // 判断是 INSERT 还是 UPDATE
+                    if (affectedBeforeKeys.contains(pk)) {
+                        events.add(new WideTableCdcEvent(WideTableCdcEvent.OpType.UPDATE, pk, row));
+                        logger.debug("Generated UPDATE event for pk={}", pk);
+                    } else {
+                        events.add(new WideTableCdcEvent(WideTableCdcEvent.OpType.INSERT, pk, row));
+                        logger.debug("Generated INSERT event for pk={}", pk);
+                    }
+                }
+            }
+        }
+
+        logger.info("Generated {} wide table CDC events: {} DELETE, {} INSERT/UPDATE",
+                events.size(), pureDeleteKeys.size(), events.size() - pureDeleteKeys.size());
+
+        return events;
+    }
+
+    /**
+     * 批量更新宽表（使用 WITH CTE）
+     * @param affectedBeforeKeys before 受影响主键集合（用于 DELETE 宽表记录）
+     * @param affectedAfterKeys after 受影响主键集合（用于 INSERT/UPDATE 宽表记录）
+     * @param afterRows after 数据行（从 CDC 事件提取）
+     * @param tableName 源表名（用于 WITH CTE 临时表名）
+     * @return 宽表 CDC 事件列表
+     */
+    public List<WideTableCdcEvent> updateWideTable(Set<Object> affectedBeforeKeys,
+                                                    Set<Object> affectedAfterKeys,
+                                                    List<Map<String, Object>> afterRows,
+                                                    String tableName) throws SQLException {
+        List<WideTableCdcEvent> events = new ArrayList<>();
+
+        // 1. 计算纯 DELETE 的主键（在 before 中但不在 after 中）
+        Set<Object> pureDeleteKeys = new LinkedHashSet<>(affectedBeforeKeys);
+        pureDeleteKeys.removeAll(affectedAfterKeys);
+
+        // 2. 生成 DELETE 事件
+        for (Object pk : pureDeleteKeys) {
+            events.add(new WideTableCdcEvent(WideTableCdcEvent.OpType.DELETE, pk, null));
+            logger.debug("Generated DELETE event for pk={}", pk);
+        }
+
+        // 3. 使用 WITH CTE 执行 after 查询
+        if (afterRows != null && !afterRows.isEmpty()) {
+            String afterSql = withCteSqlGenerator.generateBatch(querySql, tableName, afterRows, fields);
+            List<Map<String, Object>> results = duckDbOperator.executeQuery(afterSql);
+
+            // 4. 生成 INSERT/UPDATE 事件
+            for (Map<String, Object> row : results) {
+                Object pk = row.get(wideTablePrimaryKey);
+                if (pk != null) {
                     if (affectedBeforeKeys.contains(pk)) {
                         events.add(new WideTableCdcEvent(WideTableCdcEvent.OpType.UPDATE, pk, row));
                         logger.debug("Generated UPDATE event for pk={}", pk);
