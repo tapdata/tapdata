@@ -5,7 +5,9 @@ import java.util.Map;
 /**
  * 宽表 CDC 事件
  * 表示宽表的一次变更操作（INSERT/UPDATE/DELETE）
+ * @deprecated Use FourStateJudge with TapdataEvent instead
  */
+@Deprecated
 public class WideTableCdcEvent {
 
     public enum OpType { INSERT, UPDATE, DELETE }

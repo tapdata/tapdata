@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +26,7 @@ public class WideTableIncrementalUpdater {
     private final List<String> fields;
     private final WithCteSqlGenerator withCteSqlGenerator;
     private final DuckDbOperator duckDbOperator;
+    private final FourStateJudge fourStateJudge;
 
     /**
      * 构造函数（向后兼容，使用 IN 子句方式）
@@ -47,6 +49,21 @@ public class WideTableIncrementalUpdater {
         this.fields = fields;
         this.withCteSqlGenerator = withCteSqlGenerator;
         this.duckDbOperator = duckDbOperator;
+        this.fourStateJudge = new FourStateJudge("wide_table", wideTablePrimaryKey);
+    }
+
+    /**
+     * 构造函数（使用 WITH CTE 方式 + 自定义 tableId）
+     */
+    public WideTableIncrementalUpdater(String tableId, String wideTablePrimaryKey, String querySql,
+                                       List<String> fields, WithCteSqlGenerator withCteSqlGenerator,
+                                       DuckDbOperator duckDbOperator) {
+        this.wideTablePrimaryKey = wideTablePrimaryKey;
+        this.querySql = querySql;
+        this.fields = fields;
+        this.withCteSqlGenerator = withCteSqlGenerator;
+        this.duckDbOperator = duckDbOperator;
+        this.fourStateJudge = new FourStateJudge(tableId, wideTablePrimaryKey);
     }
 
     /**
@@ -175,5 +192,32 @@ public class WideTableIncrementalUpdater {
             return "'" + ((String) value).replace("'", "''") + "'";
         }
         return value.toString();
+    }
+
+    /**
+     * 批量更新宽表（使用 FourStateJudge 输出 TapdataEvent）
+     * @param affectedBeforeKeys before 受影响主键集合（用于 DELETE 宽表记录）
+     * @param affectedAfterKeys after 受影响主键集合（用于 INSERT/UPDATE 宽表记录）
+     * @param afterRows after 数据行（从 CDC 事件提取）
+     * @param tableName 源表名（用于 WITH CTE 临时表名）
+     * @return TapdataEvent 事件列表
+     */
+    public List<TapdataEvent> updateWideTableAsTapdataEvents(Set<Object> affectedBeforeKeys,
+                                                              Set<Object> affectedAfterKeys,
+                                                              List<Map<String, Object>> afterRows,
+                                                              String tableName) throws SQLException {
+        // 1. 计算纯 DELETE 的主键（在 before 中但不在 after 中）
+        Set<Object> pureDeleteKeys = new LinkedHashSet<>(affectedBeforeKeys);
+        pureDeleteKeys.removeAll(affectedAfterKeys);
+
+        // 2. 使用 WITH CTE 执行 after 查询
+        List<Map<String, Object>> results = Collections.emptyList();
+        if (afterRows != null && !afterRows.isEmpty()) {
+            String afterSql = withCteSqlGenerator.generateBatch(querySql, tableName, afterRows, fields);
+            results = duckDbOperator.executeQuery(afterSql);
+        }
+
+        // 3. 使用 FourStateJudge 进行四态判断
+        return fourStateJudge.judge(pureDeleteKeys, results);
     }
 }
