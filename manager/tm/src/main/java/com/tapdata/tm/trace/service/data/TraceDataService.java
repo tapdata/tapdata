@@ -97,6 +97,7 @@ public class TraceDataService {
         Queue<TraceNodeStep> queue = new ArrayDeque<>();
         queue.add(new TraceNodeStep(targetNode, null, buildTargetCondition(request, targetNode), null, null, null, null));
         Set<String> visited = new HashSet<>();
+        Map<String, List<BloodlineFinder.FieldNameMapping>> updateConditionFieldList = taskLineageDto.getUpdateConditionFieldList();
         while (!queue.isEmpty()) {
             TraceNodeStep step = queue.poll();
             Node currentNode = step.getCurrentNode();
@@ -111,8 +112,9 @@ public class TraceDataService {
             for (Edge edge : incomingEdges.getOrDefault(currentNode.getId(), Collections.emptyList())) {
                 Node upstreamNode = nodeMap.get(edge.getSource());
                 if (upstreamNode != null) {
+                    List<BloodlineFinder.FieldNameMapping> updateConditionField = updateConditionFieldList.get(upstreamNode.getId());
                     TraceConditionBuildResult buildResult = buildUpstreamCondition(request, upstreamNode, currentNode,
-                            edge, traceValue, step.getCondition(), filterTraceValue, filterNode, filterCondition, fieldNameMapping);
+                            edge, traceValue, step.getCondition(), filterTraceValue, filterNode, filterCondition, updateConditionField, fieldNameMapping);
                     writeNodeErrors(outputStream, requestId, upstreamNode, buildResult.getErrors());
                     if (buildResult.isTraceable()) {
                         queue.add(new TraceNodeStep(upstreamNode, currentNode, buildResult.getCondition(), traceValue,
@@ -274,6 +276,7 @@ public class TraceDataService {
                                                              Edge edge, TraceValue currentTraceValue, TraceQueryCondition currentCondition,
                                                              TraceValue fallbackTraceValue, Node fallbackNode,
                                                              TraceQueryCondition fallbackCondition,
+                                                             List<BloodlineFinder.FieldNameMapping> updateConditionFieldList,
                                                              Map<String, Map<String, String>> fieldNameMapping) {
         List<TraceNodeError> errors = new ArrayList<>();
         TraceQueryCondition condition = new TraceQueryCondition();
@@ -292,7 +295,7 @@ public class TraceDataService {
                 ? Collections.emptyMap()
                 : fieldNameMapping.getOrDefault(fallbackNode.getId(), Collections.emptyMap());
         condition.setFilters(buildNormalUpstreamFilters(currentCondition, currentTraceValue,
-                upstreamFieldMapping, currentFieldMapping, fallbackCondition, fallbackTraceValue, fallbackFieldMapping, errors));
+                upstreamFieldMapping, currentFieldMapping, fallbackCondition, fallbackTraceValue, fallbackFieldMapping, updateConditionFieldList, errors));
         addEmptyFilterError(condition, errors, upstreamNode, currentNode);
         return new TraceConditionBuildResult(condition, errors);
     }
@@ -387,15 +390,16 @@ public class TraceDataService {
                                                                  TraceQueryCondition fallbackCondition,
                                                                  TraceValue fallbackTraceValue,
                                                                  Map<String, String> fallbackFieldMapping,
+                                                                 List<BloodlineFinder.FieldNameMapping> updateConditionFieldList,
                                                                  List<TraceNodeError> errors) {
         List<Map<String, Object>> filters = rewriteFiltersByFieldMapping(currentCondition, currentTraceValue,
-                upstreamFieldMapping, currentFieldMapping, errors);
+                upstreamFieldMapping, currentFieldMapping, updateConditionFieldList, errors);
         if (CollectionUtils.isEmpty(filters)) {
             filters = rewriteRecordValuesByFieldMapping(currentTraceValue, upstreamFieldMapping, currentFieldMapping, errors);
         }
         if (CollectionUtils.isEmpty(filters) && fallbackCondition != null && !fallbackFieldMapping.isEmpty()) {
             filters = rewriteFiltersByFieldMapping(fallbackCondition, fallbackTraceValue,
-                    upstreamFieldMapping, fallbackFieldMapping, errors);
+                    upstreamFieldMapping, fallbackFieldMapping, updateConditionFieldList, errors);
         }
         if (CollectionUtils.isEmpty(filters) && !fallbackFieldMapping.isEmpty()) {
             filters = rewriteRecordValuesByFieldMapping(fallbackTraceValue, upstreamFieldMapping, fallbackFieldMapping, errors);
@@ -406,6 +410,7 @@ public class TraceDataService {
     private List<Map<String, Object>> rewriteFiltersByFieldMapping(TraceQueryCondition currentCondition, TraceValue currentTraceValue,
                                                                    Map<String, String> upstreamFieldMapping,
                                                                    Map<String, String> currentFieldMapping,
+                                                                   List<BloodlineFinder.FieldNameMapping> updateConditionFieldList,
                                                                    List<TraceNodeError> errors) {
         if (currentCondition == null || upstreamFieldMapping.isEmpty() || currentFieldMapping.isEmpty()) {
             return Collections.emptyList();
@@ -417,15 +422,15 @@ public class TraceDataService {
         if(CollectionUtils.isEmpty(currentCondition.getFilters())){
             currentCondition.getConditionKeys().forEach(key -> {
                 if (hasCurrentRecords(currentTraceValue)) {
-                    filters.addAll(rewriteFilterWithRecords(null,currentCondition.getConditionKeys(), currentTraceValue, upstreamByOrigin, currentFieldMapping, errors));
+                    filters.addAll(rewriteFilterWithRecords(null,currentCondition.getConditionKeys(), currentTraceValue, upstreamByOrigin, currentFieldMapping, updateConditionFieldList, errors));
                 }
             });
         }else{
             for (Map<String, Object> sourceFilter : safeFilters(currentCondition)) {
                 if (hasCurrentRecords(currentTraceValue)) {
-                    filters.addAll(rewriteFilterWithRecords(sourceFilter, currentCondition.getConditionKeys(),currentTraceValue, upstreamByOrigin, currentFieldMapping, errors));
+                    filters.addAll(rewriteFilterWithRecords(sourceFilter, currentCondition.getConditionKeys(),currentTraceValue, upstreamByOrigin, currentFieldMapping, updateConditionFieldList, errors));
                 } else {
-                    Map<String, Object> filter = rewriteFilterByFieldMapping(sourceFilter, null,null, upstreamByOrigin, currentFieldMapping, errors);
+                    Map<String, Object> filter = rewriteFilterByFieldMapping(sourceFilter, null,null, upstreamByOrigin, currentFieldMapping, updateConditionFieldList, errors);
                     if (MapUtils.isNotEmpty(filter)) {
                         filters.add(filter);
                     }
@@ -441,10 +446,11 @@ public class TraceDataService {
                                                                TraceValue currentTraceValue,
                                                                Map<String, String> upstreamByOrigin,
                                                                Map<String, String> currentFieldMapping,
+                                                               List<BloodlineFinder.FieldNameMapping> updateConditionFieldList,
                                                                List<TraceNodeError> errors) {
         List<Map<String, Object>> filters = new ArrayList<>();
         for (Map<String, Object> record : currentTraceValue.getCurrentRecords()) {
-            Map<String, Object> filter = rewriteFilterByFieldMapping(sourceFilter, sourceKeys,record, upstreamByOrigin, currentFieldMapping, errors);
+            Map<String, Object> filter = rewriteFilterByFieldMapping(sourceFilter, sourceKeys,record, upstreamByOrigin, currentFieldMapping, updateConditionFieldList, errors);
             if (MapUtils.isNotEmpty(filter)) {
                 filters.add(filter);
             }
@@ -457,8 +463,24 @@ public class TraceDataService {
                                                             Map<String, Object> record,
                                                             Map<String, String> upstreamByOrigin,
                                                             Map<String, String> currentFieldMapping,
+                                                            List<BloodlineFinder.FieldNameMapping> updateConditionFieldList,
                                                             List<TraceNodeError> errors) {
         Map<String, Object> filter = new LinkedHashMap<>();
+        if (CollectionUtils.isNotEmpty(updateConditionFieldList)) {
+            updateConditionFieldList.forEach(info -> {
+                String originName = info.getOriginName();
+                String key = info.getTargetName();
+                Object value = readRecordValue(record, key);
+                if (value == null ) {
+                    errors.add(traceError(ERROR_VALUE_MISMATCH, key, originName, key, null, null,
+                            "originName=" + originName));
+                }
+                if (value != null) {
+                    filter.put(originName, value);
+                }
+            });
+            return filter;
+        }
         if (MapUtils.isEmpty(sourceFilter)) {
             sourceKeys.forEach(key -> {
                 String originName = currentFieldMapping.get(key);
