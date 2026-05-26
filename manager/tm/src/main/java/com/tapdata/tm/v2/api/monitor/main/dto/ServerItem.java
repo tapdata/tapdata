@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
 import com.tapdata.tm.commons.base.DecimalFormat;
+import com.tapdata.tm.commons.base.DoubleValueBound;
 import com.tapdata.tm.worker.entity.Worker;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -32,9 +33,11 @@ public class ServerItem extends DataValueBase {
 
     String serverId;
 
+    @DoubleValueBound
     @DecimalFormat
     List<Double> cpuUsage;
 
+    @DoubleValueBound
     @DecimalFormat
     List<Double> memoryUsage;
 
@@ -42,6 +45,7 @@ public class ServerItem extends DataValueBase {
 
     Long requestCount;
 
+    @DoubleValueBound
     @DecimalFormat
     Double errorRate;
 
