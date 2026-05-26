@@ -1598,4 +1598,269 @@ class AffectedKeyCalculatorTest {
         assertEquals(4L, iterator.next());
         assertEquals(3L, iterator.next());
     }
+
+    // ==================== Task 1: extractBeforePrimaryKey / extractAfterPrimaryKey ====================
+
+    @Test
+    void testExtractBeforePrimaryKey_fromBeforeField() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 123);
+        before.put("name", "John");
+        event.put("before", before);
+
+        Optional<Object> result = affectedKeyCalculator.extractBeforePrimaryKey(event, "id");
+
+        assertTrue(result.isPresent());
+        assertEquals(123, result.get());
+    }
+
+    @Test
+    void testExtractBeforePrimaryKey_fromTopLevel() {
+        Map<String, Object> event = new HashMap<>();
+        event.put("id", 123);
+        event.put("name", "John");
+
+        Optional<Object> result = affectedKeyCalculator.extractBeforePrimaryKey(event, "id");
+
+        assertTrue(result.isPresent());
+        assertEquals(123, result.get());
+    }
+
+    @Test
+    void testExtractBeforePrimaryKey_fromMongoO2() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> o2 = new HashMap<>();
+        o2.put("_id", "mongo123");
+        event.put("o2", o2);
+
+        Optional<Object> result = affectedKeyCalculator.extractBeforePrimaryKey(event, "_id");
+
+        assertTrue(result.isPresent());
+        assertEquals("mongo123", result.get());
+    }
+
+    @Test
+    void testExtractBeforePrimaryKey_fromMongoO() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> o = new HashMap<>();
+        o.put("_id", "mongo456");
+        event.put("o", o);
+
+        Optional<Object> result = affectedKeyCalculator.extractBeforePrimaryKey(event, "_id");
+
+        assertTrue(result.isPresent());
+        assertEquals("mongo456", result.get());
+    }
+
+    @Test
+    void testExtractBeforePrimaryKey_empty() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> after = new HashMap<>();
+        after.put("id", 456);
+        event.put("after", after);
+
+        Optional<Object> result = affectedKeyCalculator.extractBeforePrimaryKey(event, "id");
+
+        assertFalse(result.isPresent());
+    }
+
+    @Test
+    void testExtractAfterPrimaryKey_fromAfterField() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> after = new HashMap<>();
+        after.put("id", 456);
+        after.put("name", "John Updated");
+        event.put("after", after);
+
+        Optional<Object> result = affectedKeyCalculator.extractAfterPrimaryKey(event, "id");
+
+        assertTrue(result.isPresent());
+        assertEquals(456, result.get());
+    }
+
+    @Test
+    void testExtractAfterPrimaryKey_fromTopLevel() {
+        Map<String, Object> event = new HashMap<>();
+        event.put("id", 456);
+        event.put("name", "John");
+
+        Optional<Object> result = affectedKeyCalculator.extractAfterPrimaryKey(event, "id");
+
+        assertTrue(result.isPresent());
+        assertEquals(456, result.get());
+    }
+
+    @Test
+    void testExtractAfterPrimaryKey_empty() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 123);
+        event.put("before", before);
+
+        Optional<Object> result = affectedKeyCalculator.extractAfterPrimaryKey(event, "id");
+
+        assertFalse(result.isPresent());
+    }
+
+    @Test
+    void testIsPrimaryKeyUpdated_true() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 123);
+        event.put("before", before);
+        Map<String, Object> after = new HashMap<>();
+        after.put("id", 456);
+        event.put("after", after);
+
+        assertTrue(affectedKeyCalculator.isPrimaryKeyUpdated(event, "id"));
+    }
+
+    @Test
+    void testIsPrimaryKeyUpdated_false_sameKey() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 123);
+        event.put("before", before);
+        Map<String, Object> after = new HashMap<>();
+        after.put("id", 123);
+        event.put("after", after);
+
+        assertFalse(affectedKeyCalculator.isPrimaryKeyUpdated(event, "id"));
+    }
+
+    @Test
+    void testIsPrimaryKeyUpdated_false_insertOnly() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> after = new HashMap<>();
+        after.put("id", 123);
+        event.put("after", after);
+
+        assertFalse(affectedKeyCalculator.isPrimaryKeyUpdated(event, "id"));
+    }
+
+    @Test
+    void testIsPrimaryKeyUpdated_false_deleteOnly() {
+        Map<String, Object> event = new HashMap<>();
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 123);
+        event.put("before", before);
+
+        assertFalse(affectedKeyCalculator.isPrimaryKeyUpdated(event, "id"));
+    }
+
+    // ==================== Task 2: calculateAffectedBeforeKeys / calculateAffectedAfterKeys ====================
+
+    @Test
+    void testCalculateAffectedBeforeKeys_mainTable() throws SQLException {
+        Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
+        List<Map<String, Object>> userEvents = new ArrayList<>();
+        
+        Map<String, Object> event1 = new HashMap<>();
+        Map<String, Object> before1 = new HashMap<>();
+        before1.put("id", 123);
+        event1.put("before", before1);
+        Map<String, Object> after1 = new HashMap<>();
+        after1.put("id", 456);
+        event1.put("after", after1);
+        userEvents.add(event1);
+        
+        Map<String, Object> event2 = new HashMap<>();
+        Map<String, Object> before2 = new HashMap<>();
+        before2.put("id", 789);
+        event2.put("before", before2);
+        Map<String, Object> after2 = new HashMap<>();
+        after2.put("id", 789);
+        event2.put("after", after2);
+        userEvents.add(event2);
+        
+        eventsByTable.put("users", userEvents);
+        
+        Set<Object> result = affectedKeyCalculator.calculateAffectedBeforeKeys(eventsByTable);
+        
+        assertEquals(2, result.size());
+        assertTrue(result.contains(123));
+        assertTrue(result.contains(789));
+    }
+
+    @Test
+    void testCalculateAffectedAfterKeys_mainTable() throws SQLException {
+        Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
+        List<Map<String, Object>> userEvents = new ArrayList<>();
+        
+        Map<String, Object> event1 = new HashMap<>();
+        Map<String, Object> before1 = new HashMap<>();
+        before1.put("id", 123);
+        event1.put("before", before1);
+        Map<String, Object> after1 = new HashMap<>();
+        after1.put("id", 456);
+        event1.put("after", after1);
+        userEvents.add(event1);
+        
+        Map<String, Object> event2 = new HashMap<>();
+        Map<String, Object> before2 = new HashMap<>();
+        before2.put("id", 789);
+        event2.put("before", before2);
+        Map<String, Object> after2 = new HashMap<>();
+        after2.put("id", 789);
+        event2.put("after", after2);
+        userEvents.add(event2);
+        
+        eventsByTable.put("users", userEvents);
+        
+        Set<Object> result = affectedKeyCalculator.calculateAffectedAfterKeys(eventsByTable);
+        
+        assertEquals(2, result.size());
+        assertTrue(result.contains(456));
+        assertTrue(result.contains(789));
+    }
+
+    @Test
+    void testCalculateAffectedBeforeKeys_emptyEvents() throws SQLException {
+        Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
+        eventsByTable.put("users", new ArrayList<>());
+        
+        Set<Object> result = affectedKeyCalculator.calculateAffectedBeforeKeys(eventsByTable);
+        
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testCalculateAffectedAfterKeys_emptyEvents() throws SQLException {
+        Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
+        eventsByTable.put("users", new ArrayList<>());
+        
+        Set<Object> result = affectedKeyCalculator.calculateAffectedAfterKeys(eventsByTable);
+        
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testCalculateAffectedBeforeKeys_multipleTables() throws SQLException {
+        Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
+        
+        // Main table events
+        List<Map<String, Object>> userEvents = new ArrayList<>();
+        Map<String, Object> userEvent = new HashMap<>();
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 100L);
+        userEvent.put("before", before);
+        userEvents.add(userEvent);
+        eventsByTable.put("users", userEvents);
+        
+        // From table events
+        List<Map<String, Object>> orderEvents = new ArrayList<>();
+        Map<String, Object> orderEvent = new HashMap<>();
+        Map<String, Object> orderBefore = new HashMap<>();
+        orderBefore.put("order_id", "ORD001");
+        orderEvent.put("before", orderBefore);
+        orderEvents.add(orderEvent);
+        eventsByTable.put("orders", orderEvents);
+        
+        Set<Object> result = affectedKeyCalculator.calculateAffectedBeforeKeys(eventsByTable);
+        
+        assertEquals(2, result.size());
+        assertTrue(result.contains(100L));
+        assertTrue(result.contains("ORD001"));
+    }
 }
