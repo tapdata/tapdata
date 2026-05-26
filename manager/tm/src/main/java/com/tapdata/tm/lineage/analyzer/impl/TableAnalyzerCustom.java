@@ -1,21 +1,15 @@
 package com.tapdata.tm.lineage.analyzer.impl;
 
-import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
-import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.lineage.analyzer.AnalyzeLayer;
 import com.tapdata.tm.lineage.analyzer.entity.LineageMetadataInstance;
-import com.tapdata.tm.lineage.analyzer.entity.LineageNode;
-import com.tapdata.tm.lineage.analyzer.entity.LineageTableNode;
-import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
-import io.github.openlg.graphlib.Graph;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -87,33 +81,17 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
     }
 
     @Override
-    protected LineageTableNode setGraphNode(AnalyzeLayer analyzeLayer, LineageTask task, Node node) {
-        if (null == task || null == node) {
-            return null;
-        }
-        LineageTask lineageTask = wrapLineageTask(task, node);
-        Graph<Node, Edge> graph = analyzeLayer.getGraph();
-        Node graphNode = graph.getNode(LineageNode.genId(LineageTableNode.NODE_TYPE, analyzeLayer.getConnectionId(), analyzeLayer.getTable()));
-        LineageTableNode lineageTableNode;
-        if (graphNode instanceof LineageTableNode) {
-            lineageTableNode = (LineageTableNode) graphNode;
-            lineageTableNode.addTask(lineageTask);
-        } else {
-            DataSourceEntity dataSource = findDataSource(analyzeLayer.getConnectionId());
-            String graphNodeId = null == graphNode ? null : graphNode.getId();
-            if (StringUtils.isBlank(graphNodeId)) {
-                String upstreamNodeId = findUpstreamTaskNodeId(analyzeLayer.getConnectionId(), analyzeLayer.getTable());
-                if (StringUtils.isNotBlank(upstreamNodeId)) {
-                    graphNodeId = upstreamNodeId;
-                } else if (StringUtils.isNotBlank(node.getId())) {
-                    graphNodeId = node.getId();
-                }
+    protected String getNodeIdIfNeedPreNodeId(AnalyzeLayer analyzeLayer, Node node, Node graphNode) {
+        String graphNodeId = null == graphNode ? null : graphNode.getId();
+        if (StringUtils.isBlank(graphNodeId)) {
+            String upstreamNodeId = findUpstreamTaskNodeId(analyzeLayer.getConnectionId(), analyzeLayer.getTable());
+            if (StringUtils.isNotBlank(upstreamNodeId)) {
+                graphNodeId = upstreamNodeId;
+            } else if (StringUtils.isNotBlank(node.getId())) {
+                graphNodeId = node.getId();
             }
-            lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable(), graphNodeId));
-            lineageTableNode.addTask(lineageTask);
-            setGraphNode(graph, lineageTableNode);
         }
-        return lineageTableNode;
+        return graphNodeId;
     }
 
     private String findUpstreamTaskNodeId(String connectionId, String table) {
@@ -132,7 +110,21 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
             if (null == nodeInTask) {
                 continue;
             }
-            if (CollectionUtils.isEmpty(nodeInTask.successors()) && StringUtils.isNotBlank(nodeInTask.getId())) {
+            if (StringUtils.isBlank(nodeInTask.getId())) {
+                continue;
+            }
+            com.tapdata.tm.commons.dag.DAG dag = task.getDag();
+            if (null == dag || CollectionUtils.isEmpty(dag.getEdges())) {
+                continue;
+            }
+            boolean hasIncoming = dag.getEdges().stream()
+                    .anyMatch(e -> null != e && nodeInTask.getId().equals(e.getTarget()));
+            if (!hasIncoming) {
+                continue;
+            }
+            boolean hasOutgoing = dag.getEdges().stream()
+                    .anyMatch(e -> null != e && nodeInTask.getId().equals(e.getSource()));
+            if (!hasOutgoing) {
                 return nodeInTask.getId();
             }
         }

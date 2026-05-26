@@ -406,7 +406,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		return dataSource;
 	}
 
-	protected LineageTableNode setGraphNode(AnalyzeLayer analyzeLayer, LineageTask task, Node node) {
+	private LineageTableNode setGraphNode(AnalyzeLayer analyzeLayer, LineageTask task, Node node) {
 		if (null == task || null == node) {
 			return null;
 		}
@@ -419,12 +419,16 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			lineageTableNode.addTask(lineageTask);
 		} else {
 			DataSourceEntity dataSource = findDataSource(analyzeLayer.getConnectionId());
-			String graphNodeId = null == graphNode ? null : graphNode.getId();
-			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable(), graphNodeId));
+			String nodeId = getNodeIdIfNeedPreNodeId(analyzeLayer, node, graphNode);
+			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable(), nodeId));
 			lineageTableNode.addTask(lineageTask);
 			setGraphNode(graph, lineageTableNode);
 		}
 		return lineageTableNode;
+	}
+
+	protected String getNodeIdIfNeedPreNodeId(AnalyzeLayer analyzeLayer, Node node, Node graphNode) {
+		return null == graphNode ? null : graphNode.getId();
 	}
 
 	protected LineageMetadataInstance getMetadata(String connectionId, String tableName, String nodeId) {
