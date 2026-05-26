@@ -617,13 +617,7 @@ public class BloodlineFinder {
                         mainPropertiesMap.forEach((nId, info) -> info.setTableType(MAIN_TABLE));
                         mergePropertiesMap.putAll(mainPropertiesMap);
                         List<MergeTableProperties> children = properties.getChildren();
-                        if (null == children || children.isEmpty()) {
-                            return;
-                        }
-                        children.forEach(child -> {
-                            String id = child.getId();
-                            mergePropertiesMap.putAll(loadRootInfo(id, taskDag, child));
-                        });
+                        collectChildrenJoinKeys(children, mergePropertiesMap, taskDag);
                     });
                     if (containsAppendMergeType(mergeTableNode)) {
                         hasAppendMap.put(taskId, true);
@@ -673,6 +667,7 @@ public class BloodlineFinder {
                                 continue;
                             }
                             addFieldNameMapping(mappings, originName, targetFieldName);
+                            props.setTableType(SUB_TABLE);
                         }
                         props.setJoinKeys(mappings);
                     }
@@ -683,6 +678,18 @@ public class BloodlineFinder {
         for (Node<?> node : nodes) {
             mergeInfoSetter(node, hasJoinMap, hasMergeMap, hasAppendMap, mergeTablePropertiesMap);
         }
+    }
+
+    void collectChildrenJoinKeys(List<MergeTableProperties> children, Map<String, TableProperties> mergePropertiesMap, DAG taskDag) {
+        if (null == children || children.isEmpty()) {
+            return;
+        }
+        children.forEach(child -> {
+            String id = child.getId();
+            mergePropertiesMap.putAll(loadRootInfo(id, taskDag, child));
+            List<MergeTableProperties> sub = child.getChildren();
+            collectChildrenJoinKeys(sub, mergePropertiesMap, taskDag);
+        });
     }
 
     void initTableNode(Dag dag, Map<String, LineageTableNode> lineageTableNodeByTableKey) {
@@ -920,12 +927,13 @@ public class BloodlineFinder {
         }
         Set<String> rootNodeIds = findRootNodeIds(taskDag, preNodeId);
         String taskId = taskDag.getTaskId().toHexString();
-        String preTableName = resolveNodeTableName(taskDag, preNodeId);
         Map<String, Map<String, Field>> fieldsByNodeIdCache = new HashMap<>();
-
-        if (rootNodeIds.isEmpty() || (rootNodeIds.size() == 1 && rootNodeIds.contains(preNodeId))) {
+        String preTableName;
+        if (rootNodeIds.isEmpty() || (rootNodeIds.size() == 1 && !rootNodeIds.contains(preNodeId))) {
+            String rootNodeId = rootNodeIds.stream().findFirst().orElse(preNodeId);
+            preTableName = resolveNodeTableName(taskDag, rootNodeId);
             TableProperties isSelf = new TableProperties();
-            isSelf.setRootNodeId(preNodeId);
+            isSelf.setRootNodeId(rootNodeId);
             isSelf.setPreNodeId(preNodeId);
             isSelf.setPath(resolveMergePropertiesPath(mergeTableProperties));
             List<Map<String, String>> joinKeys = Optional.ofNullable(mergeTableProperties.getJoinKeys())
@@ -934,10 +942,13 @@ public class BloodlineFinder {
                     .filter(Objects::nonNull)
                     .filter(MapUtils::isNotEmpty)
                     .toList();
-            isSelfSetJoinKey(isSelf, taskId, preNodeId, preTableName, fieldsByNodeIdCache, joinKeys);
-            isSelfSetTablePk(isSelf, taskId, preNodeId, preTableName, fieldsByNodeIdCache, mergeTableProperties);
-            result.put(preNodeId, isSelf);
+            isSelfSetJoinKey(isSelf, taskId, rootNodeId, preTableName, fieldsByNodeIdCache, joinKeys);
+            isSelfSetTablePk(isSelf, taskId, rootNodeId, preTableName, fieldsByNodeIdCache, mergeTableProperties);
+            isSelf.setTableType(SUB_TABLE);
+            result.put(rootNodeId, isSelf);
             return result;
+        } else {
+            preTableName = resolveNodeTableName(taskDag, preNodeId);
         }
         eachArrayKeys(taskDag, preNodeId, preTableName, fieldsByNodeIdCache, mergeTableProperties, result);
         resultSetJoinKey(taskDag, preNodeId, preTableName, fieldsByNodeIdCache, mergeTableProperties, result);
@@ -1027,6 +1038,7 @@ public class BloodlineFinder {
                     tableProperties.setPath(resolveMergePropertiesPath(mergeTableProperties));
                 }
                 addFieldNameMapping(tableProperties.getJoinKeys(), tf.rootFieldName, targetName);
+                tableProperties.setTableType(SUB_TABLE);
             });
         }
     }
@@ -1489,7 +1501,7 @@ public class BloodlineFinder {
         List<FieldNameMapping> tablePk;
         List<String> updateConditionField;
         String path;
-        String tableType = SUB_TABLE;
+        String tableType;
     }
 
     @Data
