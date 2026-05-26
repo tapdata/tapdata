@@ -142,12 +142,12 @@ public class WideTableIncrementalUpdater {
     }
 
     /**
-     * 将事件应用到宽表（真实执行 INSERT/UPDATE/DELETE）
+     * 将事件应用到宽表（批量模式：直接刷写，不走 buffer 缓存）
      */
     private void applyEventsToWideTable(List<TapdataEvent> events) throws SQLException, IOException {
-        // 按操作类型分组，批量执行
-        List<Map<String, Object>> inserts = new ArrayList<>();
+        // 1. 收集 DELETE 主键和 INSERT 数据
         List<Object> deletePks = new ArrayList<>();
+        List<Map<String, Object>> inserts = new ArrayList<>();
 
         for (TapdataEvent event : events) {
             TapEvent tapEvent = event.getTapEvent();
@@ -168,34 +168,20 @@ public class WideTableIncrementalUpdater {
             }
         }
 
-        // 批量删除
-        for (Object pk : deletePks) {
-            deleteRowByPk(pk);
+        // 2. 批量删除（一条 SQL，直接刷写）
+        if (!deletePks.isEmpty()) {
+            String deleteSql = WideTableBatchSqlBuilder.buildDeleteSql(
+                    "wide_table", wideTablePrimaryKey, deletePks);
+            logger.debug("Batch delete SQL: {}", deleteSql);
+            duckDbOperator.executeUpdate(deleteSql);
         }
 
-        // 批量插入
+        // 3. 批量插入（一条 SQL，直接刷写）
         if (!inserts.isEmpty()) {
-            duckDbOperator.batchInsert("wide_table", inserts);
+            String insertSql = WideTableBatchSqlBuilder.buildInsertSql(
+                    "wide_table", fields, inserts);
+            logger.debug("Batch insert SQL: {}", insertSql);
+            duckDbOperator.executeUpdate(insertSql);
         }
-    }
-
-    /**
-     * 按主键删除宽表记录
-     */
-    private void deleteRowByPk(Object pk) throws SQLException {
-        String pkValue;
-        if (pk instanceof String) {
-            pkValue = "'" + pk.toString().replace("'", "''") + "'";
-        } else {
-            pkValue = pk.toString();
-        }
-
-        String deleteSql = String.format(
-                "DELETE FROM wide_table WHERE %s = %s",
-                wideTablePrimaryKey,
-                pkValue
-        );
-        logger.debug("Deleting row: {}", deleteSql);
-        duckDbOperator.executeUpdate(deleteSql);
     }
 }
