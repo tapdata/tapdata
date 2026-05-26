@@ -221,6 +221,10 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract boolean findAgent(TaskDto taskDto, UserDetail user);
 
+    public abstract void clearAgentAffinityForManualStart(ObjectId taskId, UserDetail user);
+
+    public abstract void clearAgentAffinityForManualStart(List<ObjectId> taskIds, UserDetail user);
+
     public abstract void start(ObjectId id, UserDetail user);
 
     public abstract void start(ObjectId id, UserDetail user, boolean system);
