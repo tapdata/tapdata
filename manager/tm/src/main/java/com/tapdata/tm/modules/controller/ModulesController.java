@@ -5,29 +5,39 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
-import com.tapdata.tm.module.dto.Param;
-import com.tapdata.tm.modules.vo.ModulesDetailVo;
-import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.param.ApiDetailParam;
+import com.tapdata.tm.modules.vo.ModulesDetailVo;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.group.service.GroupInfoService;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Collections;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 
 /**
@@ -48,6 +58,47 @@ public class ModulesController extends BaseController {
   @Autowired
   private GroupInfoService groupInfoService;
 
+  private <T> T dataPermissionUnAuth() {
+    throw new RuntimeException("Un auth");
+  }
+
+  private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+    return DataPermissionHelper.check(userDetail, DataPermissionMenuEnums.Modules, actionEnums, DataPermissionDataTypeEnums.Modules, null, supplier, this::dataPermissionUnAuth);
+  }
+
+  private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, ObjectId id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+    if (request != null) {
+      id = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString())).map(MongoUtils::toObjectId).orElse(id);
+    }
+    return DataPermissionHelper.checkOfQuery(
+            userDetail,
+            DataPermissionDataTypeEnums.Modules,
+            actionEnums,
+            modulesService.dataPermissionFindById(id, new Field()),
+            dto -> DataPermissionMenuEnums.Modules,
+            supplier,
+            this::dataPermissionUnAuth
+    );
+  }
+
+  private void checkModulePermission(HttpServletRequest request, UserDetail userDetail, String id, DataPermissionActionEnums actionEnums) {
+    dataPermissionCheckOfId(request, userDetail, MongoUtils.toObjectId(id), actionEnums, () -> null);
+  }
+
+  private DataPermissionActionEnums resolveUpdateAction(ModulesDto module) {
+    ModulesDto current = modulesService.findById(module.getId(), new Field());
+    if (current != null
+            && ModuleStatusEnum.ACTIVE.getValue().equals(current.getStatus())
+            && ModuleStatusEnum.PENDING.getValue().equals(module.getStatus())) {
+      return DataPermissionActionEnums.Revoke;
+    }else if(current != null
+            && ModuleStatusEnum.PENDING.getValue().equals(current.getStatus())
+            && ModuleStatusEnum.ACTIVE.getValue().equals(module.getStatus())) {
+      return DataPermissionActionEnums.Publish;
+    }
+    return DataPermissionActionEnums.Edit;
+  }
+
 
   @Operation(summary = "新增module")
   @PostMapping
@@ -64,21 +115,28 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "修改 发布  modules")
   @PatchMapping()
-  public ResponseMessage<ModulesDto> update(@RequestBody ModulesDto module) {
-    return success(modulesService.updateModuleById(module, getLoginUser()));
+  public ResponseMessage<ModulesDto> update(HttpServletRequest request,@RequestBody ModulesDto module) {
+    UserDetail userDetail = getLoginUser();
+    return success(dataPermissionCheckOfId(request,userDetail,module.getId(),resolveUpdateAction(module),
+            () -> modulesService.updateModuleById(module, userDetail)));
   }
 
   @Operation(summary = "更新权限")
-  @PatchMapping("/updatePermissions")
-  public ResponseMessage<Void> updatePermissions(@RequestBody ModulesPermissionsDto permissions) {
-    modulesService.updatePermissions(permissions, getLoginUser());
+  @PatchMapping("updatePermissions")
+  public ResponseMessage<Void> updatePermissions(HttpServletRequest request, @RequestBody ModulesPermissionsDto permissions) {
+    UserDetail userDetail = getLoginUser();
+    Optional.ofNullable(permissions.getModuleId()).ifPresent(id -> checkModulePermission(request, userDetail, id, DataPermissionActionEnums.Publish));
+    Optional.ofNullable(permissions.getModuleIds()).ifPresent(ids -> ids.forEach(id -> checkModulePermission(request, userDetail, id, DataPermissionActionEnums.Publish)));
+    modulesService.updatePermissions(permissions, userDetail);
     return success();
   }
 
   @Operation(summary = "更新所属应用")
-  @PatchMapping("/updateTags")
-  public ResponseMessage<Void> updateTags(@RequestBody ModulesTagsDto modulesTagsDto) {
-    modulesService.updateTags(modulesTagsDto, getLoginUser());
+  @PatchMapping("updateTags")
+  public ResponseMessage<Void> updateTags(HttpServletRequest request, @RequestBody ModulesTagsDto modulesTagsDto) {
+    UserDetail userDetail = getLoginUser();
+    checkModulePermission(request, userDetail, modulesTagsDto.getModuleId(), DataPermissionActionEnums.Publish);
+    modulesService.updateTags(modulesTagsDto, userDetail);
     return success();
   }
 
@@ -90,8 +148,10 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "生成  modules")
   @PatchMapping("generate")
-  public ResponseMessage<ModulesDto> generate(@Validated @RequestBody ModulesDto module) {
-    return success(modulesService.generate(module, getLoginUser()));
+  public ResponseMessage<ModulesDto> generate(HttpServletRequest request, @Validated @RequestBody ModulesDto module) {
+    UserDetail userDetail = getLoginUser();
+    return success(dataPermissionCheckOfId(request, userDetail, module.getId(), DataPermissionActionEnums.Publish,
+            () -> modulesService.generate(module, userDetail)));
   }
 
 
@@ -106,12 +166,13 @@ public class ModulesController extends BaseController {
   @Operation(summary = " 批量修改所属类别")
   @PatchMapping("batchUpdateListtags")
   public ResponseMessage<List<String>> batchUpdateListtags(@RequestBody BatchUpdateParam batchUpdateParam) {
-    return success(metadataDefinitionService.batchUpdateListTags("Modules",batchUpdateParam,getLoginUser()));
+    return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.Publish,
+            () -> metadataDefinitionService.batchUpdateListTags("Modules", batchUpdateParam, getLoginUser())));
   }
   @Operation(summary = "批量修改 发布  modules")
   @PatchMapping("batchUpdate")
-  public ResponseMessage<List<ModulesDto>> batchUpdate(@RequestBody List<ModulesDto> modules) {
-    return success(modulesService.batchUpdateModuleByList(modules, getLoginUser()));
+  public ResponseMessage<List<ModulesDto>> batchUpdate(HttpServletRequest request, @RequestBody List<ModulesDto> modules) {
+    return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.Publish, () -> modulesService.batchUpdateModuleByList(modules, getLoginUser())));
   }
 
 
@@ -127,14 +188,19 @@ public class ModulesController extends BaseController {
     if (filter == null) {
       filter = new Filter();
     }
-    return success(modulesService.findModules(filter, getLoginUser()));
+    Filter finalFilter = filter;
+    UserDetail userDetail = getLoginUser();
+    return success(dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,
+            () -> modulesService.findModules(finalFilter, userDetail)));
   }
 
 
 
   @GetMapping("{id}")
-  public ResponseMessage<ModulesDetailVo> findById(@PathVariable("id") String id) {
-    return success(modulesService.findById(id));
+  public ResponseMessage<ModulesDetailVo> findById(HttpServletRequest request, @PathVariable("id") String id) {
+    UserDetail userDetail = getLoginUser();
+    return success(dataPermissionCheckOfId(request, userDetail, MongoUtils.toObjectId(id), DataPermissionActionEnums.View,
+            () -> modulesService.findById(id)));
   }
 
 
@@ -146,10 +212,13 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "Delete a model instance by {{id}} from the data source")
   @DeleteMapping("{id}")
-  public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-    modulesService.deleteLogicsById(id);
-    groupInfoService.removeResourceReferences(Collections.singletonList(id), getLoginUser());
-    return success();
+  public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
+    UserDetail userDetail = getLoginUser();
+    return success(dataPermissionCheckOfId(request, userDetail, MongoUtils.toObjectId(id), DataPermissionActionEnums.Delete, () -> {
+      modulesService.deleteLogicsById(id);
+      groupInfoService.removeResourceReferences(Collections.singletonList(id), userDetail);
+      return null;
+    }));
   }
 
 
@@ -161,20 +230,25 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "Delete a model instance by {{id}} from the data source")
   @PostMapping("{id}/copy")
-  public ResponseMessage<Void> copy(@PathVariable("id") String id) {
-    modulesService.copy(id, getLoginUser());
+  public ResponseMessage<Void> copy(HttpServletRequest request, @PathVariable("id") String id) {
+    UserDetail userDetail = getLoginUser();
+    modulesService.copy(id, userDetail);
     return success();
   }
 
   @PostMapping("updateOutParameter/{id}")
-  public ResponseMessage<Void> updateOutParameter(@PathVariable("id")String id,@RequestBody DiscoveryFieldDto discoveryFieldDto) {
-    modulesService.updateOutParameter(id,discoveryFieldDto, getLoginUser());
+  public ResponseMessage<Void> updateOutParameter(HttpServletRequest request, @PathVariable("id")String id,@RequestBody DiscoveryFieldDto discoveryFieldDto) {
+    UserDetail userDetail = getLoginUser();
+    checkModulePermission(request, userDetail, id, DataPermissionActionEnums.Publish);
+    modulesService.updateOutParameter(id,discoveryFieldDto, userDetail);
     return success();
   }
 
   @PostMapping("updateIntParameter/{id}")
-  public ResponseMessage<Void> updateIntParameter(@PathVariable("id")String id,@RequestBody Param param) {
-    modulesService.updateIntParameter(id,param, getLoginUser());
+  public ResponseMessage<Void> updateIntParameter(HttpServletRequest request, @PathVariable("id")String id,@RequestBody Param param) {
+    UserDetail userDetail = getLoginUser();
+    checkModulePermission(request, userDetail, id, DataPermissionActionEnums.Publish);
+    modulesService.updateIntParameter(id,param, userDetail);
     return success();
   }
 
@@ -186,7 +260,10 @@ public class ModulesController extends BaseController {
     if (filter == null) {
       filter = new Filter();
     }
-    return success(modulesService.findOne(filter, getLoginUser()));
+    Filter finalFilter = filter;
+    UserDetail userDetail = getLoginUser();
+    return success(dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.View,
+            () -> modulesService.findOne(finalFilter, userDetail)));
   }
 
 
@@ -194,7 +271,8 @@ public class ModulesController extends BaseController {
   @PostMapping("update")
   public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody ModulesDto modules) {
     Where where = parseWhere(whereJson);
-    long count = modulesService.updateByWhere(where, modules, getLoginUser());
+    long count = dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.Edit,
+            () -> modulesService.updateByWhere(where, modules, getLoginUser()));
     HashMap<String, Long> countValue = new HashMap<>();
     countValue.put("count", count);
     return success(countValue);
@@ -205,7 +283,8 @@ public class ModulesController extends BaseController {
   @PostMapping("upsertWithWhere")
   public ResponseMessage<ModulesDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody ModulesDto modules) {
     Where where = parseWhere(whereJson);
-    return success(modulesService.upsertByWhere(where, modules, getLoginUser()));
+    return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.Edit,
+            () -> modulesService.upsertByWhere(where, modules, getLoginUser())));
   }
 
   /**
@@ -214,8 +293,10 @@ public class ModulesController extends BaseController {
    * @return
    */
   @GetMapping("getSchema/{id}")
-  public ResponseMessage getSchema(@PathVariable("id") String id) {
-    return success(modulesService.getSchema(id, getLoginUser()));
+  public ResponseMessage getSchema(HttpServletRequest request, @PathVariable("id") String id) {
+    UserDetail userDetail = getLoginUser();
+    return success(dataPermissionCheckOfId(request, userDetail, MongoUtils.toObjectId(id), DataPermissionActionEnums.View,
+            () -> modulesService.getSchema(id, userDetail)));
   }
 
   /**
@@ -225,7 +306,8 @@ public class ModulesController extends BaseController {
    */
   @GetMapping("apiDefinition")
   public ResponseMessage apiDefinition() {
-    return success(modulesService.apiDefinition(getLoginUser()));
+    return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.View,
+            () -> modulesService.apiDefinition(getLoginUser())));
   }
 
   @GetMapping("worker-info")
@@ -242,22 +324,26 @@ public class ModulesController extends BaseController {
 
 
   @GetMapping("getApiDocument/{id}")
-  public ResponseMessage getApiDocument(@PathVariable("id") String id){
-    return success(modulesService.getApiDocument(MongoUtils.toObjectId(id),getLoginUser()));
+  public ResponseMessage getApiDocument(HttpServletRequest request, @PathVariable("id") String id){
+    UserDetail userDetail = getLoginUser();
+    return success(dataPermissionCheckOfId(request, userDetail, MongoUtils.toObjectId(id), DataPermissionActionEnums.View,
+            () -> modulesService.getApiDocument(MongoUtils.toObjectId(id), userDetail)));
   }
 
 
   @GetMapping("preview")
   @Deprecated
   public ResponseMessage preview(){
-    return success(modulesService.preview(getLoginUser()));
+    return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.View,
+            () -> modulesService.preview(getLoginUser())));
   }
 
   @GetMapping("rankLists")
   public ResponseMessage rankLists(@RequestParam(value = "filter", required = false) String filterJson){
     Filter filter=parseFilter(filterJson);
 //    modulesService.executeRankList(getLoginUser());
-    return success(modulesService.rankLists(filter,getLoginUser()));
+    return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.View,
+            () -> modulesService.rankLists(filter,getLoginUser())));
   }
 
 
@@ -265,13 +351,16 @@ public class ModulesController extends BaseController {
   @GetMapping("apiList")
   public ResponseMessage apiList(@RequestParam(value = "filter", required = false) String filterJson){
     Filter filter=parseFilter(filterJson);
-    return success(modulesService.apiList(filter,getLoginUser()));
+    return success(dataPermissionCheckOfMenu(getLoginUser(), DataPermissionActionEnums.View,
+            () -> modulesService.apiList(filter,getLoginUser())));
   }
 
 
   @PostMapping("apiDetail")
-  public ResponseMessage apiDetail(@RequestBody ApiDetailParam apiDetailParam){
-    return success(modulesService.apiDetail(apiDetailParam));
+  public ResponseMessage apiDetail(HttpServletRequest request, @RequestBody ApiDetailParam apiDetailParam){
+    UserDetail userDetail = getLoginUser();
+    return success(dataPermissionCheckOfId(request, userDetail, MongoUtils.toObjectId(apiDetailParam.getId()), DataPermissionActionEnums.View,
+            () -> modulesService.apiDetail(apiDetailParam)));
   }
 
 	@Operation(summary = "api导出")

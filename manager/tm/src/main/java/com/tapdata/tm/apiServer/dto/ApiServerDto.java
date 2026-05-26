@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiServer.dto;
 
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -11,7 +12,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ApiServerDto extends BaseDto {
+public class ApiServerDto extends BaseDto implements IDataPermissionDto {
     private String clientName;
     private String clientURI;
     private String processId;
