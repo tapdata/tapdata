@@ -254,15 +254,18 @@ public class TraceDataService {
             Map<String, Object> filter = JSON.parseObject(request.getFilters().getSql(), Map.class);
             condition.getConditionKeys().addAll(filter.keySet());
         }
-        if (request.getFilters() != null && request.getFilters().getCustom() != null
-                && StringUtils.isNotBlank(request.getFilters().getCustom().getKey())) {
-            QueryOperator custom = request.getFilters().getCustom();
-            if (isRangeOperator(custom.getOperator())) {
-                condition.getQueryOperators().add(custom);
-            } else {
-                addFilter(condition, custom.getKey(), custom.getValue());
-            }
-            condition.getConditionKeys().add(custom.getKey());
+        if (request.getFilters() != null &&  CollectionUtils.isNotEmpty(request.getFilters().getCustom())) {
+            request.getFilters().getCustom().stream()
+                    .filter(Objects::nonNull)
+                    .filter(e -> StringUtils.isNotBlank(e.getKey()))
+                    .forEach(custom -> {
+                        if (isRangeOperator(custom.getOperator())) {
+                            condition.getQueryOperators().add(custom);
+                        } else {
+                            addFilter(condition, custom.getKey(), custom.getValue());
+                        }
+                        condition.getConditionKeys().add(custom.getKey());
+                    });
         }
         return condition;
     }
