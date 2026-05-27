@@ -604,15 +604,45 @@ public class BloodlineFinder {
                     .stream()
                     .filter(Objects::nonNull)
                     .collect(Collectors.toMap(Node::getId, n -> n, (n1, n2) -> n2));
+            boolean taskHasMerge = false;
             for (Node<?> taskNode : nodeMap.values()) {
-                if (taskNode instanceof JoinProcessorNode) {
-                    hasJoinMap.put(taskId, true);
-                } else if (taskNode instanceof MergeTableNode mergeTableNode) {
-                    hasMergeMap.put(taskId, true);
-                    List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
-                    collectJoinKeys(mergeProperties, mergePropertiesMap, taskDag, MAIN_TABLE);
-                    if (containsAppendMergeType(mergeTableNode)) {
-                        hasAppendMap.put(taskId, true);
+                //if (taskNode instanceof JoinProcessorNode) {
+                //                    hasJoinMap.put(taskId, true);
+                //                    setTableType(taskNode, mergePropertiesMap, taskDag);
+                //                } else if (taskNode instanceof MergeTableNode mergeTableNode) {
+                //                    hasMergeMap.put(taskId, true);
+                //                    List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
+                //                    collectJoinKeys(mergeProperties, mergePropertiesMap, taskDag, MAIN_TABLE);
+                //                    if (containsAppendMergeType(mergeTableNode)) {
+                //                        hasAppendMap.put(taskId, true);
+                //                    }
+                //                } else {
+                //                    setTableType(taskNode, mergePropertiesMap, taskDag);
+                //}
+                if (!(taskNode instanceof MergeTableNode mergeTableNode)) {
+                    continue;
+                }
+                taskHasMerge = true;
+                hasMergeMap.put(taskId, true);
+                List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
+                collectJoinKeys(mergeProperties, mergePropertiesMap, taskDag, MAIN_TABLE);
+                if (containsAppendMergeType(mergeTableNode)) {
+                    hasAppendMap.put(taskId, true);
+                }
+            }
+            if (taskHasMerge) {
+                for (Node<?> taskNode : nodeMap.values()) {
+                    if (taskNode instanceof JoinProcessorNode) {
+                        hasJoinMap.put(taskId, true);
+                        setTableType(taskNode, mergePropertiesMap, taskDag);
+                    } else if (!(taskNode instanceof MergeTableNode)) {
+                        setTableType(taskNode, mergePropertiesMap, taskDag);
+                    }
+                }
+            } else {
+                for (Node<?> taskNode : nodeMap.values()) {
+                    if (taskNode instanceof JoinProcessorNode) {
+                        hasJoinMap.put(taskId, true);
                     }
                 }
             }
@@ -642,8 +672,11 @@ public class BloodlineFinder {
                     continue;
                 }
                 String sourceNodeId = sourceTableNode.getId();
-                JoinProcessorNode firstJoinNode = findFirstDownstreamJoinNode(taskDag, sourceNodeId);
+                String tableName = sourceTableNode.getTableName();
+                JoinProcessorNode firstJoinNode = (JoinProcessorNode) findFirstDownstreamJoinNode(taskDag, sourceNodeId, false);
                 if (null != firstJoinNode) {
+                    Node<?> firstBeforeJoinNode = findFirstDownstreamJoinNode(taskDag, sourceNodeId, true);
+                    firstBeforeJoinNode = firstBeforeJoinNode == null ? node : firstBeforeJoinNode;
                     TableProperties props = mergePropertiesMap.computeIfAbsent(sourceNodeId, k -> {
                         TableProperties p = new TableProperties();
                         p.setRootNodeId(sourceNodeId);
@@ -653,13 +686,14 @@ public class BloodlineFinder {
                     List<String> joinKeys = extractJoinKeyFieldNamesForSource(taskDag, sourceNodeId, firstJoinNode);
                     if (CollectionUtils.isNotEmpty(joinKeys)) {
                         List<FieldNameMapping> mappings = new ArrayList<>();
+                        Map<String, Map<String, Field>> fieldsByNodeIdCache = new HashMap<>();
                         for (String originName : joinKeys) {
-                            String targetFieldName = pickBestTargetFieldName(targetCandidatesBySourceFieldName.get(originName), originName);
+                            String realOriginName = getOriginFieldName(taskId, firstBeforeJoinNode.getId(), tableName, originName, fieldsByNodeIdCache);
+                            String targetFieldName = pickBestTargetFieldName(targetCandidatesBySourceFieldName.get(realOriginName), realOriginName);
                             if (StringUtils.isBlank(targetFieldName)) {
-                                continue;
+                                targetFieldName = originName;
                             }
-                            addFieldNameMapping(mappings, originName, targetFieldName);
-                            props.setTableType(SUB_TABLE);
+                            addFieldNameMapping(mappings, realOriginName, targetFieldName);
                         }
                         props.setJoinKeys(mappings);
                     }
@@ -669,6 +703,100 @@ public class BloodlineFinder {
         List<Node> nodes = dag.getNodes();
         for (Node<?> node : nodes) {
             mergeInfoSetter(node, hasJoinMap, hasMergeMap, hasAppendMap, mergeTablePropertiesMap);
+        }
+    }
+
+    void setTableType(Node<?> node, Map<String, TableProperties> mergeTablePropertiesMap, DAG dag) {
+        //1. 找出当前node的下游节点中是否出现合并节点，如果出现,先设置nodeType=NODE_ATTR_TYPE_MERGE，再根据当前节点对应的TableProperties设置tableType
+        //1-1. 如果当前node时合并节点对应的主表链路，则对应的tableType设置成MAIN_TABLE
+        //1-2. 如果当前node时合并节点对应的子表链路，则对应的tableType设置成SUB_TABLE
+        if (null == node || null == dag || null == mergeTablePropertiesMap) {
+            return;
+        }
+        String nodeId = node.getId();
+        if (StringUtils.isBlank(nodeId)) {
+            return;
+        }
+        Set<String> visited = new HashSet<>();
+        Queue<String> queue = new java.util.ArrayDeque<>();
+        visited.add(nodeId);
+        queue.add(nodeId);
+
+        boolean hasDownstreamMergeNode = false;
+        String resolvedTableType = null;
+
+        while (!queue.isEmpty()) {
+            String currentId = queue.poll();
+            if (StringUtils.isBlank(currentId)) {
+                continue;
+            }
+            Node<?> current = dag.getNode(currentId);
+            if (current instanceof MergeTableNode mergeTableNode) {
+                hasDownstreamMergeNode = true;
+                Set<String> mainTableNodeIds = new HashSet<>();
+                Set<String> subTableNodeIds = new HashSet<>();
+                List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
+                if (CollectionUtils.isNotEmpty(mergeProperties)) {
+                    for (MergeTableProperties p : mergeProperties) {
+                        if (null == p) {
+                            continue;
+                        }
+                        if (StringUtils.isNotBlank(p.getId())) {
+                            mainTableNodeIds.add(p.getId());
+                        }
+                        collectMergePropertiesIds(p.getChildren(), subTableNodeIds);
+                    }
+                }
+                if (!mainTableNodeIds.isEmpty() || !subTableNodeIds.isEmpty()) {
+                    boolean inMain = visited.stream().anyMatch(mainTableNodeIds::contains);
+                    boolean inSub = !inMain && visited.stream().anyMatch(subTableNodeIds::contains);
+                    if (inMain) {
+                        resolvedTableType = MAIN_TABLE;
+                    } else if (inSub) {
+                        resolvedTableType = SUB_TABLE;
+                    }
+                }
+                break;
+            }
+            List<Node> successors = dag.getTarget(currentId);
+            if (CollectionUtils.isEmpty(successors)) {
+                continue;
+            }
+            for (Node<?> succ : successors) {
+                if (null == succ || StringUtils.isBlank(succ.getId())) {
+                    continue;
+                }
+                String succId = succ.getId();
+                if (visited.add(succId)) {
+                    queue.add(succId);
+                }
+            }
+        }
+
+        if (!hasDownstreamMergeNode) {
+            return;
+        }
+        TableProperties properties = mergeTablePropertiesMap.computeIfAbsent(nodeId, k -> newTableProperties(nodeId, nodeId));
+        properties.setNodeType(NODE_ATTR_TYPE_MERGE);
+        if (StringUtils.isBlank(properties.getTableType()) && StringUtils.isNotBlank(resolvedTableType)) {
+            properties.setTableType(resolvedTableType);
+        }
+    }
+
+    void collectMergePropertiesIds(List<MergeTableProperties> propertiesList, Set<String> outIds) {
+        if (CollectionUtils.isEmpty(propertiesList) || null == outIds) {
+            return;
+        }
+        for (MergeTableProperties p : propertiesList) {
+            if (null == p) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(p.getId())) {
+                outIds.add(p.getId());
+            }
+            if (CollectionUtils.isNotEmpty(p.getChildren())) {
+                collectMergePropertiesIds(p.getChildren(), outIds);
+            }
         }
     }
 
@@ -729,7 +857,9 @@ public class BloodlineFinder {
             }
             Optional.ofNullable(propertiesMap.get(nodeId))
                     .ifPresent(properties -> {
-                        properties.setNodeType(nodeType);
+                        if (StringUtils.isBlank(properties.getNodeType())) {
+                            properties.setNodeType(nodeType);
+                        }
                         node.getAttrs().put(taskId, properties);
                     });
         }
@@ -779,7 +909,7 @@ public class BloodlineFinder {
         return targetCandidatesBySourceFieldName;
     }
 
-    private JoinProcessorNode findFirstDownstreamJoinNode(DAG taskDag, String startNodeId) {
+    private Node<?> findFirstDownstreamJoinNode(DAG taskDag, String startNodeId, boolean before) {
         if (null == taskDag || StringUtils.isBlank(startNodeId)) {
             return null;
         }
@@ -787,6 +917,7 @@ public class BloodlineFinder {
         Queue<String> queue = new java.util.ArrayDeque<>();
         visited.add(startNodeId);
         queue.add(startNodeId);
+        Node<?> beforeNode = null;
         while (!queue.isEmpty()) {
             String current = queue.poll();
             if (StringUtils.isBlank(current)) {
@@ -801,8 +932,9 @@ public class BloodlineFinder {
                     continue;
                 }
                 if (succ instanceof JoinProcessorNode joinProcessorNode) {
-                    return joinProcessorNode;
+                    return before ? beforeNode : joinProcessorNode;
                 }
+                beforeNode = succ;
                 queue.add(succ.getId());
             }
         }
@@ -914,7 +1046,7 @@ public class BloodlineFinder {
                 return target;
             }
         }
-        List<String> sorted = targetCandidates.stream().filter(StringUtils::isNotBlank).distinct().sorted(String::compareTo).collect(Collectors.toList());
+        List<String> sorted = targetCandidates.stream().filter(StringUtils::isNotBlank).distinct().sorted(String::compareTo).toList();
         return sorted.isEmpty() ? null : sorted.get(0);
     }
 
@@ -940,8 +1072,8 @@ public class BloodlineFinder {
                     .filter(Objects::nonNull)
                     .filter(MapUtils::isNotEmpty)
                     .toList();
-            isSelfSetJoinKey(isSelf, taskId, rootNodeId, preTableName, fieldsByNodeIdCache, joinKeys);
-            isSelfSetTablePk(isSelf, taskId, rootNodeId, preTableName, fieldsByNodeIdCache, mergeTableProperties);
+            isSelfSetJoinKey(isSelf, taskId, preNodeId, preTableName, fieldsByNodeIdCache, joinKeys);
+            isSelfSetTablePk(isSelf, taskId, preNodeId, preTableName, fieldsByNodeIdCache, mergeTableProperties);
             isSelf.setTableType(SUB_TABLE);
             result.put(rootNodeId, isSelf);
             return result;
@@ -1036,7 +1168,6 @@ public class BloodlineFinder {
                     tableProperties.setPath(resolveMergePropertiesPath(mergeTableProperties));
                 }
                 addFieldNameMapping(tableProperties.getJoinKeys(), tf.rootFieldName, targetName);
-                tableProperties.setTableType(SUB_TABLE);
             });
         }
     }
