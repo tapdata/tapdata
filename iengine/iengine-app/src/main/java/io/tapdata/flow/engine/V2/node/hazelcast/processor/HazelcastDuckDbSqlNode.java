@@ -5,8 +5,17 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapBoolean;
+import io.tapdata.entity.schema.type.TapDate;
+import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.duckdb.*;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -69,8 +78,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private WideTableIncrementalUpdater wideTableUpdater;
     // @Deprecated: 使用 wideTableUpdater 替代
     private IncrementalViewUpdater incrementalViewUpdater;
-    private List<Map<String, Object>> cdcEventBuffer = new ArrayList<>();
-    private static final int CDC_BUFFER_SIZE = 100;
 
     private static final int ERROR_THRESHOLD_COUNT = 100;
     private static final double ERROR_THRESHOLD_RATE = 0.01; // 1%
@@ -222,7 +229,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             contextFlusher.scheduleAtFixedRate(this::flushAllContextsSafely, commitIntervalMs, commitIntervalMs, TimeUnit.MILLISECONDS);
             dlqWriter = new DlqWriter(clientMongoOperator, DLQ_COLLECTION);
 
-            // Initialize integration helpers for full/CDC flow
+            // 初始化全量/CDC集成辅助组件
             multiTableInputManager = new MultiTableInputManager();
             syncStageTracker = new SyncStageTracker();
             outputBuffer = new OutputBuffer(OUTPUT_BATCH_SIZE);
@@ -304,33 +311,34 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     /**
-     * Handle the transition when all tables have entered CDC stage
+     * 处理所有表进入CDC阶段的转换
+     * 当所有表都从全量同步切换到增量同步时触发
      */
     private void handleAllTablesCdcTransition() {
-        logger.info("All tables transitioned to CDC, executing query and emitting results...");
+        logger.info("所有表已切换到CDC阶段，执行查询并发射结果...");
 
         if (executeQueryOnFullSyncComplete && !queryExecuted) {
             try {
-                // First, flush all remaining data
+                // 步骤1: 刷写所有剩余数据
                 flushAllContexts();
 
-                // Execute query and emit results
+                // 步骤2: 执行查询并发射结果
                 executeAndEmitQueryResults();
 
                 queryExecuted = true;
-                logger.info("Query executed and results emitted successfully");
+                logger.info("查询执行成功，结果已发射");
             } catch (Exception e) {
-                logger.error("Error executing query on full sync complete: {}", e.getMessage(), e);
+                logger.error("全量同步完成后执行查询失败: {}", e.getMessage(), e);
             }
         }
     }
 
     /**
-     * Execute SQL query and emit results as TapdataEvents
+     * 执行SQL查询并将结果作为TapdataEvent发射
      */
     private void executeAndEmitQueryResults() {
         try {
-            // Determine which tables to query
+            // 步骤1: 确定需要查询的表
             List<String> tableNames = new ArrayList<>();
             for (PerSourceContext context : sourceContexts.values()) {
                 if (context.getTargetTableName() != null) {
@@ -339,62 +347,62 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             }
 
             if (tableNames.isEmpty()) {
-                logger.warn("No tables to query, skipping result emission");
+                logger.warn("没有可查询的表，跳过结果发射");
                 return;
             }
 
-            // For each table, execute query
+            // 步骤2: 对每个表执行查询
             for (String tableName : tableNames) {
                 String sql = String.format(querySql, tableName);
-                logger.info("Executing query for table {}: {}", tableName, sql);
+                logger.info("执行表 {} 的查询: {}", tableName, sql);
 
                 DuckDbOperator.ExecuteResult executeResult = duckDbOperator.execute(sql);
 
                 if (executeResult.isHasResultSet()) {
                     List<Map<String, Object>> results = executeResult.getResultSet();
                     if (results != null && !results.isEmpty()) {
-                        logger.info("Query returned {} results for table {}", results.size(), tableName);
+                        logger.info("表 {} 查询返回 {} 条结果", tableName, results.size());
 
-                        // Emit results as TapInsertRecordEvents
+                        // 将结果作为TapInsertRecordEvent发射
                         for (Map<String, Object> result : results) {
                             emitResultAsTapEvent(result, tableName);
                         }
                     } else {
-                        logger.info("Query returned no results for table {}", tableName);
+                        logger.info("表 {} 查询无结果", tableName);
                     }
                 } else {
-                    logger.info("SQL executed successfully, update count: {} for table {}", executeResult.getUpdateCount(), tableName);
+                    logger.info("表 {} SQL执行成功，影响行数: {}", tableName, executeResult.getUpdateCount());
                 }
             }
 
         } catch (Exception e) {
-            logger.error("Error executing and emitting query results: {}", e.getMessage(), e);
+            logger.error("执行查询并发射结果失败: {}", e.getMessage(), e);
         }
     }
 
     /**
-     * Emit a single result as a TapdataEvent
+     * 将单条结果作为TapdataEvent发射
      */
     private void emitResultAsTapEvent(Map<String, Object> result, String tableName) {
         try {
-            // Create TapInsertRecordEvent
-            io.tapdata.entity.event.dml.TapInsertRecordEvent insertEvent =
-                    new io.tapdata.entity.event.dml.TapInsertRecordEvent();
+            // 创建TapInsertRecordEvent
+            TapInsertRecordEvent insertEvent =
+                    new TapInsertRecordEvent();
             insertEvent.setTableId(tableName);
             insertEvent.setAfter(result);
 
-            // Create TapdataEvent
+            // 创建TapdataEvent并设置同步阶段为CDC
             TapdataEvent tapdataEvent = new TapdataEvent();
             tapdataEvent.setTapEvent(insertEvent);
             tapdataEvent.setSyncStage(com.tapdata.entity.SyncStage.CDC);
 
-            // Add to pending events queue
+            // 添加到待处理事件队列
             pendingEvents.offer(tapdataEvent);
 
-            logger.debug("Added query result to pending events for table: {}", tableName);
+            logger.debug("已将查询结果添加到待处理事件队列, 表: {}", tableName);
 
         } catch (Exception e) {
-            logger.warn("Failed to emit result as TapEvent: {}", e.getMessage());
+            logger.warn("发射查询结果为TapEvent失败: {}", e.getMessage());
         }
     }
 
@@ -483,46 +491,55 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         return Collections.emptyList();
     }
 
+    /**
+     * 处理数据事件的核心方法
+     * 负责事件分类、错误监控、同步阶段追踪和事件分发
+     * 
+     * @param tapdataEvent 数据事件
+     * @param consumer 事件消费者
+     */
     @Override
     protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-        // Save the current consumer for emitting pending events
+        // 步骤1: 保存当前消费者用于发送待处理事件
         currentConsumer = consumer;
 
-        // First, emit any pending events
+        // 步骤2: 发送待处理事件
         emitPendingEvents();
 
+        // 步骤3: 空事件检查
         if (tapdataEvent == null) {
             return;
         }
 
         TapEvent tapEvent = tapdataEvent.getTapEvent();
 
-        // Record event in error handler for rate tracking
+        // 步骤4: 错误率监控
         if (errorHandler != null) {
             errorHandler.recordEvent();
 
-            // Check if task should stop due to error threshold
+            // 检查是否超过错误阈值需要停止任务
             if (errorHandler.shouldStopTask()) {
-                logger.error("Error threshold exceeded. Task should stop.");
-                // Still process the event, but subsequent events will also check this
+                logger.error("超过错误阈值，任务应停止");
                 return;
             }
         }
 
-        // Track sync stage for the event
+        // 步骤5: 同步阶段追踪
         trackSyncStage(tapdataEvent);
 
-        // 处理 DML 事件
+        // 步骤6: 事件分类处理
         if (tapEvent instanceof TapRecordEvent) {
-            processRecordEventWithStage((TapRecordEvent) tapEvent, tapdataEvent, consumer);
+            // DML事件: 统一处理
+            processRecordEvent((TapRecordEvent) tapEvent, tapdataEvent, consumer);
         } else {
-            // 非 DML 事件直接透传
+            // 非DML事件: 直接透传
             consumer.accept(tapdataEvent, null);
         }
     }
 
     /**
-     * Emit any pending events
+     * 发送所有待处理事件
+     * 用于将查询结果等延迟发送的事件传递给下游
      */
     private void emitPendingEvents() {
         if (currentConsumer != null && !pendingEvents.isEmpty()) {
@@ -531,14 +548,17 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 try {
                     currentConsumer.accept(event, null);
                 } catch (Exception e) {
-                    logger.warn("Failed to emit pending event: {}", e.getMessage());
+                    logger.warn("发送待处理事件失败: {}", e.getMessage());
                 }
             }
         }
     }
 
     /**
-     * Track sync stage from tapdataEvent
+     * 追踪数据事件的同步阶段
+     * 记录每个表当前所处的同步阶段(全量/CDC)
+     * 
+     * @param tapdataEvent 数据事件
      */
     private void trackSyncStage(TapdataEvent tapdataEvent) {
         if (syncStageTracker != null && tapdataEvent != null) {
@@ -555,250 +575,17 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     /**
-     * Process record event with sync stage awareness
-     */
-    private void processRecordEventWithStage(TapRecordEvent recordEvent, TapdataEvent tapdataEvent,
-                                             BiConsumer<TapdataEvent, ProcessResult> consumer) {
-        try {
-            // 获取表名
-            String tableId = TapEventUtil.getTableId(recordEvent);
-            String sourceId = resolveSourceId(tapdataEvent, recordEvent);
-            if (tableId == null || tableId.isEmpty()) {
-                tableId = "unknown_table";
-            }
-            String contextKey = buildContextKey(sourceId, tableId);
-            String targetTableName = buildTargetTableName(sourceId, tableId);
-            PerSourceContext context = getOrCreateContext(contextKey, targetTableName);
-            currentTableName = targetTableName;
-
-            // 获取记录数据
-            Map<String, Object> recordData = extractRecordData(recordEvent);
-
-            if (recordData != null && !recordData.isEmpty()) {
-                synchronized (context.getCommitLock()) {
-                    context.addRecord(recordData);
-                    if (context.getBatchBuffer().size() >= context.getBatchSize()) {
-                        flushContext(context);
-                    }
-                }
-            }
-
-            // ========== 新增: 实时增量物化视图处理 ==========
-            if (syncStageTracker != null && syncStageTracker.isTransitionCompleted()
-                    && affectedKeyCalculator != null
-                    && (wideTableUpdater != null || incrementalViewUpdater != null)) {
-                // CDC 阶段，处理实时增量更新
-                processCdcEventForMaterializedView(tableId, recordEvent, recordData);
-            }
-
-            // 检查是否需要执行输出逻辑
-            handleOutputWithStage(tapdataEvent, consumer);
-
-        } catch (Exception e) {
-            logger.error("Failed to process record event: {}", e.getMessage(), e);
-
-            // Record error in handler
-            if (errorHandler != null) {
-                try {
-                    Map<String, Object> sourceData = extractRecordData(recordEvent);
-                    errorHandler.recordError(sourceData != null ? sourceData : new HashMap<>(), e);
-
-                    // Write to DLQ if needed
-                    if (dlqWriter != null && sourceData != null) {
-                        try {
-                            String tableId = TapEventUtil.getTableId(recordEvent);
-                            String sourceId = resolveSourceId(tapdataEvent, recordEvent);
-                            String contextKey = buildContextKey(sourceId, tableId);
-                            dlqWriter.write(contextKey, buildTargetTableName(sourceId, tableId),
-                                    Collections.singletonList(sourceData), e);
-                        } catch (Exception dlqError) {
-                            logger.warn("Failed to write to DLQ: {}", dlqError.getMessage());
-                        }
-                    }
-                } catch (Exception handlerError) {
-                    logger.warn("Failed to record error in ErrorHandler: {}", handlerError.getMessage());
-                }
-            }
-
-            // 处理失败时仍然透传事件
-            consumer.accept(tapdataEvent, null);
-        }
-    }
-
-    // ========== 新增: 处理 CDC 事件用于物化视图 ==========
-    private void processCdcEventForMaterializedView(String tableName, TapRecordEvent recordEvent, Map<String, Object> recordData) {
-        try {
-            // 将事件添加到缓冲区
-            Map<String, Object> eventMap = new HashMap<>();
-            eventMap.put("table", tableName);
-            eventMap.put("record", recordData);
-
-            // 提取 op 类型
-            String opType = "INSERT";
-            if (recordEvent instanceof io.tapdata.entity.event.dml.TapInsertRecordEvent) {
-                opType = "INSERT";
-            } else if (recordEvent instanceof io.tapdata.entity.event.dml.TapUpdateRecordEvent) {
-                opType = "UPDATE";
-                eventMap.put("before", TapEventUtil.getBefore(recordEvent));
-            } else if (recordEvent instanceof io.tapdata.entity.event.dml.TapDeleteRecordEvent) {
-                opType = "DELETE";
-            }
-            eventMap.put("op", opType);
-
-            cdcEventBuffer.add(eventMap);
-
-            // 缓冲区满或需要时，触发批量更新
-            if (cdcEventBuffer.size() >= CDC_BUFFER_SIZE) {
-                flushCdcBuffer();
-            }
-        } catch (Exception e) {
-            logger.error("Failed to process CDC event for materialized view: {}", e.getMessage(), e);
-        }
-    }
-
-    // ========== 新增: 刷新 CDC 事件缓冲区并更新宽表 ==========
-    private void flushCdcBuffer() {
-        if (cdcEventBuffer.isEmpty()) {
-            return;
-        }
-
-        try {
-            logger.info("Flushing CDC buffer: {} events", cdcEventBuffer.size());
-
-            // 按表名分组
-            Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
-            for (Map<String, Object> event : cdcEventBuffer) {
-                String table = (String) event.get("table");
-                eventsByTable.computeIfAbsent(table, k -> new ArrayList<>()).add(event);
-            }
-
-            if (DuckDbSqlConfig.isUseNewWideTableUpdater() && wideTableUpdater != null) {
-                // 新组件：使用 updateWideTableAsTapdataEvents
-                flushCdcBufferWithNewComponent(eventsByTable);
-            } else if (incrementalViewUpdater != null) {
-                // 旧组件：使用 updateWideTable
-                flushCdcBufferWithOldComponent(eventsByTable);
-            }
-
-            // 清空缓冲区
-            cdcEventBuffer.clear();
-        } catch (Exception e) {
-            logger.error("Failed to flush CDC buffer: {}", e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 使用新组件刷新 CDC 缓冲区
-     */
-    private void flushCdcBufferWithNewComponent(Map<String, List<Map<String, Object>>> eventsByTable) {
-        try {
-            // 计算 before/after 主键
-            Set<Object> beforeKeys = affectedKeyCalculator.calculateAffectedBeforeKeys(eventsByTable);
-            Set<Object> afterKeys = affectedKeyCalculator.calculateAffectedAfterKeys(eventsByTable);
-
-            // 提取 after 数据行
-            List<Map<String, Object>> afterRows = extractAfterRowsFromBuffer(eventsByTable);
-
-            // 执行宽表更新
-            List<TapdataEvent> events = wideTableUpdater.updateWideTableAsTapdataEvents(
-                    beforeKeys, afterKeys, afterRows, "users");
-
-            logger.info("Updated wide table with {} events (new component)", events.size());
-        } catch (Exception e) {
-            logger.error("Failed to flush CDC buffer with new component: {}", e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 使用旧组件刷新 CDC 缓冲区
-     */
-    private void flushCdcBufferWithOldComponent(Map<String, List<Map<String, Object>>> eventsByTable) {
-        try {
-            // 对每个表计算受影响的主键并更新宽表
-            for (Map.Entry<String, List<Map<String, Object>>> entry : eventsByTable.entrySet()) {
-                String tableName = entry.getKey();
-                List<Map<String, Object>> events = entry.getValue();
-
-                // 计算受影响的宽表主键
-                Set<Object> affectedKeys = affectedKeyCalculator.calculateAffectedKeys(tableName, events);
-
-                if (!affectedKeys.isEmpty()) {
-                    // 批量更新宽表
-                    int updatedRows = incrementalViewUpdater.updateWideTable(affectedKeys);
-                    logger.info("Updated {} rows in wide table for table {} and {} affected keys (legacy)",
-                            updatedRows, tableName, affectedKeys.size());
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Failed to flush CDC buffer with old component: {}", e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 从 CDC 缓冲区提取 after 数据行
-     */
-    private List<Map<String, Object>> extractAfterRowsFromBuffer(Map<String, List<Map<String, Object>>> eventsByTable) {
-        List<Map<String, Object>> afterRows = new ArrayList<>();
-        for (List<Map<String, Object>> events : eventsByTable.values()) {
-            for (Map<String, Object> event : events) {
-                Object record = event.get("record");
-                if (record instanceof Map) {
-                    afterRows.add((Map<String, Object>) record);
-                }
-            }
-        }
-        return afterRows;
-    }
-
-    /**
-     * Handle output logic based on sync stage
-     */
-    private void handleOutputWithStage(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-        if (syncStageTracker != null) {
-            // Check if all tables have transitioned to CDC
-            if (syncStageTracker.isTransitionCompleted()) {
-                // CDC stage: emit events normally or in batches
-                handleCdcOutput(tapdataEvent, consumer);
-            } else {
-                // Initial sync stage: cache events, don't emit yet
-                handleInitialSyncOutput(tapdataEvent, consumer);
-            }
-        } else {
-            // No stage tracking: fall back to normal behavior
-            consumer.accept(tapdataEvent, null);
-        }
-    }
-
-    /**
-     * Handle output during initial sync stage
-     */
-    private void handleInitialSyncOutput(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-        // During initial sync, we don't emit events immediately
-        // Events are cached in DuckDB and will be emitted after all tables transition to CDC
-        logger.debug("Initial sync in progress, caching event for later emission");
-
-        // Still pass through non-record events
-        if (!(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) {
-            consumer.accept(tapdataEvent, null);
-        }
-    }
-
-    /**
-     * Handle output during CDC stage
-     */
-    private void handleCdcOutput(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-        // In CDC stage, we can emit events in batches
-        // For now, just pass through normally
-        consumer.accept(tapdataEvent, null);
-    }
-
-    /**
-     * 处理记录事件
+     * 处理记录事件（统一方法）
+     * 根据同步阶段决定是否执行CDC物化视图逻辑
+     * 
+     * @param recordEvent 记录事件
+     * @param tapdataEvent 数据事件
+     * @param consumer 事件消费者
      */
     private void processRecordEvent(TapRecordEvent recordEvent, TapdataEvent tapdataEvent,
                                     BiConsumer<TapdataEvent, ProcessResult> consumer) {
         try {
-            // 获取表名
+            // ========== 步骤1: 获取上下文 ==========
             String tableId = TapEventUtil.getTableId(recordEvent);
             String sourceId = resolveSourceId(tapdataEvent, recordEvent);
             if (tableId == null || tableId.isEmpty()) {
@@ -809,31 +596,28 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             PerSourceContext context = getOrCreateContext(contextKey, targetTableName);
             currentTableName = targetTableName;
 
-            // 获取记录数据
-            Map<String, Object> recordData = extractRecordData(recordEvent);
-
-            if (recordData != null && !recordData.isEmpty()) {
-                synchronized (context.getCommitLock()) {
-                    context.addRecord(recordData);
-                    if (context.getBatchBuffer().size() >= context.getBatchSize()) {
-                        flushContext(context);
-                    }
+            // ========== 步骤2: 将TapdataEvent添加到Context缓冲区 ==========
+            synchronized (context.getCommitLock()) {
+                context.addEvent(tapdataEvent);
+                // 达到批次大小时触发刷写
+                if (context.getBatchBuffer().size() >= context.getBatchSize()) {
+                    flushContext(context);
                 }
             }
 
-            // 将原始事件透传下去
+            // ========== 步骤3: 透传事件到下游 ==========
             consumer.accept(tapdataEvent, null);
 
         } catch (Exception e) {
-            logger.error("Failed to process record event: {}", e.getMessage(), e);
+            // 异常处理: 记录错误并写入DLQ
+            logger.error("处理记录事件失败: {}", e.getMessage(), e);
 
-            // Record error in handler
             if (errorHandler != null) {
                 try {
                     Map<String, Object> sourceData = extractRecordData(recordEvent);
                     errorHandler.recordError(sourceData != null ? sourceData : new HashMap<>(), e);
 
-                    // Write to DLQ if needed
+                    // 写入死信队列
                     if (dlqWriter != null && sourceData != null) {
                         try {
                             String tableId = TapEventUtil.getTableId(recordEvent);
@@ -842,11 +626,11 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                             dlqWriter.write(contextKey, buildTargetTableName(sourceId, tableId),
                                     Collections.singletonList(sourceData), e);
                         } catch (Exception dlqError) {
-                            logger.warn("Failed to write to DLQ: {}", dlqError.getMessage());
+                            logger.warn("写入DLQ失败: {}", dlqError.getMessage());
                         }
                     }
                 } catch (Exception handlerError) {
-                    logger.warn("Failed to record error in ErrorHandler: {}", handlerError.getMessage());
+                    logger.warn("记录错误信息失败: {}", handlerError.getMessage());
                 }
             }
 
@@ -921,40 +705,128 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
     }
 
+    /**
+     * 刷新单个Context的数据到DuckDB
+     * 严格保证执行顺序：
+     *   1. calculateAffectedBeforeKeys → 数据写入DuckDB之前
+     *   2. 当前Context数据 → 写入当前Context对应表
+     *   3. calculateAffectedAfterKeys → 数据写入DuckDB之后、宽表更新之前
+     *   4. updateWideTable → 最后执行
+     * 
+     * @param context 要刷写的上下文
+     */
     private void flushContext(PerSourceContext context) throws SQLException {
         if (context == null) {
             return;
         }
 
-        List<Map<String, Object>> dataToWrite = context.drainBuffer();
-        if (dataToWrite.isEmpty()) {
-            return;
-        }
-
-        try {
-            ensureTableExists(context, dataToWrite);
-
-            List<Map<String, Object>> merged = SmartMerger.mergeLastWins(dataToWrite);
-            if (merged == null || merged.isEmpty()) {
-                logger.debug("No merged records to write for context: {}", context.getKey());
+        // 保留Context内部锁
+        synchronized (context.getCommitLock()) {
+            // 提取当前批次的所有TapdataEvent
+            List<TapdataEvent> eventsToFlush = context.drainBuffer();
+            if (eventsToFlush.isEmpty()) {
                 return;
             }
 
-            DuckDbOperator operator = context.getOperator() != null ? context.getOperator() : duckDbOperator;
-            if (operator == null) {
-                throw new SQLException("DuckDbOperator not initialized");
-            }
+            try {
+                // ========== 步骤1: 计算beforeKeys（数据写入DuckDB之前） ==========
+                Set<Object> beforeKeys = null;
+                if (affectedKeyCalculator != null && !eventsToFlush.isEmpty()) {
+                    beforeKeys = affectedKeyCalculator.calculateAffectedBeforeKeys(eventsToFlush);
+                }
 
-            operator.upsertBatch(context.getTargetTableName(), merged);
-            logger.debug("Flushed {} merged records to DuckDB table: {} (original {})", merged.size(), context.getTargetTableName(), dataToWrite.size());
-        } catch (Exception e) {
-            logger.error("Failed to flush context {} to DuckDB: {}", context.getKey(), e.getMessage(), e);
-            synchronized (context.getCommitLock()) {
-                context.getBatchBuffer().addAll(0, dataToWrite);
-                context.getAccumulatedRecordCount().addAndGet(dataToWrite.size());
+                // ========== 步骤2: 写入当前Context对应表 ==========
+                List<Map<String, Object>> dataToWrite = extractAfterRowsFromEvents(eventsToFlush);
+                
+                if (!dataToWrite.isEmpty()) {
+                    ensureTableExists(context, dataToWrite);
+                    List<Map<String, Object>> merged = SmartMerger.mergeLastWins(dataToWrite);
+                    
+                    if (merged != null && !merged.isEmpty()) {
+                        DuckDbOperator operator = context.getOperator() != null ? 
+                            context.getOperator() : duckDbOperator;
+                        if (operator == null) {
+                            throw new SQLException("DuckDbOperator not initialized");
+                        }
+                        
+                        operator.upsertBatch(context.getTargetTableName(), merged);
+                        logger.debug("刷写 {} 条记录到DuckDB表: {} (原始 {} 条)", 
+                            merged.size(), context.getTargetTableName(), dataToWrite.size());
+                    }
+                }
+
+                // ========== 步骤3: 计算afterKeys（数据写入DuckDB之后、宽表更新之前） ==========
+                Set<Object> afterKeys = null;
+                if (affectedKeyCalculator != null && !eventsToFlush.isEmpty()) {
+                    afterKeys = affectedKeyCalculator.calculateAffectedAfterKeys(eventsToFlush);
+                }
+
+                // ========== 步骤4: 更新宽表（最后执行） ==========
+                if (wideTableUpdater != null && beforeKeys != null && afterKeys != null) {
+                    List<Map<String, Object>> afterRows = extractAfterRowsFromEvents(eventsToFlush);
+                    List<TapdataEvent> events = wideTableUpdater.updateWideTableAsTapdataEvents(
+                        beforeKeys, afterKeys, afterRows, mainTableName);
+                    logger.info("更新宽表: {} 个事件", events.size());
+                }
+
+            } catch (Exception e) {
+                logger.error("刷写Context {} 到DuckDB失败: {}", context.getKey(), e.getMessage(), e);
+                // 数据回滚到缓冲区
+                context.getBatchBuffer().addAll(0, eventsToFlush);
+                context.getAccumulatedRecordCount().addAndGet(eventsToFlush.size());
+                writeToDlq(context, extractDataFromEvents(eventsToFlush), e);
             }
-            writeToDlq(context, dataToWrite, e);
         }
+    }
+
+    /**
+     * 从TapdataEvent列表中提取after数据行
+     * 
+     * @param events TapdataEvent列表
+     * @return after数据行列表
+     */
+    private List<Map<String, Object>> extractAfterRowsFromEvents(List<TapdataEvent> events) {
+        List<Map<String, Object>> afterRows = new ArrayList<>();
+        
+        for (TapdataEvent event : events) {
+            TapEvent tapEvent = event.getTapEvent();
+            if (tapEvent instanceof TapRecordEvent) {
+                Map<String, Object> after = TapEventUtil.getAfter((TapRecordEvent) tapEvent);
+                if (after != null && !after.isEmpty()) {
+                    afterRows.add(after);
+                }
+            }
+        }
+        
+        return afterRows;
+    }
+
+    /**
+     * 从TapdataEvent列表中提取数据用于DLQ写入
+     * 
+     * @param events TapdataEvent列表
+     * @return 数据行列表
+     */
+    private List<Map<String, Object>> extractDataFromEvents(List<TapdataEvent> events) {
+        List<Map<String, Object>> dataRows = new ArrayList<>();
+        
+        for (TapdataEvent event : events) {
+            TapEvent tapEvent = event.getTapEvent();
+            if (tapEvent instanceof TapRecordEvent) {
+                // 优先取after数据，如果没有则取before数据
+                Map<String, Object> after = TapEventUtil.getAfter((TapRecordEvent) tapEvent);
+                if (after != null && !after.isEmpty()) {
+                    dataRows.add(new HashMap<>(after));
+                } else {
+                    Map<String, Object> before = TapEventUtil.getBefore((TapRecordEvent) tapEvent);
+                    if (before != null && !before.isEmpty()) {
+                        dataRows.add(new HashMap<>(before));
+                    }
+                }
+            }
+        }
+        
+        return dataRows;
     }
 
     /**
@@ -1020,7 +892,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             String fieldName = entry.getKey();
             Object value = entry.getValue();
 
-            io.tapdata.entity.schema.TapField tapField = new io.tapdata.entity.schema.TapField();
+            TapField tapField = new TapField();
             tapField.name(fieldName);
             tapField.tapType(inferTapType(value));
             tapField.dataType(inferDataType(value));
@@ -1034,7 +906,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     /**
      * 根据值推断 TapType
      */
-    private io.tapdata.entity.schema.type.TapType inferTapType(Object value) {
+    private TapType inferTapType(Object value) {
         if (value == null) {
             return createTapString();
         }
@@ -1070,20 +942,20 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     // ==================== TapType 创建辅助方法 ====================
 
-    private io.tapdata.entity.schema.type.TapType createTapString() {
-        return new io.tapdata.entity.schema.type.TapString();
+    private TapType createTapString() {
+        return new TapString();
     }
 
-    private io.tapdata.entity.schema.type.TapType createTapNumber() {
-        return new io.tapdata.entity.schema.type.TapNumber();
+    private TapType createTapNumber() {
+        return new TapNumber();
     }
 
-    private io.tapdata.entity.schema.type.TapType createTapBoolean() {
-        return new io.tapdata.entity.schema.type.TapBoolean();
+    private TapType createTapBoolean() {
+        return new TapBoolean();
     }
 
-    private io.tapdata.entity.schema.type.TapType createTapDate() {
-        return new io.tapdata.entity.schema.type.TapDate();
+    private TapType createTapDate() {
+        return new TapDate();
     }
 
     private String resolveSourceId(TapdataEvent tapdataEvent, TapEvent tapEvent) {
@@ -1222,11 +1094,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         sourceContexts.clear();
         synchronized (sourceContextLock) {
             sourceAccessOrder.clear();
-        }
-
-        // ========== 新增: 刷新 CDC 缓冲区 ==========
-        if (!cdcEventBuffer.isEmpty()) {
-            flushCdcBuffer();
         }
 
         // 刷新剩余数据
