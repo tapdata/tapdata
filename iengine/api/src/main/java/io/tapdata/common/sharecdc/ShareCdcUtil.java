@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * @author samuel
@@ -30,7 +31,7 @@ public class ShareCdcUtil {
 
 	private final static Logger logger = LogManager.getLogger(ShareCdcUtil.class);
 	private final static String SHARE_CDC_KEY_PREFIX = "SHARE_CDC_";
-	private final static String NAMESPACE_DELIMITER = ".";
+	private final static char NAMESPACE_DELIMITER = '.';
 
 	public static String getConstructName(TaskDto taskDto) {
 		return SHARE_CDC_KEY_PREFIX + taskDto.getName();
@@ -71,7 +72,14 @@ public class ShareCdcUtil {
 	}
 
 	public static String joinNamespaces(Collection<String> namespaces) {
-		return String.join(NAMESPACE_DELIMITER, namespaces);
+		return namespaces.stream().map(v -> escape(v, NAMESPACE_DELIMITER)).collect(Collectors.joining("" + NAMESPACE_DELIMITER));
+	}
+
+	public static String escape(String name, char escape) {
+		if (name == null) {
+			return "null";
+		}
+		return name.replace(escape + "", "" + escape + escape);
 	}
 
 	public static String getTableId(LogContent logContent) {

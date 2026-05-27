@@ -199,8 +199,8 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
                             }).stream().collect(Collectors.toMap(Connections::getId,Connections::getNamespace,(value1, value2) -> value1));
                             metadataInstancesDtoHashMap.values().forEach(metadataInstancesDto -> {
                                 if(null != connections.get(metadataInstancesDto.getSource().get_id())){
-                                    String namespace =String.join(".",connections.get(metadataInstancesDto.getSource().get_id()));
-                                    String originalName = String.join(".", namespace, metadataInstancesDto.getOriginalName());
+                                    String namespace = String.join(".", connections.get(metadataInstancesDto.getSource().get_id()));
+                                    String originalName = String.join(".", ShareCdcUtil.escape(namespace, '.'), ShareCdcUtil.escape(metadataInstancesDto.getOriginalName(), '.'));
                                     tapTableMap.putNew(originalName,convertTapTable(metadataInstancesDto),metadataInstancesDto.getQualifiedName());
                                 }
                             });
