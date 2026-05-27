@@ -1,5 +1,6 @@
 package com.tapdata.tm.metadatadefinition.service.impl;
 
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -42,6 +43,9 @@ public class ApiAppServiceImpl implements ApiAppService {
 	@Autowired
 	private ModulesService modulesService;
 
+	@Autowired
+	private SettingsService settingsService;
+
 	@Override
 	public MetadataDefinitionDto save(MetadataDefinitionDto metadataDefinition, UserDetail user) {
 		List<String> itemType = metadataDefinition.getItemType();
@@ -78,7 +82,7 @@ public class ApiAppServiceImpl implements ApiAppService {
 
 	@Override
 	public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
-		Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
+		Page<MetadataDefinitionDto> page = metadataDefinitionService.findAndChildAccount(filter, !settingsService.isCloud(),user);
 		//添加api总数，跟已发布的api数量。
 		addApiCount(page.getItems(), user);
 		return page;

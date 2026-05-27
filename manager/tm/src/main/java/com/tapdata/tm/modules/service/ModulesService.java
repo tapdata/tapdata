@@ -52,6 +52,7 @@ import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.module.enums.ParamTypeEnum;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ApiView;
@@ -126,6 +127,7 @@ import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -140,6 +142,8 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
+	public static final String USER_ID = "user_id";
+
 	protected static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
 			"mqQueueString", "mqTopicString", "brokerURL", "mqUsername", "mqPassword", "nameSrvAddr", "ftpHost", "ftpUsername", "ftpPassword",
 			"rawLogServerHost", "databaseName", "username", "user", "password", "sslPass");
@@ -171,6 +175,16 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				}
 			});
 		}
+	}
+
+	public Supplier<ModulesDto> dataPermissionFindById(ObjectId moduleId, com.tapdata.tm.base.dto.Field fields) {
+		return () -> {
+			if (null != fields) {
+				fields.put(USER_ID, true);
+				fields.put(DataPermissionHelper.FIELD_NAME, true);
+			}
+			return findById(moduleId, fields);
+		};
 	}
 
 

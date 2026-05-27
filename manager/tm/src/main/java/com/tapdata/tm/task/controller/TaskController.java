@@ -903,6 +903,10 @@ public class TaskController extends BaseController {
                                                                  HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            if(StringUtils.isBlank(syncType)) {
+                TaskDto taskDto = taskService.findByTaskId(taskObjectIds.get(0),"syncType");
+                syncType = taskDto.getSyncType();
+            }
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Start,
 				() -> taskService.batchStart(taskObjectIds, userDetail, request, response)
 			);
@@ -916,7 +920,11 @@ public class TaskController extends BaseController {
                                                                 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Stop,
+            if(StringUtils.isBlank(syncType)) {
+                TaskDto taskDto = taskService.findByTaskId(taskObjectIds.get(0),"syncType");
+                syncType = taskDto.getSyncType();
+             }
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail,syncType, DataPermissionActionEnums.Stop,
 				() -> taskService.batchStop(taskObjectIds, userDetail, request, response)
 			);
 
@@ -945,6 +953,10 @@ public class TaskController extends BaseController {
 																																	HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+            if(StringUtils.isBlank(syncType)) {
+                TaskDto taskDto = taskService.findByTaskId(taskObjectIds.get(0),"syncType");
+                syncType = taskDto.getSyncType();
+            }
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Delete,
 				() -> taskService.batchDelete(taskObjectIds, userDetail, request, response)
 			);
@@ -971,7 +983,10 @@ public class TaskController extends BaseController {
 																																 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-
+            if(StringUtils.isBlank(syncType)) {
+                TaskDto taskDto = taskService.findByTaskId(taskObjectIds.get(0),"syncType");
+                syncType = taskDto.getSyncType();
+            }
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Reset,
 					() -> taskService.batchRenew(taskObjectIds, userDetail, request, response)
 				);
