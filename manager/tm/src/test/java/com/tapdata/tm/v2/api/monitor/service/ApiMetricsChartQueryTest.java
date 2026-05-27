@@ -34,6 +34,7 @@ import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.entity.ConnectionPoolEntity;
 import com.tapdata.tm.worker.entity.ServerUsage;
+import com.tapdata.tm.worker.entity.UsageBase;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.v2.api.pool.repository.ConnectionPoolInfoRepository;
@@ -60,6 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -180,6 +182,17 @@ class ApiMetricsChartQueryTest {
 
     @Nested
     class ServerChartTest {
+
+        @BeforeEach
+        void init() {
+            Worker worker = new Worker();
+            worker.setProcessId("xxxxx");
+            ApiServerStatus serverStatus = new ApiServerStatus();
+            serverStatus.setCpuCores(10);
+            worker.setWorkerStatus(serverStatus);
+            when(workerRepository.findOne(any(Query.class))).thenReturn(Optional.of(worker));
+        }
+
         @Test
         void testEmptyServerId() {
             ServerChartParam param = new ServerChartParam();
@@ -1121,6 +1134,42 @@ class ApiMetricsChartQueryTest {
             verify(poolInfoRepository, times(1)).findAll(any(Query.class));
         }
 
+    }
+
+    @Nested
+    class currentCpuCoresTest {
+        @BeforeEach
+        void init() {
+            doCallRealMethod().when(apiMetricsChartQuery).currentCpuCores(anyList(), anyMap());
+            doCallRealMethod().when(apiMetricsChartQuery).currentCpuCores(null, null);
+        }
+
+        @Test
+        void testNormal() {
+            Assertions.assertDoesNotThrow(() -> apiMetricsChartQuery.currentCpuCores(new ArrayList<>(), null));
+        }
+
+        @Test
+        void testNormal1() {
+            Assertions.assertDoesNotThrow(() -> apiMetricsChartQuery.currentCpuCores(null, null));
+        }
+
+        @Test
+        void testNormal2() {
+            List<UsageBase> items = new ArrayList<>();
+            UsageBase usageBase = new UsageBase();
+            usageBase.setCpuCores(1);
+            usageBase.setProcessId("server-id");
+            items.add(usageBase);
+            Map<String, Worker> serverMap = new HashMap<>();
+            Worker worker = new Worker();
+            worker.setProcessId("server-id");
+            ApiServerStatus apiServerStatus = new ApiServerStatus();
+            apiServerStatus.setCpuCores(1);
+            worker.setWorkerStatus(apiServerStatus);
+            serverMap.put("server-id", worker);
+            Assertions.assertDoesNotThrow(() -> apiMetricsChartQuery.currentCpuCores(items, serverMap));
+        }
     }
 
     // Helper methods

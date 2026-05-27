@@ -65,7 +65,11 @@ public class UsageBase extends BaseEntity {
 
     protected List<ConnectionPoolEntity> poolConnections;
 
+    protected Integer cpuCores;
+
     protected Date ttlKey;
+
+    protected Integer currentCpuUsage;
 
     public void withConnectionPollInfo(ConnectionPoolInfo info) {
         if (null == info) {
