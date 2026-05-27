@@ -323,6 +323,10 @@ public class ApiMetricsChartQuery {
     }
 
     protected <T extends UsageBase> void currentCpuCores(List<T> items, Map<String, Worker> serverMap) {
+        currentCpuCores(items, serverMap, true);
+    }
+
+    protected <T extends UsageBase> void currentCpuCores(List<T> items, Map<String, Worker> serverMap, boolean active) {
         if (null == items || items.isEmpty()) {
             return;
         }
@@ -332,7 +336,7 @@ public class ApiMetricsChartQuery {
         ApiServerStatus workerStatus = worker.getWorkerStatus();
         Integer cpuCores = workerStatus.getCpuCores();
         for (T t : items) {
-            t.setCurrentCpuUsage(cpuCores);
+            t.setCurrentCpuUsage(active ? cpuCores : 1);
         }
     }
 
@@ -754,7 +758,7 @@ public class ApiMetricsChartQuery {
                 .collect(Collectors.groupingBy(UsageBase::getWorkOid, Collectors.collectingAndThen(
                         Collectors.toList(),
                         items -> {
-                            currentCpuCores(allUsage, Map.of(worker.getProcessId(), worker));
+                            currentCpuCores(allUsage, Map.of(worker.getProcessId(), worker), false);
                             return this.mapUsage(items, param.getRealStart(), param.getRealEnd(), param.getGranularity());
                         }
                 )));
