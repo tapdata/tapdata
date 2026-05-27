@@ -23,10 +23,12 @@ import io.tapdata.service.skeleton.annotation.RemoteService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
+import org.bson.types.Binary;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -62,7 +64,7 @@ public class ShareCdcLogContentResolver {
 
 		TapTable tapTable = TapTableUtil.getTapTableByConnectionId(criteria.getConnectionId(), criteria.getTableName());
 		org.bson.conversions.Bson filter = buildMongoFilter(criteria, tapTable);
-		return readFromMongo(criteria.getRingBuffer(), externalStorage, filter, normalizedLimit(criteria));
+		return readFromMongo(criteria.getRingBuffer(), externalStorage, filter, normalizedLimit(criteria), tapTable);
 	}
 
 	private org.bson.conversions.Bson buildMongoFilter(ChangeLogCriteria criteria, TapTable tapTable) {
@@ -163,7 +165,7 @@ public class ShareCdcLogContentResolver {
 	}
 
 	private byte[] encodeObjectId(String value) {
-		byte[] bytes = value.getBytes();
+		byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
 		byte[] dest = new byte[bytes.length + 2];
 		dest[0] = 99;
 		dest[dest.length - 1] = 23;
@@ -172,7 +174,7 @@ public class ShareCdcLogContentResolver {
 	}
 
 	private byte[] encodeInstant(Instant instant) {
-		byte[] bytes = instant.toString().getBytes();
+		byte[] bytes = instant.toString().getBytes(StandardCharsets.UTF_8);
 		byte[] dest = new byte[bytes.length + 2];
 		dest[0] = 98;
 		dest[dest.length - 1] = 22;
@@ -213,7 +215,7 @@ public class ShareCdcLogContentResolver {
 		return Long.parseLong(text);
 	}
 
-	private ChangeLogData readFromMongo(String ringBuffer, ExternalStorageDto externalStorage, org.bson.conversions.Bson filter, int limit) {
+	private ChangeLogData readFromMongo(String ringBuffer, ExternalStorageDto externalStorage, org.bson.conversions.Bson filter, int limit, TapTable tapTable) {
 		ChangeLogData changeLogData = new ChangeLogData();
 		List<Map<String, Object>> logs = new ArrayList<>();
 		ConnectionString connectionString = new ConnectionString(externalStorage.getUri());
@@ -224,7 +226,7 @@ public class ShareCdcLogContentResolver {
 		try (MongoClient mongoClient = MongoClients.create(connectionString)) {
 			MongoCollection<Document> collection = mongoClient.getDatabase(database).getCollection(ringBuffer);
 			for (Document document : collection.find(filter).limit(limit)) {
-				logs.add(buildLog(document));
+				logs.add(buildLog(document, tapTable));
 				changeLogData.setLastKey(readLong(document.get("key")));
 			}
 		}
@@ -232,7 +234,7 @@ public class ShareCdcLogContentResolver {
 		return changeLogData;
 	}
 
-	private Map<String, Object> buildLog(Document document) {
+	private Map<String, Object> buildLog(Document document, TapTable tapTable) {
 		Map<String, Object> log = new LinkedHashMap<>();
 		log.put("id", String.valueOf(document.get("_id")));
 		log.put("ringBuffer", document.getString("ringBuffer"));
@@ -247,12 +249,63 @@ public class ShareCdcLogContentResolver {
 		log.put("fromTable", logContent.getFromTable());
 		log.put("tableNamespaces", logContent.getTableNamespaces());
 		log.put("timestamp", logContent.getTimestamp());
-		log.put("before", logContent.getBefore());
-		log.put("after", logContent.getAfter());
+		log.put("before", decodeRecord(logContent.getBefore(), tapTable));
+		log.put("after", decodeRecord(logContent.getAfter(), tapTable));
 		log.put("op", logContent.getOp());
 		log.put("type", logContent.getType());
 		log.put("connectionId", StringUtils.defaultIfBlank(logContent.getConnectionId(), value.getString("connectionId")));
 		return log;
+	}
+
+	private Map<String, Object> decodeRecord(Map<String, Object> record, TapTable tapTable) {
+		if (record == null) {
+			return null;
+		}
+		Map<String, Object> decoded = new LinkedHashMap<>(record.size());
+		for (Map.Entry<String, Object> entry : record.entrySet()) {
+			decoded.put(entry.getKey(), decodeRecordValue(entry.getKey(), entry.getValue(), tapTable));
+		}
+		return decoded;
+	}
+
+	private Object decodeRecordValue(String fieldName, Object value, TapTable tapTable) {
+		byte[] bytes = readBinary(value);
+		if (bytes == null || bytes.length < 2) {
+			return value;
+		}
+		TapField tapField = getTapField(tapTable, fieldName);
+		if (isEncodedObjectId(fieldName, tapField, bytes)) {
+			return decodeMarkedString(bytes);
+		}
+		if (isDateTimeField(tapField) && isEncodedDateTime(bytes)) {
+			return Instant.parse(decodeMarkedString(bytes)).toString();
+		}
+		return value;
+	}
+
+	private byte[] readBinary(Object value) {
+		if (value instanceof Binary) {
+			return ((Binary) value).getData();
+		}
+		if (value instanceof byte[]) {
+			return (byte[]) value;
+		}
+		return null;
+	}
+
+	private boolean isEncodedObjectId(String fieldName, TapField tapField, byte[] bytes) {
+		return bytes.length == 26
+				&& bytes[0] == 99
+				&& bytes[bytes.length - 1] == 23
+				&& ("_id".equals(fieldName) || tapField != null && StringUtils.containsIgnoreCase(tapField.getDataType(), "objectId"));
+	}
+
+	private boolean isEncodedDateTime(byte[] bytes) {
+		return bytes[0] == 98 && bytes[bytes.length - 1] == 22;
+	}
+
+	private String decodeMarkedString(byte[] bytes) {
+		return new String(bytes, 1, bytes.length - 2, StandardCharsets.UTF_8);
 	}
 
 	private Long readLong(Object value) {
