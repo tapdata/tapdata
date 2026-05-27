@@ -1,5 +1,12 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
+import io.tapdata.common.TapEventUtil;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -273,7 +280,94 @@ public class AffectedKeyCalculator {
      * @param eventsByTable 按表名分组的 CDC 事件
      * @return 所有 before 主键集合（用于 DELETE 宽表记录）
      */
-    public Set<Object> calculateAffectedBeforeKeys(Map<String, List<Map<String, Object>>> eventsByTable) throws SQLException {
+    /**
+     * 批量计算所有事件的before受影响主键集合
+     * 从TapdataEvent中提取数据进行计算
+     * 
+     * @param events TapdataEvent列表
+     * @return 所有before主键集合
+     */
+    public Set<Object> calculateAffectedBeforeKeys(List<TapdataEvent> events) throws SQLException {
+        if (events == null || events.isEmpty()) {
+            return Collections.emptySet();
+        }
+        
+        // 按表名分组并转换为Map格式
+        Map<String, List<Map<String, Object>>> eventsByTable = new LinkedHashMap<>();
+        for (TapdataEvent event : events) {
+            TapEvent tapEvent = event.getTapEvent();
+            if (tapEvent instanceof TapRecordEvent) {
+                TapRecordEvent recordEvent = (TapRecordEvent) tapEvent;
+                String tableName = TapEventUtil.getTableId(recordEvent);
+                if (tableName == null) continue;
+                
+                Map<String, Object> mapEvent = convertTapdataEventToMap(recordEvent);
+                eventsByTable.computeIfAbsent(tableName, k -> new ArrayList<>()).add(mapEvent);
+            }
+        }
+        
+        // 复用原有逻辑
+        return calculateAffectedBeforeKeysInternal(eventsByTable);
+    }
+
+    /**
+     * 批量计算所有事件的after受影响主键集合
+     * 从TapdataEvent中提取数据进行计算
+     * 
+     * @param events TapdataEvent列表
+     * @return 所有after主键集合
+     */
+    public Set<Object> calculateAffectedAfterKeys(List<TapdataEvent> events) throws SQLException {
+        if (events == null || events.isEmpty()) {
+            return Collections.emptySet();
+        }
+        
+        // 按表名分组并转换为Map格式
+        Map<String, List<Map<String, Object>>> eventsByTable = new LinkedHashMap<>();
+        for (TapdataEvent event : events) {
+            TapEvent tapEvent = event.getTapEvent();
+            if (tapEvent instanceof TapRecordEvent) {
+                TapRecordEvent recordEvent = (TapRecordEvent) tapEvent;
+                String tableName = TapEventUtil.getTableId(recordEvent);
+                if (tableName == null) continue;
+                
+                Map<String, Object> mapEvent = convertTapdataEventToMap(recordEvent);
+                eventsByTable.computeIfAbsent(tableName, k -> new ArrayList<>()).add(mapEvent);
+            }
+        }
+        
+        // 复用原有逻辑
+        return calculateAffectedAfterKeysInternal(eventsByTable);
+    }
+
+    /**
+     * 将TapRecordEvent转换为Map格式
+     * 
+     * @param recordEvent 记录事件
+     * @return Map格式的事件数据
+     */
+    private Map<String, Object> convertTapdataEventToMap(TapRecordEvent recordEvent) {
+        Map<String, Object> mapEvent = new HashMap<>();
+        
+        if (recordEvent instanceof TapInsertRecordEvent) {
+            mapEvent.put("op", "INSERT");
+            mapEvent.put("value", TapEventUtil.getAfter(recordEvent));
+        } else if (recordEvent instanceof TapUpdateRecordEvent) {
+            mapEvent.put("op", "UPDATE");
+            mapEvent.put("value", TapEventUtil.getAfter(recordEvent));
+            mapEvent.put("old_value", TapEventUtil.getBefore(recordEvent));
+        } else if (recordEvent instanceof TapDeleteRecordEvent) {
+            mapEvent.put("op", "DELETE");
+            mapEvent.put("value", TapEventUtil.getBefore(recordEvent));
+        }
+        
+        return mapEvent;
+    }
+
+    /**
+     * 内部方法：批量计算before受影响主键集合（复用原有逻辑）
+     */
+    private Set<Object> calculateAffectedBeforeKeysInternal(Map<String, List<Map<String, Object>>> eventsByTable) throws SQLException {
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>();
         
         for (Map.Entry<String, List<Map<String, Object>>> entry : eventsByTable.entrySet()) {
@@ -485,7 +579,10 @@ public class AffectedKeyCalculator {
      * @param eventsByTable 按表名分组的 CDC 事件
      * @return 所有 after 主键集合（用于 INSERT/UPDATE 宽表记录）
      */
-    public Set<Object> calculateAffectedAfterKeys(Map<String, List<Map<String, Object>>> eventsByTable) throws SQLException {
+    /**
+     * 内部方法：批量计算after受影响主键集合（复用原有逻辑）
+     */
+    private Set<Object> calculateAffectedAfterKeysInternal(Map<String, List<Map<String, Object>>> eventsByTable) throws SQLException {
         Set<Object> affectedAfterKeys = new LinkedHashSet<>();
         
         for (Map.Entry<String, List<Map<String, Object>>> entry : eventsByTable.entrySet()) {
