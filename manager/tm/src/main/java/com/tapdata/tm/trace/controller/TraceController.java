@@ -1,8 +1,11 @@
 package com.tapdata.tm.trace.controller;
 
+import com.tapdata.tm.trace.dto.ChangeLog;
 import com.tapdata.tm.trace.dto.TargetWithLineageDto;
+import com.tapdata.tm.trace.param.ChangeLogParam;
 import com.tapdata.tm.trace.param.WideTableTraceRequest;
 import com.tapdata.tm.trace.service.TraceService;
+import com.tapdata.tm.trace.service.log.ChangeLogQuery;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,6 +42,8 @@ public class TraceController extends BaseController {
     private BloodlineFinder bloodlineFinder;
     @Autowired
     private TraceService traceService;
+    @Resource(name = "changeLogQuery")
+    ChangeLogQuery changeLogQuery;
 
     @GetMapping("/wide-table/bloodline-diagram")
     public ResponseMessage<TargetWithLineageDto> findDataTraceDag(
@@ -59,5 +64,9 @@ public class TraceController extends BaseController {
         return outputStream -> traceService.streamWideTableTrace(request, outputStream);
     }
 
+    @GetMapping("change-log")
+    public ResponseMessage<ChangeLog> findChangeLog(ChangeLogParam param) {
+        return success(changeLogQuery.query(param, getLoginUser()));
+    }
 }
 
