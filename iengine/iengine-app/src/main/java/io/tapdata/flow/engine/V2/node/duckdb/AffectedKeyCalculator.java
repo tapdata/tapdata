@@ -27,6 +27,7 @@ public class AffectedKeyCalculator {
     private final List<FromTableConfig> fromTables;
     private final Map<String, String> customJoinQueries;
     private final DuckDbOperator operator;
+    private final WithCteSqlGenerator withCteSqlGenerator;
 
     public AffectedKeyCalculator(
             String wideTablePrimaryKey,
@@ -36,12 +37,25 @@ public class AffectedKeyCalculator {
             Map<String, String> customJoinQueries,
             DuckDbOperator operator
     ) {
+        this(wideTablePrimaryKey, mainTableName, mainTablePrimaryKey, fromTables, customJoinQueries, operator, null);
+    }
+
+    public AffectedKeyCalculator(
+            String wideTablePrimaryKey,
+            String mainTableName,
+            String mainTablePrimaryKey,
+            List<FromTableConfig> fromTables,
+            Map<String, String> customJoinQueries,
+            DuckDbOperator operator,
+            WithCteSqlGenerator withCteSqlGenerator
+    ) {
         this.wideTablePrimaryKey = wideTablePrimaryKey;
         this.mainTableName = mainTableName;
         this.mainTablePrimaryKey = mainTablePrimaryKey;
         this.fromTables = fromTables != null ? fromTables : Collections.emptyList();
         this.customJoinQueries = customJoinQueries != null ? customJoinQueries : Collections.emptyMap();
         this.operator = operator;
+        this.withCteSqlGenerator = withCteSqlGenerator;
     }
 
     /**
@@ -254,6 +268,8 @@ public class AffectedKeyCalculator {
 
     /**
      * 批量计算所有事件的 before 受影响主键集合
+     * 使用 SmartMerger 合并事件，提取所有历史状态的 before 数据，拼接 WITH SQL 查询宽表主键
+     * 注意：需要在调用 SmartMerger 之前先收集 DELETE 事件的 before 数据，因为 SmartMerger 会移除 DELETE 记录
      * @param eventsByTable 按表名分组的 CDC 事件
      * @return 所有 before 主键集合（用于 DELETE 宽表记录）
      */
@@ -264,19 +280,208 @@ public class AffectedKeyCalculator {
             String tableName = entry.getKey();
             List<Map<String, Object>> events = entry.getValue();
             
-            String pkField = getTablePrimaryKey(tableName);
-            
-            for (Map<String, Object> event : events) {
-                Optional<Object> beforePk = extractBeforePrimaryKey(event, pkField);
-                beforePk.ifPresent(affectedBeforeKeys::add);
+            if (events == null || events.isEmpty()) {
+                continue;
             }
+            
+            // 先收集 DELETE 事件的 before 数据（在 SmartMerger 移除记录之前）
+            List<Map<String, Object>> deleteBeforeRows = extractDeleteBeforeRows(events, tableName);
+            
+            // 使用 SmartMerger 合并事件
+            List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(events);
+            
+            // 提取所有 before 数据行（不包括 DELETE，因为已经提前收集了）
+            List<String> fields = getTableFields(tableName);
+            List<Map<String, Object>> beforeRows = extractBeforeDataRows(mergedRecords, tableName);
+            
+            // 合并 DELETE 的 before 数据
+            beforeRows.addAll(deleteBeforeRows);
+            
+            if (beforeRows.isEmpty()) {
+                continue;
+            }
+            
+            // 使用 WITH CTE SQL 查询宽表主键
+            Set<Object> wideTablePks = queryWideTablePksWithCte(tableName, beforeRows, fields);
+            affectedBeforeKeys.addAll(wideTablePks);
         }
         
         return affectedBeforeKeys;
     }
 
     /**
+     * 从原始事件中提取 DELETE 事件的 before 数据
+     * 在 SmartMerger 处理之前调用，因为 SmartMerger 会移除 DELETE 记录
+     */
+    private List<Map<String, Object>> extractDeleteBeforeRows(List<Map<String, Object>> events, String tableName) {
+        List<Map<String, Object>> deleteBeforeRows = new ArrayList<>();
+        
+        for (Map<String, Object> event : events) {
+            String opType = (String) event.get("op");
+            if ("DELETE".equals(opType)) {
+                // DELETE 事件的 before 数据从 value 或 o/o2 中提取
+                Object value = event.get("value");
+                if (value instanceof Map) {
+                    deleteBeforeRows.add(new HashMap<>((Map<String, Object>) value));
+                } else {
+                    // 尝试从 o 或 o2 中提取
+                    Object filter = event.get("o");
+                    if (filter == null) {
+                        filter = event.get("o2");
+                    }
+                    if (filter instanceof Map) {
+                        deleteBeforeRows.add(new HashMap<>((Map<String, Object>) filter));
+                    }
+                }
+            }
+        }
+        
+        return deleteBeforeRows;
+    }
+
+    /**
+     * 从 SmartMerger 合并结果中提取所有 before 数据行
+     * 收集 operations 中所有操作的 before 状态，保证历史错误数据全被删除
+     * 注意：INSERT 事件只有在后面还有操作时才需要收集 before 数据
+     * 对于 JOIN KEY 多次更新场景，需要收集所有中间状态
+     */
+    private List<Map<String, Object>> extractBeforeDataRows(List<SmartMerger.MergedRecord> mergedRecords, String tableName) {
+        List<Map<String, Object>> beforeRows = new ArrayList<>();
+        String pkField = getSourceTablePrimaryKey(tableName);
+        
+        for (SmartMerger.MergedRecord record : mergedRecords) {
+            List<Map<String, Object>> operations = record.getOperations();
+            if (operations.isEmpty()) {
+                continue;
+            }
+            
+            int opCount = operations.size();
+            // 收集所有操作的 before 状态
+            for (int i = 0; i < opCount; i++) {
+                Map<String, Object> op = operations.get(i);
+                String opType = (String) op.get("op");
+                boolean isLastOp = (i == opCount - 1);
+                
+                if ("INSERT".equals(opType)) {
+                    // INSERT 事件：只有后面还有操作时才需要收集 before 数据
+                    if (!isLastOp) {
+                        Object value = op.get("value");
+                        if (value instanceof Map) {
+                            beforeRows.add(new HashMap<>((Map<String, Object>) value));
+                        }
+                    }
+                } else if ("UPDATE".equals(opType)) {
+                    // UPDATE 事件的 before 数据
+                    Object oldPk = op.get("old_pk");
+                    Map<String, Object> beforeRow = new HashMap<>();
+                    if (oldPk != null) {
+                        // 有主键变更，使用 old_pk
+                        beforeRow.put(pkField, oldPk);
+                    } else {
+                        // 没有主键变更，使用当前主键
+                        beforeRow.put(pkField, record.getCurrentPk());
+                    }
+                    // 复制其他字段（如果有）
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> fields = (Map<String, Object>) op.get("fields");
+                    if (fields != null) {
+                        beforeRow.putAll(fields);
+                    }
+                    beforeRows.add(beforeRow);
+                }
+                // DELETE 操作不在这里处理，DELETE 的 before 数据由 finalState 提供
+            }
+            
+            // 如果最后一个操作是 DELETE，需要添加 finalState 作为 before 数据
+            Map<String, Object> lastOp = operations.get(opCount - 1);
+            String lastOpType = (String) lastOp.get("op");
+            if ("DELETE".equals(lastOpType)) {
+                Map<String, Object> beforeRow = new HashMap<>(record.getFinalState());
+                if (!beforeRow.isEmpty()) {
+                    beforeRows.add(beforeRow);
+                }
+            }
+        }
+        
+        return beforeRows;
+    }
+
+    /**
+     * 使用 WITH CTE SQL 查询宽表主键
+     * @param tableName 子表名
+     * @param dataRows 数据行
+     * @param fields 字段列表
+     * @return 宽表主键集合
+     */
+    private Set<Object> queryWideTablePksWithCte(String tableName, List<Map<String, Object>> dataRows, List<String> fields) throws SQLException {
+        if (dataRows == null || dataRows.isEmpty()) {
+            return Collections.emptySet();
+        }
+        
+        // 获取 querySql
+        String querySql = getQuerySqlForTable(tableName);
+        if (querySql == null) {
+            logger.warn("No querySql found for table {}", tableName);
+            return Collections.emptySet();
+        }
+        
+        if (withCteSqlGenerator == null) {
+            logger.warn("WithCteSqlGenerator not configured for table {}", tableName);
+            return Collections.emptySet();
+        }
+        
+        // 生成 WITH CTE SQL
+        String withSql = withCteSqlGenerator.generateBatch(querySql, tableName, dataRows, fields);
+        
+        // 执行查询
+        List<Map<String, Object>> results = operator.executeQuery(withSql);
+        
+        // 提取宽表主键
+        Set<Object> wideTablePks = new LinkedHashSet<>();
+        for (Map<String, Object> row : results) {
+            Object pk = row.get(wideTablePrimaryKey);
+            if (pk != null) {
+                wideTablePks.add(pk);
+            }
+        }
+        
+        return wideTablePks;
+    }
+
+    /**
+     * 获取表对应的 querySql
+     * 从 fromTables 中查找匹配的表，返回其 querySql
+     */
+    private String getQuerySqlForTable(String tableName) {
+        // 遍历 fromTables 查找匹配的表
+        for (FromTableConfig config : fromTables) {
+            if (config.getTableName().equalsIgnoreCase(tableName)) {
+                return config.getQuerySql();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 获取表的字段列表
+     * 从 FromTableConfig 中提取字段，如果没有配置则返回主键字段
+     */
+    private List<String> getTableFields(String tableName) {
+        for (FromTableConfig config : fromTables) {
+            if (config.getTableName().equalsIgnoreCase(tableName)) {
+                List<String> fields = config.getFields();
+                if (fields != null && !fields.isEmpty()) {
+                    return fields;
+                }
+            }
+        }
+        // 回退：返回主键字段
+        return Collections.singletonList(getSourceTablePrimaryKey(tableName));
+    }
+
+    /**
      * 批量计算所有事件的 after 受影响主键集合
+     * 使用 SmartMerger 合并事件，提取 finalState 数据，拼接 WITH SQL 查询宽表主键
      * @param eventsByTable 按表名分组的 CDC 事件
      * @return 所有 after 主键集合（用于 INSERT/UPDATE 宽表记录）
      */
@@ -287,15 +492,47 @@ public class AffectedKeyCalculator {
             String tableName = entry.getKey();
             List<Map<String, Object>> events = entry.getValue();
             
-            String pkField = getTablePrimaryKey(tableName);
-            
-            for (Map<String, Object> event : events) {
-                Optional<Object> afterPk = extractAfterPrimaryKey(event, pkField);
-                afterPk.ifPresent(affectedAfterKeys::add);
+            if (events == null || events.isEmpty()) {
+                continue;
             }
+            
+            // 使用 SmartMerger 合并事件
+            List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(events);
+            if (mergedRecords.isEmpty()) {
+                continue;
+            }
+            
+            // 提取所有 after 数据行（finalState）
+            List<String> fields = getTableFields(tableName);
+            List<Map<String, Object>> afterRows = extractAfterDataRows(mergedRecords);
+            
+            if (afterRows.isEmpty()) {
+                continue;
+            }
+            
+            // 使用 WITH CTE SQL 查询宽表主键
+            Set<Object> wideTablePks = queryWideTablePksWithCte(tableName, afterRows, fields);
+            affectedAfterKeys.addAll(wideTablePks);
         }
         
         return affectedAfterKeys;
+    }
+
+    /**
+     * 从 SmartMerger 合并结果中提取所有 after 数据行
+     * 只收集 finalState 数据，保证最终正确数据被插入
+     */
+    private List<Map<String, Object>> extractAfterDataRows(List<SmartMerger.MergedRecord> mergedRecords) {
+        List<Map<String, Object>> afterRows = new ArrayList<>();
+        
+        for (SmartMerger.MergedRecord record : mergedRecords) {
+            Map<String, Object> finalState = record.getFinalState();
+            if (finalState != null && !finalState.isEmpty()) {
+                afterRows.add(new HashMap<>(finalState));
+            }
+        }
+        
+        return afterRows;
     }
 
     /**

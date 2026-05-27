@@ -1,0 +1,364 @@
+package io.tapdata.flow.engine.V2.node.duckdb.scenarios;
+
+import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
+import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
+import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import java.sql.SQLException;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * 边界与异常场景测试
+ * 覆盖：null/空值、未知表、缺失主键、特殊字符、大小写等
+ */
+class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
+
+    @Nested
+    class OldModeTests {
+
+        @Test
+        void testNullEvents() throws SQLException {
+            AffectedKeyCalculator calculator = createOldModeCalculator(
+                    Collections.emptyList(),
+                    Collections.emptyMap()
+            );
+
+            Set<Object> result = calculator.calculateAffectedKeys("users", null);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testEmptyEvents() throws SQLException {
+            AffectedKeyCalculator calculator = createOldModeCalculator(
+                    Collections.emptyList(),
+                    Collections.emptyMap()
+            );
+
+            Set<Object> result = calculator.calculateAffectedKeys("users", Collections.emptyList());
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testUnknownTable() throws SQLException {
+            AffectedKeyCalculator calculator = createOldModeCalculator(
+                    Collections.emptyList(),
+                    Collections.emptyMap()
+            );
+
+            Map<String, Object> eventData = createInsertEvent("id", 1L);
+
+            Set<Object> result = calculator.calculateAffectedKeys("unknown_table", Collections.singletonList(eventData));
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testMissingPrimaryKey() throws SQLException {
+            AffectedKeyCalculator calculator = createOldModeCalculator(
+                    Collections.emptyList(),
+                    Collections.emptyMap()
+            );
+
+            Map<String, Object> eventData = new HashMap<>();
+            eventData.put("name", "Alice");
+
+            Set<Object> result = calculator.calculateAffectedKeys("users", Collections.singletonList(eventData));
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testNullPrimaryKeyInData() throws SQLException {
+            AffectedKeyCalculator calculator = createOldModeCalculator(
+                    Collections.emptyList(),
+                    Collections.emptyMap()
+            );
+
+            Map<String, Object> eventData = new HashMap<>();
+            eventData.put("id", null);
+            eventData.put("name", "Alice");
+
+            Set<Object> result = calculator.calculateAffectedKeys("users", Collections.singletonList(eventData));
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testNullFromTables() throws SQLException {
+            AffectedKeyCalculator calculator = createOldModeCalculator(
+                    null,
+                    new HashMap<>()
+            );
+
+            Map<String, Object> eventData = createInsertEvent("id", 1L);
+
+            Set<Object> result = calculator.calculateAffectedKeys("users", Collections.singletonList(eventData));
+
+            assertNotNull(result);
+            assertEquals(1, result.size());
+        }
+
+        @Test
+        void testNullAndEmptyValues() throws SQLException {
+            List<FromTableConfig> fromTables = new ArrayList<>();
+            fromTables.add(new FromTableConfig("orders", "order_id"));
+            Map<String, String> queries = new HashMap<>();
+            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+
+            AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
+
+            Map<String, Object> validEvent1 = new HashMap<>();
+            validEvent1.put("order_id", "VALID_001");
+            Map<String, Object> nullPkEvent = new HashMap<>();
+            nullPkEvent.put("order_id", null);
+            Map<String, Object> emptyStringEvent = new HashMap<>();
+            emptyStringEvent.put("order_id", "");
+            Map<String, Object> validEvent2 = new HashMap<>();
+            validEvent2.put("order_id", "VALID_002");
+
+            mockQueryReturns(Collections.singletonList(Map.of("id", 999L)));
+
+            Set<Object> result = calculator.calculateAffectedKeys("orders", Arrays.asList(validEvent1, nullPkEvent, emptyStringEvent, validEvent2));
+
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertTrue(result.contains(999L));
+        }
+
+        @Test
+        void testSqlSpecialCharacters() throws SQLException {
+            List<FromTableConfig> fromTables = new ArrayList<>();
+            fromTables.add(new FromTableConfig("orders", "order_id"));
+            Map<String, String> queries = new HashMap<>();
+            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+
+            AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
+
+            Map<String, Object> eventData = new HashMap<>();
+            eventData.put("order_id", "ORD'001\\test");
+
+            mockQueryReturns(Collections.singletonList(Map.of("id", 777L)));
+
+            Set<Object> result = calculator.calculateAffectedKeys("orders", Collections.singletonList(eventData));
+
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertTrue(result.contains(777L));
+        }
+
+        @Test
+        void testCaseInsensitiveTableName() throws SQLException {
+            List<FromTableConfig> fromTables = new ArrayList<>();
+            fromTables.add(new FromTableConfig("orders", "order_id"));
+            Map<String, String> queries = new HashMap<>();
+            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+
+            AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
+
+            Map<String, Object> eventData = new HashMap<>();
+            eventData.put("order_id", "ORD_123");
+
+            mockQueryReturns(Collections.singletonList(Map.of("id", 555L)));
+
+            Set<Object> result1 = calculator.calculateAffectedKeys("ORDERS", Collections.singletonList(eventData));
+            assertEquals(1, result1.size());
+            assertTrue(result1.contains(555L));
+
+            reset(mockDuckDbOperator);
+            mockQueryReturns(Collections.singletonList(Map.of("id", 555L)));
+
+            Set<Object> result2 = calculator.calculateAffectedKeys("OrDeRs", Collections.singletonList(eventData));
+            assertEquals(1, result2.size());
+            assertTrue(result2.contains(555L));
+        }
+
+        @Test
+        void testMultipleAffectedKeys() throws SQLException {
+            List<FromTableConfig> fromTables = new ArrayList<>();
+            fromTables.add(new FromTableConfig("orders", "order_id"));
+            Map<String, String> queries = new HashMap<>();
+            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+
+            AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
+
+            Map<String, Object> eventData1 = new HashMap<>();
+            eventData1.put("order_id", "ORD004");
+            Map<String, Object> eventData2 = new HashMap<>();
+            eventData2.put("order_id", "ORD005");
+
+            List<Map<String, Object>> queryResult = Arrays.asList(
+                    Map.of("id", 1L),
+                    Map.of("id", 2L),
+                    Map.of("id", 3L)
+            );
+            mockQueryReturns(queryResult);
+
+            Set<Object> result = calculator.calculateAffectedKeys("orders", Arrays.asList(eventData1, eventData2));
+
+            assertEquals(3, result.size());
+            assertTrue(result.contains(1L));
+            assertTrue(result.contains(2L));
+            assertTrue(result.contains(3L));
+        }
+    }
+
+    @Nested
+    class NewModeTests {
+
+        private AffectedKeyCalculator createNewModeCalculatorWithMainTableQuery() {
+            List<FromTableConfig> fromTables = Collections.singletonList(
+                    new FromTableConfig("users", "id", "SELECT id FROM users", Arrays.asList("id"))
+            );
+            return createNewModeCalculator("id", "users", "id", fromTables);
+        }
+
+        @Test
+        void testNullEvents() throws SQLException {
+            AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
+
+            Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
+            eventsByTable.put("users", null);
+
+            Set<Object> result = calculator.calculateAffectedBeforeKeys(eventsByTable);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testEmptyEvents() throws SQLException {
+            AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
+
+            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", Collections.emptyList());
+
+            Set<Object> result = calculator.calculateAffectedBeforeKeys(eventsByTable);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testUnknownTable() throws SQLException {
+            AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
+
+            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 1L);
+            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("unknown_table", events);
+
+            Set<Object> result = calculator.calculateAffectedBeforeKeys(eventsByTable);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testMissingPrimaryKey() throws SQLException {
+            AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
+
+            Map<String, Object> event = new HashMap<>();
+            event.put("op", "INSERT");
+            event.put("name", "Alice");
+            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", Collections.singletonList(event));
+
+            Set<Object> result = calculator.calculateAffectedAfterKeys(eventsByTable);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testNullPrimaryKeyInData() throws SQLException {
+            AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
+
+            Map<String, Object> event = new HashMap<>();
+            event.put("op", "INSERT");
+            event.put("id", null);
+            event.put("name", "Alice");
+            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", Collections.singletonList(event));
+
+            Set<Object> result = calculator.calculateAffectedAfterKeys(eventsByTable);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testNullFromTables() throws SQLException {
+            AffectedKeyCalculator calculator = createNewModeCalculator(
+                    "id", "users", "id", null
+            );
+
+            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 1L);
+            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", events);
+
+            Set<Object> result = calculator.calculateAffectedAfterKeys(eventsByTable);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testNullAndEmptyValues() throws SQLException {
+            AffectedKeyCalculator calculator = createNewModeCalculatorWithFromTable(
+                    "orders", "id",
+                    "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id",
+                    Arrays.asList("id")
+            );
+
+            List<Map<String, Object>> events = new ArrayList<>();
+            Map<String, Object> validEvent = new HashMap<>();
+            validEvent.put("op", "INSERT");
+            validEvent.put("id", 999L);
+            events.add(validEvent);
+
+            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            mockQueryReturns(Collections.singletonList(Map.of("id", 999L)));
+
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            assertEquals(1, afterKeys.size());
+            assertTrue(afterKeys.contains(999L));
+        }
+
+        @Test
+        void testMultipleAffectedKeys() throws SQLException {
+            AffectedKeyCalculator calculator = createNewModeCalculatorWithFromTable(
+                    "orders", "id",
+                    "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id",
+                    Arrays.asList("id")
+            );
+
+            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 1L, 2L, 3L);
+            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+
+            List<Map<String, Object>> queryResult = Arrays.asList(
+                    Map.of("id", 1L),
+                    Map.of("id", 2L),
+                    Map.of("id", 3L)
+            );
+            mockQueryReturns(queryResult);
+
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            assertEquals(3, afterKeys.size());
+            assertContainsKeys(afterKeys, 1L, 2L, 3L);
+        }
+
+        private AffectedKeyCalculator createNewModeCalculatorWithFromTable(String tableName, String pkField, String querySql, List<String> fields) {
+            List<FromTableConfig> fromTables = Collections.singletonList(
+                    new FromTableConfig(tableName, pkField, querySql, fields)
+            );
+            return createNewModeCalculator("id", "users", "id", fromTables);
+        }
+    }
+}

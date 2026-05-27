@@ -35,7 +35,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
      * 创建内存数据库实例
      */
     public DuckDbOperatorImpl() throws SQLException {
-        this(true, 1000, 5000, DuckLakeConfig.disabled());
+        this(false, 1000, 5000, DuckLakeConfig.disabled());
     }
 
     /**

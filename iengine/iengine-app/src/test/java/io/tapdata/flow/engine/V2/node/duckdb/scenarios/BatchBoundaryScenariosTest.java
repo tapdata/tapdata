@@ -1,0 +1,124 @@
+package io.tapdata.flow.engine.V2.node.duckdb.scenarios;
+
+import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
+import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
+import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import java.sql.SQLException;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * 批量边界场景测试
+ * 覆盖：999/1000/1001条事件批量处理
+ */
+class BatchBoundaryScenariosTest extends AffectedKeyCalculatorTestBase {
+
+    @Nested
+    class OldModeTests {
+
+        @Test
+        void testBatchBoundary_999() throws SQLException {
+            testBatchBoundaryOldMode(999);
+        }
+
+        @Test
+        void testBatchBoundary_1000() throws SQLException {
+            testBatchBoundaryOldMode(1000);
+        }
+
+        @Test
+        void testBatchBoundary_1001() throws SQLException {
+            testBatchBoundaryOldMode(1001);
+        }
+
+        private void testBatchBoundaryOldMode(int eventCount) throws SQLException {
+            List<FromTableConfig> fromTables = new ArrayList<>();
+            fromTables.add(new FromTableConfig("orders", "order_id"));
+            Map<String, String> queries = new HashMap<>();
+            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+
+            AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
+
+            List<Map<String, Object>> events = new ArrayList<>();
+            Set<Object> expectedPks = new LinkedHashSet<>();
+            for (int i = 0; i < eventCount; i++) {
+                Map<String, Object> eventData = new HashMap<>();
+                eventData.put("order_id", "ORD_" + i);
+                events.add(eventData);
+                expectedPks.add((long) (i % 100));
+            }
+
+            List<Map<String, Object>> queryResult = new ArrayList<>();
+            for (Object pk : expectedPks) {
+                queryResult.add(Map.of("id", pk));
+            }
+            mockQueryReturns(queryResult);
+
+            Set<Object> result = calculator.calculateAffectedKeys("orders", events);
+
+            assertNotNull(result);
+            assertEquals(expectedPks.size(), result.size());
+            for (Object expected : expectedPks) {
+                assertTrue(result.contains(expected));
+            }
+        }
+    }
+
+    @Nested
+    class NewModeTests {
+
+        @Test
+        void testBatchBoundary_999() throws SQLException {
+            testBatchBoundaryNewMode(999);
+        }
+
+        @Test
+        void testBatchBoundary_1000() throws SQLException {
+            testBatchBoundaryNewMode(1000);
+        }
+
+        @Test
+        void testBatchBoundary_1001() throws SQLException {
+            testBatchBoundaryNewMode(1001);
+        }
+
+        private void testBatchBoundaryNewMode(int eventCount) throws SQLException {
+            List<FromTableConfig> fromTables = Collections.singletonList(
+                    new FromTableConfig("orders", "id",
+                            "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id",
+                            Arrays.asList("id"))
+            );
+            AffectedKeyCalculator calculator = createNewModeCalculator("id", "users", "id", fromTables);
+
+            List<Map<String, Object>> events = new ArrayList<>();
+            Set<Object> expectedPks = new LinkedHashSet<>();
+            for (int i = 0; i < eventCount; i++) {
+                Map<String, Object> event = new HashMap<>();
+                event.put("op", "INSERT");
+                event.put("id", (long) (i % 100));
+                events.add(event);
+                expectedPks.add((long) (i % 100));
+            }
+
+            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+
+            List<Map<String, Object>> queryResult = new ArrayList<>();
+            for (Object pk : expectedPks) {
+                queryResult.add(Map.of("id", pk));
+            }
+            mockQueryReturns(queryResult);
+
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+
+            assertNotNull(afterKeys);
+            assertEquals(expectedPks.size(), afterKeys.size());
+            for (Object expected : expectedPks) {
+                assertTrue(afterKeys.contains(expected));
+            }
+        }
+    }
+}
