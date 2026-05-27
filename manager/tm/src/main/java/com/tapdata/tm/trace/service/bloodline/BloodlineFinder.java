@@ -610,15 +610,7 @@ public class BloodlineFinder {
                 } else if (taskNode instanceof MergeTableNode mergeTableNode) {
                     hasMergeMap.put(taskId, true);
                     List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
-                    mergeProperties.forEach(properties -> {
-                        String nodeId = properties.getId();
-                        Map<String, TableProperties> mainPropertiesMap = loadRootInfo(nodeId, taskDag, properties);
-                        //主表只有一个链路来源
-                        mainPropertiesMap.forEach((nId, info) -> info.setTableType(MAIN_TABLE));
-                        mergePropertiesMap.putAll(mainPropertiesMap);
-                        List<MergeTableProperties> children = properties.getChildren();
-                        collectChildrenJoinKeys(children, mergePropertiesMap, taskDag);
-                    });
+                    collectJoinKeys(mergeProperties, mergePropertiesMap, taskDag, MAIN_TABLE);
                     if (containsAppendMergeType(mergeTableNode)) {
                         hasAppendMap.put(taskId, true);
                     }
@@ -684,9 +676,15 @@ public class BloodlineFinder {
         if (null == children || children.isEmpty()) {
             return;
         }
-        children.forEach(child -> {
+        collectJoinKeys(children, mergePropertiesMap, taskDag, SUB_TABLE);
+    }
+
+    void collectJoinKeys(List<MergeTableProperties> infos, Map<String, TableProperties> mergePropertiesMap, DAG taskDag, String tableType) {
+        infos.forEach(child -> {
             String id = child.getId();
-            mergePropertiesMap.putAll(loadRootInfo(id, taskDag, child));
+            Map<String, TableProperties> propertiesMap = loadRootInfo(id, taskDag, child);
+            propertiesMap.forEach((k, v) -> v.setTableType(tableType));
+            mergePropertiesMap.putAll(propertiesMap);
             List<MergeTableProperties> sub = child.getChildren();
             collectChildrenJoinKeys(sub, mergePropertiesMap, taskDag);
         });
