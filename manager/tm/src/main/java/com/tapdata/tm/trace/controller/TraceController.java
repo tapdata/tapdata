@@ -64,8 +64,8 @@ public class TraceController extends BaseController {
         return outputStream -> traceService.streamWideTableTrace(request, outputStream);
     }
 
-    @GetMapping("change-log")
-    public ResponseMessage<ChangeLog> findChangeLog(ChangeLogParam param) {
+    @PostMapping("/change-log")
+    public ResponseMessage<ChangeLog> findChangeLog(@RequestBody ChangeLogParam param) {
         return success(changeLogQuery.query(param, getLoginUser()));
     }
 }

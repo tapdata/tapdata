@@ -10,6 +10,8 @@ import com.tapdata.tm.shareCdcTableMapping.entity.ShareCdcTableMappingEntity;
 import com.tapdata.tm.shareCdcTableMapping.repository.ShareCdcTableMappingRepository;
 import com.tapdata.tm.trace.dto.ChangeLog;
 import com.tapdata.tm.trace.param.ChangeLogParam;
+import com.tapdata.tm.trace.service.data.TraceDataQueryRpcAdapter;
+import com.tapdata.tm.utils.MongoUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -33,6 +35,9 @@ public class ChangeLogQuery {
     DataSourceRepository dataSourceRepository;
     @Resource(name = "shareCdcTableMappingRepository")
     ShareCdcTableMappingRepository shareCdcTableMappingRepository;
+    @Resource(name = "traceDataQueryRpcAdapter")
+    TraceDataQueryRpcAdapter traceDataQueryRpcAdapter;
+
 
     public ChangeLog query(ChangeLogParam param, UserDetail user) {
         String connectionId = param.getConnectionId();
@@ -71,12 +76,11 @@ public class ChangeLogQuery {
         criteria.setLimit(param.getLimit());
         criteria.setKey(param.getLastKey());
         //@todo
-        
-        return ChangeLog.from(param, null);
+        return ChangeLog.from(param, traceDataQueryRpcAdapter.queryChangeLog(criteria));
     }
 
     String findShareCDCExternalStorageId(String connectionId) {
-        Criteria criteriaConnection = Criteria.where("connectionId").is(connectionId)
+        Criteria criteriaConnection = Criteria.where("_id").is(MongoUtils.toObjectId(connectionId))
                 .and("shareCdcEnable").is(true);
         Query queryConnection = new Query(criteriaConnection);
         queryConnection.fields().include("shareCDCExternalStorageId");

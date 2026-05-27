@@ -1,5 +1,7 @@
 package com.tapdata.tm.trace.service.data;
 
+import com.tapdata.tm.commons.trace.ChangeLogCriteria;
+import com.tapdata.tm.commons.trace.ChangeLogData;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.trace.dto.TraceQueryCondition;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,8 @@ public class TraceDataQueryRpcAdapter{
 
     private static final String TRACE_QUERY_SERVICE = "TraceDataQueryService";
     private static final String QUERY_METHOD = "query";
+    private static final String SHARE_CDC_LOG_CONTENT_RESOLVER = "ShareCdcLogContentResolver";
+    private static final String READ = "read";
 
     @Autowired
     private TaskService taskService;
@@ -45,6 +49,15 @@ public class TraceDataQueryRpcAdapter{
             log.error("Trace data query rpc failed, connectionId: {}, table: {}",
                     condition.getConnectionId(), condition.getTable(), e);
             return Collections.emptyList();
+        }
+    }
+
+    public ChangeLogData queryChangeLog(ChangeLogCriteria criteria) {
+        if (criteria == null) {return  null;}
+        try{
+            return taskService.callEngineRpc(null,ChangeLogData.class,SHARE_CDC_LOG_CONTENT_RESOLVER,READ,criteria);
+        }catch (Throwable e) {
+            return null;
         }
     }
 }
