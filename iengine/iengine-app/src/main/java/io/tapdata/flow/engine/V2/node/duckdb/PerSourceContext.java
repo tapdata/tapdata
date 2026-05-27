@@ -1,9 +1,10 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -15,7 +16,7 @@ public class PerSourceContext {
     private final String key;
     private final DuckDbOperator operator;
     private volatile String targetTableName;
-    private final List<Map<String, Object>> batchBuffer = Collections.synchronizedList(new ArrayList<>());
+    private final List<TapdataEvent> batchBuffer = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean tableInitialized;
     private final AtomicInteger accumulatedRecordCount = new AtomicInteger(0);
     private final AtomicLong lastCommitTime = new AtomicLong(System.currentTimeMillis());
@@ -43,7 +44,7 @@ public class PerSourceContext {
         this.targetTableName = targetTableName;
     }
 
-    public List<Map<String, Object>> getBatchBuffer() {
+    public List<TapdataEvent> getBatchBuffer() {
         return batchBuffer;
     }
 
@@ -75,14 +76,14 @@ public class PerSourceContext {
         this.batchSize = batchSize;
     }
 
-    public void addRecord(Map<String, Object> record) {
-        batchBuffer.add(record);
+    public void addEvent(TapdataEvent event) {
+        batchBuffer.add(event);
         accumulatedRecordCount.incrementAndGet();
     }
 
-    public List<Map<String, Object>> drainBuffer() {
+    public List<TapdataEvent> drainBuffer() {
         synchronized (batchBuffer) {
-            List<Map<String, Object>> copy = new ArrayList<>(batchBuffer);
+            List<TapdataEvent> copy = new ArrayList<>(batchBuffer);
             batchBuffer.clear();
             accumulatedRecordCount.set(0);
             lastCommitTime.set(System.currentTimeMillis());
