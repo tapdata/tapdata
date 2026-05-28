@@ -41,6 +41,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -295,26 +296,56 @@ public class BloodlineFinder {
         }
         String targetNodeId = finalTarget.getId();
 
-        Set<String> targetFields = traceFilterFieldNames.stream().filter(StringUtils::isNotBlank).collect(Collectors.toSet());
-        if (targetFields.isEmpty()) {
+        Set<String> finalTargetFields = traceFilterFieldNames.stream().filter(StringUtils::isNotBlank).collect(Collectors.toSet());
+        if (finalTargetFields.isEmpty()) {
             return new HashMap<>();
         }
 
-        Map<String, String> targetNodeFieldToOrigin = fieldNameMappingByNodeId.getOrDefault(targetNodeId, new HashMap<>());
-        Map<String, String> targetFieldToOriginName = new HashMap<>();
-        for (String targetField : targetFields) {
-            String originName = targetNodeFieldToOrigin.get(targetField);
-            if (StringUtils.isBlank(originName)) {
-                continue;
-            }
-            targetFieldToOriginName.put(targetField, originName);
-        }
-
         Set<String> keptNodeIds = new HashSet<>();
+        Map<String, String> nodeFieldToOrigin = fieldNameMappingByNodeId.getOrDefault(targetNodeId, new HashMap<>());
+        Set<String> fields = nodeFieldToOrigin.keySet();
+        finalTargetFields = merge(finalTargetFields, fields);
+        if (CollectionUtils.isEmpty(finalTargetFields)) {
+            dag.setNodes(new ArrayList<>());
+            dag.setEdges(new ArrayList<>());
+            return new HashMap<>();
+        }
         keptNodeIds.add(targetNodeId);
         Map<String, Map<String, String>> result = new HashMap<>();
 
+        Map<String, Map<String, String>> targetFieldToOriginNameMap = new HashMap<>();
+        Map<String, Set<String>> targetFieldsMap = new HashMap<>();
+        targetFieldsMap.put(targetNodeId, finalTargetFields);
+
+        Map<String, Node<?>> nodeMap = new HashMap<>();
+        dag.getNodes().forEach(node -> nodeMap.put(node.getId(), node));
+        while (!nodeMap.isEmpty()) {
+            for (Node<?> node : dag.getNodes()) {
+                String id = node.getId();
+                Set<String> upStreamIds = upstreamNodeIds(id, dag.getEdges());
+                Map<String, String> targetNodeFieldToOrigin = fieldNameMappingByNodeId.getOrDefault(id, new HashMap<>());
+                Map<String, String> targetFieldToOriginName = new HashMap<>();
+                Set<String> targetFields = targetFieldsMap.get(id);
+                if (null == targetFields) {
+                    continue;
+                }
+                for (String targetField : targetFields) {
+                    String originName = targetNodeFieldToOrigin.get(targetField);
+                    if (StringUtils.isBlank(originName)) {
+                        continue;
+                    }
+                    targetFieldToOriginName.put(targetField, originName);
+                }
+                targetFieldToOriginNameMap.put(id, targetFieldToOriginName);
+                Set<String> originTargetFields = new HashSet<>(targetFieldToOriginName.values());
+                upStreamIds.forEach(upStreamId -> targetFieldsMap.put(upStreamId, originTargetFields));
+                nodeMap.remove(id);
+            }
+        }
         for (Node<?> node : dag.getNodes()) {
+            String id = node.getId();
+            Map<String, String> targetFieldToOriginName = targetFieldToOriginNameMap.getOrDefault(id, new HashMap<>());
+            Set<String> targetFields = targetFieldsMap.getOrDefault(id, new HashSet<>());
             eachAllNodes(node, targetNodeId, targetFields, keptNodeIds, fieldNameMappingByNodeId, result, targetFieldToOriginName);
         }
 
@@ -335,6 +366,25 @@ public class BloodlineFinder {
         }
 
         return result;
+    }
+
+    Set<String> merge(Set<String> set1, Set<String> set2) {
+        if (set1 == null || set2 == null) {
+            return Collections.emptySet();
+        }
+        Set<String> result = new HashSet<>(set1);
+        result.retainAll(set2);
+        return result;
+    }
+
+    Set<String> upstreamNodeIds(String nodeId, List<Edge> edges) {
+        Set<String> upstreamNodeIds = new HashSet<>();
+        edges.forEach(edge -> {
+            if (Objects.equals(edge.getTarget(), nodeId)) {
+                upstreamNodeIds.add(edge.getSource());
+            }
+        });
+        return upstreamNodeIds;
     }
 
     void eachAllNodes(Node<?> n,
