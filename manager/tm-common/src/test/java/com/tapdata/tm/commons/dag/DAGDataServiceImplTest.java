@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
+import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.commons.dag.deduction.rule.ChangeRuleStage;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -7,6 +8,7 @@ import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
@@ -16,7 +18,15 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.conversion.TargetTypesGenerator;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.type.TapRaw;
+import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.utils.JsonParser;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -25,7 +35,9 @@ import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +45,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -358,6 +371,121 @@ class DAGDataServiceImplTest {
                 psc.when(() -> PdkSchemaConvert.toPdk(schema)).thenReturn(tapTable);
                 psc.when(() -> PdkSchemaConvert.fromPdkSchema(tapTable)).thenReturn(schema1);
                 Assertions.assertDoesNotThrow(() -> service.processFieldFromDB(metadataInstances, schema));
+            }
+        }
+    }
+
+    @Nested
+    class ProcessFieldToDBRollbackTest {
+        Schema schema;
+        MetadataInstancesDto inputMetadata;
+        MetadataInstancesDto convertedMetadata;
+        DataSourceConnectionDto dataSource;
+        DataSourceDefinitionDto definitionDto;
+        TapTable tapTable;
+        TableFieldTypesGenerator tableFieldTypesGenerator;
+        TargetTypesGenerator targetTypesGenerator;
+        JsonParser jsonParser;
+
+        Field schemaField;
+        Field convertedField;
+
+        @BeforeEach
+        void init() {
+            schemaField = new Field();
+            schemaField.setFieldName("COL2");
+            schemaField.setDataTypeTemp("NUMBER(14,2)");
+
+            convertedField = new Field();
+            convertedField.setFieldName("COL2");
+            convertedField.setSourceDbType("oracle");
+            convertedField.setDataType("NUMBER(*,2)");
+            convertedField.setTapType("{\"type\":8}");
+
+            schema = mock(Schema.class);
+            when(schema.getSourceNodeDatabaseType()).thenReturn("oracle");
+            when(schema.getFields()).thenReturn(new ArrayList<>(Arrays.asList(schemaField)));
+            doNothing().when(schema).setInvalidFields(anyList());
+
+            inputMetadata = mock(MetadataInstancesDto.class);
+            when(inputMetadata.getFields()).thenReturn(new ArrayList<>(Arrays.asList(schemaField)));
+
+            convertedMetadata = new MetadataInstancesDto();
+            convertedMetadata.setFields(new ArrayList<>(Arrays.asList(convertedField)));
+
+            dataSource = mock(DataSourceConnectionDto.class);
+            when(dataSource.getDatabase_type()).thenReturn("oracle");
+            when(dataSource.getDb_version()).thenReturn("19.0");
+
+            definitionDto = mock(DataSourceDefinitionDto.class);
+            when(definitionDto.getExpression()).thenReturn("{}");
+            when(definitionDto.getTapMap()).thenReturn(new HashMap<>());
+            when(definitionDtoMap.get("oracle")).thenReturn(definitionDto);
+
+            tapTable = mock(TapTable.class);
+            when(tapTable.getNameFieldMap()).thenReturn(null);
+
+            tableFieldTypesGenerator = mock(TableFieldTypesGenerator.class);
+            targetTypesGenerator = mock(TargetTypesGenerator.class);
+            jsonParser = mock(JsonParser.class);
+
+            when(service.processFieldToDB(any(Schema.class), any(MetadataInstancesDto.class),
+                    any(DataSourceConnectionDto.class), anyBoolean())).thenCallRealMethod();
+        }
+
+        @Test
+        void testRollbackSyncsDataTypeAndTapType() {
+            TapNumber autoFilled = new TapNumber();
+            autoFilled.setPrecision(14);
+            autoFilled.setScale(2);
+            doAnswer(inv -> {
+                LinkedHashMap<String, TapField> map = inv.getArgument(0);
+                map.values().forEach(f -> f.setTapType(autoFilled));
+                return null;
+            }).when(tableFieldTypesGenerator).autoFill(any(LinkedHashMap.class), any(DefaultExpressionMatchingMap.class));
+
+            when(jsonParser.toJson(autoFilled)).thenReturn("{\"type\":8,\"precision\":14,\"scale\":2}");
+
+            try (MockedStatic<PdkSchemaConvert> psc = mockStatic(PdkSchemaConvert.class);
+                 MockedStatic<JSON> jsonMock = mockStatic(JSON.class)) {
+                psc.when(() -> PdkSchemaConvert.toPdk(schema)).thenReturn(tapTable);
+                psc.when(() -> PdkSchemaConvert.fromPdk(tapTable)).thenReturn(convertedMetadata);
+                psc.when(PdkSchemaConvert::getTableFieldTypesGenerator).thenReturn(tableFieldTypesGenerator);
+                psc.when(PdkSchemaConvert::getTargetTypesGenerator).thenReturn(targetTypesGenerator);
+                psc.when(PdkSchemaConvert::getJsonParser).thenReturn(jsonParser);
+
+                TapNumber parsedTapType = new TapNumber();
+                parsedTapType.setPrecision(14);
+                jsonMock.when(() -> JSON.parseObject("{\"type\":8,\"precision\":14,\"scale\":2}", TapType.class))
+                        .thenReturn(parsedTapType);
+
+                MetadataInstancesDto result = service.processFieldToDB(schema, inputMetadata, dataSource, true);
+
+                Field after = result.getFields().get(0);
+                Assertions.assertEquals("NUMBER(14,2)", after.getDataType());
+                Assertions.assertEquals("{\"type\":8,\"precision\":14,\"scale\":2}", after.getTapType());
+            }
+        }
+
+        @Test
+        void testNoRollbackWhenDatabaseTypeMismatch() {
+            convertedField.setSourceDbType("mysql");
+
+            try (MockedStatic<PdkSchemaConvert> psc = mockStatic(PdkSchemaConvert.class);
+                 MockedStatic<JSON> jsonMock = mockStatic(JSON.class)) {
+                psc.when(() -> PdkSchemaConvert.toPdk(schema)).thenReturn(tapTable);
+                psc.when(() -> PdkSchemaConvert.fromPdk(tapTable)).thenReturn(convertedMetadata);
+                psc.when(PdkSchemaConvert::getTableFieldTypesGenerator).thenReturn(tableFieldTypesGenerator);
+                psc.when(PdkSchemaConvert::getTargetTypesGenerator).thenReturn(targetTypesGenerator);
+                psc.when(PdkSchemaConvert::getJsonParser).thenReturn(jsonParser);
+
+                MetadataInstancesDto result = service.processFieldToDB(schema, inputMetadata, dataSource, true);
+
+                Field after = result.getFields().get(0);
+                Assertions.assertEquals("NUMBER(*,2)", after.getDataType());
+                Assertions.assertEquals("{\"type\":8}", after.getTapType());
+                verify(tableFieldTypesGenerator, times(0))
+                        .autoFill(any(LinkedHashMap.class), any(DefaultExpressionMatchingMap.class));
             }
         }
     }

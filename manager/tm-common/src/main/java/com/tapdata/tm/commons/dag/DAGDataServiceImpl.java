@@ -686,6 +686,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         AtomicBoolean hasPrimayKey = new AtomicBoolean(false);
 
         final Map<String, PossibleDataTypes> findPossibleDataTypes = metadataInstancesDto.getFindPossibleDataTypes();
+        final DefaultExpressionMatchingMap rollbackMatchingMap = DefaultExpressionMatchingMap.map(expression);
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {
                 field.setId(new ObjectId().toHexString());
@@ -694,6 +695,13 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             if (databaseType.equalsIgnoreCase(field.getSourceDbType())) {
                 if (originalField != null && originalField.getDataTypeTemp() != null) {
                     field.setDataType(originalField.getDataTypeTemp());
+                    TapField tmpField = new TapField().dataType(field.getDataType());
+                    LinkedHashMap<String, TapField> rollbackFieldMap = new LinkedHashMap<>();
+                    rollbackFieldMap.put(field.getFieldName(), tmpField);
+                    PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(rollbackFieldMap, rollbackMatchingMap);
+                    if (tmpField.getTapType() != null && TapRaw.TYPE_RAW != tmpField.getTapType().getType()) {
+                        field.setTapType(PdkSchemaConvert.getJsonParser().toJson(tmpField.getTapType()));
+                    }
                     TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);
                     if (findPossibleDataTypes != null && TapRaw.TYPE_RAW != tapType.getType()) {
                         findPossibleDataTypes.remove(field.getFieldName());
