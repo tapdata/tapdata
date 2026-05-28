@@ -28,7 +28,8 @@ import java.util.Objects;
  */
 @Service("tableAnalyzerCustom")
 public class TableAnalyzerCustom extends TableAnalyzerV1 {
-    protected static final String[] METADATA_INCLUDE_FIELDS_CUSTOM  = new String[]{"_id", "sourceType", "original_name", "ancestorsName","fields.tapType","fields.dataType","fields.fieldName","fields.originalFieldName","fields.primaryKey","fields.columnPosition","custom_properties","nodeId","name"};
+    public static final String SOURCE_TYPE = "sourceType";
+    protected static final String[] METADATA_INCLUDE_FIELDS_CUSTOM = new String[]{"_id", SOURCE_TYPE, "original_name", "ancestorsName", "fields.tapType", "fields.dataType", "fields.fieldName", "fields.originalFieldName", "fields.primaryKey", "fields.columnPosition", "custom_properties", "nodeId", "name"};
 
     @Override
     protected String[] metadataIncludeFields() {
@@ -42,12 +43,12 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
         if (null != nodeId) {
             baseCriteria.and("nodeId").is(nodeId);
         }
-        Criteria virtualCriteria = new Criteria("sourceType").is(SourceTypeEnum.VIRTUAL.name());
+        Criteria virtualCriteria = new Criteria("").is(SourceTypeEnum.VIRTUAL.name());
         Query query = Query.query(new Criteria().andOperator(baseCriteria, virtualCriteria));
         query.fields().include(metadataIncludeFields());
         LineageMetadataInstance lineageMetadataInstance = getMetadata(query);
         if (null == lineageMetadataInstance) {
-            Criteria sourceCriteria = new Criteria("sourceType").is(SourceTypeEnum.SOURCE.name());
+            Criteria sourceCriteria = new Criteria(SOURCE_TYPE).is(SourceTypeEnum.SOURCE.name());
             query = Query.query(new Criteria().andOperator(baseCriteria, sourceCriteria));
             query.fields().include(metadataIncludeFields());
             lineageMetadataInstance = getMetadata(query);
@@ -106,20 +107,9 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
             return null;
         }
         for (TaskEntity task : tasks) {
-            Node nodeInTask = findNodeInTask(task, connectionId, table);
-            if (null == nodeInTask) {
-                continue;
-            }
-            if (StringUtils.isBlank(nodeInTask.getId())) {
-                continue;
-            }
-            com.tapdata.tm.commons.dag.DAG dag = task.getDag();
-            if (null == dag || CollectionUtils.isEmpty(dag.getEdges())) {
-                continue;
-            }
-            boolean hasIncoming = dag.getEdges().stream()
-                    .anyMatch(e -> null != e && nodeInTask.getId().equals(e.getTarget()));
-            if (!hasIncoming) {
+            Node<?> nodeInTask = findNodeOfTask(task, connectionId, table);
+            com.tapdata.tm.commons.dag.DAG dag = findDag(nodeInTask, task);
+            if (null == dag) {
                 continue;
             }
             boolean hasOutgoing = dag.getEdges().stream()
@@ -131,20 +121,26 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
         return null;
     }
 
-    private static Criteria buildTaskCriteria(String connectionId, String table) {
-        Criteria syncTaskCriteria = new Criteria("dag.nodes.connectionId").is(connectionId).and("dag.nodes.tableName").is(table);
-        Criteria migrateSrcCriteria = new Criteria("dag.nodes.tableNames").is(table);
-        Criteria migrateTgtCriteria = new Criteria("dag.nodes.syncObjects.objectNames").is(table);
-        Criteria migrateCriteria = new Criteria("dag.nodes.connectionId").is(connectionId)
-                .andOperator(new Criteria().orOperator(migrateSrcCriteria, migrateTgtCriteria));
-        Criteria notDeleteCriteria = new Criteria("is_deleted").is(false);
-        return new Criteria().andOperator(
-                notDeleteCriteria,
-                new Criteria().orOperator(syncTaskCriteria, migrateCriteria)
-        );
+    private com.tapdata.tm.commons.dag.DAG findDag(Node<?> nodeInTask, TaskEntity task) {
+        if (null == nodeInTask) {
+            return null;
+        }
+        if (StringUtils.isBlank(nodeInTask.getId())) {
+            return null;
+        }
+        com.tapdata.tm.commons.dag.DAG dag = task.getDag();
+        if (null == dag || CollectionUtils.isEmpty(dag.getEdges())) {
+            return null;
+        }
+        boolean hasIncoming = dag.getEdges().stream()
+                .anyMatch(e -> null != e && nodeInTask.getId().equals(e.getTarget()));
+        if (!hasIncoming) {
+            return null;
+        }
+        return dag;
     }
 
-    private Node findNodeInTask(TaskEntity task, String connectionId, String table) {
+    private Node<?> findNodeOfTask(TaskEntity task, String connectionId, String table) {
         if (null == task || null == task.getDag()) {
             return null;
         }
@@ -153,11 +149,9 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
             return null;
         }
         return nodes.stream().filter(node -> {
-            if (node instanceof TableNode) {
-                TableNode tableNode = (TableNode) node;
+            if (node instanceof TableNode tableNode) {
                 return connectionId.equals(tableNode.getConnectionId()) && table.equals(tableNode.getTableName());
-            } else if (node instanceof DatabaseNode) {
-                DatabaseNode databaseNode = (DatabaseNode) node;
+            } else if (node instanceof DatabaseNode databaseNode) {
                 if (!connectionId.equals(databaseNode.getConnectionId())) {
                     return false;
                 }

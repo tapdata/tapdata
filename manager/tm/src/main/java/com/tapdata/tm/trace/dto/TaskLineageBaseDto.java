@@ -3,6 +3,8 @@ package com.tapdata.tm.trace.dto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.lineage.dto.TableLineageDto;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.Map;
 
@@ -12,22 +14,16 @@ import java.util.Map;
  * @version v1.0 2026/5/22 15:34 Create
  * @description
  */
+@Getter
+@Setter
 @EqualsAndHashCode(callSuper = true)
 public class TaskLineageBaseDto extends TableLineageDto {
     /**
      * <nodeId, <targetTraceFieldName, currentTableFieldName>>
-     * */
+     */
     Map<String, Map<String, String>> traceFilterFieldNameMapping;
 
     public TaskLineageBaseDto(Dag dag) {
         super(dag);
-    }
-
-    public Map<String, Map<String, String>> getTraceFilterFieldNameMapping() {
-        return traceFilterFieldNameMapping;
-    }
-
-    public void setTraceFilterFieldNameMapping(Map<String, Map<String, String>> traceFilterFieldNameMapping) {
-        this.traceFilterFieldNameMapping = traceFilterFieldNameMapping;
     }
 }

@@ -1,6 +1,5 @@
 package com.tapdata.tm.trace.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.ArrayList;

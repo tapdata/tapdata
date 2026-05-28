@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTableNode;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTaskNode;
+import com.tapdata.tm.trace.dto.boodline.FieldNameMapping;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -25,10 +26,13 @@ import java.util.Optional;
  * @version v1.0 2026/5/26 17:25 Create
  * @description
  */
-public class UpdateConditionFieldLoader {
+public final class UpdateConditionFieldLoader {
 
-    public static Map<String, List<BloodlineFinder.FieldNameMapping>> getUpdateConditionFieldList(Dag dag, Map<String, DAG> taskDagMap, Map<String, Map<String, String>> fieldNameMapping) {
-        Map<String, List<BloodlineFinder.FieldNameMapping>> result = new HashMap<>();
+    private UpdateConditionFieldLoader() {
+    }
+
+    public static Map<String, List<FieldNameMapping>> getUpdateConditionFieldList(Dag dag, Map<String, DAG> taskDagMap, Map<String, Map<String, String>> fieldNameMapping) {
+        Map<String, List<FieldNameMapping>> result = new HashMap<>();
         if (null == dag || CollectionUtils.isEmpty(dag.getNodes()) || MapUtils.isEmpty(taskDagMap)) {
             return result;
         }
@@ -61,7 +65,7 @@ public class UpdateConditionFieldLoader {
                 if (MapUtils.isEmpty(nodeFieldMapping)) {
                     nodeFieldMapping = fieldNameMappingByNodeId.getOrDefault(lineageNodeId, new HashMap<>());
                 }
-                List<BloodlineFinder.FieldNameMapping> mappings = result.computeIfAbsent(lineageNodeId, k -> new ArrayList<>());
+                List<FieldNameMapping> mappings = result.computeIfAbsent(lineageNodeId, k -> new ArrayList<>());
                 for (String targetFieldName : updateFields) {
                     if (StringUtils.isBlank(targetFieldName)) {
                         continue;
@@ -137,7 +141,7 @@ public class UpdateConditionFieldLoader {
         return new ArrayList<>();
     }
 
-    private static void addFieldNameMapping(List<BloodlineFinder.FieldNameMapping> list, String originName, String targetName) {
+    private static void addFieldNameMapping(List<FieldNameMapping> list, String originName, String targetName) {
         if (null == list || StringUtils.isBlank(originName) || StringUtils.isBlank(targetName)) {
             return;
         }
@@ -147,7 +151,7 @@ public class UpdateConditionFieldLoader {
         if (exists) {
             return;
         }
-        BloodlineFinder.FieldNameMapping mapping = new BloodlineFinder.FieldNameMapping();
+        FieldNameMapping mapping = new FieldNameMapping();
         mapping.setOriginName(originName);
         mapping.setTargetName(targetName);
         list.add(mapping);

@@ -1,8 +1,9 @@
 package com.tapdata.tm.trace.dto;
 
 import com.tapdata.tm.commons.task.dto.Dag;
-import com.tapdata.tm.lineage.dto.TableLineageDto;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 
@@ -12,6 +13,8 @@ import java.util.List;
  * @version v1.0 2026/5/22 10:05 Create
  * @description
  */
+@Getter
+@Setter
 @EqualsAndHashCode(callSuper = true)
 public class TargetWithLineageDto extends TaskLineageBaseDto {
     /**
@@ -21,13 +24,5 @@ public class TargetWithLineageDto extends TaskLineageBaseDto {
 
     public TargetWithLineageDto(Dag dag) {
         super(dag);
-    }
-
-    public List<String> getTargetTableUpdateFields() {
-        return targetTableUpdateFields;
-    }
-
-    public void setTargetTableUpdateFields(List<String> targetTableUpdateFields) {
-        this.targetTableUpdateFields = targetTableUpdateFields;
     }
 }
