@@ -306,7 +306,8 @@ public class JoinStateSetter {
                 attrs = new HashMap<>();
                 node.setAttrs(attrs);
             }
-            Optional.ofNullable(propertiesMap.get(nodeId))
+            Optional.ofNullable(propertiesMap)
+                    .map(m -> m.get(nodeId))
                     .ifPresent(properties -> {
                         if (StringUtils.isBlank(properties.getNodeType())) {
                             properties.setNodeType(nodeType);
@@ -705,7 +706,7 @@ public class JoinStateSetter {
             }
             predecessors = predecessors.stream()
                     .filter(Objects::nonNull)
-                    .filter(predecessor -> StringUtils.isBlank(predecessor.getId()))
+                    .filter(predecessor -> StringUtils.isNotBlank(predecessor.getId()))
                     .toList();
             String previousFieldName = field.getPreviousFieldName();
             NodeFieldState next = null;

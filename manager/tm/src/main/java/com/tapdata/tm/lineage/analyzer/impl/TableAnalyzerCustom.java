@@ -43,7 +43,7 @@ public class TableAnalyzerCustom extends TableAnalyzerV1 {
         if (null != nodeId) {
             baseCriteria.and("nodeId").is(nodeId);
         }
-        Criteria virtualCriteria = new Criteria("").is(SourceTypeEnum.VIRTUAL.name());
+        Criteria virtualCriteria = new Criteria(SOURCE_TYPE).is(SourceTypeEnum.VIRTUAL.name());
         Query query = Query.query(new Criteria().andOperator(baseCriteria, virtualCriteria));
         query.fields().include(metadataIncludeFields());
         LineageMetadataInstance lineageMetadataInstance = getMetadata(query);
