@@ -202,8 +202,8 @@ class BatchWideTableUpdateIntegrationTest {
     private Map<String, Object> createUpdateEvent(String pkField, Object beforePk, Object afterPk) {
         Map<String, Object> event = new HashMap<>();
         event.put("op", "UPDATE");
+        event.put(pkField, afterPk);
         event.put("o2", Map.of(pkField, beforePk));
-        event.put("updatedFields", Map.of(pkField, afterPk));
         return event;
     }
 

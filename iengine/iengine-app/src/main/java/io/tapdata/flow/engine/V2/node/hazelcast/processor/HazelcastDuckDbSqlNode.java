@@ -641,7 +641,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             TapEvent tapEvent = tapdataEvent.getTapEvent();
 
             if (tapEvent instanceof TapRecordEvent) {
-                String tableName = TapEventUtil.getTableId((TapRecordEvent) tapEvent);
+                String tableName = TapEventUtil.getTableId(tapEvent);
                 if (tableName != null) {
                     syncStageTracker.updateTableStageFromEvent(tableName, stage);
                 }
@@ -1259,7 +1259,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     private DuckDbOperator createContextOperator() {
         try {
-            return new DuckDbOperatorImpl(true, batchSize, commitIntervalMs);
+            return new DuckDbOperatorImpl(false, batchSize, commitIntervalMs);
         } catch (SQLException e) {
             logger.warn("Failed to create dedicated DuckDB operator, fallback to shared operator: {}", e.getMessage());
             return duckDbOperator;

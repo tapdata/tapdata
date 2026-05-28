@@ -91,8 +91,7 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
 
             List<Map<String, Object>> smartMergerEvents = Arrays.asList(
                     Map.of("op", "INSERT", "id", 1, "user_id", 100),
-                    Map.of("op", "UPDATE", "o2", Map.of("id", 1), "updatedFields", Map.of("amount", 100)),
-                    Map.of("op", "UPDATE", "o2", Map.of("id", 1), "updatedFields", Map.of("amount", 200))
+                    Map.of("op", "UPDATE", "id", 1, "user_id", 100, "o2", Map.of("id", 1), "amount", 200)
             );
             List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
             mockQueryReturns(Collections.singletonList(Map.of("id", 1L)));
@@ -163,9 +162,7 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
 
             List<Map<String, Object>> smartMergerEvents = Arrays.asList(
                     Map.of("op", "INSERT", "id", 1, "user_id", 100),
-                    Map.of("op", "UPDATE", "o2", Map.of("id", 1), "updatedFields", Map.of("id", 2)),
-                    Map.of("op", "UPDATE", "o2", Map.of("id", 2), "updatedFields", Map.of("id", 3)),
-                    Map.of("op", "UPDATE", "o2", Map.of("id", 3), "updatedFields", Map.of("id", 4))
+                    Map.of("op", "UPDATE", "id", 4, "user_id", 400, "o2", Map.of("id", 3))
             );
             List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
 

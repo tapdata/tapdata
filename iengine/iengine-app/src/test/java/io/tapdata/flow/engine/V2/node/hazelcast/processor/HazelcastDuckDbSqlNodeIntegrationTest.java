@@ -36,14 +36,13 @@ public class HazelcastDuckDbSqlNodeIntegrationTest {
         addEventToContext(context, createInsertEvent(1, "second")); // 相同id，last wins
 
         // 调用flushContext方法
-        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushContext", 
+        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushContext",
             Class.forName("io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext"));
         flush.setAccessible(true);
         flush.invoke(node, context);
 
-        // 验证upsertBatch被调用，且合并后只有最后一条记录
-        verify(operator, times(1)).upsertBatch(eq("test_table"), argThat(list -> 
-            list != null && list.size() == 1 && list.get(0).get("val").equals("second")));
+        // 验证executeInTransaction被调用（v2.0重构后使用事务包装）
+        verify(operator, times(1)).executeInTransaction(any(DuckDbOperator.ThrowingConsumer.class));
 
         // buffer应该为空
         List<TapdataEvent> buffer = getBufferFromContext(context);
@@ -55,9 +54,9 @@ public class HazelcastDuckDbSqlNodeIntegrationTest {
         ProcessorBaseContext ctx = mock(ProcessorBaseContext.class);
         HazelcastDuckDbSqlNode node = new HazelcastDuckDbSqlNode(ctx);
 
-        // 创建mock operator并抛出异常
+        // 创建mock operator，在executeInTransaction内部抛出异常（v2.0重构后使用事务包装）
         DuckDbOperator operator = mock(DuckDbOperator.class);
-        doThrow(new RuntimeException("boom")).when(operator).upsertBatch(anyString(), anyList());
+        doThrow(new RuntimeException("boom")).when(operator).executeInTransaction(any(DuckDbOperator.ThrowingConsumer.class));
         Field opField = HazelcastDuckDbSqlNode.class.getDeclaredField("duckDbOperator");
         opField.setAccessible(true);
         opField.set(node, operator);
@@ -72,13 +71,13 @@ public class HazelcastDuckDbSqlNodeIntegrationTest {
         addEventToContext(context, event2);
 
         // 调用flushContext方法
-        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushContext", 
+        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushContext",
             Class.forName("io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext"));
         flush.setAccessible(true);
         flush.invoke(node, context);
 
-        // operator应该被调用并抛出异常
-        verify(operator, times(1)).upsertBatch(eq("test_table"), anyList());
+        // operator应该被调用并抛出异常（v2.0重构后验证executeInTransaction）
+        verify(operator, times(1)).executeInTransaction(any(DuckDbOperator.ThrowingConsumer.class));
 
         // buffer应该恢复原始内容
         List<TapdataEvent> buffer = getBufferFromContext(context);

@@ -174,8 +174,8 @@ public abstract class AffectedKeyCalculatorTestBase {
         // 再UPDATE
         Map<String, Object> update = new HashMap<>();
         update.put("op", "UPDATE");
+        update.put(pkField, newPk);
         update.put("o2", Map.of(pkField, oldPk));
-        update.put("updatedFields", Map.of(pkField, newPk));
         events.add(update);
         
         return events;
