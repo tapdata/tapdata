@@ -1,15 +1,19 @@
 package com.tapdata.tm.trace.service.log;
 
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.commons.trace.ChangeLogCriteria;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.shareCdcTableMapping.entity.ShareCdcTableMappingEntity;
 import com.tapdata.tm.shareCdcTableMapping.repository.ShareCdcTableMappingRepository;
 import com.tapdata.tm.trace.dto.ChangeLog;
 import com.tapdata.tm.trace.param.ChangeLogParam;
 import com.tapdata.tm.trace.service.data.TraceDataQueryRpcAdapter;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +41,8 @@ public class ChangeLogQuery {
     ShareCdcTableMappingRepository shareCdcTableMappingRepository;
     @Resource(name = "traceDataQueryRpcAdapter")
     TraceDataQueryRpcAdapter traceDataQueryRpcAdapter;
+    @Resource(name = "externalStorageServiceImpl")
+    ExternalStorageService externalStorageService;
 
 
     public ChangeLog query(ChangeLogParam param, UserDetail user) {
@@ -61,6 +67,15 @@ public class ChangeLogQuery {
         if (StringUtils.isBlank(shareCDCExternalStorageId)) {
            return ChangeLog.from(param, null);
         }
+        ExternalStorageDto storageDto = externalStorageService.findById(MongoUtils.toObjectId(shareCDCExternalStorageId));
+        if (null == storageDto) {
+            return ChangeLog.from(param, null);
+        }
+        String type = storageDto.getType();
+        if (!ExternalStorageType.supported(type)) {
+            return ChangeLog.from(param, null).msg(MessageUtil.getMessage("data.trace.log.supported", type));
+        }
+
         String tableRingBufferId = findTableRingBufferId(connectionId, tableName, user);
         if (StringUtils.isBlank(tableRingBufferId)) {
             return ChangeLog.from(param, null);

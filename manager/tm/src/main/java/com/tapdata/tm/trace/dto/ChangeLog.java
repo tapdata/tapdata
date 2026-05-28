@@ -20,6 +20,7 @@ import java.util.Optional;
 @EqualsAndHashCode(callSuper = false)
 public class ChangeLog extends ChangeLogParam {
     List<Map<String, Object>> logs;
+    String msg;
 
     public static ChangeLog from(ChangeLogParam param, ChangeLogData logs) {
         ChangeLog changeLog = new ChangeLog();
@@ -33,5 +34,10 @@ public class ChangeLog extends ChangeLogParam {
         Long lastKey = Optional.ofNullable(logs).map(ChangeLogData::getLastKey).orElse(param.getLastKey());
         changeLog.setLastKey(lastKey);
         return changeLog;
+    }
+
+    public ChangeLog msg(String msg) {
+        this.msg = msg;
+        return this;
     }
 }
