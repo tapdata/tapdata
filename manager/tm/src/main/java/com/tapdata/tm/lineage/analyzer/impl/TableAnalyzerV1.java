@@ -24,6 +24,7 @@ import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.TaskFilter;
 import io.github.openlg.graphlib.Graph;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -351,13 +352,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		Criteria migrateTgtCriteria = new Criteria("dag.nodes.syncObjects.objectNames").is(table);
 		Criteria migrateCriteria = new Criteria("dag.nodes.connectionId").is(connectionId)
 				.andOperator(new Criteria().orOperator(migrateSrcCriteria, migrateTgtCriteria));
-		Criteria notDeleteCriteria = new Criteria("is_deleted").is(false)
-				// com.tapdata.tm.task.service.TaskServiceImpl.find#1671
-				.and(STATUS).nin(Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING))
-				//com.tapdata.tm.task.service.TaskServiceImpl.find#1677
-				.and(SYNC_TYPE).nin(Lists.of(TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT))
-				//com.tapdata.tm.task.service.TaskServiceImpl.find#1685
-				.and("shareCache").ne(true);
+		Criteria notDeleteCriteria = TaskFilter.filter(new Criteria("is_deleted").is(false));
 		return new Criteria().andOperator(
 				notDeleteCriteria,
 				new Criteria().orOperator(syncTaskCriteria, migrateCriteria)

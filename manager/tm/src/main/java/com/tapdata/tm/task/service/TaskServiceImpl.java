@@ -1668,24 +1668,7 @@ public class TaskServiceImpl extends TaskService{
             where = new Where();
             filter.setWhere(where);
         }
-        if (where.get(STATUS) == null) {
-            Document statusCondition = new Document();
-            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
-            where.put(STATUS, statusCondition);
-        }
-        //过滤掉挖掘任务
-        String syncType = (String) where.get(SYNC_TYPE);
-        if (StringUtils.isBlank(syncType)) {
-            Document logCollectorFilter = new Document();
-            logCollectorFilter.put("$nin", Lists.of(TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT));
-            where.put(SYNC_TYPE, logCollectorFilter);
-        }
-
-        //过滤调共享缓存任务
-        HashMap<String, Object> notShareCache = new HashMap<>();
-        notShareCache.put("$ne", true);
-        where.put("shareCache", notShareCache);
-
+        TaskFilter.filter(where);
 
         if (where.get(IS_DELETED) == null) {
             Document document = new Document();
