@@ -32,7 +32,7 @@ public enum ExternalStorageType {
 			if (!value.supportChangeLog) {
 				continue;
 			}
-			if (value.mode.equals(mode)) {
+			if (value.name().equals(mode)) {
 				return true;
 			}
 		}
