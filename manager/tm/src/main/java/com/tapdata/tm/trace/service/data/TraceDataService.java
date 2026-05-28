@@ -269,6 +269,9 @@ public class TraceDataService {
                         condition.getConditionKeys().add(custom.getKey());
                     });
         }
+        if (request.getFilters() != null &&  CollectionUtils.isNotEmpty(request.getFilters().getConditions())) {
+            condition.getFilters().addAll(request.getFilters().getConditions());
+        }
         return condition;
     }
 
@@ -317,15 +320,15 @@ public class TraceDataService {
             return Collections.emptyList();
         }
         List<Map<String, Object>> filters = buildMergeJoinFiltersFromRecords(joinKeys, downstreamTraceValue, errors);
-        if (CollectionUtils.isEmpty(filters)) {
-            filters = buildMergeJoinFiltersFromCondition(joinKeys, downstreamCondition, errors);
-        }
-        if (CollectionUtils.isEmpty(filters)) {
-            filters = buildMergeJoinFiltersFromRecords(joinKeys, fallbackTraceValue, errors);
-        }
-        if (CollectionUtils.isEmpty(filters)) {
-            filters = buildMergeJoinFiltersFromCondition(joinKeys, fallbackCondition, errors);
-        }
+//        if (CollectionUtils.isEmpty(filters)) {
+//            filters = buildMergeJoinFiltersFromCondition(joinKeys, downstreamCondition, errors);
+//        }
+//        if (CollectionUtils.isEmpty(filters)) {
+//            filters = buildMergeJoinFiltersFromRecords(joinKeys, fallbackTraceValue, errors);
+//        }
+//        if (CollectionUtils.isEmpty(filters)) {
+//            filters = buildMergeJoinFiltersFromCondition(joinKeys, fallbackCondition, errors);
+//        }
         return distinctFilters(filters);
     }
 
@@ -337,9 +340,9 @@ public class TraceDataService {
         }
         List<Map<String, Object>> filters = new ArrayList<>();
         for (Map<String, Object> record : traceValue.getCurrentRecords()) {
-            Map<String, Object> filter = buildMergeJoinFilter(joinKeys, record, null, errors);
-            if (MapUtils.isNotEmpty(filter)) {
-                filters.add(filter);
+            List<Map<String, Object>> filter = buildMergeJoinFilter(joinKeys, record, null, errors);
+            if (CollectionUtils.isNotEmpty(filter)) {
+                filters.addAll(filter);
             }
         }
         return filters;
@@ -353,19 +356,20 @@ public class TraceDataService {
         }
         List<Map<String, Object>> filters = new ArrayList<>();
         for (Map<String, Object> sourceFilter : safeFilters(condition)) {
-            Map<String, Object> filter = buildMergeJoinFilter(joinKeys, null, sourceFilter, errors);
-            if (MapUtils.isNotEmpty(filter)) {
-                filters.add(filter);
+            List<Map<String, Object>> filter = buildMergeJoinFilter(joinKeys, null, sourceFilter, errors);
+            if (CollectionUtils.isNotEmpty(filter)) {
+                filters.addAll(filter);
             }
         }
         return filters;
     }
 
-    private Map<String, Object> buildMergeJoinFilter(List<Map<String, String>> joinKeys,
+    private List<Map<String, Object>> buildMergeJoinFilter(List<Map<String, String>> joinKeys,
                                                      Map<String, Object> record,
                                                      Map<String, Object> sourceFilter,
                                                      List<TraceNodeError> errors) {
-        Map<String, Object> filter = new LinkedHashMap<>();
+        List<Map<String, Object>> filters = new ArrayList<>();
+        filters.add(new LinkedHashMap<>());
         for (Map<String, String> joinKey : joinKeys) {
             String sourceField = firstNotBlank(joinKey.get("originName"));
             String targetField = firstNotBlank(joinKey.get("targetName"));
@@ -379,13 +383,46 @@ public class TraceDataService {
                 value = sourceFilter.get(targetField);
             }
             if (value != null) {
-                filter.put(sourceField, value);
+                appendMergeJoinValue(filters, sourceField, value);
             } else {
                 errors.add(traceError(ERROR_VALUE_MISMATCH, targetField, sourceField, targetField, null, null,
                         "joinKey=" + joinKey));
             }
         }
-        return filter;
+        return filters.stream()
+                .filter(MapUtils::isNotEmpty)
+                .collect(Collectors.toList());
+    }
+
+    private void appendMergeJoinValue(List<Map<String, Object>> filters, String sourceField, Object value) {
+        if (value instanceof Collection) {
+            List<?> values = ((Collection<?>) value).stream()
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            if (values.isEmpty()) {
+                return;
+            }
+            expandMergeJoinFilters(filters, values.size());
+            for (int i = 0; i < values.size(); i++) {
+                filters.get(i).put(sourceField, values.get(i));
+            }
+            return;
+        }
+        if (filters.isEmpty()) {
+            filters.add(new LinkedHashMap<>());
+        }
+        for (Map<String, Object> filter : filters) {
+            filter.put(sourceField, value);
+        }
+    }
+
+    private void expandMergeJoinFilters(List<Map<String, Object>> filters, int size) {
+        if (filters.isEmpty()) {
+            filters.add(new LinkedHashMap<>());
+        }
+        while (filters.size() < size) {
+            filters.add(new LinkedHashMap<>(filters.get(filters.size() - 1)));
+        }
     }
 
     private List<Map<String, Object>> buildNormalUpstreamFilters(TraceQueryCondition buildCondition,
@@ -400,16 +437,16 @@ public class TraceDataService {
                                                                  List<TraceNodeError> errors) {
         List<Map<String, Object>> filters = rewriteFiltersByFieldMapping(buildCondition,currentCondition, currentTraceValue,
                 upstreamFieldMapping, currentFieldMapping, updateConditionFieldList, errors);
-        if (CollectionUtils.isEmpty(filters)) {
-            filters = rewriteRecordValuesByFieldMapping(currentTraceValue, upstreamFieldMapping, currentFieldMapping, errors);
-        }
-        if (CollectionUtils.isEmpty(filters) && fallbackCondition != null && !fallbackFieldMapping.isEmpty()) {
-            filters = rewriteFiltersByFieldMapping(buildCondition,fallbackCondition, fallbackTraceValue,
-                    upstreamFieldMapping, fallbackFieldMapping, updateConditionFieldList, errors);
-        }
-        if (CollectionUtils.isEmpty(filters) && !fallbackFieldMapping.isEmpty()) {
-            filters = rewriteRecordValuesByFieldMapping(fallbackTraceValue, upstreamFieldMapping, fallbackFieldMapping, errors);
-        }
+//        if (CollectionUtils.isEmpty(filters)) {
+//            filters = rewriteRecordValuesByFieldMapping(currentTraceValue, upstreamFieldMapping, currentFieldMapping, errors);
+//        }
+//        if (CollectionUtils.isEmpty(filters) && fallbackCondition != null && !fallbackFieldMapping.isEmpty()) {
+//            filters = rewriteFiltersByFieldMapping(buildCondition,fallbackCondition, fallbackTraceValue,
+//                    upstreamFieldMapping, fallbackFieldMapping, updateConditionFieldList, errors);
+//        }
+//        if (CollectionUtils.isEmpty(filters) && !fallbackFieldMapping.isEmpty()) {
+//            filters = rewriteRecordValuesByFieldMapping(fallbackTraceValue, upstreamFieldMapping, fallbackFieldMapping, errors);
+//        }
         return distinctFilters(filters);
     }
 
@@ -593,14 +630,35 @@ public class TraceDataService {
         if (record.containsKey(fieldName)) {
             return record.get(fieldName);
         }
-        Object current = record;
-        for (String part : StringUtils.split(fieldName, '.')) {
-            if (!(current instanceof Map)) {
+        return readRecordValue(record, StringUtils.split(fieldName, '.'), 0);
+    }
+
+    private Object readRecordValue(Object current, String[] parts, int index) {
+        if (current == null) {
+            return null;
+        }
+        if (index >= parts.length) {
+            return current;
+        }
+        if (current instanceof Map) {
+            return readRecordValue(((Map<?, ?>) current).get(parts[index]), parts, index + 1);
+        }
+        if (current instanceof Collection) {
+            List<Object> values = new ArrayList<>();
+            for (Object item : (Collection<?>) current) {
+                Object value = readRecordValue(item, parts, index);
+                if (value instanceof Collection) {
+                    values.addAll((Collection<?>) value);
+                } else if (value != null) {
+                    values.add(value);
+                }
+            }
+            if (values.isEmpty()) {
                 return null;
             }
-            current = ((Map<?, ?>) current).get(part);
+            return values.size() == 1 ? values.get(0) : values;
         }
-        return current;
+        return null;
     }
 
     private List<TraceFieldMapping> buildTracedFields(List<String> trackedFields, Map<String, String> targetFieldMapping,
