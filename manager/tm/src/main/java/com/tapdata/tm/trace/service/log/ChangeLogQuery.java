@@ -17,14 +17,14 @@ import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -84,7 +84,11 @@ public class ChangeLogQuery {
         criteria.setRingBuffer(tableRingBufferId);
         criteria.setConnectionId(connectionId);
         criteria.setTableName(tableName);
-        criteria.setFilters(Optional.ofNullable(param.getQueryConditions()).orElse(new ArrayList<>()));
+        List<Map<String,Object>> filters =  Optional.ofNullable(param.getQueryConditions()).orElse(new ArrayList<>()).stream().filter(Objects::nonNull).filter(MapUtils::isNotEmpty).toList();
+        if(filters.isEmpty()){
+            return ChangeLog.from(param, null);
+        }
+        criteria.setFilters(filters);
         criteria.setExternalStorageId(shareCDCExternalStorageId);
         criteria.setStartTime(param.getStartTime());
         criteria.setEndTime(param.getEndTime());
