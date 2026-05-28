@@ -12,7 +12,7 @@ public enum ExternalStorageType {
 	httptm("HttpTM"),
 	;
 	private final String mode;
-	private boolean supportChangeLog;
+	private final boolean supportChangeLog;
 
 	ExternalStorageType(String mode) {
 		this(mode, false);
@@ -20,7 +20,7 @@ public enum ExternalStorageType {
 
 	ExternalStorageType(String mode, boolean supportChangeLog) {
 		this.mode = mode;
-		this.supportChangeLog = false;
+		this.supportChangeLog = supportChangeLog;
 	}
 
 	public String getMode() {
