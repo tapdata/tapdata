@@ -92,7 +92,7 @@ class ArrowZeroCopyTest {
         row1.put("value", 12.34d);
         row1.put("active", true);
         row1.put("count", 100);
-        row1.put("created_at", new java.util.Date(1700000000000L));
+        row1.put("created_at", new java.sql.Timestamp(1700000000000L));
         row1.put("notes", "Normal text");
         data.add(row1);
 
@@ -102,7 +102,7 @@ class ArrowZeroCopyTest {
         row2.put("value", -9876.5d);
         row2.put("active", false);
         row2.put("count", -42);
-        row2.put("created_at", new java.util.Date(1700000001000L));
+        row2.put("created_at", new java.sql.Timestamp(1700000001000L));
         row2.put("notes", "Text with 'quotes' and \"double quotes\"");
         data.add(row2);
 
@@ -112,7 +112,7 @@ class ArrowZeroCopyTest {
         row3.put("value", 0.000001d);
         row3.put("active", true);
         row3.put("count", 0);
-        row3.put("created_at", new java.util.Date(1700000002000L));
+        row3.put("created_at", new java.sql.Timestamp(1700000002000L));
         row3.put("notes", "Text with\nnewlines\tand\ttabs, commas, and pipes | ");
         data.add(row3);
 
@@ -122,7 +122,7 @@ class ArrowZeroCopyTest {
         row4.put("value", 99999999.99d);
         row4.put("active", null);
         row4.put("count", null);
-        row4.put("created_at", new java.util.Date(1700000003000L));
+        row4.put("created_at", new java.sql.Timestamp(1700000003000L));
         row4.put("notes", "Long text: " + "x".repeat(1024));
         data.add(row4);
 
@@ -132,7 +132,7 @@ class ArrowZeroCopyTest {
         row5.put("value", null);
         row5.put("active", false);
         row5.put("count", 2147483647);
-        row5.put("created_at", new java.util.Date(1700000004000L));
+        row5.put("created_at", new java.sql.Timestamp(1700000004000L));
         row5.put("notes", "Unicode: 中文文本 日本語 한국어");
         data.add(row5);
 
@@ -162,10 +162,15 @@ class ArrowZeroCopyTest {
                     java.util.Map<String, Object> expectedRow = data.get(rowIndex);
                     assertEquals(((Number) expectedRow.get("id")).longValue(), resultSet.getLong("id"));
                     assertEquals(expectedRow.get("name"), resultSet.getString("name"));
-                    assertEquals(((Number) expectedRow.get("value")).doubleValue(), resultSet.getDouble("value"), 0.000001d);
-                    if (expectedRow.get("value") == null) {
+                    
+                    Number expectedValue = (Number) expectedRow.get("value");
+                    if (expectedValue == null) {
+                        resultSet.getDouble("value");
                         assertTrue(resultSet.wasNull());
+                    } else {
+                        assertEquals(expectedValue.doubleValue(), resultSet.getDouble("value"), 0.000001d);
                     }
+                    
                     Boolean expectedActive = (Boolean) expectedRow.get("active");
                     boolean activeValue = resultSet.getBoolean("active");
                     if (expectedActive == null) {

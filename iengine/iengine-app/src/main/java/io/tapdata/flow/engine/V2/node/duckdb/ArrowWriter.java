@@ -16,6 +16,7 @@ import org.apache.arrow.vector.dictionary.DictionaryProvider;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.duckdb.DuckDBConnection;
+import org.duckdb.DuckDBAppender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +28,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -283,7 +285,7 @@ public class ArrowWriter implements AutoCloseable {
         
         // 尝试零拷贝写入，如果不可用则使用COPY模式
         if (!tryZeroCopyWrite(data, tableName, tapTable)) {
-            copyInsert(data, tableName, tapTable);
+            AppenderInsert(data, tableName, tapTable);
         }
     }
 
@@ -314,6 +316,12 @@ public class ArrowWriter implements AutoCloseable {
                 // 4. 将 Arrow Stream 导出为 ArrowArrayStream 并注册到 DuckDB
                 byte[] arrowBytes = outputStream.toByteArray();
                 DuckDBConnection duckDbConnection = connection.unwrap(DuckDBConnection.class);
+                
+                if (duckDbConnection == null) {
+                    logger.debug("Connection is not a DuckDB connection, skipping zero-copy write");
+                    return false;
+                }
+                
                 String streamName;
                 synchronized (ArrowWriter.class) {
                     streamName = "arrow_stream_" + (++tempTableCounter);
@@ -342,9 +350,9 @@ public class ArrowWriter implements AutoCloseable {
     }
 
     /**
-     * 使用DuckDB COPY FROM命令插入数据（比JDBC批处理更高效）
+     * 使用DuckDB官方推荐的Appender API插入数据（最高性能）
      */
-    private void copyInsert(List<Map<String, Object>> data, String tableName, TapTable tapTable) throws SQLException {
+    private void AppenderInsert(List<Map<String, Object>> data, String tableName, TapTable tapTable) throws SQLException {
         if (data.isEmpty()) {
             return;
         }
@@ -354,57 +362,96 @@ public class ArrowWriter implements AutoCloseable {
             return;
         }
         
-        // 构建CSV格式的数据
-        StringBuilder csvBuilder = new StringBuilder();
+        logger.debug("Starting Appender-based insert of {} rows into table {}", data.size(), tableName);
         
-        // 写入CSV头部
-        csvBuilder.append(String.join(",", fieldNames)).append("\n");
-        
-        // 写入数据行
-        for (Map<String, Object> row : data) {
-            List<String> values = new ArrayList<>();
-            for (String fieldName : fieldNames) {
-                Object value = row.get(fieldName);
-                values.add(formatValue(value));
-            }
-            csvBuilder.append(String.join(",", values)).append("\n");
-        }
-        
-        // 将CSV数据转换为输入流
-        byte[] csvBytes = csvBuilder.toString().getBytes(StandardCharsets.UTF_8);
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(csvBytes);
         try {
-            // 使用DuckDB的COPY FROM命令
-            String columns = fieldNames.stream()
-                    .map(f -> "\"" + f + "\"")
-                    .reduce((a, b) -> a + ", " + b)
-                    .orElse("");
+            connection.setAutoCommit(false);
             
-            String sql = "COPY " + tableName + " (" + columns + ") FROM STDIN (FORMAT CSV, HEADER)";
-            
-            try (Statement stmt = connection.createStatement()) {
-                connection.setAutoCommit(false);
-                try {
-                    stmt.execute(sql);
-                    // 对于DuckDB，COPY FROM STDIN需要特殊处理
-                    // 这里简化实现，使用INSERT作为备选
-                    fallbackInsert(data, tableName, tapTable);
-                    connection.commit();
-                } catch (SQLException e) {
-                    connection.rollback();
-                    logger.debug("COPY command failed, falling back to INSERT: {}", e.getMessage());
+            try {
+                DuckDBConnection duckDbConnection = connection.unwrap(DuckDBConnection.class);
+                
+                if (duckDbConnection != null) {
+                    try (DuckDBAppender appender = duckDbConnection.createAppender(DuckDBConnection.DEFAULT_SCHEMA, tableName)) {
+                        for (Map<String, Object> row : data) {
+                            appender.beginRow();
+                            for (String fieldName : fieldNames) {
+                                Object value = row.get(fieldName);
+                                appendToAppender(appender, value);
+                            }
+                            appender.endRow();
+                        }
+                    }
+                } else {
                     fallbackInsert(data, tableName, tapTable);
                 }
+                
+                connection.commit();
+                logger.debug("Successfully inserted {} rows into table {} using Appender", data.size(), tableName);
+            } catch (SQLException e) {
+                connection.rollback();
+                logger.warn("Appender insert failed for table {}, falling back to INSERT: {}", tableName, e.getMessage());
+                fallbackInsert(data, tableName, tapTable);
+                connection.commit();
             }
         } finally {
             try {
-                inputStream.close();
-            } catch (java.io.IOException e) {
-                logger.debug("Failed to close input stream", e);
+                if (!connection.getAutoCommit()) {
+                    connection.setAutoCommit(true);
+                }
+            } catch (SQLException e) {
+                logger.debug("Failed to reset auto-commit", e);
             }
         }
         
-        logger.debug("Inserted {} rows into table {} using COPY mode", data.size(), tableName);
+        logger.debug("Inserted {} rows into table {} using Appender mode", data.size(), tableName);
+    }
+
+    /**
+     * 将值追加到DuckDB Appender（处理类型转换）
+     */
+    private void appendToAppender(DuckDBAppender appender, Object value) throws SQLException {
+        if (value == null) {
+            appender.append((String) null);
+            return;
+        }
+        
+        if (value instanceof Integer) {
+            appender.append((Integer) value);
+        } else if (value instanceof Long) {
+            appender.append((Long) value);
+        } else if (value instanceof Short) {
+            appender.append((Short) value);
+        } else if (value instanceof Byte) {
+            appender.append((Byte) value);
+        } else if (value instanceof Float) {
+            appender.append((Float) value);
+        } else if (value instanceof Double) {
+            appender.append((Double) value);
+        } else if (value instanceof Boolean) {
+            appender.append((Boolean) value);
+        } else if (value instanceof String) {
+            appender.append((String) value);
+        } else if (value instanceof java.util.Date) {
+            appender.append((java.util.Date) value);
+        } else if (value instanceof java.sql.Timestamp) {
+            appender.append(((java.sql.Timestamp) value).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
+        } else if (value instanceof java.time.LocalDateTime) {
+            appender.append((java.time.LocalDateTime) value);
+        } else if (value instanceof java.time.LocalDate) {
+            appender.append((java.time.LocalDate) value);
+        } else if (value instanceof java.math.BigDecimal) {
+            appender.append((java.math.BigDecimal) value);
+        } else if (value instanceof java.math.BigInteger) {
+            appender.append((java.math.BigInteger) value);
+        } else if (value instanceof byte[]) {
+            appender.append((byte[]) value);
+        } else if (value instanceof Collection<?>) {
+            appender.append((Collection<?>) value);
+        } else if (value instanceof Map<?, ?>) {
+            appender.append((Map<?, ?>) value);
+        } else {
+            appender.append(value.toString());
+        }
     }
 
     /**
