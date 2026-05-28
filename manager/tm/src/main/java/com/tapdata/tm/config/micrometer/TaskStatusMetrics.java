@@ -55,14 +55,17 @@ public class TaskStatusMetrics {
                 continue;
             }
             String taskId = task.getId().toHexString();
+            int statusCode = mapStatusToCode(task.getStatus());
+            String taskName = statusCode == 20 ? task.getDeleteName() : task.getName();
             ids.add(taskId);
             // 不存在时添加任务状态指标；更新任务状态
             taskGauges.computeIfAbsent(taskId, id -> new TaskStatusGauge(task))
-                    .setStatusCode(mapStatusToCode(task.getStatus()));
+                    .updateStatus(taskName, statusCode);
         }
 
         // 移除已经删除的任务
-        Set<String> deletedIds = taskGauges.keySet().stream().filter(id -> !ids.contains(id)).collect(Collectors.toSet());
+        Set<String> deletedIds = new HashSet<>(taskGauges.keySet());
+        ids.forEach(deletedIds::remove);
         deletedIds.forEach(id -> {
             TaskStatusGauge taskGauge = taskGauges.remove(id);
             taskGauge.destroy();
@@ -98,24 +101,41 @@ public class TaskStatusMetrics {
     private class TaskStatusGauge {
         private Gauge gauge;
         @Getter
-        @Setter
-        private int statusCode;
+        private volatile int statusCode;
         @Getter
         private String taskId;
+        @Getter
+        private String taskName;
+
         public TaskStatusGauge(TaskEntity task) {
             this.taskId = task.getId().toHexString();
             statusCode = mapStatusToCode(task.getStatus());
 
-            String taskName = statusCode == 20 ? task.getDeleteName() : task.getName();
+            taskName = statusCode == 20 ? task.getDeleteName() : task.getName();
+            taskName = taskName == null ? taskId : taskName;
 
-            this.gauge = Gauge.builder("task_status", () -> statusCode)
+            this.gauge = buildGauge();
+        }
+
+        private Gauge buildGauge() {
+            return Gauge.builder("task_status", () -> statusCode)
                     .tag("task_id", taskId)
                     .tag("task_name", taskName)
                     .description("Current status of task, status code map is: " + getHelpText() )
                     .register(Metrics.globalRegistry);
         }
+
+        public void updateStatus(String taskName, int statusCode) {
+            this.statusCode = statusCode;
+            if (!this.taskName.equals(taskName)) {
+                this.destroy();
+                this.taskName = taskName;
+                this.gauge = buildGauge();
+            }
+        }
+
         public void destroy() {
-            gauge.close();
+            Metrics.globalRegistry.remove(gauge);
             gauge = null;
         }
     }

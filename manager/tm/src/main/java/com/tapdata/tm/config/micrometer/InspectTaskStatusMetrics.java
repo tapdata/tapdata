@@ -12,6 +12,8 @@ import io.micrometer.core.instrument.Metrics;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -30,13 +32,18 @@ import java.util.stream.Stream;
 @Component
 public class InspectTaskStatusMetrics {
 
+    private static final Logger log = LoggerFactory.getLogger(InspectTaskStatusMetrics.class);
     private final Map<String, InspectTaskStatusGauge> taskGauges = new HashMap<>();
 
     private BaseService taskService;
 
     public InspectTaskStatusMetrics(InspectTaskService taskService) {
-        if (taskService instanceof BaseService<?,?,?,?> baseService)
+        if (taskService instanceof BaseService baseService) {
             this.taskService = baseService;
+            log.info("Inspect task service initialized");
+        } else {
+            log.warn("Inspect task service only available in enterprise edition");
+        }
     }
 
     @Scheduled(fixedRate = 5000, initialDelay = 10000)
@@ -45,7 +52,7 @@ public class InspectTaskStatusMetrics {
 
         Criteria criteria = Criteria.where("is_deleted").ne(true);
         Query query = Query.query(criteria);
-        query.fields().include("id", "name", "mode", "inspectMethod", "status", "result");
+        query.fields().include("id", "name", "status");
 
         List<InspectEntity> tasks = taskService.findAllEntity(query);
         if (tasks == null) {
@@ -61,11 +68,12 @@ public class InspectTaskStatusMetrics {
             ids.add(taskId);
             // 不存在时添加任务状态指标；更新任务状态
             taskGauges.computeIfAbsent(taskId, id -> new InspectTaskStatusGauge(task))
-                    .setStatusCode(mapStatusToCode(task.getStatus()));
+                    .updateStatus(task.getName(), mapStatusToCode(task.getStatus()));
         }
 
         // 移除已经删除的任务
-        Set<String> deletedIds = taskGauges.keySet().stream().filter(id -> !ids.contains(id)).collect(Collectors.toSet());
+        Set<String> deletedIds = new HashSet<>(taskGauges.keySet());
+        ids.forEach(deletedIds::remove);
         deletedIds.forEach(id -> {
             InspectTaskStatusGauge taskGauge = taskGauges.remove(id);
             taskGauge.destroy();
@@ -99,24 +107,40 @@ public class InspectTaskStatusMetrics {
     private class InspectTaskStatusGauge {
         private Gauge gauge;
         @Getter
-        @Setter
-        private int statusCode;
+        private volatile int statusCode;
         @Getter
         private String taskId;
+        @Getter
+        private String taskName;
+
         public InspectTaskStatusGauge(InspectEntity task) {
             this.taskId = task.getId().toHexString();
             statusCode = mapStatusToCode(task.getStatus());
 
-            String taskName = task.getName();
+            taskName = task.getName() == null ? taskId : task.getName();
 
-            this.gauge = Gauge.builder("inspect_task_status", () -> statusCode)
+            this.gauge = buildGauge();
+        }
+
+        private Gauge buildGauge() {
+            return Gauge.builder("inspect_task_status", () -> statusCode)
                     .tag("task_id", taskId)
                     .tag("task_name", taskName)
                     .description("Current status of inspect task, status code map is: " + getHelpText() )
                     .register(Metrics.globalRegistry);
         }
+
+        public void updateStatus(String taskName, int statusCode) {
+            this.statusCode = statusCode;
+            if (!this.taskName.equals(taskName)) {
+                this.destroy();
+                this.taskName = taskName;
+                this.gauge = buildGauge();
+            }
+        }
+
         public void destroy() {
-            gauge.close();
+            Metrics.globalRegistry.remove(gauge);
             gauge = null;
         }
     }
