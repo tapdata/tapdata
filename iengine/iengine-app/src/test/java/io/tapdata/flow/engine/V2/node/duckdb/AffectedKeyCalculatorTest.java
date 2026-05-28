@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -100,11 +102,12 @@ class AffectedKeyCalculatorTest {
     }
 
     @Test
-    void testCalculateAffectedKeys_UnknownTable() throws SQLException {
-        Map<String, Object> eventData = new HashMap<>();
-        eventData.put("id", 1L);
+    void testCalculateAffectedBeforeKeys_UnknownTable() throws SQLException {
+        List<TapdataEvent> events = new ArrayList<>();
+        TapdataEvent event = createTapdataInsertEvent("unknown_table", "id", 1L);
+        events.add(event);
 
-        Set<Object> result = affectedKeyCalculator.calculateAffectedKeys("unknown_table", Collections.singletonList(eventData));
+        Set<Object> result = affectedKeyCalculator.calculateAffectedBeforeKeys(events, "unknown_table");
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -1597,5 +1600,23 @@ class AffectedKeyCalculatorTest {
         assertEquals(5L, iterator.next());
         assertEquals(4L, iterator.next());
         assertEquals(3L, iterator.next());
+    }
+
+    /**
+     * 创建 TapdataEvent (INSERT)
+     */
+    private TapdataEvent createTapdataInsertEvent(String tableName, Object... keyValues) {
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        TapInsertRecordEvent insertEvent = new TapInsertRecordEvent();
+        insertEvent.setTableId(tableName);
+
+        Map<String, Object> after = new HashMap<>();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            after.put((String) keyValues[i], keyValues[i + 1]);
+        }
+        insertEvent.setAfter(after);
+
+        tapdataEvent.setTapEvent(insertEvent);
+        return tapdataEvent;
     }
 }

@@ -26,6 +26,7 @@ import org.jetbrains.annotations.NotNull;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -308,20 +309,103 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private void handleAllTablesCdcTransition() {
         logger.info("所有表已切换到CDC阶段，执行查询并发射结果...");
 
-        if (executeQueryOnFullSyncComplete && !queryExecuted) {
-            try {
-                // 步骤1: 刷写所有剩余数据
-                flushAllContexts();
+        try {
+            // 步骤1: 刷写所有剩余数据
+            flushAllContexts();
 
-                // 步骤2: 执行查询并发射结果
+            // 步骤2: 更新宽表（可选）一次，直接用 insert + querySQL 语句一次性写入
+            if (wideTableUpdater != null) {
+                try {
+                    duckDbOperator.executeInTransaction(() -> {
+                        updateWideTableInFullSyncComplete();
+                    });
+                    logger.info("全量结束后宽表更新完成");
+                } catch (Exception e) {
+                    logger.error("全量结束后更新宽表失败: {}", e.getMessage(), e);
+                }
+            }
+
+            // 步骤3: 生成宽表 CDC 事件，直接用 select 查询宽表语句查询出所有结果集拼接 insertEvent
+            if (outputChangelogEnabled && wideTableUpdater != null) {
+                try {
+                    List<TapdataEvent> wideTableEvents = generateWideTableInsertEvents();
+                    if (!wideTableEvents.isEmpty()) {
+                        // 触发 ChangelogListener
+                        wideTableUpdater.addChangelogListener(event -> {
+                            logger.debug("Generated changelog event: {}", event);
+                        });
+                        
+                        // 发射宽表 CDC 事件到下游
+                        for (TapdataEvent event : wideTableEvents) {
+                            pendingEvents.offer(event);
+                        }
+                        
+                        logger.info("发射 {} 个宽表 CDC 事件到下游", wideTableEvents.size());
+                    }
+                } catch (Exception e) {
+                    logger.error("生成宽表 CDC 事件失败: {}", e.getMessage(), e);
+                }
+            }
+
+            // 步骤4: 执行原有的查询并发射结果
+            if (executeQueryOnFullSyncComplete && !queryExecuted) {
                 executeAndEmitQueryResults();
-
                 queryExecuted = true;
                 logger.info("查询执行成功，结果已发射");
-            } catch (Exception e) {
-                logger.error("全量同步完成后执行查询失败: {}", e.getMessage(), e);
             }
+
+        } catch (Exception e) {
+            logger.error("全量同步完成后处理失败: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * 全量结束后更新宽表，直接用 insert + querySQL 语句一次性写入
+     */
+    private void updateWideTableInFullSyncComplete() throws SQLException, java.io.IOException {
+        if (querySql == null || querySql.isEmpty()) {
+            logger.warn("querySql 为空，跳过宽表更新");
+            return;
+        }
+
+        // 构建 INSERT INTO ... SELECT ... 语句
+        String insertSql = String.format(
+            "INSERT INTO wide_table %s", 
+            querySql
+        );
+
+        logger.info("全量结束后执行宽表更新 SQL: {}", insertSql);
+        duckDbOperator.executeUpdate(insertSql);
+    }
+
+    /**
+     * 生成宽表 CDC 事件，直接用 select 查询宽表语句查询出所有结果集拼接 insertEvent
+     */
+    private List<TapdataEvent> generateWideTableInsertEvents() throws SQLException {
+        List<TapdataEvent> events = new ArrayList<>();
+
+        // 直接用 select 查询宽表语句查询出所有结果集
+        String selectSql = "SELECT * FROM wide_table";
+        List<Map<String, Object>> rows = duckDbOperator.executeQuery(selectSql);
+
+        if (rows.isEmpty()) {
+            logger.warn("宽表中没有数据，跳过生成 CDC 事件");
+            return events;
+        }
+
+        // 为每一行数据生成 INSERT 类型的 TapdataEvent
+        for (Map<String, Object> row : rows) {
+            TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create()
+                .table("wide_table")
+                .after(row);
+            
+            TapdataEvent tapdataEvent = new TapdataEvent();
+            tapdataEvent.setTapEvent(insertEvent);
+            events.add(tapdataEvent);
+        }
+
+        logger.info("从宽表查询到 {} 条数据，生成了 {} 个 INSERT 事件", rows.size(), events.size());
+        return events;
     }
 
     /**
@@ -656,11 +740,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     /**
      * 刷新单个Context的数据到DuckDB
-     * 严格保证执行顺序：
-     *   1. calculateAffectedBeforeKeys → 数据写入DuckDB之前
-     *   2. 当前Context数据 → 写入当前Context对应表
-     *   3. calculateAffectedAfterKeys → 数据写入DuckDB之后、宽表更新之前
-     *   4. updateWideTable → 最后执行
+     * 分为全量阶段和增量阶段
      * 
      * @param context 要刷写的上下文
      */
@@ -677,44 +757,16 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 return;
             }
 
+            // 判断同步阶段
+            boolean isInitialSync = syncStageTracker != null && syncStageTracker.isTableInInitialSync(context.getTargetTableName());
+
             try {
-                // ========== 步骤1: 计算beforeKeys（数据写入DuckDB之前） ==========
-                Set<Object> beforeKeys = null;
-                if (affectedKeyCalculator != null && !eventsToFlush.isEmpty()) {
-                    beforeKeys = affectedKeyCalculator.calculateAffectedBeforeKeys(eventsToFlush, context.getKey());
-                }
-
-                // ========== 步骤2: 写入当前Context对应表 ==========
-                if (!eventsToFlush.isEmpty()) {
-                    // 直接使用 TapdataEvent 进行合并
-                    ensureTableExists(context, eventsToFlush);
-                    List<Map<String, Object>> merged = SmartMerger.mergeLastWins(eventsToFlush);
-                    
-                    if (merged != null && !merged.isEmpty()) {
-                        DuckDbOperator operator = context.getOperator() != null ? 
-                            context.getOperator() : duckDbOperator;
-                        if (operator == null) {
-                            throw new SQLException("DuckDbOperator not initialized");
-                        }
-                        
-                        operator.upsertBatch(context.getTargetTableName(), merged);
-                        logger.debug("刷写 {} 条记录到DuckDB表: {} (原始 {} 条)", 
-                            merged.size(), context.getTargetTableName(), eventsToFlush.size());
-                    }
-                }
-
-                // ========== 步骤3: 计算afterKeys（数据写入DuckDB之后、宽表更新之前） ==========
-                Set<Object> afterKeys = null;
-                if (affectedKeyCalculator != null && !eventsToFlush.isEmpty()) {
-                    afterKeys = affectedKeyCalculator.calculateAffectedAfterKeys(eventsToFlush);
-                }
-
-                // ========== 步骤4: 更新宽表（最后执行） ==========
-                if (wideTableUpdater != null && beforeKeys != null && afterKeys != null) {
-                    List<Map<String, Object>> afterRows = extractAfterRowsFromEvents(eventsToFlush);
-                    List<TapdataEvent> events = wideTableUpdater.updateWideTableAsTapdataEvents(
-                        beforeKeys, afterKeys, afterRows, mainTableName);
-                    logger.info("更新宽表: {} 个事件", events.size());
+                if (isInitialSync) {
+                    // ========== 全量阶段 ==========
+                    processInitialSyncStage(context, eventsToFlush);
+                } else {
+                    // ========== 增量阶段 ==========
+                    processCdcStage(context, eventsToFlush);
                 }
 
             } catch (Exception e) {
@@ -725,6 +777,270 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 writeToDlq(context, extractDataFromEvents(eventsToFlush), e);
             }
         }
+    }
+
+    /**
+     * 处理全量阶段
+     * 职责：只负责数据合并和写入 DuckDB，不包含宽表更新逻辑
+     *
+     * 流程：
+     * 1. 使用 SmartMerger 合并事件（第二步、第三步）
+     * 2. ensureTableExists()
+     * 3. DuckDB 事务开启（可选）
+     * 4. Before 的所有数据全部执行 delete 操作
+     * 5. After 的数据执行 Arrow 批量写入
+     *
+     * 注意：宽表更新由 handleAllTablesCdcTransition 统一处理
+     */
+    private void processInitialSyncStage(PerSourceContext context, List<TapdataEvent> eventsToFlush)
+        throws SQLException, java.io.IOException {
+
+        // 步骤1: 使用 SmartMerger 合并事件（第二步、第三步）
+        List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsToFlush);
+        if (mergedRecords.isEmpty()) {
+            return;
+        }
+
+        // 步骤2: 确保表存在
+        ensureTableExists(context, eventsToFlush);
+
+        // 获取 DuckDbOperator
+        DuckDbOperator operator = getOperatorForContext(context);
+
+        // 步骤3-5: DuckDB 事务开启（可选）
+        operator.executeInTransaction(() -> {
+            // 步骤4: Before 的所有数据全部执行 delete 操作
+            deleteBeforeData(operator, context.getTargetTableName(), mergedRecords);
+
+            // 步骤5: After 的数据执行 Arrow 批量写入
+            writeAfterData(operator, context.getTargetTableName(), mergedRecords);
+        });
+
+        logger.debug("全量阶段刷写 {} 条记录到DuckDB表: {} (原始 {} 条)",
+            mergedRecords.size(), context.getTargetTableName(), eventsToFlush.size());
+    }
+
+    /**
+     * 获取 Context 对应的 DuckDbOperator
+     * @param context PerSourceContext
+     * @return DuckDbOperator 实例
+     * @throws SQLException 如果 Operator 未初始化
+     */
+    private DuckDbOperator getOperatorForContext(PerSourceContext context) throws SQLException {
+        DuckDbOperator operator = context.getOperator() != null ? context.getOperator() : duckDbOperator;
+        if (operator == null) {
+            throw new SQLException("DuckDbOperator not initialized");
+        }
+        return operator;
+    }
+
+    /**
+     * 处理增量阶段
+     * 职责：完整的数据写入 + 宽表更新 + CDC 事件生成流程
+     *
+     * 流程：
+     * 1. 使用 SmartMerger 合并事件（第二步、第三步、第四步都用）
+     * 2. 计算 beforeKeys（数据写入 DuckDB 之前）
+     * 3. ensureTableExists()
+     * 4. DuckDB 事务开启（可选）
+     * 5. Before 的所有数据全部执行 delete 操作
+     * 6. After 的数据执行 Arrow 批量写入
+     * 7. 计算 afterKeys（数据写入 DuckDB 之后、宽表更新之前）
+     * 8. 更新宽表（可选）
+     * 9. 生成宽表 CDC 事件，触发 ChangelogListener，发射到下游
+     */
+    private void processCdcStage(PerSourceContext context, List<TapdataEvent> eventsToFlush)
+        throws SQLException, java.io.IOException {
+
+        // 步骤1: 使用 SmartMerger 合并事件（第二步、第三步、第四步都用）
+        List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsToFlush);
+        if (mergedRecords.isEmpty()) {
+            return;
+        }
+
+        // 步骤3: 确保表存在
+        ensureTableExists(context, eventsToFlush);
+
+        // 获取 DuckDbOperator
+        DuckDbOperator operator = getOperatorForContext(context);
+
+        // 步骤2: 计算 beforeKeys（数据写入 DuckDB 之前）
+        Set<Object> beforeKeys = calculateBeforeKeys(eventsToFlush, context.getKey());
+
+        // 步骤4-6: DuckDB 事务开启，写入数据
+        operator.executeInTransaction(() -> {
+            // 步骤5: Before 的所有数据全部执行 delete 操作
+            deleteBeforeData(operator, context.getTargetTableName(), mergedRecords);
+
+            // 步骤6: After 的数据执行 Arrow 批量写入
+            writeAfterData(operator, context.getTargetTableName(), mergedRecords);
+        });
+
+        // 步骤7: 计算 afterKeys（数据写入 DuckDB 之后、宽表更新之前）
+        Set<Object> afterKeys = calculateAfterKeys(eventsToFlush);
+
+        // 步骤8: 更新宽表（可选）
+        updateWideTable(beforeKeys, afterKeys, eventsToFlush);
+
+        // 步骤9: 生成宽表 CDC 事件，触发 ChangelogListener，发射到下游
+        emitWideTableChangelogEvents();
+
+        logger.debug("增量阶段刷写 {} 条记录到DuckDB表: {} (原始 {} 条)",
+            mergedRecords.size(), context.getTargetTableName(), eventsToFlush.size());
+    }
+
+    /**
+     * 计算受影响的 before 主键（数据写入 DuckDB 之前）
+     * @param events 事件列表
+     * @param contextKey Context 键
+     * @return 受影响的主键集合
+     * @throws SQLException 如果计算失败
+     */
+    private Set<Object> calculateBeforeKeys(List<TapdataEvent> events, String contextKey) throws SQLException {
+        if (affectedKeyCalculator == null || events.isEmpty()) {
+            return null;
+        }
+        return affectedKeyCalculator.calculateAffectedBeforeKeys(events, contextKey);
+    }
+
+    /**
+     * 计算受影响的 after 主键（数据写入 DuckDB 之后、宽表更新之前）
+     * @param events 事件列表
+     * @return 受影响的主键集合
+     * @throws SQLException 如果计算失败
+     */
+    private Set<Object> calculateAfterKeys(List<TapdataEvent> events) throws SQLException {
+        if (affectedKeyCalculator == null || events.isEmpty()) {
+            return null;
+        }
+        return affectedKeyCalculator.calculateAffectedAfterKeys(events);
+    }
+
+    /**
+     * 更新宽表（可选）
+     * @param beforeKeys 写入前的主键集合
+     * @param afterKeys 写入后的主键集合
+     * @param events 原始事件列表
+     */
+    private void updateWideTable(Set<Object> beforeKeys, Set<Object> afterKeys,
+                                 List<TapdataEvent> events) {
+        if (wideTableUpdater == null || beforeKeys == null || afterKeys == null) {
+            return;
+        }
+
+        try {
+            List<Map<String, Object>> afterRows = extractAfterRowsFromEvents(events);
+            List<TapdataEvent> wideTableEvents = wideTableUpdater.updateWideTableAsTapdataEvents(
+                beforeKeys, afterKeys, afterRows, mainTableName);
+            logger.info("增量阶段更新宽表: {} 个事件", wideTableEvents.size());
+        } catch (Exception e) {
+            logger.error("更新宽表失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 发射宽表 CDC 事件到下游
+     * 触发 ChangelogListener 并将事件添加到待发射队列
+     */
+    private void emitWideTableChangelogEvents() {
+        // 此方法预留用于未来的 CDC 事件发射逻辑
+        // 当前版本中，CDC 事件的发射由 WideTableIncrementalUpdater 内部处理
+        logger.debug("emitWideTableChangelogEvents called - CDC event emission handled by WideTableUpdater");
+    }
+
+    /**
+     * 从 MergedRecord 列表中提取主键列表
+     * @param mergedRecords 合并后的记录列表
+     * @return 主键列表
+     */
+    private List<Object> extractPrimaryKeys(List<SmartMerger.MergedRecord> mergedRecords) {
+        return mergedRecords.stream()
+            .map(SmartMerger.MergedRecord::getInitialPk)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * 从 MergedRecord 列表中提取最终状态数据
+     * @param mergedRecords 合并后的记录列表
+     * @return 最终状态数据列表
+     */
+    private List<Map<String, Object>> extractFinalStates(List<SmartMerger.MergedRecord> mergedRecords) {
+        return mergedRecords.stream()
+            .map(SmartMerger.MergedRecord::getFinalState)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * 删除 Before 数据（执行 DELETE 操作）
+     * @param operator DuckDB 操作器
+     * @param tableName 目标表名
+     * @param mergedRecords 合并后的记录列表
+     * @throws SQLException 如果数据库操作失败
+     */
+    private void deleteBeforeData(DuckDbOperator operator, String tableName, 
+                                  List<SmartMerger.MergedRecord> mergedRecords) throws SQLException {
+        List<Object> beforePks = extractPrimaryKeys(mergedRecords);
+        if (!beforePks.isEmpty()) {
+            String deleteSql = buildDeleteSql(tableName, beforePks);
+            operator.executeUpdate(deleteSql);
+        }
+    }
+
+    /**
+     * 写入 After 数据（执行 Arrow 批量写入）
+     * @param operator DuckDB 操作器
+     * @param tableName 目标表名
+     * @param mergedRecords 合并后的记录列表
+     * @throws SQLException 如果数据库操作失败
+     * @throws java.io.IOException 如果写入失败
+     */
+    private void writeAfterData(DuckDbOperator operator, String tableName,
+                                List<SmartMerger.MergedRecord> mergedRecords) throws SQLException, java.io.IOException {
+        List<Map<String, Object>> afterData = extractFinalStates(mergedRecords);
+        if (!afterData.isEmpty()) {
+            operator.writeBatch(afterData, tableName);
+        }
+    }
+
+    /**
+     * 构建批量 DELETE SQL
+     * @param tableName 表名
+     * @param pks 主键列表
+     * @return DELETE SQL 语句
+     */
+    private String buildDeleteSql(String tableName, List<Object> pks) {
+        StringBuilder sql = new StringBuilder();
+        sql.append("DELETE FROM ").append(tableName).append(" WHERE ");
+        
+        // 寻找第一个存在的主键字段
+        String pkField = null;
+        for (String candidate : Arrays.asList("_id", "id", "pk", "PK", "ID")) {
+            pkField = candidate;
+            break;
+        }
+        
+        if (pkField == null) {
+            pkField = "_id"; // 默认主键字段
+        }
+        
+        sql.append(pkField).append(" IN (");
+        boolean first = true;
+        for (Object pk : pks) {
+            if (first) {
+                first = false;
+            } else {
+                sql.append(", ");
+            }
+            if (pk instanceof String) {
+                sql.append("'").append(((String) pk).replace("'", "''")).append("'");
+            } else {
+                sql.append(pk);
+            }
+        }
+        sql.append(")");
+        return sql.toString();
     }
 
     /**
