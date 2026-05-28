@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb.scenarios;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
@@ -298,7 +299,7 @@ class ABAProblemScenariosTest extends AffectedKeyCalculatorTestBase {
         private void testAbaNewMode(List<Map<String, Object>> events, List<Long> expectedPks) throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithFromTable();
 
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> tapdataEvents = createTapdataEvents("orders", events);
 
             List<Map<String, Object>> queryResult = new ArrayList<>();
             for (Long pk : expectedPks) {
@@ -306,8 +307,8 @@ class ABAProblemScenariosTest extends AffectedKeyCalculatorTestBase {
             }
             mockQueryReturns(queryResult);
 
-            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(tapdataEvents);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(tapdataEvents);
 
             Set<Object> allKeys = new LinkedHashSet<>();
             allKeys.addAll(beforeKeys);

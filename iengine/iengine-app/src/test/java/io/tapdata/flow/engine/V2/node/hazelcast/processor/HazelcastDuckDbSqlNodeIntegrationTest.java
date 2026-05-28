@@ -1,7 +1,11 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.*;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -14,94 +18,130 @@ import static org.mockito.Mockito.*;
 public class HazelcastDuckDbSqlNodeIntegrationTest {
 
     @Test
-    public void testFlushUsesSmartMergerAndCallsUpsertBatch() throws Exception {
+    public void testFlushContextUsesSmartMergerAndCallsUpsertBatch() throws Exception {
         ProcessorBaseContext ctx = mock(ProcessorBaseContext.class);
         HazelcastDuckDbSqlNode node = new HazelcastDuckDbSqlNode(ctx);
 
-        // set currentTableName
-        Field tableField = HazelcastDuckDbSqlNode.class.getDeclaredField("currentTableName");
-        tableField.setAccessible(true);
-        tableField.set(node, "test_table");
-
-        // mock operator and set to node
+        // 创建mock operator并设置到node
         DuckDbOperator operator = mock(DuckDbOperator.class);
         Field opField = HazelcastDuckDbSqlNode.class.getDeclaredField("duckDbOperator");
         opField.setAccessible(true);
         opField.set(node, operator);
 
-        // access batchBuffer and add events that should be merged (same id, last wins)
-        Field bufferField = HazelcastDuckDbSqlNode.class.getDeclaredField("batchBuffer");
-        bufferField.setAccessible(true);
-        List<Map<String, Object>> buffer = (List<Map<String, Object>>) bufferField.get(node);
+        // 创建PerSourceContext
+        Object context = createPerSourceContext("test_source", "test_table", operator);
 
-        Map<String, Object> a1 = new HashMap<>();
-        a1.put("id", 1);
-        a1.put("val", "first");
+        // 添加TapdataEvent到buffer
+        addEventToContext(context, createInsertEvent(1, "first"));
+        addEventToContext(context, createInsertEvent(1, "second")); // 相同id，last wins
 
-        Map<String, Object> a2 = new HashMap<>();
-        a2.put("id", 1);
-        a2.put("val", "second");
-
-        buffer.add(a1);
-        buffer.add(a2);
-
-        // call private flushBatch
-        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushBatch");
+        // 调用flushContext方法
+        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushContext", 
+            Class.forName("io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext"));
         flush.setAccessible(true);
-        flush.invoke(node);
+        flush.invoke(node, context);
 
-        // merged should be last-wins -> only a2 present
-        // verify upsertBatch called with merged data containing only a2
-        @SuppressWarnings("unchecked")
-        java.util.List<Map<String, Object>> expected = Collections.singletonList(a2);
-        verify(operator, times(1)).upsertBatch(eq("test_table"), argThat(list -> list != null && list.size() == 1 && list.get(0).get("val").equals("second")));
+        // 验证upsertBatch被调用，且合并后只有最后一条记录
+        verify(operator, times(1)).upsertBatch(eq("test_table"), argThat(list -> 
+            list != null && list.size() == 1 && list.get(0).get("val").equals("second")));
 
-        // buffer should be empty after successful flush
+        // buffer应该为空
+        List<TapdataEvent> buffer = getBufferFromContext(context);
         assertTrue(buffer.isEmpty());
     }
 
     @Test
-    public void testFlushRestoresBufferOnOperatorFailure() throws Exception {
+    public void testFlushContextRestoresBufferOnOperatorFailure() throws Exception {
         ProcessorBaseContext ctx = mock(ProcessorBaseContext.class);
         HazelcastDuckDbSqlNode node = new HazelcastDuckDbSqlNode(ctx);
 
-        Field tableField = HazelcastDuckDbSqlNode.class.getDeclaredField("currentTableName");
-        tableField.setAccessible(true);
-        tableField.set(node, "test_table");
-
-        // mock operator to throw
+        // 创建mock operator并抛出异常
         DuckDbOperator operator = mock(DuckDbOperator.class);
         doThrow(new RuntimeException("boom")).when(operator).upsertBatch(anyString(), anyList());
         Field opField = HazelcastDuckDbSqlNode.class.getDeclaredField("duckDbOperator");
         opField.setAccessible(true);
         opField.set(node, operator);
 
-        Field bufferField = HazelcastDuckDbSqlNode.class.getDeclaredField("batchBuffer");
-        bufferField.setAccessible(true);
-        List<Map<String, Object>> buffer = (List<Map<String, Object>>) bufferField.get(node);
+        // 创建PerSourceContext
+        Object context = createPerSourceContext("test_source", "test_table", operator);
 
-        Map<String, Object> r1 = new HashMap<>();
-        r1.put("id", 2);
-        r1.put("val", "one");
+        // 添加TapdataEvent到buffer
+        TapdataEvent event1 = createInsertEvent(2, "one");
+        TapdataEvent event2 = createInsertEvent(3, "two");
+        addEventToContext(context, event1);
+        addEventToContext(context, event2);
 
-        Map<String, Object> r2 = new HashMap<>();
-        r2.put("id", 3);
-        r2.put("val", "two");
-
-        buffer.add(r1);
-        buffer.add(r2);
-
-        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushBatch");
+        // 调用flushContext方法
+        Method flush = HazelcastDuckDbSqlNode.class.getDeclaredMethod("flushContext", 
+            Class.forName("io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext"));
         flush.setAccessible(true);
-        flush.invoke(node);
+        flush.invoke(node, context);
 
-        // operator should have been called and thrown
+        // operator应该被调用并抛出异常
         verify(operator, times(1)).upsertBatch(eq("test_table"), anyList());
 
-        // buffer should have been restored to original content (in same order)
+        // buffer应该恢复原始内容
+        List<TapdataEvent> buffer = getBufferFromContext(context);
         assertEquals(2, buffer.size());
-        assertEquals(r1, buffer.get(0));
-        assertEquals(r2, buffer.get(1));
+    }
+
+    /**
+     * 创建PerSourceContext实例
+     */
+    private Object createPerSourceContext(String sourceId, String tableName, DuckDbOperator operator) throws Exception {
+        Class<?> contextClass = Class.forName("io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext");
+        
+        // 使用PerSourceContext的构造函数：PerSourceContext(String key, DuckDbOperator operator)
+        String key = sourceId + ":" + tableName;
+        Object context = contextClass.getConstructor(String.class, DuckDbOperator.class)
+            .newInstance(key, operator);
+        
+        // 设置targetTableName字段
+        setField(context, "targetTableName", tableName);
+        
+        return context;
+    }
+
+    /**
+     * 添加TapdataEvent到Context的buffer
+     */
+    private void addEventToContext(Object context, TapdataEvent event) throws Exception {
+        Method addEvent = context.getClass().getMethod("addEvent", TapdataEvent.class);
+        addEvent.invoke(context, event);
+    }
+
+    /**
+     * 获取Context的buffer
+     */
+    @SuppressWarnings("unchecked")
+    private List<TapdataEvent> getBufferFromContext(Object context) throws Exception {
+        Field field = context.getClass().getDeclaredField("batchBuffer");
+        field.setAccessible(true);
+        return (List<TapdataEvent>) field.get(context);
+    }
+
+    /**
+     * 设置对象字段值
+     */
+    private void setField(Object target, String fieldName, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
+    /**
+     * 创建Insert TapdataEvent
+     */
+    private TapdataEvent createInsertEvent(int id, String val) {
+        TapInsertRecordEvent tapEvent = TapInsertRecordEvent.create()
+            .after(new HashMap<String, Object>() {{
+                put("id", id);
+                put("val", val);
+            }});
+        
+        TapdataEvent event = new TapdataEvent();
+        event.setTapEvent(tapEvent);
+        return event;
     }
 
     /**

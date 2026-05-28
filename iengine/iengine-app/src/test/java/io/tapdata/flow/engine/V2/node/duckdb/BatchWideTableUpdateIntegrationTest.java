@@ -55,12 +55,11 @@ class BatchWideTableUpdateIntegrationTest {
 
     @Test
     void testBatchProcessing_pureInsertScenario() throws SQLException, IOException {
-        Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
+        List<Map<String, Object>> smartMergerEvents = new ArrayList<>();
+        smartMergerEvents.add(createInsertEvent("id", 100));
+        smartMergerEvents.add(createInsertEvent("id", 200));
 
-        List<Map<String, Object>> userEvents = new ArrayList<>();
-        userEvents.add(createInsertEvent("id", 100));
-        userEvents.add(createInsertEvent("id", 200));
-        eventsByTable.put("users", userEvents);
+        List<TapdataEvent> events = createTapdataEventsFromSmartMerger("users", smartMergerEvents);
 
         List<Map<String, Object>> queryResult = Arrays.asList(
                 createWideTableRow(100, "New User 1", "user1@example.com"),
@@ -68,29 +67,28 @@ class BatchWideTableUpdateIntegrationTest {
         );
         when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
 
-        Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
-        Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+        Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(events);
+        Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
         assertTrue(beforeKeys.isEmpty());
         assertEquals(2, afterKeys.size());
 
-        List<TapdataEvent> events = updater.updateWideTableAsTapdataEvents(beforeKeys, afterKeys, queryResult, "users");
+        List<TapdataEvent> updateEvents = updater.updateWideTableAsTapdataEvents(beforeKeys, afterKeys, queryResult, "users");
 
-        assertEquals(2, events.size());
-        assertEquals(2, filterByType(events, TapInsertRecordEvent.class).size());
+        assertEquals(2, updateEvents.size());
+        assertEquals(2, filterByType(updateEvents, TapInsertRecordEvent.class).size());
     }
 
     @Test
     void testBatchProcessing_pureDeleteScenario() throws SQLException, IOException {
-        Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
-
         // SmartMerger 要求先有 INSERT 再 DELETE
-        List<Map<String, Object>> userEvents = new ArrayList<>();
-        userEvents.add(createInsertEvent("id", 100));
-        userEvents.add(createInsertEvent("id", 200));
-        userEvents.add(createDeleteEvent("id", 100));
-        userEvents.add(createDeleteEvent("id", 200));
-        eventsByTable.put("users", userEvents);
+        List<Map<String, Object>> smartMergerEvents = new ArrayList<>();
+        smartMergerEvents.add(createInsertEvent("id", 100));
+        smartMergerEvents.add(createInsertEvent("id", 200));
+        smartMergerEvents.add(createDeleteEvent("id", 100));
+        smartMergerEvents.add(createDeleteEvent("id", 200));
+
+        List<TapdataEvent> events = createTapdataEventsFromSmartMerger("users", smartMergerEvents);
 
         // Mock DuckDB 查询结果（DELETE 场景需要查询 before 数据对应的宽表主键）
         List<Map<String, Object>> queryResult = Arrays.asList(
@@ -99,27 +97,26 @@ class BatchWideTableUpdateIntegrationTest {
         );
         when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
 
-        Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
-        Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+        Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(events);
+        Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
         assertEquals(2, beforeKeys.size());
         assertTrue(afterKeys.isEmpty());
 
-        List<TapdataEvent> events = updater.updateWideTableAsTapdataEvents(beforeKeys, afterKeys, Collections.emptyList(), "users");
+        List<TapdataEvent> updateEvents = updater.updateWideTableAsTapdataEvents(beforeKeys, afterKeys, Collections.emptyList(), "users");
 
-        assertEquals(2, events.size());
-        assertEquals(2, filterByType(events, TapDeleteRecordEvent.class).size());
+        assertEquals(2, updateEvents.size());
+        assertEquals(2, filterByType(updateEvents, TapDeleteRecordEvent.class).size());
     }
 
     @Test
     void testBatchProcessing_updateScenario() throws SQLException, IOException {
         // CDC 事件缓冲区：单条记录主键更新
-        Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
+        List<Map<String, Object>> smartMergerEvents = new ArrayList<>();
+        smartMergerEvents.add(createInsertEvent("id", 123));
+        smartMergerEvents.add(createUpdateEvent("id", 123, 456));
 
-        List<Map<String, Object>> userEvents = new ArrayList<>();
-        userEvents.add(createInsertEvent("id", 123));
-        userEvents.add(createUpdateEvent("id", 123, 456));
-        eventsByTable.put("users", userEvents);
+        List<TapdataEvent> events = createTapdataEventsFromSmartMerger("users", smartMergerEvents);
 
         // Mock DuckDB 查询结果
         List<Map<String, Object>> queryResult = Arrays.asList(
@@ -127,21 +124,80 @@ class BatchWideTableUpdateIntegrationTest {
         );
         when(mockDuckDbOperator.executeQuery(anyString())).thenReturn(queryResult);
 
-        Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
-        Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+        Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(events);
+        Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
         // 验证 before keys 和 after keys 都不为空
         assertFalse(beforeKeys.isEmpty());
         assertFalse(afterKeys.isEmpty());
 
         // 执行宽表更新
-        List<TapdataEvent> events = updater.updateWideTableAsTapdataEvents(beforeKeys, afterKeys, queryResult, "users");
+        List<TapdataEvent> updateEvents = updater.updateWideTableAsTapdataEvents(beforeKeys, afterKeys, queryResult, "users");
 
         // 验证事件生成（至少有一个事件）
-        assertFalse(events.isEmpty());
+        assertFalse(updateEvents.isEmpty());
     }
 
     // ==================== Helper Methods ====================
+
+    /**
+     * 将SmartMerger格式的事件列表转换为TapdataEvent列表
+     */
+    private List<TapdataEvent> createTapdataEventsFromSmartMerger(String tableName, List<Map<String, Object>> smartMergerEvents) {
+        List<TapdataEvent> events = new ArrayList<>();
+        for (Map<String, Object> event : smartMergerEvents) {
+            String op = (String) event.get("op");
+            TapdataEvent tapdataEvent = new TapdataEvent();
+            io.tapdata.entity.event.dml.TapRecordEvent recordEvent;
+            
+            if ("INSERT".equals(op)) {
+                TapInsertRecordEvent insertEvent = new TapInsertRecordEvent();
+                insertEvent.setTableId(tableName);
+                Map<String, Object> after = new HashMap<>(event);
+                after.remove("op");
+                insertEvent.setAfter(after);
+                recordEvent = insertEvent;
+            } else if ("UPDATE".equals(op)) {
+                TapUpdateRecordEvent updateEvent = new TapUpdateRecordEvent();
+                updateEvent.setTableId(tableName);
+                Map<String, Object> after = new HashMap<>(event);
+                after.remove("op");
+                after.remove("o");
+                after.remove("o2");
+                after.remove("updatedFields");
+                updateEvent.setAfter(after);
+                
+                // 提取before数据
+                @SuppressWarnings("unchecked")
+                Map<String, Object> before = (Map<String, Object>) event.get("o2");
+                if (before == null) {
+                    before = (Map<String, Object>) event.get("o");
+                }
+                if (before != null) {
+                    updateEvent.setBefore(new HashMap<>(before));
+                }
+                recordEvent = updateEvent;
+            } else if ("DELETE".equals(op)) {
+                TapDeleteRecordEvent deleteEvent = new TapDeleteRecordEvent();
+                deleteEvent.setTableId(tableName);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> before = (Map<String, Object>) event.get("o2");
+                if (before == null) {
+                    before = (Map<String, Object>) event.get("o");
+                }
+                if (before != null) {
+                    deleteEvent.setBefore(new HashMap<>(before));
+                }
+                recordEvent = deleteEvent;
+            } else {
+                continue;
+            }
+            
+            tapdataEvent.setTapEvent(recordEvent);
+            events.add(tapdataEvent);
+        }
+        return events;
+    }
 
     private Map<String, Object> createUpdateEvent(String pkField, Object beforePk, Object afterPk) {
         Map<String, Object> event = new HashMap<>();

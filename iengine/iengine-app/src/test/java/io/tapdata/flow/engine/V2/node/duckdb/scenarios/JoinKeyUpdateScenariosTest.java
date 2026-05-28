@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb.scenarios;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
@@ -88,16 +89,15 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
         void testJoinKeyUnchanged() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithFromTable();
 
-            List<Map<String, Object>> events = Arrays.asList(
+            List<Map<String, Object>> smartMergerEvents = Arrays.asList(
                     Map.of("op", "INSERT", "id", 1, "user_id", 100),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 1), "updatedFields", Map.of("amount", 100)),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 1), "updatedFields", Map.of("amount", 200))
             );
-
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
             mockQueryReturns(Collections.singletonList(Map.of("id", 1L)));
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertEquals(1, afterKeys.size());
             assertTrue(afterKeys.contains(1L));
@@ -107,13 +107,12 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
         void testJoinKeyChanges() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithFromTable();
 
-            List<Map<String, Object>> events = Arrays.asList(
+            List<Map<String, Object>> smartMergerEvents = Arrays.asList(
                     Map.of("op", "INSERT", "id", 1, "user_id", 100),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 1), "updatedFields", Map.of("id", 2)),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 2), "updatedFields", Map.of("id", 3))
             );
-
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
 
             List<Map<String, Object>> queryResult = Arrays.asList(
                     Map.of("id", 100L),
@@ -122,8 +121,8 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
             );
             mockQueryReturns(queryResult);
 
-            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(events);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             Set<Object> allKeys = new LinkedHashSet<>();
             allKeys.addAll(beforeKeys);
@@ -137,14 +136,13 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
         void testJoinKeyMultipleUpdates_beforeKeys() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithFromTable();
 
-            List<Map<String, Object>> events = Arrays.asList(
+            List<Map<String, Object>> smartMergerEvents = Arrays.asList(
                     Map.of("op", "INSERT", "id", 1, "user_id", 100),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 1), "updatedFields", Map.of("id", 2)),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 2), "updatedFields", Map.of("id", 3)),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 3), "updatedFields", Map.of("id", 4))
             );
-
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
 
             List<Map<String, Object>> queryResult = Arrays.asList(
                     Map.of("id", 100L),
@@ -153,7 +151,7 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
             );
             mockQueryReturns(queryResult);
 
-            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
+            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(events);
 
             assertEquals(3, beforeKeys.size());
             assertContainsKeys(beforeKeys, 100L, 200L, 300L);
@@ -163,18 +161,17 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
         void testJoinKeyMultipleUpdates_afterKeys() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithFromTable();
 
-            List<Map<String, Object>> events = Arrays.asList(
+            List<Map<String, Object>> smartMergerEvents = Arrays.asList(
                     Map.of("op", "INSERT", "id", 1, "user_id", 100),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 1), "updatedFields", Map.of("id", 2)),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 2), "updatedFields", Map.of("id", 3)),
                     Map.of("op", "UPDATE", "o2", Map.of("id", 3), "updatedFields", Map.of("id", 4))
             );
-
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
 
             mockQueryReturns(Collections.singletonList(Map.of("id", 400L)));
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertEquals(1, afterKeys.size());
             assertTrue(afterKeys.contains(400L));

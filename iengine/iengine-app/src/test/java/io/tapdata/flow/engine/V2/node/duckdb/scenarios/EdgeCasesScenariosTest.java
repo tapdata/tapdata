@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb.scenarios;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
@@ -10,7 +11,6 @@ import java.sql.SQLException;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -229,10 +229,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
         void testNullEvents() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            Map<String, List<Map<String, Object>>> eventsByTable = new HashMap<>();
-            eventsByTable.put("users", null);
-
-            Set<Object> result = calculator.calculateAffectedBeforeKeys(eventsByTable);
+            Set<Object> result = calculator.calculateAffectedBeforeKeys(null);
 
             assertNotNull(result);
             assertTrue(result.isEmpty());
@@ -242,9 +239,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
         void testEmptyEvents() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", Collections.emptyList());
-
-            Set<Object> result = calculator.calculateAffectedBeforeKeys(eventsByTable);
+            Set<Object> result = calculator.calculateAffectedBeforeKeys(Collections.emptyList());
 
             assertNotNull(result);
             assertTrue(result.isEmpty());
@@ -254,10 +249,9 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
         void testUnknownTable() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 1L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("unknown_table", events);
+            List<TapdataEvent> events = createTapdataEvents("unknown_table", createSmartMergerInsertEvents("id", 1L));
 
-            Set<Object> result = calculator.calculateAffectedBeforeKeys(eventsByTable);
+            Set<Object> result = calculator.calculateAffectedBeforeKeys(events);
 
             assertNotNull(result);
             assertTrue(result.isEmpty());
@@ -267,12 +261,11 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
         void testMissingPrimaryKey() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            Map<String, Object> event = new HashMap<>();
-            event.put("op", "INSERT");
-            event.put("name", "Alice");
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", Collections.singletonList(event));
+            List<TapdataEvent> events = Collections.singletonList(
+                    createInsertTapdataEvent("users", "name", "Alice")
+            );
 
-            Set<Object> result = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> result = calculator.calculateAffectedAfterKeys(events);
 
             assertNotNull(result);
             assertTrue(result.isEmpty());
@@ -282,13 +275,11 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
         void testNullPrimaryKeyInData() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            Map<String, Object> event = new HashMap<>();
-            event.put("op", "INSERT");
-            event.put("id", null);
-            event.put("name", "Alice");
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", Collections.singletonList(event));
+            List<TapdataEvent> events = Collections.singletonList(
+                    createInsertTapdataEvent("users", "id", null)
+            );
 
-            Set<Object> result = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> result = calculator.calculateAffectedAfterKeys(events);
 
             assertNotNull(result);
             assertTrue(result.isEmpty());
@@ -300,10 +291,9 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
                     "id", "users", "id", null
             );
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 1L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", events);
+            List<TapdataEvent> events = createTapdataEvents("users", createSmartMergerInsertEvents("id", 1L));
 
-            Set<Object> result = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> result = calculator.calculateAffectedAfterKeys(events);
 
             assertNotNull(result);
             assertTrue(result.isEmpty());
@@ -317,16 +307,12 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
                     Arrays.asList("id")
             );
 
-            List<Map<String, Object>> events = new ArrayList<>();
-            Map<String, Object> validEvent = new HashMap<>();
-            validEvent.put("op", "INSERT");
-            validEvent.put("id", 999L);
-            events.add(validEvent);
-
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> events = Collections.singletonList(
+                    createInsertTapdataEvent("orders", "id", 999L)
+            );
             mockQueryReturns(Collections.singletonList(Map.of("id", 999L)));
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
             assertEquals(1, afterKeys.size());
             assertTrue(afterKeys.contains(999L));
         }
@@ -339,8 +325,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
                     Arrays.asList("id")
             );
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 1L, 2L, 3L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> events = createTapdataEvents("orders", createSmartMergerInsertEvents("id", 1L, 2L, 3L));
 
             List<Map<String, Object>> queryResult = Arrays.asList(
                     Map.of("id", 1L),
@@ -349,7 +334,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
             );
             mockQueryReturns(queryResult);
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
             assertEquals(3, afterKeys.size());
             assertContainsKeys(afterKeys, 1L, 2L, 3L);
         }

@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb.scenarios;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
@@ -140,13 +141,12 @@ class MainTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testInsert_returnsEmptyBeforeKeys_returnsAfterKeys() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 100L, 200L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", events);
+            List<TapdataEvent> events = createTapdataEvents("users", createSmartMergerInsertEvents("id", 100L, 200L));
 
             mockQueryReturns(createQueryResult(100L, 200L));
 
-            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(events);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertEmptyKeys(beforeKeys);
             assertEquals(2, afterKeys.size());
@@ -157,13 +157,12 @@ class MainTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testUpdate_returnsBeforeKeys_returnsAfterKeys() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            List<Map<String, Object>> events = createSmartMergerUpdateEvents("id", 123L, 456L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", events);
+            List<TapdataEvent> events = createTapdataEvents("users", createSmartMergerUpdateEvents("id", 123L, 456L));
 
             mockQueryReturns(createQueryResult(456L));
 
-            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(events);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertFalse(beforeKeys.isEmpty());
             assertFalse(afterKeys.isEmpty());
@@ -173,13 +172,12 @@ class MainTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testDelete_returnsBeforeKeys_returnsEmptyAfterKeys() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            List<Map<String, Object>> events = createSmartMergerDeleteEvents("id", 100L, 200L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", events);
+            List<TapdataEvent> events = createTapdataEvents("users", createSmartMergerDeleteEvents("id", 100L, 200L));
 
             mockQueryReturns(createQueryResult(100L, 200L));
 
-            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(events);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertEquals(2, beforeKeys.size());
             assertContainsKeys(beforeKeys, 100L, 200L);
@@ -190,15 +188,13 @@ class MainTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testAfterFieldExtraction() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            // 新模式使用 SmartMerger 格式：INSERT 事件
-            Map<String, Object> event = new HashMap<>();
-            event.put("op", "INSERT");
-            event.put("id", 5L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", Collections.singletonList(event));
+            List<TapdataEvent> events = Collections.singletonList(
+                    createInsertTapdataEvent("users", "id", 5L)
+            );
 
             mockQueryReturns(createQueryResult(5L));
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertEquals(1, afterKeys.size());
             assertTrue(afterKeys.contains(5L));
@@ -208,23 +204,13 @@ class MainTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testBeforeFieldExtraction() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            // 新模式使用 SmartMerger 格式：先 INSERT 再 DELETE，提取 before
-            List<Map<String, Object>> events = new ArrayList<>();
-            Map<String, Object> insert = new HashMap<>();
-            insert.put("op", "INSERT");
-            insert.put("id", 6L);
-            events.add(insert);
-            Map<String, Object> delete = new HashMap<>();
-            delete.put("op", "DELETE");
-            delete.put("o", Map.of("id", 6L));
-            delete.put("o2", Map.of("id", 6L));
-            events.add(delete);
-
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", events);
+            List<TapdataEvent> events = new ArrayList<>();
+            events.add(createInsertTapdataEvent("users", "id", 6L));
+            events.add(createDeleteTapdataEvent("users", "id", 6L));
 
             mockQueryReturns(createQueryResult(6L));
 
-            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(eventsByTable);
+            Set<Object> beforeKeys = calculator.calculateAffectedBeforeKeys(events);
 
             assertEquals(1, beforeKeys.size());
             assertTrue(beforeKeys.contains(6L));
@@ -234,12 +220,11 @@ class MainTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testPrimaryKeyInteger() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 123);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", events);
+            List<TapdataEvent> events = createTapdataEvents("users", createSmartMergerInsertEvents("id", 123));
 
             mockQueryReturns(createQueryResult(123));
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertEquals(1, afterKeys.size());
             assertTrue(afterKeys.contains(123));
@@ -249,15 +234,14 @@ class MainTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testPrimaryKeyString() throws SQLException {
             AffectedKeyCalculator calculator = createNewModeCalculatorWithMainTableQuery();
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", "user_001");
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("users", events);
+            List<TapdataEvent> events = createTapdataEvents("users", createSmartMergerInsertEvents("id", "user_001"));
 
             List<Map<String, Object>> queryResult = Arrays.asList(
                     new HashMap<String, Object>() {{ put("id", "user_001"); }}
             );
             mockQueryReturns(queryResult);
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertEquals(1, afterKeys.size());
             assertTrue(afterKeys.contains("user_001"));

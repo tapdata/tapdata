@@ -2,6 +2,15 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -20,6 +29,7 @@ import java.util.stream.Collectors;
  */
 public class SmartMerger {
 
+    private static final Logger logger = LoggerFactory.getLogger(SmartMerger.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final List<String> PK_CANDIDATES = Arrays.asList("_id", "id", "pk", "PK", "ID");
     private static final String INSERT_OP = "INSERT";
@@ -33,118 +43,108 @@ public class SmartMerger {
     public static class MergedRecord {
         private final Object initialPk;           // Original pk from INSERT (never changes)
         private Object currentPk;                 // Current pk value (may change via UPDATE)
-        private final List<Map<String, Object>> operations; // All mutations
-        private Map<String, Object> finalState;   // Final field values after all updates
+        private final List<TapdataEvent> operations; // All mutations (original TapdataEvents)
+        private TapRecordEvent finalStateEvent;   // Final state event
         private String finalOp;                   // 'INSERT' | 'UPDATE' | 'DELETE' | 'DELETE_INSERT'
 
         public MergedRecord(Object initialPk, Object currentPk) {
             this.initialPk = initialPk;
             this.currentPk = currentPk;
             this.operations = new ArrayList<>();
-            this.finalState = new HashMap<>();
+            this.finalStateEvent = null;
             this.finalOp = INSERT_OP;
+        }
+
+        // 添加便捷方法获取 Map 格式数据
+        public Map<String, Object> getFinalState() {
+            return finalStateEvent != null ? TapEventUtil.getAfter(finalStateEvent) : null;
         }
 
         public Object getInitialPk() { return initialPk; }
         public Object getCurrentPk() { return currentPk; }
         public void setCurrentPk(Object currentPk) { this.currentPk = currentPk; }
-        public List<Map<String, Object>> getOperations() { return operations; }
-        public Map<String, Object> getFinalState() { return finalState; }
-        public void setFinalState(Map<String, Object> finalState) { this.finalState = finalState; }
+        public List<TapdataEvent> getOperations() { return operations; }
+        public TapRecordEvent getFinalStateEvent() { return finalStateEvent; }
+        public void setFinalStateEvent(TapRecordEvent finalStateEvent) { this.finalStateEvent = finalStateEvent; }
         public String getFinalOp() { return finalOp; }
         public void setFinalOp(String finalOp) { this.finalOp = finalOp; }
     }
 
     /**
-     * Simple last-wins deduplication (conservative first-step fallback).
-     */
-    public static List<Map<String, Object>> mergeLastWins(List<Map<String, Object>> events) {
-        if (events == null || events.isEmpty()) return Collections.emptyList();
-
-        // preserve insertion order of last seen keys
-        Map<String, Map<String, Object>> lastByKey = new LinkedHashMap<>();
-
-        for (Map<String, Object> ev : events) {
-            String key = computeKey(ev);
-            lastByKey.put(key, ev);
-        }
-
-        return new ArrayList<>(lastByKey.values());
-    }
-
-    /**
-     * Advanced smart merge: merge_events_smart (M3) from ADR D4.
+     * 按 initial_pk 追踪记录生命周期，输出每条记录的最终状态。
      *
-     * @param tapEvents list of TapdataEvent with TapRecordEvent inside
+     * @param tapEvents 仅包含 TapdataEvent 的列表
      * @return list of MergedRecord, one per unique initial_pk
      */
-    public static List<MergedRecord> mergeEventsSmart(List<Map<String, Object>> tapEvents) {
-        if (tapEvents == null || tapEvents.isEmpty()) return Collections.emptyList();
-
-        Map<Object, MergedRecord> mergedRecords = new LinkedHashMap<>(); // initial_pk → MergedRecord
-        Map<Object, Object> pkMigration = new HashMap<>();                  // current_pk → initial_pk
-
-        for (Map<String, Object> ev : tapEvents) {
-            processEvent(ev, mergedRecords, pkMigration);
+    public static List<MergedRecord> mergeEventsSmart(List<TapdataEvent> tapEvents) {
+        if (tapEvents == null || tapEvents.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        // Post-process: if final_pk == initial_pk, change DELETE_INSERT back to UPDATE
-        for (MergedRecord record : mergedRecords.values()) {
-            if (DELETE_INSERT_OP.equals(record.getFinalOp()) &&
-                Objects.equals(record.getInitialPk(), record.getCurrentPk())) {
-                record.setFinalOp(UPDATE_OP);
+        Map<Object, MergedRecord> mergedRecords = new LinkedHashMap<>();
+        Map<Object, Object> pkMigration = new HashMap<>();
+
+        for (TapdataEvent tapEvent : tapEvents) {
+            TapEvent tapEventInner = tapEvent.getTapEvent();
+            if (tapEventInner instanceof TapRecordEvent) {
+                processEvent(tapEvent, (TapRecordEvent) tapEventInner, mergedRecords, pkMigration);
             }
         }
 
+        normalizeDeleteInsertToUpdate(mergedRecords);
         return new ArrayList<>(mergedRecords.values());
     }
 
     /**
-     * Process a single event and update merged records state.
+     * 处理单条 TapdataEvent，并更新合并态。
      */
-    private static void processEvent(Map<String, Object> ev,
+    private static void processEvent(TapdataEvent tapEvent,
+                                     TapRecordEvent recordEvent,
                                      Map<Object, MergedRecord> mergedRecords,
                                      Map<Object, Object> pkMigration) {
-        String opType = extractOpType(ev);
-        if (opType == null) return;
+        String opType;
+        if (recordEvent instanceof TapInsertRecordEvent) {
+            opType = INSERT_OP;
+        } else if (recordEvent instanceof TapUpdateRecordEvent) {
+            opType = UPDATE_OP;
+        } else if (recordEvent instanceof TapDeleteRecordEvent) {
+            opType = DELETE_OP;
+        } else {
+            return;
+        }
 
-        switch (opType.toUpperCase()) {
+        switch (opType) {
             case INSERT_OP:
-                processInsert(ev, mergedRecords, pkMigration);
+                processInsert(tapEvent, recordEvent, mergedRecords, pkMigration);
                 break;
             case UPDATE_OP:
-                processUpdate(ev, mergedRecords, pkMigration);
+                processUpdate(tapEvent, recordEvent, mergedRecords, pkMigration);
                 break;
             case DELETE_OP:
-                processDelete(ev, mergedRecords, pkMigration);
+                processDelete(tapEvent, recordEvent, mergedRecords, pkMigration);
                 break;
-            default:
-                // Unknown op type, treat as INSERT/last-wins
-                processInsert(ev, mergedRecords, pkMigration);
         }
     }
 
     /**
-     * Process INSERT event.
+     * 处理 INSERT：创建新生命周期记录，并初始化 finalState / finalOp。
      */
-    private static void processInsert(Map<String, Object> ev,
+    private static void processInsert(TapdataEvent tapEvent,
+                                      TapRecordEvent recordEvent,
                                       Map<Object, MergedRecord> mergedRecords,
                                       Map<Object, Object> pkMigration) {
-        Object initialPk = extractPk(ev);
+        Object initialPk = extractPrimaryKey(recordEvent);
         if (initialPk == null) {
-            // No pk, treat as unique record (last-wins)
-            String key = computeKey(ev);
+            String key = computeKey(recordEvent);
             mergedRecords.put(key, new MergedRecord(key, key));
             return;
         }
 
-        // Create or overwrite (last-wins for duplicates)
         MergedRecord record = new MergedRecord(initialPk, initialPk);
-        record.getOperations().add(Map.of(
-                "op", INSERT_OP,
-                "value", ev
-        ));
-        record.setFinalState(new HashMap<>(ev));
+        // 直接保存原始 TapdataEvent
+        record.getOperations().add(tapEvent);
+        // 保存 finalStateEvent
+        record.setFinalStateEvent(recordEvent);
         record.setFinalOp(INSERT_OP);
 
         mergedRecords.put(initialPk, record);
@@ -152,16 +152,18 @@ public class SmartMerger {
     }
 
     /**
-     * Process UPDATE event.
+     * 处理 UPDATE：记录字段变化；若主键变化，则把当前生命周期标记为 DELETE_INSERT。
      */
-    private static void processUpdate(Map<String, Object> ev,
+    private static void processUpdate(TapdataEvent tapEvent,
+                                      TapRecordEvent recordEvent,
                                       Map<Object, MergedRecord> mergedRecords,
                                       Map<Object, Object> pkMigration) {
-        Object oldPk = extractOldPk(ev);
-        if (oldPk == null) oldPk = extractPk(ev);
+        Object oldPk = extractBeforePrimaryKey(recordEvent);
+        if (oldPk == null) {
+            oldPk = extractPrimaryKey(recordEvent);
+        }
 
         if (oldPk == null || !pkMigration.containsKey(oldPk)) {
-            // Orphaned update, skip
             return;
         }
 
@@ -169,23 +171,16 @@ public class SmartMerger {
         MergedRecord record = mergedRecords.get(initialPk);
         if (record == null) return;
 
-        // Extract updated/removed fields
-        Map<String, Object> updatedFields = extractUpdatedFields(ev);
-        Set<String> removedFields = extractRemovedFields(ev);
+        // 直接保存原始 TapdataEvent
+        record.getOperations().add(tapEvent);
+        // 更新 finalStateEvent
+        record.setFinalStateEvent(recordEvent);
 
-        // Check if pk is changing
-        Object newPk = extractNewPk(ev, updatedFields, oldPk);
-
-        Map<String, Object> op = new HashMap<>();
-        op.put("op", UPDATE_OP);
-        if (!Objects.equals(oldPk, newPk)) {
-            op.put("old_pk", oldPk);
-            op.put("new_pk", newPk);
+        Object newPk = extractAfterPrimaryKey(recordEvent);
+        if (newPk == null) {
+            newPk = oldPk;
         }
-        op.put("fields", updatedFields);
-        record.getOperations().add(op);
 
-        // Update pk migration
         if (!Objects.equals(oldPk, newPk)) {
             pkMigration.remove(oldPk);
             pkMigration.put(newPk, initialPk);
@@ -194,29 +189,21 @@ public class SmartMerger {
         } else {
             record.setFinalOp(UPDATE_OP);
         }
-
-        // Apply field updates to final_state
-        if (updatedFields != null) {
-            record.getFinalState().putAll(updatedFields);
-        }
-        if (removedFields != null) {
-            for (String field : removedFields) {
-                record.getFinalState().remove(field);
-            }
-        }
     }
 
     /**
-     * Process DELETE event.
+     * 处理 DELETE：移除生命周期记录，表示这条记录最终消失。
      */
-    private static void processDelete(Map<String, Object> ev,
+    private static void processDelete(TapdataEvent tapEvent,
+                                      TapRecordEvent recordEvent,
                                       Map<Object, MergedRecord> mergedRecords,
                                       Map<Object, Object> pkMigration) {
-        Object oldPk = extractPk(ev);
-        if (oldPk == null) return;
+        Object oldPk = extractPrimaryKey(recordEvent);
+        if (oldPk == null) {
+            oldPk = extractBeforePrimaryKey(recordEvent);
+        }
 
-        if (!pkMigration.containsKey(oldPk)) {
-            // Orphaned delete, skip
+        if (oldPk == null || !pkMigration.containsKey(oldPk)) {
             return;
         }
 
@@ -224,7 +211,8 @@ public class SmartMerger {
         MergedRecord record = mergedRecords.get(initialPk);
         if (record == null) return;
 
-        record.getOperations().add(Map.of("op", DELETE_OP));
+        // 直接保存原始 TapdataEvent
+        record.getOperations().add(tapEvent);
         record.setFinalOp(DELETE_OP);
 
         pkMigration.remove(oldPk);
@@ -232,126 +220,127 @@ public class SmartMerger {
     }
 
     /**
-     * Extract operation type from event.
+     * 从 TapRecordEvent 中提取主键，优先 after，其次 before。
      */
-    private static String extractOpType(Map<String, Object> ev) {
-        Object op = ev.get("op");
-        if (op instanceof String) {
-            return (String) op;
-        }
-        // Fallback: check if looks like update/delete
-        if (ev.containsKey("updatedFields") || ev.containsKey("o2")) {
-            return UPDATE_OP;
-        }
-        return INSERT_OP;
-    }
-
-    /**
-     * Extract primary key from event data.
-     */
-    private static Object extractPk(Map<String, Object> ev) {
-        for (String pkField : PK_CANDIDATES) {
-            if (ev.containsKey(pkField)) {
-                return ev.get(pkField);
+    private static Object extractPrimaryKey(TapRecordEvent recordEvent) {
+        Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+        if (after != null) {
+            for (String pkCandidate : PK_CANDIDATES) {
+                Object pk = after.get(pkCandidate);
+                if (pk != null) {
+                    return pk;
+                }
             }
         }
-        // Check o2 (update filter)
-        Object o2 = ev.get("o2");
-        if (o2 instanceof Map) {
-            return extractPk((Map<String, Object>) o2);
-        }
-        // Check o (delete filter)
-        Object o = ev.get("o");
-        if (o instanceof Map) {
-            return extractPk((Map<String, Object>) o);
+        Map<String, Object> before = TapEventUtil.getBefore(recordEvent);
+        if (before != null) {
+            for (String pkCandidate : PK_CANDIDATES) {
+                Object pk = before.get(pkCandidate);
+                if (pk != null) {
+                    return pk;
+                }
+            }
         }
         return null;
     }
 
     /**
-     * Extract old pk from update event (from o2).
+     * 从 before 数据中提取旧主键。
      */
-    private static Object extractOldPk(Map<String, Object> ev) {
-        Object o2 = ev.get("o2");
-        if (o2 instanceof Map) {
-            return extractPk((Map<String, Object>) o2);
+    private static Object extractBeforePrimaryKey(TapRecordEvent recordEvent) {
+        Map<String, Object> before = TapEventUtil.getBefore(recordEvent);
+        if (before != null) {
+            for (String pkCandidate : PK_CANDIDATES) {
+                Object pk = before.get(pkCandidate);
+                if (pk != null) {
+                    return pk;
+                }
+            }
         }
         return null;
     }
 
     /**
-     * Extract new pk from update event (from updatedFields).
+     * 从 after 数据中提取新主键。
      */
-    private static Object extractNewPk(Map<String, Object> ev,
-                                       Map<String, Object> updatedFields,
-                                       Object defaultPk) {
-        if (updatedFields == null) return defaultPk;
-        for (String pkField : PK_CANDIDATES) {
-            if (updatedFields.containsKey(pkField)) {
-                return updatedFields.get(pkField);
+    private static Object extractAfterPrimaryKey(TapRecordEvent recordEvent) {
+        Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+        if (after != null) {
+            for (String pkCandidate : PK_CANDIDATES) {
+                Object pk = after.get(pkCandidate);
+                if (pk != null) {
+                    return pk;
+                }
             }
         }
-        return defaultPk;
+        return null;
     }
 
     /**
-     * Extract updated fields from event.
+     * 当没有可识别主键时，为 TapRecordEvent 生成兜底 key。
      */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> extractUpdatedFields(Map<String, Object> ev) {
-        Object updated = ev.get("updatedFields");
-        if (updated instanceof Map) {
-            return new HashMap<>((Map<String, Object>) updated);
+    private static String computeKey(TapRecordEvent recordEvent) {
+        Map<String, Object> data = TapEventUtil.getAfter(recordEvent);
+        if (data == null) {
+            data = TapEventUtil.getBefore(recordEvent);
         }
-        // Fallback: treat whole event as updated fields (minus pk)
-        Map<String, Object> result = new HashMap<>(ev);
-        PK_CANDIDATES.forEach(result::remove);
-        return result;
-    }
-
-    /**
-     * Extract removed fields from event.
-     */
-    @SuppressWarnings("unchecked")
-    private static Set<String> extractRemovedFields(Map<String, Object> ev) {
-        Object removed = ev.get("removedFields");
-        if (removed instanceof Collection) {
-            return new HashSet<>((Collection<String>) removed);
+        if (data == null) {
+            return "_hash:" + System.identityHashCode(recordEvent);
         }
-        if (removed instanceof String) {
-            return Set.of((String) removed);
-        }
-        return Collections.emptySet();
-    }
-
-    /**
-     * Compute fallback key for events without known primary keys.
-     */
-    private static String computeKey(Map<String, Object> ev) {
         for (String pk : PK_CANDIDATES) {
-            if (ev.containsKey(pk)) {
-                Object v = ev.get(pk);
-                if (v != null) return pk + ":" + v.toString();
+            if (data.containsKey(pk)) {
+                Object v = data.get(pk);
+                if (v != null) return pk + ":" + v;
             }
         }
-
-        // fallback to full JSON serialization
         try {
-            return "_full:" + MAPPER.writeValueAsString(ev);
+            return "_full:" + MAPPER.writeValueAsString(data);
         } catch (JsonProcessingException e) {
-            // last resort: use identity hashcode
-            return "_hash:" + System.identityHashCode(ev);
+            return "_hash:" + System.identityHashCode(recordEvent);
         }
     }
 
     /**
-     * Convert MergedRecord back to flat map for downstream processing.
+     * 简单 last-wins 去重：用于保守场景的兜底处理。
      */
-    public static List<Map<String, Object>> mergedRecordsToMaps(List<MergedRecord> mergedRecords) {
-        if (mergedRecords == null || mergedRecords.isEmpty()) return Collections.emptyList();
+    public static List<Map<String, Object>> mergeLastWins(List<TapdataEvent> events) {
+        if (events == null || events.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-        return mergedRecords.stream()
-                .map(MergedRecord::getFinalState)
-                .collect(Collectors.toList());
+        Map<Object, Map<String, Object>> lastByKey = new LinkedHashMap<>();
+
+        for (TapdataEvent tapEvent : events) {
+            TapEvent tapEventInner = tapEvent.getTapEvent();
+            if (tapEventInner instanceof TapRecordEvent recordEvent) {
+                Object pk = extractPrimaryKey(recordEvent);
+                if (pk != null) {
+                    Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+                    if (after != null) {
+                        lastByKey.put(pk, after);
+                    }
+                }
+            }
+        }
+
+        return new ArrayList<>(lastByKey.values());
     }
+
+
+
+    /**
+     * 将 DELETE_INSERT 且主键未变化的记录回退成 UPDATE。
+     */
+    private static void normalizeDeleteInsertToUpdate(Map<Object, MergedRecord> mergedRecords) {
+        for (MergedRecord record : mergedRecords.values()) {
+            if (DELETE_INSERT_OP.equals(record.getFinalOp()) &&
+                Objects.equals(record.getInitialPk(), record.getCurrentPk())) {
+                record.setFinalOp(UPDATE_OP);
+            }
+        }
+    }
+
+
+
+
 }

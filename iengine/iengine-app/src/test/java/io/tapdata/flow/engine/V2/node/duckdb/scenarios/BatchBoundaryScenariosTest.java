@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb.scenarios;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
@@ -94,17 +95,17 @@ class BatchBoundaryScenariosTest extends AffectedKeyCalculatorTestBase {
             );
             AffectedKeyCalculator calculator = createNewModeCalculator("id", "users", "id", fromTables);
 
-            List<Map<String, Object>> events = new ArrayList<>();
+            List<Map<String, Object>> smartMergerEvents = new ArrayList<>();
             Set<Object> expectedPks = new LinkedHashSet<>();
             for (int i = 0; i < eventCount; i++) {
                 Map<String, Object> event = new HashMap<>();
                 event.put("op", "INSERT");
                 event.put("id", (long) (i % 100));
-                events.add(event);
+                smartMergerEvents.add(event);
                 expectedPks.add((long) (i % 100));
             }
 
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
 
             List<Map<String, Object>> queryResult = new ArrayList<>();
             for (Object pk : expectedPks) {
@@ -112,7 +113,7 @@ class BatchBoundaryScenariosTest extends AffectedKeyCalculatorTestBase {
             }
             mockQueryReturns(queryResult);
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertNotNull(afterKeys);
             assertEquals(expectedPks.size(), afterKeys.size());

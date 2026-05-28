@@ -1,10 +1,12 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.mongo.ClientMongoOperator;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,10 +52,16 @@ public class DlqWriter {
 
         Document mergedRecordDoc = null;
         if (mergedRecordState != null) {
+            // 转换 operations 为可序列化的格式
+            List<Object> operationsList = new ArrayList<>();
+            for (TapdataEvent event : mergedRecordState.getOperations()) {
+                operationsList.add(event.toString());
+            }
+            
             mergedRecordDoc = new Document()
                     .append("initialPk", mergedRecordState.getInitialPk())
                     .append("currentPk", mergedRecordState.getCurrentPk())
-                    .append("operations", mergedRecordState.getOperations())
+                    .append("operations", operationsList)
                     .append("finalState", mergedRecordState.getFinalState())
                     .append("finalOp", mergedRecordState.getFinalOp());
         }

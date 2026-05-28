@@ -43,15 +43,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     /** DuckDB 操作器 */
     private DuckDbOperator duckDbOperator;
-
-    /** 当前表名 */
-    private String currentTableName;
-
-    /** 是否已初始化表结构 */
-    private volatile boolean tableInitialized = false;
-
-    /** 批处理缓冲区 */
-    private final List<Map<String, Object>> batchBuffer = new ArrayList<>();
     private static final int DEFAULT_BATCH_SIZE = 1000;
     private int batchSize = DEFAULT_BATCH_SIZE;
     private static final String DEFAULT_SOURCE_ID = "default_source";
@@ -594,7 +585,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             String contextKey = buildContextKey(sourceId, tableId);
             String targetTableName = buildTargetTableName(sourceId, tableId);
             PerSourceContext context = getOrCreateContext(contextKey, targetTableName);
-            currentTableName = targetTableName;
 
             // ========== 步骤2: 将TapdataEvent添加到Context缓冲区 ==========
             synchronized (context.getCommitLock()) {
@@ -662,48 +652,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         return null;
     }
 
-    /**
-     * 刷新批处理缓冲区
-     */
-    private void flushBatch() {
-        if (batchBuffer.isEmpty()) {
-            return;
-        }
 
-        List<Map<String, Object>> dataToWrite;
-        synchronized (batchBuffer) {
-            dataToWrite = new ArrayList<>(batchBuffer);
-            batchBuffer.clear();
-        }
-
-        if (dataToWrite.isEmpty()) {
-            return;
-        }
-
-        try {
-            // 确保表存在
-            ensureTableExists(dataToWrite);
-
-            // 使用 SmartMerger 做简单的 last-wins 合并，减少重复/冗余操作
-            List<Map<String, Object>> merged = SmartMerger.mergeLastWins(dataToWrite);
-
-            if (merged == null || merged.isEmpty()) {
-                logger.debug("No merged records to write for table: {}", currentTableName);
-                return;
-            }
-
-            // 优先使用 upsert 批量写入以保证幂等性和 PK 迁移的基本支持
-            duckDbOperator.upsertBatch(currentTableName, merged);
-            logger.debug("Flushed {} merged records to DuckDB table: {} (original {})", merged.size(), currentTableName, dataToWrite.size());
-
-        } catch (Exception e) {
-            logger.error("Failed to flush batch to DuckDB: {}", e.getMessage(), e);
-            // 将数据重新放回缓冲区
-            synchronized (batchBuffer) {
-                batchBuffer.addAll(0, dataToWrite);
-            }
-        }
-    }
 
     /**
      * 刷新单个Context的数据到DuckDB
@@ -721,7 +670,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
 
         // 保留Context内部锁
-        synchronized (context.getCommitLock()) {
+        synchronized (this) {
             // 提取当前批次的所有TapdataEvent
             List<TapdataEvent> eventsToFlush = context.drainBuffer();
             if (eventsToFlush.isEmpty()) {
@@ -732,15 +681,14 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 // ========== 步骤1: 计算beforeKeys（数据写入DuckDB之前） ==========
                 Set<Object> beforeKeys = null;
                 if (affectedKeyCalculator != null && !eventsToFlush.isEmpty()) {
-                    beforeKeys = affectedKeyCalculator.calculateAffectedBeforeKeys(eventsToFlush);
+                    beforeKeys = affectedKeyCalculator.calculateAffectedBeforeKeys(eventsToFlush, context.getKey());
                 }
 
                 // ========== 步骤2: 写入当前Context对应表 ==========
-                List<Map<String, Object>> dataToWrite = extractAfterRowsFromEvents(eventsToFlush);
-                
-                if (!dataToWrite.isEmpty()) {
-                    ensureTableExists(context, dataToWrite);
-                    List<Map<String, Object>> merged = SmartMerger.mergeLastWins(dataToWrite);
+                if (!eventsToFlush.isEmpty()) {
+                    // 直接使用 TapdataEvent 进行合并
+                    ensureTableExists(context, eventsToFlush);
+                    List<Map<String, Object>> merged = SmartMerger.mergeLastWins(eventsToFlush);
                     
                     if (merged != null && !merged.isEmpty()) {
                         DuckDbOperator operator = context.getOperator() != null ? 
@@ -751,7 +699,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                         
                         operator.upsertBatch(context.getTargetTableName(), merged);
                         logger.debug("刷写 {} 条记录到DuckDB表: {} (原始 {} 条)", 
-                            merged.size(), context.getTargetTableName(), dataToWrite.size());
+                            merged.size(), context.getTargetTableName(), eventsToFlush.size());
                     }
                 }
 
@@ -829,41 +777,17 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         return dataRows;
     }
 
-    /**
-     * 确保目标表存在，如果不存在则创建
-     */
-    private void ensureTableExists(List<Map<String, Object>> data) throws SQLException {
-        if (tableInitialized && currentTableName != null) {
-            return;
-        }
 
-        if (data == null || data.isEmpty()) {
-            return;
-        }
 
-        // 根据第一条数据推断表结构
-        TapTable tapTable = inferTapTable(data, currentTableName);
-
-        if (tapTable != null && tapTable.getNameFieldMap() != null && !tapTable.getNameFieldMap().isEmpty()) {
-            // 创建临时表用于处理
-            String tempTableName = "temp_" + currentTableName;
-            boolean isPreview = processorBaseContext.getTaskDto() != null 
-                && processorBaseContext.getTaskDto().isPreviewTask();
-            duckDbOperator.createTempTable(tapTable, tempTableName, isPreview);
-            tableInitialized = true;
-            logger.info("Created temp table: {} (preview: {})", tempTableName, isPreview);
-        }
-    }
-
-    private void ensureTableExists(PerSourceContext context, List<Map<String, Object>> data) throws SQLException {
+    private void ensureTableExists(PerSourceContext context, List<TapdataEvent> events) throws SQLException {
         if (context.isTableInitialized() && context.getTargetTableName() != null) {
             return;
         }
-        if (data == null || data.isEmpty()) {
+        if (events == null || events.isEmpty()) {
             return;
         }
 
-        TapTable tapTable = inferTapTable(data, context.getTargetTableName());
+        TapTable tapTable = inferTapTable(events, context.getTargetTableName());
         if (tapTable != null && tapTable.getNameFieldMap() != null && !tapTable.getNameFieldMap().isEmpty()) {
             DuckDbOperator operator = context.getOperator() != null ? context.getOperator() : duckDbOperator;
             if (operator == null) {
@@ -878,29 +802,40 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     /**
-     * 从数据中推断 TapTable 结构
+     * 从 TapdataEvent 数据中推断 TapTable 结构
      */
-    private TapTable inferTapTable(List<Map<String, Object>> data, String tableName) {
-        if (data == null || data.isEmpty()) {
+    private TapTable inferTapTable(List<TapdataEvent> events, String tableName) {
+        if (events == null || events.isEmpty()) {
             return null;
         }
 
-        TapTable tapTable = new TapTable(tableName);
-        Map<String, Object> firstRow = data.get(0);
+        // 找到第一个有数据的 TapRecordEvent
+        for (TapdataEvent tapEvent : events) {
+            TapEvent tapEventInner = tapEvent.getTapEvent();
+            if (tapEventInner instanceof TapRecordEvent recordEvent) {
+                Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+                if (after != null && !after.isEmpty()) {
+                    // 找到了有数据的事件，用它来推断表结构
+                    TapTable tapTable = new TapTable(tableName);
 
-        for (Map.Entry<String, Object> entry : firstRow.entrySet()) {
-            String fieldName = entry.getKey();
-            Object value = entry.getValue();
+                    for (Map.Entry<String, Object> entry : after.entrySet()) {
+                        String fieldName = entry.getKey();
+                        Object value = entry.getValue();
 
-            TapField tapField = new TapField();
-            tapField.name(fieldName);
-            tapField.tapType(inferTapType(value));
-            tapField.dataType(inferDataType(value));
+                        TapField tapField = new TapField();
+                        tapField.name(fieldName);
+                        tapField.tapType(inferTapType(value));
+                        tapField.dataType(inferDataType(value));
 
-            tapTable.add(tapField);
+                        tapTable.add(tapField);
+                    }
+
+                    return tapTable;
+                }
+            }
         }
 
-        return tapTable;
+        return null;
     }
 
     /**
@@ -1094,11 +1029,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         sourceContexts.clear();
         synchronized (sourceContextLock) {
             sourceAccessOrder.clear();
-        }
-
-        // 刷新剩余数据
-        if (!batchBuffer.isEmpty()) {
-            flushBatch();
         }
 
         // 关闭 DuckDB 操作器

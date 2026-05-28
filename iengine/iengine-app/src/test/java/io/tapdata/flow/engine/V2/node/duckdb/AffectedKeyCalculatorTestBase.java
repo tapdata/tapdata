@@ -1,5 +1,10 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.mockito.Mockito;
 
@@ -248,5 +253,116 @@ public abstract class AffectedKeyCalculatorTestBase {
             }
         }
         return Collections.singletonList(row);
+    }
+
+    // ==================== 新模式TapdataEvent事件构建器 ====================
+
+    /**
+     * 将SmartMerger格式的事件列表转换为TapdataEvent列表
+     */
+    protected List<TapdataEvent> createTapdataEvents(String tableName, List<Map<String, Object>> smartMergerEvents) {
+        List<TapdataEvent> events = new ArrayList<>();
+        for (Map<String, Object> event : smartMergerEvents) {
+            String op = (String) event.get("op");
+            TapdataEvent tapdataEvent = new TapdataEvent();
+            TapRecordEvent recordEvent;
+            
+            if ("INSERT".equals(op)) {
+                TapInsertRecordEvent insertEvent = new TapInsertRecordEvent();
+                insertEvent.setTableId(tableName);
+                Map<String, Object> after = new HashMap<>(event);
+                after.remove("op");
+                insertEvent.setAfter(after);
+                recordEvent = insertEvent;
+            } else if ("UPDATE".equals(op)) {
+                TapUpdateRecordEvent updateEvent = new TapUpdateRecordEvent();
+                updateEvent.setTableId(tableName);
+                Map<String, Object> after = new HashMap<>(event);
+                after.remove("op");
+                after.remove("o");
+                after.remove("o2");
+                after.remove("updatedFields");
+                after.remove("old_pk");
+                after.remove("fields");
+                updateEvent.setAfter(after);
+                
+                // 提取before数据
+                @SuppressWarnings("unchecked")
+                Map<String, Object> before = (Map<String, Object>) event.get("o2");
+                if (before == null) {
+                    before = (Map<String, Object>) event.get("o");
+                }
+                if (before != null) {
+                    updateEvent.setBefore(new HashMap<>(before));
+                }
+                recordEvent = updateEvent;
+            } else if ("DELETE".equals(op)) {
+                TapDeleteRecordEvent deleteEvent = new TapDeleteRecordEvent();
+                deleteEvent.setTableId(tableName);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> before = (Map<String, Object>) event.get("o2");
+                if (before == null) {
+                    before = (Map<String, Object>) event.get("o");
+                }
+                if (before != null) {
+                    deleteEvent.setBefore(new HashMap<>(before));
+                }
+                recordEvent = deleteEvent;
+            } else {
+                continue;
+            }
+            
+            tapdataEvent.setTapEvent(recordEvent);
+            events.add(tapdataEvent);
+        }
+        return events;
+    }
+
+    /**
+     * 创建单个INSERT TapdataEvent
+     */
+    protected TapdataEvent createInsertTapdataEvent(String tableName, String pkField, Object pkValue) {
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        TapInsertRecordEvent insertEvent = new TapInsertRecordEvent();
+        insertEvent.setTableId(tableName);
+        Map<String, Object> after = new HashMap<>();
+        after.put(pkField, pkValue);
+        insertEvent.setAfter(after);
+        tapdataEvent.setTapEvent(insertEvent);
+        return tapdataEvent;
+    }
+
+    /**
+     * 创建单个UPDATE TapdataEvent
+     */
+    protected TapdataEvent createUpdateTapdataEvent(String tableName, String pkField, Object oldPk, Object newPk) {
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        TapUpdateRecordEvent updateEvent = new TapUpdateRecordEvent();
+        updateEvent.setTableId(tableName);
+        
+        Map<String, Object> before = new HashMap<>();
+        before.put(pkField, oldPk);
+        updateEvent.setBefore(before);
+        
+        Map<String, Object> after = new HashMap<>();
+        after.put(pkField, newPk);
+        updateEvent.setAfter(after);
+        
+        tapdataEvent.setTapEvent(updateEvent);
+        return tapdataEvent;
+    }
+
+    /**
+     * 创建单个DELETE TapdataEvent
+     */
+    protected TapdataEvent createDeleteTapdataEvent(String tableName, String pkField, Object pkValue) {
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        TapDeleteRecordEvent deleteEvent = new TapDeleteRecordEvent();
+        deleteEvent.setTableId(tableName);
+        Map<String, Object> before = new HashMap<>();
+        before.put(pkField, pkValue);
+        deleteEvent.setBefore(before);
+        tapdataEvent.setTapEvent(deleteEvent);
+        return tapdataEvent;
     }
 }

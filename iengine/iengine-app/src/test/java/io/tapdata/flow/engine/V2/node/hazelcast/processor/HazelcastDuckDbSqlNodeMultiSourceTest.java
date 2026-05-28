@@ -75,10 +75,10 @@ class HazelcastDuckDbSqlNodeMultiSourceTest {
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> getBatchBuffer(Object context) throws Exception {
+    private List<TapdataEvent> getBatchBuffer(Object context) throws Exception {
         Field field = context.getClass().getDeclaredField("batchBuffer");
         field.setAccessible(true);
-        return (List<Map<String, Object>>) field.get(context);
+        return (List<TapdataEvent>) field.get(context);
     }
 
     private String getTargetTableName(Object context) throws Exception {

@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb.scenarios;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
@@ -322,17 +323,17 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
                     Arrays.asList("id", "user_id")
             );
 
-            List<Map<String, Object>> events = new ArrayList<>();
+            List<Map<String, Object>> smartMergerEvents = new ArrayList<>();
             Map<String, Object> insert = new HashMap<>();
             insert.put("op", "INSERT");
             insert.put("id", 1L);
             insert.put("user_id", 1L);
-            events.add(insert);
+            smartMergerEvents.add(insert);
 
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
             mockQueryReturns(Collections.singletonList(Map.of("id", 1L)));
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
 
             assertEquals(1, afterKeys.size());
             assertTrue(afterKeys.contains(1L));
@@ -346,11 +347,11 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
             );
             AffectedKeyCalculator calculator = createNewModeCalculator("id", "users", "id", fromTables);
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("payment_id", "PAY001");
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("payments", events);
+            List<Map<String, Object>> smartMergerEvents = createSmartMergerInsertEvents("payment_id", "PAY001");
+            List<TapdataEvent> events = createTapdataEvents("payments", smartMergerEvents);
             mockQueryReturns(Collections.singletonList(Map.of("id", 1L)));
 
-            assertDoesNotThrow(() -> calculator.calculateAffectedAfterKeys(eventsByTable));
+            assertDoesNotThrow(() -> calculator.calculateAffectedAfterKeys(events));
         }
 
         @Test
@@ -361,17 +362,17 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
                     Arrays.asList("id", "email")
             );
 
-            List<Map<String, Object>> events = new ArrayList<>();
+            List<Map<String, Object>> smartMergerEvents = new ArrayList<>();
             Map<String, Object> insert = new HashMap<>();
             insert.put("op", "INSERT");
             insert.put("id", 100L);
             insert.put("email", "test@example.com");
-            events.add(insert);
+            smartMergerEvents.add(insert);
 
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("user_profiles", events);
+            List<TapdataEvent> events = createTapdataEvents("user_profiles", smartMergerEvents);
             mockQueryReturns(Collections.singletonList(Map.of("id", 100L)));
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
             assertEquals(1, afterKeys.size());
             assertTrue(afterKeys.contains(100L));
         }
@@ -384,11 +385,11 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
                     Arrays.asList("id")
             );
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 2L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<Map<String, Object>> smartMergerEvents = createSmartMergerInsertEvents("id", 2L);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
             mockQueryReturns(new ArrayList<>());
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
             assertTrue(afterKeys.isEmpty());
         }
 
@@ -400,11 +401,11 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
                     Arrays.asList("id")
             );
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 3L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<Map<String, Object>> smartMergerEvents = createSmartMergerInsertEvents("id", 3L);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
             mockQueryThrows(new SQLException("Query failed"));
 
-            assertThrows(SQLException.class, () -> calculator.calculateAffectedAfterKeys(eventsByTable));
+            assertThrows(SQLException.class, () -> calculator.calculateAffectedAfterKeys(events));
         }
 
         @Test
@@ -415,13 +416,13 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
                     Arrays.asList("id")
             );
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 111L, 222L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<Map<String, Object>> smartMergerEvents = createSmartMergerInsertEvents("id", 111L, 222L);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
 
             List<Map<String, Object>> queryResult = Arrays.asList(Map.of("id", 111L), Map.of("id", 111L));
             mockQueryReturns(queryResult);
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
             assertEquals(1, afterKeys.size());
             assertTrue(afterKeys.contains(111L));
         }
@@ -434,8 +435,8 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
                     Arrays.asList("id")
             );
 
-            List<Map<String, Object>> events = createSmartMergerInsertEvents("id", 123L);
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<Map<String, Object>> smartMergerEvents = createSmartMergerInsertEvents("id", 123L);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
 
             List<Map<String, Object>> queryResult = new ArrayList<>();
             Map<String, Object> row1 = new HashMap<>();
@@ -449,7 +450,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
             queryResult.add(row3);
             mockQueryReturns(queryResult);
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
             assertEquals(2, afterKeys.size());
             assertTrue(afterKeys.contains(123L));
             assertTrue(afterKeys.contains(456L));
@@ -463,17 +464,17 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
                     Arrays.asList("id")
             );
 
-            List<Map<String, Object>> events = new ArrayList<>();
+            List<Map<String, Object>> smartMergerEvents = new ArrayList<>();
             Map<String, Object> e1 = new HashMap<>();
             e1.put("op", "INSERT");
             e1.put("id", "USER_STR_1");
-            events.add(e1);
+            smartMergerEvents.add(e1);
             Map<String, Object> e2 = new HashMap<>();
             e2.put("op", "INSERT");
             e2.put("id", 67890);
-            events.add(e2);
+            smartMergerEvents.add(e2);
 
-            Map<String, List<Map<String, Object>>> eventsByTable = Map.of("orders", events);
+            List<TapdataEvent> events = createTapdataEvents("orders", smartMergerEvents);
 
             List<Map<String, Object>> queryResult = Arrays.asList(
                     Map.of("id", "USER_STR_1"),
@@ -481,7 +482,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
             );
             mockQueryReturns(queryResult);
 
-            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(eventsByTable);
+            Set<Object> afterKeys = calculator.calculateAffectedAfterKeys(events);
             assertEquals(2, afterKeys.size());
             assertTrue(afterKeys.contains("USER_STR_1"));
             assertTrue(afterKeys.contains(67890));
