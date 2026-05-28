@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.lineage.analyzer.AnalyzeLayer;
 import com.tapdata.tm.lineage.analyzer.BaseAnalyzer;
@@ -22,6 +23,7 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.utils.Lists;
 import io.github.openlg.graphlib.Graph;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -46,6 +48,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import static com.tapdata.tm.task.service.TaskServiceImpl.STATUS;
+import static com.tapdata.tm.task.service.TaskServiceImpl.SYNC_TYPE;
 
 /**
  * @author samuel
@@ -346,7 +351,13 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		Criteria migrateTgtCriteria = new Criteria("dag.nodes.syncObjects.objectNames").is(table);
 		Criteria migrateCriteria = new Criteria("dag.nodes.connectionId").is(connectionId)
 				.andOperator(new Criteria().orOperator(migrateSrcCriteria, migrateTgtCriteria));
-		Criteria notDeleteCriteria = new Criteria("is_deleted").is(false);
+		Criteria notDeleteCriteria = new Criteria("is_deleted").is(false)
+				// com.tapdata.tm.task.service.TaskServiceImpl.find#1671
+				.and(STATUS).nin(Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING))
+				//com.tapdata.tm.task.service.TaskServiceImpl.find#1677
+				.and(SYNC_TYPE).nin(Lists.of(TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT))
+				//com.tapdata.tm.task.service.TaskServiceImpl.find#1685
+				.and("shareCache").ne(true);
 		return new Criteria().andOperator(
 				notDeleteCriteria,
 				new Criteria().orOperator(syncTaskCriteria, migrateCriteria)
