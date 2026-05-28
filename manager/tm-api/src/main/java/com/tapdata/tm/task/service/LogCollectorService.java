@@ -126,6 +126,8 @@ public interface LogCollectorService {
 
     void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user);
 
+    Map<String, String> createShareCdcTask(TableLogCollectorParam param, UserDetail user);
+
     List<ShareCdcConnectionInfo> getConnectionIds(String taskId, UserDetail user);
 
     void clear();

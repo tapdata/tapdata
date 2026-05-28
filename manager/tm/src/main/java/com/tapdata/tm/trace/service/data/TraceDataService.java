@@ -299,7 +299,7 @@ public class TraceDataService {
         Map<String, String> fallbackFieldMapping = fallbackNode == null
                 ? Collections.emptyMap()
                 : fieldNameMapping.getOrDefault(fallbackNode.getId(), Collections.emptyMap());
-        condition.setFilters(buildNormalUpstreamFilters(currentCondition, currentTraceValue,
+        condition.setFilters(buildNormalUpstreamFilters(condition,currentCondition, currentTraceValue,
                 upstreamFieldMapping, currentFieldMapping, fallbackCondition, fallbackTraceValue, fallbackFieldMapping, updateConditionFieldList, errors));
         addEmptyFilterError(condition, errors, upstreamNode, currentNode);
         return new TraceConditionBuildResult(condition, errors);
@@ -388,7 +388,8 @@ public class TraceDataService {
         return filter;
     }
 
-    private List<Map<String, Object>> buildNormalUpstreamFilters(TraceQueryCondition currentCondition,
+    private List<Map<String, Object>> buildNormalUpstreamFilters(TraceQueryCondition buildCondition,
+                                                                 TraceQueryCondition currentCondition,
                                                                  TraceValue currentTraceValue,
                                                                  Map<String, String> upstreamFieldMapping,
                                                                  Map<String, String> currentFieldMapping,
@@ -397,13 +398,13 @@ public class TraceDataService {
                                                                  Map<String, String> fallbackFieldMapping,
                                                                  List<FieldNameMapping> updateConditionFieldList,
                                                                  List<TraceNodeError> errors) {
-        List<Map<String, Object>> filters = rewriteFiltersByFieldMapping(currentCondition, currentTraceValue,
+        List<Map<String, Object>> filters = rewriteFiltersByFieldMapping(buildCondition,currentCondition, currentTraceValue,
                 upstreamFieldMapping, currentFieldMapping, updateConditionFieldList, errors);
         if (CollectionUtils.isEmpty(filters)) {
             filters = rewriteRecordValuesByFieldMapping(currentTraceValue, upstreamFieldMapping, currentFieldMapping, errors);
         }
         if (CollectionUtils.isEmpty(filters) && fallbackCondition != null && !fallbackFieldMapping.isEmpty()) {
-            filters = rewriteFiltersByFieldMapping(fallbackCondition, fallbackTraceValue,
+            filters = rewriteFiltersByFieldMapping(buildCondition,fallbackCondition, fallbackTraceValue,
                     upstreamFieldMapping, fallbackFieldMapping, updateConditionFieldList, errors);
         }
         if (CollectionUtils.isEmpty(filters) && !fallbackFieldMapping.isEmpty()) {
@@ -412,7 +413,7 @@ public class TraceDataService {
         return distinctFilters(filters);
     }
 
-    private List<Map<String, Object>> rewriteFiltersByFieldMapping(TraceQueryCondition currentCondition, TraceValue currentTraceValue,
+    private List<Map<String, Object>> rewriteFiltersByFieldMapping(TraceQueryCondition buildCondition,TraceQueryCondition currentCondition, TraceValue currentTraceValue,
                                                                    Map<String, String> upstreamFieldMapping,
                                                                    Map<String, String> currentFieldMapping,
                                                                    List<FieldNameMapping> updateConditionFieldList,
@@ -428,6 +429,11 @@ public class TraceDataService {
             currentCondition.getConditionKeys().forEach(key -> {
                 if (hasCurrentRecords(currentTraceValue)) {
                     filters.addAll(rewriteFilterWithRecords(null,currentCondition.getConditionKeys(), currentTraceValue, upstreamByOrigin, currentFieldMapping, updateConditionFieldList, errors));
+                }else if(StringUtils.isNotBlank(currentCondition.getSql())){
+                    if(currentFieldMapping.containsKey(key)){
+                        buildCondition.setSql(currentCondition.getSql().replaceAll(key,currentFieldMapping.get(key)));
+                    }
+
                 }
             });
         }else{
@@ -480,8 +486,8 @@ public class TraceDataService {
                     filter.put(originName, value);
                 }
             });
-            return filter;
         }
+        if(MapUtils.isNotEmpty(filter))return filter;
         if (MapUtils.isEmpty(sourceFilter)) {
             sourceKeys.forEach(key -> {
                 String originName = currentFieldMapping.get(key);
