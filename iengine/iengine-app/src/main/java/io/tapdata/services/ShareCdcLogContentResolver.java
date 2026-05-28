@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -261,14 +262,20 @@ public class ShareCdcLogContentResolver {
 		if (record == null) {
 			return null;
 		}
-		Map<String, Object> decoded = new LinkedHashMap<>(record.size());
-		for (Map.Entry<String, Object> entry : record.entrySet()) {
-			decoded.put(entry.getKey(), decodeRecordValue(entry.getKey(), entry.getValue(), tapTable));
-		}
-		return decoded;
+		return decodeMap(record, tapTable, null);
 	}
 
 	private Object decodeRecordValue(String fieldName, Object value, TapTable tapTable) {
+		if (value instanceof Map) {
+			return decodeMap((Map<?, ?>) value, tapTable, fieldName);
+		}
+		if (value instanceof Collection) {
+			List<Object> decoded = new ArrayList<>();
+			for (Object item : (Collection<?>) value) {
+				decoded.add(decodeRecordValue(fieldName, item, tapTable));
+			}
+			return decoded;
+		}
 		byte[] bytes = readBinary(value);
 		if (bytes == null || bytes.length < 2) {
 			return value;
@@ -277,10 +284,22 @@ public class ShareCdcLogContentResolver {
 		if (isEncodedObjectId(fieldName, tapField, bytes)) {
 			return decodeMarkedString(bytes);
 		}
-		if (isDateTimeField(tapField) && isEncodedDateTime(bytes)) {
-			return Instant.parse(decodeMarkedString(bytes)).toString();
+		if (isEncodedDateTime(bytes)) {
+			return decodeInstant(bytes, value);
 		}
 		return value;
+	}
+
+	private Map<String, Object> decodeMap(Map<?, ?> record, TapTable tapTable, String parentFieldName) {
+		Map<String, Object> decoded = new LinkedHashMap<>(record.size());
+		for (Map.Entry<?, ?> entry : record.entrySet()) {
+			String fieldName = String.valueOf(entry.getKey());
+			String nestedFieldName = StringUtils.isBlank(parentFieldName)
+					? fieldName
+					: parentFieldName + "." + fieldName;
+			decoded.put(fieldName, decodeRecordValue(nestedFieldName, entry.getValue(), tapTable));
+		}
+		return decoded;
 	}
 
 	private byte[] readBinary(Object value) {
@@ -294,14 +313,26 @@ public class ShareCdcLogContentResolver {
 	}
 
 	private boolean isEncodedObjectId(String fieldName, TapField tapField, byte[] bytes) {
-		return bytes.length == 26
-				&& bytes[0] == 99
-				&& bytes[bytes.length - 1] == 23
-				&& ("_id".equals(fieldName) || tapField != null && StringUtils.containsIgnoreCase(tapField.getDataType(), "objectId"));
+		if (bytes.length != 26 || bytes[0] != 99 || bytes[bytes.length - 1] != 23) {
+			return false;
+		}
+		String decoded = decodeMarkedString(bytes);
+		return org.bson.types.ObjectId.isValid(decoded)
+				&& ("_id".equals(StringUtils.substringAfterLast(fieldName, "."))
+				|| tapField != null && StringUtils.containsIgnoreCase(tapField.getDataType(), "objectId")
+				|| "_id".equals(fieldName));
 	}
 
 	private boolean isEncodedDateTime(byte[] bytes) {
 		return bytes[0] == 98 && bytes[bytes.length - 1] == 22;
+	}
+
+	private Object decodeInstant(byte[] bytes, Object originalValue) {
+		try {
+			return Instant.parse(decodeMarkedString(bytes)).toString();
+		} catch (DateTimeParseException e) {
+			return originalValue;
+		}
 	}
 
 	private String decodeMarkedString(byte[] bytes) {
