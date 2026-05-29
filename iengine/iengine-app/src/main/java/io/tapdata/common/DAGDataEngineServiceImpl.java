@@ -20,6 +20,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.FilterMetadataInstanceUtil;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.utils.CommonStringUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
@@ -200,7 +201,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
                             metadataInstancesDtoHashMap.values().forEach(metadataInstancesDto -> {
                                 if(null != connections.get(metadataInstancesDto.getSource().get_id())){
                                     String namespace = String.join(".", connections.get(metadataInstancesDto.getSource().get_id()));
-                                    String originalName = String.join(".", ShareCdcUtil.escape(namespace, '.'), ShareCdcUtil.escape(metadataInstancesDto.getOriginalName(), '.'));
+                                    String originalName = String.join(".", CommonStringUtils.escape(namespace, '.'), CommonStringUtils.escape(metadataInstancesDto.getOriginalName(), '.'));
                                     tapTableMap.putNew(originalName,convertTapTable(metadataInstancesDto),metadataInstancesDto.getQualifiedName());
                                 }
                             });
