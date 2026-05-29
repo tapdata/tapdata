@@ -146,12 +146,7 @@ public class JoinStateSetter {
                 if (null != firstJoinNode) {
                     Node<?> firstBeforeJoinNode = findFirstDownstreamJoinNode(taskDag, sourceNodeId, true);
                     firstBeforeJoinNode = firstBeforeJoinNode == null ? node : firstBeforeJoinNode;
-                    TableProperties props = mergePropertiesMap.computeIfAbsent(sourceNodeId, k -> {
-                        TableProperties p = new TableProperties();
-                        p.setRootNodeId(sourceNodeId);
-                        p.setPreNodeId(sourceNodeId);
-                        return p;
-                    });
+                    TableProperties props = mergePropertiesMap.computeIfAbsent(sourceNodeId, k -> newTableProperties(sourceNodeId, sourceNodeId));
                     List<String> joinKeys = extractJoinKeyFieldNamesForSource(taskDag, sourceNodeId, firstJoinNode);
                     if (CollectionUtils.isNotEmpty(joinKeys)) {
                         List<FieldNameMapping> mappings = new ArrayList<>();
@@ -531,9 +526,7 @@ public class JoinStateSetter {
         if (rootNodeIds.isEmpty() || (rootNodeIds.size() == 1 && !rootNodeIds.contains(preNodeId))) {
             String rootNodeId = rootNodeIds.stream().findFirst().orElse(preNodeId);
             preTableName = resolveNodeTableName(taskDag, rootNodeId);
-            TableProperties isSelf = new TableProperties();
-            isSelf.setRootNodeId(rootNodeId);
-            isSelf.setPreNodeId(preNodeId);
+            TableProperties isSelf = newTableProperties(rootNodeId, preNodeId);
             isSelf.setPath(resolveMergePropertiesPath(mergeTableProperties));
             List<Map<String, String>> joinKeys = Optional.ofNullable(mergeTableProperties.getJoinKeys())
                     .orElse(new ArrayList<>())

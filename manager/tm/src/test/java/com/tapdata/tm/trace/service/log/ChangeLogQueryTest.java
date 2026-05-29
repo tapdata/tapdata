@@ -1,5 +1,7 @@
 package com.tapdata.tm.trace.service.log;
 
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
@@ -32,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -45,6 +48,7 @@ class ChangeLogQueryTest {
     private ExternalStorageService externalStorageService;
     private ChangeLogQuery changeLogQuery;
     private UserDetail user;
+    private SettingsService settingsService;
 
     @BeforeEach
     void setUp() {
@@ -52,6 +56,7 @@ class ChangeLogQueryTest {
         shareCdcTableMappingRepository = mock(ShareCdcTableMappingRepository.class);
         traceDataQueryRpcAdapter = mock(TraceDataQueryRpcAdapter.class);
         externalStorageService = mock(ExternalStorageService.class);
+        settingsService = mock(SettingsService.class);
         user = mock(UserDetail.class);
 
         changeLogQuery = new ChangeLogQuery();
@@ -59,6 +64,40 @@ class ChangeLogQueryTest {
         changeLogQuery.shareCdcTableMappingRepository = shareCdcTableMappingRepository;
         changeLogQuery.traceDataQueryRpcAdapter = traceDataQueryRpcAdapter;
         changeLogQuery.externalStorageService = externalStorageService;
+        changeLogQuery.settingsService = settingsService;
+        when(settingsService.getByKey(anyString())).thenReturn(null);
+    }
+
+    @Test
+    void testMaxQueryBoundDaysNum() {
+        Settings settings = new Settings();
+        settings.setValue(10);
+        when(settingsService.getByKey(anyString())).thenReturn(settings);
+        assertEquals(10, changeLogQuery.maxQueryBoundDays());
+    }
+
+    @Test
+    void testMaxQueryBoundDaysStr() {
+        Settings settings = new Settings();
+        settings.setValue("10");
+        when(settingsService.getByKey(anyString())).thenReturn(settings);
+        assertEquals(10, changeLogQuery.maxQueryBoundDays());
+    }
+
+    @Test
+    void testMaxQueryBoundDaysStrInvalid() {
+        Settings settings = new Settings();
+        settings.setValue("10-xxx");
+        when(settingsService.getByKey(anyString())).thenReturn(settings);
+        assertEquals(7, changeLogQuery.maxQueryBoundDays());
+    }
+
+    @Test
+    void testMaxQueryBoundDaysObj() {
+        Settings settings = new Settings();
+        settings.setValue(new Object());
+        when(settingsService.getByKey(anyString())).thenReturn(settings);
+        assertEquals(7, changeLogQuery.maxQueryBoundDays());
     }
 
     @Test

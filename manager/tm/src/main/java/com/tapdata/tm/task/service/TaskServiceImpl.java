@@ -312,6 +312,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String ENCODE_PREFIX = "_tap_encode_";
     public static final String TASK_INCREMENT_DELAY = "taskIncrementDelay";
     public static final String TASK_INCREMENT_DELAY_THRESHOLD = "taskIncrementDelayThreshold";
+    public static final String AGENT_NOT_FOUND = "Agent.Not.Found";
 
     @NotNull
     private static String getTableName() {
@@ -980,15 +981,14 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void checkEngineStatus(TaskDto taskDto, UserDetail user) {
-        String errCode = "Agent.Not.Found";
         String accessNodeType = taskDto.getAccessNodeType();
         List<String> taskProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType) && taskProcessIdList.isEmpty()) {
-            throw new BizException(errCode);
+            throw new BizException(AGENT_NOT_FOUND);
         }
         List<Worker> availableAgentByAccessNode = workerService.findAvailableAgentByAccessNode(user, taskProcessIdList);
         if (CollectionUtils.isEmpty(availableAgentByAccessNode)) {
-            throw new BizException(errCode);
+            throw new BizException(AGENT_NOT_FOUND);
         }
     }
 
@@ -3116,15 +3116,15 @@ public class TaskServiceImpl extends TaskService{
         }
         List<Worker> availableAgents = workerService.findAvailableAgentBySystem(Collections.<String>emptyList());
         if (CollectionUtils.isEmpty(availableAgents)) {
-            throw new BizException("Agent.Not.Found");
+            throw new BizException(AGENT_NOT_FOUND);
         }
         List<String> availableProcessIds = availableAgents.stream()
                 .filter(Objects::nonNull)
                 .map(Worker::getProcessId)
                 .filter(StringUtils::isNotBlank)
-                .collect(Collectors.toList());
+                .toList();
         if (CollectionUtils.isEmpty(availableProcessIds)) {
-            throw new BizException("Agent.Not.Found");
+            throw new BizException(AGENT_NOT_FOUND);
         }
         return availableProcessIds.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(availableProcessIds.size()));
     }
@@ -6113,7 +6113,7 @@ public class TaskServiceImpl extends TaskService{
             taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);
         }
         if(taskDto.getAgentId() == null){
-           throw new BizException("Agent.Not.Found");
+           throw new BizException(AGENT_NOT_FOUND);
         }
         taskDto.setCheckMemoryHeap(true);
         update(Query.query(Criteria.where("_id").is(taskDto.getId())),Update.update("agentId",taskDto.getAgentId()).set("checkMemoryHeap",true));

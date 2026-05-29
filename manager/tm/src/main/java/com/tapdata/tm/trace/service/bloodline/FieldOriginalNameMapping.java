@@ -349,18 +349,7 @@ public class FieldOriginalNameMapping {
             return new ArrayList<>();
         }
         List<Field> fields = entity.getFields();
-        List<String> primaryKeys = new ArrayList<>();
-        if (CollectionUtils.isNotEmpty(fields)) {
-            for (Field field : fields) {
-                if (null == field || field.isDeleted() || StringUtils.isBlank(field.getFieldName())) {
-                    continue;
-                }
-                Integer pkPos = field.getPrimaryKeyPosition();
-                if (Boolean.TRUE.equals(field.getPrimaryKey()) || (null != pkPos && pkPos > 0)) {
-                    primaryKeys.add(field.getFieldName());
-                }
-            }
-        }
+        List<String> primaryKeys = primaryKeys(fields);
         if (CollectionUtils.isNotEmpty(primaryKeys)) {
             return primaryKeys;
         }
@@ -405,7 +394,7 @@ public class FieldOriginalNameMapping {
         return extractPrimaryOrUniqueKeyFields(entity.getFields(), entity.getIndices());
     }
 
-    protected List<String> extractPrimaryOrUniqueKeyFields(List<Field> fields, List<TableIndex> indices) {
+    List<String> primaryKeys(List<Field> fields) {
         List<String> primaryKeys = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(fields)) {
             for (Field field : fields) {
@@ -418,6 +407,11 @@ public class FieldOriginalNameMapping {
                 }
             }
         }
+        return primaryKeys;
+    }
+
+    protected List<String> extractPrimaryOrUniqueKeyFields(List<Field> fields, List<TableIndex> indices) {
+        List<String> primaryKeys = primaryKeys(fields);
         if (CollectionUtils.isNotEmpty(primaryKeys)) {
             return primaryKeys;
         }

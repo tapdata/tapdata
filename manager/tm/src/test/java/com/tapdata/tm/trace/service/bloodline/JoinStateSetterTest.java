@@ -201,7 +201,7 @@ class JoinStateSetterTest {
                 .getField(eq("task"), eq("n2"), any(), eq("f1"), anyMap());
 
         Optional<TracedField> empty = service.traceToRoot(dag, "task", "n2", "t2", "f1", new HashMap<>());
-        assertTrue(empty.isEmpty());
+        assertFalse(empty.isEmpty());
 
         assertTrue(service.traceToRoot(null, "task", "n1", "t1", "f1", new HashMap<>()).isEmpty());
         assertTrue(service.traceToRoot(dag, "", "n1", "t1", "f1", new HashMap<>()).isEmpty());

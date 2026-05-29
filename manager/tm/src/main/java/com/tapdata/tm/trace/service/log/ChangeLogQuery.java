@@ -1,5 +1,7 @@
 package com.tapdata.tm.trace.service.log;
 
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
@@ -24,7 +26,11 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -35,6 +41,7 @@ import java.util.*;
 @Service
 @Slf4j
 public class ChangeLogQuery {
+    private static final String MAX_CHANGE_LOG_QUERY_LIMIT = "max.change.log.query.limit";
     @Resource(name = "dataSourceRepository")
     DataSourceRepository dataSourceRepository;
     @Resource(name = "shareCdcTableMappingRepository")
@@ -43,6 +50,8 @@ public class ChangeLogQuery {
     TraceDataQueryRpcAdapter traceDataQueryRpcAdapter;
     @Resource(name = "externalStorageServiceImpl")
     ExternalStorageService externalStorageService;
+    @Resource(name = "settingsServiceImpl")
+    SettingsService settingsService;
 
 
     public ChangeLog query(ChangeLogParam param, UserDetail user) {
@@ -60,12 +69,13 @@ public class ChangeLogQuery {
         if (null == param.getEndTime()) {
             throw new BizException("data.trace.log.eTime");
         }
-        if (param.getEndTime() - param.getStartTime() > 7*24*60*60*1000) {
-            throw new BizException("data.trace.log.time.too.large", 7);
+        long maxQueryDays = maxQueryBoundDays();
+        if (param.getEndTime() - param.getStartTime() > maxQueryDays * 24 * 60 * 60 * 1000L) {
+            throw new BizException("data.trace.log.time.too.large", maxQueryDays);
         }
         String shareCDCExternalStorageId = findShareCDCExternalStorageId(connectionId, user);
         if (StringUtils.isBlank(shareCDCExternalStorageId)) {
-           return ChangeLog.from(param, null);
+            return ChangeLog.from(param, null);
         }
         ExternalStorageDto storageDto = externalStorageService.findById(MongoUtils.toObjectId(shareCDCExternalStorageId));
         if (null == storageDto) {
@@ -84,8 +94,8 @@ public class ChangeLogQuery {
         criteria.setRingBuffer(tableRingBufferId);
         criteria.setConnectionId(connectionId);
         criteria.setTableName(tableName);
-        List<Map<String,Object>> filters =  Optional.ofNullable(param.getQueryConditions()).orElse(new ArrayList<>()).stream().filter(Objects::nonNull).filter(MapUtils::isNotEmpty).toList();
-        if(filters.isEmpty()){
+        List<Map<String, Object>> filters = Optional.ofNullable(param.getQueryConditions()).orElse(new ArrayList<>()).stream().filter(Objects::nonNull).filter(MapUtils::isNotEmpty).toList();
+        if (filters.isEmpty()) {
             return ChangeLog.from(param, null);
         }
         criteria.setFilters(filters);
@@ -95,6 +105,24 @@ public class ChangeLogQuery {
         criteria.setLimit(param.getLimit());
         criteria.setKey(param.getLastKey());
         return ChangeLog.from(param, traceDataQueryRpcAdapter.queryChangeLog(criteria));
+    }
+
+    long maxQueryBoundDays() {
+        return Optional.ofNullable(settingsService.getByKey(MAX_CHANGE_LOG_QUERY_LIMIT))
+                .map(Settings::getValue)
+                .map(v -> {
+                    if (v instanceof Number iNum) {
+                        return iNum.longValue();
+                    } else if (v instanceof String iStr) {
+                        try {
+                            return Long.parseLong(iStr);
+                        } catch (Exception e) {
+                            return 7L;
+                        }
+                    } else {
+                        return 7L;
+                    }
+                }).orElse(7L);
     }
 
     String findShareCDCExternalStorageId(String connectionId, UserDetail user) {
