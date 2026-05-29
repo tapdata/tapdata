@@ -1601,11 +1601,11 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 								fields.put("namespace", true);
 								DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(cid), fields);
 								if (null != connectionDto && null != connectionDto.getNamespace() && !connectionDto.getNamespace().isEmpty()) {
-									return connectionDto.getNamespace().stream().map(v -> escape(v, '.')).collect(Collectors.joining("."));
+									return connectionDto.getNamespace().stream().map(v -> CommonStringUtils.escape(v, '.')).collect(Collectors.joining("."));
 								}
 								throw new RuntimeException("Connection '" + cid + "' not found 'namespace' property");
 							});
-							return String.join(".", escape(prefix, '.'), escape(originalName, '.'));
+							return String.join(".", CommonStringUtils.escape(prefix, '.'), CommonStringUtils.escape(originalName, '.'));
 						};
 
 						kv = metadatas.stream().collect(Collectors.toMap(m -> {
@@ -1628,13 +1628,6 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 			}
         }
         return kv;
-    }
-
-    private String escape(String name, char escape) {
-        if (name == null) {
-            return "null";
-        }
-        return name.replace(escape + "", "" + escape + escape);
     }
 
     public String findHeartbeatQualifiedNameByNodeId(Filter filter, UserDetail user) {

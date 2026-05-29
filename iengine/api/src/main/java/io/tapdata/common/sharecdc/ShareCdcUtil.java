@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.utils.CommonStringUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -29,9 +30,9 @@ import java.util.stream.Collectors;
  **/
 public class ShareCdcUtil {
 
-	private final static Logger logger = LogManager.getLogger(ShareCdcUtil.class);
-	private final static String SHARE_CDC_KEY_PREFIX = "SHARE_CDC_";
-	private final static char NAMESPACE_DELIMITER = '.';
+	private static final Logger logger = LogManager.getLogger(ShareCdcUtil.class);
+	private static final String SHARE_CDC_KEY_PREFIX = "SHARE_CDC_";
+	private static final char NAMESPACE_DELIMITER = '.';
 
 	public static String getConstructName(TaskDto taskDto) {
 		return SHARE_CDC_KEY_PREFIX + taskDto.getName();
@@ -72,14 +73,7 @@ public class ShareCdcUtil {
 	}
 
 	public static String joinNamespaces(Collection<String> namespaces) {
-		return namespaces.stream().map(v -> escape(v, NAMESPACE_DELIMITER)).collect(Collectors.joining("" + NAMESPACE_DELIMITER));
-	}
-
-	public static String escape(String name, char escape) {
-		if (name == null) {
-			return "null";
-		}
-		return name.replace(escape + "", "" + escape + escape);
+		return namespaces.stream().map(v -> CommonStringUtils.escape(v, NAMESPACE_DELIMITER)).collect(Collectors.joining("" + NAMESPACE_DELIMITER));
 	}
 
 	public static String getTableId(LogContent logContent) {
