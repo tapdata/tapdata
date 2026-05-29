@@ -3,13 +3,16 @@ package com.tapdata.tm.trace.service.log;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
+import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.trace.ChangeLogCriteria;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
+import com.tapdata.tm.lineage.analyzer.entity.LineageTableNode;
 import com.tapdata.tm.shareCdcTableMapping.entity.ShareCdcTableMappingEntity;
 import com.tapdata.tm.shareCdcTableMapping.repository.ShareCdcTableMappingRepository;
 import com.tapdata.tm.trace.dto.ChangeLog;
@@ -27,6 +30,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -151,5 +155,43 @@ public class ChangeLogQuery {
             return null;
         }
         return dataSourceEntity.getExternalStorageTableName();
+    }
+
+    public void shareCDCEnable(Dag dag) {
+        Criteria criteria = new Criteria();
+        List<Criteria> criteriaList = new ArrayList<>();
+        List<Node> nodes = Optional.ofNullable(dag)
+                .map(Dag::getNodes)
+                .orElse(new ArrayList<>());
+        Map<String, Map<String, Object>> attrInfoMap = new HashMap<>();
+        for (Node<?> node : nodes) {
+            Map<String, Object> attrInfo = Optional.ofNullable(node.getAttrs()).orElse(new HashMap<>());
+            attrInfo.put("changeLogQueryEnable", false);
+            if (node instanceof LineageTableNode tableNode) {
+                String connectionId = tableNode.getConnectionId();
+                String tableName = tableNode.getTable();
+                Criteria sub = Criteria.where("connectionId").is(connectionId)
+                        .and("tableName").is(tableName);
+                criteriaList.add(sub);
+                attrInfoMap.put(String.format("%s.%s", connectionId, tableName), attrInfo);
+                attrInfo.put("changeLogQueryUnableMsg", MessageUtil.getMessage("data.trace.log.unsupported", tableName, tableNode.getConnectionName()));
+            }
+            node.setAttrs(attrInfo);
+        }
+        if (criteriaList.isEmpty()) {
+            return;
+        }
+        criteria.orOperator(criteriaList);
+        Query query = new Query(criteria);
+        query.fields().include("connectionId", "tableName");
+        List<ShareCdcTableMappingEntity> dataSourceEntity = shareCdcTableMappingRepository.findAll(query);
+        dataSourceEntity.forEach(e -> {
+            String key = e.getConnectionId() + "." + e.getTableName();
+            Optional.ofNullable(attrInfoMap.get(key))
+                    .ifPresent(map -> {
+                        map.put("changeLogQueryEnable", true);
+                        map.remove("changeLogQueryUnableMsg");
+                    });
+        });
     }
 }

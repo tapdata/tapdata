@@ -13,6 +13,7 @@ import com.tapdata.tm.trace.dto.TaskLineageDto;
 import com.tapdata.tm.trace.dto.boodline.FieldNameMapping;
 import com.tapdata.tm.trace.param.TaskLineageParam;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.trace.service.log.ChangeLogQuery;
 import io.github.openlg.graphlib.Graph;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -48,6 +50,7 @@ class BloodlineFinderTest {
     private TrackFieldFilter trackFieldFilter;
     private TableUpdateFieldGetter tableUpdateFieldGetter;
     private BloodlineFinder finder;
+    ChangeLogQuery changeLogQuery;
 
     @BeforeEach
     void setUp() {
@@ -57,6 +60,7 @@ class BloodlineFinderTest {
         fieldOriginalNameMapping = mock(FieldOriginalNameMapping.class);
         trackFieldFilter = mock(TrackFieldFilter.class);
         tableUpdateFieldGetter = mock(TableUpdateFieldGetter.class);
+        changeLogQuery = mock(ChangeLogQuery.class);
 
         finder = new BloodlineFinder();
         finder.analyzerCustom = analyzerCustom;
@@ -65,6 +69,8 @@ class BloodlineFinderTest {
         finder.fieldOriginalNameMapping = fieldOriginalNameMapping;
         finder.trackFieldFilter = trackFieldFilter;
         finder.tableUpdateFieldGetter = tableUpdateFieldGetter;
+        finder.changeLogQuery = changeLogQuery;
+        doNothing().when(changeLogQuery).shareCDCEnable(any(Dag.class));
     }
 
     @Test

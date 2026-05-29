@@ -16,6 +16,7 @@ import com.tapdata.tm.trace.dto.TargetWithLineageDto;
 import com.tapdata.tm.trace.dto.TaskLineageDto;
 import com.tapdata.tm.trace.dto.boodline.FieldNameMapping;
 import com.tapdata.tm.trace.param.TaskLineageParam;
+import com.tapdata.tm.trace.service.log.ChangeLogQuery;
 import com.tapdata.tm.utils.MongoUtils;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -61,6 +62,8 @@ public class BloodlineFinder {
     TrackFieldFilter trackFieldFilter;
     @Resource(name = "tableUpdateFieldGetter")
     TableUpdateFieldGetter tableUpdateFieldGetter;
+    @Resource(name = "changeLogQuery")
+    ChangeLogQuery changeLogQuery;
 
 
     public TaskLineageDto findTaskLineage(TaskLineageParam param) {
@@ -88,6 +91,7 @@ public class BloodlineFinder {
         fieldOriginalNameMapping.findUpdateConditionField(dag, taskDagMap, fieldNameMapping);
         Map<String, Map<String, String>> traceFilterFielMap = trackFieldFilter.removeUselessFields(dag, param.getTraceFilterFieldNames(), fieldNameMapping);
         taskLineage.setTraceFilterFieldNameMapping(traceFilterFielMap);
+        changeLogQuery.shareCDCEnable(taskLineage.getDag());
         return taskLineage;
     }
 
