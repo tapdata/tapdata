@@ -274,7 +274,8 @@ public class SettingsServiceImpl implements SettingsService {
             for (SettingsDto dto : settingsDto) {
                 // category: "SMTP", key: "smtp.server.password", value: "*****"
                 if (!Objects.isNull(dto.getValue()) &&
-                        StringUtils.equals("smtp.server.password", dto.getKey()) &&
+                        (StringUtils.equals("smtp.server.password", dto.getKey())
+                        || StringUtils.equals("ldap.bind.password", dto.getKey())) &&
                         StringUtils.equals("*****", dto.getValue().toString())) {
                     continue;
                 }
