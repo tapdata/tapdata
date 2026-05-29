@@ -1,8 +1,12 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -491,16 +495,33 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     }
 
     @Override
-    public void insertBatch(String tableName, List<Map<String, Object>> dataList) throws SQLException, java.io.IOException {
+    public void insertBatch(String tableName, List<TapdataEvent> dataList) throws SQLException, java.io.IOException {
         checkClosed();
         
-        if (dataList.isEmpty()) {
+        if (dataList == null || dataList.isEmpty()) {
             return;
         }
         
-        // 使用Arrow批量写入
-        writeBatch(dataList, tableName);
-        logger.debug("Inserted {} rows into table: {}", dataList.size(), tableName);
+        List<Map<String, Object>> rows = new ArrayList<>(dataList.size());
+        for (TapdataEvent event : dataList) {
+            if (event == null) {
+                continue;
+            }
+            TapEvent tapEvent = event.getTapEvent();
+            if (tapEvent instanceof TapRecordEvent recordEvent) {
+                Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+                if (after != null && !after.isEmpty()) {
+                    rows.add(after);
+                }
+            }
+        }
+
+        if (rows.isEmpty()) {
+            return;
+        }
+
+        writeBatch(rows, tableName);
+        logger.debug("Inserted {} rows into table: {}", rows.size(), tableName);
     }
 
     @Override

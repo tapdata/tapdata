@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.schema.TapTable;
 
 import java.sql.SQLException;
@@ -9,7 +10,6 @@ import java.util.regex.Pattern;
 
 /**
  * DuckDB 操作接口 - 定义 DuckDB 操作契约
- * 
  * 核心功能：
  * 1. SQL 查询执行
  * 2. SQL 更新执行（DML/DDL）
@@ -186,12 +186,12 @@ public interface DuckDbOperator extends AutoCloseable {
     void insert(String tableName, Map<String, Object> data) throws SQLException;
 
     /**
-     * 批量插入数据
+     * 批量插入数据（初始化阶段使用 TapdataEvent 直接写入）
      * @param tableName 表名
-     * @param dataList 数据列表
+     * @param dataList TapdataEvent 列表
      * @throws SQLException SQL执行异常
      */
-    void insertBatch(String tableName, List<Map<String, Object>> dataList) throws SQLException, java.io.IOException;
+    void insertBatch(String tableName, List<TapdataEvent> dataList) throws SQLException, java.io.IOException;
 
     /**
      * 更新数据

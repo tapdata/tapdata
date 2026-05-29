@@ -212,7 +212,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
         // 初始化 DuckDB 操作器（内存数据库模式）
         try {
-            duckDbOperator = new io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperatorImpl(true, batchSize, 5000, duckLakeConfig);
+            duckDbOperator = new DuckDbOperatorImpl(false, batchSize, 5000, duckLakeConfig);
             contextFlusher = Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread thread = new Thread(r, "duckdb-multi-source-flusher");
                 thread.setDaemon(true);
@@ -795,9 +795,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private void processInitialSyncStage(PerSourceContext context, List<TapdataEvent> eventsToFlush)
         throws SQLException, java.io.IOException {
 
-        // 步骤1: 使用 SmartMerger 合并事件（第二步、第三步）
-        List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsToFlush);
-        if (mergedRecords.isEmpty()) {
+        if (eventsToFlush == null || eventsToFlush.isEmpty()) {
             return;
         }
 
@@ -807,17 +805,13 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         // 获取 DuckDbOperator
         DuckDbOperator operator = getOperatorForContext(context);
 
-        // 步骤3-5: DuckDB 事务开启（可选）
+        // 步骤3: DuckDB 事务开启（可选）
         operator.executeInTransaction(() -> {
-            // 步骤4: Before 的所有数据全部执行 delete 操作
-            deleteBeforeData(operator, context.getTargetTableName(), mergedRecords);
-
-            // 步骤5: After 的数据执行 Arrow 批量写入
-            writeAfterData(operator, context.getTargetTableName(), mergedRecords);
+            // 步骤4: 初始化阶段全部按 insert 直接批量写入
+            operator.insertBatch(context.getTargetTableName(), eventsToFlush);
         });
 
-        logger.debug("全量阶段刷写 {} 条记录到DuckDB表: {} (原始 {} 条)",
-            mergedRecords.size(), context.getTargetTableName(), eventsToFlush.size());
+        logger.debug("全量阶段直接插入 {} 条事件到DuckDB表: {}", eventsToFlush.size(), context.getTargetTableName());
     }
 
     /**
@@ -1118,9 +1112,15 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     /**
-     * 从 TapdataEvent 数据中推断 TapTable 结构
+     * 如果Context中没有TapTable，则从 TapdataEvent 数据中推断 TapTable 结构
      */
     private TapTable inferTapTable(List<TapdataEvent> events, String tableName) {
+        TapTable tapTable = processorBaseContext.getTapTableMap().get(tableName);
+
+        if (tapTable != null) {
+            return tapTable;
+        }
+
         if (events == null || events.isEmpty()) {
             return null;
         }
@@ -1132,7 +1132,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
                 if (after != null && !after.isEmpty()) {
                     // 找到了有数据的事件，用它来推断表结构
-                    TapTable tapTable = new TapTable(tableName);
+                    tapTable = new TapTable(tableName);
 
                     for (Map.Entry<String, Object> entry : after.entrySet()) {
                         String fieldName = entry.getKey();
@@ -1151,7 +1151,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             }
         }
 
-        return null;
+        throw new IllegalStateException("无法推断表结构【可能该表cdc事件还没有到达】: " + tableName);
     }
 
     /**

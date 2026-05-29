@@ -5,6 +5,8 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -85,6 +88,36 @@ class HazelcastDuckDbSqlNodeTest {
     }
 
     @Test
+    void testInitialSyncUsesInsertBatch() throws Exception {
+        DuckDbOperator mockOperator = mock(DuckDbOperator.class);
+        doAnswer(invocation -> {
+            DuckDbOperator.ThrowingConsumer action = invocation.getArgument(0);
+            action.accept();
+            return null;
+        }).when(mockOperator).executeInTransaction(any());
+        doNothing().when(mockOperator).insertBatch(anyString(), anyList());
+        setDuckDbOperator(mockOperator);
+
+        java.lang.reflect.Method method = HazelcastDuckDbSqlNode.class.getDeclaredMethod(
+                "processInitialSyncStage",
+                PerSourceContext.class,
+                List.class
+        );
+        method.setAccessible(true);
+
+        PerSourceContext context = new PerSourceContext("ctx", mockOperator);
+        context.setTargetTableName("target_table");
+        context.setTableInitialized(true);
+        List<TapdataEvent> events = new ArrayList<>();
+        events.add(createInsertEvent("target_table", Map.of("id", 1L, "name", "Alice")));
+
+        method.invoke(hazelcastDuckDbSqlNode, context, events);
+
+        verify(mockOperator).insertBatch(eq("target_table"), anyList());
+        verify(mockOperator, never()).executeUpdate(contains("DELETE FROM"));
+    }
+
+    @Test
     void testTryProcess_NullEvent() {
         AtomicInteger consumerCallCount = new AtomicInteger(0);
         
@@ -122,4 +155,14 @@ class HazelcastDuckDbSqlNodeTest {
             fail("Failed to set duckDbOperator field: " + e.getMessage());
         }
     }
+
+    private TapdataEvent createInsertEvent(String tableName, Map<String, Object> after) {
+        TapInsertRecordEvent insertRecordEvent = new TapInsertRecordEvent();
+        insertRecordEvent.setTableId(tableName);
+        insertRecordEvent.setAfter(after);
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        tapdataEvent.setTapEvent(insertRecordEvent);
+        return tapdataEvent;
+    }
+
 }

@@ -2,6 +2,8 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
@@ -214,8 +216,8 @@ class DuckDbOperatorImplTest {
 
     @Test
     void testInsertBatch_MultipleRows() throws Exception {
-        java.util.List<java.util.Map<String, Object>> dataList = createTestData();
-        
+        java.util.List<TapdataEvent> dataList = createTapdataInsertEvents();
+
         assertDoesNotThrow(() -> duckDbOperator.insertBatch("test_table", dataList));
     }
 
@@ -555,7 +557,19 @@ class DuckDbOperatorImplTest {
         
         verify(mockStatement, never()).executeUpdate(anyString());
     }
-    
+
+    @Test
+    void testInsertBatch_EmptyData() throws Exception {
+        java.util.List<TapdataEvent> dataList = new java.util.ArrayList<>();
+
+        assertDoesNotThrow(() -> duckDbOperator.insertBatch("test_table", dataList));
+    }
+
+    @Test
+    void testInsertBatch_NullData() throws Exception {
+        assertDoesNotThrow(() -> duckDbOperator.insertBatch("test_table", null));
+    }
+
     // ==================== 辅助方法 ====================
     
     private List<Map<String, Object>> createTestData() {
@@ -569,5 +583,18 @@ class DuckDbOperatorImplTest {
         }
         
         return data;
+    }
+
+    private java.util.List<TapdataEvent> createTapdataInsertEvents() {
+        java.util.List<TapdataEvent> events = new java.util.ArrayList<>();
+        for (Map<String, Object> row : createTestData()) {
+            TapInsertRecordEvent insertEvent = new TapInsertRecordEvent();
+            insertEvent.setTableId("test_table");
+            insertEvent.setAfter(new java.util.LinkedHashMap<>(row));
+            TapdataEvent tapdataEvent = new TapdataEvent();
+            tapdataEvent.setTapEvent(insertEvent);
+            events.add(tapdataEvent);
+        }
+        return events;
     }
 }
