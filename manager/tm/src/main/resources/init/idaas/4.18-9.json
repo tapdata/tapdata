@@ -1,0 +1,28 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": { "key": "task.start.transformWaitSeconds" },
+        "u": {
+          "$set": {
+            "category": "Job",
+            "category_sort": 2,
+            "default_value": "62",
+            "documentation": "Max seconds to wait for schema transformed when starting a task",
+            "hot_reloading": true,
+            "key": "task.start.transformWaitSeconds",
+            "key_label": "Task start transform wait seconds",
+            "last_update": 0,
+            "last_update_by": "",
+            "scope": "global",
+            "sort": 6,
+            "user_visible": true,
+            "value": "62"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]
