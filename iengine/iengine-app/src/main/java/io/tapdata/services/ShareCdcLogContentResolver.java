@@ -1,5 +1,7 @@
 package io.tapdata.services;
 
+import com.hazelcast.persistence.ConstructType;
+import com.hazelcast.persistence.resource.impl.MongoDBResource;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -59,10 +61,6 @@ public class ShareCdcLogContentResolver {
 	public ChangeLogData resolve(ChangeLogCriteria criteria) {
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		ExternalStorageDto externalStorage = resolveExternalStorage(criteria, clientMongoOperator);
-		if (!isMongoExternalStorage(externalStorage)) {
-			throw new IllegalArgumentException("Only MongoDB external storage is supported currently");
-		}
-
 		TapTable tapTable = TapTableUtil.getTapTableByConnectionId(criteria.getConnectionId(), criteria.getTableName());
 		org.bson.conversions.Bson filter = buildMongoFilter(criteria, tapTable);
 		return readFromMongo(criteria.getRingBuffer(), externalStorage, filter, normalizedLimit(criteria), tapTable);
@@ -83,13 +81,19 @@ public class ShareCdcLogContentResolver {
 			filters.add(lte("value.timestamp", criteria.getEndTime()));
 		}
 		if (criteria.getFilters() != null) {
+			List<org.bson.conversions.Bson> groups = new ArrayList<>();
 			for (Map<String, Object> filter : criteria.getFilters()) {
 				if (filter == null || filter.isEmpty()) {
 					continue;
 				}
+				List<org.bson.conversions.Bson> groupFilters = new ArrayList<>();
 				for (Map.Entry<String, Object> entry : filter.entrySet()) {
-					filters.add(buildRecordFieldFilter(entry.getKey(), entry.getValue(), tapTable));
+					groupFilters.add(buildRecordFieldFilter(entry.getKey(), entry.getValue(), tapTable));
 				}
+				groups.add(groupFilters.size() == 1 ? groupFilters.get(0) : and(groupFilters));
+			}
+			if (!groups.isEmpty()) {
+				filters.add(groups.size() == 1 ? groups.get(0) : or(groups));
 			}
 		}
 		return and(filters);
@@ -216,20 +220,18 @@ public class ShareCdcLogContentResolver {
 		return Long.parseLong(text);
 	}
 
-	private ChangeLogData readFromMongo(String ringBuffer, ExternalStorageDto externalStorage, org.bson.conversions.Bson filter, int limit, TapTable tapTable) {
+	private ChangeLogData readFromMongo(String ringBuffer, ExternalStorageDto externalStorage, org.bson.conversions.Bson filter, int limit, TapTable tapTable){
 		ChangeLogData changeLogData = new ChangeLogData();
 		List<Map<String, Object>> logs = new ArrayList<>();
-		ConnectionString connectionString = new ConnectionString(externalStorage.getUri());
-		String database = connectionString.getDatabase();
-		if (StringUtils.isBlank(database)) {
-			throw new IllegalArgumentException("External storage MongoDB uri must include database");
-		}
-		try (MongoClient mongoClient = MongoClients.create(connectionString)) {
-			MongoCollection<Document> collection = mongoClient.getDatabase(database).getCollection(ringBuffer);
-			for (Document document : collection.find(filter).limit(limit)) {
-				logs.add(buildLog(document, tapTable));
-				changeLogData.setLastKey(readLong(document.get("key")));
-			}
+        try (MongoDBResource mongoDBResource = new MongoDBResource()) {
+            externalStorage.setTable(ringBuffer);
+            mongoDBResource.doInit(ExternalStorageUtil.getMongoDBConfig(externalStorage, ConstructType.IMAP, ringBuffer));
+            for (Document document : mongoDBResource.getMongoCollection().find(filter).limit(limit)) {
+                logs.add(buildLog(document, tapTable));
+                changeLogData.setLastKey(readLong(document.get("key")));
+            }
+        }catch (Exception e){
+			throw new RuntimeException(e);
 		}
 		changeLogData.setLogs(logs);
 		return changeLogData;
@@ -380,12 +382,6 @@ public class ShareCdcLogContentResolver {
 			externalStorageDto = ExternalStorageUtil.getDefaultExternalStorage();
 		}
 		return copyExternalStorage(externalStorageDto);
-	}
-
-	private boolean isMongoExternalStorage(ExternalStorageDto externalStorage) {
-		return externalStorage != null
-				&& StringUtils.equalsIgnoreCase("mongodb", externalStorage.getType())
-				&& StringUtils.isNotBlank(externalStorage.getUri());
 	}
 
 	private ExternalStorageDto copyExternalStorage(ExternalStorageDto source) {

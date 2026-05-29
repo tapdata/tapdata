@@ -162,7 +162,7 @@ public class ExternalStorageUtil {
 		return rocksDBConfig;
 	}
 
-	private static PersistenceMongoDBConfig getMongoDBConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
+	public static PersistenceMongoDBConfig getMongoDBConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		String uri = externalStorageDto.getUri();
 		ConnectionString mongoClientURI;
 		try {

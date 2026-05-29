@@ -107,7 +107,8 @@ public class TraceDataService {
                 continue;
             }
             TraceValue traceValue = emitTraceValue(request, requestId, outputStream, currentNode, step.getDownstreamNode(),
-                    step.getCondition(), step.getDownstreamTraceValue(), targetFieldMapping, fieldNameMapping);
+                    step.getCondition(), step.getDownstreamTraceValue(), targetFieldMapping, fieldNameMapping,
+                    updateConditionFieldList.get(currentNode.getId()));
             TraceValue filterTraceValue = hasCurrentRecords(traceValue) ? traceValue : step.getFilterTraceValue();
             Node filterNode = hasCurrentRecords(traceValue) ? currentNode : step.getFilterNode();
             TraceQueryCondition filterCondition = hasFilterCondition(step.getCondition()) ? step.getCondition() : step.getFilterCondition();
@@ -130,7 +131,8 @@ public class TraceDataService {
     private TraceValue emitTraceValue(WideTableTraceRequest request, String requestId, OutputStream outputStream,
                                       Node currentNode, Node downstreamNode, TraceQueryCondition condition,
                                       TraceValue downstreamTraceValue, Map<String, String> targetFieldMapping,
-                                      Map<String, Map<String, String>> fieldNameMapping) throws IOException {
+                                      Map<String, Map<String, String>> fieldNameMapping,
+                                      List<FieldNameMapping> updateConditionFields) throws IOException {
         Map<String, String> currentFieldMapping = fieldNameMapping.getOrDefault(currentNode.getId(), Collections.emptyMap());
         Map<String, String> downstreamFieldMapping = downstreamNode == null
                 ? Collections.emptyMap()
@@ -148,7 +150,7 @@ public class TraceDataService {
         traceValue.setTracedFields(buildTracedFields(request.getTrackedFields(), targetFieldMapping, currentFieldMapping, errors));
         traceValue.setResultFieldMapping(buildResultFieldMapping(currentFieldMapping, downstreamFieldMapping,
                 resolveTablePath(currentNode)));
-        traceValue.setQueryConditions(buildQueryConditions(condition));
+        traceValue.setQueryConditions(buildQueryConditions(condition, currentRecords, updateConditionFields));
 
         TraceStreamEvent event = TraceStreamEvent.traceValue(
                 requestId,
@@ -164,16 +166,20 @@ public class TraceDataService {
     }
 
     private List<Map<String, Object>> buildQueryConditions(TraceQueryCondition condition) {
+        return buildQueryConditions(condition, Collections.emptyList(), Collections.emptyList());
+    }
+
+    private List<Map<String, Object>> buildQueryConditions(TraceQueryCondition condition,
+                                                           List<Map<String, Object>> currentRecords,
+                                                           List<FieldNameMapping> updateConditionFields) {
         if (condition == null) {
             return Collections.emptyList();
         }
-        List<Map<String, Object>> queryConditions = new ArrayList<>();
-        if (condition.isSqlMode() || StringUtils.isNotBlank(condition.getSql())) {
-            Map<String, Object> sqlCondition = new LinkedHashMap<>();
-            sqlCondition.put("sqlMode", condition.isSqlMode());
-            sqlCondition.put("sql", condition.getSql());
-            queryConditions.add(sqlCondition);
+        List<Map<String, Object>> updateFieldConditions = buildUpdateFieldQueryConditions(condition, currentRecords, updateConditionFields);
+        if (CollectionUtils.isNotEmpty(updateFieldConditions)) {
+            return updateFieldConditions;
         }
+        List<Map<String, Object>> queryConditions = new ArrayList<>();
         for (Map<String, Object> filter : safeFilters(condition)) {
             Map<String, Object> sanitizedFilter = sanitizeFilter(filter);
             if (MapUtils.isNotEmpty(sanitizedFilter)) {
@@ -186,6 +192,56 @@ public class TraceDataService {
                 .map(this::buildQueryOperatorCondition)
                 .forEach(queryConditions::add);
         return queryConditions;
+    }
+
+    private List<Map<String, Object>> buildUpdateFieldQueryConditions(TraceQueryCondition condition,
+                                                                      List<Map<String, Object>> currentRecords,
+                                                                      List<FieldNameMapping> updateConditionFields) {
+        if (CollectionUtils.isEmpty(updateConditionFields) || CollectionUtils.isEmpty(currentRecords)) {
+            return Collections.emptyList();
+        }
+        Set<String> updateFieldNames = updateConditionFields.stream()
+                .filter(Objects::nonNull)
+                .map(FieldNameMapping::getTargetName)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+        if (updateFieldNames.isEmpty() || queryConditionUsesOnlyUpdateFields(condition, updateFieldNames)) {
+            return Collections.emptyList();
+        }
+
+        List<Map<String, Object>> queryConditions = new ArrayList<>();
+        for (Map<String, Object> record : currentRecords) {
+            Map<String, Object> updateCondition = new LinkedHashMap<>();
+            for (FieldNameMapping field : updateConditionFields) {
+                if (field == null || StringUtils.isBlank(field.getTargetName())) {
+                    continue;
+                }
+                Object value = readRecordValue(record, field.getTargetName());
+                if (value != null) {
+                    updateCondition.put(field.getTargetName(), value);
+                }
+            }
+            if (MapUtils.isNotEmpty(updateCondition)) {
+                queryConditions.add(updateCondition);
+            }
+        }
+        return distinctFilters(queryConditions);
+    }
+
+    private boolean queryConditionUsesOnlyUpdateFields(TraceQueryCondition condition, Set<String> updateFieldNames) {
+        List<String> conditionKeys = new ArrayList<>();
+        for (Map<String, Object> filter : safeFilters(condition)) {
+            conditionKeys.addAll(sanitizeFilter(filter).keySet());
+        }
+        CollectionUtils.emptyIfNull(condition.getQueryOperators()).stream()
+                .filter(Objects::nonNull)
+                .map(QueryOperator::getKey)
+                .filter(StringUtils::isNotBlank)
+                .forEach(conditionKeys::add);
+        if (conditionKeys.isEmpty() && StringUtils.isNotBlank(condition.getSql())) {
+            return false;
+        }
+        return CollectionUtils.isNotEmpty(conditionKeys) && updateFieldNames.containsAll(conditionKeys);
     }
 
     private Map<String, Object> buildQueryOperatorCondition(QueryOperator queryOperator) {
