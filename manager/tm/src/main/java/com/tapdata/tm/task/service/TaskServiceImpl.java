@@ -3126,7 +3126,7 @@ public class TaskServiceImpl extends TaskService{
         if (CollectionUtils.isEmpty(availableProcessIds)) {
             throw new BizException(AGENT_NOT_FOUND);
         }
-        return availableProcessIds.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(availableProcessIds.size()));
+        return availableProcessIds.get(NumberUtil.getRandomNumber(availableProcessIds.size()));
     }
 
     @Override
