@@ -1,0 +1,707 @@
+<h2>⚙️ DuckDbSqlNode 全部 17 个参数 - 决策工作台</h2>
+<p class="subtitle">点击每个参数的「节点配置」或「全局配置」按钮来决定其归属位置</p>
+
+<div style="background: #e6f7ff; padding: 15px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #1890ff;">
+  <strong>📌 决策说明：</strong><br>
+  • <strong>节点配置</strong>：显示在画布节点的属性面板中（用户每次使用时配置）<br>
+  • <strong>全局配置</strong>：显示在任务/系统级别的全局设置中（管理员统一配置）<br>
+  • <strong>高级/隐藏</strong>：仅在专家模式下显示或自动推断（不需要用户手动配置）
+</div>
+
+<!-- ========== 第一组：基础核心参数 (3个) ========= -->
+<div class="section">
+  <h3 style="background: linear-gradient(90deg, #1890ff, #096dd9); color: white; padding: 12px 15px; border-radius: 6px; margin-bottom: 20px;">
+    📋 第一组：基础核心参数（必填）
+    <span style="float: right; font-size: 0.85em; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px;">3 个参数</span>
+  </h3>
+
+  <div class="cards">
+    <!-- 参数 1: querySql -->
+    <div class="card" data-choice="param-1-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#1 querySql <span style="background: #52c41a; color: white; font-size: 0.75em; padding: 3px 8px; border-radius: 10px; margin-left: 8px;">必填</span></h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> String<br>
+          <strong>默认值:</strong> "SELECT * FROM %s"<br>
+          <strong>@EqField:</strong> ✅ | @JsonProperty("sqlQuery")
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          DuckDB SQL 查询语句，用于从内存数据库中查询数据。支持标准 SQL 语法，可包含 JOIN、聚合、窗口函数等。
+        </p>
+        <div style="background: #fff7e6; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 0.85em;">
+          <strong>💡 示例：</strong><code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">SELECT o.*, c.name AS customer_name FROM orders o LEFT JOIN customers c ON o.customer_id = c.id</code>
+        </div>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-1', 'node')" 
+                  id="btn-param-1-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #1890ff; background: #1890ff; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-1', 'global')" 
+                  id="btn-param-1-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 2: outputTableName -->
+    <div class="card" data-choice="param-2-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#2 outputTableName <span style="background: #faad14; color: white; font-size: 0.75em; padding: 3px 8px; border-radius: 10px; margin-left: 8px;">推荐填写</span></h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> String<br>
+          <strong>默认值:</strong> "duckdb_output"<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          输出表的名称，作为 SQL 查询的目标表名。当有多个源表输入时，系统会为每个源创建独立的临时表。
+        </p>
+        <div style="background: #e6f7ff; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 0.85em;">
+          <strong>📝 说明：</strong>通常使用默认值即可，除非需要自定义输出表名以便在其他地方引用。
+        </div>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-2', 'node')" 
+                  id="btn-param-2-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #1890ff; background: #1890ff; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-2', 'global')" 
+                  id="btn-param-2-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 3: executeQueryOnFullSyncComplete -->
+    <div class="card" data-choice="param-3-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#3 executeQueryOnFullSyncComplete <span style="background: #1890ff; color: white; font-size: 0.75em; padding: 3px 8px; border-radius: 10px; margin-left: 8px;">时序控制</span></h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Boolean<br>
+          <strong>默认值:</strong> true<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          控制是否在全量同步完成后立即执行 SQL 查询并发射结果。<strong>true</strong>=快照模式，<strong>false</strong>=纯CDC模式。
+        </p>
+        <div style="background: #f6ffed; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 0.85em;">
+          <strong>✅ 推荐 true 时：</strong>批量ETL、全量+增量混合<br>
+          <strong>❌ 推荐 false 时：</strong>纯实时同步、配合物化视图使用
+        </div>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-3', 'node')" 
+                  id="btn-param-3-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #1890ff; background: #1890ff; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-3', 'global')" 
+                  id="btn-param-3-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 第二组：性能调优参数 (5个) ========= -->
+<div class="section">
+  <h3 style="background: linear-gradient(90deg, #fa8c16, #d46b08); color: white; padding: 12px 15px; border-radius: 6px; margin-bottom: 20px;">
+    ⚡ 第二组：性能调优参数（可选）
+    <span style="float: right; font-size: 0.85em; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px;">5 个参数</span>
+  </h3>
+
+  <div class="cards">
+    <!-- 参数 4: batchSize -->
+    <div class="card" data-choice="param-4-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#4 batchSize</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Integer<br>
+          <strong>默认值:</strong> 1000<br>
+          <strong>范围:</strong> 100 - 100000<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          批处理大小，决定每次写入 DuckDB 的记录数。影响内存占用和 I/O 效率。
+        </p>
+        <div style="background: #fff7e6; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 0.85em;">
+          <strong>⚙️ 调优建议：</strong><br>
+          • 小数据量（<10万行）：1000-5000<br>
+          • 中等数据量（10万-100万）：5000-10000<br>
+          • 大数据量（>100万）：10000-50000
+        </div>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-4', 'node')" 
+                  id="btn-param-4-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-4', 'global')" 
+                  id="btn-param-4-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #fa8c16; background: #fa8c16; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 5: memoryLimitMB -->
+    <div class="card" data-choice="param-5-global" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#5 memoryLimitMB</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Integer<br>
+          <strong>默认值:</strong> 1024 (1GB)<br>
+          <strong>范围:</strong> 128 - 65536<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          DuckDB 内存限制（MB），防止 OOM。超出限制时会触发溢出到磁盘。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-5', 'node')" 
+                  id="btn-param-5-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-5', 'global')" 
+                  id="btn-param-5-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #fa8c16; background: #fa8c16; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 6: queryTimeoutMs -->
+    <div class="card" data-choice="param-6-global" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#6 queryTimeoutMs</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Integer<br>
+          <strong>默认值:</strong> 5000 (5秒)<br>
+          <strong>范围:</strong> 1000 - 60000<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          SQL 查询超时时间（毫秒）。防止复杂查询长时间阻塞。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-6', 'node')" 
+                  id="btn-param-6-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-6', 'global')" 
+                  id="btn-param-6-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #fa8c16; background: #fa8c16; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 7: maxActiveSources -->
+    <div class="card" data-choice="param-7-global" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#7 maxActiveSources</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Integer<br>
+          <strong>默认值:</strong> 50<br>
+          <strong>范围:</strong> 1 - 200<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          最大活跃源数量上限。当超过此数值时，最久未使用的源上下文会被回收。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-7', 'node')" 
+                  id="btn-param-7-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-7', 'global')" 
+                  id="btn-param-7-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #fa8c16; background: #fa8c16; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 8: commitIntervalMs -->
+    <div class="card" data-choice="param-8-global" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#8 commitIntervalMs</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Integer<br>
+          <strong>默认值:</strong> 5000 (5秒)<br>
+          <strong>范围:</strong> 1000 - 30000<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          自动提交间隔（毫秒）。即使批次未满，也会按此间隔强制提交数据。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-8', 'node')" 
+                  id="btn-param-8-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-8', 'global')" 
+                  id="btn-param-8-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #fa8c16; background: #fa8c16; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 第三组：错误处理参数 (2个) ========= -->
+<div class="section">
+  <h3 style="background: linear-gradient(90deg, #ff4d4f, #cf1322); color: white; padding: 12px 15px; border-radius: 6px; margin-bottom: 20px;">
+    🛡️ 第三组：错误处理参数（系统级）
+    <span style="float: right; font-size: 0.85em; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px;">2 个参数</span>
+  </h3>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <!-- 参数 9: errorThresholdCount -->
+    <div class="card" data-choice="param-9-global" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#9 errorThresholdCount</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Integer<br>
+          <strong>默认值:</strong> 100<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          错误计数阈值。当累计错误数达到此值时触发告警或停止任务。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-9', 'node')" 
+                  id="btn-param-9-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-9', 'global')" 
+                  id="btn-param-9-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #ff4d4f; background: #ff4d4f; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 10: errorThresholdRate -->
+    <div class="card" data-choice="param-10-global" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#10 errorThresholdRate</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Double<br>
+          <strong>默认值:</strong> 0.01 (1%)<br>
+          <strong>范围:</strong> 0.001 - 0.5<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          错误率阈值。当错误数/总事件数达到此比率时触发告警。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-10', 'node')" 
+                  id="btn-param-10-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-10', 'global')" 
+                  id="btn-param-10-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #ff4d4f; background: #ff4d4f; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 第四组：DuckLake 持久化 (3个) ========= -->
+<div class="section">
+  <h3 style="background: linear-gradient(90deg, #52c41a, #389e0d); color: white; padding: 12px 15px; border-radius: 6px; margin-bottom: 20px;">
+    🗄️ 第四组：DuckLake 持久化存储（高级）
+    <span style="float: right; font-size: 0.85em; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px;">3 个参数</span>
+  </h3>
+
+  <div class="cards">
+    <!-- 参数 11: duckLakeEnabled -->
+    <div class="card" data-choice="param-11-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#11 duckLakeEnabled <span style="background: #722ed1; color: white; font-size: 0.75em; padding: 3px 8px; border-radius: 10px; margin-left: 8px;">开关</span></h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Boolean<br>
+          <strong>默认值:</strong> false<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          启用 DuckLake 持久化存储。开启后数据写入磁盘而非仅内存，支持断点续传。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-11', 'node')" 
+                  id="btn-param-11-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #52c41a; background: #52c41a; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-11', 'global')" 
+                  id="btn-param-11-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 12: duckLakeStorageType -->
+    <div class="card" data-choice="param-12-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#12 duckLakeStorageType</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> String<br>
+          <strong>默认值:</strong> "LOCAL"<br>
+          <strong>可选:</strong> LOCAL | S3 | GCS | AZURE<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          存储后端类型。LOCAL=本地文件系统，其他为云存储服务。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-12', 'node')" 
+                  id="btn-param-12-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #52c41a; background: #52c41a; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-12', 'global')" 
+                  id="btn-param-12-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 13: duckLakeStoragePath -->
+    <div class="card" data-choice="param-13-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#13 duckLakeStoragePath</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> String<br>
+          <strong>默认值:</strong> "/tmp/ducklake"<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          数据存储路径。本地模式为目录路径，云模式为 Bucket URI。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-13', 'node')" 
+                  id="btn-param-13-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #52c41a; background: #52c41a; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-13', 'global')" 
+                  id="btn-param-13-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 第五组：物化视图参数 (4个) ========= -->
+<div class="section">
+  <h3 style="background: linear-gradient(90deg, #722ed1, #531dab); color: white; padding: 12px 15px; border-radius: 6px; margin-bottom: 20px;">
+    📊 第五组：实时增量物化视图（专家模式）
+    <span style="float: right; font-size: 0.85em; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px;">4 个独立 + 2 个复合</span>
+  </h3>
+
+  <div class="cards">
+    <!-- 参数 14: wideTablePrimaryKey -->
+    <div class="card" data-choice="param-14-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8; border-left: 5px solid #722ed1;">
+      <div class="card-body">
+        <h4>#14 wideTablePrimaryKey <span style="background: #f5222d; color: white; font-size: 0.75em; padding: 3px 8px; border-radius: 10px; margin-left: 8px;">⭐ 必填</span></h4>
+        <div style="font-family: monospace; background: #f9f0ff; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> String<br>
+          <strong>默认值:</strong> null<br>
+          <strong>示例:</strong> "order_id", "user_id"<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          宽表主键字段名。用于 CDC 事件的 UPDATE/DELETE 匹配，是物化视图的核心标识。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-14', 'node')" 
+                  id="btn-param-14-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #722ed1; background: #722ed1; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-14', 'global')" 
+                  id="btn-param-14-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 15: outputChangelogEnabled -->
+    <div class="card" data-choice="param-15-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#15 outputChangelogEnabled</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> Boolean<br>
+          <strong>默认值:</strong> false<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          是否输出宽表 CDC 变更日志。true=持续输出 INSERT/UPDATE/DELETE 事件。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-15', 'node')" 
+                  id="btn-param-15-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #722ed1; background: #722ed1; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-15', 'global')" 
+                  id="btn-param-15-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 16: mainTableName & mainTablePrimaryKey -->
+    <div class="card" data-choice="param-16-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#16 mainTableName + mainTablePrimaryKey</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> String + String<br>
+          <strong>默认值:</strong> null + null<br>
+          <strong>示例:</strong> "orders" + "id"<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          主表配置。定义 JOIN 操作的核心表及其主键，影响 CDC 事件优先级。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-16', 'node')" 
+                  id="btn-param-16-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #722ed1; background: #722ed1; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-16', 'global')" 
+                  id="btn-param-16-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 参数 17: fromTables & customJoinQueries -->
+    <div class="card" data-choice="param-17-node" onclick="toggleSelect(this)" style="border: 2px solid #e8e8e8;">
+      <div class="card-body">
+        <h4>#17 fromTables (List) + customJoinQueries (Map)</h4>
+        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.88em;">
+          <strong>类型:</strong> List&lt;FromTableConfig&gt; + Map&lt;String,String&gt;<br>
+          <strong>默认值:</strong> [] + {}<br>
+          <strong>@EqField:</strong> ✅
+        </div>
+        <p><strong>功能描述：</strong></p>
+        <p style="font-size: 0.92em; line-height: 1.6; color: #595959;">
+          从表列表和自定义 JOIN 查询模板。支持多表关联和复杂的 SQL 定制。
+        </p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <button onclick="event.stopPropagation(); selectParam('param-17', 'node')" 
+                  id="btn-param-17-node"
+                  style="flex: 1; padding: 8px; border: 2px solid #722ed1; background: #722ed1; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+            ✅ 节点配置
+          </button>
+          <button onclick="event.stopPropagation(); selectParam('param-17', 'global')" 
+                  id="btn-param-17-global"
+                  style="flex: 1; padding: 8px; border: 2px solid #d9d9d9; background: white; color: #595959; border-radius: 6px; cursor: pointer;">
+            ⚙️ 全局配置
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 决策汇总区域 ========= -->
+<div class="section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; margin-top: 40px;">
+  <h2 style="color: white; margin-top: 0; text-align: center; font-size: 1.8em;">📊 您的决策汇总</h2>
+  
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 25px;">
+    <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 10px;">
+      <h3 style="color: #91d5ff; margin-top: 0; font-size: 1.3em;">✅ 放在【节点配置】上</h3>
+      <div id="summary-node" style="margin-top: 15px; font-size: 0.95em; line-height: 1.8;">
+        <p style="opacity: 0.8; font-style: italic;">（点击上方参数卡片进行选择...）</p>
+      </div>
+    </div>
+    
+    <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 10px;">
+      <h3 style="color: #ffd591; margin-top: 0; font-size: 1.3em;">⚙️ 放在【全局配置】中</h3>
+      <div id="summary-global" style="margin-top: 15px; font-size: 0.95em; line-height: 1.8;">
+        <p style="opacity: 0.8; font-style: italic;">（点击上方参数卡片进行选择...）</p>
+      </div>
+    </div>
+  </div>
+  
+  <div style="text-align: center; margin-top: 25px;">
+    <p style="font-size: 1.1em; opacity: 0.9;">
+      已完成决策：<strong id="decision-count">0</strong> / 17 个参数
+    </p>
+    <button onclick="confirmDecisions()" 
+            style="margin-top: 15px; padding: 12px 40px; font-size: 1.1em; background: white; color: #667eea; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+      ✅ 确认决策并继续
+    </button>
+  </div>
+</div>
+
+<script>
+// 参数决策状态管理
+const paramDecisions = {};
+
+function selectParam(paramId, location) {
+  paramDecisions[paramId] = location;
+  
+  // 更新按钮样式
+  const btnNode = document.getElementById(`btn-${paramId}-node`);
+  const btnGlobal = document.getElementById(`btn-${paramId}-global`);
+  
+  if (location === 'node') {
+    btnNode.style.background = '#1890ff';
+    btnNode.style.color = 'white';
+    btnNode.style.borderColor = '#1890ff';
+    btnNode.style.fontWeight = 'bold';
+    
+    btnGlobal.style.background = 'white';
+    btnGlobal.style.color = '#595959';
+    btnGlobal.style.borderColor = '#d9d9d9';
+    btnGlobal.style.fontWeight = 'normal';
+  } else {
+    btnGlobal.style.background = '#fa8c16';
+    btnGlobal.style.color = 'white';
+    btnGlobal.style.borderColor = '#fa8c16';
+    btnGlobal.style.fontWeight = 'bold';
+    
+    btnNode.style.background = 'white';
+    btnNode.style.color = '#595959';
+    btnNode.style.borderColor = '#d9d9d9';
+    btnNode.style.fontWeight = 'normal';
+  }
+  
+  updateSummary();
+}
+
+function updateSummary() {
+  const nodeParams = [];
+  const globalParams = [];
+  
+  const paramNames = {
+    'param-1': 'querySql',
+    'param-2': 'outputTableName',
+    'param-3': 'executeQueryOnFullSyncComplete',
+    'param-4': 'batchSize',
+    'param-5': 'memoryLimitMB',
+    'param-6': 'queryTimeoutMs',
+    'param-7': 'maxActiveSources',
+    'param-8': 'commitIntervalMs',
+    'param-9': 'errorThresholdCount',
+    'param-10': 'errorThresholdRate',
+    'param-11': 'duckLakeEnabled',
+    'param-12': 'duckLakeStorageType',
+    'param-13': 'duckLakeStoragePath',
+    'param-14': 'wideTablePrimaryKey',
+    'param-15': 'outputChangelogEnabled',
+    'param-16': 'mainTableName/mainTablePrimaryKey',
+    'param-17': 'fromTables/customJoinQueries'
+  };
+  
+  for (const [id, location] of Object.entries(paramDecisions)) {
+    const name = paramNames[id] || id;
+    if (location === 'node') {
+      nodeParams.push(name);
+    } else {
+      globalParams.push(name);
+    }
+  }
+  
+  // 更新节点配置列表
+  const summaryNode = document.getElementById('summary-node');
+  if (nodeParams.length > 0) {
+    summaryNode.innerHTML = '<ol style="margin: 0; padding-left: 20px;">' + 
+      nodeParams.map(p => `<li><code>${p}</code></li>`).join('') + '</ol>';
+  } else {
+    summaryNode.innerHTML = '<p style="opacity: 0.8; font-style: italic;">（暂无）</p>';
+  }
+  
+  // 更新全局配置列表
+  const summaryGlobal = document.getElementById('summary-global');
+  if (globalParams.length > 0) {
+    summaryGlobal.innerHTML = '<ol style="margin: 0; padding-left: 20px;">' + 
+      globalParams.map(p => `<li><code>${p}</code></li>`).join('') + '</ol>';
+  } else {
+    summaryGlobal.innerHTML = '<p style="opacity: 0.8; font-style: italic;">（暂无）</p>';
+  }
+  
+  // 更新计数
+  document.getElementById('decision-count').textContent = Object.keys(paramDecisions).length;
+}
+
+function confirmDecisions() {
+  if (Object.keys(paramDecisions).length < 17) {
+    alert(`您还有 ${17 - Object.keys(paramDecisions).length} 个参数未决策！\n\n请完成所有参数的选择后再确认。`);
+    return;
+  }
+  
+  alert(`✅ 决策完成！\n\n节点配置：${Object.values(paramDecisions).filter(v => v === 'node').length} 个参数\n全局配置：${Object.values(paramDecisions).filter(v => v === 'global').length} 个参数\n\n请在终端中告诉我您的最终决定，我将据此设计 UI 方案！`);
+}
+</script>

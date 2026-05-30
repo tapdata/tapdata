@@ -9,11 +9,8 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Advanced smart merger implementing full merge_events_smart (M3) from ADR D4.
@@ -29,7 +26,6 @@ import java.util.stream.Collectors;
  */
 public class SmartMerger {
 
-    private static final Logger logger = LoggerFactory.getLogger(SmartMerger.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final List<String> PK_CANDIDATES = Arrays.asList("_id", "id", "pk", "PK", "ID");
     private static final String INSERT_OP = "INSERT";
@@ -91,7 +87,6 @@ public class SmartMerger {
             }
         }
 
-        normalizeDeleteInsertToUpdate(mergedRecords);
         return new ArrayList<>(mergedRecords.values());
     }
 
@@ -325,22 +320,6 @@ public class SmartMerger {
 
         return new ArrayList<>(lastByKey.values());
     }
-
-
-
-    /**
-     * 将 DELETE_INSERT 且主键未变化的记录回退成 UPDATE。
-     */
-    private static void normalizeDeleteInsertToUpdate(Map<Object, MergedRecord> mergedRecords) {
-        for (MergedRecord record : mergedRecords.values()) {
-            if (DELETE_INSERT_OP.equals(record.getFinalOp()) &&
-                Objects.equals(record.getInitialPk(), record.getCurrentPk())) {
-                record.setFinalOp(UPDATE_OP);
-            }
-        }
-    }
-
-
 
 
 }

@@ -1,0 +1,156 @@
+<h2>🎯 HazelcastDuckDbSqlNode UI 集成 - 当前架构分析</h2>
+<p class="subtitle">效仿 HazelcastMergeNode（主从合并节点）的数据链路，分析还需要什么</p>
+
+<div class="section">
+  <h3>📊 已完成的后端组件（Engine 层）</h3>
+  <div class="mockup">
+    <div class="mockup-header">✅ iengine/iengine-app 模块</div>
+    <div class="mockup-body" style="padding: 20px;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+        <div class="card" style="border-left: 4px solid #52c41a;">
+          <div class="card-body">
+            <h4>HazelcastDuckDbSqlNode.java</h4>
+            <p><strong>位置:</strong> node/hazelcast/processor/</p>
+            <p><strong>代码量:</strong> ~1404 行</p>
+            <p><strong>功能:</strong></p>
+            <ul style="font-size: 0.9em; margin: 5px 0;">
+              <li>✅ doInit() - 初始化配置</li>
+              <li>✅ tryProcess() - 事件处理</li>
+              <li>✅ flushContext() - 批量写入</li>
+              <li>✅ Arrow 零拷贝写入</li>
+              <li>✅ 实时增量物化视图</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="card" style="border-left: 4px solid #1890ff;">
+          <div class="card-body">
+            <h4>DuckDbSqlNode.java (配置类)</h4>
+            <p><strong>位置:</strong> manager/tm-common/dag/process/</p>
+            <p><strong>注解:</strong> @NodeType("duckdb_sql")</p>
+            <p><strong>配置属性:</strong></p>
+            <ul style="font-size: 0.9em; margin: 5px 0;">
+              <li>✅ querySql - SQL 查询</li>
+              <li>✅ outputTableName - 输出表名</li>
+              <li>✅ batchSize - 批大小</li>
+              <li>✅ duckLakeEnabled - DuckLake 开关</li>
+              <li>✅ wideTablePrimaryKey - 宽表主键</li>
+              <li>... 共 17 个属性</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🎨 已完成的前端组件（UI 层）</h3>
+  <div class="mockup">
+    <div class="mockup-header">✅ tapdata-web/packages/dag 模块</div>
+    <div class="mockup-body" style="padding: 20px;">
+      <div class="card" style="border-left: 4px solid #722ed1;">
+        <div class="card-body">
+          <h4>DuckDbSql.js (节点定义)</h4>
+          <p><strong>位置:</strong> packages/dag/src/nodes/</p>
+          <p><strong>继承:</strong> NodeType 基类</p>
+          <p><strong>关键配置:</strong></p>
+          <ul style="font-size: 0.9em; margin: 5px 0;">
+            <li>✅ type = 'duckdb_sql'</li>
+            <li>✅ maxInputs = 1, maxOutputs = 1</li>
+            <li>✅ group = 'processor'</li>
+            <li>✅ formSchema - 表单定义</li>
+            <li>✅ DuckDbSqlNodeConfig 组件</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🔗 参考实现：HazelcastMergeNode（主从合并）数据链路</h3>
+  <div class="mockup">
+    <div class="mockup-header">📚 MergeTable 节点完整链路（作为参考模板）</div>
+    <div class="mockup-body" style="padding: 20px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin: 10px 0;">
+        <div class="card" style="flex: 1; margin: 0 10px; border-left: 4px solid #fa8c16;">
+          <div class="card-body">
+            <h4>前端 UI</h4>
+            <p><code>MergeTable.js</code></p>
+            <p style="font-size: 0.85em;">formSchema + MergeTableTree 组件</p>
+          </div>
+        </div>
+        <div style="font-size: 24px;">→</div>
+        <div class="card" style="flex: 1; margin: 0 10px; border-left: 4px solid #13c2c2;">
+          <div class="card-body">
+            <h4>配置层</h4>
+            <p><code>MergeTableNode.java</code></p>
+            <p style="font-size: 0.85em;">@NodeType + @EqField 属性</p>
+          </div>
+        </div>
+        <div style="font-size: 24px;">→</div>
+        <div class="card" style="flex: 1; margin: 0 10px; border-left: 4px solid #eb2f96;">
+          <div class="card-body">
+            <h4>引擎层</h4>
+            <p><code>HazelcastMergeNode.java</code></p>
+            <p style="font-size: 0.85em;">doInit → tryProcess → flushContext</p>
+          </div>
+        </div>
+      </div>
+      
+      <div style="background: #f6ffed; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #b7eb8f;">
+        <strong>✅ MergeTable 节点已完全集成：</strong>
+        <ul style="margin: 10px 0 0 20px; font-size: 0.9em;">
+          <li>前端：复杂树形配置界面（MergeTableTree）</li>
+          <li>配置：mergeProperties, mergeMode 等字段</li>
+          <li>后端：2700+ 行完整实现（缓存、反查、关联更新）</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>❓ DuckDB SQL 节点现状对比</h3>
+  
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header" style="background: #f6ffed;">✅ 已完成</div>
+      <div class="mockup-body" style="padding: 15px;">
+        <ul style="margin: 0; font-size: 0.9em;">
+          <li>✅ 后端处理器（1404行）</li>
+          <li>✅ 配置类定义（17个属性）</li>
+          <li>✅ 前端节点注册（DuckDbSql.js）</li>
+          <li>✅ 基础表单 Schema</li>
+          <li>✅ DuckDbSqlNodeConfig 组件</li>
+          <li>✅ 自动加载机制（loader/index.js）</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="mockup">
+      <div class="mockup-header" style="background: #fff7e6;">⚠️ 待确认/增强</div>
+      <div class="mockup-body" style="padding: 15px;">
+        <ul style="margin: 0; font-size: 0.9em; color: #d46b08;">
+          <li>❓ UI 配置项是否完整？</li>
+          <li>❓ 高级设置是否需要？</li>
+          <li>❓ 物化视图配置 UI？</li>
+          <li>❓ Schema 预览面板？</li>
+          <li>❓ 测试覆盖是否充分？</li>
+          <li>❓ 文档是否完善？</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="background: #e6f7ff; padding: 20px; border-radius: 8px; border: 1px solid #91d5ff;">
+  <h3 style="margin-top: 0;">💡 下一步行动建议</h3>
+  <p>基于对 HazelcastMergeNode 的分析，HazelcastDuckDbSqlNode 已经具备了完整的<strong>三层架构</strong>（前端→配置→引擎），但需要确认：</p>
+  <ol style="margin: 10px 0 0 20px;">
+    <li><strong>UI 功能完整性</strong> - 是否所有 17 个配置属性都有对应的表单控件？</li>
+    <li><strong>高级功能支持</strong> - 物化视图、DuckLake 等高级功能的 UI 配置是否存在？</li>
+    <li><strong>测试与文档</strong> - 集成测试、用户手册、API 文档是否齐全？</li>
+  </ol>
+</div>

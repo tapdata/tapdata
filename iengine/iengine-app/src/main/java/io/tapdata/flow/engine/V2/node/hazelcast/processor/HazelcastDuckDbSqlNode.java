@@ -846,17 +846,23 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private void processCdcStage(PerSourceContext context, List<TapdataEvent> eventsToFlush)
         throws SQLException, java.io.IOException {
 
-        // 步骤1: 使用 SmartMerger 合并事件（第二步、第三步、第四步都用）
-        List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsToFlush);
-        if (mergedRecords.isEmpty()) {
+        if (eventsToFlush == null || eventsToFlush.isEmpty()) {
+            logger.debug("processCdcStage: eventsToFlush is empty, returning");
             return;
         }
+
+        logger.debug("processCdcStage: starting with {} events", eventsToFlush.size());
+
+        // 步骤1: 使用 SmartMerger 合并事件（第二步、第三步、第四步都用）
+        List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsToFlush);
+        logger.debug("processCdcStage: mergedRecords size = {}", mergedRecords.size());
 
         // 步骤3: 确保表存在
         ensureTableExists(context, eventsToFlush);
 
         // 获取 DuckDbOperator
         DuckDbOperator operator = getOperatorForContext(context);
+        logger.debug("processCdcStage: operator = {}", operator);
 
         // 步骤2: 计算 beforeKeys（数据写入 DuckDB 之前）
         Set<Object> beforeKeys = null;
@@ -865,6 +871,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
 
         // 步骤4-6: DuckDB 事务开启，写入数据
+        logger.debug("processCdcStage: calling executeInTransaction");
         operator.executeInTransaction(() -> {
             // 步骤5: Before 的所有数据全部执行 delete 操作
             deleteBeforeData(operator, context.getTargetTableName(), mergedRecords);
@@ -872,6 +879,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             // 步骤6: After 的数据执行 Arrow 批量写入
             writeAfterData(operator, context.getTargetTableName(), mergedRecords);
         });
+        logger.debug("processCdcStage: executeInTransaction completed");
 
         // 步骤7: 计算 afterKeys（数据写入 DuckDB 之后、宽表更新之前）
         Set<Object> afterKeys = null;
@@ -1137,7 +1145,11 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * 如果Context中没有TapTable，则从 TapdataEvent 数据中推断 TapTable 结构
      */
     private TapTable inferTapTable(List<TapdataEvent> events, String tableName) {
-        TapTable tapTable = processorBaseContext.getTapTableMap().get(tableName);
+        var tapTableMap = processorBaseContext.getTapTableMap();
+        TapTable tapTable = null;
+        if (tapTableMap != null) {
+            tapTable = tapTableMap.get(tableName);
+        }
 
         if (tapTable != null) {
             return tapTable;
