@@ -859,7 +859,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         DuckDbOperator operator = getOperatorForContext(context);
 
         // 步骤2: 计算 beforeKeys（数据写入 DuckDB 之前）
-        Set<Object> beforeKeys = calculateBeforeKeys(eventsToFlush, context.getKey());
+        Set<Object> beforeKeys = null;
+        if (affectedKeyCalculator != null && !mergedRecords.isEmpty()) {
+            beforeKeys = affectedKeyCalculator.calculateAffectedBeforeKeys(mergedRecords, context.getKey());
+        }
 
         // 步骤4-6: DuckDB 事务开启，写入数据
         operator.executeInTransaction(() -> {
@@ -871,7 +874,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         });
 
         // 步骤7: 计算 afterKeys（数据写入 DuckDB 之后、宽表更新之前）
-        Set<Object> afterKeys = calculateAfterKeys(eventsToFlush);
+        Set<Object> afterKeys = null;
+        if (affectedKeyCalculator != null && !mergedRecords.isEmpty()) {
+            afterKeys = affectedKeyCalculator.calculateAffectedAfterKeys(mergedRecords);
+        }
 
         // 步骤8: 更新宽表（可选）
         updateWideTable(beforeKeys, afterKeys, eventsToFlush);
@@ -952,6 +958,22 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             .map(SmartMerger.MergedRecord::getInitialPk)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
+    }
+
+    private List<SmartMerger.MergedRecord> extractMergedRecordsFromEvents(
+            List<?> mergedEvents) {
+        if (mergedEvents == null || mergedEvents.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<SmartMerger.MergedRecord> mergedRecords = new ArrayList<>();
+        for (Object event : mergedEvents) {
+            // Java versions in this project may not support pattern matching; use classic instanceof+cast
+            if (event instanceof SmartMerger.MergedRecord) {
+                mergedRecords.add((SmartMerger.MergedRecord) event);
+            }
+        }
+        return mergedRecords;
     }
 
     /**
@@ -1209,6 +1231,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         return new TapDate();
     }
 
+    /**
+     * 解析数据来源 ID
+     * 优先级：associateId > fromNodeId > DEFAULT_SOURCE_ID
+     */
     private String resolveSourceId(TapdataEvent tapdataEvent, TapEvent tapEvent) {
         if (tapEvent instanceof TapBaseEvent baseEvent) {
             String associateId = baseEvent.getAssociateId();
@@ -1220,6 +1246,11 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         return (fromNodeId != null && !fromNodeId.isBlank()) ? fromNodeId : DEFAULT_SOURCE_ID;
     }
 
+    /**
+     * 构建上下文键（用于内存缓存）
+     * 格式：sourceId:tableId
+     * 例："node_mysql_1__users"
+     */
     private String buildContextKey(String sourceId, String tableId) {
         return sourceId + ":" + tableId;
     }
