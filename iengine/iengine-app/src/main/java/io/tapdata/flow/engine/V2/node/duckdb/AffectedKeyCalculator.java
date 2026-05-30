@@ -433,18 +433,6 @@ public class AffectedKeyCalculator {
                 // DELETE 操作不在这里处理
             }
             
-            // 如果最后一个操作是 DELETE，需要添加 finalState 作为 before 数据
-            if (opCount > 0) {
-                TapdataEvent lastEvent = operations.get(opCount - 1);
-                TapEvent lastEventInner = lastEvent.getTapEvent();
-                
-                if (lastEventInner instanceof TapDeleteRecordEvent) {
-                    Map<String, Object> beforeRow = new HashMap<>(record.getFinalState());
-                    if (!beforeRow.isEmpty()) {
-                        beforeRows.add(beforeRow);
-                    }
-                }
-            }
         }
         
         return beforeRows;
@@ -839,5 +827,135 @@ public class AffectedKeyCalculator {
         
         return beforePk.isPresent() && afterPk.isPresent() 
                 && !Objects.equals(beforePk.get(), afterPk.get());
+    }
+
+    /**
+     * Overloaded: Calculate affected before keys from merged records
+     */
+    public Set<Object> calculateAffectedBeforeKeys(Iterable<SmartMerger.MergedRecord> mergedRecords,
+                                                   String sourceTableName) throws SQLException {
+        if (mergedRecords == null) {
+            return Collections.emptySet();
+        }
+
+        // materialize iterable to list for multiple passes
+        List<SmartMerger.MergedRecord> mergedList = new ArrayList<>();
+        for (SmartMerger.MergedRecord r : mergedRecords) mergedList.add(r);
+        if (mergedList.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        Map<String, List<SmartMerger.MergedRecord>> recordsByTable = new LinkedHashMap<>();
+        if (sourceTableName != null) {
+            recordsByTable.put(sourceTableName, mergedList);
+        } else {
+            for (SmartMerger.MergedRecord record : mergedList) {
+                String tableName = resolveTableName(record);
+                if (tableName != null) {
+                    recordsByTable.computeIfAbsent(tableName, k -> new ArrayList<>()).add(record);
+                }
+            }
+        }
+
+        Set<Object> affectedBeforeKeys = new LinkedHashSet<>();
+        for (Map.Entry<String, List<SmartMerger.MergedRecord>> entry : recordsByTable.entrySet()) {
+            String tableName = entry.getKey();
+            List<SmartMerger.MergedRecord> recordList = entry.getValue();
+            if (recordList == null || recordList.isEmpty()) {
+                continue;
+            }
+
+            List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(recordList, tableName);
+            beforeRows.addAll(extractDeleteBeforeRowsFromMergedRecords(recordList, tableName));
+            if (beforeRows.isEmpty()) {
+                continue;
+            }
+
+            List<String> fields = getTableFields(tableName);
+            affectedBeforeKeys.addAll(queryWideTablePksWithCte(tableName, beforeRows, fields));
+        }
+
+        return affectedBeforeKeys;
+    }
+
+    /**
+     * Overloaded: Calculate affected after keys from merged records
+     */
+    public Set<Object> calculateAffectedAfterKeys(Iterable<SmartMerger.MergedRecord> mergedRecords)
+            throws SQLException {
+        if (mergedRecords == null) {
+            return Collections.emptySet();
+        }
+
+        List<SmartMerger.MergedRecord> mergedList = new ArrayList<>();
+        for (SmartMerger.MergedRecord r : mergedRecords) mergedList.add(r);
+        if (mergedList.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        Map<String, List<SmartMerger.MergedRecord>> recordsByTable = groupMergedRecordsByTable(mergedList);
+        Set<Object> affectedAfterKeys = new LinkedHashSet<>();
+
+        for (Map.Entry<String, List<SmartMerger.MergedRecord>> entry : recordsByTable.entrySet()) {
+            String tableName = entry.getKey();
+            List<SmartMerger.MergedRecord> recordList = entry.getValue();
+            if (recordList == null || recordList.isEmpty()) {
+                continue;
+            }
+
+            List<Map<String, Object>> afterRows = extractAfterDataRowsFromEvents(recordList);
+            if (afterRows.isEmpty()) {
+                continue;
+            }
+
+            List<String> fields = getTableFields(tableName);
+            affectedAfterKeys.addAll(queryWideTablePksWithCte(tableName, afterRows, fields));
+        }
+
+        return affectedAfterKeys;
+    }
+
+    private Map<String, List<SmartMerger.MergedRecord>> groupMergedRecordsByTable(
+            Iterable<SmartMerger.MergedRecord> mergedRecords) {
+        Map<String, List<SmartMerger.MergedRecord>> recordsByTable = new LinkedHashMap<>();
+        for (SmartMerger.MergedRecord record : mergedRecords) {
+            String tableName = resolveTableName(record);
+            if (tableName != null) {
+                recordsByTable.computeIfAbsent(tableName, k -> new ArrayList<>()).add(record);
+            }
+        }
+        return recordsByTable;
+    }
+
+    private String resolveTableName(SmartMerger.MergedRecord record) {
+        for (TapdataEvent tapEvent : record.getOperations()) {
+            TapEvent tapEventInner = tapEvent.getTapEvent();
+            if (tapEventInner instanceof TapRecordEvent recordEvent) {
+                return TapEventUtil.getTableId(recordEvent);
+            }
+        }
+        logger.warn("MergedRecord without TapRecordEvent, skipping for table grouping");
+        return null;
+    }
+
+    private List<Map<String, Object>> extractDeleteBeforeRowsFromMergedRecords(
+            Iterable<SmartMerger.MergedRecord> mergedRecords, String tableName) {
+        List<Map<String, Object>> deleteBeforeRows = new ArrayList<>();
+        for (SmartMerger.MergedRecord record : mergedRecords) {
+            for (TapdataEvent tapEvent : record.getOperations()) {
+                TapEvent tapEventInner = tapEvent.getTapEvent();
+                if (tapEventInner instanceof TapDeleteRecordEvent deleteEvent) {
+                    String eventTableName = TapEventUtil.getTableId(deleteEvent);
+                    if (tableName == null || (eventTableName != null
+                            && tableName.equalsIgnoreCase(eventTableName))) {
+                        Map<String, Object> before = TapEventUtil.getBefore(deleteEvent);
+                        if (before != null && !before.isEmpty()) {
+                            deleteBeforeRows.add(new HashMap<>(before));
+                        }
+                    }
+                }
+            }
+        }
+        return deleteBeforeRows;
     }
 }
