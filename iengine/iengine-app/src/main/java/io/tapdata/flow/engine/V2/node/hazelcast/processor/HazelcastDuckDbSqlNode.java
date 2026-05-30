@@ -717,7 +717,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             PerSourceContext context = getOrCreateContext(contextKey, targetTableName);
 
-            if (context.hasSchema()) {
+            if (logger.isTraceEnabled() && context.hasSchema()) {
                 NodeSchemaInfo ctxSchema = context.getSchema();
                 
                 Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
