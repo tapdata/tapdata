@@ -525,8 +525,8 @@ public class HazelcastDuckDbSqlNodeIntegrationTest {
 
             // 配置 FromTableConfig
             FromTableConfig usersFromTable = new FromTableConfig();
-            usersFromTable.setTableName("users");
-            usersFromTable.setPrimaryKey("id");
+            usersFromTable.setPreNodeId("users");
+            usersFromTable.setTableNameInSql("id");
 
             // 自定义 JOIN 查询配置
             Map<String, String> customJoinQueries = new HashMap<>();

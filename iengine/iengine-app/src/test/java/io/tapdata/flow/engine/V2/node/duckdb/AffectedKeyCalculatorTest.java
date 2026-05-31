@@ -24,8 +24,8 @@ class AffectedKeyCalculatorTest {
 
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -170,13 +170,13 @@ class AffectedKeyCalculatorTest {
         List<FromTableConfig> multiFromTables = new ArrayList<>();
 
         FromTableConfig orders = new FromTableConfig();
-        orders.setTableName("orders");
-        orders.setPrimaryKey("order_id");
+        orders.setPreNodeId("orders");
+        orders.setTableNameInSql("order_id");
         multiFromTables.add(orders);
 
         FromTableConfig payments = new FromTableConfig();
-        payments.setTableName("payments");
-        payments.setPrimaryKey("payment_id");
+        payments.setPreNodeId("payments");
+        payments.setTableNameInSql("payment_id");
         multiFromTables.add(payments);
 
         Map<String, String> multiQueries = new HashMap<>();
@@ -290,8 +290,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_NullCustomQueries() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         AffectedKeyCalculator calculator = new AffectedKeyCalculator(
@@ -347,8 +347,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_NonPrimaryKeyJoin() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("user_profiles");
-        fromTable.setPrimaryKey("profile_id");
+        fromTable.setPreNodeId("user_profiles");
+        fromTable.setTableNameInSql("profile_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -387,13 +387,13 @@ class AffectedKeyCalculatorTest {
         List<FromTableConfig> fromTables = new ArrayList<>();
 
         FromTableConfig ordersTable = new FromTableConfig();
-        ordersTable.setTableName("orders");
-        ordersTable.setPrimaryKey("order_id");
+        ordersTable.setPreNodeId("orders");
+        ordersTable.setTableNameInSql("order_id");
         fromTables.add(ordersTable);
 
         FromTableConfig itemsTable = new FromTableConfig();
-        itemsTable.setTableName("order_items");
-        itemsTable.setPrimaryKey("item_id");
+        itemsTable.setPreNodeId("order_items");
+        itemsTable.setTableNameInSql("item_id");
         fromTables.add(itemsTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -432,8 +432,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_MixedPrimaryKeyTypes() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -491,8 +491,8 @@ class AffectedKeyCalculatorTest {
     private void testBatchBoundary(int eventCount) throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -542,8 +542,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_NullAndEmptyValues() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -591,8 +591,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_SqlSpecialCharacters() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -629,8 +629,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_CaseInsensitiveTableName() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders"); // lowercase
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders"); // lowercase
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -678,8 +678,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_DuplicateJoinResults() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -721,8 +721,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_PartialNullResults() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -769,8 +769,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_MultipleJoinKeys_SingleQuery() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         // Single query with multiple join conditions (user_id OR customer_id)
@@ -813,8 +813,8 @@ class AffectedKeyCalculatorTest {
     void testCalculateAffectedKeys_MultipleJoinKeys_DifferentConfigs() throws SQLException {
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         // First config: join by user_id
@@ -895,8 +895,8 @@ class AffectedKeyCalculatorTest {
         // ABA-1: 连续重复 + 增改删
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -948,8 +948,8 @@ class AffectedKeyCalculatorTest {
         // ABA-2: 间隔重复 + 增删改
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1001,8 +1001,8 @@ class AffectedKeyCalculatorTest {
         // Create > 1000 events to trigger batching
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1047,8 +1047,8 @@ class AffectedKeyCalculatorTest {
         // ABA-4: 顺序倒序重复
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1100,8 +1100,8 @@ class AffectedKeyCalculatorTest {
         // ABA-5: 增-删-增
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1141,8 +1141,8 @@ class AffectedKeyCalculatorTest {
         // ABA-6: 增-改-删
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1182,8 +1182,8 @@ class AffectedKeyCalculatorTest {
         // ABA-7: 改-删-改
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1223,8 +1223,8 @@ class AffectedKeyCalculatorTest {
         // ABA-8: 删-增-删
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1264,8 +1264,8 @@ class AffectedKeyCalculatorTest {
         // ABA-9: 增-改-改-删
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1306,8 +1306,8 @@ class AffectedKeyCalculatorTest {
         // ABA-10: Join key 不变，主键重复
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1352,8 +1352,8 @@ class AffectedKeyCalculatorTest {
         // ABA-11: Join key 变化，关联不同主键
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1402,8 +1402,8 @@ class AffectedKeyCalculatorTest {
         // ABA-12: Join key 从有到无再到有
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1454,8 +1454,8 @@ class AffectedKeyCalculatorTest {
         // ABA-13: Join key 交替变化
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1500,8 +1500,8 @@ class AffectedKeyCalculatorTest {
         // ABA-14: 3维度综合场景1
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();
@@ -1553,8 +1553,8 @@ class AffectedKeyCalculatorTest {
         // ABA-15: 3维度综合场景2
         List<FromTableConfig> fromTables = new ArrayList<>();
         FromTableConfig fromTable = new FromTableConfig();
-        fromTable.setTableName("orders");
-        fromTable.setPrimaryKey("order_id");
+        fromTable.setPreNodeId("orders");
+        fromTable.setTableNameInSql("order_id");
         fromTables.add(fromTable);
 
         Map<String, String> customJoinQueries = new HashMap<>();

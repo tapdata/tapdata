@@ -891,4 +891,133 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         writeBatch(dataList, tableName);
         return dataList.size();
     }
+
+    // ==================== Table Lifecycle Management Implementation ====================
+
+    @Override
+    public void ensureTableExists(String tableName, List<TapField> fields, 
+                                 List<String> primaryKeys, boolean recreate) throws SQLException {
+        Objects.requireNonNull(tableName, "tableName must not be null");
+        Objects.requireNonNull(fields, "fields must not be null");
+        Objects.requireNonNull(primaryKeys, "primaryKeys must not be null");
+        
+        String safeTableName = sanitizeIdentifier(tableName);
+        
+        if (recreate) {
+            logger.info("Recreating table: {}", safeTableName);
+            
+            String dropSql = "DROP TABLE IF EXISTS " + safeTableName;
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute(dropSql);
+            }
+            
+            String createSql = buildCreateTableSql(safeTableName, fields, primaryKeys);
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute(createSql);
+            }
+            
+            logger.debug("Successfully recreated table: {}", safeTableName);
+        } else {
+            if (tableExists(safeTableName)) {
+                logger.debug("Table already exists: {}, skipping creation", safeTableName);
+                return;
+            }
+            
+            logger.info("Creating new table: {}", safeTableName);
+            
+            String createSql = buildCreateTableSql(safeTableName, fields, primaryKeys);
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute(createSql);
+            }
+            
+            logger.debug("Successfully created table: {}", safeTableName);
+        }
+    }
+
+    public static String buildCreateTableSql(String tableName, List<TapField> fields, 
+                                            List<String> primaryKeys) {
+        Objects.requireNonNull(tableName, "tableName must not be null");
+        Objects.requireNonNull(fields, "fields must not be null");
+        
+        String safeTableName = sanitizeIdentifier(tableName);
+        
+        StringBuilder sql = new StringBuilder();
+        sql.append("CREATE TABLE ").append(safeTableName).append(" (\n");
+        
+        List<String> columnDefs = new ArrayList<>();
+        for (TapField field : fields) {
+            if (field == null || field.getName() == null) {
+                continue;
+            }
+            
+            String colName = sanitizeIdentifier(field.getName());
+            String colType = mapToDuckDbType(field.getTapType());
+            
+            StringBuilder def = new StringBuilder()
+                .append("  ").append(colName).append(" ").append(colType);
+            
+            if (primaryKeys != null && primaryKeys.contains(field.getName())) {
+                def.append(" PRIMARY KEY NOT NULL");
+            }
+            
+            columnDefs.add(def.toString());
+        }
+        
+        if (columnDefs.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Cannot create table '" + safeTableName + "' with no valid columns");
+        }
+        
+        sql.append(String.join(",\n", columnDefs));
+        sql.append("\n)");
+        
+        return sql.toString();
+    }
+
+    public static String sanitizeIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            throw new IllegalArgumentException(
+                "Cannot sanitize null or blank identifier");
+        }
+        
+        String sanitized = identifier.replaceAll("[^A-Za-z0-9_]", "_");
+        
+        if (Character.isDigit(sanitized.charAt(0))) {
+            sanitized = "_" + sanitized;
+        }
+        
+        return sanitized;
+    }
+
+    /**
+     * Map TapType to DuckDB data type string
+     * @param tapType Tapdata type
+     * @return DuckDB type string (e.g., "BIGINT", "VARCHAR", "TIMESTAMP")
+     */
+    static String mapToDuckDbType(TapType tapType) {
+        if (tapType == null) {
+            return "VARCHAR";
+        }
+        
+        String className = tapType.getClass().getSimpleName();
+        
+        switch (className) {
+            case "TapString":
+            case "TapBytes":
+                return "VARCHAR";
+            case "TapNumber":
+                return "BIGINT";
+            case "TapDate":
+            case "TapDateTime":
+                return "TIMESTAMP";
+            case "TapTime":
+                return "TIME";
+            case "TapBoolean":
+                return "BOOLEAN";
+            case "TapBinary":
+                return "BLOB";
+            default:
+                return "VARCHAR";
+        }
+    }
 }

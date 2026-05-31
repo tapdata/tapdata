@@ -27,14 +27,12 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testFromTableWithCustomQuery() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             FromTableConfig fromTable = new FromTableConfig();
-            fromTable.setTableName("orders");
-            fromTable.setPrimaryKey("order_id");
+            fromTable.setPreNodeId("orders");
+            fromTable.setTableNameInSql("order_id");
             fromTables.add(fromTable);
 
             Map<String, String> customJoinQueries = new HashMap<>();
-            customJoinQueries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
-
-            AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, customJoinQueries);
+            customJoinQueries.put("orders");
 
             Map<String, Object> eventData = new HashMap<>();
             eventData.put("order_id", "ORD001");
@@ -310,7 +308,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private AffectedKeyCalculator createNewModeCalculatorWithFromTable(String tableName, String pkField, String querySql, List<String> fields) {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig(tableName, pkField, querySql, fields)
+                    new FromTableConfig(tableName, pkField))
             );
             return createNewModeCalculator("id", "users", "id", fromTables);
         }
@@ -341,9 +339,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
 
         @Test
         void testMultipleFromTables() throws SQLException {
-            List<FromTableConfig> fromTables = Arrays.asList(
-                    new FromTableConfig("orders", "order_id", "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id", Arrays.asList("order_id")),
-                    new FromTableConfig("payments", "payment_id", "SELECT u.id FROM users u JOIN payments p ON u.id = p.user_id", Arrays.asList("payment_id"))
+            List<FromTableConfig> fromTables = Arrays.asList(new FromTableConfig("orders", "order_id"), new FromTableConfig("payments", "payment_id")
             );
             AffectedKeyCalculator calculator = createNewModeCalculator("id", "users", "id", fromTables);
 

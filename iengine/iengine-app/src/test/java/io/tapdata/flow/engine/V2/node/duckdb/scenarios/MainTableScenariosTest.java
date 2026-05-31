@@ -132,7 +132,7 @@ class MainTableScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private AffectedKeyCalculator createNewModeCalculatorWithMainTableQuery() {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig("users", "id", "SELECT id FROM users", Arrays.asList("id"))
+                    new FromTableConfig("users", "id"))
             );
             return createNewModeCalculator("id", "users", "id", fromTables);
         }

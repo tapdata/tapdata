@@ -1,60 +1,67 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
 import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 class FromTableConfigTest {
 
     @Test
+    void testConstructorWithPreNodeIdAndTableNameInSql() {
+        FromTableConfig config = new FromTableConfig("node_mysql_1", "t1");
+        
+        assertEquals("node_mysql_1", config.getPreNodeId());
+        assertEquals("t1", config.getTableNameInSql());
+    }
+
+    @Test
     void testDefaultConstructor() {
         FromTableConfig config = new FromTableConfig();
-        assertNull(config.getTableName());
-        assertNull(config.getPrimaryKey());
+        
+        assertNull(config.getPreNodeId());
+        assertNull(config.getTableNameInSql());
     }
 
     @Test
-    void testParameterizedConstructor() {
-        FromTableConfig config = new FromTableConfig("test_table", "id");
-        assertEquals("test_table", config.getTableName());
-        assertEquals("id", config.getPrimaryKey());
-    }
-
-    @Test
-    void testSetTableName() {
+    void testSettersAndGetters() {
         FromTableConfig config = new FromTableConfig();
-        config.setTableName("new_table");
-        assertEquals("new_table", config.getTableName());
+        
+        config.setPreNodeId("node_pg_1");
+        config.setTableNameInSql("users_alias");
+        
+        assertEquals("node_pg_1", config.getPreNodeId());
+        assertEquals("users_alias", config.getTableNameInSql());
     }
 
     @Test
-    void testSetPrimaryKey() {
-        FromTableConfig config = new FromTableConfig();
-        config.setPrimaryKey("primary_key");
-        assertEquals("primary_key", config.getPrimaryKey());
+    void testRejectBlankPreNodeId() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new FromTableConfig("", "t1");
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            new FromTableConfig("   ", "t1");
+        });
     }
 
     @Test
-    void testNullTableName() {
-        FromTableConfig config = new FromTableConfig(null, "id");
-        assertNull(config.getTableName());
+    void testRejectBlankTableNameInSql() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new FromTableConfig("node_1", "");
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            new FromTableConfig("node_1", "   ");
+        });
     }
 
     @Test
-    void testNullPrimaryKey() {
-        FromTableConfig config = new FromTableConfig("test_table", null);
-        assertNull(config.getPrimaryKey());
-    }
-
-    @Test
-    void testEmptyTableName() {
-        FromTableConfig config = new FromTableConfig("", "id");
-        assertEquals("", config.getTableName());
-    }
-
-    @Test
-    void testEmptyPrimaryKey() {
-        FromTableConfig config = new FromTableConfig("test_table", "");
-        assertEquals("", config.getPrimaryKey());
+    void testValidComplexAliases() {
+        FromTableConfig config1 = new FromTableConfig("node_1", "t1");
+        FromTableConfig config2 = new FromTableConfig("node_2", "order_table");
+        FromTableConfig config3 = new FromTableConfig("node_3", "_private_table");
+        
+        assertEquals("t1", config1.getTableNameInSql());
+        assertEquals("order_table", config2.getTableNameInSql());
+        assertEquals("_private_table", config3.getTableNameInSql());
     }
 }

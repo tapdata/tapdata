@@ -121,8 +121,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
         if (fromTables != null) {
             for (FromTableConfig fromTable : fromTables) {
-                if (fromTable.getTableName().equals(tableName)) {
-                    return fromTable.getPrimaryKey();
+                if (fromTable.getPreNodeId().equals(tableName)) {
+                    return fromTable.getTableNameInSql();
                 }
             }
         }
@@ -209,15 +209,16 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     // 将 Manager 端配置转换为 Engine 端 FromTableConfig
                     this.fromTables = nodeConfig.getFromTables().stream()
                             .map(ft -> {
-                                FromTableConfig config = new FromTableConfig();
                                 try {
-                                    config.setTableName((String) ft.getClass().getMethod("getTableName").invoke(ft));
-                                    config.setPrimaryKey((String) ft.getClass().getMethod("getPrimaryKey").invoke(ft));
+                                    String preNodeId = (String) ft.getClass().getMethod("getPreNodeId").invoke(ft);
+                                    String tableNameInSql = (String) ft.getClass().getMethod("getTableNameInSql").invoke(ft);
+                                    return new FromTableConfig(preNodeId, tableNameInSql);
                                 } catch (Exception e) {
                                     logger.warn("Failed to convert FromTableConfig: {}", e.getMessage());
+                                    return null;
                                 }
-                                return config;
                             })
+                            .filter(java.util.Objects::nonNull)
                             .collect(java.util.stream.Collectors.toList());
                 }
                 if (nodeConfig.getCustomJoinQueries() != null) {
@@ -319,6 +320,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // ========== 核心优化：初始化前置节点 Schema 缓存 ==========
             initNodeSchemaCache();
+
+            // ========== 核心功能：DuckDB 表生命周期管理 ==========
+            manageDuckDbTables();
+
+            // ========== 核心功能：SQL 表别名解析与替换 ==========
+            resolveSqlTableAliases();
 
             logger.info("DuckDbSqlNode initialized with batchSize={}, output batch size={}, error threshold={}% (count: {}), schemaCache={}",
                     batchSize, OUTPUT_BATCH_SIZE, ERROR_THRESHOLD_RATE * 100, ERROR_THRESHOLD_COUNT,
@@ -1690,6 +1697,259 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      */
     public boolean isSchemaCacheInitialized() {
         return schemaCacheInitialized;
+    }
+
+    /**
+     * DuckDB 表生命周期管理
+     * 
+     * <p>在初始化阶段执行，确保所有前置节点对应的 DuckDB 表都已正确创建。
+     * 根据任务重置标识（shouldRecreate）决定是否删除并重建表。</p>
+     * 
+     * <h3>执行流程：</h3>
+     * <ol>
+     *   <li>处理主表（mainTable）：如果配置了主表，确保其目标表已创建</li>
+     *   <li>处理关联表（fromTables）：遍历所有前置节点，创建/重建对应的目标表</li>
+     *   <li>使用 Task 2 实现的 ensureTableExists() 统一接口</li>
+     * </ol>
+     * 
+     * <h3>职责分离：</h3>
+     * <ul>
+     *   <li>DuckDbOperator：提供 ensureTableExists() 公共方法（已实现）</li>
+     *   <li>HazelcastDuckDbSqlNode：控制重建策略（本方法）</li>
+     * </ul>
+     */
+    private void manageDuckDbTables() throws SQLException, TapCodeException {
+        if (duckDbOperator == null) {
+            logger.warn("duckDbOperator is null, skip table management");
+            return;
+        }
+        
+        // 获取任务重置标识（默认为 false，不重建）
+        boolean shouldRecreate = shouldRecreateTables();
+        
+        logger.info("Starting DuckDB table management. shouldRecreate={}, fromTables count={}", 
+                   shouldRecreate, fromTables != null ? fromTables.size() : 0);
+        
+        int createdCount = 0;
+        int recreatedCount = 0;
+        
+        // 1. 处理主表（如果配置了 mainTableName）
+        if (mainTableName != null && !mainTableName.isBlank()) {
+            NodeSchemaInfo mainTableSchema = getNodeSchema(mainTableName);
+            
+            if (mainTableSchema != null) {
+                String targetTableName = mainTableSchema.getTargetTableName();
+                
+                try {
+                    duckDbOperator.ensureTableExists(
+                        targetTableName,
+                        new java.util.ArrayList<>(mainTableSchema.getFieldMap().values()),
+                        mainTableSchema.getPrimaryKeys(),
+                        shouldRecreate
+                    );
+                    
+                    if (shouldRecreate) {
+                        recreatedCount++;
+                    } else {
+                        createdCount++;
+                    }
+                    
+                    logger.info("Main table managed: {} -> {} (recreate={})", 
+                               mainTableName, targetTableName, shouldRecreate);
+                } catch (Exception e) {
+                    throw new TapCodeException("Failed to manage main table: " + mainTableName, e);
+                }
+            } else {
+                logger.warn("Cannot find schema info for main table: {}", mainTableName);
+            }
+        }
+        
+        // 2. 处理关联表（fromTables）
+        if (fromTables != null && !fromTables.isEmpty()) {
+            for (FromTableConfig fromTable : fromTables) {
+                if (fromTable == null) {
+                    continue;
+                }
+                
+                String preNodeId = fromTable.getPreNodeId();
+                
+                if (preNodeId == null || preNodeId.isBlank()) {
+                    continue;
+                }
+                
+                NodeSchemaInfo schemaInfo = getNodeSchema(preNodeId);
+                
+                if (schemaInfo == null) {
+                    logger.warn("Cannot find schema info for preNodeId={}, skipping table creation", preNodeId);
+                    continue;
+                }
+                
+                String targetTableName = schemaInfo.getTargetTableName();
+                
+                try {
+                    duckDbOperator.ensureTableExists(
+                        targetTableName,
+                        new java.util.ArrayList<>(schemaInfo.getFieldMap().values()),
+                        schemaInfo.getPrimaryKeys(),
+                        shouldRecreate
+                    );
+                    
+                    if (shouldRecreate) {
+                        recreatedCount++;
+                    } else {
+                        createdCount++;
+                    }
+                    
+                    logger.debug("From table managed: {} -> {} (recreate={})", 
+                                preNodeId, targetTableName, shouldRecreate);
+                } catch (Exception e) {
+                    throw new TapCodeException(
+                        "Failed to manage table for predecessor node: " + preNodeId, e);
+                }
+            }
+        }
+        
+        logger.info("DuckDB table management completed. Created={}, Recreated={}, Total={}", 
+                   createdCount, recreatedCount, createdCount + recreatedCount);
+    }
+
+    /**
+     * 判断是否需要重建表
+     * 
+     * <p>根据业务规则判断，当前实现：</p>
+     * <ul>
+     *   <li>默认返回 false（不重建）</li>
+     *   <li>未来可根据任务状态、配置参数等扩展</li>
+     * </ul>
+     * 
+     * @return true 表示需要删除并重建表，false 表示仅创建（如果不存在）
+     */
+    private boolean shouldRecreateTables() {
+        // TODO: 根据实际业务需求实现
+        // 可能的判断依据：
+        // - 任务配置中的 rebuild 标识
+        // - 任务重置/重启状态
+        // - Schema 变更检测
+        return false;
+    }
+
+    /**
+     * SQL 表别名解析与替换
+     * 
+     * <p>在初始化阶段一次性完成，将 querySql 中的表别名（tableNameInSql）替换为
+     * 实际的目标表名（targetTableName），确保 DuckDB 中写入的表名任务级唯一。</p>
+     * 
+     * <h3>核心算法：</h3>
+     * <ol>
+     *   <li>遍历 fromTables 配置，获取每个前置节点的 preNodeId 和 tableNameInSql</li>
+     *   <li>通过 preNodeId 从 nodeSchemaCache 查找对应的 NodeSchemaInfo</li>
+     *   <li>调用 getTargetTableName() 获取实际目标表名（格式：sourceId__tableName）</li>
+     *   <li>使用正则表达式 \b（单词边界）检测替换，避免部分匹配</li>
+     * </ol>
+     * 
+     * <h3>性能优势：</h3>
+     * <ul>
+     *   <li>初始化时一次性解析，运行时 0 开销</li>
+     *   <li>使用 Pattern.compile() 预编译正则，提升替换效率</li>
+     *   <li>支持复杂 JOIN、子查询、CTE 等场景</li>
+     * </ul>
+     */
+    private void resolveSqlTableAliases() {
+        if (fromTables == null || fromTables.isEmpty()) {
+            logger.debug("No fromTables configured, skip SQL alias resolution");
+            return;
+        }
+        
+        if (querySql == null || querySql.isBlank()) {
+            logger.warn("querySql is blank, cannot perform alias resolution");
+            return;
+        }
+        
+        String originalSql = this.querySql;
+        Map<String, String> aliasToTargetMap = new LinkedHashMap<>();
+        
+        for (FromTableConfig fromTable : fromTables) {
+            if (fromTable == null) {
+                continue;
+            }
+            
+            String preNodeId = fromTable.getPreNodeId();
+            String tableNameInSql = fromTable.getTableNameInSql();
+            
+            if (preNodeId == null || preNodeId.isBlank()) {
+                logger.warn("FromTableConfig has blank preNodeId, skipping");
+                continue;
+            }
+            
+            if (tableNameInSql == null || tableNameInSql.isBlank()) {
+                logger.warn("FromTableConfig has blank tableNameInSql for preNodeId={}, skipping", preNodeId);
+                continue;
+            }
+            
+            // 通过 preNodeId 查找 NodeSchemaInfo（支持 sourceId 和 nodeId 两种查找方式）
+            NodeSchemaInfo schemaInfo = getNodeSchema(preNodeId);
+            
+            if (schemaInfo == null) {
+                logger.error("Cannot find NodeSchemaInfo for preNodeId={}, " +
+                           "SQL alias resolution may be incomplete. " +
+                           "Available nodes: {}", 
+                           preNodeId, nodeSchemaCache.keySet());
+                throw new TapCodeException("Failed to find schema info for predecessor node: " + preNodeId);
+            }
+            
+            // 获取目标表名（格式：sourceId__tableName）
+            String targetTableName = schemaInfo.getTargetTableName();
+            
+            logger.info("Resolved table alias: '{}' -> '{}' (preNodeId={})", 
+                       tableNameInSql, targetTableName, preNodeId);
+            
+            aliasToTargetMap.put(tableNameInSql, targetTableName);
+        }
+        
+        if (aliasToTargetMap.isEmpty()) {
+            logger.debug("No valid aliases to resolve in querySql");
+            return;
+        }
+        
+        // 使用正则边界检测进行替换
+        this.querySql = replaceWithBoundaryDetection(originalSql, aliasToTargetMap);
+        
+        logger.info("SQL alias resolution completed. Original: {}... -> Resolved: {}...", 
+                   originalSql.length() > 50 ? originalSql.substring(0, 50) : originalSql,
+                   this.querySql.length() > 50 ? this.querySql.substring(0, 50) : this.querySql);
+    }
+
+    /**
+     * 使用正则边界检测替换 SQL 中的表别名
+     * 
+     * @param sql 原始 SQL 语句
+     * @param aliasMap 别名映射（alias → targetTableName）
+     * @return 替换后的 SQL 语句
+     */
+    private String replaceWithBoundaryDetection(String sql, Map<String, String> aliasMap) {
+        String currentSql = sql;
+        
+        for (Map.Entry<String, String> entry : aliasMap.entrySet()) {
+            String alias = entry.getKey();
+            String targetTableName = entry.getValue();
+            
+            // 使用 \b 单词边界确保只替换完整的标识符，避免部分匹配
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "\\b" + java.util.regex.Pattern.quote(alias) + "\\b"
+            );
+            
+            java.util.regex.Matcher matcher = pattern.matcher(currentSql);
+            StringBuffer sb = new StringBuffer();
+            
+            while (matcher.find()) {
+                matcher.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(targetTableName));
+            }
+            matcher.appendTail(sb);
+            
+            currentSql = sb.toString();
+        }
+        
+        return currentSql;
     }
 
     /**

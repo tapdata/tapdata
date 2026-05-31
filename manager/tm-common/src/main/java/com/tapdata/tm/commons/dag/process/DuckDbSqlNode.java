@@ -106,17 +106,23 @@ public class DuckDbSqlNode extends ProcessorNode {
     @Getter
     @Setter
     public static class FromTableConfig {
-        /** 从表名 */
-        private String tableName;
+        /** 前置节点 ID（用于查找对应的 NodeSchemaInfo） */
+        private String preNodeId;
         
-        /** 从表主键字段 */
-        private String primaryKey;
+        /** SQL 中使用的表别名（如 t1, t2, users_alias） */
+        private String tableNameInSql;
         
         public FromTableConfig() {}
         
-        public FromTableConfig(String tableName, String primaryKey) {
-            this.tableName = tableName;
-            this.primaryKey = primaryKey;
+        public FromTableConfig(String preNodeId, String tableNameInSql) {
+            if (preNodeId == null || preNodeId.isBlank()) {
+                throw new IllegalArgumentException("preNodeId must not be blank");
+            }
+            if (tableNameInSql == null || tableNameInSql.isBlank()) {
+                throw new IllegalArgumentException("tableNameInSql must not be blank");
+            }
+            this.preNodeId = preNodeId;
+            this.tableNameInSql = tableNameInSql;
         }
     }
 

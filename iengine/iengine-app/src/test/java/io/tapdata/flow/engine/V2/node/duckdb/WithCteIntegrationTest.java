@@ -37,7 +37,7 @@ class WithCteIntegrationTest {
     @BeforeEach
     void setUp() throws SQLException {
         List<FromTableConfig> fromTables = Arrays.asList(
-                new FromTableConfig("users", "id", "SELECT id, name, email FROM users", Arrays.asList("id", "name", "email"))
+                new FromTableConfig("users", "id")
         );
 
         sqlGenerator = new WithCteSqlGenerator();

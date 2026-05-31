@@ -78,7 +78,7 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private AffectedKeyCalculator createNewModeCalculatorWithFromTable() {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig("orders", "order_id",
+                    new FromTableConfig("orders", "order_id")),
                             "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id",
                             Arrays.asList("order_id", "user_id"))
             );

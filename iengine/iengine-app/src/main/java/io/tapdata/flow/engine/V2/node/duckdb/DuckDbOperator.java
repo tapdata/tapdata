@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 
 import java.sql.SQLException;
@@ -174,6 +175,49 @@ public interface DuckDbOperator extends AutoCloseable {
      * @throws SQLException SQL执行异常
      */
     void dropIndex(String tableName, String indexName) throws SQLException;
+
+    // ==================== Table Lifecycle Management ====================
+
+    /**
+     * Ensure table exists with correct schema, optionally recreate
+     * 
+     * <p>This method provides unified table lifecycle management. When recreate is true,
+     * it drops the existing table and creates a new one. When false, it only creates
+     * the table if it doesn't already exist.</p>
+     * 
+     * @param tableName Target table name (will be sanitized)
+     * @param fields Field definitions from NodeSchemaInfo/TapTable
+     * @param primaryKeys Primary key field names
+     * @param recreate If true, drop and recreate; if false, create only if not exists
+     * @throws SQLException if database operation fails
+     */
+    void ensureTableExists(String tableName, List<TapField> fields, 
+                          List<String> primaryKeys, boolean recreate) throws SQLException;
+
+    /**
+     * Build CREATE TABLE SQL statement from TapField definitions
+     * 
+     * <p>This is a static utility method that generates valid DuckDB CREATE TABLE syntax.
+     * All identifiers are sanitized to prevent SQL injection.</p>
+     * 
+     * @param tableName Target table name (will be sanitized)
+     * @param fields Field definitions
+     * @param primaryKeys Primary key field names
+     * @return Complete CREATE TABLE SQL statement
+     */
+    static String buildCreateTableSql(String tableName, List<TapField> fields, 
+                                      List<String> primaryKeys) {
+        return DuckDbOperatorImpl.buildCreateTableSql(tableName, fields, primaryKeys);
+    }
+
+    /**
+     * Sanitize identifier for safe use in SQL
+     * @param identifier Raw identifier
+     * @return Sanitized identifier (only alphanumeric and underscores)
+     */
+    static String sanitizeIdentifier(String identifier) {
+        return DuckDbOperatorImpl.sanitizeIdentifier(identifier);
+    }
 
     // ==================== DML 操作封装 ====================
 

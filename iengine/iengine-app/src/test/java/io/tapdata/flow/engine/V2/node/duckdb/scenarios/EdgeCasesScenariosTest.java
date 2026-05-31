@@ -220,7 +220,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private AffectedKeyCalculator createNewModeCalculatorWithMainTableQuery() {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig("users", "id", "SELECT id FROM users", Arrays.asList("id"))
+                    new FromTableConfig("users", "id"))
             );
             return createNewModeCalculator("id", "users", "id", fromTables);
         }
@@ -341,7 +341,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private AffectedKeyCalculator createNewModeCalculatorWithFromTable(String tableName, String pkField, String querySql, List<String> fields) {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig(tableName, pkField, querySql, fields)
+                    new FromTableConfig(tableName, pkField))
             );
             return createNewModeCalculator("id", "users", "id", fromTables);
         }

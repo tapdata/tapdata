@@ -232,7 +232,7 @@ class ABAProblemScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private AffectedKeyCalculator createNewModeCalculatorWithFromTable() {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig("orders", "id",
+                    new FromTableConfig("orders", "id")),
                             "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id",
                             Arrays.asList("id"))
             );

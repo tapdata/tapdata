@@ -89,7 +89,7 @@ class BatchBoundaryScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private void testBatchBoundaryNewMode(int eventCount) throws SQLException {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig("orders", "id",
+                    new FromTableConfig("orders", "id")),
                             "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id",
                             Arrays.asList("id"))
             );

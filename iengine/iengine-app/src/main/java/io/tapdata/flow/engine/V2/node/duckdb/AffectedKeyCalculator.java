@@ -97,7 +97,7 @@ public class AffectedKeyCalculator {
             // Check if table is configured as a source table
             boolean isKnownSourceTable = false;
             for (FromTableConfig config : fromTables) {
-                if (config.getTableName().equalsIgnoreCase(tableName)) {
+                if (config.getTableNameInSql().equalsIgnoreCase(tableName)) {
                     isKnownSourceTable = true;
                     break;
                 }
@@ -501,12 +501,15 @@ public class AffectedKeyCalculator {
     /**
      * 获取表对应的 querySql
      * 从 fromTables 中查找匹配的表，返回其 querySql
+     * TODO: querySql 已从 FromTableConfig 移除，需要从 HazelcastDuckDbSqlNode.querySql 获取
      */
     private String getQuerySqlForTable(String tableName) {
         // 遍历 fromTables 查找匹配的表
         for (FromTableConfig config : fromTables) {
-            if (config.getTableName().equalsIgnoreCase(tableName)) {
-                return config.getQuerySql();
+            if (config.getTableNameInSql().equalsIgnoreCase(tableName)) {
+                logger.warn("getQuerySqlForTable: querySql field removed from FromTableConfig. " +
+                           "Use HazelcastDuckDbSqlNode.getResolvedQuerySql() instead.");
+                return null;
             }
         }
         return null;
@@ -514,15 +517,14 @@ public class AffectedKeyCalculator {
 
     /**
      * 获取表的字段列表
-     * 从 FromTableConfig 中提取字段，如果没有配置则返回主键字段
+     * TODO: fields 已从 FromTableConfig 移除，需要从 NodeSchemaInfo 获取
      */
     private List<String> getTableFields(String tableName) {
         for (FromTableConfig config : fromTables) {
-            if (config.getTableName().equalsIgnoreCase(tableName)) {
-                List<String> fields = config.getFields();
-                if (fields != null && !fields.isEmpty()) {
-                    return fields;
-                }
+            if (config.getTableNameInSql().equalsIgnoreCase(tableName)) {
+                logger.warn("getTableFields: fields field removed from FromTableConfig. " +
+                           "Use NodeSchemaInfo.getFieldMap() instead.");
+                return Collections.emptyList();
             }
         }
         // 回退：返回主键字段
@@ -544,8 +546,10 @@ public class AffectedKeyCalculator {
      */
     private String getSourceTablePrimaryKey(String tableName) {
         for (FromTableConfig config : fromTables) {
-            if (config.getTableName().equalsIgnoreCase(tableName)) {
-                return config.getPrimaryKey();
+            if (config.getTableNameInSql().equalsIgnoreCase(tableName)) {
+                logger.warn("getSourceTablePrimaryKey: primaryKey field removed from FromTableConfig. " +
+                           "Use NodeSchemaInfo.getPrimaryKeys() instead.");
+                return null;
             }
         }
         // Default: try common PK field name "id"

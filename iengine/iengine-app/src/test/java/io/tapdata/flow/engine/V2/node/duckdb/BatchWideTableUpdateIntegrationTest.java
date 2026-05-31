@@ -34,9 +34,7 @@ class BatchWideTableUpdateIntegrationTest {
     @BeforeEach
     void setUp() throws SQLException {
         // 配置源表（带 querySql 和 fields）
-        List<FromTableConfig> fromTables = Arrays.asList(
-                new FromTableConfig("users", "id", "SELECT id, name, email FROM users", Arrays.asList("id", "name", "email")),
-                new FromTableConfig("orders", "user_id", "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id", Arrays.asList("user_id", "order_id"))
+        List<FromTableConfig> fromTables = Arrays.asList(new FromTableConfig("users", "id"), new FromTableConfig("orders", "user_id")
         );
 
         WithCteSqlGenerator withCteSqlGenerator = new WithCteSqlGenerator();

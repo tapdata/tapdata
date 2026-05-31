@@ -22,7 +22,7 @@ class AffectedKeyCalculatorMergedRecordsTest {
                 .thenReturn(List.of(Collections.singletonMap("wide_id", 1)));
 
         List<FromTableConfig> fromTables = List.of(
-                new FromTableConfig("source", "id",
+                new FromTableConfig("source", "id"),
                         "SELECT t.id AS wide_id FROM source t", List.of("id", "name"))
         );
 
@@ -69,9 +69,9 @@ class AffectedKeyCalculatorMergedRecordsTest {
                 .thenReturn(List.of(Collections.singletonMap("wide_id", 1)));
 
         List<FromTableConfig> fromTables = List.of(
-                new FromTableConfig("source_a", "id",
+                new FromTableConfig("source_a", "id"),
                         "SELECT t.id AS wide_id FROM source_a t", List.of("id")),
-                new FromTableConfig("source_b", "id",
+                new FromTableConfig("source_b", "id"),
                         "SELECT t.id AS wide_id FROM source_b t", List.of("id"))
         );
 
