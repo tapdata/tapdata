@@ -576,16 +576,34 @@ public class AffectedKeyCalculator {
      * 获取表的字段列表
      * TODO: fields 已从 FromTableConfig 移除，需要从 NodeSchemaInfo 获取
      */
+    /**
+     * Get field name list for a table.
+     *
+     * <p>Retrieves complete field information from NodeSchemaInfo.</p>
+     *
+     * @param tableName Table alias as used in SQL
+     * @return List of field names, falls back to empty list if schema not found
+     */
     private List<String> getTableFields(String tableName) {
-        for (FromTableConfig config : fromTables) {
-            if (config.getTableNameInSql().equalsIgnoreCase(tableName)) {
-                logger.warn("getTableFields: fields field removed from FromTableConfig. " +
-                           "Use NodeSchemaInfo.getFieldMap() instead.");
-                return Collections.emptyList();
-            }
+        NodeSchemaInfo schemaInfo = findSchemaInfoByTableNameInSql(tableName);
+
+        if (schemaInfo == null) {
+            logger.warn("Cannot find NodeSchemaInfo for tableNameInSql={}, available nodeIds: {}",
+                       tableName,
+                       nodeSchemaMap.keySet().stream().limit(10).collect(Collectors.joining(", ")));
+
+            logger.info("Returning empty field list for table {} (schema not found)", tableName);
+            return Collections.emptyList();
         }
-        // 回退：返回主键字段
-        return Collections.singletonList(getSourceTablePrimaryKey(tableName));
+
+        List<String> fieldNames = schemaInfo.getFieldNames();
+
+        logger.debug("Retrieved {} fields for table {}: {}",
+                    fieldNames.size(),
+                    tableName,
+                    fieldNames.stream().limit(5).collect(Collectors.joining(", ")));
+
+        return fieldNames;
     }
 
     /**
@@ -639,17 +657,64 @@ public class AffectedKeyCalculator {
     /**
      * Get primary key field name for a source table.
      */
+    /**
+     * Get primary key field name for a source table.
+     *
+     * <p>Uses three-layer fallback strategy:</p>
+     * <ol>
+     *   <li>Explicit primary keys from NodeSchemaInfo</li>
+     *   <li>Common primary key name detection (id, ID, _id, pk, Id)</li>
+     *   <li>Throw explicit exception with available fields</li>
+     * </ol>
+     *
+     * @param tableName Table alias as used in SQL
+     * @return Primary key field name
+     * @throws IllegalStateException if cannot determine primary key
+     */
     private String getSourceTablePrimaryKey(String tableName) {
-        for (FromTableConfig config : fromTables) {
-            if (config.getTableNameInSql().equalsIgnoreCase(tableName)) {
-                logger.warn("getSourceTablePrimaryKey: primaryKey field removed from FromTableConfig. " +
-                           "Use NodeSchemaInfo.getPrimaryKeys() instead.");
-                return null;
-            }
+        NodeSchemaInfo schemaInfo = findSchemaInfoByTableNameInSql(tableName);
+
+        if (schemaInfo == null) {
+            logger.error("Cannot find NodeSchemaInfo for table={}, cannot determine primary key. " +
+                        "Available schemas: {}",
+                        tableName,
+                        nodeSchemaMap.keySet());
+            throw new IllegalStateException(
+                "Failed to find schema info for table: " + tableName + ". " +
+                "Ensure nodeSchemaMap is properly initialized in HazelcastDuckDbSqlNode.initNodeSchemaCache()");
         }
-        // Default: try common PK field name "id"
-        logger.warn("No primary key configured for table {}, using default 'id'", tableName);
-        return "id";
+
+        List<String> primaryKeys = schemaInfo.getPrimaryKeys();
+
+        if (primaryKeys == null || primaryKeys.isEmpty()) {
+            logger.warn("No primary keys defined for table={}, attempting common PK name detection", tableName);
+
+            String[] commonPkNames = {"id", "ID", "_id", "pk", "Id"};
+
+            for (String commonPk : commonPkNames) {
+                if (schemaInfo.getFieldMap() != null && schemaInfo.getFieldMap().containsKey(commonPk)) {
+                    logger.info("Using fallback primary key '{}' for table {} (no explicit PK defined)",
+                               commonPk, tableName);
+                    return commonPk;
+                }
+            }
+
+            throw new IllegalStateException(
+                "No primary key found for table: " + tableName + ". " +
+                "Available fields: " + schemaInfo.getFieldNames() + ". " +
+                "Please define primary keys in the source table schema.");
+        }
+
+        String primaryKey = primaryKeys.get(0);
+
+        if (primaryKeys.size() > 1) {
+            logger.debug("Table {} has composite primary keys ({}), using first key '{}')",
+                        tableName, primaryKeys, primaryKey);
+        } else {
+            logger.debug("Found single primary key '{}' for table {}", primaryKey, tableName);
+        }
+
+        return primaryKey;
     }
 
     /**

@@ -348,4 +348,200 @@ class AffectedKeyCalculatorRefactoredTest {
             assertTrue(result.length() > 1000, "SQL should be longer than 1000 chars, actual: " + result.length());
         }
     }
+
+    @Nested
+    @DisplayName("getTableFields Tests")
+    class GetTableFieldsTests {
+
+        private AffectedKeyCalculator calculator;
+        private NodeSchemaInfo mockUserSchema;
+
+        @BeforeEach
+        void setUp() {
+            mockUserSchema = Mockito.mock(NodeSchemaInfo.class);
+            when(mockUserSchema.getFieldNames()).thenReturn(Arrays.asList("user_id", "name", "email", "created_at"));
+            when(mockUserSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("user_id"));
+            when(mockUserSchema.getFieldMap()).thenReturn(new HashMap<String, TapField>());
+
+            mockSchemaMap.put("node_mysql_1", mockUserSchema);
+            fromTables.add(new FromTableConfig("node_mysql_1", "users"));
+
+            calculator = new AffectedKeyCalculator(
+                "pk",
+                "users",
+                "user_id",
+                fromTables,
+                Collections.emptyMap(),
+                mockOperator,
+                mockSchemaMap,
+                "SELECT * FROM target__users"
+            );
+        }
+
+        @Test
+        @DisplayName("Should return field list from NodeSchemaInfo")
+        void testReturnsFieldsFromSchema() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getTableFields", String.class);
+            method.setAccessible(true);
+
+            @SuppressWarnings("unchecked")
+            List<String> result = (List<String>) method.invoke(calculator, "users");
+
+            assertEquals(4, result.size());
+            assertTrue(result.contains("user_id"));
+            assertTrue(result.contains("name"));
+            assertTrue(result.contains("email"));
+            assertTrue(result.contains("created_at"));
+        }
+
+        @Test
+        @DisplayName("Should fallback to empty list when schema not found")
+        void testFallbackToEmptyListWhenSchemaNotFound() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getTableFields", String.class);
+            method.setAccessible(true);
+
+            @SuppressWarnings("unchecked")
+            List<String> result = (List<String>) method.invoke(calculator, "nonexistent_table");
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Should return all field names in order")
+        void testPreservesFieldOrder() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getTableFields", String.class);
+            method.setAccessible(true);
+
+            @SuppressWarnings("unchecked")
+            List<String> result = (List<String>) method.invoke(calculator, "users");
+
+            assertEquals("user_id", result.get(0));
+            assertEquals("name", result.get(1));
+            assertEquals("email", result.get(2));
+            assertEquals("created_at", result.get(3));
+        }
+    }
+
+    @Nested
+    @DisplayName("getSourceTablePrimaryKey Tests")
+    class GetSourceTablePrimaryKeyTests {
+
+        private AffectedKeyCalculator calculator;
+        private NodeSchemaInfo mockUserSchema;
+
+        @BeforeEach
+        void setUp() {
+            mockUserSchema = Mockito.mock(NodeSchemaInfo.class);
+            when(mockUserSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("user_id"));
+            when(mockUserSchema.getFieldNames()).thenReturn(Arrays.asList("user_id", "name"));
+            when(mockUserSchema.getFieldMap()).thenReturn(new HashMap<String, TapField>());
+
+            mockSchemaMap.put("node_mysql_1", mockUserSchema);
+            fromTables.add(new FromTableConfig("node_mysql_1", "users"));
+
+            calculator = new AffectedKeyCalculator(
+                "pk",
+                "users",
+                "user_id",
+                fromTables,
+                Collections.emptyMap(),
+                mockOperator,
+                mockSchemaMap,
+                "SELECT * FROM target__users"
+            );
+        }
+
+        @Test
+        @DisplayName("Should return primary key from NodeSchemaInfo")
+        void testReturnsPrimaryKeyFromSchema() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getSourceTablePrimaryKey", String.class);
+            method.setAccessible(true);
+
+            String result = (String) method.invoke(calculator, "users");
+
+            assertEquals("user_id", result);
+        }
+
+        @Test
+        @DisplayName("Should detect common PK name 'id' as fallback")
+        void testDetectsCommonIdAsFallback() throws Exception {
+            when(mockUserSchema.getPrimaryKeys()).thenReturn(Collections.emptyList());
+
+            Map<String, TapField> fieldMap = new HashMap<>();
+            fieldMap.put("id", Mockito.mock(TapField.class));
+            when(mockUserSchema.getFieldMap()).thenReturn(fieldMap);
+            when(mockUserSchema.getFieldNames()).thenReturn(Arrays.asList("id", "name"));
+
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getSourceTablePrimaryKey", String.class);
+            method.setAccessible(true);
+
+            String result = (String) method.invoke(calculator, "users");
+
+            assertEquals("id", result);
+        }
+
+        @Test
+        @DisplayName("Should detect common PK name '_id' as fallback")
+        void testDetectsUnderscoreIdAsFallback() throws Exception {
+            when(mockUserSchema.getPrimaryKeys()).thenReturn(Collections.emptyList());
+
+            Map<String, TapField> fieldMap = new HashMap<>();
+            fieldMap.put("_id", Mockito.mock(TapField.class));
+            when(mockUserSchema.getFieldMap()).thenReturn(fieldMap);
+            when(mockUserSchema.getFieldNames()).thenReturn(Arrays.asList("_id", "name"));
+
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getSourceTablePrimaryKey", String.class);
+            method.setAccessible(true);
+
+            String result = (String) method.invoke(calculator, "users");
+
+            assertEquals("_id", result);
+        }
+
+        @Test
+        @DisplayName("Should throw exception when schema not found")
+        void testThrowsWhenSchemaNotFound() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getSourceTablePrimaryKey", String.class);
+            method.setAccessible(true);
+
+            try {
+                method.invoke(calculator, "nonexistent_table");
+                fail("Expected IllegalStateException to be thrown");
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                assertTrue(e.getCause() instanceof IllegalStateException);
+                IllegalStateException exception = (IllegalStateException) e.getCause();
+                assertTrue(exception.getMessage().contains("Failed to find schema info"));
+                assertTrue(exception.getMessage().contains("nonexistent_table"));
+            }
+        }
+
+        @Test
+        @DisplayName("Should throw exception when no PK and no common names found")
+        void testThrowsWhenNoPkAndNoCommonNames() throws Exception {
+            when(mockUserSchema.getPrimaryKeys()).thenReturn(Collections.emptyList());
+            when(mockUserSchema.getFieldMap()).thenReturn(new HashMap<String, TapField>());
+            when(mockUserSchema.getFieldNames()).thenReturn(Arrays.asList("name", "email"));
+
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getSourceTablePrimaryKey", String.class);
+            method.setAccessible(true);
+
+            try {
+                method.invoke(calculator, "users");
+                fail("Expected IllegalStateException to be thrown");
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                assertTrue(e.getCause() instanceof IllegalStateException);
+                IllegalStateException exception = (IllegalStateException) e.getCause();
+                assertTrue(exception.getMessage().contains("No primary key found"));
+                assertTrue(exception.getMessage().contains("name, email"));
+            }
+        }
+    }
 }
