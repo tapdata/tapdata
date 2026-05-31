@@ -277,4 +277,75 @@ class AffectedKeyCalculatorRefactoredTest {
             assertNull(result);
         }
     }
+
+    @Nested
+    @DisplayName("getQuerySqlForTable Tests")
+    class GetQuerySqlForTableTests {
+
+        private AffectedKeyCalculator calculator;
+
+        @BeforeEach
+        void setUp() {
+            calculator = new AffectedKeyCalculator(
+                "pk",
+                "users",
+                "id",
+                fromTables,
+                Collections.emptyMap(),
+                mockOperator,
+                mockSchemaMap,
+                "SELECT u.id, u.name FROM target__users u WHERE u.status = 'active'"
+            );
+        }
+
+        @Test
+        @DisplayName("Should return resolved query SQL regardless of tableName parameter")
+        void testReturnsResolvedQuerySql() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getQuerySqlForTable", String.class);
+            method.setAccessible(true);
+
+            String result = (String) method.invoke(calculator, "users");
+
+            assertEquals("SELECT u.id, u.name FROM target__users u WHERE u.status = 'active'", result);
+        }
+
+        @Test
+        @DisplayName("Should return same SQL for different table names (single query)")
+        void testReturnsSameSqlForDifferentTables() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getQuerySqlForTable", String.class);
+            method.setAccessible(true);
+
+            String resultUsers = (String) method.invoke(calculator, "users");
+            String resultOrders = (String) method.invoke(calculator, "orders");
+
+            assertEquals(resultUsers, resultOrders);
+        }
+
+        @Test
+        @DisplayName("Should handle long SQL strings correctly")
+        void testHandlesLongSqlStrings() throws Exception {
+            StringBuilder longSql = new StringBuilder("SELECT ");
+            for (int i = 0; i < 200; i++) {
+                longSql.append("column_name_").append(i).append(", ");
+            }
+            longSql.append("id FROM target__table_name");
+
+            AffectedKeyCalculator longSqlCalc = new AffectedKeyCalculator(
+                "pk", "t", "id", fromTables,
+                Collections.emptyMap(), mockOperator,
+                mockSchemaMap, longSql.toString()
+            );
+
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getQuerySqlForTable", String.class);
+            method.setAccessible(true);
+
+            String result = (String) method.invoke(longSqlCalc, "t");
+
+            assertEquals(longSql.toString(), result);
+            assertTrue(result.length() > 1000, "SQL should be longer than 1000 chars, actual: " + result.length());
+        }
+    }
 }

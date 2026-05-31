@@ -548,16 +548,28 @@ public class AffectedKeyCalculator {
      * 从 fromTables 中查找匹配的表，返回其 querySql
      * TODO: querySql 已从 FromTableConfig 移除，需要从 HazelcastDuckDbSqlNode.querySql 获取
      */
+    /**
+     * Get the resolved query SQL.
+     *
+     * <p>Returns the pre-resolved SQL from HazelcastDuckDbSqlNode where
+     * table aliases have been replaced with actual target table names.</p>
+     *
+     * @param tableName Table name (parameter kept for interface compatibility, but not used in lookup)
+     * @return The resolved SQL statement
+     * @throws IllegalStateException if resolvedQuerySql is blank (should never happen after constructor validation)
+     */
     private String getQuerySqlForTable(String tableName) {
-        // 遍历 fromTables 查找匹配的表
-        for (FromTableConfig config : fromTables) {
-            if (config.getTableNameInSql().equalsIgnoreCase(tableName)) {
-                logger.warn("getQuerySqlForTable: querySql field removed from FromTableConfig. " +
-                           "Use HazelcastDuckDbSqlNode.getResolvedQuerySql() instead.");
-                return null;
-            }
+        if (resolvedQuerySql == null || resolvedQuerySql.isBlank()) {
+            throw new IllegalStateException(
+                "resolvedQuerySql must not be null or blank. " +
+                "Ensure HazelcastDuckDbSqlNode.resolveSqlTableAliases() was called before using AffectedKeyCalculator.");
         }
-        return null;
+
+        logger.debug("Returning resolved querySql for table {}: {}",
+                    tableName,
+                    resolvedQuerySql.substring(0, Math.min(50, resolvedQuerySql.length())));
+
+        return resolvedQuerySql;
     }
 
     /**
