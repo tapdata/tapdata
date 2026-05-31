@@ -35,6 +35,8 @@ public class AffectedKeyCalculator {
     private final Map<String, String> customJoinQueries;
     private final DuckDbOperator operator;
     private final WithCteSqlGenerator withCteSqlGenerator;
+    private final Map<String, NodeSchemaInfo> nodeSchemaMap;
+    private final String resolvedQuerySql;
 
     public AffectedKeyCalculator(
             String wideTablePrimaryKey,
@@ -63,6 +65,55 @@ public class AffectedKeyCalculator {
         this.customJoinQueries = customJoinQueries != null ? customJoinQueries : Collections.emptyMap();
         this.operator = operator;
         this.withCteSqlGenerator = withCteSqlGenerator;
+        this.nodeSchemaMap = null;
+        this.resolvedQuerySql = null;
+    }
+
+    /**
+     * Full constructor with all required dependencies including NodeSchemaInfo and resolved query SQL.
+     *
+     * @param wideTablePrimaryKey Wide table primary key field name
+     * @param mainTableName Main table name (alias used in SQL)
+     * @param mainTablePrimaryKey Main table primary key field name
+     * @param fromTables List of predecessor node configurations
+     * @param customJoinQueries Custom JOIN query mappings
+     * @param operator DuckDB operator instance
+     * @param nodeSchemaMap Predecessor node schema information mapping (preNodeId → NodeSchemaInfo)
+     * @param resolvedQuerySql Resolved SQL statement where table aliases have been replaced with actual table names
+     * @throws IllegalArgumentException if required string parameters are blank
+     * @throws NullPointerException if required object parameters are null
+     */
+    public AffectedKeyCalculator(
+            String wideTablePrimaryKey,
+            String mainTableName,
+            String mainTablePrimaryKey,
+            List<FromTableConfig> fromTables,
+            Map<String, String> customJoinQueries,
+            DuckDbOperator operator,
+            Map<String, NodeSchemaInfo> nodeSchemaMap,
+            String resolvedQuerySql
+    ) {
+        if (wideTablePrimaryKey == null || wideTablePrimaryKey.isBlank()) {
+            throw new IllegalArgumentException("wideTablePrimaryKey must not be null or blank");
+        }
+
+        Objects.requireNonNull(operator, "operator must not be null");
+        Objects.requireNonNull(nodeSchemaMap, "nodeSchemaMap must not be null");
+        Objects.requireNonNull(resolvedQuerySql, "resolvedQuerySql must not be null");
+
+        if (resolvedQuerySql.isBlank()) {
+            throw new IllegalArgumentException("resolvedQuerySql must not be blank");
+        }
+
+        this.wideTablePrimaryKey = wideTablePrimaryKey;
+        this.mainTableName = mainTableName;
+        this.mainTablePrimaryKey = mainTablePrimaryKey;
+        this.fromTables = fromTables != null ? fromTables : Collections.emptyList();
+        this.customJoinQueries = customJoinQueries != null ? customJoinQueries : Collections.emptyMap();
+        this.operator = operator;
+        this.nodeSchemaMap = nodeSchemaMap;
+        this.resolvedQuerySql = resolvedQuerySql;
+        this.withCteSqlGenerator = null;
     }
 
     /**
@@ -404,24 +455,19 @@ public class AffectedKeyCalculator {
                 
                 boolean isLastOp = (i == opCount - 1);
                 
-                if (tapEventInner instanceof TapInsertRecordEvent) {
-                    // INSERT 事件：只有后面还有操作时才需要收集 before 数据
+                if (tapEventInner instanceof TapInsertRecordEvent || tapEventInner instanceof TapDeleteRecordEvent) {
+                    // INSERT/DELETE 事件：只有后面还有操作时才需要收集 before 数据
                     if (!isLastOp) {
                         Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
                         if (after != null) {
-                            beforeRows.add(new HashMap<>(after));
+                            beforeRows.add(after);
                         }
                     }
                 } else if (tapEventInner instanceof TapUpdateRecordEvent) {
                     // UPDATE 事件的 before 数据
-                    Map<String, Object> beforeRow = new HashMap<>();
-                    
                     // 首先尝试从 before 字段获取完整数据
-                    Map<String, Object> beforeData = TapEventUtil.getBefore(recordEvent);
-                    if (beforeData != null) {
-                        beforeRow.putAll(beforeData);
-                    }
-                    
+                    Map<String, Object> beforeRow = TapEventUtil.getBefore(recordEvent);
+
                     // 如果没有 before 数据，尝试构建
                     if (beforeRow.isEmpty()) {
                         // 使用 record 信息构建
@@ -430,7 +476,6 @@ public class AffectedKeyCalculator {
                     
                     beforeRows.add(beforeRow);
                 }
-                // DELETE 操作不在这里处理
             }
             
         }
@@ -870,7 +915,6 @@ public class AffectedKeyCalculator {
             }
 
             List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(recordList, tableName);
-            beforeRows.addAll(extractDeleteBeforeRowsFromMergedRecords(recordList, tableName));
             if (beforeRows.isEmpty()) {
                 continue;
             }
@@ -942,24 +986,4 @@ public class AffectedKeyCalculator {
         return null;
     }
 
-    private List<Map<String, Object>> extractDeleteBeforeRowsFromMergedRecords(
-            Iterable<SmartMerger.MergedRecord> mergedRecords, String tableName) {
-        List<Map<String, Object>> deleteBeforeRows = new ArrayList<>();
-        for (SmartMerger.MergedRecord record : mergedRecords) {
-            for (TapdataEvent tapEvent : record.getOperations()) {
-                TapEvent tapEventInner = tapEvent.getTapEvent();
-                if (tapEventInner instanceof TapDeleteRecordEvent deleteEvent) {
-                    String eventTableName = TapEventUtil.getTableId(deleteEvent);
-                    if (tableName == null || (eventTableName != null
-                            && tableName.equalsIgnoreCase(eventTableName))) {
-                        Map<String, Object> before = TapEventUtil.getBefore(deleteEvent);
-                        if (before != null && !before.isEmpty()) {
-                            deleteBeforeRows.add(new HashMap<>(before));
-                        }
-                    }
-                }
-            }
-        }
-        return deleteBeforeRows;
-    }
 }
