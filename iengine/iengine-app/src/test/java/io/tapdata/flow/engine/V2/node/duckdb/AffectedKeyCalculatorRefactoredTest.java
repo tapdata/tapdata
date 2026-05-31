@@ -186,4 +186,95 @@ class AffectedKeyCalculatorRefactoredTest {
             assertNotNull(calculator);
         }
     }
+
+    @Nested
+    @DisplayName("findSchemaInfoByTableNameInSql Tests")
+    class FindSchemaInfoTests {
+
+        private AffectedKeyCalculator calculator;
+
+        @BeforeEach
+        void setUp() {
+            NodeSchemaInfo mockSchema = Mockito.mock(NodeSchemaInfo.class);
+            when(mockSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
+            when(mockSchema.getFieldNames()).thenReturn(Arrays.asList("id", "name", "email"));
+
+            mockSchemaMap.put("node_mysql_1", mockSchema);
+
+            fromTables.add(new FromTableConfig("node_mysql_1", "users"));
+
+            calculator = new AffectedKeyCalculator(
+                "pk",
+                "users",
+                "id",
+                fromTables,
+                Collections.emptyMap(),
+                mockOperator,
+                mockSchemaMap,
+                "SELECT * FROM target__users"
+            );
+        }
+
+        @Test
+        @DisplayName("Should find schema info by matching tableNameInSql")
+        void testFindSchemaByTableNameInSqlSuccess() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "findSchemaInfoByTableNameInSql", String.class);
+            method.setAccessible(true);
+
+            NodeSchemaInfo result = (NodeSchemaInfo) method.invoke(calculator, "users");
+
+            assertNotNull(result);
+        }
+
+        @Test
+        @DisplayName("Should return null when tableNameInSql not found")
+        void testFindSchemaByTableNameInSqlNotFound() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "findSchemaInfoByTableNameInSql", String.class);
+            method.setAccessible(true);
+
+            NodeSchemaInfo result = (NodeSchemaInfo) method.invoke(calculator, "nonexistent");
+
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("Should be case-insensitive for tableNameInSql matching")
+        void testFindSchemaCaseInsensitive() throws Exception {
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "findSchemaInfoByTableNameInSql", String.class);
+            method.setAccessible(true);
+
+            NodeSchemaInfo resultUpper = (NodeSchemaInfo) method.invoke(calculator, "USERS");
+            NodeSchemaInfo resultLower = (NodeSchemaInfo) method.invoke(calculator, "users");
+
+            assertNotNull(resultUpper);
+            assertNotNull(resultLower);
+            assertEquals(resultUpper, resultLower);
+        }
+
+        @Test
+        @DisplayName("Should return null when fromTables is empty")
+        void testFindSchemaWithEmptyFromTables() throws Exception {
+            AffectedKeyCalculator emptyCalculator = new AffectedKeyCalculator(
+                "pk",
+                "table",
+                "id",
+                Collections.emptyList(),
+                Collections.emptyMap(),
+                mockOperator,
+                mockSchemaMap,
+                "SELECT 1"
+            );
+
+            java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
+                "findSchemaInfoByTableNameInSql", String.class);
+            method.setAccessible(true);
+
+            NodeSchemaInfo result = (NodeSchemaInfo) method.invoke(emptyCalculator, "users");
+
+            assertNull(result);
+        }
+    }
 }

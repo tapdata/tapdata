@@ -587,6 +587,44 @@ public class AffectedKeyCalculator {
     }
 
     /**
+     * Find NodeSchemaInfo by tableNameInSql.
+     *
+     * <p>Lookup flow:</p>
+     * <ol>
+     *   <li>Iterate fromTables to find matching tableNameInSql</li>
+     *   <li>Get corresponding preNodeId</li>
+     *   <li>Look up NodeSchemaInfo from nodeSchemaMap</li>
+     * </ol>
+     *
+     * @param tableNameInSql Table alias as used in SQL queries
+     * @return NodeSchemaInfo if found, null otherwise
+     */
+    private NodeSchemaInfo findSchemaInfoByTableNameInSql(String tableNameInSql) {
+        if (nodeSchemaMap == null || nodeSchemaMap.isEmpty()) {
+            return null;
+        }
+
+        if (tableNameInSql == null || tableNameInSql.isBlank()) {
+            return null;
+        }
+
+        for (FromTableConfig config : fromTables) {
+            if (config != null &&
+                config.getTableNameInSql() != null &&
+                config.getTableNameInSql().equalsIgnoreCase(tableNameInSql)) {
+
+                String preNodeId = config.getPreNodeId();
+
+                if (preNodeId != null && !preNodeId.isBlank()) {
+                    return nodeSchemaMap.get(preNodeId);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Get primary key field name for a source table.
      */
     private String getSourceTablePrimaryKey(String tableName) {
