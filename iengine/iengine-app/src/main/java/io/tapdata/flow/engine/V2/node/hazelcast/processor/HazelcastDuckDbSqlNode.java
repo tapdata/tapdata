@@ -2052,59 +2052,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         return getOrCreateContext(contextKey, targetTableName, null, null, null);
     }
 
-    /**
-     * 向 PerSourceContext 注入预加载的 Schema 信息
-     */
-    private void injectSchemaInfo(PerSourceContext context, String contextKey) {
-        if (context == null || StringUtils.isBlank(contextKey)) {
-            return;
-        }
 
-        try {
-            String sourceId = extractSourceIdFromContextKey(contextKey);
-            
-            if (StringUtils.isBlank(sourceId)) {
-                logger.debug("Cannot extract sourceId from contextKey: {}", contextKey);
-                return;
-            }
-
-            NodeSchemaInfo schemaInfo = getNodeSchema(sourceId);
-            
-            if (schemaInfo != null && schemaInfo.isValid()) {
-                context.setSchema(schemaInfo);
-                logger.debug("Injected schema info to Context: sourceId={}, table={}, qn={}", 
-                           sourceId, schemaInfo.getTableName(), schemaInfo.getQualifiedName());
-            } else {
-                logger.debug("No valid schema info found: sourceId={}", sourceId);
-            }
-            
-        } catch (Exception e) {
-            logger.warn("Failed to inject schema info: contextKey={}, error={}", contextKey, e.getMessage());
-        }
-    }
-
-    /**
-     * 从 contextKey 中提取 sourceId
-     */
-    private String extractSourceIdFromContextKey(String contextKey) {
-        if (StringUtils.isBlank(contextKey)) {
-            return null;
-        }
-
-        // 新格式: "sourceId|qualifiedName"
-        if (contextKey.contains("|")) {
-            return contextKey.substring(0, contextKey.indexOf('|'));
-        }
-        
-        // 兼容格式: "sourceId:tableId"
-        if (contextKey.contains(":")) {
-            return contextKey.substring(0, contextKey.indexOf(':'));
-        }
-        
-        // 无法识别的格式，返回整个 key（不太可能）
-        logger.warn("无法解析 contextKey 格式: {}", contextKey);
-        return contextKey;
-    }
 
     private DuckDbOperator createContextOperator() {
         try {
