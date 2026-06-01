@@ -87,177 +87,7 @@ public class AffectedKeyCalculator {
         this.withCteSqlGenerator = null;
     }
 
-    /**
-     * Calculate affected wide table primary keys from CDC events.
-     *
-     * @param tableName The table name that the events came from
-     * @param events    The CDC events to process
-     * @return Set of affected wide table primary keys
-     */
-    public Set<Object> calculateAffectedKeysFromEvents(String tableName, List<TapdataEvent> events) throws SQLException {
-        if (events == null || events.isEmpty()) {
-            return Collections.emptySet();
-        }
 
-        // Using LinkedHashSet to preserve insertion order (for consistent debugging)
-        Set<Object> affectedPks = new LinkedHashSet<>();
-
-        if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-            // Main table event: directly extract primary keys
-            logger.debug("Processing main table events from {}", tableName);
-            for (TapdataEvent event : events) {
-                TapEvent tapEvent = event.getTapEvent();
-                if (tapEvent instanceof TapRecordEvent) {
-                    TapRecordEvent recordEvent = (TapRecordEvent) tapEvent;
-                    Object pk = extractPrimaryKey(recordEvent, mainTablePrimaryKey);
-                    if (pk != null) {
-                        affectedPks.add(pk);
-                    }
-                }
-            }
-        } else {
-            // Check if table is configured as a source table
-            boolean isKnownSourceTable = false;
-            for (FromTableConfig config : fromTables) {
-                if (config.getTableNameInSql().equalsIgnoreCase(tableName)) {
-                    isKnownSourceTable = true;
-                    break;
-                }
-            }
-            // Also check if there is a custom join query for this table
-            if (!isKnownSourceTable) {
-                for (String key : customJoinQueries.keySet()) {
-                    if (key.equalsIgnoreCase(tableName)) {
-                        isKnownSourceTable = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!isKnownSourceTable) {
-                // Unknown table: return empty set
-                logger.debug("Unknown table {}, skipping processing", tableName);
-                return Collections.emptySet();
-            }
-
-            // Secondary table event: find related main table PKs
-            logger.debug("Processing secondary table events from {}", tableName);
-            // Using LinkedHashSet to preserve insertion order (for consistent debugging)
-            Set<Object> sourceTablePks = new LinkedHashSet<>();
-            String sourcePkField = getSourceTablePrimaryKey(tableName);
-
-            if (sourcePkField != null) {
-                for (TapdataEvent event : events) {
-                    TapEvent tapEvent = event.getTapEvent();
-                    if (tapEvent instanceof TapRecordEvent) {
-                        TapRecordEvent recordEvent = (TapRecordEvent) tapEvent;
-                        Object pk = extractPrimaryKey(recordEvent, sourcePkField);
-                        if (pk != null) {
-                            sourceTablePks.add(pk);
-                        }
-                    }
-                }
-            }
-
-            if (!sourceTablePks.isEmpty()) {
-                // Query main table PKs related to these source PKs
-                Set<Object> relatedMainPks = queryRelatedMainTablePks(tableName, sourceTablePks);
-                affectedPks.addAll(relatedMainPks);
-            }
-        }
-
-        logger.debug("Calculated {} affected wide table PKs for {} events from {}",
-                affectedPks.size(), events.size(), tableName);
-
-        return affectedPks;
-    }
-
-    /**
-     * Extract primary key value from a TapRecordEvent.
-     */
-    private Object extractPrimaryKey(TapRecordEvent recordEvent, String pkField) {
-        // Try after field first
-        Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
-        if (after != null) {
-            Object pk = after.get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-
-        // Try before field
-        Map<String, Object> before = TapEventUtil.getBefore(recordEvent);
-        if (before != null) {
-            Object pk = before.get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-
-        logger.debug("Failed to extract primary key '{}' from event", pkField);
-        return null;
-    }
-
-    /**
-     * 从 TapRecordEvent 提取 before 主键（宽表改动前）
-     * @param recordEvent 记录事件
-     * @param pkField 主键字段名
-     * @return Optional 包含 before 主键值，如果不存在则返回 empty
-     */
-    public Optional<Object> extractBeforePrimaryKey(TapRecordEvent recordEvent, String pkField) {
-        Map<String, Object> before = TapEventUtil.getBefore(recordEvent);
-        if (before != null) {
-            Object pk = before.get(pkField);
-            if (pk != null) {
-                return Optional.of(pk);
-            }
-        }
-        
-        return Optional.empty();
-    }
-
-    /**
-     * 从 TapRecordEvent 提取 after 主键（宽表改动后）
-     * @param recordEvent 记录事件
-     * @param pkField 主键字段名
-     * @return Optional 包含 after 主键值，如果不存在则返回 empty
-     */
-    public Optional<Object> extractAfterPrimaryKey(TapRecordEvent recordEvent, String pkField) {
-        Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
-        if (after != null) {
-            Object pk = after.get(pkField);
-            if (pk != null) {
-                return Optional.of(pk);
-            }
-        }
-        
-        return Optional.empty();
-    }
-
-    /**
-     * 检测主键是否更新
-     * @param recordEvent 记录事件
-     * @param pkField 主键字段名
-     * @return true 表示主键更新（beforePk ≠ afterPk）
-     */
-    public boolean isPrimaryKeyUpdated(TapRecordEvent recordEvent, String pkField) {
-        Optional<Object> beforePk = extractBeforePrimaryKey(recordEvent, pkField);
-        Optional<Object> afterPk = extractAfterPrimaryKey(recordEvent, pkField);
-        
-        return beforePk.isPresent() && afterPk.isPresent() 
-                && !Objects.equals(beforePk.get(), afterPk.get());
-    }
-
-    /**
-     * 批量计算所有事件的before受影响主键集合
-     * 使用 SmartMerger 合并事件，提取所有历史状态的 before 数据，拼接 WITH SQL 查询宽表主键
-     *
-     * @param events    TapdataEvent列表
-     * @return 所有before主键集合
-     */
-    public Set<Object> calculateAffectedBeforeKeys(List<TapdataEvent> events) throws SQLException {
-        return calculateAffectedBeforeKeys(events, null);
-    }
     
     /**
      * 批量计算所有事件的before受影响主键集合
@@ -305,7 +135,8 @@ public class AffectedKeyCalculator {
                 logger.debug("Processing main table before events from {}, using optimized path", tableName);
                 
                 // 使用 SmartMerger 合并事件
-                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
+                NodeSchemaInfo schema = findSchemaInfoByTableNameInSql(tableName);
+                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList, tableName, schema);
                 
                 // 从合并结果中提取 before 主键
                 Set<Object> mainTablePks = new LinkedHashSet<>();
@@ -369,7 +200,8 @@ public class AffectedKeyCalculator {
                 List<Map<String, Object>> deleteBeforeRows = extractDeleteBeforeRowsFromEvents(eventsList);
                 
                 // 2. 使用 SmartMerger 合并事件
-                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
+                NodeSchemaInfo schema = findSchemaInfoByTableNameInSql(tableName);
+                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList, tableName, schema);
                 
                 // 3. 提取所有 before 数据行（不包括 DELETE，因为已经提前收集了）
                 List<String> fields = getTableFields(tableName);
@@ -432,7 +264,8 @@ public class AffectedKeyCalculator {
                 logger.debug("Processing main table after events from {}, using optimized path", tableName);
                 
                 // 使用 SmartMerger 合并事件
-                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
+                NodeSchemaInfo schema = findSchemaInfoByTableNameInSql(tableName);
+                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList, tableName, schema);
                 
                 // 从合并结果中提取 after/finalState 主键
                 Set<Object> mainTablePks = new LinkedHashSet<>();
@@ -452,7 +285,8 @@ public class AffectedKeyCalculator {
             } else {
                 // 原有路径
                 // 1. 使用 SmartMerger 合并事件
-                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
+                NodeSchemaInfo schema = findSchemaInfoByTableNameInSql(tableName);
+                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList, tableName, schema);
                 if (mergedRecords.isEmpty()) {
                     continue;
                 }
@@ -860,202 +694,7 @@ public class AffectedKeyCalculator {
         return batches;
     }
 
-    public String getWideTablePrimaryKey() {
-        return wideTablePrimaryKey;
-    }
 
-    public String getMainTableName() {
-        return mainTableName;
-    }
-
-    public String getMainTablePrimaryKey() {
-        return mainTablePrimaryKey;
-    }
-    
-    // ==================== 兼容旧 API 的方法 ====================
-    
-    /**
-     * 兼容旧 API：从 Map 格式事件计算受影响主键
-     */
-    public Set<Object> calculateAffectedKeys(String tableName, List<Map<String, Object>> events) throws SQLException {
-        if (events == null || events.isEmpty()) {
-            return Collections.emptySet();
-        }
-        
-        // 简单的实现：直接从 Map 中提取主键
-        Set<Object> affectedPks = new LinkedHashSet<>();
-        
-        if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-            for (Map<String, Object> event : events) {
-                Object pk = extractPrimaryKeyFromMap(event, mainTablePrimaryKey);
-                if (pk != null) {
-                    affectedPks.add(pk);
-                }
-            }
-        } else {
-            String sourcePkField = getSourceTablePrimaryKey(tableName);
-            if (sourcePkField != null) {
-                Set<Object> sourcePks = new LinkedHashSet<>();
-                for (Map<String, Object> event : events) {
-                    Object pk = extractPrimaryKeyFromMap(event, sourcePkField);
-                    if (pk != null) {
-                        sourcePks.add(pk);
-                    }
-                }
-                if (!sourcePks.isEmpty()) {
-                    affectedPks.addAll(queryRelatedMainTablePks(tableName, sourcePks));
-                }
-            }
-        }
-        
-        return affectedPks;
-    }
-    
-    /**
-     * 从 Map 格式事件中提取主键
-     */
-    private Object extractPrimaryKeyFromMap(Map<String, Object> event, String pkField) {
-        if (event == null) {
-            return null;
-        }
-        
-        // 优先尝试 after 字段
-        Object after = event.get("after");
-        if (after instanceof Map) {
-            Object pk = ((Map<String, Object>) after).get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-        
-        // 然后尝试直接从顶级查找
-        Object pk = event.get(pkField);
-        if (pk != null) {
-            return pk;
-        }
-        
-        // 尝试 before 字段
-        Object before = event.get("before");
-        if (before instanceof Map) {
-            pk = ((Map<String, Object>) before).get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-        
-        // 尝试 o2 字段（MongoDB 风格）
-        Object o2 = event.get("o2");
-        if (o2 instanceof Map) {
-            pk = ((Map<String, Object>) o2).get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-        
-        // 尝试 o 字段（MongoDB 风格）
-        Object o = event.get("o");
-        if (o instanceof Map) {
-            pk = ((Map<String, Object>) o).get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-        
-        return null;
-    }
-    
-    /**
-     * 兼容旧 API：从 Map 格式事件中提取 before 主键
-     * @deprecated 使用 extractBeforePrimaryKey(TapRecordEvent, String) 替代
-     */
-    @Deprecated
-    public Optional<Object> extractBeforePrimaryKey(Map<String, Object> event, String pkField) {
-        Object pk = extractPrimaryKeyFromBeforeMap(event, pkField);
-        return Optional.ofNullable(pk);
-    }
-    
-    /**
-     * 从 Map 格式事件的 before 部分提取主键
-     */
-    private Object extractPrimaryKeyFromBeforeMap(Map<String, Object> event, String pkField) {
-        if (event == null) {
-            return null;
-        }
-        
-        // 尝试 before 字段
-        Object before = event.get("before");
-        if (before instanceof Map) {
-            Object pk = ((Map<String, Object>) before).get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-        
-        // 尝试 o2 字段（MongoDB 风格）
-        Object o2 = event.get("o2");
-        if (o2 instanceof Map) {
-            Object pk = ((Map<String, Object>) o2).get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-        
-        // 尝试 o 字段（MongoDB 风格）
-        Object o = event.get("o");
-        if (o instanceof Map) {
-            Object pk = ((Map<String, Object>) o).get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-        
-        // 尝试顶级
-        return event.get(pkField);
-    }
-    
-    /**
-     * 兼容旧 API：从 Map 格式事件中提取 after 主键
-     * @deprecated 使用 extractAfterPrimaryKey(TapRecordEvent, String) 替代
-     */
-    @Deprecated
-    public Optional<Object> extractAfterPrimaryKey(Map<String, Object> event, String pkField) {
-        Object pk = extractPrimaryKeyFromAfterMap(event, pkField);
-        return Optional.ofNullable(pk);
-    }
-    
-    /**
-     * 从 Map 格式事件的 after 部分提取主键
-     */
-    private Object extractPrimaryKeyFromAfterMap(Map<String, Object> event, String pkField) {
-        if (event == null) {
-            return null;
-        }
-        
-        // 优先尝试 after 字段
-        Object after = event.get("after");
-        if (after instanceof Map) {
-            Object pk = ((Map<String, Object>) after).get(pkField);
-            if (pk != null) {
-                return pk;
-            }
-        }
-        
-        // 然后尝试直接从顶级查找
-        return event.get(pkField);
-    }
-    
-    /**
-     * 兼容旧 API：检测 Map 格式事件中的主键是否更新
-     * @deprecated 使用 isPrimaryKeyUpdated(TapRecordEvent, String) 替代
-     */
-    @Deprecated
-    public boolean isPrimaryKeyUpdated(Map<String, Object> event, String pkField) {
-        Optional<Object> beforePk = extractBeforePrimaryKey(event, pkField);
-        Optional<Object> afterPk = extractAfterPrimaryKey(event, pkField);
-        
-        return beforePk.isPresent() && afterPk.isPresent() 
-                && !Objects.equals(beforePk.get(), afterPk.get());
-    }
 
     /**
      * Overloaded: Calculate affected before keys from merged records
@@ -1100,12 +739,11 @@ public class AffectedKeyCalculator {
                 
                 // 从合并结果中提取 before 主键
                 Set<Object> mainTablePks = new LinkedHashSet<>();
-                String pkField = mainTablePrimaryKey;
-                
+
                 // 从合并记录中提取 before 数据
                 List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(recordList, tableName);
                 for (Map<String, Object> row : beforeRows) {
-                    Object pk = row.get(pkField);
+                    Object pk = row.get(mainTablePrimaryKey);
                     if (pk != null) {
                         mainTablePks.add(pk);
                     }

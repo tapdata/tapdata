@@ -8,6 +8,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.flow.engine.V2.node.duckdb.NodeSchemaInfo;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 
 import java.util.*;
@@ -84,6 +85,35 @@ public class SmartMerger {
             TapEvent tapEventInner = tapEvent.getTapEvent();
             if (tapEventInner instanceof TapRecordEvent) {
                 processEvent(tapEvent, (TapRecordEvent) tapEventInner, mergedRecords, pkMigration);
+            }
+        }
+
+        return new ArrayList<>(mergedRecords.values());
+    }
+
+    /**
+     * 按 initial_pk 追踪记录生命周期，输出每条记录的最终状态。
+     * 使用 NodeSchemaInfo 获取真实主键信息。
+     *
+     * @param tapEvents 仅包含 TapdataEvent 的列表
+     * @param tableName 表名
+     * @param schema 表的 schema 信息
+     * @return list of MergedRecord, one per unique initial_pk
+     */
+    public static List<MergedRecord> mergeEventsSmart(List<TapdataEvent> tapEvents,
+                                                       String tableName,
+                                                       NodeSchemaInfo schema) {
+        if (tapEvents == null || tapEvents.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Object, MergedRecord> mergedRecords = new LinkedHashMap<>();
+        Map<Object, Object> pkMigration = new HashMap<>();
+
+        for (TapdataEvent tapEvent : tapEvents) {
+            TapEvent tapEventInner = tapEvent.getTapEvent();
+            if (tapEventInner instanceof TapRecordEvent) {
+                processEvent(tapEvent, (TapRecordEvent) tapEventInner, mergedRecords, pkMigration, tableName, schema);
             }
         }
 
@@ -214,6 +244,121 @@ public class SmartMerger {
         mergedRecords.remove(initialPk);
     }
 
+    private static void processEvent(TapdataEvent tapEvent,
+                                     TapRecordEvent recordEvent,
+                                     Map<Object, MergedRecord> mergedRecords,
+                                     Map<Object, Object> pkMigration,
+                                     String tableName,
+                                     NodeSchemaInfo schema) {
+        String opType;
+        if (recordEvent instanceof TapInsertRecordEvent) {
+            opType = INSERT_OP;
+        } else if (recordEvent instanceof TapUpdateRecordEvent) {
+            opType = UPDATE_OP;
+        } else if (recordEvent instanceof TapDeleteRecordEvent) {
+            opType = DELETE_OP;
+        } else {
+            return;
+        }
+
+        switch (opType) {
+            case INSERT_OP:
+                processInsert(tapEvent, recordEvent, mergedRecords, pkMigration, tableName, schema);
+                break;
+            case UPDATE_OP:
+                processUpdate(tapEvent, recordEvent, mergedRecords, pkMigration, tableName, schema);
+                break;
+            case DELETE_OP:
+                processDelete(tapEvent, recordEvent, mergedRecords, pkMigration, tableName, schema);
+                break;
+        }
+    }
+
+    private static void processInsert(TapdataEvent tapEvent,
+                                      TapRecordEvent recordEvent,
+                                      Map<Object, MergedRecord> mergedRecords,
+                                      Map<Object, Object> pkMigration,
+                                      String tableName,
+                                      NodeSchemaInfo schema) {
+        Object initialPk = extractPrimaryKey(recordEvent, tableName, schema);
+        if (initialPk == null) {
+            String key = computeKey(recordEvent);
+            mergedRecords.put(key, new MergedRecord(key, key));
+            return;
+        }
+
+        MergedRecord record = new MergedRecord(initialPk, initialPk);
+        record.getOperations().add(tapEvent);
+        record.setFinalStateEvent(recordEvent);
+        record.setFinalOp(INSERT_OP);
+
+        mergedRecords.put(initialPk, record);
+        pkMigration.put(initialPk, initialPk);
+    }
+
+    private static void processUpdate(TapdataEvent tapEvent,
+                                      TapRecordEvent recordEvent,
+                                      Map<Object, MergedRecord> mergedRecords,
+                                      Map<Object, Object> pkMigration,
+                                      String tableName,
+                                      NodeSchemaInfo schema) {
+        Object oldPk = extractBeforePrimaryKey(recordEvent, tableName, schema);
+        if (oldPk == null) {
+            oldPk = extractPrimaryKey(recordEvent, tableName, schema);
+        }
+
+        if (oldPk == null || !pkMigration.containsKey(oldPk)) {
+            return;
+        }
+
+        Object initialPk = pkMigration.get(oldPk);
+        MergedRecord record = mergedRecords.get(initialPk);
+        if (record == null) return;
+
+        record.getOperations().add(tapEvent);
+        record.setFinalStateEvent(recordEvent);
+
+        Object newPk = extractAfterPrimaryKey(recordEvent, tableName, schema);
+        if (newPk == null) {
+            newPk = oldPk;
+        }
+
+        if (!Objects.equals(oldPk, newPk)) {
+            pkMigration.remove(oldPk);
+            pkMigration.put(newPk, initialPk);
+            record.setCurrentPk(newPk);
+            record.setFinalOp(DELETE_INSERT_OP);
+        } else {
+            record.setFinalOp(UPDATE_OP);
+        }
+    }
+
+    private static void processDelete(TapdataEvent tapEvent,
+                                      TapRecordEvent recordEvent,
+                                      Map<Object, MergedRecord> mergedRecords,
+                                      Map<Object, Object> pkMigration,
+                                      String tableName,
+                                      NodeSchemaInfo schema) {
+        Object oldPk = extractPrimaryKey(recordEvent, tableName, schema);
+        if (oldPk == null) {
+            oldPk = extractBeforePrimaryKey(recordEvent, tableName, schema);
+        }
+
+        if (oldPk == null || !pkMigration.containsKey(oldPk)) {
+            return;
+        }
+
+        Object initialPk = pkMigration.get(oldPk);
+        MergedRecord record = mergedRecords.get(initialPk);
+        if (record == null) return;
+
+        record.getOperations().add(tapEvent);
+        record.setFinalOp(DELETE_OP);
+
+        pkMigration.remove(oldPk);
+        mergedRecords.remove(initialPk);
+    }
+
     /**
      * 从 TapRecordEvent 中提取主键，优先 after，其次 before。
      */
@@ -296,6 +441,86 @@ public class SmartMerger {
     }
 
     /**
+     * 从 TapRecordEvent 中提取主键，使用 NodeSchemaInfo 获取真实主键信息。
+     */
+    private static Object extractPrimaryKey(TapRecordEvent recordEvent,
+                                            String tableName,
+                                            NodeSchemaInfo schema) {
+        List<String> primaryKeys = schema.getPrimaryKeys();
+        if (primaryKeys == null || primaryKeys.isEmpty()) {
+            throw new IllegalStateException("No primary keys defined for table: " + tableName);
+        }
+
+        // 优先使用第一个主键
+        String pkField = primaryKeys.get(0);
+
+        Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+        if (after != null) {
+            Object pk = after.get(pkField);
+            if (pk != null) {
+                return pk;
+            }
+        }
+
+        Map<String, Object> before = TapEventUtil.getBefore(recordEvent);
+        if (before != null) {
+            Object pk = before.get(pkField);
+            if (pk != null) {
+                return pk;
+            }
+        }
+
+        throw new IllegalStateException("Cannot find primary key value for field: " + pkField +
+                                        " in table: " + tableName);
+    }
+
+    /**
+     * 从 before 数据中提取旧主键，使用 NodeSchemaInfo 获取真实主键信息。
+     */
+    private static Object extractBeforePrimaryKey(TapRecordEvent recordEvent,
+                                                  String tableName,
+                                                  NodeSchemaInfo schema) {
+        List<String> primaryKeys = schema.getPrimaryKeys();
+        if (primaryKeys == null || primaryKeys.isEmpty()) {
+            throw new IllegalStateException("No primary keys defined for table: " + tableName);
+        }
+
+        String pkField = primaryKeys.get(0);
+        Map<String, Object> before = TapEventUtil.getBefore(recordEvent);
+        if (before != null) {
+            Object pk = before.get(pkField);
+            if (pk != null) {
+                return pk;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 从 after 数据中提取新主键，使用 NodeSchemaInfo 获取真实主键信息。
+     */
+    private static Object extractAfterPrimaryKey(TapRecordEvent recordEvent,
+                                                 String tableName,
+                                                 NodeSchemaInfo schema) {
+        List<String> primaryKeys = schema.getPrimaryKeys();
+        if (primaryKeys == null || primaryKeys.isEmpty()) {
+            throw new IllegalStateException("No primary keys defined for table: " + tableName);
+        }
+
+        String pkField = primaryKeys.get(0);
+        Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+        if (after != null) {
+            Object pk = after.get(pkField);
+            if (pk != null) {
+                return pk;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * 简单 last-wins 去重：用于保守场景的兜底处理。
      */
     public static List<Map<String, Object>> mergeLastWins(List<TapdataEvent> events) {
@@ -309,6 +534,40 @@ public class SmartMerger {
             TapEvent tapEventInner = tapEvent.getTapEvent();
             if (tapEventInner instanceof TapRecordEvent recordEvent) {
                 Object pk = extractPrimaryKey(recordEvent);
+                if (pk != null) {
+                    Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+                    if (after != null) {
+                        lastByKey.put(pk, after);
+                    }
+                }
+            }
+        }
+
+        return new ArrayList<>(lastByKey.values());
+    }
+
+    /**
+     * 简单 last-wins 去重：用于保守场景的兜底处理。
+     * 使用 NodeSchemaInfo 获取真实主键信息。
+     *
+     * @param events TapdataEvent 列表
+     * @param tableName 表名
+     * @param schema 表的 schema 信息
+     * @return 去重后的记录列表
+     */
+    public static List<Map<String, Object>> mergeLastWins(List<TapdataEvent> events,
+                                                           String tableName,
+                                                           NodeSchemaInfo schema) {
+        if (events == null || events.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Object, Map<String, Object>> lastByKey = new LinkedHashMap<>();
+
+        for (TapdataEvent tapEvent : events) {
+            TapEvent tapEventInner = tapEvent.getTapEvent();
+            if (tapEventInner instanceof TapRecordEvent recordEvent) {
+                Object pk = extractPrimaryKey(recordEvent, tableName, schema);
                 if (pk != null) {
                     Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
                     if (after != null) {
