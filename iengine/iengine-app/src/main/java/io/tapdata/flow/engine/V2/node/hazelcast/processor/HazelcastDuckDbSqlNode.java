@@ -2014,7 +2014,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         return sanitized;
     }
 
-    private PerSourceContext getOrCreateContext(String contextKey, String targetTableName) {
+    private PerSourceContext getOrCreateContext(String contextKey, String targetTableName,
+                                                String sourceId, String tableId,
+                                                NodeSchemaInfo schemaInfo) {
         synchronized (sourceContextLock) {
             PerSourceContext existing = sourceContexts.get(contextKey);
             if (existing != null) {
@@ -2023,20 +2025,25 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             }
             evictIfNecessary();
             DuckDbOperator contextOperator = createContextOperator();
-            PerSourceContext context = new PerSourceContext(contextKey, contextOperator);
+            
+            PerSourceContext context = new PerSourceContext(
+                contextKey, contextOperator, sourceId, tableId, schemaInfo);
             context.setBatchSize(batchSize);
             context.setTargetTableName(targetTableName);
-            
-            injectSchemaInfo(context, contextKey);
             
             sourceContexts.put(contextKey, context);
             sourceAccessOrder.put(contextKey, Boolean.TRUE);
             
-            logger.debug("Created new Context: {}, schema={}", contextKey, 
-                        context.hasSchema() ? "loaded" : "null");
+            logger.debug("Created new Context: {}, sourceId={}, tableId={}, schema={}",
+                        contextKey, sourceId, tableId,
+                        schemaInfo != null ? "loaded" : "null");
             
             return context;
         }
+    }
+
+    private PerSourceContext getOrCreateContext(String contextKey, String targetTableName) {
+        return getOrCreateContext(contextKey, targetTableName, null, null, null);
     }
 
     /**
