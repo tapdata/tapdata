@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "properties": {
+    "metadataId": {
+      "type": "string",
+      "description": "The id of the metadata instance (table model)"
+    },
+    "fields": {
+      "type": "array",
+      "description": "Array of fields to update. Each item should have fieldName (or fieldId) and businessDesc.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "description": "The id of the field to update"
+          },
+          "fieldName": {
+            "type": "string",
+            "description": "The name of the field to update"
+          },
+          "businessDesc": {
+            "type": "string",
+            "description": "The business description to set for the field"
+          }
+        },
+        "required": ["businessDesc"]
+      }
+    }
+  },
+  "required": ["metadataId", "fields"]
+}

@@ -5,10 +5,12 @@ import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.task.service.TaskSaveService;
@@ -17,6 +19,7 @@ import com.tapdata.tm.user.service.UserService;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
@@ -39,12 +42,14 @@ public class CreateMergeTableTask extends Tool {
     private final TaskService taskService;
     private final TaskSaveService taskSaveService;
     private final ExternalStorageService externalStorageService;
+    private final DataSourceService dataSourceService;
 
     public CreateMergeTableTask(SessionAttribute sessionAttribute,
                                 UserService userService,
                                 TaskService taskService,
                                 TaskSaveService taskSaveService,
-                                ExternalStorageService externalStorageService) {
+                                ExternalStorageService externalStorageService,
+                                DataSourceService dataSourceService) {
         super("createMergeTableTask",
                 "Create a master-slave merge (主从合并) task in TapData. " +
                 "This task merges multiple source tables into one target document/table by joining child tables into the main table. " +
@@ -53,6 +58,7 @@ public class CreateMergeTableTask extends Tool {
         this.taskService = taskService;
         this.taskSaveService = taskSaveService;
         this.externalStorageService = externalStorageService;
+        this.dataSourceService = dataSourceService;
     }
 
     @Override
@@ -85,13 +91,17 @@ public class CreateMergeTableTask extends Tool {
         String mainTableName = (String) mainTableParam.get("tableName");
         List<String> mainArrayKeys = (List<String>) mainTableParam.get("arrayKeys");
 
+        // Fetch connection info for attrs
+        DataSourceConnectionDto sourceConnection = dataSourceService.findById(new ObjectId(sourceConnectionId), userDetail);
+        DataSourceConnectionDto targetConnection = dataSourceService.findById(new ObjectId(targetConnectionId), userDetail);
+
         // Build source nodes, merge node, target node, and edges
         List<Node> nodes = new ArrayList<>();
         List<Edge> edges = new ArrayList<>();
 
         // 1. Main source table node
         String mainNodeId = UUID.randomUUID().toString();
-        TableNode mainSourceNode = buildSourceTableNode(mainNodeId, mainTableName, sourceConnectionId, sourceDatabaseType);
+        TableNode mainSourceNode = buildSourceTableNode(mainNodeId, mainTableName, sourceConnectionId, sourceDatabaseType, sourceConnection);
         nodes.add(mainSourceNode);
 
         // 2. Child source table nodes
@@ -100,7 +110,7 @@ public class CreateMergeTableTask extends Tool {
             String childNodeId = UUID.randomUUID().toString();
             String childTableName = (String) childParam.get("tableName");
 
-            TableNode childSourceNode = buildSourceTableNode(childNodeId, childTableName, sourceConnectionId, sourceDatabaseType);
+            TableNode childSourceNode = buildSourceTableNode(childNodeId, childTableName, sourceConnectionId, sourceDatabaseType, sourceConnection);
             nodes.add(childSourceNode);
 
             // Build child merge properties
@@ -155,7 +165,7 @@ public class CreateMergeTableTask extends Tool {
         String mergeNodeId = UUID.randomUUID().toString();
         MergeTableNode mergeNode = new MergeTableNode();
         mergeNode.setId(mergeNodeId);
-        mergeNode.setName("主从合并");
+        mergeNode.setName("Merge Table");
         mergeNode.setMergeProperties(Collections.singletonList(mainProp));
         mergeNode.setMergeMode(MergeTableNode.MAIN_TABLE_FIRST_MERGE_MODE);
         // Set default external storage id
@@ -165,7 +175,7 @@ public class CreateMergeTableTask extends Tool {
 
         // 5. Target table node
         String targetNodeId = UUID.randomUUID().toString();
-        TableNode targetNode = buildTargetTableNode(targetNodeId, targetTableName, targetConnectionId, targetDatabaseType, mainArrayKeys);
+        TableNode targetNode = buildTargetTableNode(targetNodeId, targetTableName, targetConnectionId, targetDatabaseType, mainArrayKeys, targetConnection);
         nodes.add(targetNode);
 
         // 6. Build edges: each source -> merge, merge -> target
@@ -220,7 +230,7 @@ public class CreateMergeTableTask extends Tool {
         return makeCallToolResult(response);
     }
 
-    private TableNode buildSourceTableNode(String nodeId, String tableName, String connectionId, String databaseType) {
+    private TableNode buildSourceTableNode(String nodeId, String tableName, String connectionId, String databaseType, DataSourceConnectionDto connection) {
         TableNode node = new TableNode();
         node.setId(nodeId);
         node.setName(tableName);
@@ -233,10 +243,11 @@ public class CreateMergeTableTask extends Tool {
         node.setSyncForeignKeyEnable(true);
         node.setNoPkSyncMode("ADD_HASH");
         node.setExistDataProcessMode("keepData");
+        node.setAttrs(buildAttrs(connection));
         return node;
     }
 
-    private TableNode buildTargetTableNode(String nodeId, String tableName, String connectionId, String databaseType, List<String> updateConditionFields) {
+    private TableNode buildTargetTableNode(String nodeId, String tableName, String connectionId, String databaseType, List<String> updateConditionFields, DataSourceConnectionDto connection) {
         TableNode node = new TableNode();
         node.setId(nodeId);
         node.setName(tableName);
@@ -249,7 +260,22 @@ public class CreateMergeTableTask extends Tool {
         node.setSyncForeignKeyEnable(true);
         node.setUniqueIndexEnable(true);
         node.setNoPkSyncMode("ADD_HASH");
+        node.setAttrs(buildAttrs(connection));
         return node;
+    }
+
+    private Map<String, Object> buildAttrs(DataSourceConnectionDto connection) {
+        Map<String, Object> attrs = new HashMap<>();
+        if (connection != null) {
+            attrs.put("connectionName", connection.getName());
+            attrs.put("connectionType", connection.getConnection_type());
+            attrs.put("accessNodeProcessId", connection.getAccessNodeProcessId());
+            attrs.put("priorityProcessId", connection.getPriorityProcessId());
+            attrs.put("pdkType", connection.getPdkType());
+            attrs.put("pdkHash", connection.getPdkHash());
+            attrs.put("db_version", connection.getDb_version());
+        }
+        return attrs;
     }
 
     private String getDefaultExternalStorageId() {

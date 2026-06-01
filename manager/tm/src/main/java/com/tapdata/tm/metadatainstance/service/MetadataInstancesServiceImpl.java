@@ -2520,6 +2520,42 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         update(query,update, userDetail);
     }
 
+    public void updateTableFieldDescByName(String id, String fieldName, String businessDesc, UserDetail userDetail){
+        if(org.springframework.util.StringUtils.isEmpty(id)){
+            throw new BizException(ILLEGAL_ARGUMENT, "Id");
+        }
+        if(org.springframework.util.StringUtils.isEmpty(fieldName)){
+            throw new BizException(ILLEGAL_ARGUMENT, "fieldName");
+        }
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(id)).and("fields.field_name").is(fieldName);
+        Query query = new Query(criteria);
+        Update update = Update.update("fields.$.description", businessDesc);
+        update(query, update, userDetail);
+    }
+
+    public void batchUpdateTableFieldDescByName(String id, Map<String, String> fieldDescMap, UserDetail userDetail){
+        if(org.springframework.util.StringUtils.isEmpty(id)){
+            throw new BizException(ILLEGAL_ARGUMENT, "Id");
+        }
+        if(fieldDescMap == null || fieldDescMap.isEmpty()){
+            return;
+        }
+        // Query the metadata and update fields in memory, then save
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(id));
+        Query query = new Query(criteria);
+        query.fields().include(FIELDS);
+        MetadataInstancesDto dto = findOne(query, userDetail);
+        if (dto != null && CollectionUtils.isNotEmpty(dto.getFields())) {
+            for (Field field : dto.getFields()) {
+                String desc = fieldDescMap.get(field.getFieldName());
+                if (desc != null) {
+                    field.setDescription(desc);
+                }
+            }
+            update(new Query(criteria), Update.update(FIELDS, dto.getFields()), userDetail);
+        }
+    }
+
     public MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail) {
 
         Criteria criteria = Criteria.where(QUALIFIED_NAME).is(metadataInstancesDto.getQualifiedName());
