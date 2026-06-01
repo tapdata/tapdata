@@ -254,15 +254,20 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // ========== 新增: 初始化实时增量物化视图组件 ==========
             if (wideTablePrimaryKey != null && !wideTablePrimaryKey.isEmpty()) {
-                // 初始化 AffectedKeyCalculator
                 affectedKeyCalculator = new AffectedKeyCalculator(
                         wideTablePrimaryKey,
                         mainTableName,
                         mainTablePrimaryKey,
-                        fromTables, // 直接使用我们已经转换好的 fromTables
+                        fromTables,
                         customJoinQueries,
-                        duckDbOperator
+                        duckDbOperator,
+                        nodeSchemaCache,
+                        this.querySql
                 );
+
+                logger.info("AffectedKeyCalculator initialized with {} schema(s), querySql length={}",
+                           nodeSchemaCache.size(),
+                           this.querySql.length());
 
                 // 根据全局配置选择新组件或旧组件
                 if (DuckDbSqlConfig.isUseNewWideTableUpdater()) {

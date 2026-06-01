@@ -38,39 +38,11 @@ public class AffectedKeyCalculator {
     private final Map<String, NodeSchemaInfo> nodeSchemaMap;
     private final String resolvedQuerySql;
 
-    public AffectedKeyCalculator(
-            String wideTablePrimaryKey,
-            String mainTableName,
-            String mainTablePrimaryKey,
-            List<FromTableConfig> fromTables,
-            Map<String, String> customJoinQueries,
-            DuckDbOperator operator
-    ) {
-        this(wideTablePrimaryKey, mainTableName, mainTablePrimaryKey, fromTables, customJoinQueries, operator, null);
-    }
-
-    public AffectedKeyCalculator(
-            String wideTablePrimaryKey,
-            String mainTableName,
-            String mainTablePrimaryKey,
-            List<FromTableConfig> fromTables,
-            Map<String, String> customJoinQueries,
-            DuckDbOperator operator,
-            WithCteSqlGenerator withCteSqlGenerator
-    ) {
-        this.wideTablePrimaryKey = wideTablePrimaryKey;
-        this.mainTableName = mainTableName;
-        this.mainTablePrimaryKey = mainTablePrimaryKey;
-        this.fromTables = fromTables != null ? fromTables : Collections.emptyList();
-        this.customJoinQueries = customJoinQueries != null ? customJoinQueries : Collections.emptyMap();
-        this.operator = operator;
-        this.withCteSqlGenerator = withCteSqlGenerator;
-        this.nodeSchemaMap = null;
-        this.resolvedQuerySql = null;
-    }
-
     /**
      * Full constructor with all required dependencies including NodeSchemaInfo and resolved query SQL.
+     *
+     * <p>This is the only supported constructor. All dependencies are injected via constructor
+     * to ensure immutability and explicit dependency declaration.</p>
      *
      * @param wideTablePrimaryKey Wide table primary key field name
      * @param mainTableName Main table name (alias used in SQL)
@@ -80,8 +52,7 @@ public class AffectedKeyCalculator {
      * @param operator DuckDB operator instance
      * @param nodeSchemaMap Predecessor node schema information mapping (preNodeId → NodeSchemaInfo)
      * @param resolvedQuerySql Resolved SQL statement where table aliases have been replaced with actual table names
-     * @throws IllegalArgumentException if required string parameters are blank
-     * @throws NullPointerException if required object parameters are null
+     * @throws IllegalArgumentException if required parameters are null or blank
      */
     public AffectedKeyCalculator(
             String wideTablePrimaryKey,

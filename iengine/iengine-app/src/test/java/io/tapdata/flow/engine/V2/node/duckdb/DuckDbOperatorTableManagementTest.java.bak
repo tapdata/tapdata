@@ -1,0 +1,114 @@
+package io.tapdata.flow.engine.V2.node.duckdb;
+
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.type.TapNumber;
+import org.junit.jupiter.api.*;
+import java.sql.SQLException;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class DuckDbOperatorTableManagementTest {
+
+    private DuckDbOperator operator;
+
+    @BeforeEach
+    void setUp() throws SQLException {
+        operator = new DuckDbOperatorImpl();
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        if (operator != null) {
+            operator.close();
+        }
+    }
+
+    @Test
+    void testEnsureTableCreatesWhenNotExistsAndNoRecreate() throws SQLException {
+        List<TapField> fields = Arrays.asList(
+            new TapField("id", new TapNumber()),
+            new TapField("name", new TapString())
+        );
+        List<String> primaryKeys = Collections.singletonList("id");
+
+        operator.ensureTableExists("test_new_table", fields, primaryKeys, false);
+
+        assertTrue(operator.tableExists("test_new_table"));
+    }
+
+    @Test
+    void testEnsureTableSkipsWhenExistsAndNoRecreate() throws SQLException {
+        List<TapField> fields = Arrays.asList(
+            new TapField("id", new TapNumber()),
+            new TapField("name", new TapString())
+        );
+        List<String> primaryKeys = Collections.singletonList("id");
+
+        operator.ensureTableExists("test_existing_table", fields, primaryKeys, false);
+        
+        long countBefore = operator.executeQuery(
+            "SELECT count(*) FROM test_existing_table").get(0).get("count");
+        
+        operator.ensureTableExists("test_existing_table", fields, primaryKeys, false);
+        
+        long countAfter = operator.executeQuery(
+            "SELECT count(*) FROM test_existing_table").get(0).get("count");
+        
+        assertEquals(countBefore, countAfter, "Table should not be recreated");
+    }
+
+    @Test
+    void testEnsureTableRecreatesWhenFlagTrue() throws SQLException {
+        List<TapField> fields = Arrays.asList(
+            new TapField("id", new TapNumber()),
+            new TapField("name", new TapString())
+        );
+        List<String> primaryKeys = Collections.singletonList("id");
+
+        operator.ensureTableExists("test_recreate_table", fields, primaryKeys, false);
+        operator.executeUpdate("INSERT INTO test_recreate_table VALUES (1, 'original')");
+        
+        operator.ensureTableExists("test_recreate_table", fields, primaryKeys, true);
+        
+        List<Map<String, Object>> result = operator.executeQuery(
+            "SELECT count(*) as cnt FROM test_recreate_table");
+        assertEquals(0L, result.get(0).get("cnt"), "Table should be empty after recreate");
+    }
+
+    @Test
+    void testBuildCreateTableSqlGeneratesCorrectSyntax() {
+        List<TapField> fields = Arrays.asList(
+            new TapField("user_id", new TapNumber()),
+            new TapField("username", new TapString()),
+            new TapField("email", new TapString())
+        );
+        List<String> primaryKeys = Collections.singletonList("user_id");
+
+        String sql = DuckDbOperator.buildCreateTableSql("users", fields, primaryKeys);
+
+        assertNotNull(sql);
+        assertTrue(sql.startsWith("CREATE TABLE users ("));
+        assertTrue(sql.contains("user_id BIGINT PRIMARY KEY NOT NULL"));
+        assertTrue(sql.contains("username VARCHAR"));
+        assertTrue(sql.contains("email VARCHAR"));
+        assertTrue(sql.endsWith(")"));
+    }
+
+    @Test
+    void testBuildCreateTableSqlSanitizesIdentifiers() {
+        List<TapField> fields = Arrays.asList(
+            new TapField("my-field", new TapString()),
+            new TapField("123invalid", new TapString())
+        );
+        List<String> primaryKeys = Collections.emptyList();
+
+        String sql = DuckDbOperator.buildCreateTableSql("test table", fields, primaryKeys);
+
+        assertFalse(sql.contains("my-field"), "Hyphens should be replaced");
+        assertFalse(sql.contains("123invalid") && !sql.contains("_123invalid"), 
+                   "Leading digits should be prefixed with underscore");
+        assertFalse(sql.contains("test table"), "Spaces should be replaced");
+    }
+}
