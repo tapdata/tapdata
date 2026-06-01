@@ -4,6 +4,7 @@ import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
+import io.tapdata.flow.engine.V2.node.duckdb.NodeSchemaInfo;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -134,7 +135,7 @@ class MainTableScenariosTest extends AffectedKeyCalculatorTestBase {
             List<FromTableConfig> fromTables = Collections.singletonList(
                     new FromTableConfig("users", "id"))
             );
-            return createNewModeCalculator("id", "users", "id", fromTables);
+            return createNewModeCalculator("id");
         }
 
         @Test

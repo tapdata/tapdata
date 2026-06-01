@@ -14,6 +14,18 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AffectedKeyCalculatorMergedRecordsTest {
+
+    private Map<String, NodeSchemaInfo> createDefaultSchemaMap() {
+        Map<String, NodeSchemaInfo> schemaMap = new HashMap<>();
+        NodeSchemaInfo schema = Mockito.mock(NodeSchemaInfo.class);
+        when(schema.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
+        when(schema.getFieldNames()).thenReturn(List.of("id", "name"));
+        when(schema.getFieldMap()).thenReturn(new HashMap<>());
+        schemaMap.put("main", schema);
+        return schemaMap;
+    }
+
+
     @Test
     void calculateAffectedBeforeKeys_usesMergedRecordsAndIncludesDeleteBefore() throws SQLException {
         CapturingWithCteSqlGenerator generator = new CapturingWithCteSqlGenerator();
@@ -22,8 +34,7 @@ class AffectedKeyCalculatorMergedRecordsTest {
                 .thenReturn(List.of(Collections.singletonMap("wide_id", 1)));
 
         List<FromTableConfig> fromTables = List.of(
-                new FromTableConfig("source", "id"),
-                        "SELECT t.id AS wide_id FROM source t", List.of("id", "name"))
+                new FromTableConfig("source", "id")"))
         );
 
         AffectedKeyCalculator calculator = new AffectedKeyCalculator(
@@ -61,6 +72,18 @@ class AffectedKeyCalculatorMergedRecordsTest {
         assertTrue(names.contains("delete_before"));
     }
 
+
+    private Map<String, NodeSchemaInfo> createDefaultSchemaMap() {
+        Map<String, NodeSchemaInfo> schemaMap = new HashMap<>();
+        NodeSchemaInfo schema = Mockito.mock(NodeSchemaInfo.class);
+        when(schema.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
+        when(schema.getFieldNames()).thenReturn(List.of("id", "name"));
+        when(schema.getFieldMap()).thenReturn(new HashMap<>());
+        schemaMap.put("main", schema);
+        return schemaMap;
+    }
+
+
     @Test
     void calculateAffectedAfterKeys_groupsByTableFromMergedRecords() throws SQLException {
         CapturingWithCteSqlGenerator generator = new CapturingWithCteSqlGenerator();
@@ -69,10 +92,8 @@ class AffectedKeyCalculatorMergedRecordsTest {
                 .thenReturn(List.of(Collections.singletonMap("wide_id", 1)));
 
         List<FromTableConfig> fromTables = List.of(
-                new FromTableConfig("source_a", "id"),
-                        "SELECT t.id AS wide_id FROM source_a t", List.of("id")),
-                new FromTableConfig("source_b", "id"),
-                        "SELECT t.id AS wide_id FROM source_b t", List.of("id"))
+                new FromTableConfig("source_a", "id")")),
+                new FromTableConfig("source_b", "id")"))
         );
 
         AffectedKeyCalculator calculator = new AffectedKeyCalculator(

@@ -4,6 +4,7 @@ import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
+import io.tapdata.flow.engine.V2.node.duckdb.NodeSchemaInfo;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -25,8 +26,7 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
         void testJoinKeyUnchanged_PKDuplicate() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -48,8 +48,7 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
         void testJoinKeyChanges_DifferentPKs() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -78,9 +77,7 @@ class JoinKeyUpdateScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private AffectedKeyCalculator createNewModeCalculatorWithFromTable() {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig("orders", "order_id")),
-                            "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id",
-                            Arrays.asList("order_id", "user_id"))
+                    new FromTableConfig("orders", "order_id"))"))
             );
             return createNewModeCalculator("id", "users", "id", fromTables);
         }

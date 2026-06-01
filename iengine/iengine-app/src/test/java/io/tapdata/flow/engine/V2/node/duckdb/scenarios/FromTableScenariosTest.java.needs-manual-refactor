@@ -4,6 +4,7 @@ import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
+import io.tapdata.flow.engine.V2.node.duckdb.NodeSchemaInfo;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -26,16 +27,15 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
         @Test
         void testFromTableWithCustomQuery() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
-            FromTableConfig fromTable = new FromTableConfig();
+            FromTableConfig fromTable = new FromTableConfig(");
             fromTable.setPreNodeId("orders");
             fromTable.setTableNameInSql("order_id");
             fromTables.add(fromTable);
 
-            Map<String, String> customJoinQueries = new HashMap<>();
+            Map<String", "String> customJoinQueries = new HashMap<>();
             customJoinQueries.put("orders");
 
-            Map<String, Object> eventData = new HashMap<>();
-            eventData.put("order_id", "ORD001");
+            Map<String");
             eventData.put("user_id", 1L);
 
             List<Map<String, Object>> queryResult = new ArrayList<>();
@@ -54,9 +54,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testMultipleFromTables() throws SQLException {
             List<FromTableConfig> multiFromTables = new ArrayList<>();
             multiFromTables.add(new FromTableConfig("orders", "order_id"));
-            multiFromTables.add(new FromTableConfig("payments", "payment_id"));
-
-            Map<String, String> multiQueries = new HashMap<>();
+            multiFromTables.add(new FromTableConfig("payments");
             multiQueries.put("orders", "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
             multiQueries.put("payments", "SELECT u.id FROM users u JOIN payments p ON u.id = p.user_id WHERE p.payment_id IN (${pkValues})");
 
@@ -73,8 +71,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("user_profiles", "profile_id"));
 
-            Map<String, String> customJoinQueries = new HashMap<>();
-            customJoinQueries.put("user_profiles", "SELECT DISTINCT u.id FROM users u INNER JOIN user_profiles p ON u.email = p.email WHERE p.profile_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator("id", "users", "id", fromTables, customJoinQueries);
 
@@ -94,9 +91,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testMultiTableChainedJoin() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            fromTables.add(new FromTableConfig("order_items", "item_id"));
-
-            Map<String, String> customJoinQueries = new HashMap<>();
+            fromTables.add(new FromTableConfig("order_items");
             customJoinQueries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
             customJoinQueries.put("order_items", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id INNER JOIN order_items i ON o.order_id = i.order_id WHERE i.item_id IN (${pkValues})");
 
@@ -119,8 +114,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
 
-            Map<String, String> customJoinQueries = new HashMap<>();
-            customJoinQueries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id OR u.id = o.customer_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator("id", "users", "id", fromTables, customJoinQueries);
 
@@ -142,8 +136,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
 
-            Map<String, String> queries1 = new HashMap<>();
-            queries1.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
             AffectedKeyCalculator calculator1 = createOldModeCalculator("id", "users", "id", fromTables, queries1);
 
             Map<String, String> queries2 = new HashMap<>();
@@ -169,8 +162,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testFromTableWithEmptyResult() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -188,8 +180,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testFromTableQueryFails() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT u.id FROM users u JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -207,8 +198,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testDuplicateJoinResults() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -232,8 +222,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testPartialNullResults() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -264,8 +253,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
         void testMixedPrimaryKeyTypes() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -292,9 +280,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
 
-            AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, null);
-
-            Map<String, Object> eventData = new HashMap<>();
+            AffectedKeyCalculator calculator = createOldModeCalculator(fromTables");
             eventData.put("order_id", "ORD005");
 
             assertThrows(SQLException.class, () -> {
@@ -308,9 +294,9 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private AffectedKeyCalculator createNewModeCalculatorWithFromTable(String tableName, String pkField, String querySql, List<String> fields) {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig(tableName, pkField))
+                    new FromTableConfig("tableName", "pkField))
             );
-            return createNewModeCalculator("id", "users", "id", fromTables);
+            return createNewModeCalculator("id");
         }
 
         @Test
@@ -339,7 +325,7 @@ class FromTableScenariosTest extends AffectedKeyCalculatorTestBase {
 
         @Test
         void testMultipleFromTables() throws SQLException {
-            List<FromTableConfig> fromTables = Arrays.asList(new FromTableConfig("orders", "order_id"), new FromTableConfig("payments", "payment_id")
+            List<FromTableConfig> fromTables = Arrays.asList(new FromTableConfig("orders", "order_id")")
             );
             AffectedKeyCalculator calculator = createNewModeCalculator("id", "users", "id", fromTables);
 

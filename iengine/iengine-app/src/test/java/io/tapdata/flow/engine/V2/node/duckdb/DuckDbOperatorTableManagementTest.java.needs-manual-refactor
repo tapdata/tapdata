@@ -13,6 +13,21 @@ class DuckDbOperatorTableManagementTest {
 
     private DuckDbOperator operator;
 
+
+    // ==================== Schema 工厂 ====================
+
+    private Map<String, NodeSchemaInfo> createDefaultSchemaMap() {
+        Map<String, NodeSchemaInfo> schemaMap = new HashMap<>();
+
+        NodeSchemaInfo userSchema = Mockito.mock(NodeSchemaInfo.class);
+        when(userSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
+        when(userSchema.getFieldNames()).thenReturn(Arrays.asList("id", "name", "email"));
+        when(userSchema.getFieldMap()).thenReturn(new HashMap<>());
+        schemaMap.put("node_users", userSchema);
+
+        return schemaMap;
+    }
+
     @BeforeEach
     void setUp() throws SQLException {
         operator = new DuckDbOperatorImpl();

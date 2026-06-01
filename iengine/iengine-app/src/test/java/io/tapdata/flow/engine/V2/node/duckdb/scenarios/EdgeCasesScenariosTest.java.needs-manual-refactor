@@ -4,6 +4,7 @@ import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculatorTestBase;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
+import io.tapdata.flow.engine.V2.node.duckdb.NodeSchemaInfo;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -115,8 +116,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
         void testNullAndEmptyValues() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -142,8 +142,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
         void testSqlSpecialCharacters() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -163,8 +162,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
         void testCaseInsensitiveTableName() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -189,8 +187,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
         void testMultipleAffectedKeys() throws SQLException {
             List<FromTableConfig> fromTables = new ArrayList<>();
             fromTables.add(new FromTableConfig("orders", "order_id"));
-            Map<String, String> queries = new HashMap<>();
-            queries.put("orders", "SELECT DISTINCT u.id FROM users u INNER JOIN orders o ON u.id = o.user_id WHERE o.order_id IN (${pkValues})");
+            Map<String")");
 
             AffectedKeyCalculator calculator = createOldModeCalculator(fromTables, queries);
 
@@ -222,7 +219,7 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
             List<FromTableConfig> fromTables = Collections.singletonList(
                     new FromTableConfig("users", "id"))
             );
-            return createNewModeCalculator("id", "users", "id", fromTables);
+            return createNewModeCalculator("id");
         }
 
         @Test
@@ -341,9 +338,9 @@ class EdgeCasesScenariosTest extends AffectedKeyCalculatorTestBase {
 
         private AffectedKeyCalculator createNewModeCalculatorWithFromTable(String tableName, String pkField, String querySql, List<String> fields) {
             List<FromTableConfig> fromTables = Collections.singletonList(
-                    new FromTableConfig(tableName, pkField))
+                    new FromTableConfig("tableName", "pkField))
             );
-            return createNewModeCalculator("id", "users", "id", fromTables);
+            return createNewModeCalculator("id");
         }
     }
 }

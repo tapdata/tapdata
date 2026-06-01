@@ -23,14 +23,30 @@ public abstract class AffectedKeyCalculatorTestBase {
 
     protected DuckDbOperator mockDuckDbOperator;
 
+    private static final String DEFAULT_QUERY_SQL = "SELECT u.id, u.name FROM target__users u";
+
     @BeforeEach
     void baseSetUp() {
         mockDuckDbOperator = Mockito.mock(DuckDbOperator.class);
     }
 
-    // ==================== 旧模式计算器工厂 ====================
+    // ==================== Schema 工厂 ====================
 
-    protected AffectedKeyCalculator createOldModeCalculator(
+    protected Map<String, NodeSchemaInfo> createDefaultSchemaMap() {
+        Map<String, NodeSchemaInfo> schemaMap = new HashMap<>();
+
+        NodeSchemaInfo userSchema = Mockito.mock(NodeSchemaInfo.class);
+        when(userSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
+        when(userSchema.getFieldNames()).thenReturn(Arrays.asList("id", "name", "email"));
+        when(userSchema.getFieldMap()).thenReturn(new HashMap<>());
+        schemaMap.put("node_users", userSchema);
+
+        return schemaMap;
+    }
+
+    // ==================== 计算器工厂 (使用新的8参数构造器) ====================
+
+    protected AffectedKeyCalculator createCalculator(
             List<FromTableConfig> fromTables,
             Map<String, String> customJoinQueries
     ) {
@@ -40,11 +56,13 @@ public abstract class AffectedKeyCalculatorTestBase {
                 "id",
                 fromTables,
                 customJoinQueries,
-                mockDuckDbOperator
+                mockDuckDbOperator,
+                createDefaultSchemaMap(),
+                DEFAULT_QUERY_SQL
         );
     }
 
-    protected AffectedKeyCalculator createOldModeCalculator(
+    protected AffectedKeyCalculator createCalculator(
             String wideTablePk,
             String mainTable,
             String mainTablePk,
@@ -57,14 +75,16 @@ public abstract class AffectedKeyCalculatorTestBase {
                 mainTablePk,
                 fromTables,
                 customJoinQueries,
-                mockDuckDbOperator
+                mockDuckDbOperator,
+                createDefaultSchemaMap(),
+                DEFAULT_QUERY_SQL
         );
     }
 
-    // ==================== 新模式计算器工厂 ====================
-
-    protected AffectedKeyCalculator createNewModeCalculator(
-            List<FromTableConfig> fromTables
+    protected AffectedKeyCalculator createCalculatorWithSchema(
+            List<FromTableConfig> fromTables,
+            Map<String, NodeSchemaInfo> schemaMap,
+            String querySql
     ) {
         return new AffectedKeyCalculator(
                 "id",
@@ -73,15 +93,18 @@ public abstract class AffectedKeyCalculatorTestBase {
                 fromTables,
                 Collections.emptyMap(),
                 mockDuckDbOperator,
-                new WithCteSqlGenerator()
+                schemaMap,
+                querySql
         );
     }
 
-    protected AffectedKeyCalculator createNewModeCalculator(
+    protected AffectedKeyCalculator createCalculatorWithSchema(
             String wideTablePk,
             String mainTable,
             String mainTablePk,
-            List<FromTableConfig> fromTables
+            List<FromTableConfig> fromTables,
+            Map<String, NodeSchemaInfo> schemaMap,
+            String querySql
     ) {
         return new AffectedKeyCalculator(
                 wideTablePk,
@@ -90,7 +113,8 @@ public abstract class AffectedKeyCalculatorTestBase {
                 fromTables,
                 Collections.emptyMap(),
                 mockDuckDbOperator,
-                new WithCteSqlGenerator()
+                schemaMap,
+                querySql
         );
     }
 
@@ -170,14 +194,14 @@ public abstract class AffectedKeyCalculatorTestBase {
         insert.put("op", "INSERT");
         insert.put(pkField, oldPk);
         events.add(insert);
-        
+
         // 再UPDATE
         Map<String, Object> update = new HashMap<>();
         update.put("op", "UPDATE");
         update.put(pkField, newPk);
         update.put("o2", Map.of(pkField, oldPk));
         events.add(update);
-        
+
         return events;
     }
 
@@ -266,7 +290,7 @@ public abstract class AffectedKeyCalculatorTestBase {
             String op = (String) event.get("op");
             TapdataEvent tapdataEvent = new TapdataEvent();
             TapRecordEvent recordEvent;
-            
+
             if ("INSERT".equals(op)) {
                 TapInsertRecordEvent insertEvent = new TapInsertRecordEvent();
                 insertEvent.setTableId(tableName);
@@ -285,7 +309,7 @@ public abstract class AffectedKeyCalculatorTestBase {
                 after.remove("old_pk");
                 after.remove("fields");
                 updateEvent.setAfter(after);
-                
+
                 // 提取before数据
                 @SuppressWarnings("unchecked")
                 Map<String, Object> before = (Map<String, Object>) event.get("o2");
@@ -311,7 +335,7 @@ public abstract class AffectedKeyCalculatorTestBase {
             } else {
                 continue;
             }
-            
+
             tapdataEvent.setTapEvent(recordEvent);
             events.add(tapdataEvent);
         }
@@ -339,15 +363,15 @@ public abstract class AffectedKeyCalculatorTestBase {
         TapdataEvent tapdataEvent = new TapdataEvent();
         TapUpdateRecordEvent updateEvent = new TapUpdateRecordEvent();
         updateEvent.setTableId(tableName);
-        
+
         Map<String, Object> before = new HashMap<>();
         before.put(pkField, oldPk);
         updateEvent.setBefore(before);
-        
+
         Map<String, Object> after = new HashMap<>();
         after.put(pkField, newPk);
         updateEvent.setAfter(after);
-        
+
         tapdataEvent.setTapEvent(updateEvent);
         return tapdataEvent;
     }

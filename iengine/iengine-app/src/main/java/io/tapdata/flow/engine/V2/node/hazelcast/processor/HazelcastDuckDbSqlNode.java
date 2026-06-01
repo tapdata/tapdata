@@ -114,21 +114,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
 
 
-    // ========== 新增: 获取表主键的辅助方法 ==========
-    public String getTablePrimaryKey(String tableName) {
-        if (tableName.equals(mainTableName)) {
-            return mainTablePrimaryKey;
-        }
-        if (fromTables != null) {
-            for (FromTableConfig fromTable : fromTables) {
-                if (fromTable.getPreNodeId().equals(tableName)) {
-                    return fromTable.getTableNameInSql();
-                }
-            }
-        }
-        return null;
-    }
-
     public String getCustomJoinQuery(String fromTableName, java.util.Set<Object> fromTablePks) {
         String template = customJoinQueries.get(fromTableName);
         if (template != null) {

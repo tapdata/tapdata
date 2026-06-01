@@ -33,7 +33,6 @@ public class DuckDbSqlNode extends ProcessorNode {
     public static final String DEFAULT_QUERY_SQL = "SELECT * FROM %s";
 
     @EqField
-    @JsonProperty("sqlQuery")
     @JsonAlias({"querySql"})
     private String querySql = DEFAULT_QUERY_SQL; // 保持兼容 (serialize as "sqlQuery", accept "querySql" too)
 
