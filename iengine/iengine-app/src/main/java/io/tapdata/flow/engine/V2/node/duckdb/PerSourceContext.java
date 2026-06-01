@@ -36,10 +36,21 @@ public class PerSourceContext {
      * - 避免重复的 HashMap/集合操作
      */
     private volatile NodeSchemaInfo schema;
+    private final String sourceId;
+    private final String tableId;
 
     public PerSourceContext(String key, DuckDbOperator operator) {
+        this(key, operator, null, null, null);
+    }
+
+    public PerSourceContext(String key, DuckDbOperator operator,
+                            String sourceId, String tableId,
+                            NodeSchemaInfo schemaInfo) {
         this.key = key;
         this.operator = operator;
+        this.sourceId = sourceId;
+        this.tableId = tableId;
+        this.schema = schemaInfo;
     }
 
     public String getKey() {
@@ -121,6 +132,14 @@ public class PerSourceContext {
      */
     public void setSchema(NodeSchemaInfo schema) {
         this.schema = schema;
+    }
+
+    public String getSourceId() {
+        return sourceId;
+    }
+
+    public String getTableId() {
+        return tableId;
     }
 
     /**
