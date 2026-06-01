@@ -9,7 +9,7 @@ public class DuckDbSqlNodeTest {
     @Test
     void duckDbSqlNodeHasStableType() {
         DuckDbSqlNode node = new DuckDbSqlNode();
-        assertEquals("duckdb_sql", node.getType());
+        assertEquals("duckdb_sql_processor", node.getType());
     }
 
 }

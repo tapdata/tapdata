@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@NodeType("duckdb_sql")
+@NodeType("duckdb_sql_processor")
 @Getter
 @Setter
 @Slf4j
@@ -127,7 +127,7 @@ public class DuckDbSqlNode extends ProcessorNode {
     }
 
     public DuckDbSqlNode() {
-        super("duckdb_sql");
+        super("duckdb_sql_processor");
     }
 
     @Override
