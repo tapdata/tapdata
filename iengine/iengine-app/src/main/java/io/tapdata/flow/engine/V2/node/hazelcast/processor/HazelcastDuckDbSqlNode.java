@@ -712,7 +712,13 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                            sourceId, tableId, contextKey);
             }
 
-            PerSourceContext context = getOrCreateContext(contextKey, targetTableName);
+            PerSourceContext context = getOrCreateContext(
+                contextKey,
+                targetTableName,
+                sourceId,
+                tableId,
+                schemaInfo
+            );
 
             if (logger.isTraceEnabled() && context.hasSchema()) {
                 NodeSchemaInfo ctxSchema = context.getSchema();
