@@ -1037,13 +1037,13 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         // 步骤1: 使用 SmartMerger 合并事件（第二步、第三步、第四步都用）
         List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsToFlush);
 
-        // 步骤3: 确保表存在
+        // 步骤2: 确保表存在
         ensureTableExists(context, eventsToFlush);
 
         // 获取 DuckDbOperator
         DuckDbOperator operator = getOperatorForContext(context);
 
-        // 步骤2: 计算 beforeKeys（数据写入 DuckDB 之前）
+        // 步骤3: 计算 beforeKeys（数据写入 DuckDB 之前）
         Set<Object> beforeKeys = null;
         if (affectedKeyCalculator != null && !mergedRecords.isEmpty()) {
             beforeKeys = affectedKeyCalculator.calculateAffectedBeforeKeys(mergedRecords, context.getKey());

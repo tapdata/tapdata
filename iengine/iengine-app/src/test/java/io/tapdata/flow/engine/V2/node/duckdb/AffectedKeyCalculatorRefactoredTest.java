@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+// import com.tapdata.entity.TapdataEvent;
+// import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -658,4 +660,107 @@ class AffectedKeyCalculatorRefactoredTest {
             assertEquals("_id", pk2);
         }
     }
+
+    // @Nested
+    // @DisplayName("Main Table Optimization Tests")
+    // class MainTableOptimizationTests {
+    //
+    //     private AffectedKeyCalculator calculator;
+    //
+    //     @BeforeEach
+    //     void setUp() {
+    //         NodeSchemaInfo userSchema = mock(NodeSchemaInfo.class);
+    //         when(userSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
+    //         when(userSchema.getFieldNames()).thenReturn(Arrays.asList("id", "name", "email"));
+    //         when(userSchema.getFieldMap()).thenReturn(new HashMap<>());
+    //         
+    //         mockSchemaMap.put("node_users", userSchema);
+    //         fromTables.add(new FromTableConfig("node_users", "users"));
+    //         
+    //         calculator = new AffectedKeyCalculator(
+    //             "pk",
+    //             "users",
+    //             "id",
+    //             fromTables,
+    //             Collections.emptyMap(),
+    //             mockOperator,
+    //             mockSchemaMap,
+    //             "SELECT * FROM target__users"
+    //         );
+    //     }
+    //
+    //     @Test
+    //     @DisplayName("testCalculateAffectedBeforeKeys_MainTable_OptimizedPath")
+    //     void testCalculateAffectedBeforeKeys_MainTable_OptimizedPath() throws SQLException {
+    //         List<TapdataEvent> events = new ArrayList<>();
+    //         events.add(createTapdataUpdateEvent("users", "id", 1, "name", "Alice"));
+    //         events.add(createTapdataDeleteEvent("users", "id", 2));
+    //
+    //         Set<Object> result = calculator.calculateAffectedBeforeKeys(events, "users");
+    //
+    //         assertTrue(result.contains(1L));
+    //         assertTrue(result.contains(2L));
+    //         assertEquals(2, result.size());
+    //         verify(mockOperator, never()).executeQuery(anyString());
+    //     }
+    //
+    //     @Test
+    //     @DisplayName("testCalculateAffectedAfterKeys_MainTable_OptimizedPath")
+    //     void testCalculateAffectedAfterKeys_MainTable_OptimizedPath() throws SQLException {
+    //         List<TapdataEvent> events = new ArrayList<>();
+    //         events.add(createTapdataInsertEvent("users", "id", 3, "name", "Charlie"));
+    //         events.add(createTapdataUpdateEvent("users", "id", 1, "name", "Alice"));
+    //
+    //         Set<Object> result = calculator.calculateAffectedAfterKeys(events);
+    //
+    //         assertTrue(result.contains(1L));
+    //         assertTrue(result.contains(3L));
+    //         assertEquals(2, result.size());
+    //         verify(mockOperator, never()).executeQuery(anyString());
+    //     }
+    //
+    //     private TapdataEvent createTapdataInsertEvent(String tableName, Object key, Object value, String name, Object nameValue) {
+    //         TapdataEvent tapdataEvent = new TapdataEvent();
+    //         TapInsertRecordEvent insertEvent = new TapInsertRecordEvent();
+    //         insertEvent.setTableId(tableName);
+    //
+    //         Map<String, Object> after = new HashMap<>();
+    //         after.put((String) key, value);
+    //         after.put(name, nameValue);
+    //         insertEvent.setAfter(after);
+    //
+    //         tapdataEvent.setTapEvent(insertEvent);
+    //         return tapdataEvent;
+    //     }
+    //
+    //     private TapdataEvent createTapdataUpdateEvent(String tableName, Object key, Object value, String name, Object nameValue) {
+    //         TapdataEvent tapdataEvent = new TapdataEvent();
+    //         io.tapdata.entity.event.dml.TapUpdateRecordEvent updateEvent = new io.tapdata.entity.event.dml.TapUpdateRecordEvent();
+    //         updateEvent.setTableId(tableName);
+    //
+    //         Map<String, Object> before = new HashMap<>();
+    //         Map<String, Object> after = new HashMap<>();
+    //         before.put((String) key, value);
+    //         after.put((String) key, value);
+    //         after.put(name, nameValue);
+    //         updateEvent.setBefore(before);
+    //         updateEvent.setAfter(after);
+    //
+    //         tapdataEvent.setTapEvent(updateEvent);
+    //         return tapdataEvent;
+    //     }
+    //
+    //     private TapdataEvent createTapdataDeleteEvent(String tableName, Object key, Object value) {
+    //         TapdataEvent tapdataEvent = new TapdataEvent();
+    //         io.tapdata.entity.event.dml.TapDeleteRecordEvent deleteEvent = new io.tapdata.entity.event.dml.TapDeleteRecordEvent();
+    //         deleteEvent.setTableId(tableName);
+    //
+    //         Map<String, Object> before = new HashMap<>();
+    //         before.put((String) key, value);
+    //         deleteEvent.setBefore(before);
+    //
+    //         tapdataEvent.setTapEvent(deleteEvent);
+    //         return tapdataEvent;
+    //     }
+    // }
 }

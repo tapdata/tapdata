@@ -299,26 +299,93 @@ public class AffectedKeyCalculator {
                 continue;
             }
             
-            // 1. 先收集 DELETE 事件的 before 数据（在 SmartMerger 移除记录之前）
-            List<Map<String, Object>> deleteBeforeRows = extractDeleteBeforeRowsFromEvents(eventsList);
-            
-            // 2. 使用 SmartMerger 合并事件
-            List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
-            
-            // 3. 提取所有 before 数据行（不包括 DELETE，因为已经提前收集了）
-            List<String> fields = getTableFields(tableName);
-            List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(mergedRecords, tableName);
-            
-            // 4. 合并 DELETE 的 before 数据
-            beforeRows.addAll(deleteBeforeRows);
-            
-            if (beforeRows.isEmpty()) {
-                continue;
+            // 检查是否为主表
+            if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
+                // 主表优化路径
+                logger.debug("Processing main table before events from {}, using optimized path", tableName);
+                
+                // 使用 SmartMerger 合并事件
+                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
+                
+                // 从合并结果中提取 before 主键
+                Set<Object> mainTablePks = new LinkedHashSet<>();
+                String pkField = mainTablePrimaryKey;
+                
+                // 先收集 DELETE 事件的 before
+                List<Map<String, Object>> deleteBeforeRows = extractDeleteBeforeRowsFromEvents(eventsList);
+                for (Map<String, Object> row : deleteBeforeRows) {
+                    Object pk = row.get(pkField);
+                    if (pk != null) {
+                        mainTablePks.add(pk);
+                    }
+                }
+                
+                // 再从合并结果中提取 before
+                for (SmartMerger.MergedRecord record : mergedRecords) {
+                    List<TapdataEvent> operations = record.getOperations();
+                    int opCount = operations.size();
+                    
+                    for (int i = 0; i < opCount; i++) {
+                        TapdataEvent tapEvent = operations.get(i);
+                        TapEvent tapEventInner = tapEvent.getTapEvent();
+                        
+                        if (!(tapEventInner instanceof TapRecordEvent recordEvent)) {
+                            continue;
+                        }
+                        
+                        boolean isLastOp = (i == opCount - 1);
+                        
+                        if (tapEventInner instanceof TapInsertRecordEvent || tapEventInner instanceof TapDeleteRecordEvent) {
+                            if (!isLastOp) {
+                                Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+                                if (after != null) {
+                                    Object pk = after.get(pkField);
+                                    if (pk != null) {
+                                        mainTablePks.add(pk);
+                                    }
+                                }
+                            }
+                        } else if (tapEventInner instanceof TapUpdateRecordEvent) {
+                            Map<String, Object> before = TapEventUtil.getBefore(recordEvent);
+                            if (before != null && !before.isEmpty()) {
+                                Object pk = before.get(pkField);
+                                if (pk != null) {
+                                    mainTablePks.add(pk);
+                                }
+                            } else {
+                                Object pk = record.getInitialPk();
+                                if (pk != null) {
+                                    mainTablePks.add(pk);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                affectedBeforeKeys.addAll(mainTablePks);
+            } else {
+                // 原有路径
+                // 1. 先收集 DELETE 事件的 before 数据（在 SmartMerger 移除记录之前）
+                List<Map<String, Object>> deleteBeforeRows = extractDeleteBeforeRowsFromEvents(eventsList);
+                
+                // 2. 使用 SmartMerger 合并事件
+                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
+                
+                // 3. 提取所有 before 数据行（不包括 DELETE，因为已经提前收集了）
+                List<String> fields = getTableFields(tableName);
+                List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(mergedRecords, tableName);
+                
+                // 4. 合并 DELETE 的 before 数据
+                beforeRows.addAll(deleteBeforeRows);
+                
+                if (beforeRows.isEmpty()) {
+                    continue;
+                }
+                
+                // 5. 使用 WITH CTE SQL 查询宽表主键
+                Set<Object> wideTablePks = queryWideTablePksWithCte(tableName, beforeRows, fields);
+                affectedBeforeKeys.addAll(wideTablePks);
             }
-            
-            // 5. 使用 WITH CTE SQL 查询宽表主键
-            Set<Object> wideTablePks = queryWideTablePksWithCte(tableName, beforeRows, fields);
-            affectedBeforeKeys.addAll(wideTablePks);
         }
         
         return affectedBeforeKeys;
@@ -359,23 +426,49 @@ public class AffectedKeyCalculator {
                 continue;
             }
             
-            // 1. 使用 SmartMerger 合并事件
-            List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
-            if (mergedRecords.isEmpty()) {
-                continue;
+            // 检查是否为主表
+            if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
+                // 主表优化路径
+                logger.debug("Processing main table after events from {}, using optimized path", tableName);
+                
+                // 使用 SmartMerger 合并事件
+                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
+                
+                // 从合并结果中提取 after/finalState 主键
+                Set<Object> mainTablePks = new LinkedHashSet<>();
+                String pkField = mainTablePrimaryKey;
+                
+                for (SmartMerger.MergedRecord record : mergedRecords) {
+                    Map<String, Object> finalState = record.getFinalState();
+                    if (finalState != null && !finalState.isEmpty()) {
+                        Object pk = finalState.get(pkField);
+                        if (pk != null) {
+                            mainTablePks.add(pk);
+                        }
+                    }
+                }
+                
+                affectedAfterKeys.addAll(mainTablePks);
+            } else {
+                // 原有路径
+                // 1. 使用 SmartMerger 合并事件
+                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList);
+                if (mergedRecords.isEmpty()) {
+                    continue;
+                }
+                
+                // 2. 提取所有 after 数据行（finalState）
+                List<String> fields = getTableFields(tableName);
+                List<Map<String, Object>> afterRows = extractAfterDataRowsFromEvents(mergedRecords);
+                
+                if (afterRows.isEmpty()) {
+                    continue;
+                }
+                
+                // 3. 使用 WITH CTE SQL 查询宽表主键
+                Set<Object> wideTablePks = queryWideTablePksWithCte(tableName, afterRows, fields);
+                affectedAfterKeys.addAll(wideTablePks);
             }
-            
-            // 2. 提取所有 after 数据行（finalState）
-            List<String> fields = getTableFields(tableName);
-            List<Map<String, Object>> afterRows = extractAfterDataRowsFromEvents(mergedRecords);
-            
-            if (afterRows.isEmpty()) {
-                continue;
-            }
-            
-            // 3. 使用 WITH CTE SQL 查询宽表主键
-            Set<Object> wideTablePks = queryWideTablePksWithCte(tableName, afterRows, fields);
-            affectedAfterKeys.addAll(wideTablePks);
         }
         
         return affectedAfterKeys;
@@ -1000,13 +1093,35 @@ public class AffectedKeyCalculator {
                 continue;
             }
 
-            List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(recordList, tableName);
-            if (beforeRows.isEmpty()) {
-                continue;
-            }
+            // 检查是否为主表
+            if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
+                // 主表优化路径
+                logger.debug("Processing main table before merged records from {}, using optimized path", tableName);
+                
+                // 从合并结果中提取 before 主键
+                Set<Object> mainTablePks = new LinkedHashSet<>();
+                String pkField = mainTablePrimaryKey;
+                
+                // 从合并记录中提取 before 数据
+                List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(recordList, tableName);
+                for (Map<String, Object> row : beforeRows) {
+                    Object pk = row.get(pkField);
+                    if (pk != null) {
+                        mainTablePks.add(pk);
+                    }
+                }
+                
+                affectedBeforeKeys.addAll(mainTablePks);
+            } else {
+                // 原有路径
+                List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(recordList, tableName);
+                if (beforeRows.isEmpty()) {
+                    continue;
+                }
 
-            List<String> fields = getTableFields(tableName);
-            affectedBeforeKeys.addAll(queryWideTablePksWithCte(tableName, beforeRows, fields));
+                List<String> fields = getTableFields(tableName);
+                affectedBeforeKeys.addAll(queryWideTablePksWithCte(tableName, beforeRows, fields));
+            }
         }
 
         return affectedBeforeKeys;
@@ -1037,13 +1152,36 @@ public class AffectedKeyCalculator {
                 continue;
             }
 
-            List<Map<String, Object>> afterRows = extractAfterDataRowsFromEvents(recordList);
-            if (afterRows.isEmpty()) {
-                continue;
-            }
+            // 检查是否为主表
+            if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
+                // 主表优化路径
+                logger.debug("Processing main table after merged records from {}, using optimized path", tableName);
+                
+                // 从合并结果中提取 after/finalState 主键
+                Set<Object> mainTablePks = new LinkedHashSet<>();
+                String pkField = mainTablePrimaryKey;
+                
+                for (SmartMerger.MergedRecord record : recordList) {
+                    Map<String, Object> finalState = record.getFinalState();
+                    if (finalState != null && !finalState.isEmpty()) {
+                        Object pk = finalState.get(pkField);
+                        if (pk != null) {
+                            mainTablePks.add(pk);
+                        }
+                    }
+                }
+                
+                affectedAfterKeys.addAll(mainTablePks);
+            } else {
+                // 原有路径
+                List<Map<String, Object>> afterRows = extractAfterDataRowsFromEvents(recordList);
+                if (afterRows.isEmpty()) {
+                    continue;
+                }
 
-            List<String> fields = getTableFields(tableName);
-            affectedAfterKeys.addAll(queryWideTablePksWithCte(tableName, afterRows, fields));
+                List<String> fields = getTableFields(tableName);
+                affectedAfterKeys.addAll(queryWideTablePksWithCte(tableName, afterRows, fields));
+            }
         }
 
         return affectedAfterKeys;
