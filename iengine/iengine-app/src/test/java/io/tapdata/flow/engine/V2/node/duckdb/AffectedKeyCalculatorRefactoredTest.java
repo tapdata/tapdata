@@ -544,4 +544,118 @@ class AffectedKeyCalculatorRefactoredTest {
             }
         }
     }
+
+    @Nested
+    @DisplayName("Integration Tests")
+    class IntegrationTests {
+
+        @Test
+        @DisplayName("Should work end-to-end with complete schema setup")
+        void testEndToEndWithCompleteSchema() throws Exception {
+            NodeSchemaInfo userSchema = Mockito.mock(NodeSchemaInfo.class);
+            when(userSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("user_id"));
+            when(userSchema.getFieldNames()).thenReturn(Arrays.asList("user_id", "name", "email"));
+            when(userSchema.getFieldMap()).thenReturn(new HashMap<String, TapField>());
+
+            NodeSchemaInfo orderSchema = Mockito.mock(NodeSchemaInfo.class);
+            when(orderSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("order_id"));
+            when(orderSchema.getFieldNames()).thenReturn(Arrays.asList("order_id", "user_id", "total"));
+            when(orderSchema.getFieldMap()).thenReturn(new HashMap<String, TapField>());
+
+            mockSchemaMap.put("node_users", userSchema);
+            mockSchemaMap.put("node_orders", orderSchema);
+
+            fromTables.add(new FromTableConfig("node_users", "u"));
+            fromTables.add(new FromTableConfig("node_orders", "o"));
+
+            AffectedKeyCalculator calc = new AffectedKeyCalculator(
+                "id",
+                "u",
+                "user_id",
+                fromTables,
+                Collections.emptyMap(),
+                mockOperator,
+                mockSchemaMap,
+                "SELECT u.user_id, o.order_id FROM target__users u JOIN target__orders o ON u.user_id = o.user_id"
+            );
+
+            java.lang.reflect.Method getQuerySql = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getQuerySqlForTable", String.class);
+            getQuerySql.setAccessible(true);
+
+            java.lang.reflect.Method getFields = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getTableFields", String.class);
+            getFields.setAccessible(true);
+
+            java.lang.reflect.Method getPk = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getSourceTablePrimaryKey", String.class);
+            getPk.setAccessible(true);
+
+            String querySql = (String) getQuerySql.invoke(calc, "u");
+            assertNotNull(querySql);
+            assertTrue(querySql.contains("target__users"));
+            assertTrue(querySql.contains("target__orders"));
+
+            @SuppressWarnings("unchecked")
+            List<String> userFields = (List<String>) getFields.invoke(calc, "u");
+            assertEquals(3, userFields.size());
+            assertTrue(userFields.contains("user_id"));
+
+            @SuppressWarnings("unchecked")
+            List<String> orderFields = (List<String>) getFields.invoke(calc, "o");
+            assertEquals(3, orderFields.size());
+            assertTrue(orderFields.contains("order_id"));
+
+            String userPk = (String) getPk.invoke(calc, "u");
+            assertEquals("user_id", userPk);
+
+            String orderPk = (String) getPk.invoke(calc, "o");
+            assertEquals("order_id", orderPk);
+        }
+
+        @Test
+        @DisplayName("Should handle multi-table scenario with fallbacks correctly")
+        void testMultiTableScenarioWithFallbacks() throws Exception {
+            NodeSchemaInfo schemaWithPk = Mockito.mock(NodeSchemaInfo.class);
+            when(schemaWithPk.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
+            when(schemaWithPk.getFieldNames()).thenReturn(Arrays.asList("id", "value"));
+            Map<String, TapField> fieldMap1 = new HashMap<>();
+            fieldMap1.put("id", Mockito.mock(TapField.class));
+            when(schemaWithPk.getFieldMap()).thenReturn(fieldMap1);
+
+            NodeSchemaInfo schemaWithoutPk = Mockito.mock(NodeSchemaInfo.class);
+            when(schemaWithoutPk.getPrimaryKeys()).thenReturn(Collections.emptyList());
+            when(schemaWithoutPk.getFieldNames()).thenReturn(Arrays.asList("_id", "data"));
+            Map<String, TapField> fieldMap2 = new HashMap<>();
+            fieldMap2.put("_id", Mockito.mock(TapField.class));
+            when(schemaWithoutPk.getFieldMap()).thenReturn(fieldMap2);
+
+            mockSchemaMap.put("node_table1", schemaWithPk);
+            mockSchemaMap.put("node_table2", schemaWithoutPk);
+
+            fromTables.add(new FromTableConfig("node_table1", "t1"));
+            fromTables.add(new FromTableConfig("node_table2", "t2"));
+
+            AffectedKeyCalculator calc = new AffectedKeyCalculator(
+                "pk",
+                "t1",
+                "id",
+                fromTables,
+                Collections.emptyMap(),
+                mockOperator,
+                mockSchemaMap,
+                "SELECT * FROM target__t1 t1 LEFT JOIN target__t2 t2 ON t1.id = t2._id"
+            );
+
+            java.lang.reflect.Method getPk = AffectedKeyCalculator.class.getDeclaredMethod(
+                "getSourceTablePrimaryKey", String.class);
+            getPk.setAccessible(true);
+
+            String pk1 = (String) getPk.invoke(calc, "t1");
+            assertEquals("id", pk1);
+
+            String pk2 = (String) getPk.invoke(calc, "t2");
+            assertEquals("_id", pk2);
+        }
+    }
 }
