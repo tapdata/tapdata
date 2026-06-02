@@ -54,7 +54,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     /**
      * 核心优化：前置节点 Schema 信息缓存
      * 
-     * Key: 前置节点的唯一标识 (sourceId/nodeId)
+     * [nodeSchemaCache]Key: 前置节点的唯一标识 (sourceId/nodeId)
+     * [tableSchemaCache]Key: 前置节点的唯一标识 (sourceId/nodeId)
      * Value: 该节点的完整 Schema 信息 (NodeSchemaInfo)
      * 
      * 包含信息：
@@ -70,7 +71,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * - 避免每次事件处理时重复查询 TapTableMap
      */
     private final ConcurrentHashMap<String, NodeSchemaInfo> nodeSchemaCache = new ConcurrentHashMap<>();
-    
+    private final ConcurrentHashMap<String, NodeSchemaInfo> tableSchemaCache = new ConcurrentHashMap<>();
+
     /**
      * Schema 缓存是否已初始化的标志位
      */
@@ -100,7 +102,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     // SQL configuration
     private String querySql = "SELECT * FROM %s";
-    private String outputTableName = "duckdb_output";
+    private String wideTableName;
     private boolean executeQueryOnFullSyncComplete = false;
     private volatile boolean queryExecuted = false;
 
@@ -152,9 +154,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 // 验证 SQL 必须是 SELECT 查询语句
                 DuckDbOperator.ensureSelectQuery(this.querySql, "DuckDbSqlNode querySql configuration");
 
-                // 读取输出表名
-                if (nodeConfig.getOutputTableName() != null) {
-                    this.outputTableName = nodeConfig.getOutputTableName();
+                // 读取宽表名
+                if (nodeConfig.getWideTableName() != null) {
+                    this.wideTableName = nodeConfig.getWideTableName();
                 }
 
                 // 读取批大小
@@ -210,8 +212,14 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     this.customJoinQueries = new HashMap<>(nodeConfig.getCustomJoinQueries());
                 }
 
-                logger.info("DuckDbSqlNode loaded config: querySql={}, outputTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, duckLake={}, materializedView={}",
-                        querySql, outputTableName, batchSize, executeQueryOnFullSyncComplete, duckLakeConfig.isEnabled(),
+                // ========== 核心优化：初始化前置节点 Schema 缓存 ==========
+                initNodeSchemaCache();
+
+                // ========== 新增: 确定主表信息和默认值 ==========
+                resolveMainTableInfo();
+
+                logger.info("DuckDbSqlNode loaded config: querySql={}, wideTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, duckLake={}, materializedView={}",
+                        querySql, wideTableName, batchSize, executeQueryOnFullSyncComplete, duckLakeConfig.isEnabled(),
                         wideTablePrimaryKey != null ? "enabled" : "disabled");
             }
         } catch (Exception e) {
@@ -279,7 +287,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 } else {
                     // 旧组件：IncrementalViewUpdater（fallback）
                     incrementalViewUpdater = new IncrementalViewUpdater(
-                            outputTableName,
+                            wideTableName,
                             wideTablePrimaryKey,
                             querySql,
                             outputChangelogEnabled,
@@ -307,9 +315,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     logger.error("Error handling all tables CDC transition: {}", e.getMessage(), e);
                 }
             });
-
-            // ========== 核心优化：初始化前置节点 Schema 缓存 ==========
-            initNodeSchemaCache();
 
             // ========== 核心功能：DuckDB 表生命周期管理 ==========
             manageDuckDbTables();
@@ -507,8 +512,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         this.querySql = querySql;
     }
 
-    public void setOutputTableName(String outputTableName) {
-        this.outputTableName = outputTableName;
+    public String getWideTableName() {
+        return wideTableName;
+    }
+
+    public void setWideTableName(String wideTableName) {
+        this.wideTableName = wideTableName;
     }
 
     public void setExecuteQueryOnFullSyncComplete(boolean executeQueryOnFullSyncComplete) {
@@ -845,7 +854,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             return;
         }
         
-        sourceData.put("_meta_source_id", schemaInfo.getSourceId());
+        sourceData.put("_meta_source_id", schemaInfo.getNodeId());
         sourceData.put("_meta_table_name", schemaInfo.getTableName());
         sourceData.put("_meta_qualified_name", schemaInfo.getQualifiedName());
         sourceData.put("_meta_primary_keys", schemaInfo.getPrimaryKeys());
@@ -1547,10 +1556,11 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 try {
                     NodeSchemaInfo schemaInfo = buildNodeSchemaInfo(preNode, tapTableMap);
                     if (schemaInfo != null && schemaInfo.isValid()) {
-                        nodeSchemaCache.put(schemaInfo.getSourceId(), schemaInfo);
+                        nodeSchemaCache.put(schemaInfo.getNodeId(), schemaInfo);
+                        tableSchemaCache.put(schemaInfo.getTableName(), schemaInfo);
                         successCount++;
                         logger.debug("Schema cached successfully: {} -> {}", 
-                                   schemaInfo.getSourceId(), schemaInfo.getQualifiedName());
+                                   schemaInfo.getNodeId(), schemaInfo.getQualifiedName());
                     } else {
                         logger.warn("Invalid schema info: nodeId={}", preNode.getId());
                     }
@@ -1731,7 +1741,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         
         // 1. 处理主表（如果配置了 mainTableName）
         if (mainTableName != null && !mainTableName.isBlank()) {
-            NodeSchemaInfo mainTableSchema = getNodeSchema(mainTableName);
+            NodeSchemaInfo mainTableSchema = tableSchemaCache.get(mainTableName);
             
             if (mainTableSchema != null) {
                 String targetTableName = mainTableSchema.getTargetTableName();
@@ -1985,12 +1995,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         if (!schemaInfo.isValid()) {
             throw new IllegalStateException(
                 "Cannot build target table name: NodeSchemaInfo is invalid. " +
-                "SourceId: " + schemaInfo.getSourceId() + ", " +
+                "SourceId: " + schemaInfo.getNodeId() + ", " +
                 "TableName: " + schemaInfo.getTableName() + ", " +
                 "QualifiedName: " + schemaInfo.getQualifiedName());
         }
         
-        return buildTargetTableName(schemaInfo.getSourceId(), schemaInfo.getQualifiedName());
+        return buildTargetTableName(schemaInfo.getNodeId(), schemaInfo.getQualifiedName());
     }
 
     /**
@@ -2194,5 +2204,66 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      */
     public DuckDbOperator getDuckDbOperator() {
         return duckDbOperator;
+    }
+
+    // ========== 新增: 确定主表信息并计算默认值 ==========
+    private void resolveMainTableInfo() {
+        // 1. 确定主表
+        if (StringUtils.isBlank(mainTableName)) {
+            if (fromTables != null && !fromTables.isEmpty()) {
+                FromTableConfig firstFromTable = fromTables.get(0);
+                if (firstFromTable == null) {
+                    throw new IllegalStateException("First fromTableConfig is null, cannot resolve mainTableName");
+                } else {
+                    if (StringUtils.isEmpty(firstFromTable.getTableNameInSql())){
+                        throw new IllegalStateException("Cannot resolve mainTableName, no schema info for tableNameInSql: " + firstFromTable.getTableNameInSql());
+                    } else {
+                        mainTableName = firstFromTable.getTableNameInSql();
+                        logger.info("Resolved MainTableName: {}", mainTableName);
+                    }
+                }
+            }
+        }
+
+        // 2. 确定主表主键（如果未配置，从第一个 fromTable 配置中获取）
+        if (StringUtils.isBlank(mainTablePrimaryKey)) {
+            NodeSchemaInfo schemaInfo = getNodeSchema(fromTables.get(0).getPreNodeId());
+            if (schemaInfo == null) {
+                throw new IllegalStateException("Cannot resolve mainTablePrimaryKey，schemaInfo is null，mainTableName: " + mainTableName);
+            } else {
+                List<String> pkList = schemaInfo.getPrimaryKeys();
+                if (pkList != null && !pkList.isEmpty()) {
+                    //todo: 组合主键处理：目前先取第一个，后续可以考虑支持复合主键
+                    mainTablePrimaryKey = pkList.get(0);
+                } else {
+                    throw new IllegalStateException("Cannot resolve mainTablePrimaryKey，no primary keys defined in schemaInfo for mainTableName: " + mainTableName);
+                }
+            }
+            if (StringUtils.isBlank(mainTablePrimaryKey)) {
+                throw new IllegalStateException("mainTablePrimaryKey is blank after resolution, this should not happen");
+            }
+            logger.info("Resolved mainTablePrimaryKey: {}", mainTablePrimaryKey);
+        }
+
+        // 3. 确定宽表名
+        if (StringUtils.isBlank(wideTableName)) {
+            if (StringUtils.isNotBlank(mainTableName)) {
+                wideTableName = "wide_" + mainTableName;
+            } else {
+                throw new IllegalStateException("Cannot resolve wideTableName: mainTableName is blank");
+            }
+            logger.info("Resolved wideTableName: {}", wideTableName);
+        }
+
+        // 4. 确定宽表主键
+        if (StringUtils.isBlank(wideTablePrimaryKey)) {
+            wideTablePrimaryKey = mainTablePrimaryKey;
+            logger.info("Resolved wideTablePrimaryKey from mainTablePrimaryKey: {}", wideTablePrimaryKey);
+        }
+
+        // 验证关键配置
+        if (StringUtils.isBlank(wideTablePrimaryKey)) {
+            throw new IllegalStateException("wideTablePrimaryKey is blank after resolution, this should not happen");
+        }
     }
 }

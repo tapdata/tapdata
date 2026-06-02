@@ -3,7 +3,6 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
@@ -43,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class NodeSchemaInfo {
 
-    private final String sourceId;
+    private final String nodeId;
     private final String tableName;
     private final String qualifiedName;
     
@@ -58,10 +57,10 @@ public class NodeSchemaInfo {
     private volatile long initializedTime;
     private volatile int fieldCount;
 
-    public NodeSchemaInfo(String sourceId, String tableName, String qualifiedName,
-                         List<String> primaryKeys, Map<String, TapField> fieldMap,
-                         TapTable tapTable) {
-        this.sourceId = sourceId;
+    public NodeSchemaInfo(String nodeId, String tableName, String qualifiedName,
+                          List<String> primaryKeys, Map<String, TapField> fieldMap,
+                          TapTable tapTable) {
+        this.nodeId = nodeId;
         this.tableName = tableName;
         this.qualifiedName = qualifiedName;
         this.tapTable = tapTable;
@@ -95,8 +94,8 @@ public class NodeSchemaInfo {
         this.initializedTime = System.currentTimeMillis();
     }
 
-    public String getSourceId() {
-        return sourceId;
+    public String getNodeId() {
+        return nodeId;
     }
 
     public String getTableName() {
@@ -112,14 +111,14 @@ public class NodeSchemaInfo {
      * @return 目标表名，如 "mysql_source_1__users"
      */
     public String getTargetTableName() {
-        if (sourceId == null || sourceId.isBlank()) {
+        if (nodeId == null || nodeId.isBlank()) {
             throw new IllegalStateException("Cannot generate targetTableName: sourceId is null or blank");
         }
         if (tableName == null || tableName.isBlank()) {
             throw new IllegalStateException("Cannot generate targetTableName: tableName is null or blank");
         }
         
-        String safeSourceId = DuckDbOperator.sanitizeIdentifier(sourceId);
+        String safeSourceId = DuckDbOperator.sanitizeIdentifier(nodeId);
         String safeTableName = DuckDbOperator.sanitizeIdentifier(tableName);
         
         return safeSourceId + "__" + safeTableName;
@@ -215,7 +214,7 @@ public class NodeSchemaInfo {
     @Override
     public String toString() {
         return "NodeSchemaInfo{" +
-                "sourceId='" + sourceId + '\'' +
+                "nodeId='" + nodeId + '\'' +
                 ", tableName='" + tableName + '\'' +
                 ", qualifiedName='" + qualifiedName + '\'' +
                 ", primaryKeyCount=" + primaryKeys.size() +
