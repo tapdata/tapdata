@@ -10,6 +10,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.duckdb.*;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -77,7 +78,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     // SQL configuration
     private String querySql = "SELECT * FROM %s";
-    private String outputTableName = "duckdb_output";
+    private String wideTableName;
     private boolean executeQueryOnFullSyncComplete = true;
     private volatile boolean queryExecuted = false;
 
@@ -116,6 +117,51 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         throw new IllegalStateException("No custom join query configured for table: " + fromTableName);
     }
 
+    // ========== 新增: 确定主表信息并计算默认值 ==========
+    private void resolveMainTableInfo() {
+        // 1. 确定主表
+        if (StringUtils.isBlank(mainTableName)) {
+            if (fromTables != null && !fromTables.isEmpty()) {
+                FromTableConfig firstFromTable = fromTables.get(0);
+                mainTableName = firstFromTable.getTableName();
+                logger.info("Resolved mainTableName from first fromTable: {}", mainTableName);
+            }
+        }
+
+        // 2. 确定主表主键（如果未配置，从第一个 fromTable 配置中获取，或者使用默认 "id"）
+        if (StringUtils.isBlank(mainTablePrimaryKey)) {
+            if (fromTables != null && !fromTables.isEmpty()) {
+                FromTableConfig firstFromTable = fromTables.get(0);
+                mainTablePrimaryKey = firstFromTable.getPrimaryKey();
+            }
+            if (StringUtils.isBlank(mainTablePrimaryKey)) {
+                mainTablePrimaryKey = "id";
+            }
+            logger.info("Resolved mainTablePrimaryKey: {}", mainTablePrimaryKey);
+        }
+
+        // 3. 确定宽表名
+        if (StringUtils.isBlank(wideTableName)) {
+            if (StringUtils.isNotBlank(mainTableName)) {
+                wideTableName = "wide_" + mainTableName;
+            } else {
+                wideTableName = "wide_table";
+            }
+            logger.info("Resolved wideTableName: {}", wideTableName);
+        }
+
+        // 4. 确定宽表主键
+        if (StringUtils.isBlank(wideTablePrimaryKey)) {
+            wideTablePrimaryKey = mainTablePrimaryKey;
+            logger.info("Resolved wideTablePrimaryKey from mainTablePrimaryKey: {}", wideTablePrimaryKey);
+        }
+
+        // 验证关键配置
+        if (StringUtils.isBlank(wideTablePrimaryKey)) {
+            logger.warn("wideTablePrimaryKey could not be resolved, materialized view may not work correctly");
+        }
+    }
+
     // Pending events to emit
     private final Queue<TapdataEvent> pendingEvents = new LinkedList<>();
     private BiConsumer<TapdataEvent, ProcessResult> currentConsumer;
@@ -146,9 +192,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 // 验证 SQL 必须是 SELECT 查询语句
                 DuckDbOperator.ensureSelectQuery(this.querySql, "DuckDbSqlNode querySql configuration");
 
-                // 读取输出表名
-                if (nodeConfig.getOutputTableName() != null) {
-                    this.outputTableName = nodeConfig.getOutputTableName();
+                // 读取宽表名
+                if (nodeConfig.getWideTableName() != null) {
+                    this.wideTableName = nodeConfig.getWideTableName();
                 }
 
                 // 读取批大小
@@ -203,8 +249,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     this.customJoinQueries = new HashMap<>(nodeConfig.getCustomJoinQueries());
                 }
 
-                logger.info("DuckDbSqlNode loaded config: querySql={}, outputTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, duckLake={}, materializedView={}",
-                        querySql, outputTableName, batchSize, executeQueryOnFullSyncComplete, duckLakeConfig.isEnabled(),
+                logger.info("DuckDbSqlNode loaded config: querySql={}, wideTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, duckLake={}, materializedView={}",
+                        querySql, wideTableName, batchSize, executeQueryOnFullSyncComplete, duckLakeConfig.isEnabled(),
                         wideTablePrimaryKey != null ? "enabled" : "disabled");
             }
         } catch (Exception e) {
@@ -230,6 +276,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             errorHandler = new ErrorHandler(ERROR_THRESHOLD_COUNT, ERROR_THRESHOLD_RATE);
             schemaRegistry = new SchemaRegistry();
 
+            // ========== 新增: 确定主表信息和默认值 ==========
+            resolveMainTableInfo();
+
             // ========== 新增: 初始化实时增量物化视图组件 ==========
             if (wideTablePrimaryKey != null && !wideTablePrimaryKey.isEmpty()) {
                 // 初始化 AffectedKeyCalculator
@@ -244,7 +293,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
                 // 初始化 IncrementalViewUpdater
                 incrementalViewUpdater = new IncrementalViewUpdater(
-                        outputTableName,
+                        wideTableName,
                         wideTablePrimaryKey,
                         querySql,
                         outputChangelogEnabled,
@@ -380,8 +429,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         this.querySql = querySql;
     }
 
-    public void setOutputTableName(String outputTableName) {
-        this.outputTableName = outputTableName;
+    public String getWideTableName() {
+        return wideTableName;
+    }
+
+    public void setWideTableName(String wideTableName) {
+        this.wideTableName = wideTableName;
     }
 
     public void setExecuteQueryOnFullSyncComplete(boolean executeQueryOnFullSyncComplete) {

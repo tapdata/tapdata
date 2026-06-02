@@ -26,9 +26,6 @@ public class DuckDbSqlNode extends ProcessorNode {
     /** 默认批大小 */
     public static final int DEFAULT_BATCH_SIZE = 1000;
     
-    /** 默认输出表名 */
-    public static final String DEFAULT_OUTPUT_TABLE_NAME = "duckdb_output";
-    
     /** 默认查询 SQL */
     public static final String DEFAULT_QUERY_SQL = "SELECT * FROM %s";
 
@@ -38,7 +35,7 @@ public class DuckDbSqlNode extends ProcessorNode {
     private String querySql = DEFAULT_QUERY_SQL; // 保持兼容 (serialize as "sqlQuery", accept "querySql" too)
 
     @EqField
-    private String outputTableName = DEFAULT_OUTPUT_TABLE_NAME;
+    private String wideTableName;
     
     @EqField
     private Integer batchSize = DEFAULT_BATCH_SIZE;
