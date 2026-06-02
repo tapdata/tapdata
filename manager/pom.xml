@@ -48,6 +48,8 @@
 		<hutool.version>5.8.40</hutool.version>
         <github-api.version>1.330</github-api.version>
         <jgit.version>7.5.0.202512021534-r</jgit.version>
+        <!-- jsqlparser -->
+        <jsqlparser.version>4.3</jsqlparser.version>
     </properties>
 
 	<modules>
@@ -225,6 +227,12 @@
 				<artifactId>bcutil-jdk18on</artifactId>
 				<version>${org.bouncycastle.version}</version>
 			</dependency>
+            <!-- jsqlparser -->
+            <dependency>
+                <groupId>com.github.jsqlparser</groupId>
+                <artifactId>jsqlparser</artifactId>
+                <version>${jsqlparser.version}</version>
+            </dependency>
 		</dependencies>
 	</dependencyManagement>
 	<repositories>
