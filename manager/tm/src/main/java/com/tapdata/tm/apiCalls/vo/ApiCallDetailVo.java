@@ -95,12 +95,6 @@ public class ApiCallDetailVo extends BaseVo {
      * */
     private Long responseBytes;
     /**
-     * Database response rate = response byte count / dataQueryTotalTime
-     * unit: B/s
-     * */
-    @DecimalFormat(maxScale = 4, scale = 1)
-    private Double dbRate;
-    /**
      * http response time
      * unit: ms
      * */
