@@ -17,9 +17,9 @@
             "last_update_by": "",
             "scope": "global",
             "sort": 6,
-            "user_visible": true,
-            "value": "62"
-          }
+            "user_visible": true
+          },
+          "$setOnInsert": { "value": "62" }
         },
         "upsert": true
       }
