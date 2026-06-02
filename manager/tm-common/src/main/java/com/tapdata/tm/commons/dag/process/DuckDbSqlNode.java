@@ -1,21 +1,18 @@
 package com.tapdata.tm.commons.dag.process;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
-import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import com.fasterxml.jackson.annotation.JsonAlias;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @NodeType("duckdb_sql_processor")
 @Getter
@@ -80,7 +77,7 @@ public class DuckDbSqlNode extends ProcessorNode {
     
     /** 是否启用宽表 CDC 输出（默认 false） */
     @EqField
-    private Boolean outputChangelogEnabled = false;
+    private Boolean outputChangelogEnabled = true;
     
     /** 主表名 */
     @EqField
@@ -97,30 +94,6 @@ public class DuckDbSqlNode extends ProcessorNode {
     /** 自定义 JOIN 查询（当 SQL 自动解析失败时使用） */
     @EqField
     private Map<String, String> customJoinQueries = new HashMap<>();
-
-    // ========== 内部类: 从表配置 ==========
-    @Getter
-    @Setter
-    public static class FromTableConfig {
-        /** 前置节点 ID（用于查找对应的 NodeSchemaInfo） */
-        private String preNodeId;
-        
-        /** SQL 中使用的表别名（如 t1, t2, users_alias） */
-        private String tableNameInSql;
-        
-        public FromTableConfig() {}
-        
-        public FromTableConfig(String preNodeId, String tableNameInSql) {
-            if (preNodeId == null || preNodeId.isBlank()) {
-                throw new IllegalArgumentException("preNodeId must not be blank");
-            }
-            if (tableNameInSql == null || tableNameInSql.isBlank()) {
-                throw new IllegalArgumentException("tableNameInSql must not be blank");
-            }
-            this.preNodeId = preNodeId;
-            this.tableNameInSql = tableNameInSql;
-        }
-    }
 
     public DuckDbSqlNode() {
         super("duckdb_sql_processor");

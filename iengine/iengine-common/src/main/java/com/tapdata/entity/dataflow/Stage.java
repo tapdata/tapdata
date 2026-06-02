@@ -329,6 +329,7 @@ public class Stage implements Serializable {
 		PROTOBUF_CONVERT_PROCESSOR("processor", "protobuf_convert_processor"),
 		FIELD_NAME_TRANSFORM_PROCESSOR("processor", "fieldNameTransform_processor"),
 		MERGETABLE("processor", "merge_table_processor"),
+		DUCKDB_SQL("processor", "duckdb_sql_processor"),
 		;
 
 		public String type;
