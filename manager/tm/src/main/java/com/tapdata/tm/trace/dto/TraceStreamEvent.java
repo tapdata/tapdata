@@ -41,6 +41,14 @@ public class TraceStreamEvent {
         return event;
     }
 
+    public static TraceStreamEvent error(String requestId, TraceNodeError error) {
+        TraceStreamEvent event = new TraceStreamEvent();
+        event.setType(TraceEventType.ERROR);
+        event.setRequestId(requestId);
+        event.setError(error);
+        return event;
+    }
+
     public static TraceStreamEvent complete(String requestId) {
         TraceStreamEvent event = new TraceStreamEvent();
         event.setType(TraceEventType.COMPLETE);

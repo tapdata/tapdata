@@ -1,11 +1,12 @@
 package io.tapdata.services;
 
+import com.hazelcast.persistence.CommonUtils;
 import com.hazelcast.persistence.ConstructType;
-import com.hazelcast.persistence.resource.impl.MongoDBResource;
-import com.mongodb.ConnectionString;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoCollection;
+import com.hazelcast.persistence.PersistenceStorage;
+import com.hazelcast.persistence.config.PersistenceStorageAbstractConfig;
+import com.hazelcast.persistence.resource.ExternalResource;
+import com.hazelcast.persistence.store.PersistenceStorageStore;
+import com.hazelcast.persistence.store.RingBufferFindParam;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
@@ -40,19 +41,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.mongodb.client.model.Filters.*;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
- * Engine side RPC service for reading shared CDC log content directly from MongoDB external storage.
+ * Engine side RPC service for reading shared CDC log content from external storage.
  */
 @RemoteService
 @Slf4j
 public class ShareCdcLogContentResolver {
 	private static final int DEFAULT_LIMIT = 10;
-	private static final String VALUE_PREFIX = "value.";
-	private static final String BEFORE_PREFIX = "value.before.";
-	private static final String AFTER_PREFIX = "value.after.";
 
 	public ChangeLogData read(ChangeLogCriteria criteria) {
 		return resolve(criteria);
@@ -62,137 +59,92 @@ public class ShareCdcLogContentResolver {
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		ExternalStorageDto externalStorage = resolveExternalStorage(criteria, clientMongoOperator);
 		TapTable tapTable = TapTableUtil.getTapTableByConnectionId(criteria.getConnectionId(), criteria.getTableName());
-		org.bson.conversions.Bson filter = buildMongoFilter(criteria, tapTable);
-		return readFromMongo(criteria.getRingBuffer(), externalStorage, filter, normalizedLimit(criteria), tapTable);
+		ChangeLogReadContext context = new ChangeLogReadContext(criteria, externalStorage, tapTable, normalizedLimit(criteria));
+		return readFromExternalStorage(context, buildQuery(criteria, tapTable));
 	}
 
-	private org.bson.conversions.Bson buildMongoFilter(ChangeLogCriteria criteria, TapTable tapTable) {
-		List<org.bson.conversions.Bson> filters = new ArrayList<>();
-		filters.add(eq("ringBuffer", criteria.getRingBuffer()));
-		filters.add(eq("value.connectionId", criteria.getConnectionId()));
-		filters.add(eq("value.fromTable", criteria.getTableName()));
-		if (criteria.getKey() != null) {
-			filters.add(gt("key", criteria.getKey()));
+	private RingBufferFindParam buildQuery(ChangeLogCriteria criteria, TapTable tapTable) {
+		RingBufferFindParam query = new RingBufferFindParam();
+		query.setRingBuffer(criteria.getRingBuffer());
+		query.setConnectionId(criteria.getConnectionId());
+		query.setTableName(criteria.getTableName());
+		query.setKey(criteria.getKey());
+		query.setStartTime(criteria.getStartTime());
+		query.setEndTime(criteria.getEndTime());
+		query.setFilters(encodeFilters(criteria.getFilters(), tapTable));
+		return query;
+	}
+
+	private List<Map<String, Object>> encodeFilters(List<Map<String, Object>> filters, TapTable tapTable) {
+		if (filters == null) {
+			return null;
 		}
-		if (criteria.getStartTime() > 0) {
-			filters.add(gte("value.timestamp", criteria.getStartTime()));
-		}
-		if (criteria.getEndTime() > 0) {
-			filters.add(lte("value.timestamp", criteria.getEndTime()));
-		}
-		if (criteria.getFilters() != null) {
-			List<org.bson.conversions.Bson> groups = new ArrayList<>();
-			for (Map<String, Object> filter : criteria.getFilters()) {
-				if (filter == null || filter.isEmpty()) {
-					continue;
-				}
-				List<org.bson.conversions.Bson> groupFilters = new ArrayList<>();
-				for (Map.Entry<String, Object> entry : filter.entrySet()) {
-					groupFilters.add(buildRecordFieldFilter(entry.getKey(), entry.getValue(), tapTable));
-				}
-				groups.add(groupFilters.size() == 1 ? groupFilters.get(0) : and(groupFilters));
+		List<Map<String, Object>> encoded = new ArrayList<>(filters.size());
+		for (Map<String, Object> filter : filters) {
+			if (filter == null) {
+				continue;
 			}
-			if (!groups.isEmpty()) {
-				filters.add(groups.size() == 1 ? groups.get(0) : or(groups));
+			Map<String, Object> encodedFilter = new LinkedHashMap<>(filter.size());
+			for (Map.Entry<String, Object> entry : filter.entrySet()) {
+				encodedFilter.put(entry.getKey(), encodeFilterValue(entry.getKey(), entry.getValue(), tapTable));
 			}
+			encoded.add(encodedFilter);
 		}
-		return and(filters);
+		return encoded;
 	}
 
-	private org.bson.conversions.Bson buildRecordFieldFilter(String path, Object value, TapTable tapTable) {
-		if (StringUtils.isBlank(path)) {
-			throw new IllegalArgumentException("Filter path cannot be blank");
-		}
-		String normalizedPath = path.trim();
-		if (StringUtils.startsWith(normalizedPath, VALUE_PREFIX)
-				|| "key".equals(normalizedPath)
-				|| "ringBuffer".equals(normalizedPath)) {
-			return eq(normalizedPath, convertFilterValue(normalizedPath, value, tapTable));
-		}
-		Object afterValue = convertFilterValue(AFTER_PREFIX + normalizedPath, value, tapTable);
-		Object beforeValue = convertFilterValue(BEFORE_PREFIX + normalizedPath, value, tapTable);
-		return or(
-				eq(AFTER_PREFIX + normalizedPath, afterValue),
-				eq(BEFORE_PREFIX + normalizedPath, beforeValue)
-		);
-	}
-
-	private Object convertFilterValue(String path, Object value, TapTable tapTable) {
+	private Object encodeFilterValue(String fieldName, Object value, TapTable tapTable) {
 		if (value == null) {
 			return null;
 		}
-		String fieldName = extractRecordFieldName(path);
 		TapField tapField = getTapField(tapTable, fieldName);
-		if (isObjectIdField(fieldName, tapField, value)) {
-			return encodeObjectId(String.valueOf(value));
+		if (isObjectIdFilterField(fieldName, tapField, value)) {
+			return encodeMarkedString(String.valueOf(value), (byte) 99, (byte) 23);
 		}
 		if (isDateTimeField(tapField)) {
-			return encodeInstant(toInstant(value));
+			return encodeMarkedString(toInstant(value).toString(), (byte) 98, (byte) 22);
 		}
-		if (tapField != null && tapField.getTapType() instanceof TapBoolean) {
+		if (isTapType(tapField, TapBoolean.class)) {
 			return toBoolean(value);
 		}
-		if (tapField != null && tapField.getTapType() instanceof TapNumber) {
+		if (isTapType(tapField, TapNumber.class)) {
 			return toNumber(value);
 		}
 		return value;
 	}
 
-	private String extractRecordFieldName(String path) {
-		if (StringUtils.startsWith(path, BEFORE_PREFIX)) {
-			return StringUtils.substringAfter(path, BEFORE_PREFIX);
-		}
-		if (StringUtils.startsWith(path, AFTER_PREFIX)) {
-			return StringUtils.substringAfter(path, AFTER_PREFIX);
-		}
-		return null;
-	}
-
-	private TapField getTapField(TapTable tapTable, String fieldName) {
-		if (tapTable == null || StringUtils.isBlank(fieldName) || tapTable.getNameFieldMap() == null) {
-			return null;
-		}
-		return tapTable.getNameFieldMap().get(StringUtils.substringBefore(fieldName, "."));
-	}
-
-	private boolean isObjectIdField(String fieldName, TapField tapField, Object value) {
+	private boolean isObjectIdFilterField(String fieldName, TapField tapField, Object value) {
 		if (!org.bson.types.ObjectId.isValid(String.valueOf(value))) {
 			return false;
 		}
-		if ("_id".equals(fieldName)) {
-			return true;
-		}
-		return tapField != null && StringUtils.containsIgnoreCase(tapField.getDataType(), "objectId");
+		return "_id".equals(fieldName)
+				|| "_id".equals(StringUtils.substringAfterLast(fieldName, "."))
+				|| (tapField != null && StringUtils.containsIgnoreCase(tapField.getDataType(), "objectId"));
 	}
 
 	private boolean isDateTimeField(TapField tapField) {
 		return tapField != null && tapField.getTapType() instanceof TapDateTime;
 	}
 
-	private byte[] encodeObjectId(String value) {
-		byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-		byte[] dest = new byte[bytes.length + 2];
-		dest[0] = 99;
-		dest[dest.length - 1] = 23;
-		System.arraycopy(bytes, 0, dest, 1, bytes.length);
-		return dest;
+	private boolean isTapType(TapField tapField, Class<?> tapTypeClass) {
+		return tapField != null && tapTypeClass.isInstance(tapField.getTapType());
 	}
 
-	private byte[] encodeInstant(Instant instant) {
-		byte[] bytes = instant.toString().getBytes(StandardCharsets.UTF_8);
+	private byte[] encodeMarkedString(String value, byte head, byte tail) {
+		byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
 		byte[] dest = new byte[bytes.length + 2];
-		dest[0] = 98;
-		dest[dest.length - 1] = 22;
+		dest[0] = head;
+		dest[dest.length - 1] = tail;
 		System.arraycopy(bytes, 0, dest, 1, bytes.length);
 		return dest;
 	}
 
 	private Instant toInstant(Object value) {
-		if (value instanceof Date) {
-			return ((Date) value).toInstant();
+		if (value instanceof Date date) {
+			return date.toInstant();
 		}
-		if (value instanceof Number) {
-			return Instant.ofEpochMilli(((Number) value).longValue());
+		if (value instanceof Number number) {
+			return Instant.ofEpochMilli(number.longValue());
 		}
 		String text = String.valueOf(value);
 		try {
@@ -220,30 +172,20 @@ public class ShareCdcLogContentResolver {
 		return Long.parseLong(text);
 	}
 
-	private ChangeLogData readFromMongo(String ringBuffer, ExternalStorageDto externalStorage, org.bson.conversions.Bson filter, int limit, TapTable tapTable){
-		ChangeLogData changeLogData = new ChangeLogData();
-		List<Map<String, Object>> logs = new ArrayList<>();
-        try (MongoDBResource mongoDBResource = new MongoDBResource()) {
-            externalStorage.setTable(ringBuffer);
-            mongoDBResource.doInit(ExternalStorageUtil.getMongoDBConfig(externalStorage, ConstructType.IMAP, ringBuffer));
-            for (Document document : mongoDBResource.getMongoCollection().find(filter).limit(limit)) {
-                logs.add(buildLog(document, tapTable));
-                changeLogData.setLastKey(readLong(document.get("key")));
-            }
-        }catch (Exception e){
-			throw new RuntimeException(e);
+	private TapField getTapField(TapTable tapTable, String fieldName) {
+		if (tapTable == null || StringUtils.isBlank(fieldName) || tapTable.getNameFieldMap() == null) {
+			return null;
 		}
-		changeLogData.setLogs(logs);
-		return changeLogData;
+		return tapTable.getNameFieldMap().get(StringUtils.substringBefore(fieldName, "."));
 	}
 
-	private Map<String, Object> buildLog(Document document, TapTable tapTable) {
+
+	private Map<String, Object> buildLog(Map<String, Object> document, TapTable tapTable) {
 		Map<String, Object> log = new LinkedHashMap<>();
-		log.put("id", String.valueOf(document.get("_id")));
-		log.put("ringBuffer", document.getString("ringBuffer"));
+		log.put("ringBuffer", String.valueOf(document.get("ringBuffer")));
 		log.put("key", readLong(document.get("key")));
 
-		Document value = document.get("value", Document.class);
+		Document value = toDocument(document.get("value"));
 		if (value == null) {
 			log.put("missingContent", true);
 			return log;
@@ -258,6 +200,20 @@ public class ShareCdcLogContentResolver {
 		log.put("type", logContent.getType());
 		log.put("connectionId", StringUtils.defaultIfBlank(logContent.getConnectionId(), value.getString("connectionId")));
 		return log;
+	}
+
+	private Document toDocument(Object value) {
+		if (value instanceof Document document) {
+			return document;
+		}
+		if (value instanceof Map<?, ?> map) {
+			Document document = new Document();
+			for (Map.Entry<?, ?> entry : map.entrySet()) {
+				document.put(String.valueOf(entry.getKey()), entry.getValue());
+			}
+			return document;
+		}
+		return null;
 	}
 
 	private Map<String, Object> decodeRecord(Map<String, Object> record, TapTable tapTable) {
@@ -353,6 +309,52 @@ public class ShareCdcLogContentResolver {
 
 	private int normalizedLimit(ChangeLogCriteria criteria) {
 		return criteria.getLimit() <= 0 ? DEFAULT_LIMIT : criteria.getLimit();
+	}
+
+	private ChangeLogData readFromExternalStorage(ChangeLogReadContext context, RingBufferFindParam query) {
+		ChangeLogData changeLogData = new ChangeLogData();
+		List<Map<String, Object>> logs = new ArrayList<>();
+		PersistenceStorageStore<PersistenceStorageAbstractConfig, ExternalResource<PersistenceStorageAbstractConfig>> store = null;
+		try {
+			ExternalStorageDto externalStorage = copyExternalStorage(context.externalStorage);
+			externalStorage.setTable(context.criteria.getRingBuffer());
+			PersistenceStorageAbstractConfig storageConfig = ExternalStorageUtil.getPersistenceConfig(
+					externalStorage,
+					ConstructType.RINGBUFFER,
+					context.criteria.getRingBuffer()
+			);
+			store = PersistenceStorage.getInstance().createStore(storageConfig);
+			if (store == null) {
+				throw new UnsupportedOperationException("Unsupported change log external storage type: "
+						+ (externalStorage == null ? null : externalStorage.getType()));
+			}
+			for (Map<String, Object> document : store.find(query, context.limit)) {
+				logs.add(buildLog(document, context.tapTable));
+				changeLogData.setLastKey(readLong(document.get("key")));
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("Read share CDC log from external storage failed", e);
+		} finally {
+			if (store != null) {
+				CommonUtils.ignoreAnyError(store::doDestroy);
+			}
+		}
+		changeLogData.setLogs(logs);
+		return changeLogData;
+	}
+
+	private static class ChangeLogReadContext {
+		private final ChangeLogCriteria criteria;
+		private final ExternalStorageDto externalStorage;
+		private final TapTable tapTable;
+		private final int limit;
+
+		private ChangeLogReadContext(ChangeLogCriteria criteria, ExternalStorageDto externalStorage, TapTable tapTable, int limit) {
+			this.criteria = criteria;
+			this.externalStorage = externalStorage;
+			this.tapTable = tapTable;
+			this.limit = limit;
+		}
 	}
 
 	private ExternalStorageDto resolveExternalStorage(ChangeLogCriteria criteria, ClientMongoOperator clientMongoOperator) {

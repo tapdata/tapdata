@@ -57,6 +57,8 @@ public class TraceDataQueryRpcAdapter{
         try{
             return taskService.callEngineRpc(null,ChangeLogData.class,SHARE_CDC_LOG_CONTENT_RESOLVER,READ,criteria);
         }catch (Throwable e) {
+            log.error("Trace change log query rpc failed, connectionId: {}, table: {}",
+                    criteria.getConnectionId(), criteria.getTableName(), e);
             return null;
         }
     }

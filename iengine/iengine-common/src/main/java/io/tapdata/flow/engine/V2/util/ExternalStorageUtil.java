@@ -110,7 +110,7 @@ public class ExternalStorageUtil {
 		logger.info("Added hazelcast persistence config: " + persistenceConfig);
 	}
 
-	private static PersistenceStorageAbstractConfig getPersistenceConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
+	public static PersistenceStorageAbstractConfig getPersistenceConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		PersistenceStorageAbstractConfig persistenceStorageAbstractConfig;
 		ExternalStorageType externalStorageType;
 		try {
@@ -162,7 +162,7 @@ public class ExternalStorageUtil {
 		return rocksDBConfig;
 	}
 
-	public static PersistenceMongoDBConfig getMongoDBConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
+	private static PersistenceMongoDBConfig getMongoDBConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		String uri = externalStorageDto.getUri();
 		ConnectionString mongoClientURI;
 		try {

@@ -8,6 +8,7 @@ import com.tapdata.tm.trace.service.TraceService;
 import com.tapdata.tm.trace.service.log.ChangeLogQuery;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -56,9 +57,12 @@ public class TraceController extends BaseController {
 
     @PostMapping(value = "/wide-table/trace/stream",
             consumes = MediaType.APPLICATION_JSON_VALUE,
-            produces = "application/x-ndjson")
-    public StreamingResponseBody streamWideTableTrace(@RequestBody WideTableTraceRequest request) {
-        return outputStream -> traceService.streamWideTableTrace(request, outputStream);
+            produces = "application/x-ndjson;charset=UTF-8")
+    public ResponseEntity<StreamingResponseBody> streamWideTableTrace(@RequestBody WideTableTraceRequest request) {
+        StreamingResponseBody body = outputStream -> traceService.streamWideTableTrace(request, outputStream);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"))
+                .body(body);
     }
 
     @PostMapping("/change-log")
