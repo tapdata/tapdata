@@ -14,6 +14,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.async.AsyncContextManager;
@@ -4586,27 +4589,50 @@ public class TaskServiceImpl extends TaskService{
             metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(taskDto.getDag().getTargetNodes().get(0).getId(), taskDto.getId().toHexString(), user,false);
         }
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
-            for (int i = 1; i < 6; i++) {
+            long deadline = System.currentTimeMillis() + getStartTransformWaitSeconds() * 1000L;
+            int i = 1;
+            while (true) {
                 TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
                 if (transformedCheck.getTransformed() != null && transformedCheck.getTransformed()) {
                     run(taskDto, user);
                     return;
                 }
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) {
+                    break;
+                }
                 try {
-                    long sleepTime = 1;
-                    for (int j = 0; j < i; j++) {
-                        sleepTime = sleepTime * 2;
-                    }
-                    sleepTime = sleepTime * 1000;
-                    Thread.sleep(sleepTime);
+                    long sleepTime = (1L << i) * 1000L;
+                    Thread.sleep(Math.min(sleepTime, remaining));
                 } catch (InterruptedException e) {
                     throw new BizException("SystemError", "Wait transformed schema timeout");
                 }
+                i++;
             }
             throw new BizException("Task.StartCheckModelFailed");
         } else {
             run(taskDto, user);
         }
+    }
+
+    private static final int DEFAULT_START_TRANSFORM_WAIT_SECONDS = 62;
+
+    private int getStartTransformWaitSeconds() {
+        try {
+            Settings settings = settingsService.getByCategoryAndKey(
+                    CategoryEnum.JOB, KeyEnum.TASK_START_TRANSFORM_WAIT_SECONDS);
+            if (settings != null) {
+                Object v = settings.getValue() != null ? settings.getValue() : settings.getDefault_value();
+                if (v != null) {
+                    return Math.max(2, Integer.parseInt(v.toString().trim()));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Read setting {} failed, fallback to default {}s",
+                    KeyEnum.TASK_START_TRANSFORM_WAIT_SECONDS.getValue(),
+                    DEFAULT_START_TRANSFORM_WAIT_SECONDS, e);
+        }
+        return DEFAULT_START_TRANSFORM_WAIT_SECONDS;
     }
 
     protected void cleanRemovedTableMeasurementAndIfNeed(TaskDto taskDto) {

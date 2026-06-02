@@ -315,4 +315,25 @@ public class SettingsServiceTest {
             assertEquals("DAAS_BUILD_NUMBER", actual);
         }
     }
+
+    @Nested
+    class saveTest {
+        @Test
+        void testForLdapPwd() {
+            List<SettingsDto> settingsDto = new ArrayList<>();
+            SettingsDto ldapDn = new SettingsDto();
+            ldapDn.setCategory("LDAP");
+            ldapDn.setKey("ldap.bind.dn");
+            ldapDn.setValue("user@example.com");
+            SettingsDto ldapPwd = new SettingsDto();
+            ldapPwd.setCategory("LDAP");
+            ldapPwd.setKey("ldap.bind.password");
+            ldapPwd.setValue("*****");
+            settingsDto.add(ldapDn);
+            settingsDto.add(ldapPwd);
+            settingsService.save(settingsDto);
+            verify(mongoTemplate, times(1)).save(ldapDn, "Settings");
+            verify(mongoTemplate, times(0)).save(ldapPwd, "Settings");
+        }
+    }
 }
