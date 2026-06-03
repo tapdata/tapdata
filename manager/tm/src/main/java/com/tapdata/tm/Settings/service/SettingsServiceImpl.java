@@ -207,7 +207,8 @@ public class SettingsServiceImpl implements SettingsService {
                         .orElseGet(() -> findAll(query));
 
             }else {
-                settingsList = settingsRepository.findAll();
+                Query query = TapQueryUtil.buildQuery(filter, Settings.class);
+                settingsList = mongoTemplate.find(query, Settings.class);
             }
         }
         if ("1".equals(decode)) {
