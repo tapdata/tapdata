@@ -224,6 +224,9 @@ public class LogCollectorController extends BaseController {
         return success(logCollectorService.createShareCdcTask(param, getLoginUser()));
     }
 
-
-
+    @PostMapping("/start-and-wait")
+    @Operation(summary = "手动创建共享挖掘任务，若数据源已存在挖掘任务则合并")
+    public ResponseMessage<Map<String, String>> createShareCdcTaskAndWait(@RequestBody TableLogCollectorParam param) {
+        return success(logCollectorService.createShareCdcTaskAndWait(param, getLoginUser()));
+    }
 }

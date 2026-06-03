@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
+import com.tapdata.tm.externalStorage.vo.SettingOfSharedCDCEnable;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Query;
@@ -80,4 +81,6 @@ public abstract class ExternalStorageService extends BaseService<ExternalStorage
     }
 
     public abstract void sendTestConnection(ExternalStorageDto externalStorageDto, UserDetail user);
+
+    public abstract SettingOfSharedCDCEnable settingOfSharedCDCEnable();
 }

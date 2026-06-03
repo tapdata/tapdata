@@ -1,12 +1,14 @@
 package com.tapdata.tm.externalStorage.service;
 
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.Settings.constant.SettingUtil;
+import com.tapdata.tm.Settings.dto.SettingsDto;
+import com.tapdata.tm.enums.SettingType;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
@@ -15,12 +17,14 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
+import com.tapdata.tm.externalStorage.vo.SettingOfSharedCDCEnable;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.AES256Util;
+import com.tapdata.tm.utils.SettingValueUtil;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -39,6 +43,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.util.*;
 
 /**
@@ -63,6 +68,8 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	private MessageQueueService messageQueueService;
 	@Autowired
 	private WorkerService workerService;
+	@Resource(name = "settingUtil")
+	protected SettingUtil settingUtil;
 
 	public ExternalStorageServiceImpl(@NonNull ExternalStorageRepository repository) {
 		super(repository);
@@ -381,5 +388,33 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 
 		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
 		update(new Query(Criteria.where("_id").is(externalStorageDto.getId())), update, user);
+	}
+
+	@Override
+	public SettingOfSharedCDCEnable settingOfSharedCDCEnable() {
+		SettingsDto settingInfo = settingsService.getSettingInfo(SettingType.SHARE_CDC_ENABLE.getCategory(), SettingType.SHARE_CDC_ENABLE.getKey());
+		if (null == settingInfo) {
+			return SettingOfSharedCDCEnable.unable();
+		}
+		boolean able = SettingValueUtil.getBoolean(settingInfo.getValue(), settingInfo.getDefault_value());
+		if (able) {
+			return SettingOfSharedCDCEnable.unable();
+		}
+		Criteria criteria = Criteria.where("defaultStorage").is(true);
+		Query query = Query.query(criteria);
+		query.fields().include("_id", "name", "type");
+		ExternalStorageDto one = findOne(query);
+		if (null == one) {
+			return SettingOfSharedCDCEnable.unable();
+		}
+		String name = one.getName();
+		String id = one.getId().toHexString();
+		String type = one.getType();
+		return SettingOfSharedCDCEnable.enabled()
+				.category(SettingType.SHARE_CDC_ENABLE.getCategory())
+				.settingKey(SettingType.SHARE_CDC_ENABLE.getKey())
+				.externalId(id)
+				.externalName(name)
+				.externalType(type);
 	}
 }

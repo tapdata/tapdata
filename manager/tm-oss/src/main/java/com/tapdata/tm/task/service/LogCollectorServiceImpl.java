@@ -133,6 +133,11 @@ public class LogCollectorServiceImpl implements LogCollectorService {
     }
 
     @Override
+    public Map<String, String> createShareCdcTaskAndWait(TableLogCollectorParam param, UserDetail user) {
+        throw new BizException("TapOssNonSupportFunctionException");
+    }
+
+    @Override
     public List<ShareCdcConnectionInfo> getConnectionIds(String taskId, UserDetail user) {
         throw new BizException("TapOssNonSupportFunctionException");
     }

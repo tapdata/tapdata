@@ -128,6 +128,8 @@ public interface LogCollectorService {
 
     Map<String, String> createShareCdcTask(TableLogCollectorParam param, UserDetail user);
 
+    Map<String, String> createShareCdcTaskAndWait(TableLogCollectorParam param, UserDetail user);
+
     List<ShareCdcConnectionInfo> getConnectionIds(String taskId, UserDetail user);
 
     void clear();

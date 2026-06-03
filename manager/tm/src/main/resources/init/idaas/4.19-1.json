@@ -4,6 +4,7 @@
     "documents": [
       {
         "_id": "1314459259346f3e3b573520",
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
         "category": "data_trace",
         "default_value": 7,
         "key": "max.change.log.query.limit",
@@ -11,6 +12,22 @@
         "user_visible": false,
         "value": 7,
         "documentation": "The maximum query range days for a single change log"
+      },
+      {
+        "_id": "1314460259346f3e3b573520",
+        "category": "share_cdc",
+        "scope": "global",
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
+        "documentation": "Is shared mining globally enabled by default, using the default external storage specified in the external storage list",
+        "category_sort": 20,
+        "default_value": "false",
+        "hot_reloading": false,
+        "key": "global_share_cdc_enable",
+        "key_label": "global_share_cdc_enable",
+        "sort": 0,
+        "user_visible": true,
+        "value": "false",
+        "enums": ["true", "false"]
       }
     ]
   }
