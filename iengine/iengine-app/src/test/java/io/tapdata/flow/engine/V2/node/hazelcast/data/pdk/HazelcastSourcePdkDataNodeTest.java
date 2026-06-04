@@ -70,6 +70,8 @@ import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
+import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
+import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
@@ -4132,6 +4134,90 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             doCallRealMethod().when(node).doClose();
             Assertions.assertDoesNotThrow(node::doClose);
             verify(mockBatchAcceptor, times(1)).close();
+        }
+    }
+
+    @Nested
+    class tryNormalCdcIfNeedTest {
+        @Test
+        void testTryNormalCdcIfNeed() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setEnforceShareCdc(true);
+            ShareCdcUnsupportedException e = new ShareCdcUnsupportedException("null", false);
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            ReflectionTestUtils.setField(node, "syncProgress", new SyncProgress());
+            doNothing().when(node).initStreamOffsetFromTime(null);
+            doNothing().when(node).doNormalCDC();
+            doCallRealMethod().when(node).tryNormalCdcIfNeed(e, taskDto);
+            Assertions.assertThrows(TapCodeException.class, () -> {
+                try {
+                    node.tryNormalCdcIfNeed(e, taskDto);
+                } catch (TapCodeException ex) {
+                    Assertions.assertEquals(ShareCdcReaderExCode_13.UNKNOWN_ERROR, ex.getCode());
+                    throw ex;
+                }
+            });
+        }
+        @Test
+        void testTryNormalCdcIfNeed1() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setEnforceShareCdc(false);
+            ShareCdcUnsupportedException e = new ShareCdcUnsupportedException("null", true);
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            ReflectionTestUtils.setField(node, "syncProgress", new SyncProgress());
+            doNothing().when(node).initStreamOffsetFromTime(null);
+            doAnswer(a -> {throw new RuntimeException("null");}).when(node).doNormalCDC();
+            doCallRealMethod().when(node).tryNormalCdcIfNeed(e, taskDto);
+            Assertions.assertThrows(TapCodeException.class, () -> {
+                try {
+                    node.tryNormalCdcIfNeed(e, taskDto);
+                } catch (TapCodeException ex) {
+                    Assertions.assertEquals(TaskProcessorExCode_11.UNKNOWN_ERROR, ex.getCode());
+                    throw ex;
+                }
+            });
+        }
+        @Test
+        void testTryNormalCdcIfNeed2() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setEnforceShareCdc(true);
+            ShareCdcUnsupportedException e = new ShareCdcUnsupportedException("null", true);
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            ReflectionTestUtils.setField(node, "syncProgress", new SyncProgress());
+            doNothing().when(node).initStreamOffsetFromTime(null);
+            doNothing().when(node).doNormalCDC();
+            doCallRealMethod().when(node).tryNormalCdcIfNeed(e, taskDto);
+            Assertions.assertThrows(TapCodeException.class, () -> {
+                try {
+                    node.tryNormalCdcIfNeed(e, taskDto);
+                } catch (TapCodeException ex) {
+                    Assertions.assertEquals(ShareCdcReaderExCode_13.UNKNOWN_ERROR, ex.getCode());
+                    throw ex;
+                }
+            });
+        }
+        @Test
+        void testTryNormalCdcIfNeed3() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setEnforceShareCdc(null);
+            ShareCdcUnsupportedException e = new ShareCdcUnsupportedException("null", true);
+            HazelcastSourcePdkDataNode node = mock(HazelcastSourcePdkDataNode.class);
+            ReflectionTestUtils.setField(node, "obsLogger", mock(ObsLogger.class));
+            ReflectionTestUtils.setField(node, "syncProgress", new SyncProgress());
+            doNothing().when(node).initStreamOffsetFromTime(null);
+            doNothing().when(node).doNormalCDC();
+            doCallRealMethod().when(node).tryNormalCdcIfNeed(e, taskDto);
+            Assertions.assertThrows(TapCodeException.class, () -> {
+                try {
+                    node.tryNormalCdcIfNeed(e, taskDto);
+                } catch (TapCodeException ex) {
+                    Assertions.assertEquals(ShareCdcReaderExCode_13.UNKNOWN_ERROR, ex.getCode());
+                    throw ex;
+                }
+            });
         }
     }
 }
