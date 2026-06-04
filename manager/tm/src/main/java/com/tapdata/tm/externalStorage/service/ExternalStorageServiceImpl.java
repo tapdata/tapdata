@@ -1,8 +1,9 @@
 package com.tapdata.tm.externalStorage.service;
 
 import com.mongodb.ConnectionString;
-import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.Settings.dto.SettingsDto;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.enums.SettingType;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
@@ -16,7 +17,9 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
+import com.tapdata.tm.externalStorage.param.ConnectionSharedCDCParam;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
+import com.tapdata.tm.externalStorage.vo.ConnectionSharedCDCEnable;
 import com.tapdata.tm.externalStorage.vo.SettingOfSharedCDCEnable;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -24,6 +27,7 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.AES256Util;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SettingValueUtil;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.entity.Worker;
@@ -68,8 +72,9 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	private MessageQueueService messageQueueService;
 	@Autowired
 	private WorkerService workerService;
-	@Resource(name = "settingUtil")
-	protected SettingUtil settingUtil;
+	@Resource(name = "dataSourceRepository")
+	protected DataSourceRepository dataSourceRepository;
+
 
 	public ExternalStorageServiceImpl(@NonNull ExternalStorageRepository repository) {
 		super(repository);
@@ -397,7 +402,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			return SettingOfSharedCDCEnable.unable();
 		}
 		boolean able = SettingValueUtil.getBoolean(settingInfo.getValue(), settingInfo.getDefault_value());
-		if (able) {
+		if (!able) {
 			return SettingOfSharedCDCEnable.unable();
 		}
 		Criteria criteria = Criteria.where("defaultStorage").is(true);
@@ -416,5 +421,31 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 				.externalId(id)
 				.externalName(name)
 				.externalType(type);
+	}
+
+	@Override
+	public ConnectionSharedCDCEnable checkConnectionSharedCDCEnable(ConnectionSharedCDCParam param) {
+		List<String> connectionIds = param.getConnectionIds();
+		if (CollectionUtils.isEmpty(connectionIds)) {
+			return ConnectionSharedCDCEnable.empty();
+		}
+		List<ObjectId> objectIds = connectionIds.stream()
+				.filter(StringUtils::isNotBlank)
+				.distinct()
+				.map(MongoUtils::toObjectId)
+				.filter(Objects::nonNull)
+				.toList();
+		if (CollectionUtils.isEmpty(objectIds)) {
+			return ConnectionSharedCDCEnable.empty();
+		}
+		Criteria criteria = Criteria.where("_id").in(objectIds);
+		criteria.and("shareCdcEnable").ne(true);
+		Query query = Query.query(criteria);
+		query.fields().include("_id", "shareCdcEnable", "shareCDCExternalStorageId", "name");
+		List<DataSourceEntity> all = dataSourceRepository.findAll(query);
+		if (CollectionUtils.isEmpty(all)) {
+			ConnectionSharedCDCEnable.succeed();
+		}
+		return ConnectionSharedCDCEnable.tip(all);
 	}
 }

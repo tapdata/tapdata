@@ -9,6 +9,8 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.externalStorage.param.ConnectionSharedCDCParam;
+import com.tapdata.tm.externalStorage.vo.ConnectionSharedCDCEnable;
 import com.tapdata.tm.externalStorage.vo.SettingOfSharedCDCEnable;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
@@ -307,9 +309,15 @@ public class ExternalStorageController extends BaseController {
 		return success(externalStorageService.findUsingTasks(id));
 	}
 
-	@Operation(summary = "Get using tasks")
+	@Operation(summary = "Get shared cdc enable status")
 	@GetMapping("shared-cdc-enable")
 	public ResponseMessage<SettingOfSharedCDCEnable> settingOfSharedCDCEnable() {
 		return success(externalStorageService.settingOfSharedCDCEnable());
+	}
+
+	@Operation(summary = "Get using tasks")
+	@PostMapping("ds-shared-cdc-status")
+	public ResponseMessage<ConnectionSharedCDCEnable> checkConnectionSharedCDCEnable(@RequestBody ConnectionSharedCDCParam param) {
+		return success(externalStorageService.checkConnectionSharedCDCEnable(param));
 	}
 }
