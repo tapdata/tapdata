@@ -12,6 +12,7 @@ import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.select.*;
+import net.sf.jsqlparser.util.TablesNamesFinder;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -22,6 +23,11 @@ public class SqlParserUtil {
 
     public static List<Field> parseSelectFields(String sql, List<FromTableConfig> fromTables,
                                                   List<Schema> inputSchemas, Object node) throws Exception {
+        log.info("SqlParserUtil.parseSelectFields() called");
+        log.info("  sql: {}", sql);
+        log.info("  fromTables: {}", CollectionUtils.isEmpty(fromTables) ? "empty" : fromTables.size());
+        log.info("  inputSchemas: {}", CollectionUtils.isEmpty(inputSchemas) ? "empty" : inputSchemas.size());
+        
         if (StringUtils.isBlank(sql)) {
             throw new IllegalArgumentException("SQL query cannot be blank");
         }
@@ -30,19 +36,25 @@ public class SqlParserUtil {
         Statement statement;
         try {
             statement = CCJSqlParserUtil.parse(sql);
+            log.info("  SQL parsed successfully");
         } catch (JSQLParserException e) {
+            log.error("  Failed to parse SQL: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to parse SQL: " + e.getMessage(), e);
         }
 
-        if (!(statement instanceof Select)) {
+        if (!(statement instanceof Select select)) {
             throw new RuntimeException("Only SELECT statements are supported");
         }
 
-        Select select = (Select) statement;
         PlainSelect plainSelect = (PlainSelect) select.getSelectBody();
+
+        // Build alias -> tableName map using visitor pattern
+        Map<String, String> aliasToTableNameMap = buildAliasMap(plainSelect);
+        log.info("  aliasToTableNameMap: {}", aliasToTableNameMap);
 
         // 建立表名到 schema 的映射
         Map<String, Schema> tableSchemaMap = buildTableSchemaMap(fromTables, inputSchemas, node);
+        log.info("  tableSchemaMap keys: {}", tableSchemaMap.keySet());
 
         // 解析选择项
         List<Field> fields = new ArrayList<>();
@@ -51,7 +63,7 @@ public class SqlParserUtil {
         List<SelectItem> selectItems = plainSelect.getSelectItems();
         if (CollectionUtils.isNotEmpty(selectItems)) {
             for (SelectItem selectItem : selectItems) {
-                Field field = parseSelectItem(selectItem, tableSchemaMap);
+                Field field = parseSelectItem(selectItem, tableSchemaMap, aliasToTableNameMap);
 
                 // 检查字段重名
                 String fieldName = field.getFieldName();
@@ -66,14 +78,156 @@ public class SqlParserUtil {
         return fields;
     }
 
+    /**
+     * Build alias -> real table name map
+     * 支持：基础表、表别名、JOIN（LEFT/RIGHT/FULL/INNER）、子查询等
+     * 
+     * @param plainSelect The parsed SELECT statement
+     * @return Map<alias, realTableName>
+     */
+    public static Map<String, String> buildAliasMap(PlainSelect plainSelect) {
+        Map<String, String> aliasToTableNameMap = new HashMap<>();
+
+        try {
+            // 使用 TableAliasCollector Visitor 模式，支持复杂场景（子查询、UNION等）
+            TableAliasCollector visitor = new TableAliasCollector(aliasToTableNameMap);
+            plainSelect.accept(visitor);
+        } catch (Exception e) {
+            log.warn("Error building alias map: " + e.getMessage());
+        }
+
+        return aliasToTableNameMap;
+    }
+
+    /**
+     * Visitor to collect all table aliases recursively through all SelectBody types
+     * Supports: PlainSelect, SetOperationList (UNION, INTERSECT, MINUS), etc.
+     * 基于 TablesNamesFinder 风格的实现，简洁且专业
+     */
+    @Slf4j
+    private static class TableAliasCollector implements SelectVisitor {
+        private final Map<String, String> aliasMap;
+
+        public TableAliasCollector(Map<String, String> aliasMap) {
+            this.aliasMap = aliasMap;
+        }
+
+        @Override
+        public void visit(PlainSelect plainSelect) {
+            try {
+                // Process main FROM item
+                FromItem fromItem = plainSelect.getFromItem();
+                if (fromItem != null) {
+                    processFromItem(fromItem);
+                }
+
+                // Process JOIN items
+                List<Join> joins = plainSelect.getJoins();
+                if (CollectionUtils.isNotEmpty(joins)) {
+                    for (Join join : joins) {
+                        visit(join);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error in TableAliasCollector.visit(PlainSelect): " + e.getMessage());
+            }
+        }
+
+        @Override
+        public void visit(SetOperationList setOperationList) {
+            try {
+                // Process each SelectBody in the SetOperationList
+                List<SelectBody> selectBodies = setOperationList.getSelects();
+                if (CollectionUtils.isNotEmpty(selectBodies)) {
+                    for (SelectBody selectBody : selectBodies) {
+                        selectBody.accept(this);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error in TableAliasCollector.visit(SetOperationList): " + e.getMessage());
+            }
+        }
+
+        @Override
+        public void visit(WithItem withItem) {
+            // WithItem 暂不处理，保持稳定性
+        }
+
+        @Override
+        public void visit(net.sf.jsqlparser.statement.values.ValuesStatement valuesStatement) {
+            // ValuesStatement 暂不处理，保持稳定性
+        }
+
+        /**
+         * 处理 JOIN 子句
+         */
+        private void visit(Join join) {
+            FromItem rightItem = join.getRightItem();
+            if (rightItem != null) {
+                processFromItem(rightItem);
+            }
+        }
+
+        private void processFromItem(FromItem fromItem) {
+            if (fromItem instanceof Table table) {
+                // 处理普通表
+                String realTableName = table.getName();
+                if (StringUtils.isNotBlank(realTableName)) {
+                    aliasMap.put(realTableName, realTableName);
+                    Alias alias = table.getAlias();
+                    if (alias != null && StringUtils.isNotBlank(alias.getName())) {
+                        aliasMap.put(alias.getName(), realTableName);
+                    }
+                }
+            } else if (fromItem instanceof SubSelect subSelect) {
+                // 处理子查询
+
+                // 保存处理前的 aliasMap 副本，用于检测新增的表
+                Map<String, String> beforeMap = new HashMap<>(aliasMap);
+                
+                // 递归处理子查询内容
+                SelectBody selectBody = subSelect.getSelectBody();
+                if (selectBody != null) {
+                    selectBody.accept(this);
+                }
+                
+                // 处理子查询的别名
+                Alias subqueryAlias = subSelect.getAlias();
+                if (subqueryAlias != null && StringUtils.isNotBlank(subqueryAlias.getName())) {
+                    // 查找子查询内部新增的真实表名
+                    List<String> newTables = new ArrayList<>();
+                    for (Map.Entry<String, String> entry : aliasMap.entrySet()) {
+                        // 如果这个 key 在处理前不存在，且是真实表名（key和value相同）
+                        if (!beforeMap.containsKey(entry.getKey()) && entry.getKey().equals(entry.getValue())) {
+                            newTables.add(entry.getKey());
+                        }
+                    }
+                    
+                    // 策略：如果子查询内部有且只有一个真实表，那么将别名映射到该表
+                    // 否则映射到自身
+                    if (newTables.size() == 1) {
+                        aliasMap.put(subqueryAlias.getName(), newTables.get(0));
+                    } else {
+                        aliasMap.put(subqueryAlias.getName(), subqueryAlias.getName());
+                    }
+                }
+            }
+            // 其他 FromItem 类型忽略，保持稳定性
+        }
+    }
+
     private static Map<String, Schema> buildTableSchemaMap(List<FromTableConfig> fromTables,
                                                             List<Schema> inputSchemas, Object node) {
+        log.info("  buildTableSchemaMap() called");
         Map<String, Schema> tableSchemaMap = new HashMap<>();
         Map<String, Schema> inputSchemaMap = new HashMap<>();
 
         // 将 inputSchemas 转换为 map
         if (CollectionUtils.isNotEmpty(inputSchemas)) {
+            log.info("  Processing {} input schemas", inputSchemas.size());
             for (Schema schema : inputSchemas) {
+                log.info("    Input schema: nodeId={}, name={}, originalName={}, qualifiedName={}", 
+                    schema.getNodeId(), schema.getName(), schema.getOriginalName(), schema.getQualifiedName());
                 String qualifiedName = schema.getQualifiedName();
                 if (StringUtils.isNotBlank(qualifiedName)) {
                     inputSchemaMap.put(qualifiedName, schema);
@@ -87,14 +241,17 @@ public class SqlParserUtil {
 
         // 建立 fromTables 到 schema 的映射
         if (CollectionUtils.isNotEmpty(fromTables)) {
+            log.info("  Processing {} fromTables", fromTables.size());
             for (FromTableConfig fromTable : fromTables) {
                 String tableNameInSql = fromTable.getTableNameInSql();
                 String preNodeId = fromTable.getPreNodeId();
+                log.info("    FromTableConfig: tableNameInSql={}, preNodeId={}", tableNameInSql, preNodeId);
 
                 // 尝试通过 preNodeId 查找 schema（需要 Node 对象的方法）
                 Schema schema = findSchemaByNodeId(inputSchemaMap, preNodeId, tableNameInSql);
 
                 if (schema != null) {
+                    log.info("    Found matching schema for fromTable");
                     if (StringUtils.isNotBlank(tableNameInSql)) {
                         tableSchemaMap.put(tableNameInSql, schema);
                     }
@@ -107,12 +264,15 @@ public class SqlParserUtil {
                     if (StringUtils.isNotBlank(name)) {
                         tableSchemaMap.put(name, schema);
                     }
+                } else {
+                    log.warn("    No matching schema found for fromTable");
                 }
             }
         }
 
         // 如果没有找到匹配，将所有 inputSchema 都放入
         if (tableSchemaMap.isEmpty() && CollectionUtils.isNotEmpty(inputSchemas)) {
+            log.info("  No fromTables match found, falling back to all input schemas");
             for (Schema schema : inputSchemas) {
                 String name = StringUtils.isNotBlank(schema.getOriginalName()) ? schema.getOriginalName() : schema.getName();
                 if (StringUtils.isNotBlank(name)) {
@@ -121,6 +281,7 @@ public class SqlParserUtil {
             }
         }
 
+        log.info("  buildTableSchemaMap() returning {} entries", tableSchemaMap.size());
         return tableSchemaMap;
     }
 
@@ -141,7 +302,7 @@ public class SqlParserUtil {
         return null;
     }
 
-    private static Field parseSelectItem(SelectItem selectItem, Map<String, Schema> tableSchemaMap) {
+    private static Field parseSelectItem(SelectItem selectItem, Map<String, Schema> tableSchemaMap, Map<String, String> aliasToTableNameMap) {
         Field field = new Field();
         field.setSource(Field.SOURCE_JOB_ANALYZE);
 
@@ -176,8 +337,19 @@ public class SqlParserUtil {
                 String columnName = column.getColumnName();
 
                 if (table != null && StringUtils.isNotBlank(table.getName())) {
-                    // 有表名，尝试查找对应的 schema
-                    Schema schema = tableSchemaMap.get(table.getName());
+                    // Look up real table name using alias map first
+                    String tableNameOrAlias = table.getName();
+                    String realTableName = aliasToTableNameMap.get(tableNameOrAlias);
+                    
+                    // Try with real table name first, fall back to original if not found
+                    Schema schema = null;
+                    if (StringUtils.isNotBlank(realTableName)) {
+                        schema = tableSchemaMap.get(realTableName);
+                    }
+                    if (schema == null) {
+                        schema = tableSchemaMap.get(tableNameOrAlias);
+                    }
+                    
                     if (schema != null) {
                         Field sourceField = findFieldByName(schema, columnName);
                         if (sourceField != null) {

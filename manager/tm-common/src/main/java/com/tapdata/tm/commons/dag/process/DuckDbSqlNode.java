@@ -1,17 +1,24 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.commons.util.SqlParserUtil;
+import io.tapdata.entity.schema.TapTable;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.codecs.pojo.annotations.BsonProperty;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -98,6 +105,10 @@ public class DuckDbSqlNode extends ProcessorNode {
     /** 自定义 JOIN 查询（当 SQL 自动解析失败时使用） */
     @EqField
     private Map<String, String> customJoinQueries = new HashMap<>();
+
+    /** 前置节点 Schema 列表（用于传递到 Engine 端，不需要持久化） */
+    @EqField
+    private List<TapTable> preNodeTapTables = new ArrayList<>();
 
     public DuckDbSqlNode() {
         super("duckdb_sql_processor");
@@ -209,66 +220,133 @@ public class DuckDbSqlNode extends ProcessorNode {
         return inputSchemas.get(0);
     }
 
+    /**
+     * 合并输入的 Schema 到输出 Schema 中
+     * 关键工作流程
+     * 1. 获取输入 ： inputSchemas 提供所有上游表的结构，包括主表、从表、视图等
+     * 2. 解析 SQL ：使用 SqlParserUtil 从 querySql 中提取选择的字段、表名、别名等信息
+     * 3. 构建输出 ：根据解析结果，创建新的 Schema 并设置宽表信息
+     * 4. 解析 SQL ：使用 SqlParserUtil 从 querySql 中提取选择的字段
+     * 5. 构建输出 ：创建新的 Schema 并设置宽表信息
+     * 6. 主键设置 ：根据 wideTablePrimaryKey 配置设置主键
+     */
     @Override
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
-        // 解析主表信息和默认值
-        if (CollectionUtils.isNotEmpty(inputSchemas)) {
-            resolveMainTableInfo(inputSchemas);
+        log.info("DuckDbSqlNode.mergeSchema() called");
+        log.info("  inputSchemas: {}", CollectionUtils.isEmpty(inputSchemas) ? "empty" : inputSchemas.size());
+        log.info("  querySql: {}", querySql);
+        log.info("  fromTables: {}", CollectionUtils.isEmpty(fromTables) ? "empty" : fromTables.size());
+        
+        // ========== 严格校验：输入参数不能为空 ==========
+        if (CollectionUtils.isEmpty(inputSchemas)) {
+            throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: inputSchemas is empty or null");
         }
         
-        // 对于 DuckDB SQL 节点，输出 Schema 取决于查询结果
-        if (StringUtils.isNotBlank(querySql)) {
-            try {
-                // 使用 SqlParserUtil 解析 SQL 并生成宽表字段
-                List<Field> fields = SqlParserUtil.parseSelectFields(querySql, fromTables, inputSchemas, this);
-                
-                if (CollectionUtils.isNotEmpty(fields)) {
-                    // 创建新的 Schema
-                    Schema resultSchema = new Schema();
-                    
-                    // 复制输入 schema 的基本属性
-                    if (schema != null) {
-                        resultSchema.setMetaType(schema.getMetaType());
-                        resultSchema.setSourceType(schema.getSourceType());
-                        resultSchema.setCreateSource("job_analyze");
-                    } else if (CollectionUtils.isNotEmpty(inputSchemas)) {
-                        Schema firstSchema = inputSchemas.get(0);
-                        resultSchema.setMetaType(firstSchema.getMetaType());
-                        resultSchema.setSourceType(firstSchema.getSourceType());
-                        resultSchema.setCreateSource("job_analyze");
-                    }
-                    
-                    // 设置宽表名称（已经在 resolveMainTableInfo() 中处理）
-                    resultSchema.setName(wideTableName);
-                    resultSchema.setOriginalName(mainTableName);
-                    
-                    // 设置字段
-                    resultSchema.setFields(fields);
-                    
-                    // 设置主键
-                    if (StringUtils.isNotBlank(wideTablePrimaryKey)) {
-                        for (Field field : fields) {
-                            if (wideTablePrimaryKey.equals(field.getFieldName())) {
-                                field.setPrimaryKey(true);
-                                field.setPrimaryKeyPosition(1);
-                                break;
-                            }
-                        }
-                    }
-                    
-                    return resultSchema;
+        // ========== 严格校验：必须配置 querySql ==========
+        if (StringUtils.isBlank(querySql)) {
+            throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: querySql is blank or null");
+        }
+        
+        // ========== 严格执行：解析主表信息 ==========
+        resolveMainTableInfo(inputSchemas);
+        log.info("  resolved mainTableInfo: mainTableName={}, mainTablePrimaryKey={}, wideTableName={}, wideTablePrimaryKey={}", 
+            mainTableName, mainTablePrimaryKey, wideTableName, wideTablePrimaryKey);
+        
+        // 校验主表信息
+        if (StringUtils.isBlank(mainTableName)) {
+            throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: mainTableName is blank after resolution");
+        }
+        if (StringUtils.isBlank(wideTableName)) {
+            throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: wideTableName is blank after resolution");
+        }
+        
+        // ========== 严格执行：解析 SQL 查询 ==========
+        log.info("  Parsing SQL query to generate schema...");
+        List<Field> fields;
+        try {
+            fields = SqlParserUtil.parseSelectFields(querySql, fromTables, inputSchemas, this);
+        } catch (Exception e) {
+            throw new RuntimeException("DuckDbSqlNode.mergeSchema() failed to parse SQL query: " + querySql, e);
+        }
+        
+        // ========== 严格校验：必须解析出字段 ==========
+        if (CollectionUtils.isEmpty(fields)) {
+            throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: no fields parsed from SQL query: " + querySql);
+        }
+        
+        log.info("  Parsed {} fields from SQL", fields.size());
+        
+        // ========== 构建输出 Schema ==========
+        Schema resultSchema = new Schema();
+        
+        // 复制输入 schema 的基本属性
+        Schema firstInputSchema = inputSchemas.get(0);
+        if (schema != null) {
+            resultSchema.setMetaType(schema.getMetaType());
+            resultSchema.setSourceType(schema.getSourceType());
+        } else {
+            resultSchema.setMetaType(firstInputSchema.getMetaType());
+            resultSchema.setSourceType(firstInputSchema.getSourceType());
+        }
+        
+        // 关键修复：设置 databaseId，用于后续 Schema 保存
+        if (firstInputSchema.getDatabaseId() != null) {
+            resultSchema.setDatabaseId(firstInputSchema.getDatabaseId());
+            log.info("  Set databaseId from input schema: {}", firstInputSchema.getDatabaseId());
+        }
+        
+        resultSchema.setCreateSource("job_analyze");
+        
+        // 设置宽表名称
+        resultSchema.setName(wideTableName);
+        resultSchema.setOriginalName(mainTableName);
+        
+        resultSchema.setFields(fields);
+        
+        // 设置主键、设置字段并填充详细信息
+        if (StringUtils.isNotBlank(wideTablePrimaryKey)) {
+            boolean foundPrimaryKey = false;
+            for (Field field : fields) {
+                if (wideTablePrimaryKey.equals(field.getFieldName())) {
+                    field.setPrimaryKey(true);
+                    field.setPrimaryKeyPosition(1);
+                    foundPrimaryKey = true;
                 }
-            } catch (Exception e) {
-                log.warn("Failed to parse SQL to generate schema: {}", e.getMessage(), e);
-                // 解析失败时，回退到原始行为
+                // 设置字段来源
+                field.setSource("job_analyze");
+
+                // 设置字段所属表名
+                field.setTableName(mainTableName);
+
+                // 设置字段ID（参考 MergeTableNode 和 JoinProcessorNode 的做法）
+                String fieldId = MetaDataBuilderUtils.generateFieldId(this.getId(), mainTableName, field.getFieldName());
+                field.setId(fieldId);
+                field.setColumnPosition(1);
+
+                // 如果没有设置原始字段名，则使用字段名
+                if (StringUtils.isBlank(field.getOriginalFieldName())) {
+                    field.setOriginalFieldName(field.getFieldName());
+                }
+            }
+            if (!foundPrimaryKey) {
+                throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: wideTablePrimaryKey '" + wideTablePrimaryKey + 
+                    "' not found in parsed fields: " + fields.stream().map(Field::getFieldName).toList());
             }
         }
         
-        // 解析失败或没有查询 SQL 时，回退到原始行为
-        if (inputSchemas != null && !inputSchemas.isEmpty()) {
-            return inputSchemas.get(0);
-        }
-        return super.mergeSchema(inputSchemas, schema, options);
+        // 设置 Schema 的 qualifiedName（参考 MergeTableNode 的做法）
+        String taskIdStr = taskId() != null ? taskId().toHexString() : null;
+        String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), this.getId(), null, taskIdStr);
+        resultSchema.setQualifiedName(qualifiedName);
+        
+        // 设置 Schema 的 taskId 和 nodeId
+        resultSchema.setTaskId(taskIdStr);
+        resultSchema.setNodeId(this.getId());
+        
+        log.info("  Successfully generated schema: name={}, qualifiedName={}, fields={}", 
+            resultSchema.getName(), resultSchema.getQualifiedName(), resultSchema.getFields().size());
+        
+        return super.mergeSchema(Lists.newArrayList(resultSchema), schema, options);
     }
 
     @Override
