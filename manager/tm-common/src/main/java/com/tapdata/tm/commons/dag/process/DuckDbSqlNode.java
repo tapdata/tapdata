@@ -12,7 +12,8 @@ import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.commons.util.SqlParserUtil;
-import io.tapdata.entity.schema.TapTable;
+import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
+import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -79,6 +80,11 @@ public class DuckDbSqlNode extends ProcessorNode {
     
     @EqField
     private String duckLakeMetadataDbUrl = null;
+    
+    /** DuckDB 数据库文件路径（null=内存模式，支持文件持久化） */
+    @EqField
+    @JsonAlias({"databasePath"})  // 兼容旧版 API 字段名
+    private String dbPath = null;
 
     // ========== 新增: 实时增量物化视图配置 ==========
     
@@ -108,7 +114,7 @@ public class DuckDbSqlNode extends ProcessorNode {
 
     /** 前置节点 Schema 列表（用于传递到 Engine 端，不需要持久化） */
     @EqField
-    private List<TapTable> preNodeTapTables = new ArrayList<>();
+    private List<TapTableDto> preNodeTapTables = new ArrayList<>();
 
     public DuckDbSqlNode() {
         super("duckdb_sql_processor");
@@ -345,8 +351,99 @@ public class DuckDbSqlNode extends ProcessorNode {
         
         log.info("  Successfully generated schema: name={}, qualifiedName={}, fields={}", 
             resultSchema.getName(), resultSchema.getQualifiedName(), resultSchema.getFields().size());
+
+        // ========== 填充 preNodeTapTables（用于 Engine 端初始化 schema 缓存）==========
+        this.preNodeTapTables = convertSchemasToTapTableDtos(inputSchemas);
+        log.info("  Populated preNodeTapTables: {} tables", preNodeTapTables.size());
         
         return super.mergeSchema(Lists.newArrayList(resultSchema), schema, options);
+    }
+
+    // ========== Schema → TapTableDto 转换方法 ==========
+
+    /**
+     * 将 inputSchemas 转换为 TapTableDto 列表，用于填充 preNodeTapTables
+     */
+    private List<TapTableDto> convertSchemasToTapTableDtos(List<Schema> inputSchemas) {
+        if (inputSchemas == null) {
+            return new ArrayList<>();
+        }
+        List<TapTableDto> result = new ArrayList<>();
+        for (Schema schema : inputSchemas) {
+            TapTableDto dto = schemaToTapTableDto(schema);
+            if (dto != null) {
+                result.add(dto);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 将单个 Schema 转换为 TapTableDto
+     */
+    private TapTableDto schemaToTapTableDto(Schema schema) {
+        if (schema == null) {
+            return null;
+        }
+
+        TapTableDto dto = new TapTableDto();
+        // id 使用 nodeId（转为 String），name 使用表名
+        Object nodeId = schema.getNodeId();
+        String nodeIdStr;
+        if (nodeId != null) {
+            nodeIdStr = nodeId instanceof org.bson.types.ObjectId
+                    ? ((org.bson.types.ObjectId) nodeId).toString()
+                    : nodeId.toString();
+        } else {
+            Object id = schema.getId();
+            nodeIdStr = id != null ? id.toString() : null;
+        }
+        dto.setId(nodeIdStr);
+        dto.setName(schema.getName());
+
+        // 提取主键
+        List<String> primaryKeys = new ArrayList<>();
+        List<TapFieldDto> fieldDtos = new ArrayList<>();
+        if (schema.getFields() != null) {
+            for (Field field : schema.getFields()) {
+                if (Boolean.TRUE.equals(field.getPrimaryKey())) {
+                    primaryKeys.add(field.getFieldName());
+                }
+                fieldDtos.add(fieldToTapFieldDto(field));
+            }
+        }
+        dto.setPrimaryKeys(primaryKeys);
+        dto.setFields(fieldDtos);
+
+        return dto;
+    }
+
+    /**
+     * 将 Schema.Field 转换为 TapFieldDto
+     */
+    private TapFieldDto fieldToTapFieldDto(Field field) {
+        if (field == null) {
+            return null;
+        }
+        TapFieldDto dto = new TapFieldDto();
+        dto.setName(field.getFieldName());
+        dto.setOriginalFieldName(field.getOriginalFieldName());
+        dto.setDataType(field.getDataType());
+        dto.setIsPrimaryKey(Boolean.TRUE.equals(field.getPrimaryKey()));
+        if (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0) {
+            dto.setPrimaryKeyPos(field.getPrimaryKeyPosition());
+        }
+        dto.setNullable(field.getIsNullable() != null && field.getIsNullable() instanceof Boolean isNull ? isNull : true);
+        if (field.getColumnPosition() != null && field.getColumnPosition() > 0) {
+            dto.setPos(field.getColumnPosition());
+        }
+
+        // 转换 TapType（如果有）
+        if (field.getTapType() != null) {
+            dto.setTapTypeName(field.getTapType().getClass().getSimpleName());
+        }
+
+        return dto;
     }
 
     @Override

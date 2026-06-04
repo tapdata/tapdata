@@ -34,12 +34,15 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     
     // DuckLake配置
     private final DuckLakeConfig duckLakeConfig;
+    
+    // 数据库文件路径（null=内存模式）
+    private final String dbPath;
 
     /**
      * 创建内存数据库实例
      */
     public DuckDbOperatorImpl() throws SQLException {
-        this(false, 1000, 5000, DuckLakeConfig.disabled());
+        this("", false, 1000, 5000, DuckLakeConfig.disabled());
     }
 
     /**
@@ -49,17 +52,41 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
      * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
      */
     public DuckDbOperatorImpl(boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs) throws SQLException {
-        this(batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, DuckLakeConfig.disabled());
+        this("", batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, DuckLakeConfig.disabled());
     }
-    
+
     /**
-     * 创建带批处理和DuckLake配置的实例
+     * 创建带 dbPath 和批处理配置的实例
+     * @param dbPath 数据库文件路径（null=内存模式）
+     * @param batchWritingEnabled 是否启用批处理
+     * @param batchWritingSize 批处理大小
+     * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
+     */
+    public DuckDbOperatorImpl(String dbPath, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs) throws SQLException {
+        this(dbPath, batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, DuckLakeConfig.disabled());
+    }
+
+    /**
+     * 创建带批处理和DuckLake配置的实例（保留向后兼容）
      * @param batchWritingEnabled 是否启用批处理
      * @param batchWritingSize 批处理大小
      * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
      * @param duckLakeConfig DuckLake配置
      */
     public DuckDbOperatorImpl(boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig) throws SQLException {
+        this("", batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, duckLakeConfig);
+    }
+
+    /**
+     * 创建带批处理、DuckLake和dbPath配置的实例（主构造函数）
+     * @param dbPath 数据库文件路径（null=内存模式）
+     * @param batchWritingEnabled 是否启用批处理
+     * @param batchWritingSize 批处理大小
+     * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
+     * @param duckLakeConfig DuckLake配置
+     */
+    public DuckDbOperatorImpl(String dbPath, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig) throws SQLException {
+        this.dbPath = dbPath;
         this.batchWritingEnabled = batchWritingEnabled;
         this.batchWritingSize = batchWritingSize;
         this.batchWritingTimeoutMs = batchWritingTimeoutMs;
@@ -88,6 +115,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
      */
     public DuckDbOperatorImpl(Connection connection, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig) {
         this.connection = connection;
+        this.dbPath = null; // 使用外部连接时，dbPath无意义
         this.batchWritingEnabled = batchWritingEnabled;
         this.batchWritingSize = batchWritingSize;
         this.batchWritingTimeoutMs = batchWritingTimeoutMs;
@@ -97,6 +125,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
 
     /**
      * 初始化DuckDB连接
+     * 根据dbPath决定使用文件持久化模式还是内存模式
      */
     private void initConnection() throws SQLException {
         // 加载DuckDB驱动
@@ -106,8 +135,17 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
             throw new SQLException("DuckDB driver not found", e);
         }
         
-        // 创建内存数据库连接
-        this.connection = DriverManager.getConnection("jdbc:duckdb:");
+        // 根据dbPath动态构建JDBC URL
+        String jdbcUrl;
+        if (dbPath != null && !dbPath.trim().isEmpty()) {
+            jdbcUrl = "jdbc:duckdb:" + dbPath.trim();
+            logger.info("DuckDB using PERSISTENT file mode: {}", jdbcUrl);
+        } else {
+            jdbcUrl = "jdbc:duckdb:";
+            logger.info("DuckDB using IN-MEMORY mode");
+        }
+        
+        this.connection = DriverManager.getConnection(jdbcUrl);
         this.connection.setAutoCommit(false);
         
         logger.info("DuckDB connection initialized successfully");
@@ -845,6 +883,22 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
      */
     int getBatchBufferSize() {
         return batchBuffer.size();
+    }
+
+    /**
+     * 获取数据库文件路径
+     * @return 文件路径（null表示内存模式）
+     */
+    public String getDbPath() {
+        return dbPath;
+    }
+
+    /**
+     * 检查是否为持久化文件模式
+     * @return true=文件模式，false=内存模式
+     */
+    public boolean isPersistentMode() {
+        return dbPath != null && !dbPath.trim().isEmpty();
     }
 
     // ==================== 新增: 物化视图相关方法的实现 ====================

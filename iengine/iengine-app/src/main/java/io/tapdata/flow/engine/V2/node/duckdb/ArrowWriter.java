@@ -3,6 +3,8 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.*;
@@ -246,7 +248,7 @@ public class ArrowWriter implements AutoCloseable {
             } else if (vector instanceof BitVector) {
                 ((BitVector) vector).setSafe(index, (Boolean) value ? 1 : 0);
             } else if (vector instanceof VarCharVector) {
-                ((VarCharVector) vector).setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
+                ((VarCharVector) vector).setSafe(index, convertDateTimeToString(value).getBytes(StandardCharsets.UTF_8));
             } else if (vector instanceof VarBinaryVector) {
                 if (value instanceof byte[]) {
                     ((VarBinaryVector) vector).setSafe(index, (byte[]) value);
@@ -273,6 +275,26 @@ public class ArrowWriter implements AutoCloseable {
                 ((BitVector) vector).setNull(index);
             }
         }
+    }
+
+    /**
+     * 将 Tapdata PDK DateTime / TapDateTimeValue 转换为 DuckDB 兼容的时间戳字符串
+     * 避免 DateTime.toString() 产生 "DateTime nano 0 seconds 1735689600 timeZone null" 这种非法格式
+     */
+    private static String convertDateTimeToString(Object value) {
+        if (value instanceof DateTime dateTime) {
+            long epochMs = dateTime.toInstant().toEpochMilli();
+            return new java.sql.Timestamp(epochMs).toString();
+        }
+        if (value instanceof TapDateTimeValue tapDateTimeValue) {
+            DateTime dt = tapDateTimeValue.getValue();
+            if (dt != null) {
+                long epochMs = dt.toInstant().toEpochMilli();
+                return new java.sql.Timestamp(epochMs).toString();
+            }
+            return value.toString();
+        }
+        return value.toString();
     }
 
     /**
@@ -435,6 +457,15 @@ public class ArrowWriter implements AutoCloseable {
             appender.append((java.util.Date) value);
         } else if (value instanceof java.sql.Timestamp) {
             appender.append(((java.sql.Timestamp) value).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
+        } else if (value instanceof DateTime dateTime) {
+            appender.append(new java.sql.Timestamp(dateTime.toInstant().toEpochMilli()));
+        } else if (value instanceof TapDateTimeValue tapDateTimeValue) {
+            DateTime dt = tapDateTimeValue.getValue();
+            if (dt != null) {
+                appender.append(new java.sql.Timestamp(dt.toInstant().toEpochMilli()));
+            } else {
+                appender.append((String) null);
+            }
         } else if (value instanceof java.time.LocalDateTime) {
             appender.append((java.time.LocalDateTime) value);
         } else if (value instanceof java.time.LocalDate) {
