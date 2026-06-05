@@ -520,7 +520,7 @@ class MeasurementServiceV2ImplTest {
             when(sampleRequest.getSample()).thenReturn(sample);
             doCallRealMethod().when(measurementServiceV2).addAgentMeasurement(samples);
             measurementServiceV2.addAgentMeasurement(samples);
-            verify(taskService).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 0L);
+            verify(taskService, never()).updateDelayTime(any(ObjectId.class), anyLong());
         }
         @Test
         @DisplayName("test addBulkAgentMeasurement method when taskDelayTimeMap contains taskId")
@@ -529,13 +529,13 @@ class MeasurementServiceV2ImplTest {
             Date date = new Date();
             sample.setDate(date);
             Map vs = new HashMap();
-            vs.put("replicateLag",null);
+            vs.put("replicateLag",111);
             sample.setVs(vs);
             when(sampleRequest.getSample()).thenReturn(sample);
             samples.add(sampleRequest);
             doCallRealMethod().when(measurementServiceV2).addAgentMeasurement(samples);
             measurementServiceV2.addAgentMeasurement(samples);
-            verify(taskService, new Times(1)).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 0L);
+            verify(taskService, new Times(1)).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 111L);
         }
         @Test
         @DisplayName("test addBulkAgentMeasurement method when taskDelayTimeMap not contains taskId")
@@ -544,7 +544,7 @@ class MeasurementServiceV2ImplTest {
             Date date = new Date();
             sample.setDate(date);
             Map vs = new HashMap();
-            vs.put("replicateLag",null);
+            vs.put("replicateLag",0);
             sample.setVs(vs);
             when(sampleRequest.getSample()).thenReturn(sample);
             SampleRequest sampleRequest1 = mock(SampleRequest.class);
