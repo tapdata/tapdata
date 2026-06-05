@@ -316,13 +316,6 @@ public class TaskRestartSchedule {
                 continue;
             }
 
-            // Same liveness guard for WAIT_RUN: if the new owner is alive, the engine is
-            // simply slow to acknowledge — don't roll back to SCHEDULING.
-            if (!isCloud() && isAgentAlive(agentId, user)) {
-                logSkipReschedule("waitRunTask", taskDto, "wait_run_but_worker_alive");
-                continue;
-            }
-
             asyncTaskWarnLog(taskDto, user, "The engine[{0}] takes over the task with a timeout of {1}ms."
                 , agentId, heartExpire
             );
