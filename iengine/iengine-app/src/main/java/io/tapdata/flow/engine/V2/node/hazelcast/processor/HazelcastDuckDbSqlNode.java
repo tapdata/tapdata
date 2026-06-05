@@ -333,8 +333,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 }
             });
 
-            // ========== 核心功能：DuckDB 表生命周期管理：先下放到各Context管理 ==========
-//            manageDuckDbTables();
+            // ========== 核心功能：DuckDB 表生命周期管理： ==========
+            manageDuckDbTables();
 
             // ========== 核心功能：SQL 表别名解析与替换 ==========
             resolveSqlTableAliases();
@@ -1018,7 +1018,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
 
         // 步骤2: 确保表存在
-        ensureTableExists(context, eventsToFlush);
+//        ensureTableExists(context, eventsToFlush);
 
         // 获取 DuckDbOperator
         DuckDbOperator operator = getOperatorForContext(context);
@@ -1072,7 +1072,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsToFlush);
 
         // 步骤2: 确保表存在
-        ensureTableExists(context, eventsToFlush);
+//        ensureTableExists(context, eventsToFlush);
 
         // 获取 DuckDbOperator
         DuckDbOperator operator = getOperatorForContext(context);
@@ -1632,6 +1632,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
         switch (dto.getTapTypeName()) {
             case "TapString":
+            case "String":
                 TapString tapString = new TapString();
                 if (dto.getTapTypeParams() != null) {
                     Object length = dto.getTapTypeParams().get("length");
