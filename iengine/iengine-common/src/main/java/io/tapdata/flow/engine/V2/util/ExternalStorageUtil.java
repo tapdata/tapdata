@@ -559,7 +559,7 @@ public class ExternalStorageUtil {
 		if (CollectionUtils.isEmpty(externalStorages)) {
 			throw new TapCodeException(ExternalStorageExCode_26.CANNOT_FOUND_EXTERNAL_STORAGE_CONFIG, "Query: " + query.getQueryObject().toJson());
 		}
-		return externalStorages.stream().filter(e -> ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME.equals(e.getName())).findFirst()
-				.orElse(externalStorages.stream().filter(ExternalStorageDto::isDefaultStorage).findFirst().orElse(null));
+		return externalStorages.stream().filter(ExternalStorageDto::isDefaultStorage).findFirst()
+				.orElse(externalStorages.stream().filter(e -> ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME.equals(e.getName())).findFirst().orElse(null));
 	}
 }
