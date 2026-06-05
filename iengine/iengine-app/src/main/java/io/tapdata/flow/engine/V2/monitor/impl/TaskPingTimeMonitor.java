@@ -1,14 +1,17 @@
 package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.ConsumerImpl;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.utils.AppType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -33,15 +36,15 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 	private final static long PING_INTERVAL_MS = 5000L;
+	private static final long DEFAULT_TASK_HEART_TIMEOUT_MS = 60000L;
 	public static final String TAG = TaskPingTimeMonitor.class.getSimpleName();
 
 	private Logger logger = LogManager.getLogger(TaskPingTimeMonitor.class);
-	private ScheduledExecutorService executorService;
-	private HttpClientMongoOperator clientMongoOperator;
-	private Supplier<Boolean> stopTask;
-    private long failedStartTime = 0;
-
-	private Consumer<TerminalMode> taskMonitor;
+	private final ScheduledExecutorService executorService;
+	private final HttpClientMongoOperator clientMongoOperator;
+	private final Supplier<Boolean> stopTask;
+	private final Consumer<TerminalMode> taskMonitor;
+    private long latestSuccessPingTime = 0;
 
 	public TaskPingTimeMonitor(TaskDto taskDto, HttpClientMongoOperator clientMongoOperator, SupplierImpl<Boolean> stopTask, ConsumerImpl<TerminalMode> terminalMode) {
 		super(taskDto);
@@ -53,7 +56,7 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 
 	@Override
 	public void start() {
-        failedStartTime = 0;
+		latestSuccessPingTime = System.currentTimeMillis();
 		// Always ping every PING_INTERVAL_MS (5s). TM treats pingTime older than
 		// JOB_HEART_TIMEOUT (≥25s) as a dead task; gating ping by heartExpire/2
 		// previously made the ping interval equal the timeout, leaving zero buffer
@@ -62,11 +65,12 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 				() -> {
 					Thread.currentThread().setName("Task-PingTime-" + taskDto.getId().toHexString());
 
+					long now = System.currentTimeMillis();
 					Query query = new Query(where("_id").is(taskDto.getId())
 							.and("status").nin(TaskDto.STATUS_ERROR, TaskDto.STATUS_SCHEDULE_FAILED)
 							.and("agentId").is(taskDto.getAgentId())
 					);
-					Update update = new Update().set("pingTime", System.currentTimeMillis());
+					Update update = new Update().set("pingTime", now);
 					try {
 						taskPingTimeUseHttp(query, update);
 					} catch (Exception e) {
@@ -84,38 +88,54 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 	}
 
 	public void taskPingTimeUseHttp(Query query, Update update) {
+		boolean isCloud = AppType.currentType().isCloud();
 		try {
 			UpdateResult updateResult = clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
-			if (updateResult.getModifiedCount() == 0) {
-				// Self-stop on ownership loss for ALL profiles (cloud + DAAS). Previously cloud
-				// silently continued, which is the root cause of the dual-engine running window
-				// observed in HA drill tests.
-				logger.warn("TaskHA event=ping_rejected reason=update_modifiedCount_zero, will stop task");
-				taskMonitor.accept(TerminalMode.INTERNAL_STOP);
-				stopTask.get();
-				ExecutorUtil.shutdown(executorService, 1L, TimeUnit.SECONDS);
-			} else {
-                failedStartTime = 0L;
-            }
+			if (updateResult.getModifiedCount() != 0) {
+				latestSuccessPingTime = System.currentTimeMillis();
+				return;
+			}
+			if (isCloud) {
+				logger.warn("TaskHA event=ping_rejected reason=update_modifiedCount_zero, cloud task will keep running");
+				return;
+			}
+			logger.warn("TaskHA event=ping_rejected reason=update_modifiedCount_zero, will stop task");
 		} catch (Exception e) {
-            if (failedStartTime == 0) {
-                failedStartTime = System.currentTimeMillis();
-            }
-            if (System.currentTimeMillis() - failedStartTime > onHeartExpire()) {
-                logger.warn("TaskHA event=ping_failed_giveup elapsedMs={}, will stop task: {}",
-                        System.currentTimeMillis() - failedStartTime, e.getMessage(), e);
-                taskMonitor.accept(TerminalMode.INTERNAL_STOP);
-                stopTask.get();
-                ExecutorUtil.shutdown(executorService, 1L, TimeUnit.SECONDS);
-            } else {
-                logger.warn("TaskHA event=ping_failed_retry elapsedMs={} giveupAfterMs={}",
-                        System.currentTimeMillis() - failedStartTime, onHeartExpire());
-            }
+			if (isCloud) {
+				logger.warn("TaskHA event=ping_failed_cloud_keep_running error={}", e.getMessage(), e);
+				return;
+			}
+			long now = System.currentTimeMillis();
+			long elapsedSinceLastSuccess = now - latestSuccessPingTime;
+            long taskHeartTimeout = getTaskHeartTimeout();
+			if (elapsedSinceLastSuccess <= taskHeartTimeout) {
+				logger.warn("TaskHA event=ping_failed_retry elapsedSinceLastSuccessMs={} giveupAfterMs={}",
+						elapsedSinceLastSuccess, taskHeartTimeout);
+				return;
+			}
+			logger.warn("TaskHA event=ping_failed_giveup elapsedSinceLastSuccessMs={}, will stop task: {}",
+					elapsedSinceLastSuccess, e.getMessage(), e);
 		}
+
+		internalStop();
+    }
+
+	private void internalStop() {
+		taskMonitor.accept(TerminalMode.INTERNAL_STOP);
+		stopTask.get();
+		ExecutorUtil.shutdown(executorService, 1L, TimeUnit.SECONDS);
 	}
 
-	protected long onHeartExpire() {
-		return TimeUnit.SECONDS.toMillis(15L);
+	private long getTaskHeartTimeout() {
+		try {
+			SettingService settingService = BeanUtil.getBean(SettingService.class);
+			if (settingService != null) {
+				return settingService.getLong("jobHeartTimeout", DEFAULT_TASK_HEART_TIMEOUT_MS);
+			}
+		} catch (Exception e) {
+			logger.warn("Get task heart timeout from setting failed, use default {}ms", DEFAULT_TASK_HEART_TIMEOUT_MS, e);
+		}
+		return DEFAULT_TASK_HEART_TIMEOUT_MS;
 	}
 
 	@Override
