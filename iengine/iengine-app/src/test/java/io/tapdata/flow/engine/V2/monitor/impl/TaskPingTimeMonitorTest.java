@@ -15,9 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import java.lang.reflect.Field;
 
 import static org.mockito.Mockito.*;
 
@@ -115,8 +112,7 @@ class TaskPingTimeMonitorTest {
 
 			// Ignore log printing for successful use cases
 			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", mock(Logger.class));
-			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "taskHeartTimeout", 1000L);
-			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "latestSuccessPingTime", System.currentTimeMillis() - 2000L);
+			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "latestSuccessPingTime", System.currentTimeMillis() - 61000L);
 			try (MockedStatic<AppType> ignoreAppType = mockStatic(AppType.class)) {
 				AppType appType = mock(AppType.class);
 				when(appType.isCloud()).thenReturn(false);
@@ -135,7 +131,6 @@ class TaskPingTimeMonitorTest {
 			Update update = mock(Update.class);
 
 			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", mock(Logger.class));
-			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "taskHeartTimeout", 60000L);
 			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "latestSuccessPingTime", System.currentTimeMillis());
 			try (MockedStatic<AppType> ignoreAppType = mockStatic(AppType.class)) {
 				AppType appType = mock(AppType.class);
@@ -155,7 +150,6 @@ class TaskPingTimeMonitorTest {
 			Update update = mock(Update.class);
 
 			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", mock(Logger.class));
-			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "taskHeartTimeout", 1000L);
 			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "latestSuccessPingTime", System.currentTimeMillis() - 2000L);
 			try (MockedStatic<AppType> ignoreAppType = mockStatic(AppType.class)) {
 				AppType appType = mock(AppType.class);
