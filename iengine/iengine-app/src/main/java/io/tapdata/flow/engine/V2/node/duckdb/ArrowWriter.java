@@ -96,7 +96,7 @@ public class ArrowWriter implements AutoCloseable {
         
         for (TapField tapField : tapTable.getNameFieldMap().values()) {
             String fieldName = tapField.getName();
-            org.apache.arrow.vector.types.pojo.ArrowType arrowType = convertTapTypeToArrowType(tapField);
+            org.apache.arrow.vector.types.pojo.ArrowType arrowType = TypeConverter.fromTapField(tapField);
             boolean nullable = tapField.getNullable() == null || tapField.getNullable();
             
             // 根据 nullable 属性创建字段类型
@@ -105,62 +105,8 @@ public class ArrowWriter implements AutoCloseable {
             fields.add(field);
         }
         
+        logger.debug("Built Arrow Schema with {} fields", fields.size());
         return new Schema(fields);
-    }
-
-    /**
-     * 将Tap类型转换为Arrow类型（简化版本）
-     */
-    private org.apache.arrow.vector.types.pojo.ArrowType convertTapTypeToArrowType(TapField tapField) {
-        // 优先使用 dataType
-        String dataType = tapField.getDataType();
-        if (dataType != null && !dataType.isEmpty()) {
-            return mapDataTypeToArrowType(dataType);
-        }
-        
-        // 其次使用 tapType
-        TapType tapType = tapField.getTapType();
-        if (tapType != null) {
-            String typeName = tapType.getClass().getSimpleName();
-            if ("TapNumber".equals(typeName)) {
-                return new org.apache.arrow.vector.types.pojo.ArrowType.Int(64, true);
-            } else if ("TapBoolean".equals(typeName)) {
-                return new org.apache.arrow.vector.types.pojo.ArrowType.Bool();
-            } else if ("TapDate".equals(typeName) || "TapDateTime".equals(typeName)) {
-                return new org.apache.arrow.vector.types.pojo.ArrowType.Utf8();
-            } else if ("TapBinary".equals(typeName)) {
-                return new org.apache.arrow.vector.types.pojo.ArrowType.Binary();
-            }
-        }
-        
-        return new org.apache.arrow.vector.types.pojo.ArrowType.Utf8();
-    }
-
-    /**
-     * 将数据库数据类型映射到Arrow类型（简化版本）
-     */
-    private org.apache.arrow.vector.types.pojo.ArrowType mapDataTypeToArrowType(String dataType) {
-        String upperType = dataType.toUpperCase();
-        if (upperType.contains("INT")) {
-            if (upperType.contains("BIG")) {
-                return new org.apache.arrow.vector.types.pojo.ArrowType.Int(64, true);
-            } else if (upperType.contains("SMALL")) {
-                return new org.apache.arrow.vector.types.pojo.ArrowType.Int(16, true);
-            } else if (upperType.contains("TINY")) {
-                return new org.apache.arrow.vector.types.pojo.ArrowType.Int(8, true);
-            }
-            return new org.apache.arrow.vector.types.pojo.ArrowType.Int(32, true);
-        }
-        if (upperType.contains("FLOAT") || upperType.contains("DOUBLE")) {
-                return new org.apache.arrow.vector.types.pojo.ArrowType.FloatingPoint(org.apache.arrow.vector.types.FloatingPointPrecision.DOUBLE);
-            }
-        if (upperType.contains("BOOL")) {
-            return new org.apache.arrow.vector.types.pojo.ArrowType.Bool();
-        }
-        if (upperType.contains("BLOB") || upperType.contains("BINARY")) {
-            return new org.apache.arrow.vector.types.pojo.ArrowType.Binary();
-        }
-        return new org.apache.arrow.vector.types.pojo.ArrowType.Utf8();
     }
 
     /**
@@ -674,30 +620,9 @@ public class ArrowWriter implements AutoCloseable {
         StringBuilder colDef = new StringBuilder();
         colDef.append("\"").append(tapField.getName()).append("\" ");
         
-        // 类型映射（简化）
-        String dataType = tapField.getDataType();
-        if (dataType != null) {
-            String upperType = dataType.toUpperCase();
-            if (upperType.contains("INT")) {
-                if (upperType.contains("BIG")) {
-                    colDef.append("BIGINT");
-                } else {
-                    colDef.append("INTEGER");
-                }
-            } else if (upperType.contains("FLOAT") || upperType.contains("DOUBLE")) {
-                colDef.append("DOUBLE");
-            } else if (upperType.contains("BOOL")) {
-                colDef.append("BOOLEAN");
-            } else if (upperType.contains("BLOB") || upperType.contains("BINARY")) {
-                colDef.append("BINARY");
-            } else if (upperType.contains("DATE") || upperType.contains("TIME")) {
-                colDef.append("TIMESTAMP");
-            } else {
-                colDef.append("VARCHAR");
-            }
-        } else {
-            colDef.append("VARCHAR");
-        }
+        // 使用 TypeConverter 进行类型映射
+        String duckDbType = TypeConverter.getDuckDbType(tapField);
+        colDef.append(duckDbType);
         
         // 可选：可空性
         if (tapField.getNullable() != null && !tapField.getNullable()) {
