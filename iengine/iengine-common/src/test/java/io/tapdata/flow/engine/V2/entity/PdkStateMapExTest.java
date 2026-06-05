@@ -76,7 +76,7 @@ class PdkStateMapExTest {
 		externalStorageDto.setType("memory");
 		externalStorageDto.setDefaultStorage(true);
 		externalStorageDto.setInMemSize(10);
-		when(clientMongoOperator.find(any(Query.class), eq(ConnectorConstant.EXTERNAL_STORAGE_COLLECTION), eq(ExternalStorageDto.class))).thenReturn(Collections.singletonList(externalStorageDto));
+		when(clientMongoOperator.findOne(any(Query.class), eq(ConnectorConstant.EXTERNAL_STORAGE_COLLECTION), eq(ExternalStorageDto.class))).thenReturn(externalStorageDto);
 		PdkStateMapEx stateMapEx = assertDoesNotThrow(() -> new PdkStateMapEx(hazelcastInstance, tableNode));
 		assertNotNull(stateMapEx);
 		hazelcastInstance.shutdown();
