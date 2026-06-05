@@ -303,7 +303,7 @@ class PdkStateMapTest {
 		@DisplayName("When app type is not cloud and init global state map")
 		void testInitConstructMapWhenNotCloudAndInitGlobalStateMap() {
 			try (MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class)) {
-				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getTapdataOrDefaultExternalStorage).thenReturn(externalStorageDto);
+				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getDefaultExternalStorage).thenReturn(externalStorageDto);
 				mapName = Objects.requireNonNull(ReflectionTestUtils.getField(mockPdkStateMap, "GLOBAL_MAP_NAME")).toString();
 				mockPdkStateMap.initConstructMap(mockHazelcastInstance, mapName);
 				verify(mockPdkStateMap, times(1)).initGlobalStateMap(mockHazelcastInstance, mapName, externalStorageDto);
@@ -314,7 +314,7 @@ class PdkStateMapTest {
 		@DisplayName("When app type is not cloud and init node state map")
 		void testInitConstructMapWhenNotCloudAndInitNodeStateMap() {
 			try (MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class)) {
-				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getTapdataOrDefaultExternalStorage).thenReturn(externalStorageDto);
+				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getDefaultExternalStorage).thenReturn(externalStorageDto);
 				mockPdkStateMap.initConstructMap(mockHazelcastInstance, mapName);
 				verify(mockPdkStateMap, times(1)).initNodeStateMap(mockHazelcastInstance, mapName, externalStorageDto);
 			}
@@ -768,7 +768,7 @@ class PdkStateMapTest {
 					MockedStatic<PersistenceStorage> persistenceStorageMockedStatic = mockStatic(PersistenceStorage.class)
 			) {
 				persistenceStorageMockedStatic.when(PersistenceStorage::getInstance).thenReturn(persistenceStorage);
-				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getTapdataOrDefaultExternalStorage).thenReturn(externalStorageDto);
+				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getDefaultExternalStorage).thenReturn(externalStorageDto);
 				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.initHZMapStorage(eq(externalStorageDto), anyString(), anyString(), any(Config.class))).thenAnswer(invocationOnMock -> null);
 				PdkStateMap pdkStateMap = new PdkStateMap(node.getId(), mockHazelcastInstance);
 				assertNotNull(pdkStateMap);
@@ -789,7 +789,7 @@ class PdkStateMapTest {
 					MockedStatic<PersistenceStorage> persistenceStorageMockedStatic = mockStatic(PersistenceStorage.class)
 			) {
 				persistenceStorageMockedStatic.when(PersistenceStorage::getInstance).thenReturn(persistenceStorage);
-				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getTapdataOrDefaultExternalStorage).thenReturn(externalStorageDto);
+				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getDefaultExternalStorage).thenReturn(externalStorageDto);
 				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.initHZMapStorage(eq(externalStorageDto), anyString(), anyString(), any(Config.class))).thenAnswer(invocationOnMock -> null);
 				PdkStateMap pdkStateMap = new PdkStateMap(mockHazelcastInstance, node);
 				assertNotNull(pdkStateMap);
@@ -823,7 +823,7 @@ class PdkStateMapTest {
 					MockedStatic<PersistenceStorage> persistenceStorageMockedStatic = mockStatic(PersistenceStorage.class)
 			) {
 				persistenceStorageMockedStatic.when(PersistenceStorage::getInstance).thenReturn(persistenceStorage);
-				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getTapdataOrDefaultExternalStorage).thenReturn(externalStorageDto);
+				externalStorageUtilMockedStatic.when(ExternalStorageUtil::getDefaultExternalStorage).thenReturn(externalStorageDto);
 				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.initHZMapStorage(eq(externalStorageDto), anyString(), anyString(), any(Config.class))).thenAnswer(invocationOnMock -> null);
 				PdkStateMap pdkStateMap = PdkStateMap.globalStateMap(mockHazelcastInstance);
 				assertNotNull(pdkStateMap);
