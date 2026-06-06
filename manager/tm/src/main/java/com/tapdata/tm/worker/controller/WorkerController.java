@@ -524,6 +524,7 @@ public class WorkerController extends BaseController {
                 String processId = worker.getProcessId();
                 ServerUsage usage = MetricInfo.toUsage(metricValues, processId, null, ServerUsage.ProcessType.API_SERVER);
                 usage.withConnectionPollInfo(workerStatus.getConnectionPool());
+                usage.setCpuCores(workerStatus.getCpuCores());
                 usages.add(usage);
                 WorkerOrServerStatus status = new WorkerOrServerStatus();
                 status.setStatus(String.valueOf(workerStatus.getStatus()));
@@ -547,7 +548,9 @@ public class WorkerController extends BaseController {
                             status.getWorkerStatus().put(oid, wStatus);
                             status.getCpuMemStatus().put(oid, workerInfo.getMetricValues());
                             status.getWorkerBaseInfo().put(oid, workerInfo);
-                            usages.add(MetricInfo.toUsage(workerInfo.getMetricValues(), processId, oid, ServerUsage.ProcessType.API_SERVER_WORKER));
+                            ServerUsage  u = MetricInfo.toUsage(workerInfo.getMetricValues(), processId, oid, ServerUsage.ProcessType.API_SERVER_WORKER);
+                            u.setCpuCores(workerStatus.getCpuCores());
+                            usages.add(u);
                         }
                     });
                 }
