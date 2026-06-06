@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
@@ -56,10 +57,13 @@ public class NodeSchemaInfo {
     private final TapTable tapTable;
     private volatile long initializedTime;
     private volatile int fieldCount;
+    
+    // 预计算的Arrow Schema
+    private final Schema arrowSchema;
 
     public NodeSchemaInfo(String nodeId, String tableName, String qualifiedName,
                           List<String> primaryKeys, Map<String, TapField> fieldMap,
-                          TapTable tapTable) {
+                          TapTable tapTable, Schema arrowSchema) {
         this.nodeId = nodeId;
         this.tableName = tableName;
         this.qualifiedName = qualifiedName;
@@ -92,6 +96,14 @@ public class NodeSchemaInfo {
         
         this.fieldCount = this.fieldMap.size();
         this.initializedTime = System.currentTimeMillis();
+        this.arrowSchema = arrowSchema;
+    }
+    
+    /**
+     * 获取预计算的Arrow Schema
+     */
+    public Schema getArrowSchema() {
+        return arrowSchema;
     }
 
     public String getNodeId() {
@@ -121,7 +133,8 @@ public class NodeSchemaInfo {
         String safeSourceId = DuckDbOperator.sanitizeIdentifier(nodeId);
         String safeTableName = DuckDbOperator.sanitizeIdentifier(tableName);
         
-        return safeSourceId + "__" + safeTableName;
+//        return safeSourceId + "__" + safeTableName;
+        return safeTableName;
     }
 
     public String getQualifiedName() {

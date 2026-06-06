@@ -1,6 +1,8 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
+import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
@@ -146,7 +148,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         }
         
         this.connection = DriverManager.getConnection(jdbcUrl);
-        this.connection.setAutoCommit(false);
+        this.connection.setAutoCommit(true);
         
         logger.info("DuckDB connection initialized successfully");
     }
@@ -248,6 +250,52 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
             writeWithArrow(data, tableName, tapTable);
         }
     }
+    
+    @Override
+    public void writeBatch(List<Map<String, Object>> data, String tableName, TapTableDto tapTableDto) throws SQLException, java.io.IOException {
+        checkClosed();
+        
+        if (data == null || data.isEmpty()) {
+            return;
+        }
+        
+        if (batchWritingEnabled) {
+            synchronized (batchBuffer) {
+                batchBuffer.addAll(data);
+                lastFlushTime = System.currentTimeMillis();
+                
+                if (batchBuffer.size() >= batchWritingSize) {
+                    flushBatch(tableName, tapTableDto);
+                }
+            }
+        } else {
+            writeWithArrow(data, tableName, tapTableDto);
+        }
+    }
+
+    @Override
+    public void writeBatch(List<Map<String, Object>> data, NodeSchemaInfo schemaInfo) throws SQLException, java.io.IOException {
+        checkClosed();
+        
+        if (data == null || data.isEmpty()) {
+            return;
+        }
+        
+        String targetTableName = schemaInfo.getTargetTableName();
+        
+        if (batchWritingEnabled) {
+            synchronized (batchBuffer) {
+                batchBuffer.addAll(data);
+                lastFlushTime = System.currentTimeMillis();
+                
+                if (batchBuffer.size() >= batchWritingSize) {
+                    flushBatch(schemaInfo);
+                }
+            }
+        } else {
+            writeWithArrow(data, schemaInfo);
+        }
+    }
 
     /**
      * 刷新批处理缓冲区
@@ -267,6 +315,38 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     }
     
     /**
+     * 刷新批处理缓冲区（使用TapTableDto）
+     */
+    public void flushBatch(String tableName, TapTableDto tapTableDto) throws SQLException, java.io.IOException {
+        synchronized (batchBuffer) {
+            if (batchBuffer.isEmpty()) {
+                return;
+            }
+            
+            List<Map<String, Object>> batchData = new ArrayList<>(batchBuffer);
+            batchBuffer.clear();
+            
+            writeWithArrow(batchData, tableName, tapTableDto);
+            logger.debug("Flushed {} records to table {}", batchData.size(), tableName);
+        }
+    }
+
+    @Override
+    public void flushBatch(NodeSchemaInfo schemaInfo) throws SQLException, java.io.IOException {
+        synchronized (batchBuffer) {
+            if (batchBuffer.isEmpty()) {
+                return;
+            }
+            
+            List<Map<String, Object>> batchData = new ArrayList<>(batchBuffer);
+            batchBuffer.clear();
+            
+            writeWithArrow(batchData, schemaInfo);
+            logger.debug("Flushed {} records to table {}", batchData.size(), schemaInfo.getTargetTableName());
+        }
+    }
+    
+    /**
      * 使用Arrow写入数据（自动判断是否使用DuckLake）
      */
     private void writeWithArrow(List<Map<String, Object>> data, String tableName, TapTable tapTable) throws SQLException, java.io.IOException {
@@ -274,6 +354,29 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
             arrowWriter.writeWithArrow(data, tableName, tapTable, true);
         } else {
             arrowWriter.writeWithArrow(data, tableName, tapTable);
+        }
+    }
+    
+    /**
+     * 使用Arrow写入数据（使用TapTableDto）
+     */
+    private void writeWithArrow(List<Map<String, Object>> data, String tableName, TapTableDto tapTableDto) throws SQLException, java.io.IOException {
+        if (duckLakeConfig.isEnabled()) {
+            arrowWriter.writeWithArrow(data, tableName, tapTableDto, true);
+        } else {
+            arrowWriter.writeWithArrow(data, tableName, tapTableDto);
+        }
+    }
+
+    /**
+     * 使用Arrow写入数据（使用NodeSchemaInfo，优先使用预计算Schema）
+     */
+    private void writeWithArrow(List<Map<String, Object>> data, NodeSchemaInfo schemaInfo) throws SQLException, java.io.IOException {
+        String targetTableName = schemaInfo.getTargetTableName();
+        if (duckLakeConfig.isEnabled()) {
+            arrowWriter.writeWithArrow(data, schemaInfo, true);
+        } else {
+            arrowWriter.writeWithArrow(data, schemaInfo);
         }
     }
 
@@ -393,6 +496,47 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         createTable(tapTable, tempTableName, useTempTable);
     }
 
+    @Override
+    public void createTempTable(NodeSchemaInfo schemaInfo) throws SQLException {
+        createTempTable(schemaInfo, true);
+    }
+
+    @Override
+    public void createTempTable(NodeSchemaInfo schemaInfo, boolean useTempTable) throws SQLException {
+        checkClosed();
+        
+        String targetTableName = schemaInfo.getTargetTableName();
+        
+        StringBuilder sql = new StringBuilder();
+        if (useTempTable) {
+            sql.append("CREATE TEMP TABLE IF NOT EXISTS ").append(targetTableName).append(" (");
+        } else {
+            sql.append("CREATE TABLE IF NOT EXISTS ").append(targetTableName).append(" (");
+        }
+        
+        List<String> fieldDefs = new ArrayList<>();
+        
+        for (TapField tapField : schemaInfo.getFieldMap().values()) {
+            String fieldName = tapField.getName();
+            String duckDbType = convertTapTypeToDuckDbType(tapField);
+            
+            StringBuilder fieldDef = new StringBuilder();
+            fieldDef.append("\"").append(fieldName).append("\" ").append(duckDbType);
+            
+            if (schemaInfo.getPrimaryKeys().contains(fieldName)) {
+                fieldDef.append(" PRIMARY KEY");
+            }
+            
+            fieldDefs.add(fieldDef.toString());
+        }
+        
+        sql.append(String.join(", ", fieldDefs));
+        sql.append(")");
+        
+        executeUpdate(sql.toString());
+        logger.debug("Created temporary table from NodeSchemaInfo: {}", targetTableName);
+    }
+
     /**
      * 创建表
      */
@@ -427,6 +571,94 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         
         executeUpdate(sql.toString());
         logger.debug("Created table: {}", tableName);
+    }
+    
+    /**
+     * 创建表（使用TapTableDto）
+     */
+    @Override
+    public void createTable(TapTableDto tapTableDto) throws SQLException {
+        createTable(tapTableDto, tapTableDto.getName(), false);
+    }
+    
+    /**
+     * 创建表（使用TapTableDto）
+     */
+    private void createTable(TapTableDto tapTableDto, String tableName, boolean useTempTable) throws SQLException {
+        checkClosed();
+        
+        StringBuilder sql = new StringBuilder();
+        if (useTempTable) {
+            sql.append("CREATE TEMP TABLE IF NOT EXISTS ").append(tableName).append(" (");
+        } else {
+            sql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (");
+        }
+        
+        List<String> fieldDefs = new ArrayList<>();
+        
+        if (tapTableDto.getFields() != null) {
+            for (TapFieldDto tapFieldDto : tapTableDto.getFields()) {
+                String fieldName = tapFieldDto.getName();
+                String duckDbType = TypeConverter.getDuckDbTypeFromDto(tapFieldDto);
+                
+                StringBuilder fieldDef = new StringBuilder();
+                fieldDef.append("\"").append(fieldName).append("\" ").append(duckDbType);
+                
+                if (Boolean.TRUE.equals(tapFieldDto.getIsPrimaryKey())) {
+                    fieldDef.append(" PRIMARY KEY");
+                }
+                
+                fieldDefs.add(fieldDef.toString());
+            }
+        }
+        
+        sql.append(String.join(", ", fieldDefs));
+        sql.append(")");
+        
+        executeUpdate(sql.toString());
+        logger.debug("Created table: {} from TapTableDto", tableName);
+    }
+
+    @Override
+    public void createTable(NodeSchemaInfo schemaInfo) throws SQLException {
+        String targetTableName = schemaInfo.getTargetTableName();
+        createTable(schemaInfo, targetTableName, false);
+    }
+
+    /**
+     * 创建表（使用NodeSchemaInfo）
+     */
+    private void createTable(NodeSchemaInfo schemaInfo, String tableName, boolean useTempTable) throws SQLException {
+        checkClosed();
+        
+        StringBuilder sql = new StringBuilder();
+        if (useTempTable) {
+            sql.append("CREATE TEMP TABLE IF NOT EXISTS ").append(tableName).append(" (");
+        } else {
+            sql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (");
+        }
+        
+        List<String> fieldDefs = new ArrayList<>();
+        
+        for (TapField tapField : schemaInfo.getFieldMap().values()) {
+            String fieldName = tapField.getName();
+            String duckDbType = convertTapTypeToDuckDbType(tapField);
+            
+            StringBuilder fieldDef = new StringBuilder();
+            fieldDef.append("\"").append(fieldName).append("\" ").append(duckDbType);
+            
+            if (schemaInfo.getPrimaryKeys().contains(fieldName)) {
+                fieldDef.append(" PRIMARY KEY");
+            }
+            
+            fieldDefs.add(fieldDef.toString());
+        }
+        
+        sql.append(String.join(", ", fieldDefs));
+        sql.append(")");
+        
+        executeUpdate(sql.toString());
+        logger.debug("Created table: {} from NodeSchemaInfo", tableName);
     }
 
     /**
@@ -560,6 +792,37 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
 
         writeBatch(rows, tableName);
         logger.debug("Inserted {} rows into table: {}", rows.size(), tableName);
+    }
+
+    @Override
+    public void insertBatch(NodeSchemaInfo schemaInfo, List<TapdataEvent> dataList) throws SQLException, java.io.IOException {
+        checkClosed();
+        
+        if (dataList == null || dataList.isEmpty()) {
+            return;
+        }
+        
+        String targetTableName = schemaInfo.getTargetTableName();
+        
+        List<Map<String, Object>> batchData = new ArrayList<>();
+        for (TapdataEvent event : dataList) {
+            if (event == null) {
+                continue;
+            }
+            TapEvent tapEvent = event.getTapEvent();
+            if (tapEvent instanceof TapRecordEvent recordEvent) {
+                Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
+                if (after != null && !after.isEmpty()) {
+                    batchData.add(after);
+                }
+            }
+        }
+        
+        if (batchData.isEmpty()) {
+            return;
+        }
+        
+        writeBatch(batchData, schemaInfo);
     }
 
     @Override
@@ -795,7 +1058,18 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         } else if (value instanceof String) {
             return "'" + escapeString((String) value) + "'";
         } else if (value instanceof java.util.Date) {
-            return "'" + new java.sql.Timestamp(((java.util.Date) value).getTime()) + "'";
+            // 正确格式化日期时间
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+            return "'" + sdf.format((java.util.Date) value) + "'";
+        } else if (value instanceof java.time.LocalDateTime) {
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+            return "'" + ((java.time.LocalDateTime) value).format(fmt) + "'";
+        } else if (value instanceof java.time.LocalDate) {
+            return "'" + value.toString() + "'";
+        } else if (value instanceof java.time.LocalTime) {
+            return "'" + value.toString() + "'";
+        } else if (value instanceof Boolean) {
+            return value.toString().toUpperCase();
         } else {
             return value.toString();
         }

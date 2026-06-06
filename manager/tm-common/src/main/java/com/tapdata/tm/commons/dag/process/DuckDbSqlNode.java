@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.commons.util.SqlParserUtil;
+import com.tapdata.tm.commons.dag.process.converter.TmSchemaConverter;
 import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import lombok.Getter;
@@ -22,6 +23,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.codecs.pojo.annotations.BsonProperty;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,13 +36,10 @@ public class DuckDbSqlNode extends ProcessorNode {
 
     /** 默认批大小 */
     public static final int DEFAULT_BATCH_SIZE = 1000;
-    
-    /** 默认查询 SQL */
-    public static final String DEFAULT_QUERY_SQL = "SELECT * FROM %s";
 
     @EqField
     @JsonAlias({"querySql"})
-    private String querySql = DEFAULT_QUERY_SQL; // 保持兼容 (serialize as "sqlQuery", accept "querySql" too)
+    private String querySql;
 
     @EqField
     private String wideTableName;
@@ -115,6 +114,10 @@ public class DuckDbSqlNode extends ProcessorNode {
     /** 前置节点 Schema 列表（用于传递到 Engine 端，不需要持久化） */
     @EqField
     private List<TapTableDto> preNodeTapTables = new ArrayList<>();
+    
+    /** Schema 转换器（用于缓存和优化类型转换） */
+    @JsonIgnore
+    private transient TmSchemaConverter schemaConverter;
 
     public DuckDbSqlNode() {
         super("duckdb_sql_processor");
@@ -356,6 +359,16 @@ public class DuckDbSqlNode extends ProcessorNode {
         this.preNodeTapTables = convertSchemasToTapTableDtos(inputSchemas);
         log.info("  Populated preNodeTapTables: {} tables", preNodeTapTables.size());
         
+        // ========== 同时也把宽表的 resultSchema 加入到 preNodeTapTables ==========
+        if (resultSchema != null && resultSchema.getFields() != null && !resultSchema.getFields().isEmpty()) {
+            List<Schema> wideTableSchemaList = Collections.singletonList(resultSchema);
+            List<TapTableDto> wideTableTapTableDtos = convertSchemasToTapTableDtos(wideTableSchemaList);
+            if (wideTableTapTableDtos != null && !wideTableTapTableDtos.isEmpty()) {
+                this.preNodeTapTables.addAll(wideTableTapTableDtos);
+                log.info("  Added wide table TapTableDto to preNodeTapTables: {}", wideTableTapTableDtos.get(0).getName());
+            }
+        }
+        
         return super.mergeSchema(Lists.newArrayList(resultSchema), schema, options);
     }
 
@@ -368,83 +381,83 @@ public class DuckDbSqlNode extends ProcessorNode {
         if (inputSchemas == null) {
             return new ArrayList<>();
         }
-        List<TapTableDto> result = new ArrayList<>();
-        for (Schema schema : inputSchemas) {
-            TapTableDto dto = schemaToTapTableDto(schema);
-            if (dto != null) {
-                result.add(dto);
-            }
+        
+        // 获取或初始化 schemaConverter
+        if (schemaConverter == null) {
+            schemaConverter = new TmSchemaConverter();
         }
-        return result;
+        
+        // 使用 schemaConverter 进行转换（支持缓存）
+        return schemaConverter.convert(inputSchemas);
     }
 
-    /**
-     * 将单个 Schema 转换为 TapTableDto
-     */
-    private TapTableDto schemaToTapTableDto(Schema schema) {
-        if (schema == null) {
-            return null;
-        }
-
-        TapTableDto dto = new TapTableDto();
-        // id 使用 nodeId（转为 String），name 使用表名
-        Object nodeId = schema.getNodeId();
-        String nodeIdStr;
-        if (nodeId != null) {
-            nodeIdStr = nodeId instanceof org.bson.types.ObjectId
-                    ? ((org.bson.types.ObjectId) nodeId).toString()
-                    : nodeId.toString();
-        } else {
-            Object id = schema.getId();
-            nodeIdStr = id != null ? id.toString() : null;
-        }
-        dto.setId(nodeIdStr);
-        dto.setName(schema.getName());
-
-        // 提取主键
-        List<String> primaryKeys = new ArrayList<>();
-        List<TapFieldDto> fieldDtos = new ArrayList<>();
-        if (schema.getFields() != null) {
-            for (Field field : schema.getFields()) {
-                if (Boolean.TRUE.equals(field.getPrimaryKey())) {
-                    primaryKeys.add(field.getFieldName());
-                }
-                fieldDtos.add(fieldToTapFieldDto(field));
-            }
-        }
-        dto.setPrimaryKeys(primaryKeys);
-        dto.setFields(fieldDtos);
-
-        return dto;
-    }
-
-    /**
-     * 将 Schema.Field 转换为 TapFieldDto
-     */
-    private TapFieldDto fieldToTapFieldDto(Field field) {
-        if (field == null) {
-            return null;
-        }
-        TapFieldDto dto = new TapFieldDto();
-        dto.setName(field.getFieldName());
-        dto.setOriginalFieldName(field.getOriginalFieldName());
-        dto.setDataType(field.getDataType());
-        dto.setIsPrimaryKey(Boolean.TRUE.equals(field.getPrimaryKey()));
-        if (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0) {
-            dto.setPrimaryKeyPos(field.getPrimaryKeyPosition());
-        }
-        dto.setNullable(field.getIsNullable() != null && field.getIsNullable() instanceof Boolean isNull ? isNull : true);
-        if (field.getColumnPosition() != null && field.getColumnPosition() > 0) {
-            dto.setPos(field.getColumnPosition());
-        }
-
-        // 转换 TapType（如果有）
-        if (field.getTapType() != null) {
-            dto.setTapTypeName(field.getTapType().getClass().getSimpleName());
-        }
-
-        return dto;
-    }
+//    /**
+//     * 将单个 Schema 转换为 TapTableDto
+//     */
+//    private TapTableDto schemaToTapTableDto(Schema schema) {
+//        if (schema == null) {
+//            return null;
+//        }
+//
+//        TapTableDto dto = new TapTableDto();
+//        // id 使用 nodeId（转为 String），name 使用表名
+//        Object nodeId = schema.getNodeId();
+//        String nodeIdStr;
+//        if (nodeId != null) {
+//            nodeIdStr = nodeId instanceof org.bson.types.ObjectId
+//                    ? ((org.bson.types.ObjectId) nodeId).toString()
+//                    : nodeId.toString();
+//        } else {
+//            Object id = schema.getId();
+//            nodeIdStr = id != null ? id.toString() : null;
+//        }
+//        dto.setId(nodeIdStr);
+//        dto.setName(schema.getName());
+//
+//        // 提取主键
+//        List<String> primaryKeys = new ArrayList<>();
+//        List<TapFieldDto> fieldDtos = new ArrayList<>();
+//        if (schema.getFields() != null) {
+//            for (Field field : schema.getFields()) {
+//                if (Boolean.TRUE.equals(field.getPrimaryKey())) {
+//                    primaryKeys.add(field.getFieldName());
+//                }
+//                fieldDtos.add(fieldToTapFieldDto(field));
+//            }
+//        }
+//        dto.setPrimaryKeys(primaryKeys);
+//        dto.setFields(fieldDtos);
+//
+//        return dto;
+//    }
+//
+//    /**
+//     * 将 Schema.Field 转换为 TapFieldDto
+//     */
+//    private TapFieldDto fieldToTapFieldDto(Field field) {
+//        if (field == null) {
+//            return null;
+//        }
+//        TapFieldDto dto = new TapFieldDto();
+//        dto.setName(field.getFieldName());
+//        dto.setOriginalFieldName(field.getOriginalFieldName());
+//        dto.setDataType(field.getDataType());
+//        dto.setIsPrimaryKey(Boolean.TRUE.equals(field.getPrimaryKey()));
+//        if (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0) {
+//            dto.setPrimaryKeyPos(field.getPrimaryKeyPosition());
+//        }
+//        dto.setNullable(field.getIsNullable() != null && field.getIsNullable() instanceof Boolean isNull ? isNull : true);
+//        if (field.getColumnPosition() != null && field.getColumnPosition() > 0) {
+//            dto.setPos(field.getColumnPosition());
+//        }
+//
+//        // 转换 TapType（如果有）
+//        if (field.getTapType() != null) {
+//            dto.setTapTypeName(field.getTapType().getClass().getSimpleName());
+//        }
+//
+//        return dto;
+//    }
 
     @Override
     public boolean equals(Object o) {

@@ -40,6 +40,18 @@ public class TapFieldDto implements Serializable {
 
     /** TapType 参数（如 length, precision, scale 等） */
     private Map<String, Object> tapTypeParams;
+    
+    /** Arrow 类型名称（预计算，如 "Int", "Utf8", "FloatingPoint"） */
+    private String arrowTypeName;
+    
+    /** Arrow 类型位宽（对于 Int 类型） */
+    private Integer arrowBitWidth;
+    
+    /** Arrow 类型精度（对于 FloatingPoint 类型，如 "DOUBLE", "SINGLE", "HALF"） */
+    private String arrowPrecision;
+    
+    /** DuckDB 类型名称（预计算） */
+    private String duckDbTypeName;
 
     public TapFieldDto() {
     }
@@ -118,6 +130,38 @@ public class TapFieldDto implements Serializable {
         this.tapTypeParams = tapTypeParams;
     }
 
+    public String getArrowTypeName() {
+        return arrowTypeName;
+    }
+
+    public void setArrowTypeName(String arrowTypeName) {
+        this.arrowTypeName = arrowTypeName;
+    }
+
+    public Integer getArrowBitWidth() {
+        return arrowBitWidth;
+    }
+
+    public void setArrowBitWidth(Integer arrowBitWidth) {
+        this.arrowBitWidth = arrowBitWidth;
+    }
+
+    public String getArrowPrecision() {
+        return arrowPrecision;
+    }
+
+    public void setArrowPrecision(String arrowPrecision) {
+        this.arrowPrecision = arrowPrecision;
+    }
+
+    public String getDuckDbTypeName() {
+        return duckDbTypeName;
+    }
+
+    public void setDuckDbTypeName(String duckDbTypeName) {
+        this.duckDbTypeName = duckDbTypeName;
+    }
+
     // ========== 构建辅助方法 ==========
 
     public TapFieldDto name(String name) {
@@ -176,6 +220,74 @@ public class TapFieldDto implements Serializable {
             this.tapTypeParams = new LinkedHashMap<>();
         }
         this.tapTypeParams.put(key, value);
+        return this;
+    }
+
+    public TapFieldDto arrowTypeName(String arrowTypeName) {
+        this.arrowTypeName = arrowTypeName;
+        return this;
+    }
+
+    public TapFieldDto arrowBitWidth(Integer arrowBitWidth) {
+        this.arrowBitWidth = arrowBitWidth;
+        return this;
+    }
+
+    public TapFieldDto arrowPrecision(String arrowPrecision) {
+        this.arrowPrecision = arrowPrecision;
+        return this;
+    }
+
+    public TapFieldDto duckDbTypeName(String duckDbTypeName) {
+        this.duckDbTypeName = duckDbTypeName;
+        return this;
+    }
+
+    /**
+     * 预计算类型信息
+     */
+    public TapFieldDto precomputeTypes(String dataType) {
+        if (dataType == null || dataType.isEmpty()) {
+            return this;
+        }
+        
+        String upperType = dataType.toUpperCase();
+        
+        // 预计算 Arrow 类型
+        if (upperType.contains("TINYINT")) {
+            this.arrowTypeName = "Int";
+            this.arrowBitWidth = 8;
+            this.duckDbTypeName = "TINYINT";
+        } else if (upperType.contains("SMALLINT")) {
+            this.arrowTypeName = "Int";
+            this.arrowBitWidth = 16;
+            this.duckDbTypeName = "SMALLINT";
+        } else if (upperType.contains("BIGINT")) {
+            this.arrowTypeName = "Int";
+            this.arrowBitWidth = 64;
+            this.duckDbTypeName = "BIGINT";
+        } else if (upperType.contains("INT")) {
+            this.arrowTypeName = "Int";
+            this.arrowBitWidth = 32;
+            this.duckDbTypeName = "INTEGER";
+        } else if (upperType.contains("FLOAT") || upperType.contains("DOUBLE") || upperType.contains("DECIMAL")) {
+            this.arrowTypeName = "FloatingPoint";
+            this.arrowPrecision = "DOUBLE";
+            this.duckDbTypeName = "DOUBLE";
+        } else if (upperType.contains("BOOL")) {
+            this.arrowTypeName = "Bool";
+            this.duckDbTypeName = "BOOLEAN";
+        } else if (upperType.contains("BLOB") || upperType.contains("BINARY") || upperType.contains("BYTEA")) {
+            this.arrowTypeName = "Binary";
+            this.duckDbTypeName = "BLOB";
+        } else if (upperType.contains("DATE") || upperType.contains("TIME") || upperType.contains("TIMESTAMP")) {
+            this.arrowTypeName = "Utf8";
+            this.duckDbTypeName = "TIMESTAMP";
+        } else {
+            this.arrowTypeName = "Utf8";
+            this.duckDbTypeName = "VARCHAR";
+        }
+        
         return this;
     }
 

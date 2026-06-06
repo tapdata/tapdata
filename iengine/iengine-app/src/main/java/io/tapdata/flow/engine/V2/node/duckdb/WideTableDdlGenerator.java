@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import io.tapdata.entity.schema.TapField;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.*;
 import net.sf.jsqlparser.schema.Column;
@@ -460,6 +461,107 @@ public class WideTableDdlGenerator {
     private static void validateFields(List<String> fields) {
         if (fields == null || fields.isEmpty()) {
             throw new IllegalArgumentException("fields cannot be null or empty");
+        }
+    }
+    
+    /**
+     * 根据宽表 NodeSchemaInfo 生成完整的 CREATE TABLE DDL
+     * 直接使用预计算的类型信息，避免重复转换
+     */
+    public static String generateCreateTableDdl(NodeSchemaInfo wideTableSchemaInfo, String primaryKey) {
+        if (wideTableSchemaInfo == null) {
+            throw new IllegalArgumentException("wideTableSchemaInfo cannot be null");
+        }
+        
+        String tableName = wideTableSchemaInfo.getTableName();
+        Map<String, TapField> fieldMap = wideTableSchemaInfo.getFieldMap();
+        
+        if (fieldMap == null || fieldMap.isEmpty()) {
+            throw new IllegalArgumentException("fieldMap in wideTableSchemaInfo cannot be null or empty");
+        }
+        
+        validateTableName(tableName);
+        
+        StringBuilder ddl = new StringBuilder();
+        ddl.append("CREATE TABLE IF NOT EXISTS ").append(quoteIdentifier(tableName)).append(" (\n");
+        
+        List<String> columnDefs = new ArrayList<>();
+        for (TapField tapField : fieldMap.values()) {
+            String fieldName = tapField.getName();
+            String duckDbType = convertTapTypeToDuckDbType(tapField);
+            columnDefs.add("    " + quoteIdentifier(fieldName) + " " + duckDbType);
+        }
+        
+        if (primaryKey != null && !primaryKey.isBlank() && fieldMap.containsKey(primaryKey)) {
+            columnDefs.add("    PRIMARY KEY (" + quoteIdentifier(primaryKey) + ")");
+        }
+        
+        ddl.append(String.join(",\n", columnDefs));
+        ddl.append("\n)");
+        
+        logger.info("Generated CREATE TABLE DDL from NodeSchemaInfo: {}", ddl);
+        return ddl.toString();
+    }
+    
+    /**
+     * 将 TapField 转换为 DuckDB 类型字符串
+     */
+    private static String convertTapTypeToDuckDbType(TapField tapField) {
+        if (tapField == null) {
+            return "VARCHAR";
+        }
+        
+        // 优先从 TapFieldDto 的预计算类型获取（如果有）
+        // 这里我们直接从 TapField 推断 DuckDB 类型
+        String dataType = tapField.getDataType();
+        if (dataType != null) {
+            return mapDataTypeToDuckDbType(dataType);
+        }
+        
+        return "VARCHAR";
+    }
+    
+    /**
+     * 根据数据类型字符串映射到 DuckDB 类型
+     */
+    private static String mapDataTypeToDuckDbType(String dataType) {
+        if (dataType == null) {
+            return "VARCHAR";
+        }
+        String upperType = dataType.toUpperCase();
+        switch (upperType) {
+            case "STRING":
+            case "TEXT":
+            case "VARCHAR":
+            case "CHAR":
+                return "VARCHAR";
+            case "INT":
+            case "INTEGER":
+            case "LONG":
+            case "BIGINT":
+            case "TINYINT":
+            case "SMALLINT":
+                return "BIGINT";
+            case "FLOAT":
+            case "DOUBLE":
+            case "DECIMAL":
+            case "NUMBER":
+                return "DOUBLE";
+            case "BOOLEAN":
+            case "BOOL":
+                return "BOOLEAN";
+            case "DATE":
+                return "DATE";
+            case "TIME":
+                return "TIME";
+            case "DATETIME":
+            case "TIMESTAMP":
+                return "TIMESTAMP";
+            case "BINARY":
+            case "BLOB":
+                return "BLOB";
+            default:
+                return "VARCHAR";
         }
     }
 }

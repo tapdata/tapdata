@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 
@@ -86,11 +87,42 @@ public interface DuckDbOperator extends AutoCloseable {
     void writeBatch(List<Map<String, Object>> data, String tableName) throws SQLException, java.io.IOException;
 
     /**
+     * 使用Arrow零拷贝批量写入数据（使用TapTableDto，优先使用预计算类型）
+     * @param data 数据列表
+     * @param tableName 目标表名
+     * @param tapTableDto 表结构DTO，包含预计算类型信息
+     * @throws SQLException SQL执行异常
+     */
+    void writeBatch(List<Map<String, Object>> data, String tableName, TapTableDto tapTableDto) throws SQLException, java.io.IOException;
+
+    /**
+     * 使用Arrow零拷贝批量写入数据（使用NodeSchemaInfo，从缓存获取预计算Schema）
+     * @param data 数据列表
+     * @param schemaInfo 预加载的Schema信息
+     * @throws SQLException SQL执行异常
+     */
+    void writeBatch(List<Map<String, Object>> data, NodeSchemaInfo schemaInfo) throws SQLException, java.io.IOException;
+
+    /**
      * 根据TapTable Schema创建表
      * @param tapTable 表结构定义
      * @throws SQLException SQL执行异常
      */
     void createTable(TapTable tapTable) throws SQLException;
+    
+    /**
+     * 根据TapTableDto Schema创建表（优先使用预计算类型）
+     * @param tapTableDto 表结构DTO，包含预计算类型信息
+     * @throws SQLException SQL执行异常
+     */
+    void createTable(TapTableDto tapTableDto) throws SQLException;
+
+    /**
+     * 根据NodeSchemaInfo创建表（从缓存获取预计算Schema）
+     * @param schemaInfo 预加载的Schema信息
+     * @throws SQLException SQL执行异常
+     */
+    void createTable(NodeSchemaInfo schemaInfo) throws SQLException;
 
     /**
      * 根据TapTable Schema创建表
@@ -116,6 +148,21 @@ public interface DuckDbOperator extends AutoCloseable {
      * @throws SQLException SQL执行异常
      */
     void createTempTable(TapTable tapTable, String tempTableName, boolean useTempTable) throws SQLException;
+
+    /**
+     * 根据NodeSchemaInfo创建临时表
+     * @param schemaInfo 预加载的Schema信息
+     * @throws SQLException SQL执行异常
+     */
+    void createTempTable(NodeSchemaInfo schemaInfo) throws SQLException;
+
+    /**
+     * 根据NodeSchemaInfo创建临时表
+     * @param schemaInfo 预加载的Schema信息
+     * @param useTempTable 是否使用临时表
+     * @throws SQLException SQL执行异常
+     */
+    void createTempTable(NodeSchemaInfo schemaInfo, boolean useTempTable) throws SQLException;
 
     // ==================== DDL 操作封装 ====================
 
@@ -238,6 +285,14 @@ public interface DuckDbOperator extends AutoCloseable {
     void insertBatch(String tableName, List<TapdataEvent> dataList) throws SQLException, java.io.IOException;
 
     /**
+     * 批量插入数据（初始化阶段使用 TapdataEvent 直接写入，使用预计算Schema）
+     * @param schemaInfo 预加载的Schema信息
+     * @param dataList TapdataEvent 列表
+     * @throws SQLException SQL执行异常
+     */
+    void insertBatch(NodeSchemaInfo schemaInfo, List<TapdataEvent> dataList) throws SQLException, java.io.IOException;
+
+    /**
      * 更新数据
      * @param tableName 表名
      * @param data 更新数据
@@ -340,6 +395,21 @@ public interface DuckDbOperator extends AutoCloseable {
      * @throws SQLException SQL执行异常
      */
     void flushBatch(String tableName, TapTable tapTable) throws SQLException, java.io.IOException;
+    
+    /**
+     * 刷新批处理缓冲区（使用TapTableDto）
+     * @param tableName 目标表名
+     * @param tapTableDto 表结构DTO
+     * @throws SQLException SQL执行异常
+     */
+    void flushBatch(String tableName, TapTableDto tapTableDto) throws SQLException, java.io.IOException;
+
+    /**
+     * 刷新批处理缓冲区（使用NodeSchemaInfo）
+     * @param schemaInfo 预加载的Schema信息
+     * @throws SQLException SQL执行异常
+     */
+    void flushBatch(NodeSchemaInfo schemaInfo) throws SQLException, java.io.IOException;
 
     // ==================== 新增: 用于物化视图的扩展方法 ====================
 

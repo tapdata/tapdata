@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.type.*;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
@@ -307,6 +308,89 @@ public class TypeConverter {
         
         // 其次使用 tapType
         ArrowType arrowType = fromTapField(tapField);
+        return toDuckDbType(arrowType);
+    }
+    
+    /**
+     * 从 TapFieldDto 转换到 ArrowType（优先使用预计算类型）
+     */
+    public static ArrowType fromTapFieldDto(TapFieldDto dto) {
+        if (dto == null) {
+            return new ArrowType.Utf8();
+        }
+        
+        // 优先使用预计算的 Arrow 类型
+        if (dto.getArrowTypeName() != null) {
+            return fromPrecomputedArrowType(dto);
+        }
+        
+        // 其次使用 dataType
+        if (dto.getDataType() != null && !dto.getDataType().isBlank()) {
+            return fromDataType(dto.getDataType());
+        }
+        
+        // 最后使用 tapTypeName
+        if (dto.getTapTypeName() != null) {
+            return fromTapTypeName(dto.getTapTypeName());
+        }
+        
+        return new ArrowType.Utf8();
+    }
+    
+    /**
+     * 从预计算的类型信息构建 ArrowType
+     */
+    private static ArrowType fromPrecomputedArrowType(TapFieldDto dto) {
+        String typeName = dto.getArrowTypeName();
+        
+        if ("Int".equals(typeName)) {
+            int bitWidth = dto.getArrowBitWidth() != null ? dto.getArrowBitWidth() : 32;
+            return new ArrowType.Int(bitWidth, true);
+        }
+        
+        if ("FloatingPoint".equals(typeName)) {
+            String precision = dto.getArrowPrecision();
+            FloatingPointPrecision fpPrecision = FloatingPointPrecision.DOUBLE;
+            if ("SINGLE".equals(precision)) {
+                fpPrecision = FloatingPointPrecision.SINGLE;
+            } else if ("HALF".equals(precision)) {
+                fpPrecision = FloatingPointPrecision.HALF;
+            }
+            return new ArrowType.FloatingPoint(fpPrecision);
+        }
+        
+        if ("Bool".equals(typeName)) {
+            return new ArrowType.Bool();
+        }
+        
+        if ("Binary".equals(typeName)) {
+            return new ArrowType.Binary();
+        }
+        
+        // 默认返回 Utf8
+        return new ArrowType.Utf8();
+    }
+    
+    /**
+     * 从 TapFieldDto 获取 DuckDB 类型字符串（优先使用预计算类型）
+     */
+    public static String getDuckDbTypeFromDto(TapFieldDto dto) {
+        if (dto == null) {
+            return "VARCHAR";
+        }
+        
+        // 优先使用预计算的 DuckDB 类型
+        if (dto.getDuckDbTypeName() != null) {
+            return dto.getDuckDbTypeName();
+        }
+        
+        // 其次使用 dataType
+        if (dto.getDataType() != null && !dto.getDataType().isBlank()) {
+            return toDuckDbType(dto.getDataType());
+        }
+        
+        // 最后使用 Arrow 类型
+        ArrowType arrowType = fromTapFieldDto(dto);
         return toDuckDbType(arrowType);
     }
 }

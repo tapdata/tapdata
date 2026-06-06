@@ -165,4 +165,120 @@ class HazelcastDuckDbSqlNodeTest {
         return tapdataEvent;
     }
 
+    // ========== dbPath 拼接测试 ==========
+    
+    @Test
+    void testBuildDbPathWithNodeId_NormalPath() {
+        // 测试正常路径（无分隔符）
+        String dbPath = "/data/duckdb";
+        String nodeId = "abc123";
+        String result = HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId);
+        assertEquals("/data/duckdb_abc123", result);
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_PathEndsWithForwardSlash() {
+        // 测试路径以 / 结尾
+        String dbPath = "/data/duckdb/";
+        String nodeId = "abc123";
+        String result = HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId);
+        assertEquals("/data/duckdb_abc123", result);
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_PathEndsWithBackwardSlash() {
+        // 测试路径以 \ 结尾
+        String dbPath = "C:\\data\\duckdb\\";
+        String nodeId = "abc123";
+        String result = HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId);
+        assertEquals("C:\\data\\duckdb_abc123", result);
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_PathEndsWithMultipleSlashes() {
+        // 测试路径以多个分隔符结尾
+        String dbPath = "/data/duckdb///";
+        String nodeId = "abc123";
+        String result = HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId);
+        assertEquals("/data/duckdb_abc123", result);
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_PathEndsWithMixedSlashes() {
+        // 测试路径以混合分隔符结尾
+        String dbPath = "/data/duckdb\\/";
+        String nodeId = "abc123";
+        String result = HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId);
+        assertEquals("/data/duckdb_abc123", result);
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_EmptyDbPath_ThrowsException() {
+        // 测试空 dbPath，应该抛异常
+        String dbPath = "";
+        String nodeId = "abc123";
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
+            HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId)
+        );
+        assertEquals("dbPath cannot be null or empty", exception.getMessage());
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_NullDbPath_ThrowsException() {
+        // 测试 null dbPath，应该抛异常
+        String nodeId = "abc123";
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
+            HazelcastDuckDbSqlNode.buildDbPathWithNodeId(null, nodeId)
+        );
+        assertEquals("dbPath cannot be null or empty", exception.getMessage());
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_EmptyNodeId_ThrowsException() {
+        // 测试空 nodeId，应该抛异常
+        String dbPath = "/data/duckdb";
+        String nodeId = "";
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
+            HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId)
+        );
+        assertEquals("nodeId cannot be null or empty", exception.getMessage());
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_NullNodeId_ThrowsException() {
+        // 测试 null nodeId，应该抛异常
+        String dbPath = "/data/duckdb";
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
+            HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, null)
+        );
+        assertEquals("nodeId cannot be null or empty", exception.getMessage());
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_RelativePath() {
+        // 测试相对路径
+        String dbPath = "data/duckdb";
+        String nodeId = "test-node-456";
+        String result = HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId);
+        assertEquals("data/duckdb_test-node-456", result);
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_RelativePathEndsWithSlash() {
+        // 测试相对路径以分隔符结尾
+        String dbPath = "./data/duckdb/";
+        String nodeId = "test-node-789";
+        String result = HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId);
+        assertEquals("./data/duckdb_test-node-789", result);
+    }
+    
+    @Test
+    void testBuildDbPathWithNodeId_JustDriveLetter() {
+        // 测试只有盘符的情况
+        String dbPath = "C:\\";
+        String nodeId = "drive-node";
+        String result = HazelcastDuckDbSqlNode.buildDbPathWithNodeId(dbPath, nodeId);
+        assertEquals("C:_drive-node", result);
+    }
+
 }

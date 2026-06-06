@@ -149,21 +149,9 @@ public class HazelcastDuckDbSqlNodeIntegrationTest {
     @Test
     void fullStageCachesResultsUntilAllTablesAreIncremental() {
         // Initialize helpers
-        MultiTableInputManager inputManager = new MultiTableInputManager();
         SyncStageTracker stageTracker = new SyncStageTracker();
         OutputBuffer outputBuffer = new OutputBuffer(1000);
         DuckDbQueryEngine queryEngine = new DuckDbQueryEngine(1024, 5000);
-        
-        // Register tables
-        Map<String, Object> schemaA = new HashMap<>();
-        schemaA.put("id", "INTEGER");
-        schemaA.put("name", "VARCHAR");
-        inputManager.registerTable("table_a", schemaA);
-        
-        Map<String, Object> schemaB = new HashMap<>();
-        schemaB.put("id", "INTEGER");
-        schemaB.put("value", "DOUBLE");
-        inputManager.registerTable("table_b", schemaB);
         
         // Mark both tables as full sync (not yet incremental)
         stageTracker.updateTableStage("table_a", false);

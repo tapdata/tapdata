@@ -3,6 +3,8 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
+import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import org.apache.arrow.memory.BufferAllocator;
@@ -106,6 +108,32 @@ public class ArrowWriter implements AutoCloseable {
         }
         
         logger.debug("Built Arrow Schema with {} fields", fields.size());
+        return new Schema(fields);
+    }
+    
+    /**
+     * 将TapTableDto转换为Arrow Schema（优先使用预计算类型）
+     */
+    public Schema buildArrowSchema(TapTableDto tapTableDto) {
+        List<Field> fields = new ArrayList<>();
+        
+        // 处理空表情况
+        if (tapTableDto.getFields() == null) {
+            return new Schema(fields);
+        }
+        
+        for (TapFieldDto tapFieldDto : tapTableDto.getFields()) {
+            String fieldName = tapFieldDto.getName();
+            org.apache.arrow.vector.types.pojo.ArrowType arrowType = TypeConverter.fromTapFieldDto(tapFieldDto);
+            boolean nullable = tapFieldDto.getNullable() == null || tapFieldDto.getNullable();
+            
+            // 根据 nullable 属性创建字段类型
+            FieldType fieldType = new FieldType(nullable, arrowType, null);
+            Field field = new Field(fieldName, fieldType, null);
+            fields.add(field);
+        }
+        
+        logger.debug("Built Arrow Schema from TapTableDto with {} fields", fields.size());
         return new Schema(fields);
     }
 
@@ -516,6 +544,61 @@ public class ArrowWriter implements AutoCloseable {
     }
     
     /**
+     * 使用Arrow写入数据到表（使用TapTableDto）
+     */
+    public void writeWithArrow(List<Map<String, Object>> data, String tableName, TapTableDto tapTableDto) throws SQLException {
+        if (data.isEmpty()) {
+            return;
+        }
+        
+        // 尝试零拷贝写入，如果不可用则使用COPY模式
+        if (!tryZeroCopyWrite(data, tableName, tapTableDto)) {
+            // 转换为TapTable后使用AppenderInsert
+            TapTable tapTable = convertToTapTable(tapTableDto);
+            AppenderInsert(data, tableName, tapTable);
+        }
+    }
+    
+    /**
+     * 使用Arrow写入数据到表（使用TapTableDto，支持普通DuckDB表或DuckLake表）
+     */
+    public void writeWithArrow(List<Map<String, Object>> data, String tableName, TapTableDto tapTableDto, boolean useDuckLake) throws SQLException {
+        if (useDuckLake && duckLakeConfig.isEnabled()) {
+            writeToDuckLake(data, tableName, tapTableDto);
+        } else {
+            writeWithArrow(data, tableName, tapTableDto);
+        }
+    }
+
+    /**
+     * 使用Arrow写入数据到表（使用NodeSchemaInfo，优先使用预计算Schema）
+     */
+    public void writeWithArrow(List<Map<String, Object>> data, NodeSchemaInfo schemaInfo) throws SQLException {
+        if (data.isEmpty()) {
+            return;
+        }
+        
+        String targetTableName = schemaInfo.getTargetTableName();
+        
+        // 尝试零拷贝写入，如果不可用则使用COPY模式
+        if (!tryZeroCopyWrite(data, schemaInfo)) {
+            // 使用SchemaInfo中的TapTable
+            AppenderInsert(data, targetTableName, schemaInfo.getTapTable());
+        }
+    }
+
+    /**
+     * 使用Arrow写入数据到表（使用NodeSchemaInfo，支持普通DuckDB表或DuckLake表）
+     */
+    public void writeWithArrow(List<Map<String, Object>> data, NodeSchemaInfo schemaInfo, boolean useDuckLake) throws SQLException {
+        if (useDuckLake && duckLakeConfig.isEnabled()) {
+            writeToDuckLake(data, schemaInfo);
+        } else {
+            writeWithArrow(data, schemaInfo);
+        }
+    }
+    
+    /**
      * 写入数据到DuckLake表
      */
     private void writeToDuckLake(List<Map<String, Object>> data, String tableName, TapTable tapTable) throws SQLException {
@@ -534,6 +617,170 @@ public class ArrowWriter implements AutoCloseable {
         long duration = System.currentTimeMillis() - startTime;
         logger.info("Successfully wrote {} rows to DuckLake table {} in {} ms", 
             data.size(), tableName, duration);
+    }
+    
+    /**
+     * 写入数据到DuckLake表（使用TapTableDto）
+     */
+    private void writeToDuckLake(List<Map<String, Object>> data, String tableName, TapTableDto tapTableDto) throws SQLException {
+        if (data.isEmpty()) {
+            return;
+        }
+        
+        long startTime = System.currentTimeMillis();
+        
+        // 1. 确保DuckLake表存在
+        createDuckLakeTableIfNotExists(tableName, tapTableDto);
+        
+        // 2. 使用Arrow写入数据
+        writeWithArrow(data, tableName, tapTableDto);
+        
+        long duration = System.currentTimeMillis() - startTime;
+        logger.info("Successfully wrote {} rows to DuckLake table {} in {} ms", 
+            data.size(), tableName, duration);
+    }
+
+    /**
+     * 写入数据到DuckLake表（使用NodeSchemaInfo）
+     */
+    private void writeToDuckLake(List<Map<String, Object>> data, NodeSchemaInfo schemaInfo) throws SQLException {
+        if (data.isEmpty()) {
+            return;
+        }
+        
+        long startTime = System.currentTimeMillis();
+        String targetTableName = schemaInfo.getTargetTableName();
+        
+        // 1. 确保DuckLake表存在
+        createDuckLakeTableIfNotExists(schemaInfo);
+        
+        // 2. 使用Arrow写入数据
+        writeWithArrow(data, schemaInfo);
+        
+        long duration = System.currentTimeMillis() - startTime;
+        logger.info("Successfully wrote {} rows to DuckLake table {} in {} ms", 
+            data.size(), targetTableName, duration);
+    }
+    
+    /**
+     * 尝试真正的零拷贝写入（使用TapTableDto）
+     */
+    private boolean tryZeroCopyWrite(List<Map<String, Object>> data, String tableName, TapTableDto tapTableDto) {
+        if (!zeroCopyEnabled) {
+            logger.debug("Arrow zero-copy is disabled, falling back to COPY mode");
+            return false;
+        }
+
+        long startTime = System.currentTimeMillis();
+
+        try {
+            // 1. 构建 Arrow Schema（使用预计算类型）
+            Schema schema = buildArrowSchema(tapTableDto);
+
+            // 2. 构建 VectorSchemaRoot
+            try (VectorSchemaRoot root = createVectorSchemaRoot(data, schema);
+                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                 ArrowStreamWriter writer = new ArrowStreamWriter(root, new DictionaryProvider.MapDictionaryProvider(), outputStream)) {
+                // 3. 将 Arrow 数据写入 Arrow Stream
+                writer.start();
+                writer.writeBatch();
+                writer.end();
+
+                // 4. 将 Arrow Stream 导出为 ArrowArrayStream 并注册到 DuckDB
+                byte[] arrowBytes = outputStream.toByteArray();
+                DuckDBConnection duckDbConnection = connection.unwrap(DuckDBConnection.class);
+                
+                if (duckDbConnection == null) {
+                    logger.debug("Connection is not a DuckDB connection, skipping zero-copy write");
+                    return false;
+                }
+                
+                String streamName;
+                synchronized (ArrowWriter.class) {
+                    streamName = "arrow_stream_" + (++tempTableCounter);
+                }
+
+                try (InputStream inputStream = new ByteArrayInputStream(arrowBytes);
+                     ArrowStreamReader reader = new ArrowStreamReader(inputStream, allocator);
+                     ArrowArrayStream stream = ArrowArrayStream.allocateNew(allocator);
+                     Statement statement = connection.createStatement()) {
+                    Data.exportArrayStream(allocator, reader, stream);
+                    duckDbConnection.registerArrowStream(streamName, stream);
+                    statement.executeUpdate("INSERT INTO " + tableName + " SELECT * FROM " + streamName);
+                }
+
+                long duration = System.currentTimeMillis() - startTime;
+                logger.info("Successfully wrote {} rows using Arrow from TapTableDto to table {} in {} ms", 
+                    data.size(), tableName, duration);
+                return true;
+            }
+
+        } catch (Exception e) {
+            logger.warn("Arrow zero-copy write failed, falling back to COPY mode: {}", e.getMessage());
+            logger.debug("Zero-copy failure details:", e);
+            return false;
+        }
+    }
+
+    /**
+     * 尝试真正的零拷贝写入（使用NodeSchemaInfo，优先使用预计算Schema）
+     */
+    private boolean tryZeroCopyWrite(List<Map<String, Object>> data, NodeSchemaInfo schemaInfo) {
+        if (!zeroCopyEnabled) {
+            logger.debug("Arrow zero-copy is disabled, falling back to COPY mode");
+            return false;
+        }
+
+        long startTime = System.currentTimeMillis();
+        String targetTableName = schemaInfo.getTargetTableName();
+
+        try {
+            // 1. 使用预计算的 Arrow Schema
+            Schema schema = schemaInfo.getArrowSchema();
+
+            // 2. 构建 VectorSchemaRoot
+            try (VectorSchemaRoot root = createVectorSchemaRoot(data, schema);
+                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                 ArrowStreamWriter writer = new ArrowStreamWriter(root, new DictionaryProvider.MapDictionaryProvider(), outputStream)) {
+                // 3. 将 Arrow 数据写入 Arrow Stream
+                writer.start();
+                writer.writeBatch();
+                writer.end();
+
+                // 4. 将 Arrow Stream 导出为 ArrowArrayStream 并注册到 DuckDB
+                byte[] arrowBytes = outputStream.toByteArray();
+                DuckDBConnection duckDbConnection = connection.unwrap(DuckDBConnection.class);
+                
+                if (duckDbConnection == null) {
+                    logger.debug("Connection is not a DuckDB connection, skipping zero-copy write");
+                    return false;
+                }
+                
+                String streamName;
+                synchronized (ArrowWriter.class) {
+                    streamName = "arrow_stream_" + (++tempTableCounter);
+                }
+
+                try (InputStream inputStream = new ByteArrayInputStream(arrowBytes);
+                     ArrowStreamReader reader = new ArrowStreamReader(inputStream, allocator);
+                     ArrowArrayStream stream = ArrowArrayStream.allocateNew(allocator);
+                     Statement statement = connection.createStatement()) {
+                    Data.exportArrayStream(allocator, reader, stream);
+                    duckDbConnection.registerArrowStream(streamName, stream);
+                    statement.executeUpdate("INSERT INTO " + targetTableName + " SELECT * FROM " + streamName);
+                }
+
+                long duration = System.currentTimeMillis() - startTime;
+                logger.info("Successfully wrote {} rows using Arrow from NodeSchemaInfo to table {} in {} ms", 
+                    data.size(), targetTableName, duration);
+                return true;
+            }
+
+        } catch (Exception e) {
+            logger.warn("Arrow zero-copy write failed, falling back to COPY mode: {}", e.getMessage());
+            logger.debug("Zero-copy failure details:", e);
+            return false;
+        }
     }
     
     /**
@@ -556,6 +803,78 @@ public class ArrowWriter implements AutoCloseable {
             stmt.execute(createTableSql);
             logger.debug("Successfully created/verified DuckLake table: {}", tableName);
         }
+    }
+    
+    /**
+     * 确保DuckLake表存在，不存在则创建（使用TapTableDto）
+     */
+    private void createDuckLakeTableIfNotExists(String tableName, TapTableDto tapTableDto) throws SQLException {
+        createDuckLakeTableIfNotExists(tableName, tapTableDto, false);
+    }
+
+    /**
+     * 确保DuckLake表存在，不存在则创建（使用TapTableDto）
+     * @param tableName 表名
+     * @param tapTableDto 表结构DTO
+     * @param useTempTable 是否使用临时表
+     */
+    private void createDuckLakeTableIfNotExists(String tableName, TapTableDto tapTableDto, boolean useTempTable) throws SQLException {
+        String createTableSql = buildDuckLakeCreateTableSql(tableName, tapTableDto, useTempTable);
+        
+        try (java.sql.Statement stmt = connection.createStatement()) {
+            stmt.execute(createTableSql);
+            logger.debug("Successfully created/verified DuckLake table from DTO: {}", tableName);
+        }
+    }
+
+    /**
+     * 确保DuckLake表存在，不存在则创建（使用NodeSchemaInfo）
+     */
+    private void createDuckLakeTableIfNotExists(NodeSchemaInfo schemaInfo) throws SQLException {
+        createDuckLakeTableIfNotExists(schemaInfo, false);
+    }
+
+    /**
+     * 确保DuckLake表存在，不存在则创建（使用NodeSchemaInfo）
+     * @param schemaInfo 预加载的Schema信息
+     * @param useTempTable 是否使用临时表
+     */
+    private void createDuckLakeTableIfNotExists(NodeSchemaInfo schemaInfo, boolean useTempTable) throws SQLException {
+        String targetTableName = schemaInfo.getTargetTableName();
+        String createTableSql = buildDuckLakeCreateTableSql(schemaInfo, useTempTable);
+        
+        try (java.sql.Statement stmt = connection.createStatement()) {
+            stmt.execute(createTableSql);
+            logger.debug("Successfully created/verified DuckLake table from NodeSchemaInfo: {}", targetTableName);
+        }
+    }
+    
+    /**
+     * 将TapTableDto转换为TapTable（用于需要TapTable对象的场景）
+     */
+    private TapTable convertToTapTable(TapTableDto tapTableDto) {
+        TapTable tapTable = new TapTable();
+        tapTable.setId(tapTableDto.getId());
+        tapTable.setName(tapTableDto.getName());
+        
+        if (tapTableDto.getFields() != null) {
+            java.util.LinkedHashMap<String, TapField> nameFieldMap = new java.util.LinkedHashMap<>();
+            for (TapFieldDto fieldDto : tapTableDto.getFields()) {
+                TapField tapField = new TapField(fieldDto.getName(), fieldDto.getDataType());
+                tapField.setPrimaryKey(Boolean.TRUE.equals(fieldDto.getIsPrimaryKey()));
+                if (fieldDto.getPrimaryKeyPos() != null && fieldDto.getPrimaryKeyPos() > 0) {
+                    tapField.setPrimaryKeyPos(fieldDto.getPrimaryKeyPos());
+                }
+                tapField.setNullable(fieldDto.getNullable() != null ? fieldDto.getNullable() : true);
+                if (fieldDto.getPos() != null && fieldDto.getPos() > 0) {
+                    tapField.setPos(fieldDto.getPos());
+                }
+                nameFieldMap.put(tapField.getName(), tapField);
+            }
+            tapTable.setNameFieldMap(nameFieldMap);
+        }
+        
+        return tapTable;
     }
     
     /**
@@ -614,6 +933,61 @@ public class ArrowWriter implements AutoCloseable {
     }
     
     /**
+     * 构建DuckLake表的CREATE TABLE语句（使用TapTableDto）
+     */
+    private String buildDuckLakeCreateTableSql(String tableName, TapTableDto tapTableDto) {
+        return buildDuckLakeCreateTableSql(tableName, tapTableDto, false);
+    }
+
+    /**
+     * 构建DuckLake表的CREATE TABLE语句（使用TapTableDto）
+     * @param tableName 表名
+     * @param tapTableDto 表结构DTO
+     * @param useTempTable 是否使用临时表
+     */
+    private String buildDuckLakeCreateTableSql(String tableName, TapTableDto tapTableDto, boolean useTempTable) {
+        StringBuilder sql = new StringBuilder();
+        if (useTempTable) {
+            sql.append("CREATE TEMP TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
+        } else {
+            sql.append("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (\n");
+        }
+        
+        java.util.List<String> columnDefs = new java.util.ArrayList<>();
+        java.util.List<String> primaryKeyCols = new java.util.ArrayList<>();
+        
+        for (TapFieldDto tapFieldDto : tapTableDto.getFields()) {
+            String colDef = buildColumnDefinition(tapFieldDto);
+            columnDefs.add(colDef);
+            
+            if (Boolean.TRUE.equals(tapFieldDto.getIsPrimaryKey())) {
+                primaryKeyCols.add(tapFieldDto.getName());
+            }
+        }
+        
+        sql.append(String.join(",\n", columnDefs));
+        
+        // 主键定义
+        if (!primaryKeyCols.isEmpty()) {
+            sql.append(",\nPRIMARY KEY (").append(String.join(",", primaryKeyCols)).append(")");
+        }
+        
+        sql.append("\n) WITH (\n    SNAPSHOTS = TRUE");
+        
+        // 存储配置
+        if (duckLakeConfig != null && duckLakeConfig.isEnabled()) {
+            if (duckLakeConfig.isS3Storage()) {
+                sql.append(",\n    S3 = '").append(escapeSqlString(duckLakeConfig.getStoragePath())).append("'");
+            } else if (duckLakeConfig.isLocalStorage()) {
+                sql.append(",\n    LOCAL = '").append(escapeSqlString(duckLakeConfig.getStoragePath())).append("'");
+            }
+        }
+        
+        sql.append("\n);");
+        return sql.toString();
+    }
+    
+    /**
      * 构建列定义
      */
     private String buildColumnDefinition(io.tapdata.entity.schema.TapField tapField) {
@@ -630,6 +1004,67 @@ public class ArrowWriter implements AutoCloseable {
         }
         
         return colDef.toString();
+    }
+    
+    /**
+     * 构建列定义（使用TapFieldDto预计算类型）
+     */
+    private String buildColumnDefinition(TapFieldDto tapFieldDto) {
+        StringBuilder colDef = new StringBuilder();
+        colDef.append("\"").append(tapFieldDto.getName()).append("\" ");
+        
+        // 使用 TypeConverter 进行类型映射（优先使用预计算类型）
+        String duckDbType = TypeConverter.getDuckDbTypeFromDto(tapFieldDto);
+        colDef.append(duckDbType);
+        
+        // 可选：可空性
+        if (tapFieldDto.getNullable() != null && !tapFieldDto.getNullable()) {
+            colDef.append(" NOT NULL");
+        }
+        
+        return colDef.toString();
+    }
+
+    /**
+     * 构建DuckLake表的CREATE TABLE语句（使用NodeSchemaInfo）
+     */
+    private String buildDuckLakeCreateTableSql(NodeSchemaInfo schemaInfo, boolean useTempTable) {
+        String targetTableName = schemaInfo.getTargetTableName();
+        StringBuilder sql = new StringBuilder();
+        if (useTempTable) {
+            sql.append("CREATE TEMP TABLE IF NOT EXISTS ").append(targetTableName).append(" (\n");
+        } else {
+            sql.append("CREATE TABLE IF NOT EXISTS ").append(targetTableName).append(" (\n");
+        }
+        
+        java.util.List<String> columnDefs = new java.util.ArrayList<>();
+        java.util.List<String> primaryKeyCols = schemaInfo.getPrimaryKeys();
+        
+        for (TapField tapField : schemaInfo.getFieldMap().values()) {
+            String colDef = buildColumnDefinition(tapField);
+            columnDefs.add(colDef);
+        }
+        
+        sql.append(String.join(",\n", columnDefs));
+        
+        // 主键定义
+        if (!primaryKeyCols.isEmpty()) {
+            sql.append(",\nPRIMARY KEY (").append(String.join(",", primaryKeyCols)).append(")");
+        }
+        
+        sql.append("\n) WITH (\n    SNAPSHOTS = TRUE");
+        
+        // 存储配置
+        if (duckLakeConfig != null && duckLakeConfig.isEnabled()) {
+            if (duckLakeConfig.isS3Storage()) {
+                sql.append(",\n    S3 = '").append(escapeSqlString(duckLakeConfig.getStoragePath())).append("'");
+            } else if (duckLakeConfig.isLocalStorage()) {
+                sql.append(",\n    LOCAL = '").append(escapeSqlString(duckLakeConfig.getStoragePath())).append("'");
+            }
+        }
+        
+        sql.append("\n);");
+        return sql.toString();
     }
     
     /**
