@@ -150,6 +150,7 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         push(ContainerType.HOUR_MEMORY, usage, ServerUsageField.HEAP_MEMORY_USAGE, Long.class, 0L);
         push(ContainerType.HOUR_MEMORY_MAX, usage, ServerUsageField.HEAP_MEMORY_MAX, Long.class, 0L);
         push(ContainerType.HOUR_CPU, usage, ServerUsageField.CPU_USAGE, Double.class, 0D);
+        push(ContainerType.MINUTE_CPU_CORES, usage, ServerUsageField.CPU_CORES, Integer.class, 0);
 
         push(ContainerType.MINUTE_POOL_CONNECTIONS_MAX, usage, ServerUsageField.POOL_MAX_CONNECTIONS, Integer.class, 0);
         push(ContainerType.MINUTE_POOL_CONNECTIONS_USED, usage, ServerUsageField.POOL_USED_CONNECTIONS, Integer.class, 0);
@@ -157,6 +158,7 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         push(ContainerType.HOUR_POOL_CONNECTIONS_MAX, usage, ServerUsageField.POOL_MAX_CONNECTIONS, Integer.class, 0);
         push(ContainerType.HOUR_POOL_CONNECTIONS_USED, usage, ServerUsageField.POOL_USED_CONNECTIONS, Integer.class, 0);
         push(ContainerType.HOUR_POOL_QUEUE_SIZE, usage, ServerUsageField.POOL_QUEUE_SIZE, Integer.class, 0);
+        push(ContainerType.HOUR_CPU_CORES, usage, ServerUsageField.CPU_CORES, Integer.class, 0);
     }
 
     void acceptMin() {
