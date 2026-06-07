@@ -106,6 +106,35 @@
 - 合并同批事件，保留最小必要结果集。
 - 不负责写入，不负责值归一化。
 
+#### 5.4.1 合并与最小化算法
+
+`SmartMerger` 的最小化目标不是“保留全部历史”，而是“只保留足够保证宽表正确性的最小集合”。
+
+建议按以下顺序处理同一批事件：
+
+1. **按 `tableName + 主键` 分组**
+   - 同一主键在同一批里只保留一条最终状态。
+   - 重复的 before/after 先合并，不向下游暴露重复项。
+
+2. **保留最终 after**
+   - 对同一主键的多次 update，只保留最后一次 after。
+   - `afterRows` 只用于最终写入 DuckDB，避免中间态重复写。
+
+3. **压缩 before**
+   - `beforeRows` 只保留“足以删除旧宽表行”的必要旧值。
+   - 如果同一主键在本批内多次变化，只保留最早需要被删除的那一行。
+   - 目标是尽量减少 `beforeRows` 和 `mainTableBeforePks` 的数量。
+
+4. **独立维护主键集合**
+   - `mainTableBeforePks`：本批中需要从宽表删除的主键集合。
+   - `mainTableAfterPks`：本批中需要写入 DuckDB 的最终主键集合。
+   - 这两个集合由 `SmartMerger` 直接产出，`AffectedKeyCalculator` 直接消费，不再重新扫描行数据。
+
+5. **删除与写入的优先级**
+   - 若同一主键既出现在 before 又出现在 after，以“能正确删除旧行并写入新行”为准。
+   - 如果最终状态是 delete，则保留 before，after 置空。
+   - 如果最终状态是 insert/update，则保留最终 after，并仅保留必要的 before 删除信息。
+
 ### 5.5 `processCdcStage()` 重构
 
 新流程：
