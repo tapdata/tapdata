@@ -110,6 +110,9 @@
 
 `SmartMerger` 的最小化目标不是“保留全部历史”，而是“只保留足够保证宽表正确性的最小集合”。
 
+这里的“正确性”不是源表视角，而是 **querySql 执行后的宽表结果视角**。  
+对于复杂 JOIN，单个 source row 可能影响多条宽表结果，或多个 source row 共同影响同一条宽表结果，因此 `beforeRows` 的最小化边界必须以 **宽表结果集的清理程度** 为准，而不是只看主表主键数量。
+
 建议按以下顺序处理同一批事件：
 
 1. **按 `tableName + 主键` 分组**
@@ -134,6 +137,28 @@
    - 若同一主键既出现在 before 又出现在 after，以“能正确删除旧行并写入新行”为准。
    - 如果最终状态是 delete，则保留 before，after 置空。
    - 如果最终状态是 insert/update，则保留最终 after，并仅保留必要的 before 删除信息。
+
+#### 5.4.2 querySql 感知的 before 处理
+
+当 `querySql` 是复杂 JOIN 时，`beforeRows` 不能简单理解为“源表旧值”，而应理解为“**会被宽表清理的旧结果行所需的最小前置数据**”。
+
+处理原则：
+
+1. **以宽表结果为准**
+   - 先判断这批源事件会影响哪些宽表结果行。
+   - 只有会导致宽表结果变化的 before 数据才保留。
+
+2. **以影响范围扩散**
+   - `mainTableBeforePks / mainTableAfterPks` 只负责提供源级变化入口。
+   - `AffectedKeyCalculator` 结合 `querySql` 计算 join 扩散后的宽表影响范围。
+
+3. **以删除精度优先**
+   - 如果一个 before 行不会落到最终宽表删除集合里，就不保留。
+   - 如果一个 source change 会扩散成多条宽表删除，必须保留能支撑这些删除的最小 before 数据。
+
+4. **以结果差异最小化**
+   - `beforeRows` 的最终定义应接近“querySql 执行前的宽表 pre-image 中，确实需要被清理的那部分行”。
+   - 复杂 JOIN 下，before 最小化不能只看 source row 数量，而要看最终宽表需要清理多少行。
 
 ### 5.5 `processCdcStage()` 重构
 
