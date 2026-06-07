@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.type.*;
@@ -8,6 +10,8 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Timestamp;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 

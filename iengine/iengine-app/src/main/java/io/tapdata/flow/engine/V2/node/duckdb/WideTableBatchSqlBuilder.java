@@ -77,17 +77,11 @@ public class WideTableBatchSqlBuilder {
 
     /**
      * 格式化 SQL 值
+     * 
+     * @deprecated 使用 {@link DuckDbSqlValueFormatter#format(Object)} 替代
      */
+    @Deprecated
     static String formatValue(Object value) {
-        if (value == null) {
-            return "NULL";
-        }
-        if (value instanceof String) {
-            return "'" + ((String) value).replace("'", "''") + "'";
-        }
-        if (value instanceof Boolean) {
-            return (Boolean) value ? "TRUE" : "FALSE";
-        }
-        return value.toString();
+        return DuckDbSqlValueFormatter.format(value);
     }
 }

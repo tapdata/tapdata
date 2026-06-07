@@ -929,6 +929,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         // 获取 DuckDbOperator
         DuckDbOperator operator = getOperatorForContext(context);
 
+        // 步骤2.5: 归一化所有事件值（类型归一化）
+//        normalizeEvents(eventsToFlush);
+
         // 步骤3: DuckDB 事务开启（可选）
         operator.executeInTransaction(() -> {
             // 步骤4: 初始化阶段全部按 insert 直接批量写入
@@ -979,6 +982,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         // 步骤1: 使用 SmartMerger 合并事件（第二步、第三步、第四步都用）
         List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsToFlush, context.getTargetTableName(), context.getSchema());
 
+        // 步骤1.5: 归一化所有 before/after 行值（类型归一化）
+//        normalizeMergedRecords(mergedRecords);
+
         // 步骤2: 确保表存在
 //        ensureTableExists(context, eventsToFlush);
 
@@ -1008,7 +1014,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             }
 
             // 步骤8: 更新宽表（可选），发送宽表事件到下游
-            updateWideTable(context.getTargetTableName(), beforeKeys, afterKeys, eventsToFlush);
+            updateWideTable(context.getTargetTableName(), beforeKeys, afterKeys, mergedRecords);
 
         });
 
@@ -1019,19 +1025,26 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     /**
      * 更新宽表（可选）
      *
+     * <p>Refactored per 2026-06-07 design: now consumes {@link SmartMerger.MergedRecord}
+     * directly instead of re-traversing original events.</p>
+     *
      * @param targetTableName
      * @param beforeKeys      写入前的主键集合
      * @param afterKeys       写入后的主键集合
-     * @param events          原始事件列表
+     * @param mergedRecords  合并后的记录列表（直接从中取 afterRows）
      */
     private void updateWideTable(String targetTableName, Set<Object> beforeKeys, Set<Object> afterKeys,
-                                 List<TapdataEvent> events) {
+                                 List<SmartMerger.MergedRecord> mergedRecords) {
         if (wideTableUpdater == null || beforeKeys == null || afterKeys == null) {
             return;
         }
 
         try {
-            List<Map<String, Object>> afterRows = extractAfterRowsFromEvents(events);
+            // 直接从 MergedRecord.afterRows 收集，避免二次遍历原始事件
+            List<Map<String, Object>> afterRows = new ArrayList<>();
+            for (SmartMerger.MergedRecord record : mergedRecords) {
+                afterRows.addAll(record.getAfterRows());
+            }
             List<TapdataEvent> wideTableEvents = wideTableUpdater.updateWideTableAsTapdataEvents(
                 beforeKeys, afterKeys, afterRows, targetTableName);
             logger.info("增量阶段更新宽表: {} 个事件", wideTableEvents.size());
@@ -1041,31 +1054,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     /**
-     * 从 MergedRecord 列表中提取主键列表
-     * @param mergedRecords 合并后的记录列表
-     * @return 主键列表
-     */
-    private List<Object> extractPrimaryKeys(List<SmartMerger.MergedRecord> mergedRecords) {
-        return mergedRecords.stream()
-            .map(SmartMerger.MergedRecord::getInitialPk)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * 从 MergedRecord 列表中提取最终状态数据
-     * @param mergedRecords 合并后的记录列表
-     * @return 最终状态数据列表
-     */
-    private List<Map<String, Object>> extractFinalStates(List<SmartMerger.MergedRecord> mergedRecords) {
-        return mergedRecords.stream()
-            .map(SmartMerger.MergedRecord::getFinalState)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-    }
-
-    /**
      * 删除 Before 数据（执行 DELETE 操作）
+     *
+     * <p>Refactored per 2026-06-07 design: now reads PKs directly from
+     * {@link SmartMerger.MergedRecord#getBeforeRows()}, avoiding re-traversal
+     * of original operations.</p>
+     *
      * @param operator DuckDB 操作器
      * @param tableName 目标表名
      * @param mergedRecords 合并后的记录列表
@@ -1075,7 +1069,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private void deleteBeforeData(DuckDbOperator operator, String tableName,
                                   List<SmartMerger.MergedRecord> mergedRecords,
                                   NodeSchemaInfo schema) throws SQLException {
-        List<Object> beforePks = extractPrimaryKeys(mergedRecords);
+        List<Object> beforePks = new ArrayList<>(mergedRecords.stream().map(SmartMerger.MergedRecord::getMainTableBeforePks).filter(Objects::nonNull).flatMap(Collection::stream).toList());
+
         if (!beforePks.isEmpty()) {
             String deleteSql = buildDeleteSql(tableName, beforePks, schema);
             operator.executeUpdate(deleteSql);
@@ -1084,7 +1079,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     /**
      * 写入 After 数据（执行 Arrow 批量写入）
-     * @param operator DuckDB 操作器
+     *
+     * <p>Refactored per 2026-06-07 design: now reads rows directly from
+     * {@link SmartMerger.MergedRecord#getAfterRows()}, avoiding re-traversal
+     * of original operations.</p>
+     *
+     * @param operator    DuckDB 操作器
      * @param schemaInfo 预加载的Schema信息
      * @param mergedRecords 合并后的记录列表
      * @throws SQLException 如果数据库操作失败
@@ -1092,9 +1092,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      */
     private void writeAfterData(DuckDbOperator operator, NodeSchemaInfo schemaInfo,
                                 List<SmartMerger.MergedRecord> mergedRecords) throws SQLException, java.io.IOException {
-        List<Map<String, Object>> afterData = extractFinalStates(mergedRecords);
-        if (!afterData.isEmpty()) {
-            operator.writeBatch(afterData, schemaInfo);
+        List<Map<String, Object>> allAfterRows = new ArrayList<>();
+        for (SmartMerger.MergedRecord record : mergedRecords) {
+            allAfterRows.addAll(record.getAfterRows());
+        }
+        if (!allAfterRows.isEmpty()) {
+            operator.writeBatch(allAfterRows, schemaInfo);
         }
     }
 
@@ -1124,11 +1127,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             } else {
                 sql.append(", ");
             }
-            if (pk instanceof String) {
-                sql.append("'").append(((String) pk).replace("'", "''")).append("'");
-            } else {
-                sql.append(pk);
-            }
+            // 使用统一的 SQL 值格式化工具
+            sql.append(DuckDbSqlValueFormatter.format(pk));
         }
         sql.append(")");
         return sql.toString();
@@ -1183,6 +1183,11 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
         return dataRows;
     }
+
+    // ========== Row Normalizer (per 2026-06-07 design) ==========
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper NORMALIZER_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
 
     /**
      * Resolve data source ID from event

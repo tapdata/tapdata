@@ -112,12 +112,7 @@ public class IncrementalViewUpdater {
         }
 
         String pkCsv = affectedKeys.stream()
-                .map(pk -> {
-                    if (pk instanceof String) {
-                        return "'" + pk.toString().replace("'", "''") + "'";
-                    }
-                    return pk.toString();
-                })
+                .map(pk -> DuckDbSqlValueFormatter.format(pk))
                 .collect(Collectors.joining(","));
 
         String query = String.format(
@@ -140,12 +135,7 @@ public class IncrementalViewUpdater {
         }
 
         String pkCsv = affectedKeys.stream()
-                .map(pk -> {
-                    if (pk instanceof String) {
-                        return "'" + pk.toString().replace("'", "''") + "'";
-                    }
-                    return pk.toString();
-                })
+                .map(pk -> DuckDbSqlValueFormatter.format(pk))
                 .collect(Collectors.joining(","));
 
         // Wrap user's SQL with a filter for affected keys
@@ -261,12 +251,7 @@ public class IncrementalViewUpdater {
      * Delete a row by primary key.
      */
     private void deleteRowByPk(Object pk) throws SQLException {
-        String pkValueStr;
-        if (pk instanceof String) {
-            pkValueStr = "'" + pk.toString().replace("'", "''") + "'";
-        } else {
-            pkValueStr = pk.toString();
-        }
+        String pkValueStr = DuckDbSqlValueFormatter.format(pk);
 
         String deleteSql = String.format(
                 "DELETE FROM %s WHERE %s = %s",

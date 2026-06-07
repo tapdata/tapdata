@@ -79,18 +79,11 @@ public class WithCteSqlGenerator {
 
     /**
      * 格式化值（处理字符串转义、NULL、数字、布尔等）
+     * 
+     * @deprecated 使用 {@link DuckDbSqlValueFormatter#format(Object)} 替代
      */
+    @Deprecated
     protected String formatValue(Object value) {
-        if (value == null) return "NULL";
-        if (value instanceof String) {
-            return "'" + ((String) value).replace("'", "''") + "'";
-        }
-        if (value instanceof Number) {
-            return value.toString();
-        }
-        if (value instanceof Boolean) {
-            return ((Boolean) value) ? "TRUE" : "FALSE";
-        }
-        return "'" + value.toString().replace("'", "''") + "'";
+        return DuckDbSqlValueFormatter.format(value);
     }
 }

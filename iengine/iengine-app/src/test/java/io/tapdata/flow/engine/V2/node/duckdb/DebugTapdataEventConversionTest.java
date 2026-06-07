@@ -97,7 +97,9 @@ class DebugTapdataEventConversionTest {
         for (SmartMerger.MergedRecord record : mergedRecords) {
             System.out.println("InitialPk: " + record.getInitialPk());
             System.out.println("CurrentPk: " + record.getCurrentPk());
-            System.out.println("Operations: " + record.getOperations());
+            System.out.println("FinalOp: " + record.getFinalOp());
+            System.out.println("BeforeRows: " + record.getBeforeRows().size());
+            System.out.println("AfterRows: " + record.getAfterRows().size());
         }
         
         assertEquals(1, mergedRecords.size());

@@ -173,102 +173,12 @@ public class ArrowWriter implements AutoCloseable {
 
     /**
      * 设置向量值（简化版本）
+     * 
+     * @deprecated 使用 {@link ArrowValueHandler#setVectorValue(ValueVector, int, Object)} 替代
      */
+    @Deprecated
     private void setVectorValue(ValueVector vector, int index, Object value) {
-        if (value == null) {
-            // 对于基本类型向量，使用 defaultValue 设置 null
-            if (vector instanceof BigIntVector) {
-                ((BigIntVector) vector).setSafe(index, 0);
-                ((BigIntVector) vector).setNull(index);
-            } else if (vector instanceof IntVector) {
-                ((IntVector) vector).setSafe(index, 0);
-                ((IntVector) vector).setNull(index);
-            } else if (vector instanceof SmallIntVector) {
-                ((SmallIntVector) vector).setSafe(index, (short) 0);
-                ((SmallIntVector) vector).setNull(index);
-            } else if (vector instanceof TinyIntVector) {
-                ((TinyIntVector) vector).setSafe(index, (byte) 0);
-                ((TinyIntVector) vector).setNull(index);
-            } else if (vector instanceof Float4Vector) {
-                ((Float4Vector) vector).setSafe(index, 0f);
-                ((Float4Vector) vector).setNull(index);
-            } else if (vector instanceof Float8Vector) {
-                ((Float8Vector) vector).setSafe(index, 0d);
-                ((Float8Vector) vector).setNull(index);
-            } else if (vector instanceof BitVector) {
-                ((BitVector) vector).setSafe(index, 0);
-                ((BitVector) vector).setNull(index);
-            } else if (vector instanceof VarCharVector) {
-                ((VarCharVector) vector).setSafe(index, new byte[0]);
-            } else if (vector instanceof VarBinaryVector) {
-                ((VarBinaryVector) vector).setSafe(index, new byte[0]);
-            }
-            return;
-        }
-        
-        try {
-            if (vector instanceof BigIntVector) {
-                ((BigIntVector) vector).setSafe(index, ((Number) value).longValue());
-            } else if (vector instanceof IntVector) {
-                ((IntVector) vector).setSafe(index, ((Number) value).intValue());
-            } else if (vector instanceof SmallIntVector) {
-                ((SmallIntVector) vector).setSafe(index, ((Number) value).shortValue());
-            } else if (vector instanceof TinyIntVector) {
-                ((TinyIntVector) vector).setSafe(index, ((Number) value).byteValue());
-            } else if (vector instanceof Float4Vector) {
-                ((Float4Vector) vector).setSafe(index, ((Number) value).floatValue());
-            } else if (vector instanceof Float8Vector) {
-                ((Float8Vector) vector).setSafe(index, ((Number) value).doubleValue());
-            } else if (vector instanceof BitVector) {
-                ((BitVector) vector).setSafe(index, (Boolean) value ? 1 : 0);
-            } else if (vector instanceof VarCharVector) {
-                ((VarCharVector) vector).setSafe(index, convertDateTimeToString(value).getBytes(StandardCharsets.UTF_8));
-            } else if (vector instanceof VarBinaryVector) {
-                if (value instanceof byte[]) {
-                    ((VarBinaryVector) vector).setSafe(index, (byte[]) value);
-                } else {
-                    ((VarBinaryVector) vector).setSafe(index, value.toString().getBytes(StandardCharsets.UTF_8));
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to set value at index {}: {}", index, e.getMessage());
-            // 设置为 null
-            if (vector instanceof BigIntVector) {
-                ((BigIntVector) vector).setNull(index);
-            } else if (vector instanceof IntVector) {
-                ((IntVector) vector).setNull(index);
-            } else if (vector instanceof SmallIntVector) {
-                ((SmallIntVector) vector).setNull(index);
-            } else if (vector instanceof TinyIntVector) {
-                ((TinyIntVector) vector).setNull(index);
-            } else if (vector instanceof Float4Vector) {
-                ((Float4Vector) vector).setNull(index);
-            } else if (vector instanceof Float8Vector) {
-                ((Float8Vector) vector).setNull(index);
-            } else if (vector instanceof BitVector) {
-                ((BitVector) vector).setNull(index);
-            }
-        }
-    }
-
-    /**
-     * 将 Tapdata PDK DateTime / TapDateTimeValue 转换为 DuckDB 兼容的时间戳字符串
-     * 避免 DateTime.toString() 产生 "DateTime nano 0 seconds 1735689600 timeZone null" 这种非法格式
-     */
-    private static String convertDateTimeToString(Object value) {
-        if (value instanceof DateTime dateTime) {
-            long epochMs = dateTime.toInstant().toEpochMilli();
-            return new java.sql.Timestamp(epochMs).toString();
-        }
-        if (value instanceof TapDateTimeValue tapDateTimeValue) {
-            DateTime dt = tapDateTimeValue.getValue();
-            if (dt != null) {
-                long epochMs = dt.toInstant().toEpochMilli();
-                return new java.sql.Timestamp(epochMs).toString();
-            }
-            return value.toString();
-        }
-        return value.toString();
+        ArrowValueHandler.setVectorValue(vector, index, value);
     }
 
     /**
@@ -404,68 +314,34 @@ public class ArrowWriter implements AutoCloseable {
 
     /**
      * 将值追加到DuckDB Appender（处理类型转换）
+     * 
+     * @deprecated 使用 {@link ArrowValueHandler#appendToAppender(DuckDBAppender, Object)} 替代
      */
+    @Deprecated
     private void appendToAppender(DuckDBAppender appender, Object value) throws SQLException {
-        if (value == null) {
-            appender.append((String) null);
-            return;
-        }
-        
-        if (value instanceof Integer) {
-            appender.append((Integer) value);
-        } else if (value instanceof Long) {
-            appender.append((Long) value);
-        } else if (value instanceof Short) {
-            appender.append((Short) value);
-        } else if (value instanceof Byte) {
-            appender.append((Byte) value);
-        } else if (value instanceof Float) {
-            appender.append((Float) value);
-        } else if (value instanceof Double) {
-            appender.append((Double) value);
-        } else if (value instanceof Boolean) {
-            appender.append((Boolean) value);
-        } else if (value instanceof String) {
-            appender.append((String) value);
-        } else if (value instanceof java.util.Date) {
-            appender.append((java.util.Date) value);
-        } else if (value instanceof java.sql.Timestamp) {
-            appender.append(((java.sql.Timestamp) value).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
-        } else if (value instanceof DateTime dateTime) {
-            appender.append(new java.sql.Timestamp(dateTime.toInstant().toEpochMilli()));
-        } else if (value instanceof TapDateTimeValue tapDateTimeValue) {
-            DateTime dt = tapDateTimeValue.getValue();
-            if (dt != null) {
-                appender.append(new java.sql.Timestamp(dt.toInstant().toEpochMilli()));
-            } else {
-                appender.append((String) null);
-            }
-        } else if (value instanceof java.time.LocalDateTime) {
-            appender.append((java.time.LocalDateTime) value);
-        } else if (value instanceof java.time.LocalDate) {
-            appender.append((java.time.LocalDate) value);
-        } else if (value instanceof java.math.BigDecimal) {
-            appender.append((java.math.BigDecimal) value);
-        } else if (value instanceof java.math.BigInteger) {
-            appender.append((java.math.BigInteger) value);
-        } else if (value instanceof byte[]) {
-            appender.append((byte[]) value);
-        } else if (value instanceof Collection<?>) {
-            appender.append((Collection<?>) value);
-        } else if (value instanceof Map<?, ?>) {
-            appender.append((Map<?, ?>) value);
-        } else {
-            appender.append(value.toString());
+        try {
+            ArrowValueHandler.appendToAppender(appender, value);
+        } catch (Exception e) {
+            throw new SQLException("Failed to append value to DuckDB Appender: " + e.getMessage(), e);
         }
     }
 
     /**
      * 备用插入方法（当COPY不可用时使用）
+     * 优化：添加 ON CONFLICT DO NOTHING 处理主键冲突，避免批量插入失败
      */
     private void fallbackInsert(List<Map<String, Object>> data, String tableName, TapTable tapTable) throws SQLException {
         List<String> fieldNames = new ArrayList<>(tapTable.getNameFieldMap().keySet());
         if (fieldNames.isEmpty() || data.isEmpty()) {
             return;
+        }
+        
+        // 检查是否有主键
+        List<String> primaryKeyCols = new ArrayList<>();
+        for (io.tapdata.entity.schema.TapField tapField : tapTable.getNameFieldMap().values()) {
+            if (Boolean.TRUE.equals(tapField.getPrimaryKey())) {
+                primaryKeyCols.add(tapField.getName());
+            }
         }
         
         String columns = fieldNames.stream()
@@ -488,9 +364,72 @@ public class ArrowWriter implements AutoCloseable {
         
         sqlBuilder.append(String.join(", ", valueGroups));
         
-        try (Statement stmt = connection.createStatement()) {
-            stmt.executeUpdate(sqlBuilder.toString());
+        // 如果有主键，添加 ON CONFLICT DO NOTHING 避免主键冲突
+        if (!primaryKeyCols.isEmpty()) {
+            sqlBuilder.append(" ON CONFLICT (");
+            sqlBuilder.append(primaryKeyCols.stream()
+                    .map(f -> "\"" + f + "\"")
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse(""));
+            sqlBuilder.append(") DO NOTHING");
+            logger.debug("Added ON CONFLICT DO NOTHING for primary keys: {}", primaryKeyCols);
         }
+        
+        try (Statement stmt = connection.createStatement()) {
+            int insertedRows = stmt.executeUpdate(sqlBuilder.toString());
+            logger.warn("Inserted {} rows into table {} (some rows may be ignored due to primary key conflict)",
+                insertedRows, tableName);
+        } catch (SQLException e) {
+            // 如果 ON CONFLICT 语法不支持，降级到逐行插入
+            logger.warn("Batch insert failed, falling back to row-by-row insert: {}", e.getMessage());
+            insertRowByRow(data, tableName, tapTable, fieldNames);
+        }
+    }
+    
+    /**
+     * 逐行插入（用于处理批量插入失败的情况）
+     */
+    private void insertRowByRow(List<Map<String, Object>> data, String tableName, 
+                                TapTable tapTable, List<String> fieldNames) throws SQLException {
+        int successCount = 0;
+        int ignoreCount = 0;
+        
+        for (Map<String, Object> row : data) {
+            try {
+                StringBuilder singleSql = new StringBuilder();
+                singleSql.append("INSERT INTO ").append(tableName).append(" (");
+                singleSql.append(fieldNames.stream()
+                        .map(f -> "\"" + f + "\"")
+                        .reduce((a, b) -> a + ", " + b)
+                        .orElse(""));
+                singleSql.append(") VALUES (");
+                
+                List<String> values = new ArrayList<>();
+                for (String fieldName : fieldNames) {
+                    Object value = row.get(fieldName);
+                    values.add(formatValueForSql(value));
+                }
+                singleSql.append(String.join(",", values));
+                singleSql.append(")");
+                
+                try (Statement stmt = connection.createStatement()) {
+                    stmt.executeUpdate(singleSql.toString());
+                    successCount++;
+                }
+            } catch (SQLException e) {
+                // 忽略主键冲突等约束错误，继续处理其他行
+                if (e.getMessage() != null && e.getMessage().contains("primary key constraint")) {
+                    ignoreCount++;
+                    logger.debug("Ignored duplicate key for row: {}", row);
+                } else {
+                    logger.warn("Failed to insert row: {}", e.getMessage());
+                    throw e;
+                }
+            }
+        }
+        
+        logger.info("Row-by-row insert completed: {} succeeded, {} ignored (duplicate key)", 
+            successCount, ignoreCount);
     }
 
     /**
@@ -516,20 +455,12 @@ public class ArrowWriter implements AutoCloseable {
 
     /**
      * 格式化值为SQL格式
+     * 
+     * @deprecated 使用 {@link DuckDbSqlValueFormatter#format(Object)} 替代
      */
+    @Deprecated
     private String formatValueForSql(Object value) {
-        if (value == null) {
-            return "NULL";
-        }
-        if (value instanceof String) {
-            String str = (String) value;
-            str = str.replace("'", "''");
-            return "'" + str + "'";
-        }
-        if (value instanceof java.util.Date) {
-            return "'" + new java.sql.Timestamp(((java.util.Date) value).getTime()) + "'";
-        }
-        return value.toString();
+        return DuckDbSqlValueFormatter.format(value);
     }
 
     /**

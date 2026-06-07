@@ -1,12 +1,5 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
-import com.tapdata.entity.TapdataEvent;
-import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -88,73 +81,17 @@ public class AffectedKeyCalculator {
     }
 
 
-    
     /**
-     * 从 SmartMerger 合并结果中提取 before 数据行
-     */
-    private List<Map<String, Object>> extractBeforeDataRowsFromEvents(List<SmartMerger.MergedRecord> mergedRecords, String tableName) {
-        List<Map<String, Object>> beforeRows = new ArrayList<>();
-        String pkField = getSourceTablePrimaryKey(tableName);
-        
-        for (SmartMerger.MergedRecord record : mergedRecords) {
-            List<TapdataEvent> operations = record.getOperations();
-            if (operations.isEmpty()) {
-                continue;
-            }
-            
-            int opCount = operations.size();
-            // 收集所有操作的 before 状态
-            for (int i = 0; i < opCount; i++) {
-                TapdataEvent tapEvent = operations.get(i);
-                TapEvent tapEventInner = tapEvent.getTapEvent();
-                
-                if (!(tapEventInner instanceof TapRecordEvent recordEvent)) {
-                    continue;
-                }
-                
-                boolean isLastOp = (i == opCount - 1);
-                
-                if (tapEventInner instanceof TapInsertRecordEvent || tapEventInner instanceof TapDeleteRecordEvent) {
-                    // INSERT/DELETE 事件：只有后面还有操作时才需要收集 before 数据
-                    if (!isLastOp) {
-                        Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
-                        if (after != null) {
-                            beforeRows.add(after);
-                        }
-                    }
-                } else if (tapEventInner instanceof TapUpdateRecordEvent) {
-                    // UPDATE 事件的 before 数据
-                    // 首先尝试从 before 字段获取完整数据
-                    Map<String, Object> beforeRow = TapEventUtil.getBefore(recordEvent);
-
-                    // 如果没有 before 数据，尝试构建
-                    if (beforeRow.isEmpty()) {
-                        // 使用 record 信息构建
-                        beforeRow.put(pkField, record.getInitialPk());
-                    }
-                    
-                    beforeRows.add(beforeRow);
-                }
-            }
-            
-        }
-        
-        return beforeRows;
-    }
-
-    /**
-     * 从 SmartMerger 合并结果中提取 after 数据行
+     * 从 SmartMerger 合并结果中提取 after 数据行。
+     *
+     * <p>Refactored per 2026-06-07 design: now uses {@link SmartMerger.MergedRecord#getAfterRows()}
+     * directly instead of calling {@code getFinalState()}.</p>
      */
     private List<Map<String, Object>> extractAfterDataRowsFromEvents(List<SmartMerger.MergedRecord> mergedRecords) {
         List<Map<String, Object>> afterRows = new ArrayList<>();
-        
         for (SmartMerger.MergedRecord record : mergedRecords) {
-            Map<String, Object> finalState = record.getFinalState();
-            if (finalState != null && !finalState.isEmpty()) {
-                afterRows.add(finalState);
-            }
+            afterRows.addAll(record.getAfterRows());
         }
-        
         return afterRows;
     }
 
@@ -429,12 +366,7 @@ public class AffectedKeyCalculator {
         for (List<Object> batch : batches) {
             // Replace ${pkValues} placeholder with CSV of PKs
             String pkCsv = batch.stream()
-                    .map(pk -> {
-                        if (pk instanceof String) {
-                            return "'" + pk.toString().replace("'", "''") + "'";
-                        }
-                        return pk.toString();
-                    })
+                    .map(pk -> DuckDbSqlValueFormatter.format(pk))
                     .collect(Collectors.joining(","));
 
             String query = queryTemplate.replace("${pkValues}", pkCsv);
@@ -472,69 +404,39 @@ public class AffectedKeyCalculator {
     /**
      * Overloaded: Calculate affected before keys from merged records
      */
-    public Set<Object> calculateAffectedBeforeKeys(Iterable<SmartMerger.MergedRecord> mergedRecords,
-                                                   String sourceTableName) throws SQLException {
+    public Set<Object> calculateAffectedBeforeKeys(List<SmartMerger.MergedRecord> mergedRecords,
+                                                   String tableName) throws SQLException {
         if (mergedRecords == null) {
             return Collections.emptySet();
         }
-
-        // materialize iterable to list for multiple passes
-        List<SmartMerger.MergedRecord> mergedList = new ArrayList<>();
-        for (SmartMerger.MergedRecord r : mergedRecords) mergedList.add(r);
-        if (mergedList.isEmpty()) {
-            return Collections.emptySet();
-        }
-
-        Map<String, List<SmartMerger.MergedRecord>> recordsByTable = new LinkedHashMap<>();
-        if (sourceTableName != null) {
-            recordsByTable.put(sourceTableName, mergedList);
-        } else {
-            for (SmartMerger.MergedRecord record : mergedList) {
-                String tableName = resolveTableName(record);
-                if (tableName != null) {
-                    recordsByTable.computeIfAbsent(tableName, k -> new ArrayList<>()).add(record);
-                }
-            }
-        }
-
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>();
-        for (Map.Entry<String, List<SmartMerger.MergedRecord>> entry : recordsByTable.entrySet()) {
-            String tableName = entry.getKey();
-            List<SmartMerger.MergedRecord> recordList = entry.getValue();
-            if (recordList == null || recordList.isEmpty()) {
-                continue;
+        // 主表优化路径：直接使用 MergedRecord.mainTableBeforePks
+        logger.info("Processing main table before merged records from {}", tableName);
+        // 检查是否为主表
+        if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
+            affectedBeforeKeys.addAll(
+                    mergedRecords.stream()
+                            .map(SmartMerger.MergedRecord::getMainTableBeforePks)
+                            .filter(Objects::nonNull)
+                            .flatMap(Collection::stream)
+                            .collect(Collectors.toSet())
+            );
+            logger.info("Main table before PKs for {}: {}", tableName, affectedBeforeKeys);
+        } else {
+            // 原有路径
+            List<Map<String, Object>> beforeRows = mergedRecords.stream()
+                    .map(SmartMerger.MergedRecord::getBeforeRows)
+                    .filter(Objects::nonNull)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toList());
+            if (beforeRows.isEmpty()) {
+                return affectedBeforeKeys;
             }
 
-            // 检查是否为主表
-            if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-                // 主表优化路径
-                logger.debug("Processing main table before merged records from {}, using optimized path", tableName);
-                
-                // 从合并结果中提取 before 主键
-                Set<Object> mainTablePks = new LinkedHashSet<>();
-
-                // 从合并记录中提取 before 数据
-                List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(recordList, tableName);
-                for (Map<String, Object> row : beforeRows) {
-                    Object pk = row.get(mainTablePrimaryKey);
-                    if (pk != null) {
-                        mainTablePks.add(pk);
-                    }
-                }
-                
-                affectedBeforeKeys.addAll(mainTablePks);
-            } else {
-                // 原有路径
-                List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(recordList, tableName);
-                if (beforeRows.isEmpty()) {
-                    continue;
-                }
-
-                List<String> fields = getTableFields(tableName);
-                affectedBeforeKeys.addAll(queryWideTablePksWithCte(tableName, beforeRows, fields));
-            }
+            List<String> fields = getTableFields(tableName);
+            affectedBeforeKeys.addAll(queryWideTablePksWithCte(tableName, beforeRows, fields));
+            logger.info("Main table before PKs for Sub table {}: {}", tableName, affectedBeforeKeys);
         }
-
         return affectedBeforeKeys;
     }
 
@@ -565,23 +467,15 @@ public class AffectedKeyCalculator {
 
             // 检查是否为主表
             if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-                // 主表优化路径
+                // 主表优化路径：直接使用 MergedRecord.mainTableAfterPks
                 logger.debug("Processing main table after merged records from {}, using optimized path", tableName);
-                
-                // 从合并结果中提取 after/finalState 主键
+
                 Set<Object> mainTablePks = new LinkedHashSet<>();
-                String pkField = mainTablePrimaryKey;
-                
                 for (SmartMerger.MergedRecord record : recordList) {
-                    Map<String, Object> finalState = record.getFinalState();
-                    if (finalState != null && !finalState.isEmpty()) {
-                        Object pk = finalState.get(pkField);
-                        if (pk != null) {
-                            mainTablePks.add(pk);
-                        }
-                    }
+                    mainTablePks.addAll(record.getMainTableAfterPks());
                 }
-                
+
+                logger.debug("Main table after PKs for {}: {}", tableName, mainTablePks);
                 affectedAfterKeys.addAll(mainTablePks);
             } else {
                 // 原有路径
@@ -610,14 +504,18 @@ public class AffectedKeyCalculator {
         return recordsByTable;
     }
 
+    /**
+     * Resolve table name from MergedRecord.
+     *
+     * <p>Refactored per 2026-06-07 design: now uses {@link SmartMerger.MergedRecord#getTableName()}
+     * directly instead of traversing operations.</p>
+     */
     private String resolveTableName(SmartMerger.MergedRecord record) {
-        for (TapdataEvent tapEvent : record.getOperations()) {
-            TapEvent tapEventInner = tapEvent.getTapEvent();
-            if (tapEventInner instanceof TapRecordEvent recordEvent) {
-                return TapEventUtil.getTableId(recordEvent);
-            }
+        String tableName = record.getTableName();
+        if (tableName != null && !tableName.isEmpty()) {
+            return tableName;
         }
-        logger.warn("MergedRecord without TapRecordEvent, skipping for table grouping");
+        logger.warn("MergedRecord without tableName set, skipping for table grouping");
         return null;
     }
 

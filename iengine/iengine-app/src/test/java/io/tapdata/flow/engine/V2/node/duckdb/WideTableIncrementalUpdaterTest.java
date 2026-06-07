@@ -4,6 +4,7 @@ import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

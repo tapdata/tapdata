@@ -7,7 +7,6 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 封装前置节点的完整 Schema 信息
@@ -79,10 +78,10 @@ public class NodeSchemaInfo {
         this.primaryKeySet = new HashSet<>(this.primaryKeys);
         
         this.fieldMap = fieldMap != null ?
-            Collections.unmodifiableMap(new ConcurrentHashMap<>(fieldMap)) :
+            Collections.unmodifiableMap(new LinkedHashMap<>(fieldMap)) :
             Collections.emptyMap();
         
-        Map<String, TapType> typeMapBuilder = new ConcurrentHashMap<>();
+        Map<String, TapType> typeMapBuilder = new LinkedHashMap<>();
         if (this.fieldMap != null) {
             for (Map.Entry<String, TapField> entry : this.fieldMap.entrySet()) {
                 TapField field = entry.getValue();
@@ -177,6 +176,47 @@ public class NodeSchemaInfo {
     public List<String> getFieldNames() {
         return fieldNames;
     }
+
+    /**
+     * Returns schema fields in stable order for normalization (field name and type).
+     */
+    /**
+     * Returns schema fields in stable order for normalization (field name and type).
+     * Uses insertion order of fieldMap if present, else fieldNames order.
+     */
+    public List<Field> getFields() {
+        List<Field> result = new ArrayList<>();
+        if (fieldMap != null && fieldMap instanceof LinkedHashMap) {
+            for (Map.Entry<String, TapField> entry : fieldMap.entrySet()) {
+                String name = entry.getKey();
+                TapField tapField = entry.getValue();
+                String type = tapField != null ? tapField.getDataType() : null;
+                result.add(new Field(name, type));
+            }
+        } else {
+            for (String name : getFieldNames()) {
+                TapField tapField = getField(name);
+                String type = tapField != null ? tapField.getDataType() : null;
+                result.add(new Field(name, type));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Simple field metadata for normalization.
+     */
+    public static class Field {
+        private final String name;
+        private final String type;
+        public Field(String name, String type) {
+            this.name = name;
+            this.type = type;
+        }
+        public String getName() { return name; }
+        public String getType() { return type; }
+    }
+
 
     /**
      * 获取字段数量

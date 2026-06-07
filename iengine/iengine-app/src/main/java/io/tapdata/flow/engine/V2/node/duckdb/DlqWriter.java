@@ -52,18 +52,23 @@ public class DlqWriter {
 
         Document mergedRecordDoc = null;
         if (mergedRecordState != null) {
-            // 转换 operations 为可序列化的格式
-            List<Object> operationsList = new ArrayList<>();
-            for (TapdataEvent event : mergedRecordState.getOperations()) {
-                operationsList.add(event.toString());
+            // 转换 beforeRows/afterRows 为可序列化格式
+            List<Object> beforeRowsList = new ArrayList<>();
+            for (Map<String, Object> row : mergedRecordState.getBeforeRows()) {
+                beforeRowsList.add(new Document(row));
             }
-            
+            List<Object> afterRowsList = new ArrayList<>();
+            for (Map<String, Object> row : mergedRecordState.getAfterRows()) {
+                afterRowsList.add(new Document(row));
+            }
+
             mergedRecordDoc = new Document()
-                    .append("initialPk", mergedRecordState.getInitialPk())
-                    .append("currentPk", mergedRecordState.getCurrentPk())
-                    .append("operations", operationsList)
-                    .append("finalState", mergedRecordState.getFinalState())
-                    .append("finalOp", mergedRecordState.getFinalOp());
+                    // 新字段（2026-06-07 重构）
+                    .append("beforeRows", beforeRowsList)
+                    .append("afterRows", afterRowsList)
+                    .append("mainTableBeforePks", mergedRecordState.getMainTableBeforePks())
+                    .append("mainTableAfterPks", mergedRecordState.getMainTableAfterPks())
+                    .append("tableName", mergedRecordState.getTableName());
         }
 
         Document document = new Document()
