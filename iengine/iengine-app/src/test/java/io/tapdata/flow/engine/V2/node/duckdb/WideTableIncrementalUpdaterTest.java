@@ -30,11 +30,40 @@ class WideTableIncrementalUpdaterTest {
 
     @BeforeEach
     void setUp() {
-        List<String> fields = Arrays.asList("id", "name", "email");
+        NodeSchemaInfo schemaInfo = createTestSchemaInfo();
         updater = new WideTableIncrementalUpdater(
                 "wide_table", "id",
                 "SELECT id, name, email FROM users",
-                fields, new WithCteSqlGenerator(), mockDuckDbOperator, false);
+                new WithCteSqlGenerator(), mockDuckDbOperator, false,
+                schemaInfo);
+    }
+
+    /**
+     * 创建测试用的 NodeSchemaInfo
+     */
+    private NodeSchemaInfo createTestSchemaInfo() {
+        List<String> primaryKeys = Collections.singletonList("id");
+        Map<String, TapField> fieldMap = new LinkedHashMap<>();
+        fieldMap.put("id", createTapField("id", "INT64", true));
+        fieldMap.put("name", createTapField("name", "STRING", false));
+        fieldMap.put("email", createTapField("email", "STRING", false));
+        
+        return new NodeSchemaInfo(
+                "test-node",
+                "wide_table",
+                "test.wide_table",
+                primaryKeys,
+                fieldMap,
+                null, // TapTable 在测试中可以为 null
+                null  // Schema 在测试中可以为 null
+        );
+    }
+
+    private TapField createTapField(String name, String typeName, boolean isPrimaryKey) {
+        TapField field = new TapField();
+        field.setName(name);
+        field.setDataType(typeName);
+        return field;
     }
 
     // ==================== 非事务模式测试 ====================
@@ -141,11 +170,12 @@ class WideTableIncrementalUpdaterTest {
 
     @Test
     void testUpdateWideTableAsTapdataEvents_TransactionMode_CallsExecuteInTransaction() throws SQLException, IOException {
+        NodeSchemaInfo schemaInfo = createTestSchemaInfo();
         WideTableIncrementalUpdater transactionUpdater = new WideTableIncrementalUpdater(
                 "wide_table", "id",
                 "SELECT id, name, email FROM users",
-                Arrays.asList("id", "name", "email"),
-                new WithCteSqlGenerator(), mockDuckDbOperator, true);
+                new WithCteSqlGenerator(), mockDuckDbOperator, true,
+                schemaInfo);
 
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
         Set<Object> affectedAfterKeys = new LinkedHashSet<>(Collections.singletonList(456));
@@ -169,11 +199,12 @@ class WideTableIncrementalUpdaterTest {
 
     @Test
     void testUpdateWideTableAsTapdataEvents_TransactionMode_RollbackOnError() throws SQLException, IOException {
+        NodeSchemaInfo schemaInfo = createTestSchemaInfo();
         WideTableIncrementalUpdater transactionUpdater = new WideTableIncrementalUpdater(
                 "wide_table", "id",
                 "SELECT id, name, email FROM users",
-                Arrays.asList("id", "name", "email"),
-                new WithCteSqlGenerator(), mockDuckDbOperator, true);
+                new WithCteSqlGenerator(), mockDuckDbOperator, true,
+                schemaInfo);
 
         Set<Object> affectedBeforeKeys = new LinkedHashSet<>(Collections.singletonList(123));
         List<Map<String, Object>> afterRows = Collections.singletonList(

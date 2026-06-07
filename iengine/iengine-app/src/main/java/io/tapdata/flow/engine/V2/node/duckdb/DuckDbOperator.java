@@ -242,6 +242,15 @@ public interface DuckDbOperator extends AutoCloseable {
                           List<String> primaryKeys, boolean recreate) throws SQLException;
 
     /**
+     * 确保表存在，使用 NodeSchemaInfo 中的有序字段
+     * 
+     * @param schemaInfo 包含完整表结构信息的 NodeSchemaInfo
+     * @param recreate 是否删除并重建表
+     * @throws SQLException 如果数据库操作失败
+     */
+    void ensureTableExists(NodeSchemaInfo schemaInfo, boolean recreate) throws SQLException;
+
+    /**
      * Build CREATE TABLE SQL statement from TapField definitions
      * 
      * <p>This is a static utility method that generates valid DuckDB CREATE TABLE syntax.

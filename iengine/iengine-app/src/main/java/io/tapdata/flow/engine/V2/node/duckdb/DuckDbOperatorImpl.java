@@ -516,7 +516,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         
         List<String> fieldDefs = new ArrayList<>();
         
-        for (TapField tapField : schemaInfo.getFieldMap().values()) {
+        for (TapField tapField : schemaInfo.getOrderedFields()) {
             String fieldName = tapField.getName();
             String duckDbType = convertTapTypeToDuckDbType(tapField);
             
@@ -640,7 +640,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         
         List<String> fieldDefs = new ArrayList<>();
         
-        for (TapField tapField : schemaInfo.getFieldMap().values()) {
+        for (TapField tapField : schemaInfo.getOrderedFields()) {
             String fieldName = tapField.getName();
             String duckDbType = convertTapTypeToDuckDbType(tapField);
             
@@ -1260,6 +1260,17 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
             
             logger.debug("Successfully created table: {}", safeTableName);
         }
+    }
+
+    @Override
+    public void ensureTableExists(NodeSchemaInfo schemaInfo, boolean recreate) throws SQLException {
+        Objects.requireNonNull(schemaInfo, "schemaInfo must not be null");
+        
+        String targetTableName = schemaInfo.getTargetTableName();
+        List<TapField> orderedFields = schemaInfo.getOrderedFields();
+        List<String> primaryKeys = schemaInfo.getPrimaryKeys();
+        
+        ensureTableExists(targetTableName, orderedFields, primaryKeys, recreate);
     }
 
     public static String buildCreateTableSql(String tableName, List<TapField> fields, 

@@ -12,7 +12,7 @@ import java.util.Map;
  * 将 CDC 数据嵌入 WITH 子句，生成完整的 SQL 语句
  * 
  * 生成格式：
- * WITH table_name AS (VALUES (v1, v2), (v3, v4)) AS t(field1, field2)
+ * WITH table_name(field1, field2) AS (VALUES (v1, v2), (v3, v4))
  * SELECT ... FROM table_name ...
  */
 public class WithCteSqlGenerator {
@@ -71,8 +71,8 @@ public class WithCteSqlGenerator {
             valueRows.add(valuesClause.substring("VALUES ".length()));
         }
         String valuesClause = "VALUES " + String.join(", ", valueRows);
-        String sql = String.format("WITH %s AS (%s) AS t(%s) %s",
-                tableName, valuesClause, String.join(", ", fields), sqlTemplate);
+        String sql = String.format("WITH %s (%s) AS (%s) %s",
+                tableName, String.join(", ", fields), valuesClause, sqlTemplate);
         logger.debug("Generated batch WITH CTE SQL for table {} ({} rows)", tableName, rows.size());
         return sql;
     }

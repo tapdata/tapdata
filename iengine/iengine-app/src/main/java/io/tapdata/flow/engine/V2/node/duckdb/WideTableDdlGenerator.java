@@ -475,18 +475,18 @@ public class WideTableDdlGenerator {
         
         String tableName = wideTableSchemaInfo.getTableName();
         Map<String, TapField> fieldMap = wideTableSchemaInfo.getFieldMap();
-        
+
         if (fieldMap == null || fieldMap.isEmpty()) {
             throw new IllegalArgumentException("fieldMap in wideTableSchemaInfo cannot be null or empty");
         }
-        
+
         validateTableName(tableName);
         
         StringBuilder ddl = new StringBuilder();
         ddl.append("CREATE TABLE IF NOT EXISTS ").append(quoteIdentifier(tableName)).append(" (\n");
         
         List<String> columnDefs = new ArrayList<>();
-        for (TapField tapField : fieldMap.values()) {
+        for (TapField tapField : wideTableSchemaInfo.getOrderedFields()) {
             String fieldName = tapField.getName();
             String duckDbType = convertTapTypeToDuckDbType(tapField);
             columnDefs.add("    " + quoteIdentifier(fieldName) + " " + duckDbType);

@@ -84,250 +84,11 @@ public class AffectedKeyCalculator {
         this.operator = operator;
         this.nodeSchemaMap = nodeSchemaMap;
         this.resolvedQuerySql = resolvedQuerySql;
-        this.withCteSqlGenerator = null;
+        this.withCteSqlGenerator = new WithCteSqlGenerator();
     }
 
 
     
-    /**
-     * 批量计算所有事件的before受影响主键集合
-     * 使用 SmartMerger 合并事件，提取所有历史状态的 before 数据，拼接 WITH SQL 查询宽表主键
-     *
-     * @param events    TapdataEvent列表
-     * @param sourceTableName 可选的单表名，如果提供则只处理该表的事件，否则按事件中的表名分组处理
-     * @return 所有before主键集合
-     */
-    public Set<Object> calculateAffectedBeforeKeys(List<TapdataEvent> events, String sourceTableName) throws SQLException {
-        if (events == null || events.isEmpty()) {
-            return Collections.emptySet();
-        }
-        
-        Set<Object> affectedBeforeKeys = new LinkedHashSet<>();
-
-        // 是单表处理还是多表处理：
-        Map<String, List<TapdataEvent>> eventsByTable = new LinkedHashMap<>();
-        if (sourceTableName != null) {
-            eventsByTable.put(sourceTableName, events);
-        } else {
-            // 按表名分组
-            for (TapdataEvent tapEvent : events) {
-                TapEvent tapEventInner = tapEvent.getTapEvent();
-                if (tapEventInner instanceof TapRecordEvent recordEvent) {
-                    String everyTableName = TapEventUtil.getTableId(recordEvent);
-                    if (everyTableName != null) {
-                        eventsByTable.computeIfAbsent(everyTableName, k -> new ArrayList<>()).add(tapEvent);
-                    }
-                }
-            }
-        }
-
-        for (Map.Entry<String, List<TapdataEvent>> entry : eventsByTable.entrySet()) {
-            String tableName = entry.getKey();
-            List<TapdataEvent> eventsList = entry.getValue();
-            
-            if (eventsList == null || eventsList.isEmpty()) {
-                continue;
-            }
-            
-            // 检查是否为主表
-            if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-                // 主表优化路径
-                logger.debug("Processing main table before events from {}, using optimized path", tableName);
-                
-                // 使用 SmartMerger 合并事件
-                NodeSchemaInfo schema = findSchemaInfoByTableNameInSql(tableName);
-                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList, tableName, schema);
-                
-                // 从合并结果中提取 before 主键
-                Set<Object> mainTablePks = new LinkedHashSet<>();
-                String pkField = mainTablePrimaryKey;
-                
-                // 先收集 DELETE 事件的 before
-                List<Map<String, Object>> deleteBeforeRows = extractDeleteBeforeRowsFromEvents(eventsList);
-                for (Map<String, Object> row : deleteBeforeRows) {
-                    Object pk = row.get(pkField);
-                    if (pk != null) {
-                        mainTablePks.add(pk);
-                    }
-                }
-                
-                // 再从合并结果中提取 before
-                for (SmartMerger.MergedRecord record : mergedRecords) {
-                    List<TapdataEvent> operations = record.getOperations();
-                    int opCount = operations.size();
-                    
-                    for (int i = 0; i < opCount; i++) {
-                        TapdataEvent tapEvent = operations.get(i);
-                        TapEvent tapEventInner = tapEvent.getTapEvent();
-                        
-                        if (!(tapEventInner instanceof TapRecordEvent recordEvent)) {
-                            continue;
-                        }
-                        
-                        boolean isLastOp = (i == opCount - 1);
-                        
-                        if (tapEventInner instanceof TapInsertRecordEvent || tapEventInner instanceof TapDeleteRecordEvent) {
-                            if (!isLastOp) {
-                                Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
-                                if (after != null) {
-                                    Object pk = after.get(pkField);
-                                    if (pk != null) {
-                                        mainTablePks.add(pk);
-                                    }
-                                }
-                            }
-                        } else if (tapEventInner instanceof TapUpdateRecordEvent) {
-                            Map<String, Object> before = TapEventUtil.getBefore(recordEvent);
-                            if (before != null && !before.isEmpty()) {
-                                Object pk = before.get(pkField);
-                                if (pk != null) {
-                                    mainTablePks.add(pk);
-                                }
-                            } else {
-                                Object pk = record.getInitialPk();
-                                if (pk != null) {
-                                    mainTablePks.add(pk);
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                affectedBeforeKeys.addAll(mainTablePks);
-            } else {
-                // 原有路径
-                // 1. 先收集 DELETE 事件的 before 数据（在 SmartMerger 移除记录之前）
-                List<Map<String, Object>> deleteBeforeRows = extractDeleteBeforeRowsFromEvents(eventsList);
-                
-                // 2. 使用 SmartMerger 合并事件
-                NodeSchemaInfo schema = findSchemaInfoByTableNameInSql(tableName);
-                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList, tableName, schema);
-                
-                // 3. 提取所有 before 数据行（不包括 DELETE，因为已经提前收集了）
-                List<String> fields = getTableFields(tableName);
-                List<Map<String, Object>> beforeRows = extractBeforeDataRowsFromEvents(mergedRecords, tableName);
-                
-                // 4. 合并 DELETE 的 before 数据
-                beforeRows.addAll(deleteBeforeRows);
-                
-                if (beforeRows.isEmpty()) {
-                    continue;
-                }
-                
-                // 5. 使用 WITH CTE SQL 查询宽表主键
-                Set<Object> wideTablePks = queryWideTablePksWithCte(tableName, beforeRows, fields);
-                affectedBeforeKeys.addAll(wideTablePks);
-            }
-        }
-        
-        return affectedBeforeKeys;
-    }
-
-    /**
-     * 批量计算所有事件的after受影响主键集合
-     * 使用 SmartMerger 合并事件，提取 finalState 数据，拼接 WITH SQL 查询宽表主键
-     * 
-     * @param events TapdataEvent列表
-     * @return 所有after主键集合
-     */
-    public Set<Object> calculateAffectedAfterKeys(List<TapdataEvent> events) throws SQLException {
-        if (events == null || events.isEmpty()) {
-            return Collections.emptySet();
-        }
-        
-        Set<Object> affectedAfterKeys = new LinkedHashSet<>();
-        
-        // 按表名分组
-        Map<String, List<TapdataEvent>> eventsByTable = new LinkedHashMap<>();
-        for (TapdataEvent tapEvent : events) {
-            TapEvent tapEventInner = tapEvent.getTapEvent();
-            if (tapEventInner instanceof TapRecordEvent) {
-                TapRecordEvent recordEvent = (TapRecordEvent) tapEventInner;
-                String tableName = TapEventUtil.getTableId(recordEvent);
-                if (tableName != null) {
-                    eventsByTable.computeIfAbsent(tableName, k -> new ArrayList<>()).add(tapEvent);
-                }
-            }
-        }
-        
-        for (Map.Entry<String, List<TapdataEvent>> entry : eventsByTable.entrySet()) {
-            String tableName = entry.getKey();
-            List<TapdataEvent> eventsList = entry.getValue();
-            
-            if (eventsList == null || eventsList.isEmpty()) {
-                continue;
-            }
-            
-            // 检查是否为主表
-            if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-                // 主表优化路径
-                logger.debug("Processing main table after events from {}, using optimized path", tableName);
-                
-                // 使用 SmartMerger 合并事件
-                NodeSchemaInfo schema = findSchemaInfoByTableNameInSql(tableName);
-                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList, tableName, schema);
-                
-                // 从合并结果中提取 after/finalState 主键
-                Set<Object> mainTablePks = new LinkedHashSet<>();
-                String pkField = mainTablePrimaryKey;
-                
-                for (SmartMerger.MergedRecord record : mergedRecords) {
-                    Map<String, Object> finalState = record.getFinalState();
-                    if (finalState != null && !finalState.isEmpty()) {
-                        Object pk = finalState.get(pkField);
-                        if (pk != null) {
-                            mainTablePks.add(pk);
-                        }
-                    }
-                }
-                
-                affectedAfterKeys.addAll(mainTablePks);
-            } else {
-                // 原有路径
-                // 1. 使用 SmartMerger 合并事件
-                NodeSchemaInfo schema = findSchemaInfoByTableNameInSql(tableName);
-                List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(eventsList, tableName, schema);
-                if (mergedRecords.isEmpty()) {
-                    continue;
-                }
-                
-                // 2. 提取所有 after 数据行（finalState）
-                List<String> fields = getTableFields(tableName);
-                List<Map<String, Object>> afterRows = extractAfterDataRowsFromEvents(mergedRecords);
-                
-                if (afterRows.isEmpty()) {
-                    continue;
-                }
-                
-                // 3. 使用 WITH CTE SQL 查询宽表主键
-                Set<Object> wideTablePks = queryWideTablePksWithCte(tableName, afterRows, fields);
-                affectedAfterKeys.addAll(wideTablePks);
-            }
-        }
-        
-        return affectedAfterKeys;
-    }
-
-    /**
-     * 从 TapdataEvent 列表中提取 DELETE 事件的 before 数据
-     */
-    private List<Map<String, Object>> extractDeleteBeforeRowsFromEvents(List<TapdataEvent> events) {
-        List<Map<String, Object>> deleteBeforeRows = new ArrayList<>();
-        
-        for (TapdataEvent tapEvent : events) {
-            TapEvent tapEventInner = tapEvent.getTapEvent();
-            if (tapEventInner instanceof TapDeleteRecordEvent) {
-                TapDeleteRecordEvent deleteEvent = (TapDeleteRecordEvent) tapEventInner;
-                Map<String, Object> before = TapEventUtil.getBefore(deleteEvent);
-                if (before != null) {
-                    deleteBeforeRows.add(new HashMap<>(before));
-                }
-            }
-        }
-        
-        return deleteBeforeRows;
-    }
-
     /**
      * 从 SmartMerger 合并结果中提取 before 数据行
      */
@@ -483,7 +244,7 @@ public class AffectedKeyCalculator {
      * @return List of field names, falls back to empty list if schema not found
      */
     private List<String> getTableFields(String tableName) {
-        NodeSchemaInfo schemaInfo = findSchemaInfoByTableNameInSql(tableName);
+        NodeSchemaInfo schemaInfo = findSchemaInfoByTableName(tableName);
 
         if (schemaInfo == null) {
             logger.warn("Cannot find NodeSchemaInfo for tableNameInSql={}, available nodeIds: {}",
@@ -552,6 +313,18 @@ public class AffectedKeyCalculator {
         return null;
     }
 
+    private NodeSchemaInfo findSchemaInfoByTableName(String tableName) {
+        if (nodeSchemaMap == null || nodeSchemaMap.isEmpty()) {
+            return null;
+        }
+
+        if (tableName == null || tableName.isBlank()) {
+            return null;
+        }
+
+        return nodeSchemaMap.get(tableName);
+    }
+
     /**
      * Get primary key field name for a source table.
      */
@@ -570,7 +343,7 @@ public class AffectedKeyCalculator {
      * @throws IllegalStateException if cannot determine primary key
      */
     private String getSourceTablePrimaryKey(String tableName) {
-        NodeSchemaInfo schemaInfo = findSchemaInfoByTableNameInSql(tableName);
+        NodeSchemaInfo schemaInfo = findSchemaInfoByTableName(tableName);
 
         if (schemaInfo == null) {
             logger.error("Cannot find NodeSchemaInfo for table={}, cannot determine primary key. " +

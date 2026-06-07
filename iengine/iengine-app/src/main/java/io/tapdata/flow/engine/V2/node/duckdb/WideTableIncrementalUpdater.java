@@ -27,7 +27,6 @@ public class WideTableIncrementalUpdater {
 
     private final String wideTablePrimaryKey;
     private final String querySql;
-    private final List<String> fields;
     private final WithCteSqlGenerator withCteSqlGenerator;
     private final DuckDbOperator duckDbOperator;
     private final FourStateJudge fourStateJudge;
@@ -35,8 +34,8 @@ public class WideTableIncrementalUpdater {
     private final String wideTableName;
     private final List<ChangelogListener> changelogListeners = new ArrayList<>();
     
-    /** 宽表的完整 NodeSchemaInfo（包含预计算的类型信息） */
-    private final NodeSchemaInfo wideTableSchemaInfo;
+    /** 宽表的完整 NodeSchemaInfo 缓存（包含预计算的字段列表和类型信息） */
+    private final NodeSchemaInfo tableSchemaInfoCache;
     
     /** 标记宽表是否已创建（避免重复解析 SQL） */
     private volatile boolean wideTableCreated = false;
@@ -54,9 +53,9 @@ public class WideTableIncrementalUpdater {
      * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
      */
     public WideTableIncrementalUpdater(String wideTableName, String wideTablePrimaryKey, String querySql,
-                                       List<String> fields, WithCteSqlGenerator withCteSqlGenerator,
+                                       WithCteSqlGenerator withCteSqlGenerator,
                                        DuckDbOperator duckDbOperator, boolean enableWriteWideTable) {
-        this(wideTableName, wideTableName, wideTablePrimaryKey, querySql, fields, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, null);
+        this(wideTableName, wideTableName, wideTablePrimaryKey, querySql, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, null);
     }
 
     /**
@@ -64,10 +63,10 @@ public class WideTableIncrementalUpdater {
      * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
      */
     public WideTableIncrementalUpdater(String wideTableName, String wideTablePrimaryKey, String querySql,
-                                       List<String> fields, WithCteSqlGenerator withCteSqlGenerator,
+                                       WithCteSqlGenerator withCteSqlGenerator,
                                        DuckDbOperator duckDbOperator, boolean enableWriteWideTable,
-                                       NodeSchemaInfo wideTableSchemaInfo) {
-        this(wideTableName, wideTableName, wideTablePrimaryKey, querySql, fields, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, wideTableSchemaInfo);
+                                       NodeSchemaInfo tableSchemaInfoCache) {
+        this(wideTableName, wideTableName, wideTablePrimaryKey, querySql, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, tableSchemaInfoCache);
     }
 
     /**
@@ -75,10 +74,10 @@ public class WideTableIncrementalUpdater {
      * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
      */
     public WideTableIncrementalUpdater(String tableId, String wideTableName, String wideTablePrimaryKey, 
-                                       String querySql, List<String> fields, 
+                                       String querySql,
                                        WithCteSqlGenerator withCteSqlGenerator,
                                        DuckDbOperator duckDbOperator, boolean enableWriteWideTable) {
-        this(tableId, wideTableName, wideTablePrimaryKey, querySql, fields, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, null);
+        this(tableId, wideTableName, wideTablePrimaryKey, querySql, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, null);
     }
 
     /**
@@ -86,19 +85,18 @@ public class WideTableIncrementalUpdater {
      * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
      */
     public WideTableIncrementalUpdater(String tableId, String wideTableName, String wideTablePrimaryKey,
-                                       String querySql, List<String> fields,
+                                       String querySql,
                                        WithCteSqlGenerator withCteSqlGenerator,
                                        DuckDbOperator duckDbOperator, boolean enableWriteWideTable,
-                                       NodeSchemaInfo wideTableSchemaInfo) {
+                                       NodeSchemaInfo tableSchemaInfoCache) {
         this.wideTablePrimaryKey = wideTablePrimaryKey;
         this.querySql = querySql;
-        this.fields = fields;
         this.withCteSqlGenerator = withCteSqlGenerator;
         this.duckDbOperator = duckDbOperator;
         this.fourStateJudge = new FourStateJudge(tableId, wideTablePrimaryKey);
         this.enableWriteWideTable = enableWriteWideTable;
         this.wideTableName = wideTableName;
-        this.wideTableSchemaInfo = wideTableSchemaInfo;
+        this.tableSchemaInfoCache = tableSchemaInfoCache;
         
         // 注意：宽表创建已统一移到 HazelcastDuckDbSqlNode.manageDuckDbTables() 中
         // 这里不再重复创建
@@ -142,7 +140,7 @@ public class WideTableIncrementalUpdater {
         // 1. 使用 WITH CTE 执行 after 查询
         List<Map<String, Object>> results = Collections.emptyList();
         if (afterRows != null && !afterRows.isEmpty()) {
-            String afterSql = withCteSqlGenerator.generateBatch(querySql, tableName, afterRows, fields);
+            String afterSql = withCteSqlGenerator.generateBatch(querySql, tableName, afterRows, tableSchemaInfoCache.getFieldNames());
             results = duckDbOperator.executeQuery(afterSql);
         }
 
@@ -217,7 +215,7 @@ public class WideTableIncrementalUpdater {
         // 3. 批量插入（一条 SQL，直接刷写）
         if (!inserts.isEmpty()) {
             String insertSql = WideTableBatchSqlBuilder.buildInsertSql(
-                    wideTableName, fields, inserts);
+                    wideTableName, tableSchemaInfoCache.getFieldNames(), inserts);
             logger.debug("Batch insert SQL: {}", insertSql);
             duckDbOperator.executeUpdate(insertSql);
         }
@@ -311,9 +309,9 @@ public class WideTableIncrementalUpdater {
      */
     private void createTableUsingFieldList(String tableName, String primaryKey) throws SQLException {
         // ========== 优先使用 NodeSchemaInfo（如果有） ==========
-        if (this.wideTableSchemaInfo != null && this.wideTableSchemaInfo.getFieldMap() != null && !this.wideTableSchemaInfo.getFieldMap().isEmpty()) {
-            logger.info("Creating wide table using NodeSchemaInfo: {}", wideTableSchemaInfo.getTableName());
-            String createDdl = WideTableDdlGenerator.generateCreateTableDdl(wideTableSchemaInfo, primaryKey);
+        if (this.tableSchemaInfoCache != null && this.tableSchemaInfoCache.getFieldMap() != null && !this.tableSchemaInfoCache.getFieldMap().isEmpty()) {
+            logger.info("Creating wide table using NodeSchemaInfo: {}", tableSchemaInfoCache.getTableName());
+            String createDdl = WideTableDdlGenerator.generateCreateTableDdl(tableSchemaInfoCache, primaryKey);
             duckDbOperator.executeUpdate(createDdl);
             logger.info("Successfully created table '{}' from NodeSchemaInfo", tableName);
             return;
@@ -324,8 +322,8 @@ public class WideTableIncrementalUpdater {
         List<String> selectFields = WideTableDdlGenerator.extractSelectFields(querySql);
         if (selectFields.isEmpty()) {
             // 如果解析失败，使用预定义的 fields 列表
-            logger.warn("Failed to extract fields from querySql, using predefined fields: {}", fields);
-            selectFields = fields;
+            logger.warn("Failed to extract fields from querySql, using predefined fields: {}", tableSchemaInfoCache.getFieldNames());
+            selectFields = tableSchemaInfoCache.getFieldNames();
         }
         
         // 生成传统 CREATE TABLE DDL

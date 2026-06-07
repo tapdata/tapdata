@@ -60,6 +60,9 @@ public class NodeSchemaInfo {
     
     // 预计算的Arrow Schema
     private final Schema arrowSchema;
+    
+    // 按 Arrow Schema 顺序排列的字段列表
+    private final List<TapField> orderedFields;
 
     public NodeSchemaInfo(String nodeId, String tableName, String qualifiedName,
                           List<String> primaryKeys, Map<String, TapField> fieldMap,
@@ -97,6 +100,19 @@ public class NodeSchemaInfo {
         this.fieldCount = this.fieldMap.size();
         this.initializedTime = System.currentTimeMillis();
         this.arrowSchema = arrowSchema;
+        
+        // 按 arrowSchema.fields 的顺序构建 orderedFields
+        List<TapField> orderedFieldsBuilder = new ArrayList<>();
+        if (arrowSchema != null && arrowSchema.getFields() != null) {
+            for (org.apache.arrow.vector.types.pojo.Field arrowField : arrowSchema.getFields()) {
+                String fieldName = arrowField.getName();
+                TapField tapField = this.fieldMap.get(fieldName);
+                if (tapField != null) {
+                    orderedFieldsBuilder.add(tapField);
+                }
+            }
+        }
+        this.orderedFields = Collections.unmodifiableList(orderedFieldsBuilder);
     }
     
     /**
@@ -202,6 +218,14 @@ public class NodeSchemaInfo {
      */
     public TapTable getTapTable() {
         return tapTable;
+    }
+    
+    /**
+     * 获取按 Arrow Schema 顺序排列的字段列表
+     * @return 有序的 TapField 列表
+     */
+    public List<TapField> getOrderedFields() {
+        return orderedFields;
     }
 
     public long getInitializedTime() {

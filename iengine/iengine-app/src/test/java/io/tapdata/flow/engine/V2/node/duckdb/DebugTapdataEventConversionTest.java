@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -78,8 +79,18 @@ class DebugTapdataEventConversionTest {
         assertEquals(456, ((Map<?, ?>) updateMap.get("updatedFields")).get("id"));
         assertEquals(456, updateMap.get("id"));
         
+        // 创建测试 schema
+        List<String> primaryKeys = Collections.singletonList("id");
+        Map<String, TapField> fieldMap = new HashMap<>();
+        TapField idField = new TapField("id", "INT");
+        idField.setPrimaryKey(true);
+        fieldMap.put("id", idField);
+        fieldMap.put("name", new TapField("name", "VARCHAR"));
+        NodeSchemaInfo schema = new NodeSchemaInfo("test-node", "users", "test.qualified.name",
+                primaryKeys, fieldMap, null, null);
+        
         // 测试SmartMerger: 使用原始 TapdataEvent 列表（而非 Map 列表）
-        List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(events);
+        List<SmartMerger.MergedRecord> mergedRecords = SmartMerger.mergeEventsSmart(events, "users", schema);
 
         System.out.println("\n=== SmartMerger Result ===");
         System.out.println("Merged records count: " + mergedRecords.size());
