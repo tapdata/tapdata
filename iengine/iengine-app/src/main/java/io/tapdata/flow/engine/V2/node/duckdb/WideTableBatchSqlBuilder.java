@@ -12,6 +12,17 @@ import java.util.stream.Collectors;
 public class WideTableBatchSqlBuilder {
 
     /**
+     * 构建批量删除 SQL（兼容旧签名）
+     * 
+     * @deprecated 使用 {@link #buildDeleteSql(String, String, List, Class)} 替代
+     */
+    @Deprecated
+    public static String buildDeleteSql(String tableName, String primaryKey, List<Object> primaryKeys) {
+        // 默认按 String 类型处理（向后兼容）
+        return buildDeleteSql(tableName, primaryKey, primaryKeys, null);
+    }
+
+    /**
      * 构建批量删除 SQL
      * 
      * 模板：
@@ -19,14 +30,21 @@ public class WideTableBatchSqlBuilder {
      * WHERE {primaryKey} IN (
      *     SELECT pk FROM (VALUES {valuesClause}) AS t(pk)
      * )
+     * 
+     * @param pkTargetType PK 字段的 Java 类型（如 Long.class、String.class）
+     *                        用于正确格式化 SQL 值（避免 VARCHAR 与 BIGINT 比较错误）
      */
-    public static String buildDeleteSql(String tableName, String primaryKey, List<Object> primaryKeys) {
+    public static String buildDeleteSql(String tableName, String primaryKey, 
+                                     List<Object> primaryKeys, Class<?> pkTargetType) {
         if (primaryKeys == null || primaryKeys.isEmpty()) {
             throw new IllegalArgumentException("primaryKeys cannot be empty");
         }
 
+        // 根据 pkTargetType 判断是否需要加引号
+        boolean quoteStrings = (pkTargetType == null || !Number.class.isAssignableFrom(pkTargetType));
+        
         String valuesClause = primaryKeys.stream()
-                .map(pk -> "(" + WideTableBatchSqlBuilder.formatValue(pk) + ")")
+                .map(pk -> "(" + formatPkValue(pk, quoteStrings) + ")")
                 .collect(Collectors.joining(", "));
 
         return String.format(
@@ -35,6 +53,43 @@ public class WideTableBatchSqlBuilder {
                 primaryKey,
                 valuesClause
         );
+    }
+
+    /**
+     * 根据目标类型格式化 PK 值
+     * 
+     * @param pkValue PK 值
+     * @param quoteStrings 是否给字符串加引号
+     * @return 格式化后的 SQL 字面量
+     */
+    private static String formatPkValue(Object pkValue, boolean quoteStrings) {
+        if (pkValue == null) {
+            return "NULL";
+        }
+        
+        // 如果值是数值类型，直接输出（不加引号）
+        if (pkValue instanceof Number) {
+            return pkValue.toString();
+        }
+        
+        // 如果值是字符串类型
+        if (pkValue instanceof String) {
+            if (quoteStrings) {
+                // 加引号（VARCHAR 类型）
+                return "'" + ((String) pkValue).replace("'", "''") + "'";
+            } else {
+                // 不加引号（数值类型，尝试转换为数值）
+                try {
+                    return new java.math.BigDecimal((String) pkValue).stripTrailingZeros().toString();
+                } catch (NumberFormatException e) {
+                    // 转换失败，当作字符串处理（加引号）
+                    return "'" + ((String) pkValue).replace("'", "''") + "'";
+                }
+            }
+        }
+        
+        // 其他情况：使用 DuckDbSqlValueFormatter 格式化
+        return DuckDbSqlValueFormatter.format(pkValue);
     }
 
     /**

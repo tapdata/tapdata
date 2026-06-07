@@ -1008,13 +1008,15 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             writeAfterData(operator, context.getSchema(), mergedRecords);
 
             // 步骤7: 计算 afterKeys（数据写入 DuckDB 之后、宽表更新之前）
-            Set<Object> afterKeys = null;
+            // 返回 AffectedKeysResult 包含 PKs、查询结果和 afterRows，避免重复计算
+            AffectedKeyCalculator.AffectedKeysResult afterKeysResult = null;
             if (affectedKeyCalculator != null && !mergedRecords.isEmpty()) {
-                afterKeys = affectedKeyCalculator.calculateAffectedAfterKeys(mergedRecords);
+                afterKeysResult = affectedKeyCalculator.calculateAffectedAfterKeys(mergedRecords, context.getTargetTableName());
             }
 
             // 步骤8: 更新宽表（可选），发送宽表事件到下游
-            updateWideTable(context.getTargetTableName(), beforeKeys, afterKeys, mergedRecords);
+            // 传递 AffectedKeysResult，避免重复查询和计算
+            updateWideTable(context.getTargetTableName(), beforeKeys, afterKeysResult, mergedRecords);
 
         });
 
@@ -1027,26 +1029,30 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      *
      * <p>Refactored per 2026-06-07 design: now consumes {@link SmartMerger.MergedRecord}
      * directly instead of re-traversing original events.</p>
+     * <p>Optimized per 2026-06-07: accepts AffectedKeysResult to avoid redundant computation.</p>
      *
      * @param targetTableName
-     * @param beforeKeys      写入前的主键集合
-     * @param afterKeys       写入后的主键集合
-     * @param mergedRecords  合并后的记录列表（直接从中取 afterRows）
+     * @param beforeKeys        写入前的主键集合
+     * @param afterKeysResult   写入后的主键计算结果（包含PKs、查询结果、afterRows）
+     * @param mergedRecords    合并后的记录列表（备用，优先使用 afterKeysResult 中的数据）
      */
-    private void updateWideTable(String targetTableName, Set<Object> beforeKeys, Set<Object> afterKeys,
+    private void updateWideTable(String targetTableName, 
+                                 Set<Object> beforeKeys, 
+                                 AffectedKeyCalculator.AffectedKeysResult afterKeysResult,
                                  List<SmartMerger.MergedRecord> mergedRecords) {
-        if (wideTableUpdater == null || beforeKeys == null || afterKeys == null) {
+        if (wideTableUpdater == null || beforeKeys == null || afterKeysResult == null) {
             return;
         }
 
         try {
-            // 直接从 MergedRecord.afterRows 收集，避免二次遍历原始事件
-            List<Map<String, Object>> afterRows = new ArrayList<>();
-            for (SmartMerger.MergedRecord record : mergedRecords) {
-                afterRows.addAll(record.getAfterRows());
-            }
+            // 使用 AffectedKeysResult 中的预计算数据，避免重复查询
+            Set<Object> afterKeys = afterKeysResult.getWideTablePks();
+            List<Map<String, Object>> afterRows = afterKeysResult.getAfterRows();
+            List<Map<String, Object>> wideTableQueryResults = afterKeysResult.getWideTableQueryResults();
+            
+            // 传递预计算的查询结果，避免重复执行 WITH CTE 查询
             List<TapdataEvent> wideTableEvents = wideTableUpdater.updateWideTableAsTapdataEvents(
-                beforeKeys, afterKeys, afterRows, targetTableName);
+                beforeKeys, afterKeys, wideTableQueryResults, afterRows, targetTableName);
             logger.info("增量阶段更新宽表: {} 个事件", wideTableEvents.size());
         } catch (Exception e) {
             logger.error("更新宽表失败: {}", e.getMessage(), e);

@@ -96,27 +96,29 @@ public class AffectedKeyCalculator {
     }
 
     /**
-     * 使用 WITH CTE SQL 查询宽表主键
+     * 使用 WITH CTE SQL 查询宽表主键和完整结果
      * @param tableName 子表名
      * @param dataRows 数据行
      * @param fields 字段列表
-     * @return 宽表主键集合
+     * @return AffectedKeysResult 包含宽表主键集合和查询结果
      */
-    private Set<Object> queryWideTablePksWithCte(String tableName, List<Map<String, Object>> dataRows, List<String> fields) throws SQLException {
+    private AffectedKeysResult queryWideTablePksWithCte(String tableName, 
+                                                        List<Map<String, Object>> dataRows, 
+                                                        List<String> fields) throws SQLException {
         if (dataRows == null || dataRows.isEmpty()) {
-            return Collections.emptySet();
+            return new AffectedKeysResult(Collections.emptySet(), Collections.emptyList(), dataRows);
         }
         
         // 获取 querySql
         String querySql = getQuerySqlForTable(tableName);
         if (querySql == null) {
             logger.warn("No querySql found for table {}", tableName);
-            return Collections.emptySet();
+            return new AffectedKeysResult(Collections.emptySet(), Collections.emptyList(), dataRows);
         }
         
         if (withCteSqlGenerator == null) {
             logger.warn("WithCteSqlGenerator not configured for table {}", tableName);
-            return Collections.emptySet();
+            return new AffectedKeysResult(Collections.emptySet(), Collections.emptyList(), dataRows);
         }
         
         // 生成 WITH CTE SQL
@@ -135,8 +137,8 @@ public class AffectedKeyCalculator {
                 }
             }
         }
-        
-        return wideTablePks;
+
+        return new AffectedKeysResult(wideTablePks, results != null ? results : Collections.emptyList(), dataRows);
     }
 
     /**
@@ -414,14 +416,12 @@ public class AffectedKeyCalculator {
         logger.info("Processing main table before merged records from {}", tableName);
         // 检查是否为主表
         if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-            affectedBeforeKeys.addAll(
-                    mergedRecords.stream()
-                            .map(SmartMerger.MergedRecord::getMainTableBeforePks)
-                            .filter(Objects::nonNull)
-                            .flatMap(Collection::stream)
-                            .collect(Collectors.toSet())
-            );
             logger.info("Main table before PKs for {}: {}", tableName, affectedBeforeKeys);
+            return mergedRecords.stream()
+                    .map(SmartMerger.MergedRecord::getMainTableBeforePks)
+                    .filter(Objects::nonNull)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
         } else {
             // 原有路径
             List<Map<String, Object>> beforeRows = mergedRecords.stream()
@@ -434,62 +434,62 @@ public class AffectedKeyCalculator {
             }
 
             List<String> fields = getTableFields(tableName);
-            affectedBeforeKeys.addAll(queryWideTablePksWithCte(tableName, beforeRows, fields));
+            AffectedKeysResult result = queryWideTablePksWithCte(tableName, beforeRows, fields);
             logger.info("Main table before PKs for Sub table {}: {}", tableName, affectedBeforeKeys);
+            return result.getWideTablePks();
         }
-        return affectedBeforeKeys;
     }
 
     /**
-     * Overloaded: Calculate affected after keys from merged records
+     * Calculate affected after keys from merged records.
+     * 
+     * @return AffectedKeysResult containing wideTablePks, queryResults, and afterRows
      */
-    public Set<Object> calculateAffectedAfterKeys(Iterable<SmartMerger.MergedRecord> mergedRecords)
-            throws SQLException {
-        if (mergedRecords == null) {
-            return Collections.emptySet();
+    public AffectedKeysResult calculateAffectedAfterKeys(List<SmartMerger.MergedRecord> mergedRecords, 
+                                                         String tableName) throws SQLException {
+        if (mergedRecords == null || mergedRecords.isEmpty()) {
+            return new AffectedKeysResult(Collections.emptySet(), Collections.emptyList(), Collections.emptyList());
         }
-
-        List<SmartMerger.MergedRecord> mergedList = new ArrayList<>();
-        for (SmartMerger.MergedRecord r : mergedRecords) mergedList.add(r);
-        if (mergedList.isEmpty()) {
-            return Collections.emptySet();
-        }
-
-        Map<String, List<SmartMerger.MergedRecord>> recordsByTable = groupMergedRecordsByTable(mergedList);
-        Set<Object> affectedAfterKeys = new LinkedHashSet<>();
-
-        for (Map.Entry<String, List<SmartMerger.MergedRecord>> entry : recordsByTable.entrySet()) {
-            String tableName = entry.getKey();
-            List<SmartMerger.MergedRecord> recordList = entry.getValue();
-            if (recordList == null || recordList.isEmpty()) {
-                continue;
-            }
-
-            // 检查是否为主表
-            if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-                // 主表优化路径：直接使用 MergedRecord.mainTableAfterPks
-                logger.debug("Processing main table after merged records from {}, using optimized path", tableName);
-
-                Set<Object> mainTablePks = new LinkedHashSet<>();
-                for (SmartMerger.MergedRecord record : recordList) {
-                    mainTablePks.addAll(record.getMainTableAfterPks());
-                }
-
-                logger.debug("Main table after PKs for {}: {}", tableName, mainTablePks);
-                affectedAfterKeys.addAll(mainTablePks);
-            } else {
-                // 原有路径
-                List<Map<String, Object>> afterRows = extractAfterDataRowsFromEvents(recordList);
-                if (afterRows.isEmpty()) {
-                    continue;
-                }
-
+        
+        // 主表优化路径：直接使用 MergedRecord.mainTableAfterPks
+        logger.info("Processing main table after merged records from {}", tableName);
+        
+        // 收集 afterRows（主表和子表都需要）
+        List<Map<String, Object>> afterRows = mergedRecords.stream()
+                .map(SmartMerger.MergedRecord::getAfterRows)
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
+        
+        // 检查是否为主表
+        if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
+            Set<Object> affectedKeys = mergedRecords.stream()
+                    .map(SmartMerger.MergedRecord::getMainTableAfterPks)
+                    .filter(Objects::nonNull)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            
+            logger.info("Main table after PKs for {}: {}", tableName, affectedKeys);
+            
+            // 主表：需要通过 WITH CTE 查询获取完整结果
+            if (!afterRows.isEmpty()) {
                 List<String> fields = getTableFields(tableName);
-                affectedAfterKeys.addAll(queryWideTablePksWithCte(tableName, afterRows, fields));
+                AffectedKeysResult result = queryWideTablePksWithCte(tableName, afterRows, fields);
+                // 使用主表PK覆盖（更准确）
+                return new AffectedKeysResult(affectedKeys, result.getWideTableQueryResults(), afterRows);
             }
-        }
+            return new AffectedKeysResult(affectedKeys, Collections.emptyList(), afterRows);
+        } else {
+            // 子表路径：使用 WITH CTE 查询
+            if (afterRows.isEmpty()) {
+                return new AffectedKeysResult(Collections.emptySet(), Collections.emptyList(), Collections.emptyList());
+            }
 
-        return affectedAfterKeys;
+            List<String> fields = getTableFields(tableName);
+            AffectedKeysResult result = queryWideTablePksWithCte(tableName, afterRows, fields);
+            logger.info("Main table after PKs for Sub table {}: {}", tableName, result.getWideTablePks());
+            return result;
+        }
     }
 
     private Map<String, List<SmartMerger.MergedRecord>> groupMergedRecordsByTable(
@@ -517,6 +517,57 @@ public class AffectedKeyCalculator {
         }
         logger.warn("MergedRecord without tableName set, skipping for table grouping");
         return null;
+    }
+
+    /**
+     * 受影响主键计算结果容器
+     * 
+     * <p>包含计算受影响主键过程中的中间结果，避免后续重复计算：</p>
+     * <ul>
+     *   <li>wideTablePks: 宽表待写入的主键集合</li>
+     *   <li>wideTableQueryResults: 宽表待写入结果集（WITH CTE 查询结果）</li>
+     *   <li>afterRows: 子表待写入的数据行</li>
+     * </ul>
+     */
+    public static class AffectedKeysResult {
+        
+        /** 宽表待写入的主键集合 */
+        private final Set<Object> wideTablePks;
+        
+        /** 宽表待写入结果集（WITH CTE 查询结果） */
+        private final List<Map<String, Object>> wideTableQueryResults;
+        
+        /** 子表待写入的数据行 */
+        private final List<Map<String, Object>> afterRows;
+        
+        public AffectedKeysResult(Set<Object> wideTablePks, 
+                                  List<Map<String, Object>> wideTableQueryResults,
+                                  List<Map<String, Object>> afterRows) {
+            this.wideTablePks = wideTablePks;
+            this.wideTableQueryResults = wideTableQueryResults;
+            this.afterRows = afterRows;
+        }
+        
+        public Set<Object> getWideTablePks() {
+            return wideTablePks;
+        }
+        
+        public List<Map<String, Object>> getWideTableQueryResults() {
+            return wideTableQueryResults;
+        }
+        
+        public List<Map<String, Object>> getAfterRows() {
+            return afterRows;
+        }
+        
+        /**
+         * 检查是否为空结果
+         */
+        public boolean isEmpty() {
+            return (wideTablePks == null || wideTablePks.isEmpty())
+                && (wideTableQueryResults == null || wideTableQueryResults.isEmpty())
+                && (afterRows == null || afterRows.isEmpty());
+        }
     }
 
 }

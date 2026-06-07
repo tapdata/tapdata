@@ -1,7 +1,5 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
-// import com.tapdata.entity.TapdataEvent;
-// import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -190,7 +188,7 @@ class AffectedKeyCalculatorRefactoredTest {
     }
 
     @Nested
-    @DisplayName("findSchemaInfoByTableNameInSql Tests")
+    @DisplayName("findSchemaInfoByTableName Tests")
     class FindSchemaInfoTests {
 
         private AffectedKeyCalculator calculator;
@@ -201,9 +199,8 @@ class AffectedKeyCalculatorRefactoredTest {
             when(mockSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
             when(mockSchema.getFieldNames()).thenReturn(Arrays.asList("id", "name", "email"));
 
-            mockSchemaMap.put("node_mysql_1", mockSchema);
-
-            fromTables.add(new FromTableConfig("node_mysql_1", "users"));
+            // New logic: nodeSchemaMap key is tableName (not nodeId)
+            mockSchemaMap.put("users", mockSchema);
 
             calculator = new AffectedKeyCalculator(
                 "pk",
@@ -218,10 +215,10 @@ class AffectedKeyCalculatorRefactoredTest {
         }
 
         @Test
-        @DisplayName("Should find schema info by matching tableNameInSql")
-        void testFindSchemaByTableNameInSqlSuccess() throws Exception {
+        @DisplayName("Should find schema info by tableName")
+        void testFindSchemaByTableNameSuccess() throws Exception {
             java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
-                "findSchemaInfoByTableNameInSql", String.class);
+                "findSchemaInfoByTableName", String.class);
             method.setAccessible(true);
 
             NodeSchemaInfo result = (NodeSchemaInfo) method.invoke(calculator, "users");
@@ -230,10 +227,10 @@ class AffectedKeyCalculatorRefactoredTest {
         }
 
         @Test
-        @DisplayName("Should return null when tableNameInSql not found")
-        void testFindSchemaByTableNameInSqlNotFound() throws Exception {
+        @DisplayName("Should return null when tableName not found")
+        void testFindSchemaByTableNameNotFound() throws Exception {
             java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
-                "findSchemaInfoByTableNameInSql", String.class);
+                "findSchemaInfoByTableName", String.class);
             method.setAccessible(true);
 
             NodeSchemaInfo result = (NodeSchemaInfo) method.invoke(calculator, "nonexistent");
@@ -242,23 +239,20 @@ class AffectedKeyCalculatorRefactoredTest {
         }
 
         @Test
-        @DisplayName("Should be case-insensitive for tableNameInSql matching")
-        void testFindSchemaCaseInsensitive() throws Exception {
+        @DisplayName("Should return null when tableName is null")
+        void testFindSchemaWithNullTableName() throws Exception {
             java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
-                "findSchemaInfoByTableNameInSql", String.class);
+                "findSchemaInfoByTableName", String.class);
             method.setAccessible(true);
 
-            NodeSchemaInfo resultUpper = (NodeSchemaInfo) method.invoke(calculator, "USERS");
-            NodeSchemaInfo resultLower = (NodeSchemaInfo) method.invoke(calculator, "users");
+            NodeSchemaInfo result = (NodeSchemaInfo) method.invoke(calculator, new Object[]{null});
 
-            assertNotNull(resultUpper);
-            assertNotNull(resultLower);
-            assertEquals(resultUpper, resultLower);
+            assertNull(result);
         }
 
         @Test
-        @DisplayName("Should return null when fromTables is empty")
-        void testFindSchemaWithEmptyFromTables() throws Exception {
+        @DisplayName("Should return null when nodeSchemaMap is empty")
+        void testFindSchemaWithEmptyNodeSchemaMap() throws Exception {
             AffectedKeyCalculator emptyCalculator = new AffectedKeyCalculator(
                 "pk",
                 "table",
@@ -266,12 +260,12 @@ class AffectedKeyCalculatorRefactoredTest {
                 Collections.emptyList(),
                 Collections.emptyMap(),
                 mockOperator,
-                mockSchemaMap,
+                Collections.emptyMap(),
                 "SELECT 1"
             );
 
             java.lang.reflect.Method method = AffectedKeyCalculator.class.getDeclaredMethod(
-                "findSchemaInfoByTableNameInSql", String.class);
+                "findSchemaInfoByTableName", String.class);
             method.setAccessible(true);
 
             NodeSchemaInfo result = (NodeSchemaInfo) method.invoke(emptyCalculator, "users");
@@ -365,8 +359,8 @@ class AffectedKeyCalculatorRefactoredTest {
             when(mockUserSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("user_id"));
             when(mockUserSchema.getFieldMap()).thenReturn(new HashMap<String, TapField>());
 
-            mockSchemaMap.put("node_mysql_1", mockUserSchema);
-            fromTables.add(new FromTableConfig("node_mysql_1", "users"));
+            // New logic: nodeSchemaMap key is tableName
+            mockSchemaMap.put("users", mockUserSchema);
 
             calculator = new AffectedKeyCalculator(
                 "pk",
@@ -441,8 +435,8 @@ class AffectedKeyCalculatorRefactoredTest {
             when(mockUserSchema.getFieldNames()).thenReturn(Arrays.asList("user_id", "name"));
             when(mockUserSchema.getFieldMap()).thenReturn(new HashMap<String, TapField>());
 
-            mockSchemaMap.put("node_mysql_1", mockUserSchema);
-            fromTables.add(new FromTableConfig("node_mysql_1", "users"));
+            // New logic: nodeSchemaMap key is tableName
+            mockSchemaMap.put("users", mockUserSchema);
 
             calculator = new AffectedKeyCalculator(
                 "pk",
@@ -564,11 +558,9 @@ class AffectedKeyCalculatorRefactoredTest {
             when(orderSchema.getFieldNames()).thenReturn(Arrays.asList("order_id", "user_id", "total"));
             when(orderSchema.getFieldMap()).thenReturn(new HashMap<String, TapField>());
 
-            mockSchemaMap.put("node_users", userSchema);
-            mockSchemaMap.put("node_orders", orderSchema);
-
-            fromTables.add(new FromTableConfig("node_users", "u"));
-            fromTables.add(new FromTableConfig("node_orders", "o"));
+            // New logic: nodeSchemaMap key is tableName (as used in SQL)
+            mockSchemaMap.put("u", userSchema);
+            mockSchemaMap.put("o", orderSchema);
 
             AffectedKeyCalculator calc = new AffectedKeyCalculator(
                 "id",
@@ -632,11 +624,9 @@ class AffectedKeyCalculatorRefactoredTest {
             fieldMap2.put("_id", Mockito.mock(TapField.class));
             when(schemaWithoutPk.getFieldMap()).thenReturn(fieldMap2);
 
-            mockSchemaMap.put("node_table1", schemaWithPk);
-            mockSchemaMap.put("node_table2", schemaWithoutPk);
-
-            fromTables.add(new FromTableConfig("node_table1", "t1"));
-            fromTables.add(new FromTableConfig("node_table2", "t2"));
+            // New logic: nodeSchemaMap key is tableName (as used in SQL)
+            mockSchemaMap.put("t1", schemaWithPk);
+            mockSchemaMap.put("t2", schemaWithoutPk);
 
             AffectedKeyCalculator calc = new AffectedKeyCalculator(
                 "pk",
@@ -661,106 +651,243 @@ class AffectedKeyCalculatorRefactoredTest {
         }
     }
 
-    // @Nested
-    // @DisplayName("Main Table Optimization Tests")
-    // class MainTableOptimizationTests {
-    //
-    //     private AffectedKeyCalculator calculator;
-    //
-    //     @BeforeEach
-    //     void setUp() {
-    //         NodeSchemaInfo userSchema = mock(NodeSchemaInfo.class);
-    //         when(userSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
-    //         when(userSchema.getFieldNames()).thenReturn(Arrays.asList("id", "name", "email"));
-    //         when(userSchema.getFieldMap()).thenReturn(new HashMap<>());
-    //         
-    //         mockSchemaMap.put("node_users", userSchema);
-    //         fromTables.add(new FromTableConfig("node_users", "users"));
-    //         
-    //         calculator = new AffectedKeyCalculator(
-    //             "pk",
-    //             "users",
-    //             "id",
-    //             fromTables,
-    //             Collections.emptyMap(),
-    //             mockOperator,
-    //             mockSchemaMap,
-    //             "SELECT * FROM target__users"
-    //         );
-    //     }
-    //
-    //     @Test
-    //     @DisplayName("testCalculateAffectedBeforeKeys_MainTable_OptimizedPath")
-    //     void testCalculateAffectedBeforeKeys_MainTable_OptimizedPath() throws SQLException {
-    //         List<TapdataEvent> events = new ArrayList<>();
-    //         events.add(createTapdataUpdateEvent("users", "id", 1, "name", "Alice"));
-    //         events.add(createTapdataDeleteEvent("users", "id", 2));
-    //
-    //         Set<Object> result = calculator.calculateAffectedBeforeKeys(events, "users");
-    //
-    //         assertTrue(result.contains(1L));
-    //         assertTrue(result.contains(2L));
-    //         assertEquals(2, result.size());
-    //         verify(mockOperator, never()).executeQuery(anyString());
-    //     }
-    //
-    //     @Test
-    //     @DisplayName("testCalculateAffectedAfterKeys_MainTable_OptimizedPath")
-    //     void testCalculateAffectedAfterKeys_MainTable_OptimizedPath() throws SQLException {
-    //         List<TapdataEvent> events = new ArrayList<>();
-    //         events.add(createTapdataInsertEvent("users", "id", 3, "name", "Charlie"));
-    //         events.add(createTapdataUpdateEvent("users", "id", 1, "name", "Alice"));
-    //
-    //         Set<Object> result = calculator.calculateAffectedAfterKeys(events);
-    //
-    //         assertTrue(result.contains(1L));
-    //         assertTrue(result.contains(3L));
-    //         assertEquals(2, result.size());
-    //         verify(mockOperator, never()).executeQuery(anyString());
-    //     }
-    //
-    //     private TapdataEvent createTapdataInsertEvent(String tableName, Object key, Object value, String name, Object nameValue) {
-    //         TapdataEvent tapdataEvent = new TapdataEvent();
-    //         TapInsertRecordEvent insertEvent = new TapInsertRecordEvent();
-    //         insertEvent.setTableId(tableName);
-    //
-    //         Map<String, Object> after = new HashMap<>();
-    //         after.put((String) key, value);
-    //         after.put(name, nameValue);
-    //         insertEvent.setAfter(after);
-    //
-    //         tapdataEvent.setTapEvent(insertEvent);
-    //         return tapdataEvent;
-    //     }
-    //
-    //     private TapdataEvent createTapdataUpdateEvent(String tableName, Object key, Object value, String name, Object nameValue) {
-    //         TapdataEvent tapdataEvent = new TapdataEvent();
-    //         io.tapdata.entity.event.dml.TapUpdateRecordEvent updateEvent = new io.tapdata.entity.event.dml.TapUpdateRecordEvent();
-    //         updateEvent.setTableId(tableName);
-    //
-    //         Map<String, Object> before = new HashMap<>();
-    //         Map<String, Object> after = new HashMap<>();
-    //         before.put((String) key, value);
-    //         after.put((String) key, value);
-    //         after.put(name, nameValue);
-    //         updateEvent.setBefore(before);
-    //         updateEvent.setAfter(after);
-    //
-    //         tapdataEvent.setTapEvent(updateEvent);
-    //         return tapdataEvent;
-    //     }
-    //
-    //     private TapdataEvent createTapdataDeleteEvent(String tableName, Object key, Object value) {
-    //         TapdataEvent tapdataEvent = new TapdataEvent();
-    //         io.tapdata.entity.event.dml.TapDeleteRecordEvent deleteEvent = new io.tapdata.entity.event.dml.TapDeleteRecordEvent();
-    //         deleteEvent.setTableId(tableName);
-    //
-    //         Map<String, Object> before = new HashMap<>();
-    //         before.put((String) key, value);
-    //         deleteEvent.setBefore(before);
-    //
-    //         tapdataEvent.setTapEvent(deleteEvent);
-    //         return tapdataEvent;
-    //     }
-    // }
+    @Nested
+    @DisplayName("Main Table Optimization Tests")
+    class MainTableOptimizationTests {
+
+        private AffectedKeyCalculator calculator;
+
+        @BeforeEach
+        void setUp() {
+            NodeSchemaInfo userSchema = mock(NodeSchemaInfo.class);
+            when(userSchema.getPrimaryKeys()).thenReturn(Collections.singletonList("id"));
+            when(userSchema.getFieldNames()).thenReturn(Arrays.asList("id", "name", "email"));
+            when(userSchema.getFieldMap()).thenReturn(new HashMap<>());
+            
+            mockSchemaMap.put("node_users", userSchema);
+            fromTables.add(new FromTableConfig("node_users", "users"));
+            
+            calculator = new AffectedKeyCalculator(
+                "pk",
+                "users",
+                "id",
+                fromTables,
+                Collections.emptyMap(),
+                mockOperator,
+                mockSchemaMap,
+                "SELECT * FROM target__users"
+            );
+        }
+
+        @Test
+        @DisplayName("Test calculateAffectedBeforeKeys for main table - optimized path")
+        void testCalculateAffectedBeforeKeys_MainTable_OptimizedPath() throws SQLException {
+            List<SmartMerger.MergedRecord> mergedRecords = new ArrayList<>();
+            
+            // Add UPDATE event (before key = 1)
+            SmartMerger.MergedRecord updateRecord = createMergedRecord("users", 1, 
+                createRow("id", 1, "name", "Alice_old"), 
+                createRow("id", 1, "name", "Alice_new"));
+            mergedRecords.add(updateRecord);
+            
+            // Add DELETE event (before key = 2)
+            SmartMerger.MergedRecord deleteRecord = createMergedRecord("users", 2, 
+                createRow("id", 2, "name", "Bob"), 
+                null);
+            mergedRecords.add(deleteRecord);
+
+            Set<Object> result = calculator.calculateAffectedBeforeKeys(mergedRecords, "users");
+
+            assertTrue(result.contains(1));
+            assertTrue(result.contains(2));
+            assertEquals(2, result.size());
+            verify(mockOperator, never()).executeQuery(anyString());
+        }
+
+        @Test
+        @DisplayName("Test calculateAffectedAfterKeys for main table - returns AffectedKeysResult")
+        void testCalculateAffectedAfterKeys_MainTable_OptimizedPath() throws SQLException {
+            List<SmartMerger.MergedRecord> mergedRecords = new ArrayList<>();
+            
+            // Add INSERT event (after key = 3)
+            SmartMerger.MergedRecord insertRecord = createMergedRecord("users", 3, 
+                null, 
+                createRow("id", 3, "name", "Charlie"));
+            mergedRecords.add(insertRecord);
+            
+            // Add UPDATE event (after key = 1)
+            SmartMerger.MergedRecord updateRecord = createMergedRecord("users", 1, 
+                createRow("id", 1, "name", "Alice_old"), 
+                createRow("id", 1, "name", "Alice_new"));
+            mergedRecords.add(updateRecord);
+
+            AffectedKeyCalculator.AffectedKeysResult result = calculator.calculateAffectedAfterKeys(mergedRecords, "users");
+
+            assertNotNull(result);
+            assertTrue(result.getWideTablePks().contains(1));
+            assertTrue(result.getWideTablePks().contains(3));
+            assertEquals(2, result.getWideTablePks().size());
+            assertNotNull(result.getAfterRows());
+        }
+        
+        @Test
+        @DisplayName("Test AffectedKeysResult contains afterRows")
+        void testAffectedKeysResultContainsAfterRows() throws SQLException {
+            List<SmartMerger.MergedRecord> mergedRecords = new ArrayList<>();
+            
+            Map<String, Object> afterRow = createRow("id", 1, "name", "Alice");
+            SmartMerger.MergedRecord record = createMergedRecord("users", 1, null, afterRow);
+            mergedRecords.add(record);
+
+            AffectedKeyCalculator.AffectedKeysResult result = calculator.calculateAffectedAfterKeys(mergedRecords, "users");
+
+            assertNotNull(result);
+            assertNotNull(result.getAfterRows());
+            assertEquals(1, result.getAfterRows().size());
+            assertEquals("Alice", result.getAfterRows().get(0).get("name"));
+        }
+        
+        @Test
+        @DisplayName("Test AffectedKeysResult with empty input returns empty result")
+        void testCalculateAffectedAfterKeys_EmptyInput() throws SQLException {
+            List<SmartMerger.MergedRecord> mergedRecords = new ArrayList<>();
+
+            AffectedKeyCalculator.AffectedKeysResult result = calculator.calculateAffectedAfterKeys(mergedRecords, "users");
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+            assertTrue(result.getWideTablePks().isEmpty());
+            assertTrue(result.getAfterRows().isEmpty());
+            assertTrue(result.getWideTableQueryResults().isEmpty());
+        }
+        
+        @Test
+        @DisplayName("Test AffectedKeysResult with null input returns empty result")
+        void testCalculateAffectedAfterKeys_NullInput() throws SQLException {
+            AffectedKeyCalculator.AffectedKeysResult result = calculator.calculateAffectedAfterKeys(null, "users");
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        /**
+         * Helper method to create a MergedRecord with before/after rows
+         */
+        private SmartMerger.MergedRecord createMergedRecord(String tableName, Object pk, 
+                                                             Map<String, Object> beforeRow, 
+                                                             Map<String, Object> afterRow) {
+            SmartMerger.MergedRecord record = new SmartMerger.MergedRecord();
+            record.setTableName(tableName);
+            
+            if (beforeRow != null) {
+                record.getBeforeRows().add(beforeRow);
+                record.getMainTableBeforePks().add(pk);
+            }
+            
+            if (afterRow != null) {
+                record.setAfterRow(pk.toString(), afterRow);
+                record.getMainTableAfterPks().add(pk);
+            }
+            
+            return record;
+        }
+        
+        /**
+         * Helper method to create a row map
+         */
+        private Map<String, Object> createRow(Object... kvPairs) {
+            Map<String, Object> row = new HashMap<>();
+            for (int i = 0; i < kvPairs.length; i += 2) {
+                row.put((String) kvPairs[i], kvPairs[i + 1]);
+            }
+            return row;
+        }
+    }
+    
+    @Nested
+    @DisplayName("AffectedKeysResult Tests")
+    class AffectedKeysResultTests {
+        
+        @Test
+        @DisplayName("Test AffectedKeysResult constructor and getters")
+        void testConstructorAndGetters() {
+            Set<Object> pks = new LinkedHashSet<>(Arrays.asList(1, 2, 3));
+            List<Map<String, Object>> queryResults = Arrays.asList(
+                createRow("pk", 1, "name", "Alice"),
+                createRow("pk", 2, "name", "Bob")
+            );
+            List<Map<String, Object>> afterRows = Arrays.asList(
+                createRow("id", 1, "value", "a"),
+                createRow("id", 2, "value", "b")
+            );
+            
+            AffectedKeyCalculator.AffectedKeysResult result = 
+                new AffectedKeyCalculator.AffectedKeysResult(pks, queryResults, afterRows);
+            
+            assertEquals(3, result.getWideTablePks().size());
+            assertTrue(result.getWideTablePks().contains(1));
+            
+            assertEquals(2, result.getWideTableQueryResults().size());
+            assertEquals("Alice", result.getWideTableQueryResults().get(0).get("name"));
+            
+            assertEquals(2, result.getAfterRows().size());
+            assertEquals("a", result.getAfterRows().get(0).get("value"));
+        }
+        
+        @Test
+        @DisplayName("Test AffectedKeysResult isEmpty method")
+        void testIsEmpty() {
+            // Empty result
+            AffectedKeyCalculator.AffectedKeysResult emptyResult = 
+                new AffectedKeyCalculator.AffectedKeysResult(
+                    Collections.emptySet(), 
+                    Collections.emptyList(), 
+                    Collections.emptyList());
+            assertTrue(emptyResult.isEmpty());
+            
+            // Non-empty PKs
+            AffectedKeyCalculator.AffectedKeysResult nonEmpty1 = 
+                new AffectedKeyCalculator.AffectedKeysResult(
+                    new LinkedHashSet<>(Arrays.asList(1)), 
+                    Collections.emptyList(), 
+                    Collections.emptyList());
+            assertFalse(nonEmpty1.isEmpty());
+            
+            // Non-empty queryResults
+            AffectedKeyCalculator.AffectedKeysResult nonEmpty2 = 
+                new AffectedKeyCalculator.AffectedKeysResult(
+                    Collections.emptySet(), 
+                    Arrays.asList(createRow("pk", 1)), 
+                    Collections.emptyList());
+            assertFalse(nonEmpty2.isEmpty());
+            
+            // Non-empty afterRows
+            AffectedKeyCalculator.AffectedKeysResult nonEmpty3 = 
+                new AffectedKeyCalculator.AffectedKeysResult(
+                    Collections.emptySet(), 
+                    Collections.emptyList(), 
+                    Arrays.asList(createRow("id", 1)));
+            assertFalse(nonEmpty3.isEmpty());
+        }
+        
+        @Test
+        @DisplayName("Test AffectedKeysResult with null values")
+        void testConstructorWithNulls() {
+            AffectedKeyCalculator.AffectedKeysResult result = 
+                new AffectedKeyCalculator.AffectedKeysResult(null, null, null);
+            
+            assertNull(result.getWideTablePks());
+            assertNull(result.getWideTableQueryResults());
+            assertNull(result.getAfterRows());
+            assertTrue(result.isEmpty());  // null fields should be treated as empty
+        }
+        
+        private Map<String, Object> createRow(Object... kvPairs) {
+            Map<String, Object> row = new HashMap<>();
+            for (int i = 0; i < kvPairs.length; i += 2) {
+                row.put((String) kvPairs[i], kvPairs[i + 1]);
+            }
+            return row;
+        }
+    }
 }

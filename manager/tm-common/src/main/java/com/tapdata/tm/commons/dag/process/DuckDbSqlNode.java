@@ -34,6 +34,9 @@ import java.util.Map;
 @Slf4j
 public class DuckDbSqlNode extends ProcessorNode {
 
+    /** 默认查询 SQL（null 表示未设置） */
+    public static final String DEFAULT_QUERY_SQL = null;
+    
     /** 默认批大小 */
     public static final int DEFAULT_BATCH_SIZE = 1000;
 
