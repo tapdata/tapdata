@@ -87,11 +87,9 @@ public class TaskRestartScheduleTest {
         }
 
         @Test
-        void testWaitRunTaskSkipsWhenAgentAlive() {
-            // Regression for HA drill test: a wait_run task whose current agent is still
-            // alive must NOT roll back to scheduling. Earlier behavior triggered OVERTIME
-            // purely on scheduledTime, which falsely tore down tasks on healthy engines
-            // whenever the engine's task-pingTime update was momentarily delayed.
+        void testWaitRunTaskReschedulesWhenAgentAlive() {
+            // A wait_run task that exceeds the task heartbeat timeout should be rolled back
+            // and rescheduled instead of resending START directly.
             String userId = "test-user-id";
             String agentId = "test-agent-id";
 
@@ -116,6 +114,7 @@ public class TaskRestartScheduleTest {
 
             StateMachineService stateMachineService = mock(StateMachineService.class);
             taskRestartSchedule.setStateMachineService(stateMachineService);
+            when(stateMachineService.executeAboutTask(any(TaskDto.class), eq(DataFlowEvent.OVERTIME), any(UserDetail.class))).thenReturn(StateMachineResult.ok());
 
             TaskScheduleService taskScheduleService = mock(TaskScheduleService.class);
             taskRestartSchedule.setTaskScheduleService(taskScheduleService);
@@ -138,8 +137,9 @@ public class TaskRestartScheduleTest {
 
             taskRestartSchedule.waitRunTask();
 
-            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), any(DataFlowEvent.class), any(UserDetail.class));
-            verify(taskScheduleService, never()).scheduling(any(), any(), any());
+            verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
+            verify(taskScheduleService, times(1)).scheduling(taskDto, userDetail, true);
+            verify(taskScheduleService, never()).sendStartMsg(anyString(), anyString(), any(UserDetail.class));
         }
 
         @Test

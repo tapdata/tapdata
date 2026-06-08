@@ -170,12 +170,14 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             bulkOperations.upsert(query, update);
             if (SAMPLE_TYPE_TASK.equals(tags.get(FIELD_TAGS_TYPE))) {
                 Map<String, Object> vs = (Map) sampleMap.get(Sample.FIELD_VALUES);
-                Object replicateLag = Optional.ofNullable(vs.get(FIELD_SS_VS_REPLICATE_LAG)).orElse(0);
-                Long taskDelayTime = taskDelayTimeMap.get(tags.get(FIELD_TAGS_TASK_ID));
-                long delayTime = Long.parseLong(replicateLag.toString());
-                if (null == taskDelayTime || taskDelayTime != delayTime){
-                    taskDelayTimeMap.put(tags.get(FIELD_TAGS_TASK_ID), delayTime);
-                    taskService.updateDelayTime(new ObjectId(tags.get(FIELD_TAGS_TASK_ID)), delayTime);
+                Object replicateLag = vs.get(FIELD_SS_VS_REPLICATE_LAG);
+                if(null != replicateLag) {
+                    Long taskDelayTime = taskDelayTimeMap.get(tags.get(FIELD_TAGS_TASK_ID));
+                    long delayTime = Long.parseLong(replicateLag.toString());
+                    if (null == taskDelayTime || taskDelayTime != delayTime){
+                        taskDelayTimeMap.put(tags.get(FIELD_TAGS_TASK_ID), delayTime);
+                        taskService.updateDelayTime(new ObjectId(tags.get(FIELD_TAGS_TASK_ID)), delayTime);
+                    }
                 }
             }
         }

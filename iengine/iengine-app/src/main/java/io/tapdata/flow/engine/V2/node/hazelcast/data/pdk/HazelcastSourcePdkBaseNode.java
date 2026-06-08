@@ -729,6 +729,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         } else {
             syncProgress.setEventTime(offsetStartTimeMs);
             syncProgress.setSourceTime(offsetStartTimeMs);
+            syncProgress.setOffsetStartTime(offsetStartTimeMs);
         }
         if (null != syncProgress.getStreamOffsetObj()) {
             TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
