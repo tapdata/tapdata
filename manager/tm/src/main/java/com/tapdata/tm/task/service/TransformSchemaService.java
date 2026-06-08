@@ -206,21 +206,25 @@ public class TransformSchemaService {
             node.setService(dagDataService);
             node.getDag().setTaskId(taskDto.getId());
 
-            if (node instanceof DataParentNode) {
-                Optional.ofNullable(((DataParentNode<?>) node).getFieldChangeRules()).ifPresent(fieldChangeRules -> {
+            if (node instanceof DataParentNode dataParentNode) {
+                Optional.ofNullable(dataParentNode.getFieldChangeRules()).ifPresent(fieldChangeRules -> {
                     if (null == options.getFieldChangeRules()) {
                         options.setFieldChangeRules(new FieldChangeRuleGroup());
                     }
                     options.getFieldChangeRules().addAll(node.getId(), fieldChangeRules);
                 });
-                Map<String,List<DifferenceField>> differenceFieldMap = metadataInstancesCompareService.getMetadataInstancesComparesByType(node.getId(), ((DataParentNode<?>) node).getApplyCompareRules());
-                if(MapUtils.isNotEmpty(differenceFieldMap)){
-                    options.setDifferenceFields(differenceFieldMap);
+                boolean skip = false;
+                if (dataParentNode instanceof TableNode tableNode && "dropTable".equals(tableNode.getExistDataProcessMode())) {
+                    skip = true;
+                }else if(dataParentNode instanceof DatabaseNode databaseNode && "dropTable".equals(databaseNode.getExistDataProcessMode())){
+                    skip = true;
                 }
-            }
-            if (node instanceof TableRenameProcessNode) {
-                TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) node;
-                options.setTableRenameRelationMap(DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames));
+                if(!skip){
+                    Map<String,List<DifferenceField>> differenceFieldMap = metadataInstancesCompareService.getMetadataInstancesComparesByType(node.getId(), ((DataParentNode<?>) node).getApplyCompareRules());
+                    if(MapUtils.isNotEmpty(differenceFieldMap)){
+                        options.setDifferenceFields(differenceFieldMap);
+                    }
+                }
             }
             if (node instanceof TableRenameProcessNode) {
                 TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) node;
