@@ -18,7 +18,7 @@
         "category": "share_cdc",
         "scope": "global",
         "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
-        "documentation": "Is shared mining globally enabled by default, using the default external storage specified in the external storage list",
+        "documentation": "global_share_cdc_enable_doc",
         "category_sort": 20,
         "default_value": "false",
         "hot_reloading": false,
