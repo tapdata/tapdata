@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
@@ -48,6 +49,7 @@ public class FourStateJudge {
                         .before(Collections.singletonMap(wideTablePrimaryKey, pk));
                 TapdataEvent tapdataEvent = new TapdataEvent();
                 tapdataEvent.setTapEvent(deleteEvent);
+                tapdataEvent.setSyncStage(SyncStage.CDC);
                 events.add(tapdataEvent);
                 logger.debug("Four-state judge: DELETE pk={}", pk);
             }
@@ -66,6 +68,7 @@ public class FourStateJudge {
                         .after(row);
                 TapdataEvent tapdataEvent = new TapdataEvent();
                 tapdataEvent.setTapEvent(updateEvent);
+                tapdataEvent.setSyncStage(SyncStage.CDC);
                 events.add(tapdataEvent);
                 logger.debug("Four-state judge: UPDATE pk={}", pk);
             } else {
@@ -73,6 +76,7 @@ public class FourStateJudge {
                         .table(tableId)
                         .after(row);
                 TapdataEvent tapdataEvent = new TapdataEvent();
+                tapdataEvent.setSyncStage(SyncStage.CDC);
                 tapdataEvent.setTapEvent(insertEvent);
                 events.add(tapdataEvent);
                 logger.debug("Four-state judge: INSERT pk={}", pk);

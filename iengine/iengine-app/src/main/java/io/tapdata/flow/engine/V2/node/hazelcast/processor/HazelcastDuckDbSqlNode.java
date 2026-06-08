@@ -116,7 +116,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     // Pending events to emit
     private final Queue<TapdataEvent> pendingEvents = new LinkedList<>();
-    private BiConsumer<TapdataEvent, ProcessResult> currentConsumer;
+    private volatile BiConsumer<TapdataEvent, ProcessResult> currentConsumer;
 
     public HazelcastDuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -571,7 +571,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private void emitEvent(TapdataEvent event) {
         if (currentConsumer != null) {
             try {
-                currentConsumer.accept(event, null);
+                currentConsumer.accept(event, getProcessResult(TapEventUtil.getTableId(event.getTapEvent())));
                 logger.debug("Generated changelog event: {}", event);
             } catch (Exception e) {
                 logger.warn("发送事件失败: event={},{}", event, e.getMessage());
@@ -998,7 +998,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
 
         // 步骤4-6: DuckDB 事务开启，写入数据
-        operator.executeInTransaction(() -> {
+//        operator.
+//                executeInTransaction(() -> {
             // 步骤5: Before 的所有数据全部执行 delete 操作
             deleteBeforeData(operator, context.getTargetTableName(), mergedRecords, context.getSchema());
 
@@ -1016,7 +1017,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             // 传递 AffectedKeysResult，避免重复查询和计算
             updateWideTable(context.getTargetTableName(), beforeKeys, afterKeysResult, mergedRecords);
 
-        });
+//        });
 
         logger.debug("增量阶段刷写 {} 条记录到DuckDB表: {} (原始 {} 条)",
             mergedRecords.size(), context.getTargetTableName(), eventsToFlush.size());
