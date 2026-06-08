@@ -27,7 +27,7 @@ public class DocumentIMap<T> extends ConstructIMap<T> {
 	public int insert(String key, T data) throws Exception {
 		if (!(data instanceof Document)) {
 			Document document = new Document(DOCUMENT_KEY, data);
-			iMap.put(key, document);
+			putInternal(key, document);
 			return 1;
 		} else {
 			return super.insert(key, data);
