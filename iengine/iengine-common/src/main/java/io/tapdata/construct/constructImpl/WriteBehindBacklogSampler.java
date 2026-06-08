@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Background sampler of the write-behind backlog for the registered cache IMaps, used by
@@ -45,7 +46,13 @@ final class WriteBehindBacklogSampler {
 
 	private final Map<String, IMap<?, ?>> registered = new ConcurrentHashMap<>();
 	private final Map<String, Integer> failures = new ConcurrentHashMap<>();
-	private volatile Map<String, Long> backlogByMap = Collections.emptyMap();
+	/**
+	 * Latest per-map backlog snapshot. Each sampling cycle builds a fresh, then-immutable map and publishes it
+	 * here atomically; readers only ever see a fully-constructed snapshot. An {@link AtomicReference} (a
+	 * thread-safe type) expresses this swap-the-whole-snapshot idiom safely, unlike a {@code volatile} field
+	 * which would only publish the reference, not guard the map's contents.
+	 */
+	private final AtomicReference<Map<String, Long>> backlogByMap = new AtomicReference<>(Collections.emptyMap());
 	private volatile long totalBacklog = 0L;
 	private boolean started = false;
 
@@ -80,7 +87,7 @@ final class WriteBehindBacklogSampler {
 		if (name == null) {
 			return 0L;
 		}
-		Long v = backlogByMap.get(name);
+		Long v = backlogByMap.get().get(name);
 		return v == null ? 0L : v;
 	}
 
@@ -97,7 +104,7 @@ final class WriteBehindBacklogSampler {
 
 	private void loop() {
 		while (true) {
-			Map<String, Long> prev = backlogByMap;
+			Map<String, Long> prev = backlogByMap.get();
 			try {
 				Map<String, Long> current = new HashMap<>(registered.size() * 2);
 				long total = 0L;
@@ -124,7 +131,8 @@ final class WriteBehindBacklogSampler {
 						}
 					}
 				}
-				backlogByMap = current;
+				// Publish an immutable snapshot so the map is never mutated after it becomes visible to readers.
+				backlogByMap.set(Collections.unmodifiableMap(current));
 				totalBacklog = total;
 			} catch (Throwable t) {
 				// Never let the sampler die or permanently disable backpressure; keep the previous snapshot.
