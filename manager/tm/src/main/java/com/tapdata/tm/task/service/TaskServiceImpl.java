@@ -151,6 +151,7 @@ import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.task.service.dashboard.TaskDashboardService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
+import com.tapdata.tm.taskrebalance.service.TaskRebalanceJobService;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
@@ -393,9 +394,18 @@ public class TaskServiceImpl extends TaskService{
     private ILicenseService iLicenseService;
     private MetadataInstancesCompareService metadataInstancesCompareService;
     private AnalyzerService analyzerService;
+    private TaskRebalanceJobService taskRebalanceJobService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
+    }
+
+    private void assertTaskNotRebalancing(ObjectId taskId, UserDetail user) {
+        if (taskRebalanceJobService != null
+                && !taskRebalanceJobService.isCheckBypassed()
+                && taskRebalanceJobService.hasActiveJob(taskId.toHexString(), user)) {
+            throw new BizException("task.rebalance.taskRebalancing");
+        }
     }
 
 	public Supplier<TaskDto> dataPermissionFindById(ObjectId taskId, Field fields) {
@@ -1350,6 +1360,7 @@ public class TaskServiceImpl extends TaskService{
 
     public void renew(ObjectId id, UserDetail user, boolean system) {
         TaskDto taskDto = checkExistById(id, user);
+        assertTaskNotRebalancing(id, user);
         boolean needCreateRecord = !Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_WAIT_START).contains(taskDto.getStatus());
         //boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
         TaskEntity taskSnapshot = null;
@@ -4511,6 +4522,7 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        assertTaskNotRebalancing(taskDto.getId(), user);
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
@@ -4822,6 +4834,7 @@ public class TaskServiceImpl extends TaskService{
      * @param restart
      */
     public void pause(TaskDto taskDto, UserDetail user, boolean force, boolean restart) {
+        assertTaskNotRebalancing(taskDto.getId(), user);
 
         //重启的特殊处理，共享挖掘的比较多
         Field field = new Field();

@@ -24,6 +24,7 @@ public enum DataPermissionMenuEnums {
 	LogCollectorTack(DataPermissionDataTypeEnums.Task, null),
 	ConnHeartbeatTack(DataPermissionDataTypeEnums.Task, null),
 	MemCacheTack(DataPermissionDataTypeEnums.Task, null),
+	TaskRebalance(DataPermissionDataTypeEnums.Task, null),
 	INSPECT_TACK(DataPermissionDataTypeEnums.INSPECT, null),
 	Modules(DataPermissionDataTypeEnums.Modules, initAllDataPermissionName(DataPermissionDataTypeEnums.Modules,"v2_data-server-list_all_data")),
 	;
