@@ -12,7 +12,7 @@
             "documentation": "task start transform wait seconds doc",
             "hot_reloading": true,
             "key": "task.start.transformWaitSeconds",
-            "key_label": "task start transform wait seconds"
+            "key_label": "task start transform wait seconds",
             "last_update": 0,
             "last_update_by": "",
             "scope": "global",
