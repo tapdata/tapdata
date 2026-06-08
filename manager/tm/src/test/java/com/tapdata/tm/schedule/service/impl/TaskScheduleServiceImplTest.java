@@ -5,9 +5,12 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
+import com.tapdata.tm.task.service.TaskCollectionObjService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.impl.TaskScheduleServiceImpl;
 import com.tapdata.tm.user.service.UserService;
@@ -35,6 +38,63 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class TaskScheduleServiceImplTest {
+    @Nested
+    class SchedulingTest {
+        final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
+                "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+        final ObjectId taskId = MongoUtils.toObjectId("6324562fc5c0a4052d821d90");
+        TaskScheduleServiceImpl taskScheduleService;
+        TaskService taskService;
+        StateMachineService stateMachineService;
+        MonitoringLogsService monitoringLogsService;
+        TaskCollectionObjService taskCollectionObjService;
+        MessageQueueService messageQueueService;
+        TaskDto taskDto;
+
+        @BeforeEach
+        void beforeEach() {
+            taskScheduleService = spy(new TaskScheduleServiceImpl());
+            taskService = mock(TaskService.class);
+            stateMachineService = mock(StateMachineService.class);
+            monitoringLogsService = mock(MonitoringLogsService.class);
+            taskCollectionObjService = mock(TaskCollectionObjService.class);
+            messageQueueService = mock(MessageQueueService.class);
+
+            taskScheduleService.setTaskService(taskService);
+            taskScheduleService.setStateMachineService(stateMachineService);
+            taskScheduleService.setMonitoringLogsService(monitoringLogsService);
+            taskScheduleService.setTaskCollectionObjService(taskCollectionObjService);
+            taskScheduleService.setMessageQueueService(messageQueueService);
+
+            taskDto = new TaskDto();
+            taskDto.setId(taskId);
+            taskDto.setUserId(user.getUserId());
+            taskDto.setName("test");
+            taskDto.setStatus(TaskDto.STATUS_SCHEDULING);
+            taskDto.setAgentId("old-agent");
+            taskDto.setCanOpenInspect(false);
+        }
+
+        @Test
+        void shouldNotStopOldAgentWhenTaskRescheduled() {
+            CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
+            calculationEngineVo.setProcessId("new-agent");
+            doAnswer(invocation -> {
+                taskDto.setAgentId("new-agent");
+                return calculationEngineVo;
+            }).when(taskScheduleService).cloudTaskLimitNum(taskDto, user, false);
+            when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_SUCCESS, user)).thenReturn(StateMachineResult.ok());
+            when(taskService.findById(taskId, user)).thenReturn(taskDto);
+            doNothing().when(taskScheduleService).sendStartMsg(taskId.toHexString(), "new-agent", user);
+
+            taskScheduleService.scheduling(taskDto, user, true);
+
+            verify(taskService, never()).sendStoppingMsg(taskId.toHexString(), "old-agent", user, false);
+            verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_SUCCESS, user);
+            verify(taskScheduleService, times(1)).sendStartMsg(taskId.toHexString(), "new-agent", user);
+        }
+    }
+
     @Nested
     class testCloudTaskLimitNum {
         final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",

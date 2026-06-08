@@ -67,12 +67,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user,Boolean isReStart) {
-        // Capture the previous owner BEFORE cloudTaskLimitNum mutates taskDto.agentId
-        // so we can fire a best-effort STOP to it after a new owner is chosen (HA failover
-        // path). Reduces the dual-running window when the old engine is alive but TM
-        // already moved the task elsewhere.
-        String oldAgentId = taskDto.getAgentId();
-
         FunctionUtils.ignoreAnyError(() -> {
             CheckTaskMemoryResult checkTaskMemoryResult = taskService.checkTaskMemoryHeap(taskDto, isReStart, user);
             if (null != checkTaskMemoryResult && !checkTaskMemoryResult.getIsSafe()) {
@@ -101,20 +95,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         Date now = new Date();
         monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getProcessName(), calculationEngineVo.getAvailable(), calculationEngineVo.isManually(), user, now);
-
-        // Best-effort STOP to the previous owner so it shuts down its local TaskClient
-        // before the new owner finishes booting. Failure here is non-fatal: TaskPingTimeMonitor
-        // on the old engine has its own ownership-loss self-stop as backup.
-        if (StringUtils.isNotBlank(oldAgentId) && !oldAgentId.equals(taskDto.getAgentId())) {
-            try {
-                log.info("TaskHA event=stop_old_agent taskId={} oldAgentId={} newAgentId={}",
-                        taskDto.getId().toHexString(), oldAgentId, taskDto.getAgentId());
-                taskService.sendStoppingMsg(taskDto.getId().toHexString(), oldAgentId, user, false);
-            } catch (Exception e) {
-                log.warn("TaskHA event=stop_old_agent_failed taskId={} oldAgentId={} error={}",
-                        taskDto.getId().toHexString(), oldAgentId, e.getMessage());
-            }
-        }
 
         // Step 1: Write agentId first while still in SCHEDULING state.
         // This is safe because no scheduler dispatches start messages to tasks in SCHEDULING state.
