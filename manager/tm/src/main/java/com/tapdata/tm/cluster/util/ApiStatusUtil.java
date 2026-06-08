@@ -34,6 +34,16 @@ public final class ApiStatusUtil {
     }
 
     public static void statusOfApi(boolean clusterStopped, Worker apiInfo, Component workerClusterStatus, Consumer<String> apiStatusFromAgent, Consumer<String> apiStatusFromApiServer) {
+        statusOfApiInfo(clusterStopped, apiInfo, workerClusterStatus, apiStatusFromAgent, apiStatusFromApiServer);
+        if (null != workerClusterStatus) {
+            String status = workerClusterStatus.getStatus();
+            if ("not_deploy".equals(status)) {
+                apiStatusFromApiServer.accept("not_deploy");
+            }
+        }
+    }
+
+    public static void statusOfApiInfo(boolean clusterStopped, Worker apiInfo, Component workerClusterStatus, Consumer<String> apiStatusFromAgent, Consumer<String> apiStatusFromApiServer) {
         // 显式停止意图优先于自报心跳。
         // 设计要点：
         //  · markWorkerStopped 只写 stopping=true + ping_time=0L，不动 worker_status.metricValues.lastUpdateTime —
