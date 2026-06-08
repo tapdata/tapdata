@@ -70,7 +70,7 @@ public class PdkStateMap extends CleanRuleKVMap {
 		if (AppType.currentType().isCloud()) {
 			initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
 		} else {
-			ExternalStorageDto tapdataOrDefaultExternalStorage = ExternalStorageUtil.getDefaultExternalStorage();
+			ExternalStorageDto tapdataOrDefaultExternalStorage = ExternalStorageUtil.getTapdataOrDefaultExternalStorage();
 			if (mapName.equals(GLOBAL_MAP_NAME)) {
 				initGlobalStateMap(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
 			} else {
