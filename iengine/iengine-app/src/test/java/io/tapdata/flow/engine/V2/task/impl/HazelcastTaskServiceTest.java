@@ -6,7 +6,9 @@ import com.hazelcast.jet.Job;
 import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
+import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientException;
+import com.mongodb.client.MongoClient;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectionUtil;
@@ -146,6 +148,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -161,6 +164,46 @@ import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 
 
 public class HazelcastTaskServiceTest {
+    @Nested
+    class InitCacheInvalidationServiceTest {
+        @Test
+        void shouldUseConfiguredMongoClientFromClientMongoOperator() {
+            ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+            MongoClient mongoClient = mock(MongoClient.class);
+            HazelcastInstance hazelcastInstance = mock(HazelcastInstance.class);
+            HazelcastTaskService service = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
+
+            when(clientMongoOperator.getConnectionString()).thenReturn(new ConnectionString("mongodb://localhost:27017/testDB"));
+            when(clientMongoOperator.getMongoClient()).thenReturn(mongoClient);
+            ReflectionTestUtils.setField(service, "hazelcastInstance", hazelcastInstance);
+
+            try (MockedStatic<HazelcastUtil> hazelcastUtilMockedStatic = mockStatic(HazelcastUtil.class)) {
+                ReflectionTestUtils.invokeMethod(service, "initCacheInvalidationService", "test-node-id");
+
+                hazelcastUtilMockedStatic.verify(() -> HazelcastUtil.initCacheInvalidationService(
+                        hazelcastInstance, mongoClient, "testDB", "test-node-id"
+                ));
+            }
+        }
+
+        @Test
+        void shouldPassNullMongoClientToHazelcastUtilWhenClientMongoOperatorHasNoMongoClient() {
+            ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+            HazelcastTaskService service = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
+
+            when(clientMongoOperator.getConnectionString()).thenReturn(new ConnectionString("mongodb://localhost:27017/testDB"));
+            when(clientMongoOperator.getMongoClient()).thenReturn(null);
+
+            try (MockedStatic<HazelcastUtil> hazelcastUtilMockedStatic = mockStatic(HazelcastUtil.class)) {
+                ReflectionTestUtils.invokeMethod(service, "initCacheInvalidationService", "test-node-id");
+
+                hazelcastUtilMockedStatic.verify(() -> HazelcastUtil.initCacheInvalidationService(
+                        any(HazelcastInstance.class), isNull(), eq("testDB"), eq("test-node-id")
+                ));
+            }
+        }
+    }
+
     @Nested
     class GetTaskRetryConfigTest {
         private HazelcastTaskService hazelcastTaskService;
