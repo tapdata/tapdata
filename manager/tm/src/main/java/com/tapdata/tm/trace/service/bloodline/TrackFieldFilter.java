@@ -82,7 +82,9 @@ public class TrackFieldFilter {
 
         Map<String, Node<?>> nodeMap = new HashMap<>();
         dag.getNodes().forEach(node -> nodeMap.put(node.getId(), node));
-        while (!nodeMap.isEmpty()) {
+        int maxLoopCount = 64;
+        while (!nodeMap.isEmpty() && maxLoopCount > 0) {
+            maxLoopCount--;
             for (Node<?> node : dag.getNodes()) {
                 String id = node.getId();
                 Set<String> upStreamIds = upstreamNodeIds(id, dag.getEdges());
