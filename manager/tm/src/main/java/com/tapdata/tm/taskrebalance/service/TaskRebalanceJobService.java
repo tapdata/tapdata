@@ -26,6 +26,7 @@ public class TaskRebalanceJobService extends BaseService<TaskRebalanceJobDto, Ta
 
     @Override
     protected void beforeSave(TaskRebalanceJobDto dto, UserDetail userDetail) {
+        // No-op: rebalance jobs do not need extra save-time validation.
     }
 
     public boolean hasActiveJob(String taskId, UserDetail userDetail) {
@@ -60,7 +61,11 @@ public class TaskRebalanceJobService extends BaseService<TaskRebalanceJobDto, Ta
         try {
             runnable.run();
         } finally {
-            restoreThreadLocal(BYPASS_REBALANCE_CHECK, old);
+            if (Boolean.TRUE.equals(old)) {
+                BYPASS_REBALANCE_CHECK.set(true);
+            } else {
+                BYPASS_REBALANCE_CHECK.remove();
+            }
         }
     }
 
@@ -72,16 +77,16 @@ public class TaskRebalanceJobService extends BaseService<TaskRebalanceJobDto, Ta
         try {
             runnable.run();
         } finally {
-            restoreThreadLocal(BYPASS_REBALANCE_CHECK, oldBypass);
-            restoreThreadLocal(REBALANCE_OPERATION, oldOperation);
-        }
-    }
-
-    private static void restoreThreadLocal(ThreadLocal<Boolean> threadLocal, Boolean old) {
-        if (Boolean.TRUE.equals(old)) {
-            threadLocal.set(true);
-        } else {
-            threadLocal.remove();
+            if (Boolean.TRUE.equals(oldBypass)) {
+                BYPASS_REBALANCE_CHECK.set(true);
+            } else {
+                BYPASS_REBALANCE_CHECK.remove();
+            }
+            if (Boolean.TRUE.equals(oldOperation)) {
+                REBALANCE_OPERATION.set(true);
+            } else {
+                REBALANCE_OPERATION.remove();
+            }
         }
     }
 }
