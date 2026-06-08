@@ -37,8 +37,8 @@ public class TaskRebalanceScheduler implements SmartInitializingSingleton {
     });
     private final AtomicReference<ScheduledFuture<?>> scheduleFuture = new AtomicReference<>();
     private final AtomicBoolean initialized = new AtomicBoolean(false);
-    private volatile ILock lock;
-    private volatile ActiveServiceLock activeServiceLock;
+    private final AtomicReference<ILock> lock = new AtomicReference<>();
+    private final AtomicReference<ActiveServiceLock> activeServiceLock = new AtomicReference<>();
 
     public TaskRebalanceScheduler(@NonNull TaskRebalanceService taskRebalanceService,
                                   @NonNull SettingsService settingsService,
@@ -57,15 +57,16 @@ public class TaskRebalanceScheduler implements SmartInitializingSingleton {
             return;
         }
         log.info("TaskRebalanceScheduler initializing, lockKey={}, owner={}", LOCK_KEY, dbLockConfiguration.getOwner());
-        this.lock = DBLock.create(dbLockRepository, LOCK_KEY);
+        ILock createdLock = DBLock.create(dbLockRepository, LOCK_KEY);
+        this.lock.set(createdLock);
         this.initialized.set(true);
-        this.activeServiceLock = lock.activeService(
+        this.activeServiceLock.set(createdLock.activeService(
                 dbLockConfiguration.getOwner(),
                 dbLockConfiguration.getExpireSeconds(),
                 dbLockConfiguration.getHeartbeatSeconds(),
                 activeServiceLock -> startSchedule(),
                 activeServiceLock -> stopSchedule()
-        );
+        ));
     }
 
     private void startSchedule() {
@@ -109,12 +110,14 @@ public class TaskRebalanceScheduler implements SmartInitializingSingleton {
         log.info("TaskRebalanceScheduler destroying");
         stopSchedule();
         scheduleExecutor.shutdownNow();
-        if (activeServiceLock != null) {
+        ActiveServiceLock serviceLock = activeServiceLock.getAndSet(null);
+        if (serviceLock != null) {
             try {
-                activeServiceLock.close();
+                serviceLock.close();
             } catch (Exception e) {
                 log.warn("TaskRebalanceScheduler close active service lock failed", e);
             }
         }
+        lock.set(null);
     }
 }

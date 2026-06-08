@@ -1,6 +1,7 @@
 package com.tapdata.tm.taskrebalance.service;
 
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
@@ -91,6 +92,7 @@ class TaskRebalanceServiceTest {
         private final TaskRebalanceJobService jobService = mock(TaskRebalanceJobService.class);
         private final TaskService taskService = mock(TaskService.class);
         private final WorkerService workerService = mock(WorkerService.class);
+        private final SettingsService settingsService = mock(SettingsService.class);
         private final TaskRebalanceRuleService ruleService = mock(TaskRebalanceRuleService.class);
         private final TaskRebalanceService service = new TaskRebalanceService(
                 mock(TaskRebalanceRepository.class),
@@ -98,11 +100,13 @@ class TaskRebalanceServiceTest {
                 taskService,
                 workerService,
                 mock(UserService.class),
-                mock(SettingsService.class),
+                settingsService,
                 ruleService
         );
 
         private TestContext() {
+            new SettingUtil(settingsService);
+            when(settingsService.getByCategoryAndKey(any(String.class), any(String.class))).thenReturn("30");
             Worker target = new Worker();
             target.setProcessId("target");
             when(workerService.findAllEntity(any(Query.class))).thenReturn(List.of(target));
