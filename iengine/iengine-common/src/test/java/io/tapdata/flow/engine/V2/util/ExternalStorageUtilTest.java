@@ -10,10 +10,18 @@ import io.tapdata.error.ExternalStorageExCode_26;
 import io.tapdata.exception.TapCodeException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 class ExternalStorageUtilTest {
 
@@ -50,5 +58,27 @@ class ExternalStorageUtilTest {
          });
          assertEquals(ExternalStorageExCode_26.CANNOT_FOUND_EXTERNAL_STORAGE_CONFIG,tapCodeException.getCode());
      }
+
+    @DisplayName("testGetTapdataOrDefaultExternalStorage when ExternalStorage is default")
+    @Test
+    void testGetDefaultExternalStorage() {
+        HttpClientMongoOperator httpClientMongoOperator = mock(HttpClientMongoOperator.class);
+        ConnectorConstant.clientMongoOperator=httpClientMongoOperator;
+        Query query = Query.query(new Criteria().orOperator(
+                where("name").is(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME),
+                where("defaultStorage").is(true)
+        ));
+        List<ExternalStorageDto> externalStorages = new ArrayList<>();
+        ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+        externalStorageDto.setName("Tapdata MongoDB External Storage");
+        externalStorageDto.setDefaultStorage(false);
+        ExternalStorageDto defaultExternalStorageDto = new ExternalStorageDto();
+        defaultExternalStorageDto.setName("test");
+        defaultExternalStorageDto.setDefaultStorage(true);
+        externalStorages.add(externalStorageDto);
+        externalStorages.add(defaultExternalStorageDto);
+        when(httpClientMongoOperator.find(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class)).thenReturn(externalStorages);
+        assertEquals(defaultExternalStorageDto, ExternalStorageUtil.getTapdataOrDefaultExternalStorage());
+    }
 
 }
