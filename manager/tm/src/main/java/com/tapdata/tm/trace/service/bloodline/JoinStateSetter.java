@@ -285,12 +285,13 @@ public class JoinStateSetter {
             return;
         }
         for (LineageTask lineageTask : tasks.values()) {
-            if (null == lineageTask || StringUtils.isBlank(lineageTask.getId())) {
+            if (null == lineageTask || StringUtils.isBlank(lineageTask.getId()) || null == lineageTask.getTaskNode()) {
                 continue;
             }
             String taskId = lineageTask.getId();
             Node<?> taskNode = lineageTask.getTaskNode();
             String nodeId = taskNode.getId();
+            assert null != nodeId;
             boolean hasJoin = Optional.ofNullable(hasJoinMap.get(taskId)).orElse(false);
             boolean hasMerge = Optional.ofNullable(hasMergeMap.get(taskId)).orElse(false);
             boolean hasAppend = Optional.ofNullable(hasAppendMap.get(taskId)).orElse(false);
@@ -497,6 +498,9 @@ public class JoinStateSetter {
     }
 
     void collectJoinKeys(List<MergeTableProperties> infos, Map<String, TableProperties> mergePropertiesMap, DAG taskDag, String tableType) {
+        if (CollectionUtils.isEmpty(infos)) {
+            return;
+        }
         infos.forEach(child -> {
             String id = child.getId();
             Map<String, TableProperties> propertiesMap = loadRootInfo(id, taskDag, child);

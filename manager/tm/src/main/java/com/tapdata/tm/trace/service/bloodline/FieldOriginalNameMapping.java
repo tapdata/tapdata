@@ -478,7 +478,7 @@ public class FieldOriginalNameMapping {
         List<LineageTableNode> nonSourceType = sinkTableNodes.stream()
                 .filter(n -> null == n.getMetadata() || !"SOURCE".equalsIgnoreCase(n.getMetadata().getSourceType()))
                 .toList();
-        List<LineageTableNode> candidates = CollectionUtils.isEmpty(nonSourceType) ? sinkTableNodes : nonSourceType;
+        List<LineageTableNode> candidates = new ArrayList<>(CollectionUtils.isEmpty(nonSourceType) ? sinkTableNodes : nonSourceType);
         candidates.sort(Comparator.comparing(Node::getId, Comparator.nullsLast(String::compareTo)));
         return candidates.get(0);
     }

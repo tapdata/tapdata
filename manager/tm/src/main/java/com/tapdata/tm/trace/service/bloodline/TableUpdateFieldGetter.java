@@ -2,6 +2,7 @@ package com.tapdata.tm.trace.service.bloodline;
 
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTableNode;
@@ -13,9 +14,11 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -65,49 +68,62 @@ public class TableUpdateFieldGetter {
                 continue;
             }
             String effectiveTaskId = null == taskDag.getTaskId() ? taskId : taskDag.getTaskId().toHexString();
-            TableNode targetTableNode = findTargetTableNodeInTaskDag(taskDag, targetLineageTableNode.getConnectionId(), targetLineageTableNode.getTable());
-            if (null != targetTableNode) {
+            Node<?> node = findTargetTableNodeInTaskDag(taskDag, targetLineageTableNode.getConnectionId(), targetLineageTableNode.getTable());
+            if (null == node) {
+                continue;
+            }
+            if (node instanceof TableNode targetTableNode) {
                 List<String> configured = targetTableNode.getUpdateConditionFields();
                 if (CollectionUtils.isNotEmpty(configured)) {
                     targetTableUpdateFields.addAll(configured);
                     return;
                 }
-                List<String> fallback = fieldOriginalNameMapping.getPrimaryOrUniqueKeyFieldsForNodeOrSource(effectiveTaskId, targetTableNode);
-                if (CollectionUtils.isNotEmpty(fallback)) {
-                    targetTableUpdateFields.addAll(fallback);
+            }
+            if (node instanceof DatabaseNode databaseNode) {
+                Map<String, List<String>> updateConditionFieldMap = Optional.ofNullable(databaseNode.getUpdateConditionFieldMap()).orElse(new HashMap<>());
+                List<String> configured = updateConditionFieldMap.get(targetLineageTableNode.getTable());
+                if (CollectionUtils.isNotEmpty(configured)) {
+                    targetTableUpdateFields.addAll(configured);
                     return;
                 }
+            }
+            List<String> fallback = fieldOriginalNameMapping.getPrimaryOrUniqueKeyFieldsForNodeOrSource(effectiveTaskId, node.getId(), targetLineageTableNode.getConnectionId(), targetLineageTableNode.getTable());
+            if (CollectionUtils.isNotEmpty(fallback)) {
+                targetTableUpdateFields.addAll(fallback);
+                return;
             }
         }
     }
 
-    protected TableNode findTargetTableNodeInTaskDag(DAG taskDag, String connectionId, String tableName) {
+    protected Node<?> findTargetTableNodeInTaskDag(DAG taskDag, String connectionId, String tableName) {
         if (null == taskDag || StringUtils.isBlank(connectionId) || StringUtils.isBlank(tableName)) {
             return null;
         }
         List<Node> targets = taskDag.getTargets();
-        if (CollectionUtils.isNotEmpty(targets)) {
-            for (Node<?> node : targets) {
-                if (!(node instanceof TableNode tableNode)) {
-                    continue;
-                }
-                if (connectionId.equals(tableNode.getConnectionId()) && tableName.equals(tableNode.getTableName())) {
-                    return tableNode;
-                }
-            }
-            for (Node<?> node : targets) {
-                if (node instanceof TableNode tNode) {
-                    return tNode;
-                }
+        Node<?> n = findNode(connectionId, tableName, targets);
+        if (null != n) {
+            return n;
+        }
+        for (Node<?> node : targets) {
+            if (node instanceof TableNode || node instanceof DatabaseNode) {
+                return node;
             }
         }
-        if (CollectionUtils.isNotEmpty(taskDag.getNodes())) {
-            for (Node<?> node : taskDag.getNodes()) {
-                if (!(node instanceof TableNode tableNode)) {
-                    continue;
-                }
-                if (connectionId.equals(tableNode.getConnectionId()) && tableName.equals(tableNode.getTableName())) {
-                    return tableNode;
+        return findNode(connectionId, tableName, taskDag.getNodes());
+    }
+
+    Node<?> findNode(String connectionId, String tableName, List<Node> targets) {
+        if (CollectionUtils.isEmpty(targets)) {
+            return null;
+        }
+        for (Node<?> node : targets) {
+            if (node instanceof TableNode tableNode && connectionId.equals(tableNode.getConnectionId()) && tableName.equals(tableNode.getTableName())) {
+                return tableNode;
+            }
+            if (node instanceof DatabaseNode dbNode && connectionId.equals(dbNode.getConnectionId())) {
+                List<String> tableNames = dbNode.getTableNames();
+                if (CollectionUtils.isNotEmpty(tableNames) && tableNames.contains(tableName)) {
+                    return dbNode;
                 }
             }
         }
