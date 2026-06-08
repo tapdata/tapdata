@@ -60,7 +60,7 @@ public class TaskRebalanceJobService extends BaseService<TaskRebalanceJobDto, Ta
         try {
             runnable.run();
         } finally {
-            BYPASS_REBALANCE_CHECK.set(old);
+            restoreBypassRebalanceCheck(old);
         }
     }
 
@@ -72,8 +72,24 @@ public class TaskRebalanceJobService extends BaseService<TaskRebalanceJobDto, Ta
         try {
             runnable.run();
         } finally {
-            BYPASS_REBALANCE_CHECK.set(oldBypass);
-            REBALANCE_OPERATION.set(oldOperation);
+            restoreBypassRebalanceCheck(oldBypass);
+            restoreRebalanceOperation(oldOperation);
+        }
+    }
+
+    private static void restoreBypassRebalanceCheck(Boolean old) {
+        if (Boolean.TRUE.equals(old)) {
+            BYPASS_REBALANCE_CHECK.set(true);
+        } else {
+            BYPASS_REBALANCE_CHECK.remove();
+        }
+    }
+
+    private static void restoreRebalanceOperation(Boolean old) {
+        if (Boolean.TRUE.equals(old)) {
+            REBALANCE_OPERATION.set(true);
+        } else {
+            REBALANCE_OPERATION.remove();
         }
     }
 }

@@ -1,12 +1,26 @@
 package com.tapdata.tm.taskrebalance.service;
 
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.taskrebalance.constant.TaskRebalanceJobStatus;
 import com.tapdata.tm.taskrebalance.repository.TaskRebalanceJobRepository;
+import org.bson.Document;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.mongodb.core.query.Query;
 
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 class TaskRebalanceJobServiceTest {
 
@@ -86,5 +100,58 @@ class TaskRebalanceJobServiceTest {
         });
         assertFalse(otherThreadBypassed[0]);
         assertFalse(otherThreadRebalance[0]);
+    }
+
+    @Test
+    @DisplayName("hasActiveJob skips blank task id")
+    void hasActiveJobReturnsFalseWhenTaskIdIsNull() {
+        TaskRebalanceJobService service = spy(new TaskRebalanceJobService(mock(TaskRebalanceJobRepository.class)));
+
+        assertFalse(service.hasActiveJob(null, mock(UserDetail.class)));
+
+        verify(service, never()).count(any(Query.class), any(UserDetail.class));
+    }
+
+    @Test
+    @DisplayName("hasActiveJob queries task id and active statuses")
+    void hasActiveJobQueriesActiveStatus() {
+        TaskRebalanceJobService service = spy(new TaskRebalanceJobService(mock(TaskRebalanceJobRepository.class)));
+        UserDetail user = mock(UserDetail.class);
+        doReturn(1L).when(service).count(any(Query.class), eq(user));
+
+        assertTrue(service.hasActiveJob("task-1", user));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(service).count(queryCaptor.capture(), eq(user));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("task-1", query.get("taskId"));
+        assertEquals(TaskRebalanceJobStatus.ACTIVE_STATUS, query.get("status", Document.class).get("$in"));
+    }
+
+    @Test
+    @DisplayName("hasAnyActiveJob skips empty task ids")
+    void hasAnyActiveJobReturnsFalseWhenTaskIdsAreEmpty() {
+        TaskRebalanceJobService service = spy(new TaskRebalanceJobService(mock(TaskRebalanceJobRepository.class)));
+
+        assertFalse(service.hasAnyActiveJob(List.of(), mock(UserDetail.class)));
+
+        verify(service, never()).count(any(Query.class), any(UserDetail.class));
+    }
+
+    @Test
+    @DisplayName("hasAnyActiveJob queries task ids and active statuses")
+    void hasAnyActiveJobQueriesActiveStatus() {
+        TaskRebalanceJobService service = spy(new TaskRebalanceJobService(mock(TaskRebalanceJobRepository.class)));
+        UserDetail user = mock(UserDetail.class);
+        List<String> taskIds = List.of("task-1", "task-2");
+        doReturn(0L).when(service).count(any(Query.class), eq(user));
+
+        assertFalse(service.hasAnyActiveJob(taskIds, user));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(service).count(queryCaptor.capture(), eq(user));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals(taskIds, query.get("taskId", Document.class).get("$in"));
+        assertEquals(TaskRebalanceJobStatus.ACTIVE_STATUS, query.get("status", Document.class).get("$in"));
     }
 }
