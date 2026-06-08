@@ -894,11 +894,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             } catch (Exception e) {
                 logger.error("刷写Context {} 到DuckDB失败: {}", context.getKey(), e.getMessage(), e);
-                // 数据回滚到缓冲区
-                context.getBatchBuffer().addAll(0, eventsToFlush);
-                eventsToFlush.clear();
                 context.getAccumulatedRecordCount().addAndGet(eventsToFlush.size());
                 writeToDlq(context, extractDataFromEvents(eventsToFlush), e);
+                eventsToFlush.clear();
             }
         }
     }
@@ -1073,13 +1071,13 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * @throws SQLException 如果数据库操作失败
      */
     private void deleteBeforeData(DuckDbOperator operator, String tableName,
-                                  List<SmartMerger.MergedRecord> mergedRecords,
-                                  NodeSchemaInfo schema) throws SQLException {
+                                   List<SmartMerger.MergedRecord> mergedRecords,
+                                   NodeSchemaInfo schema) throws SQLException {
         List<Object> beforePks = new ArrayList<>(mergedRecords.stream().map(SmartMerger.MergedRecord::getMainTableBeforePks).filter(Objects::nonNull).flatMap(Collection::stream).toList());
 
         if (!beforePks.isEmpty()) {
-            String deleteSql = buildDeleteSql(tableName, beforePks, schema);
-            operator.executeUpdate(deleteSql);
+            logger.debug("Deleting {} before rows from table '{}'", beforePks.size(), tableName);
+            operator.deleteByIds(beforePks, schema);
         }
     }
 
@@ -1108,36 +1106,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     /**
-     * 构建批量 DELETE SQL
-     * @param tableName 表名
-     * @param pks 主键列表
-     * @param schema 表的 schema 信息（用于获取真实主键）
-     * @return DELETE SQL 语句
+     * @deprecated 已迁移至 {@link DuckDbOperator#deleteByIds}。
+     *             此方法将在未来版本中移除。
      */
-    private String buildDeleteSql(String tableName, List<Object> pks, NodeSchemaInfo schema) {
-        StringBuilder sql = new StringBuilder();
-        sql.append("DELETE FROM ").append(tableName).append(" WHERE ");
-
-        // 从 NodeSchemaInfo 获取真实主键
-        List<String> primaryKeys = schema.getPrimaryKeys();
-        if (primaryKeys == null || primaryKeys.isEmpty()) {
-            throw new IllegalStateException("No primary keys defined for table: " + tableName);
-        }
-        String pkField = primaryKeys.get(0);
-
-        sql.append(pkField).append(" IN (");
-        boolean first = true;
-        for (Object pk : pks) {
-            if (first) {
-                first = false;
-            } else {
-                sql.append(", ");
-            }
-            // 使用统一的 SQL 值格式化工具
-            sql.append(DuckDbSqlValueFormatter.format(pk));
-        }
-        sql.append(")");
-        return sql.toString();
+    @Deprecated
+    private void buildDeleteSql() {
+        throw new UnsupportedOperationException("Use DuckDbOperator.deleteByIds() instead");
     }
 
     /**
@@ -1438,7 +1412,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         // - 任务配置中的 rebuild 标识
         // - 任务重置/重启状态
         // - Schema 变更检测
-        return false;
+        return true;
     }
 
     /**

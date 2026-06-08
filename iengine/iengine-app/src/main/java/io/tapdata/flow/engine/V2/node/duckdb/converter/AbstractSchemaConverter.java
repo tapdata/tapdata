@@ -80,26 +80,26 @@ public abstract class AbstractSchemaConverter<S, T> implements SchemaConverter<S
         
         // 尝试从缓存获取
         String key = getSourceKey(source);
-        CacheEntry<T> entry = cache.get(key);
-        
-        // 检查缓存是否有效
-        if (entry != null && !entry.isExpired(cacheExpireTime)) {
-            entry.touch(); // 更新访问时间
-            logger.debug("Cache hit for key: {}", key);
-            return entry.getValue();
-        }
-        
-        // 缓存未命中或已过期，执行转换
-        logger.debug("Cache miss for key: {}, converting...", key);
+//        CacheEntry<T> entry = cache.get(key);
+//
+//        // 检查缓存是否有效
+//        if (entry != null && !entry.isExpired(cacheExpireTime)) {
+//            entry.touch(); // 更新访问时间
+//            logger.debug("Cache hit for key: {}", key);
+//            return entry.getValue();
+//        }
+//
+//        // 缓存未命中或已过期，执行转换
+//        logger.debug("Cache miss for key: {}, converting...", key);
         T result = doConvert(source);
         
         // 缓存结果
-        if (result != null) {
-            cache.put(key, new CacheEntry<>(result));
-        }
-        
-        // 尝试清理过期缓存
-        tryCleanup();
+//        if (result != null) {
+//            cache.put(key, new CacheEntry<>(result));
+//        }
+//
+//        // 尝试清理过期缓存
+//        tryCleanup();
         
         return result;
     }

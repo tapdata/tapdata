@@ -12,9 +12,14 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.sql.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * DuckDB操作实现类 - 整合连接管理、Arrow写入和SQL执行
@@ -866,6 +871,315 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         logger.debug("Deleted {} rows from table: {}", affectedRows, tableName);
         return affectedRows;
     }
+
+    // ==================== deleteByIds 实现 ====================
+
+    @Override
+    public int deleteByIds(List<Object> pkValues, NodeSchemaInfo schemaInfo) throws SQLException {
+        checkClosed();
+        Objects.requireNonNull(pkValues, "pkValues must not be null");
+        if (schemaInfo == null) {
+            throw new IllegalArgumentException("schemaInfo must not be null");
+        }
+
+        if (pkValues.isEmpty()) {
+            logger.debug("pkValues is empty, skipping delete");
+            return 0;
+        }
+
+        String targetTableName = schemaInfo.getTargetTableName();
+        List<String> primaryKeys = schemaInfo.getPrimaryKeys();
+
+        if (primaryKeys == null || primaryKeys.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "No primary keys defined in NodeSchemaInfo for table: " + targetTableName);
+        }
+
+        String safeTableName = DuckDbOperator.sanitizeIdentifier(targetTableName);
+        List<String> safePkColumns = primaryKeys.stream()
+                .map(DuckDbOperator::sanitizeIdentifier)
+                .collect(Collectors.toList());
+
+        // 分批处理，每批最多 2000 个主键（避免 SQL 过长）
+        final int BATCH_SIZE = 2000;
+        int totalDeleted = 0;
+
+        for (int offset = 0; offset < pkValues.size(); offset += BATCH_SIZE) {
+            int end = Math.min(offset + BATCH_SIZE, pkValues.size());
+            List<Object> batch = pkValues.subList(offset, end);
+            totalDeleted += executeDeleteBatch(safeTableName, safePkColumns, primaryKeys, batch, schemaInfo);
+        }
+
+        logger.debug("deleteByIds: deleted {} rows from table {}", totalDeleted, targetTableName);
+        return totalDeleted;
+    }
+
+    /**
+     * 执行一批主键的 DELETE
+     */
+    private int executeDeleteBatch(
+            String safeTableName,
+            List<String> safePkColumns,
+            List<String> primaryKeys,
+            List<Object> batch,
+            NodeSchemaInfo schemaInfo) throws SQLException {
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("DELETE FROM ").append(safeTableName).append(" WHERE ");
+
+        if (primaryKeys.size() == 1) {
+            // 单主键：DELETE FROM tbl WHERE pk IN (SELECT pk FROM (VALUES (v1),(v2)) AS t(pk))
+            String pkCol = safePkColumns.get(0);
+            sql.append(pkCol).append(" IN (SELECT pk FROM (VALUES ");
+            String valuesClause = batch.stream()
+                    .map(pk -> "(" + formatPkValueForColumn(pk, primaryKeys.get(0), schemaInfo) + ")")
+                    .collect(Collectors.joining(", "));
+            sql.append(valuesClause).append(") AS t(pk))");
+        } else {
+            // 复合主键：DELETE FROM tbl WHERE (pk1,pk2) IN (VALUES (v1,v2),(v3,v4))
+            String pkTuple = "(" + String.join(", ", safePkColumns) + ")";
+            sql.append(pkTuple).append(" IN (VALUES ");
+            String valuesClause = batch.stream()
+                    .map(pkObj -> formatCompositePkRow(pkObj, primaryKeys, schemaInfo))
+                    .collect(Collectors.joining(", "));
+            sql.append(valuesClause).append(")");
+        }
+
+        return executeUpdate(sql.toString());
+    }
+
+    /**
+     * 格式化复合主键的一行 VALUES： (v1, v2, ...)
+     */
+    @SuppressWarnings("unchecked")
+    private String formatCompositePkRow(Object pkObj, List<String> primaryKeys, NodeSchemaInfo schemaInfo) {
+        if (!(pkObj instanceof Map)) {
+            throw new IllegalArgumentException(
+                    "For composite primary keys, each element in pkValues must be a Map<String, Object>. " +
+                    "Got: " + pkObj.getClass().getName());
+        }
+
+        Map<String, Object> pkMap = (Map<String, Object>) pkObj;
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < primaryKeys.size(); i++) {
+            if (i > 0) sb.append(", ");
+            String pkCol = primaryKeys.get(i);
+            Object value = pkMap.get(pkCol);
+            sb.append(formatPkValueForColumn(value, pkCol, schemaInfo));
+        }
+        sb.append(")");
+        return sb.toString();
+    }
+
+    /**
+     * 按列类型格式化主键值（核心：类型精准转换）
+     *
+     * <p>转换规则：
+     * <ul>
+     *   <li>Number → 直接输出（无引号）</li>
+     *   <li>String + 目标列是 TapNumber → 尝试解析为数值，成功则无引号输出</li>
+     *   <li>String + 目标列是 TapString → 加单引号并转义</li>
+     *   <li>Boolean → TRUE / FALSE</li>
+     *   <li>DATE 类型 → DuckDB 类型化字面量 DATE 'yyyy-mm-dd'</li>
+     *   <li>TIMESTAMP 类型 → DuckDB 类型化字面量 TIMESTAMP 'yyyy-mm-dd hh:mm:ss'</li>
+     *   <li>byte[] → DuckDB blob 字面量 \xHH...（无引号）</li>
+     * </ul>
+     *
+     * <p>DuckDB 要求 DATE/TIMESTAMP 类型化字面量，不能只用字符串引号。
+     * 错误示例：WHERE dt IN ('2025-06-15') → Binder Error: Cannot compare DATE and VARCHAR
+     * 正确示例：WHERE dt IN (DATE '2025-06-15')</p>
+     */
+    private String formatPkValueForColumn(Object value, String columnName, NodeSchemaInfo schemaInfo) {
+        if (value == null) {
+            return "NULL";
+        }
+
+        // Number 类型：直接输出，无引号
+        if (value instanceof Number) {
+            return formatNumberLiteral(value);
+        }
+
+        // String 类型：根据目标列类型决定加不加引号
+        if (value instanceof String) {
+            String strValue = (String) value;
+            TapField tapField = schemaInfo.getField(columnName);
+
+            // 目标列是数值类型：尝试将字符串解析为数值
+            if (isNumericColumn(tapField)) {
+                try {
+                    return new BigDecimal(strValue).stripTrailingZeros().toString();
+                } catch (NumberFormatException e) {
+                    logger.warn("Column '{}' is numeric but value '{}' is not a valid number, " +
+                            "formatting as string", columnName, strValue);
+                }
+            }
+
+            // 目标列是 DATE 类型：生成 DATE 'yyyy-mm-dd' 类型化字面量
+            if (isDateColumn(tapField)) {
+                return "DATE '" + strValue.replace("'", "''") + "'";
+            }
+
+            // 目标列是 TIMESTAMP 类型：生成 TIMESTAMP 'yyyy-mm-dd hh:mm:ss' 类型化字面量
+            if (isTimestampColumn(tapField)) {
+                return "TIMESTAMP '" + strValue.replace("'", "''") + "'";
+            }
+
+            // 目标列是 BLOB 类型：生成 \xHH... 字面量（无引号）
+            if (isBlobColumn(tapField)) {
+                // strValue 应该是十六进制字符串，转换为 \x 格式
+                return hexStringToBlobLiteral(strValue);
+            }
+
+            // 目标列是字符串类型或其他：加单引号并转义
+            return "'" + strValue.replace("'", "''") + "'";
+        }
+
+        // Boolean 类型：TRUE / FALSE
+        if (value instanceof Boolean) {
+            return (Boolean) value ? "TRUE" : "FALSE";
+        }
+
+        // LocalDate → DATE 'yyyy-mm-dd'
+        if (value instanceof LocalDate) {
+            return "DATE '" + value.toString() + "'";
+        }
+
+        // LocalDateTime / Timestamp → TIMESTAMP 'yyyy-mm-dd hh:mm:ss'
+        if (value instanceof LocalDateTime) {
+            String tsStr = TIMESTAMP_FORMATTER.format((LocalDateTime) value);
+            return "TIMESTAMP '" + tsStr + "'";
+        }
+        if (value instanceof java.sql.Timestamp) {
+            String tsStr = TIMESTAMP_FORMATTER.format(((java.sql.Timestamp) value).toLocalDateTime());
+            return "TIMESTAMP '" + tsStr + "'";
+        }
+        if (value instanceof java.util.Date) {
+            String tsStr = TIMESTAMP_FORMATTER.format(
+                    new java.sql.Timestamp(((java.util.Date) value).getTime()).toLocalDateTime());
+            return "TIMESTAMP '" + tsStr + "'";
+        }
+
+        // byte[] → \xHHHH...（DuckDB blob 字面量，无引号）
+        if (value instanceof byte[]) {
+            return byteArrayToBlobLiteral((byte[]) value);
+        }
+
+        // 兜底：转为字符串并处理
+        logger.warn("Unknown PK value type: {}, using string formatting", value.getClass().getName());
+        return "'" + value.toString().replace("'", "''") + "'";
+    }
+
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /**
+     * 判断列是否为 DATE 类型
+     */
+    private boolean isDateColumn(TapField tapField) {
+        if (tapField == null) return false;
+        TapType tapType = tapField.getTapType();
+        if (tapType != null) {
+            return tapType.getClass().getSimpleName().equals("TapDate");
+        }
+        String dt = tapField.getDataType();
+        return dt != null && dt.toUpperCase().contains("DATE") && !dt.toUpperCase().contains("TIMESTAMP");
+    }
+
+    /**
+     * 判断列是否为 TIMESTAMP 类型
+     */
+    private boolean isTimestampColumn(TapField tapField) {
+        if (tapField == null) return false;
+        TapType tapType = tapField.getTapType();
+        if (tapType != null) {
+            return tapType.getClass().getSimpleName().equals("TapDateTime");
+        }
+        String dt = tapField.getDataType();
+        return dt != null && (dt.toUpperCase().contains("TIMESTAMP") || dt.toUpperCase().contains("DATETIME"));
+    }
+
+    /**
+     * 判断列是否为 BLOB 类型
+     */
+    private boolean isBlobColumn(TapField tapField) {
+        if (tapField == null) return false;
+        String dt = tapField.getDataType();
+        return dt != null && dt.toUpperCase().contains("BLOB");
+    }
+
+    /**
+     * 将 byte[] 转换为 DuckDB blob 字面量：'\xDE\xAD\xBE\xEF'::BLOB
+     * <p>DuckDB 的 BLOB 字面量需要用单引号包裹，内部用 \xHH 表示每个字节，
+     * 并且通常需要显式转换 ::BLOB 以避免类型推断为 VARCHAR。</p>
+     */
+    private String byteArrayToBlobLiteral(byte[] bytes) {
+        StringBuilder sb = new StringBuilder("'");
+        for (byte b : bytes) {
+            sb.append(String.format("\\x%02x", b & 0xFF));
+        }
+        sb.append("'::BLOB");
+        return sb.toString();
+    }
+
+    /**
+     * 将十六进制字符串转换为 DuckDB blob 字面量
+     */
+    private String hexStringToBlobLiteral(String hexString) {
+        // 如果已经是 \x 格式，直接返回
+        if (hexString.startsWith("\\x")) {
+            return hexString;
+        }
+        // 否则假设是纯十六进制字符串，转换为 \x 格式
+        StringBuilder sb = new StringBuilder();
+        // 移除可能的 0x 前缀或空格
+        String clean = hexString.replaceAll("0x", "").replaceAll("\\s+", "");
+        for (int i = 0; i < clean.length(); i += 2) {
+            sb.append("\\x").append(clean.substring(i, Math.min(i + 2, clean.length())));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 判断列是否为数值类型（基于 TapType 和 dataType）
+     */
+    private boolean isNumericColumn(TapField tapField) {
+        if (tapField == null) {
+            return false;
+        }
+
+        // 优先检查 TapType
+        TapType tapType = tapField.getTapType();
+        if (tapType != null) {
+            return tapType.getClass().getSimpleName().equals("TapNumber");
+        }
+
+        // 其次检查 dataType 字符串
+        String dataType = tapField.getDataType();
+        if (dataType != null) {
+            String upper = dataType.toUpperCase();
+            return upper.contains("INT")
+                    || upper.contains("DECIMAL")
+                    || upper.contains("NUMERIC")
+                    || upper.contains("FLOAT")
+                    || upper.contains("DOUBLE")
+                    || upper.contains("REAL")
+                    || upper.equals("NUMBER");
+        }
+
+        return false;
+    }
+
+    /**
+     * 格式化数值为 SQL 字面量（处理 BigDecimal 去尾零）
+     */
+    private String formatNumberLiteral(Object number) {
+        if (number instanceof BigDecimal) {
+            return ((BigDecimal) number).stripTrailingZeros().toString();
+        }
+        return number.toString();
+    }
+
+    // ==================== DML 操作封装（续）====================
 
     @Override
     public void upsert(String tableName, Map<String, Object> data) throws SQLException {

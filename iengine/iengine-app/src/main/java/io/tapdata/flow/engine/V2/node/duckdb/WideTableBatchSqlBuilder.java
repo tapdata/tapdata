@@ -74,22 +74,39 @@ public class WideTableBatchSqlBuilder {
         
         // 如果值是字符串类型
         if (pkValue instanceof String) {
-            if (quoteStrings) {
-                // 加引号（VARCHAR 类型）
-                return "'" + ((String) pkValue).replace("'", "''") + "'";
-            } else {
-                // 不加引号（数值类型，尝试转换为数值）
+            String strValue = (String) pkValue;
+            
+            // 优先尝试转换为数值格式（避免 BIGINT 与 VARCHAR 比较错误）
+            // 即使 quoteStrings=true，如果字符串内容是数值，也应转换为数值格式
+            if (!quoteStrings || isNumericString(strValue)) {
                 try {
-                    return new java.math.BigDecimal((String) pkValue).stripTrailingZeros().toString();
+                    return new java.math.BigDecimal(strValue).stripTrailingZeros().toString();
                 } catch (NumberFormatException e) {
-                    // 转换失败，当作字符串处理（加引号）
-                    return "'" + ((String) pkValue).replace("'", "''") + "'";
+                    // 转换失败，按字符串处理
                 }
             }
+            
+            // 字符串类型：加引号
+            return "'" + strValue.replace("'", "''") + "'";
         }
         
         // 其他情况：使用 DuckDbSqlValueFormatter 格式化
         return DuckDbSqlValueFormatter.format(pkValue);
+    }
+    
+    /**
+     * 判断字符串是否表示数值（整数或小数）
+     */
+    private static boolean isNumericString(String str) {
+        if (str == null || str.isEmpty()) {
+            return false;
+        }
+        try {
+            new java.math.BigDecimal(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     /**

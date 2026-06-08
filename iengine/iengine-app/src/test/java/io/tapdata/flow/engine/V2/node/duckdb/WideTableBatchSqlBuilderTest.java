@@ -37,6 +37,43 @@ class WideTableBatchSqlBuilderTest {
     }
 
     @Test
+    void testBuildDeleteSql_NumericStringKeys_QuoteStringsTrue() {
+        // 数字字符串在 quoteStrings=true 时也应被格式化为数值（不加引号）
+        List<Object> keys = Arrays.asList("101", "102", "103");
+        String sql = WideTableBatchSqlBuilder.buildDeleteSql(
+                "wide_table", "id", keys, String.class);
+
+        // 验证数字字符串被格式化为不带引号的数值
+        assertTrue(sql.contains("101"), "数字字符串 should not be quoted");
+        assertFalse(sql.contains("'101'"), "数字字符串 should not have quotes");
+    }
+
+    @Test
+    void testBuildDeleteSql_NumericStringKeys_QuoteStringsFalse() {
+        // 数字字符串在 quoteStrings=false 时也应被格式化为数值（不加引号）
+        List<Object> keys = Arrays.asList("101", "102", "103");
+        String sql = WideTableBatchSqlBuilder.buildDeleteSql(
+                "wide_table", "id", keys, Long.class);
+
+        // 验证数字字符串被格式化为不带引号的数值
+        assertTrue(sql.contains("101"), "数字字符串 should not be quoted");
+        assertFalse(sql.contains("'101'"), "数字字符串 should not have quotes");
+    }
+
+    @Test
+    void testBuildDeleteSql_MixedStringKeys() {
+        // 混合数字和非数字字符串
+        List<Object> keys = Arrays.asList("101", "abc", "103");
+        String sql = WideTableBatchSqlBuilder.buildDeleteSql(
+                "wide_table", "id", keys, String.class);
+
+        // 数字字符串不应带引号
+        assertFalse(sql.contains("'101'"), "数字字符串 should not have quotes");
+        // 非数字字符串应带引号
+        assertTrue(sql.contains("'abc'"), "非数字字符串 should have quotes");
+    }
+
+    @Test
     void testBuildDeleteSql_EmptyKeys_ThrowsException() {
         assertThrows(IllegalArgumentException.class, () ->
                 WideTableBatchSqlBuilder.buildDeleteSql("wide_table", "id", Collections.emptyList()));

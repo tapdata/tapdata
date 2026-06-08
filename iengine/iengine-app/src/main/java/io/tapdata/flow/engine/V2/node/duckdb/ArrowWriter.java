@@ -701,6 +701,7 @@ public class ArrowWriter implements AutoCloseable {
                     statement.executeUpdate("INSERT INTO " + targetTableName + " SELECT * FROM " + streamName);
                 }
 
+
                 long duration = System.currentTimeMillis() - startTime;
                 logger.info("Successfully wrote {} rows using Arrow from NodeSchemaInfo to table {} in {} ms", 
                     data.size(), targetTableName, duration);

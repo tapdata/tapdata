@@ -320,6 +320,51 @@ public interface DuckDbOperator extends AutoCloseable {
     int delete(String tableName, String whereClause) throws SQLException;
 
     /**
+     * 按主键批量删除行（支持单主键和复合主键，类型安全）
+     *
+     * <p>此方法从 NodeSchemaInfo 获取主键列名和类型，自动进行精准的类型转换，
+     * 彻底避免 VARCHAR 与 BIGINT 比较错误。</p>
+     *
+     * <h3>单主键用法：</h3>
+     * <pre>{@code
+     * List<Object> pkValues = Arrays.asList(1L, 2L, 3L);
+     * operator.deleteByIds(pkValues, schemaInfo);
+     * }</pre>
+     *
+     * <h3>复合主键用法：</h3>
+     * <pre>{@code
+     * List<Object> pkValues = new ArrayList<>();
+     * Map<String, Object> pk1 = new LinkedHashMap<>();
+     * pk1.put("id", 1);
+     * pk1.put("type", "admin");
+     * pkValues.add(pk1);
+     * operator.deleteByIds(pkValues, schemaInfo);
+     * }</pre>
+     *
+     * <h3>SQL 生成规则：</h3>
+     * <ul>
+     *   <li>单主键：DELETE FROM tbl WHERE pk IN (SELECT pk FROM (VALUES (v1),(v2)) AS t(pk))</li>
+     *   <li>复合主键：DELETE FROM tbl WHERE (pk1,pk2) IN (VALUES (v1,v2), (v3,v4))</li>
+     * </ul>
+     *
+     * <h3>类型转换规则：</h3>
+     * <ul>
+     *   <li>Number → 直接输出（无引号）</li>
+     *   <li>String + 目标列是 TapNumber → 尝试解析为数值，成功则无引号输出</li>
+     *   <li>String + 目标列是 TapString → 加单引号并转义</li>
+     *   <li>Boolean → TRUE / FALSE</li>
+     *   <li>时间类型 → 标准 SQL 时间格式字符串（加引号）</li>
+     * </ul>
+     *
+     * @param pkValues 主键值列表。单主键时为值列表；复合主键时为 Map 列表（key=列名）
+     * @param schemaInfo 包含完整表结构信息的 NodeSchemaInfo
+     * @return 删除的行数
+     * @throws IllegalArgumentException 如果 pkValues 为空或 schemaInfo 未定义主键
+     * @throws SQLException 如果数据库操作失败
+     */
+    int deleteByIds(List<Object> pkValues, NodeSchemaInfo schemaInfo) throws SQLException;
+
+    /**
      * UPSERT操作（INSERT OR REPLACE）
      * @param tableName 表名
      * @param data 数据

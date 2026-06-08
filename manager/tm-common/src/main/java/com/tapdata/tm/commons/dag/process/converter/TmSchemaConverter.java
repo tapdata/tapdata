@@ -93,26 +93,26 @@ public class TmSchemaConverter {
         
         // 尝试从缓存获取
         String key = getSchemaKey(schema);
-        CacheEntry<TapTableDto> entry = cache.get(key);
-        
-        // 检查缓存是否有效
-        if (entry != null && !entry.isExpired(cacheExpireTime)) {
-            entry.touch();
-            logger.debug("Cache hit for schema: {}", key);
-            return entry.getValue();
-        }
+//        CacheEntry<TapTableDto> entry = cache.get(key);
+//
+//        // 检查缓存是否有效
+//        if (entry != null && !entry.isExpired(cacheExpireTime)) {
+//            entry.touch();
+//            logger.debug("Cache hit for schema: {}", key);
+//            return entry.getValue();
+//        }
         
         // 缓存未命中，执行转换
         logger.debug("Cache miss for schema: {}, converting...", key);
         TapTableDto dto = doConvert(schema);
         
         // 缓存结果
-        if (dto != null) {
-            cache.put(key, new CacheEntry<>(dto));
-        }
-        
-        // 尝试清理过期缓存
-        tryCleanup();
+//        if (dto != null) {
+//            cache.put(key, new CacheEntry<>(dto));
+//        }
+//
+//        // 尝试清理过期缓存
+//        tryCleanup();
         
         return dto;
     }

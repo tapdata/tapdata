@@ -30,6 +30,7 @@ public class IncrementalViewUpdater {
     private final String userSql;
     private final boolean outputChangelogEnabled;
     private final DuckDbOperator operator;
+    private final NodeSchemaInfo schemaInfo;
     private final List<ChangelogOutputListener> changelogListeners = new ArrayList<>();
 
     /**
@@ -47,11 +48,26 @@ public class IncrementalViewUpdater {
             boolean outputChangelogEnabled,
             DuckDbOperator operator
     ) {
+        this(wideTableName, wideTablePrimaryKey, userSql, outputChangelogEnabled, operator, null);
+    }
+
+    /**
+     * 完整构造器（含 NodeSchemaInfo，支持精准类型转换）
+     */
+    public IncrementalViewUpdater(
+            String wideTableName,
+            String wideTablePrimaryKey,
+            String userSql,
+            boolean outputChangelogEnabled,
+            DuckDbOperator operator,
+            NodeSchemaInfo schemaInfo
+    ) {
         this.wideTableName = wideTableName;
         this.wideTablePrimaryKey = wideTablePrimaryKey;
         this.userSql = userSql;
         this.outputChangelogEnabled = outputChangelogEnabled;
         this.operator = operator;
+        this.schemaInfo = schemaInfo;
     }
 
     /**
@@ -249,19 +265,27 @@ public class IncrementalViewUpdater {
 
     /**
      * Delete a row by primary key.
+     * <p>Uses {@link DuckDbOperator#deleteByIds} when NodeSchemaInfo is available
+     * for accurate type conversion; falls back to legacy SQL formatting otherwise.</p>
      */
     private void deleteRowByPk(Object pk) throws SQLException {
-        String pkValueStr = DuckDbSqlValueFormatter.format(pk);
+        if (schemaInfo != null) {
+            logger.debug("Deleting row by id, pk={}", pk);
+            operator.deleteByIds(Collections.singletonList(pk), schemaInfo);
+        } else {
+            // Fallback for backward compatibility (schemaInfo is null)
+            String pkValueStr = DuckDbSqlValueFormatter.format(pk);
 
-        String deleteSql = String.format(
-                "DELETE FROM %s WHERE %s = %s",
-                wideTableName,
-                wideTablePrimaryKey,
-                pkValueStr
-        );
+            String deleteSql = String.format(
+                    "DELETE FROM %s WHERE %s = %s",
+                    wideTableName,
+                    wideTablePrimaryKey,
+                    pkValueStr
+            );
 
-        logger.debug("Deleting row: {}", deleteSql);
-        operator.executeUpdate(deleteSql);
+            logger.debug("Deleting row: {}", deleteSql);
+            operator.executeUpdate(deleteSql);
+        }
     }
 
     /**

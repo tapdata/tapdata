@@ -23,6 +23,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.codecs.pojo.annotations.BsonProperty;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -275,8 +276,15 @@ public class DuckDbSqlNode extends ProcessorNode {
         // ========== 严格执行：解析 SQL 查询 ==========
         log.info("  Parsing SQL query to generate schema...");
         List<Field> fields;
+        // 准备宽表主键列列表（支持逗号分隔的复合主键）
+        List<String> pkColumns = new ArrayList<>();
+        if (StringUtils.isNotBlank(wideTablePrimaryKey)) {
+            pkColumns = Arrays.stream(wideTablePrimaryKey.split(","))
+                    .map(String::trim)
+                    .collect(java.util.stream.Collectors.toList());
+        }
         try {
-            fields = SqlParserUtil.parseSelectFields(querySql, fromTables, inputSchemas, this);
+            fields = SqlParserUtil.parseSelectFields(querySql, fromTables, inputSchemas, this, pkColumns);
         } catch (Exception e) {
             throw new RuntimeException("DuckDbSqlNode.mergeSchema() failed to parse SQL query: " + querySql, e);
         }
@@ -315,34 +323,33 @@ public class DuckDbSqlNode extends ProcessorNode {
         
         resultSchema.setFields(fields);
         
-        // 设置主键、设置字段并填充详细信息
-        if (StringUtils.isNotBlank(wideTablePrimaryKey)) {
-            boolean foundPrimaryKey = false;
-            for (Field field : fields) {
-                if (wideTablePrimaryKey.equals(field.getFieldName())) {
-                    field.setPrimaryKey(true);
-                    field.setPrimaryKeyPosition(1);
-                    foundPrimaryKey = true;
-                }
-                // 设置字段来源
-                field.setSource("job_analyze");
+        // 设置字段并填充详细信息（主键已在 SqlParserUtil.copyFieldProperties 中根据 wideTablePkColumns 设置）
+        for (Field field : fields) {
+            // 设置字段来源
+            field.setSource("job_analyze");
 
-                // 设置字段所属表名
-                field.setTableName(mainTableName);
+            // 设置字段所属表名
+            field.setTableName(mainTableName);
 
-                // 设置字段ID（参考 MergeTableNode 和 JoinProcessorNode 的做法）
-                String fieldId = MetaDataBuilderUtils.generateFieldId(this.getId(), mainTableName, field.getFieldName());
-                field.setId(fieldId);
-                field.setColumnPosition(1);
+            // 设置字段ID（参考 MergeTableNode 和 JoinProcessorNode 的做法）
+            String fieldId = MetaDataBuilderUtils.generateFieldId(this.getId(), mainTableName, field.getFieldName());
+            field.setId(fieldId);
+            field.setColumnPosition(1);
 
-                // 如果没有设置原始字段名，则使用字段名
-                if (StringUtils.isBlank(field.getOriginalFieldName())) {
-                    field.setOriginalFieldName(field.getFieldName());
-                }
+            // 如果没有设置原始字段名，则使用字段名
+            if (StringUtils.isBlank(field.getOriginalFieldName())) {
+                field.setOriginalFieldName(field.getFieldName());
             }
-            if (!foundPrimaryKey) {
-                throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: wideTablePrimaryKey '" + wideTablePrimaryKey + 
-                    "' not found in parsed fields: " + fields.stream().map(Field::getFieldName).toList());
+        }
+
+        // 校验：wideTablePrimaryKey 中的所有列必须在解析出的字段中存在
+        if (!pkColumns.isEmpty()) {
+            List<String> fieldNames = fields.stream().map(Field::getFieldName).collect(java.util.stream.Collectors.toList());
+            for (String pkCol : pkColumns) {
+                if (!fieldNames.contains(pkCol)) {
+                    throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: wideTablePrimaryKey column '" + pkCol +
+                        "' not found in parsed fields: " + fieldNames);
+                }
             }
         }
         

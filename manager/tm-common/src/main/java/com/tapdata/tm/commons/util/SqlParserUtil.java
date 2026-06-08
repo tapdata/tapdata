@@ -22,11 +22,13 @@ import java.util.*;
 public class SqlParserUtil {
 
     public static List<Field> parseSelectFields(String sql, List<FromTableConfig> fromTables,
-                                                  List<Schema> inputSchemas, Object node) throws Exception {
+                                                  List<Schema> inputSchemas, Object node,
+                                                  List<String> wideTablePkColumns) throws Exception {
         log.info("SqlParserUtil.parseSelectFields() called");
         log.info("  sql: {}", sql);
         log.info("  fromTables: {}", CollectionUtils.isEmpty(fromTables) ? "empty" : fromTables.size());
         log.info("  inputSchemas: {}", CollectionUtils.isEmpty(inputSchemas) ? "empty" : inputSchemas.size());
+        log.info("  wideTablePkColumns: {}", wideTablePkColumns);
         
         if (StringUtils.isBlank(sql)) {
             throw new IllegalArgumentException("SQL query cannot be blank");
@@ -63,7 +65,7 @@ public class SqlParserUtil {
         List<SelectItem> selectItems = plainSelect.getSelectItems();
         if (CollectionUtils.isNotEmpty(selectItems)) {
             for (SelectItem selectItem : selectItems) {
-                Field field = parseSelectItem(selectItem, tableSchemaMap, aliasToTableNameMap);
+                Field field = parseSelectItem(selectItem, tableSchemaMap, aliasToTableNameMap, wideTablePkColumns);
 
                 // 检查字段重名
                 String fieldName = field.getFieldName();
@@ -302,7 +304,8 @@ public class SqlParserUtil {
         return null;
     }
 
-    private static Field parseSelectItem(SelectItem selectItem, Map<String, Schema> tableSchemaMap, Map<String, String> aliasToTableNameMap) {
+    private static Field parseSelectItem(SelectItem selectItem, Map<String, Schema> tableSchemaMap, Map<String, String> aliasToTableNameMap,
+                                          List<String> wideTablePkColumns) {
         Field field = new Field();
         field.setSource(Field.SOURCE_JOB_ANALYZE);
 
@@ -353,8 +356,8 @@ public class SqlParserUtil {
                     if (schema != null) {
                         Field sourceField = findFieldByName(schema, columnName);
                         if (sourceField != null) {
-                            // 复制源字段的属性
-                            copyFieldProperties(sourceField, field);
+                            // 复制源字段的属性（主键由 wideTablePkColumns 决定，不从源表继承）
+                            copyFieldProperties(sourceField, field, wideTablePkColumns);
                         }
                     }
                 } else {
@@ -362,7 +365,7 @@ public class SqlParserUtil {
                     for (Schema schema : tableSchemaMap.values()) {
                         Field sourceField = findFieldByName(schema, columnName);
                         if (sourceField != null) {
-                            copyFieldProperties(sourceField, field);
+                            copyFieldProperties(sourceField, field, wideTablePkColumns);
                             break;
                         }
                     }
@@ -389,12 +392,16 @@ public class SqlParserUtil {
         return null;
     }
 
-    private static void copyFieldProperties(Field source, Field target) {
+    private static void copyFieldProperties(Field source, Field target, List<String> wideTablePkColumns) {
         target.setDataType(source.getDataType());
         target.setJavaType(source.getJavaType());
         target.setTapType(source.getTapType());
-        target.setPrimaryKey(source.getPrimaryKey());
-        target.setPrimaryKeyPosition(source.getPrimaryKeyPosition());
+        // 主键由 wideTablePkColumns 决定，不从源表继承
+        if (wideTablePkColumns != null) {
+            int pos = wideTablePkColumns.indexOf(target.getFieldName());
+            target.setPrimaryKey(pos >= 0);
+            target.setPrimaryKeyPosition(pos >= 0 ? pos + 1 : 0);
+        }
         target.setIsNullable(source.getIsNullable());
         target.setPrecision(source.getPrecision());
         target.setScale(source.getScale());

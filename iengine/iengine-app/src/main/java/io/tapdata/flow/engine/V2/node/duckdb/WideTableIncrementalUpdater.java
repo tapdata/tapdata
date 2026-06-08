@@ -214,9 +214,7 @@ public class WideTableIncrementalUpdater {
         // 3. 真实更新宽表（事务模式：在 executeInTransaction 中执行）
         if (enableWriteWideTable && !events.isEmpty()) {
             // 事务模式：在 executeInTransaction 中执行宽表更新
-            duckDbOperator.executeInTransaction(() -> {
-                applyWideTableChanges(finalAffectedBeforeKeys, finalResults);
-            });
+            applyWideTableChanges(finalAffectedBeforeKeys, finalResults);
         }
 
         // 4. 触发 ChangelogListener
@@ -288,12 +286,18 @@ public class WideTableIncrementalUpdater {
             }
         }
 
-        // 2. 批量删除（一条 SQL，直接刷写）
+        // 2. 批量删除（使用 deleteByIds，类型精准）
         if (!deletePks.isEmpty()) {
-            String deleteSql = WideTableBatchSqlBuilder.buildDeleteSql(
-                    wideTableName, wideTablePrimaryKey, deletePks, pkTargetType);
-            logger.debug("Batch delete SQL: {}", deleteSql);
-            duckDbOperator.executeUpdate(deleteSql);
+            if (tableSchemaInfoCache != null) {
+                logger.debug("Batch delete by ids, count: {}", deletePks.size());
+                duckDbOperator.deleteByIds(deletePks, tableSchemaInfoCache);
+            } else {
+                // 降级：tableSchemaInfoCache 为空时走旧路径
+                String deleteSql = WideTableBatchSqlBuilder.buildDeleteSql(
+                        wideTableName, wideTablePrimaryKey, deletePks, pkTargetType);
+                logger.debug("Batch delete SQL: {}", deleteSql);
+                duckDbOperator.executeUpdate(deleteSql);
+            }
         }
 
         // 3. 批量插入（一条 SQL，直接刷写）
@@ -330,13 +334,24 @@ public class WideTableIncrementalUpdater {
             logger.debug("Batch deleting {} records from wide table '{}'", 
                         affectedBeforeKeys.size(), wideTableName);
             
-            // 使用 WideTableBatchSqlBuilder 构建高效的批量删除 SQL
-            Class<?> pkTargetType = getPkTargetType();
-            String deleteSql = WideTableBatchSqlBuilder.buildDeleteSql(
-                    wideTableName, wideTablePrimaryKey, 
-                    new ArrayList<>(affectedBeforeKeys), pkTargetType);
-            logger.debug("Batch delete SQL: {}", deleteSql);
-            duckDbOperator.executeUpdate(deleteSql);
+            // 批量删除旧数据（使用 deleteByIds，类型安全、支持复合主键）
+            if (tableSchemaInfoCache != null) {
+                List<Object> pkList = new ArrayList<>(affectedBeforeKeys);
+                logger.debug("Batch delete by ids, count: {}", pkList.size());
+                duckDbOperator.deleteByIds(pkList, tableSchemaInfoCache);
+            } else {
+                // 降级：tableSchemaInfoCache 为空时走旧路径
+                Class<?> pkTargetType = getPkTargetType();
+                List<Object> convertedKeys = affectedBeforeKeys.stream()
+                        .map(pk -> convertPkValue(pk, pkTargetType))
+                        .collect(java.util.stream.Collectors.toList());
+
+                String deleteSql = WideTableBatchSqlBuilder.buildDeleteSql(
+                        wideTableName, wideTablePrimaryKey,
+                        convertedKeys, pkTargetType);
+                logger.debug("Batch delete SQL: {}", deleteSql);
+                duckDbOperator.executeUpdate(deleteSql);
+            }
         }
 
         // 2. 批量插入新数据（优先使用 Arrow 零拷贝写入）
