@@ -15,9 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import java.lang.reflect.Field;
 
 import static org.mockito.Mockito.*;
 
@@ -57,7 +54,13 @@ class TaskPingTimeMonitorTest {
 			when(updateResult.getModifiedCount()).thenReturn(1L);
 			when(clientMongoOperator.update(any(), any(), any())).thenReturn(updateResult);
 
-			taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
+			try (MockedStatic<AppType> ignoreAppType = mockStatic(AppType.class)) {
+				AppType appType = mock(AppType.class);
+				when(appType.isCloud()).thenReturn(false);
+				ignoreAppType.when(AppType::currentType).thenReturn(appType);
+
+				taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
+			}
 		}
 
 		@Test
@@ -69,7 +72,13 @@ class TaskPingTimeMonitorTest {
 			when(updateResult.getModifiedCount()).thenReturn(0L);
 			when(clientMongoOperator.update(any(), any(), any())).thenReturn(updateResult);
 
-			taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
+			try (MockedStatic<AppType> ignoreAppType = mockStatic(AppType.class)) {
+				AppType appType = mock(AppType.class);
+				when(appType.isCloud()).thenReturn(false);
+				ignoreAppType.when(AppType::currentType).thenReturn(appType);
+
+				taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
+			}
 
 			verify(taskMonitor, times(1)).accept(TerminalMode.INTERNAL_STOP);
 			verify(stopTask, times(1)).get();
@@ -91,6 +100,9 @@ class TaskPingTimeMonitorTest {
 
 				taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
 			}
+
+			verify(taskMonitor, never()).accept(any());
+			verify(stopTask, never()).get();
 		}
 
 		@Test
@@ -100,11 +112,36 @@ class TaskPingTimeMonitorTest {
 
 			// Ignore log printing for successful use cases
 			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", mock(Logger.class));
-			when(taskPingTimeMonitor.onHeartExpire()).thenReturn(-1L);
-			taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
+			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "latestSuccessPingTime", System.currentTimeMillis() - 61000L);
+			try (MockedStatic<AppType> ignoreAppType = mockStatic(AppType.class)) {
+				AppType appType = mock(AppType.class);
+				when(appType.isCloud()).thenReturn(false);
+				ignoreAppType.when(AppType::currentType).thenReturn(appType);
+
+				taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
+			}
 
 			verify(taskMonitor, times(1)).accept(TerminalMode.INTERNAL_STOP);
 			verify(stopTask, times(1)).get();
+		}
+
+		@Test
+		void whenUpdateExceptionButLatestSuccessPingTimeNotTimeout() {
+			Query query = mock(Query.class);
+			Update update = mock(Update.class);
+
+			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", mock(Logger.class));
+			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "latestSuccessPingTime", System.currentTimeMillis());
+			try (MockedStatic<AppType> ignoreAppType = mockStatic(AppType.class)) {
+				AppType appType = mock(AppType.class);
+				when(appType.isCloud()).thenReturn(false);
+				ignoreAppType.when(AppType::currentType).thenReturn(appType);
+
+				taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
+			}
+
+			verify(taskMonitor, never()).accept(any());
+			verify(stopTask, never()).get();
 		}
 
 		@Test
@@ -112,6 +149,8 @@ class TaskPingTimeMonitorTest {
 			Query query = mock(Query.class);
 			Update update = mock(Update.class);
 
+			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", mock(Logger.class));
+			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "latestSuccessPingTime", System.currentTimeMillis() - 2000L);
 			try (MockedStatic<AppType> ignoreAppType = mockStatic(AppType.class)) {
 				AppType appType = mock(AppType.class);
 				when(appType.isCloud()).thenReturn(true);
@@ -119,6 +158,9 @@ class TaskPingTimeMonitorTest {
 
 				taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
 			}
+
+			verify(taskMonitor, never()).accept(any());
+			verify(stopTask, never()).get();
 		}
 
 	}

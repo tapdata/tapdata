@@ -50,6 +50,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Setter(onMethod_ = {@Autowired})
 public class SettingsServiceImpl implements SettingsService {
+    public static final String SMTP_SERVER_PASSWORD = "smtp.server.password";
     private SettingsRepository settingsRepository;
     private MongoTemplate mongoTemplate;
 
@@ -114,7 +115,7 @@ public class SettingsServiceImpl implements SettingsService {
         String port = (String) collect.getOrDefault("smtp.server.port", "0");
         String from = (String) collect.get("email.send.address");
         String user = (String) collect.get("smtp.server.user");
-        Object pwd = collect.get("smtp.server.password");
+        Object pwd = collect.get(SMTP_SERVER_PASSWORD);
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String protocol = (String) collect.get("email.server.tls");
         String proxyHost = (String) collect.get("smtp.proxy.host");
@@ -206,7 +207,8 @@ public class SettingsServiceImpl implements SettingsService {
                         .orElseGet(() -> findAll(query));
 
             }else {
-                settingsList = settingsRepository.findAll();
+                Query query = TapQueryUtil.buildQuery(filter, Settings.class);
+                settingsList = mongoTemplate.find(query, Settings.class);
             }
         }
         if ("1".equals(decode)) {
@@ -221,7 +223,7 @@ public class SettingsServiceImpl implements SettingsService {
             settingsList = settingsList.stream().filter(settings -> !"License".equals(settings.getCategory())).toList();
         } else {
             settingsList.stream().filter(settings -> {
-                if ("smtp.server.password".equals(settings.getKey()) || "ldap.bind.password".equals(settings.getKey()))
+                if (SMTP_SERVER_PASSWORD.equals(settings.getKey()) || "ldap.bind.password".equals(settings.getKey()))
                     settings.setValue("*****");
                 return true;
             }).collect(Collectors.toList());
@@ -274,7 +276,8 @@ public class SettingsServiceImpl implements SettingsService {
             for (SettingsDto dto : settingsDto) {
                 // category: "SMTP", key: "smtp.server.password", value: "*****"
                 if (!Objects.isNull(dto.getValue()) &&
-                        StringUtils.equals("smtp.server.password", dto.getKey()) &&
+                        (StringUtils.equals(SMTP_SERVER_PASSWORD, dto.getKey())
+                        || StringUtils.equals("ldap.bind.password", dto.getKey())) &&
                         StringUtils.equals("*****", dto.getValue().toString())) {
                     continue;
                 }

@@ -147,6 +147,8 @@ public class ServerUsageMetricScheduleExecutor {
         update.set(ServerUsageMetricField.MIN_HEAP_MEMORY_USAGE.field(), entity.getMinHeapMemoryUsage());
         update.set(ServerUsageField.HEAP_MEMORY_USAGE.field(), entity.getHeapMemoryUsage());
         update.set(ServerUsageField.HEAP_MEMORY_MAX.field(), entity.getHeapMemoryMax());
+        Optional.ofNullable(entity.getCpuCores())
+                        .ifPresent(v -> update.set(ServerUsageField.CPU_CORES.field(), v));
         update.set(ServerUsageField.TTL_KEY.field(), entity.getTtlKey());
         update.currentDate(BaseEntityFields.UPDATED_AT.field());
         return update;

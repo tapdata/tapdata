@@ -86,6 +86,7 @@ import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.TableStatusEnum;
+import com.tapdata.tm.task.constant.TaskOpStatusEnum;
 import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
@@ -3398,6 +3399,59 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).findAgent(taskDto,user);
             taskService.findAgent(taskDto, user);
             assertEquals("work_1",taskDto.getAgentId());
+        }
+    }
+    @Nested
+    class ClearAgentAffinityForManualStartTest {
+        @Test
+        @DisplayName("test clearAgentAffinityForManualStart builds manual start affinity cleanup query")
+        void testClearAgentAffinityForManualStart() {
+            ObjectId taskId = new ObjectId();
+            when(user.getUserId()).thenReturn("userId");
+            doCallRealMethod().when(taskService).clearAgentAffinityForManualStart(any(ObjectId.class), any(UserDetail.class));
+            doCallRealMethod().when(taskService).clearAgentAffinityForManualStart(anyList(), any(UserDetail.class));
+
+            taskService.clearAgentAffinityForManualStart(taskId, user);
+
+            org.mockito.ArgumentCaptor<Query> queryCaptor = org.mockito.ArgumentCaptor.forClass(Query.class);
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(taskService).update(queryCaptor.capture(), updateCaptor.capture(), eq(user));
+
+            Document query = queryCaptor.getValue().getQueryObject();
+            assertEquals(Collections.singletonList(taskId), ((Document) query.get("_id")).get("$in"));
+            assertEquals(TaskOpStatusEnum.to_start_status.v(), ((Document) query.get("status")).get("$in"));
+
+            Document agentIdCriteria = (Document) query.get(AGENT_ID);
+            assertEquals(Boolean.TRUE, agentIdCriteria.get("$exists"));
+            assertTrue(agentIdCriteria.containsKey("$ne"));
+
+            Document accessNodeTypeCriteria = (Document) query.get("accessNodeType");
+            assertEquals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeTypeCriteria.get("$ne"));
+
+            Document update = updateCaptor.getValue().getUpdateObject();
+            assertTrue(update.get("$unset", Document.class).containsKey(AGENT_ID));
+            assertTrue(update.get("$set", Document.class).containsKey("last_updated"));
+            assertEquals("userId", update.get("$set", Document.class).get("lastUpdBy"));
+        }
+
+        @Test
+        @DisplayName("test clearAgentAffinityForManualStart ignores null task id")
+        void testClearAgentAffinityForManualStartWithNullId() {
+            doCallRealMethod().when(taskService).clearAgentAffinityForManualStart(any(ObjectId.class), any(UserDetail.class));
+
+            taskService.clearAgentAffinityForManualStart((ObjectId) null, user);
+
+            verify(taskService, never()).update(any(Query.class), any(Update.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("test clearAgentAffinityForManualStart ignores empty task ids")
+        void testClearAgentAffinityForManualStartWithEmptyIds() {
+            doCallRealMethod().when(taskService).clearAgentAffinityForManualStart(anyList(), any(UserDetail.class));
+
+            taskService.clearAgentAffinityForManualStart(Collections.emptyList(), user);
+
+            verify(taskService, never()).update(any(Query.class), any(Update.class), any(UserDetail.class));
         }
     }
     @Nested

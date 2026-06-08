@@ -74,6 +74,9 @@ public class ApiCallEntity extends BaseEntity {
     @Field("req_bytes")
     private Long reqBytes;
 
+    @Field("res_bytes")
+    private Long resBytes;
+
     private String code;
     private String codeMsg;
 

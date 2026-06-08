@@ -256,7 +256,10 @@ public class ApiMetricsChartQuery {
                 .filter(e -> StringUtils.isNotBlank(e.getProcessId()))
                 .collect(Collectors.groupingBy(UsageBase::getProcessId, Collectors.collectingAndThen(
                         Collectors.toList(),
-                        items -> this.mapUsage(items, param.getRealStart(), param.getRealEnd(), param.getGranularity())
+                        items -> {
+                            currentCpuCores(items, serverMap);
+                            return this.mapUsage(items, param.getRealStart(), param.getRealEnd(), param.getGranularity());
+                        }
                 )));
         final Map<String, ServerItem> collect = apiMetricsRaws.stream()
                 .filter(Objects::nonNull)
@@ -317,6 +320,24 @@ public class ApiMetricsChartQuery {
         criteriaBase.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(start).lte(end);
         Query query = Query.query(criteriaBase);
         return (List<T>) serverUsageMetricRepository.findAll(query);
+    }
+
+    protected <T extends UsageBase> void currentCpuCores(List<T> items, Map<String, Worker> serverMap) {
+        currentCpuCores(items, serverMap, true);
+    }
+
+    protected <T extends UsageBase> void currentCpuCores(List<T> items, Map<String, Worker> serverMap, boolean active) {
+        if (null == items || items.isEmpty()) {
+            return;
+        }
+        UsageBase first = items.get(0);
+        Worker worker = serverMap.get(first.getProcessId());
+        assert worker != null;
+        ApiServerStatus workerStatus = worker.getWorkerStatus();
+        Integer cpuCores = workerStatus.getCpuCores();
+        for (T t : items) {
+            t.setCurrentCpuUsage(active ? cpuCores : 1);
+        }
     }
 
     protected ServerChart.Usage mapUsage(List<? extends UsageBase> infos, long startAt, long endAt, TimeGranularity granularity) {
@@ -534,6 +555,7 @@ public class ApiMetricsChartQuery {
         if (StringUtils.isBlank(serverId)) {
             throw new BizException(SERVER_ID_EMPTY);
         }
+        Worker worker = findServerById(serverId);
         ServerChart result = new ServerChart();
         long delay = metricsRawMergeService.getDelay();
         TimeRangeUtil.rangeOf(result, param, delay, false);
@@ -541,6 +563,7 @@ public class ApiMetricsChartQuery {
         Criteria criteriaOfUsage = Criteria.where(ServerUsageField.PROCESS_ID.field()).is(serverId)
                 .and(ServerUsageField.PROCESS_TYPE.field()).is(ServerUsage.ProcessType.API_SERVER.getType());
         List<? extends ServerUsage> allUsage = queryCpuUsageRecords(criteriaOfUsage, param.getRealStart(), param.getRealEnd(), param.getGranularity());
+        currentCpuCores(allUsage, Map.of(worker.getProcessId(), worker));
         ServerChart.Usage usage = this.mapUsage(allUsage, param.getRealStart(), param.getRealEnd(), param.getGranularity());
         ServerChart.PoolUsage poolUsage = collectionConnectionPoolUsage(param, param.getGranularity(), param.getRealStart(), param.getRealEnd());
         result.setUsage(usage);
@@ -734,7 +757,10 @@ public class ApiMetricsChartQuery {
                 .filter(e -> StringUtils.isNotBlank(e.getWorkOid()))
                 .collect(Collectors.groupingBy(UsageBase::getWorkOid, Collectors.collectingAndThen(
                         Collectors.toList(),
-                        items -> this.mapUsage(items, param.getRealStart(), param.getRealEnd(), param.getGranularity())
+                        items -> {
+                            currentCpuCores(allUsage, Map.of(worker.getProcessId(), worker), false);
+                            return this.mapUsage(items, param.getRealStart(), param.getRealEnd(), param.getGranularity());
+                        }
                 )));
         for (ApiServerWorkerInfo e : workers) {
             if (null == e || StringUtils.isBlank(e.getOid())) {
