@@ -404,6 +404,7 @@ public class ProxyController extends BaseController {
 
 	@Operation(summary = "External callback url")
 	@PostMapping("internal")
+	@IgnoreLogin
 	public void proxyCallNew(HttpServletRequest request,
 							 HttpServletResponse response,
 							 @RequestParam(name = "key", required = true) String key,
