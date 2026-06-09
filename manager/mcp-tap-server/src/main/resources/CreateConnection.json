@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "dataSourceType": {
+      "type": "string",
+      "description": "The data source type described by the user, e.g. 'mysql', 'MongoDB', 'sql server', 'postgres', 'oracle'. The match is fuzzy and case-insensitive (spaces, underscores, hyphens and minor typos are tolerated). Currently only MongoDB, MySQL, Oracle, SQL Server and PostgreSQL are supported."
+    },
+    "connectionName": {
+      "type": "string",
+      "description": "The name of the connection to create. Required when 'config' is provided."
+    },
+    "connectionType": {
+      "type": "string",
+      "enum": ["source", "target", "source_and_target"],
+      "description": "How the connection can be used: source (read only), target (write only) or source_and_target. Default: source_and_target."
+    },
+    "config": {
+      "type": "object",
+      "description": "The connection configuration. Keys must match the field names of the resolved data source's connection schema. If omitted, this tool DOES NOT create anything and instead returns the resolved data source type together with the list of configuration fields (name, title, type, required, advanced) so you can learn which fields to fill; then call createConnection again with 'config' populated to actually create the connection. Examples: MongoDB URI mode -> {\"isUri\": true, \"uri\": \"mongodb://user:pass@host:27017/db\"}; MongoDB standard mode -> {\"isUri\": false, \"host\": \"127.0.0.1:27017\", \"database\": \"mydb\", \"user\": \"u\", \"password\": \"p\"}; MySQL/PostgreSQL/Oracle/SQL Server typically -> {\"host\": \"127.0.0.1\", \"port\": 3306, \"database\": \"mydb\", \"schema\": \"public\", \"user\": \"u\", \"password\": \"p\"}. Fields listed under 'advanced' belong to the advanced configuration section and are optional in most cases."
+    }
+  },
+  "required": ["dataSourceType"]
+}
