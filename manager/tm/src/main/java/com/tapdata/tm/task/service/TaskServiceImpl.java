@@ -3039,7 +3039,9 @@ public class TaskServiceImpl extends TaskService{
                 .className(cls)
                 .method(method)
                 .args(args);
-        serviceCaller.subscribeIds("processId_" + resolveEngineRpcEngineId(engineId));
+        if (engineId != null) {
+            serviceCaller.subscribeIds("processId_" + engineId);
+        }
         serviceCaller.setReturnClass(Object.class.getName());
         String callId = UUID.randomUUID().toString().replace("-", "");
         serviceCaller.setId(callId);
@@ -3086,7 +3088,7 @@ public class TaskServiceImpl extends TaskService{
     public <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable {
         String callId = UUID.randomUUID().toString().replace("-", "");
         ServiceCaller serviceCaller = ServiceCaller.create(callId).className(className).method(method);
-        serviceCaller.subscribeIds("processId_" + resolveEngineRpcEngineId(engineId));
+        Optional.ofNullable(engineId).ifPresent(id -> serviceCaller.subscribeIds("processId_" + id));
         Optional.ofNullable(args).ifPresent(serviceCaller::args);
         Optional.ofNullable(returnClz).ifPresent(clz -> serviceCaller.setReturnClass(clz.getName()));
 
@@ -3111,25 +3113,6 @@ public class TaskServiceImpl extends TaskService{
             return result.get();
         }
         throw error.get();
-    }
-
-    private String resolveEngineRpcEngineId(String engineId) {
-        if (StringUtils.isNotBlank(engineId)) {
-            return engineId;
-        }
-        List<Worker> availableAgents = workerService.findAvailableAgentBySystem(Collections.<String>emptyList());
-        if (CollectionUtils.isEmpty(availableAgents)) {
-            throw new BizException(AGENT_NOT_FOUND);
-        }
-        List<String> availableProcessIds = availableAgents.stream()
-                .filter(Objects::nonNull)
-                .map(Worker::getProcessId)
-                .filter(StringUtils::isNotBlank)
-                .toList();
-        if (CollectionUtils.isEmpty(availableProcessIds)) {
-            throw new BizException(AGENT_NOT_FOUND);
-        }
-        return availableProcessIds.get(NumberUtil.getRandomNumber(availableProcessIds.size()));
     }
 
     @Override

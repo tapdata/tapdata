@@ -40,12 +40,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -309,8 +312,7 @@ public class TraceDataService {
         if (request.getFilters() != null && StringUtils.isNotBlank(request.getFilters().getSql())) {
             condition.setSqlMode(true);
             condition.setSql(request.getFilters().getSql());
-            Map<String, Object> filter = JSON.parseObject(request.getFilters().getSql(), Map.class);
-            condition.getConditionKeys().addAll(filter.keySet());
+            condition.getConditionKeys().addAll(parseSqlFilterKeys(request.getFilters().getSql()));
         }
         if (request.getFilters() != null &&  CollectionUtils.isNotEmpty(request.getFilters().getCustom())) {
             request.getFilters().getCustom().stream()
@@ -329,6 +331,21 @@ public class TraceDataService {
             condition.getFilters().addAll(request.getFilters().getConditions());
         }
         return condition;
+    }
+
+    private Set<String> parseSqlFilterKeys(String sql) {
+        try {
+            Object parsed = JSON.parse(sql);
+            if (parsed instanceof Map) {
+                return ((Map<?, ?>) parsed).keySet().stream()
+                        .filter(Objects::nonNull)
+                        .map(String::valueOf)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse trace sql filter as JSON map: {}", e.getMessage());
+        }
+        return Collections.emptySet();
     }
 
     private boolean isRangeOperator(int operator) {
@@ -519,16 +536,17 @@ public class TraceDataService {
 
         List<Map<String, Object>> filters = new ArrayList<>();
         if(CollectionUtils.isEmpty(currentCondition.getFilters())){
-            currentCondition.getConditionKeys().forEach(key -> {
-                if (hasCurrentRecords(currentTraceValue)) {
-                    filters.addAll(rewriteFilterWithRecords(null,currentCondition.getConditionKeys(), currentTraceValue, upstreamByOrigin, currentFieldMapping, updateConditionFieldList, errors));
-                }else if(StringUtils.isNotBlank(currentCondition.getSql())){
-                    if(currentFieldMapping.containsKey(key)){
-                        buildCondition.setSql(currentCondition.getSql().replaceAll(key,currentFieldMapping.get(key)));
+            if (hasCurrentRecords(currentTraceValue)) {
+                filters.addAll(rewriteFilterWithRecords(null, currentCondition.getConditionKeys(), currentTraceValue, upstreamByOrigin, currentFieldMapping, updateConditionFieldList, errors));
+            } else if (StringUtils.isNotBlank(currentCondition.getSql())) {
+                String sql = currentCondition.getSql();
+                for (String key : currentCondition.getConditionKeys()) {
+                    if (currentFieldMapping.containsKey(key)) {
+                        sql = rewriteSqlFieldName(sql, key, currentFieldMapping.get(key));
                     }
-
                 }
-            });
+                buildCondition.setSql(sql);
+            }
         }else{
             for (Map<String, Object> sourceFilter : safeFilters(currentCondition)) {
                 if (hasCurrentRecords(currentTraceValue)) {
@@ -543,6 +561,14 @@ public class TraceDataService {
         }
 
         return distinctFilters(filters);
+    }
+
+    private String rewriteSqlFieldName(String sql, String fromField, String toField) {
+        if (StringUtils.isBlank(sql) || StringUtils.isAnyBlank(fromField, toField)) {
+            return sql;
+        }
+        Pattern pattern = Pattern.compile("(?<![\\w$])" + Pattern.quote(fromField) + "(?![\\w$])");
+        return pattern.matcher(sql).replaceAll(Matcher.quoteReplacement(toField));
     }
 
     private List<Map<String, Object>> rewriteFilterWithRecords(Map<String, Object> sourceFilter,
@@ -582,7 +608,7 @@ public class TraceDataService {
         }
         if(MapUtils.isNotEmpty(filter))return filter;
         if (MapUtils.isEmpty(sourceFilter)) {
-            sourceKeys.forEach(key -> {
+            CollectionUtils.emptyIfNull(sourceKeys).forEach(key -> {
                 String originName = currentFieldMapping.get(key);
                 Object value = readRecordValue(record, key);
                 if (value != null) {
