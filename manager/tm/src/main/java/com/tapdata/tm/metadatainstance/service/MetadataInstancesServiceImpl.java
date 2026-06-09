@@ -1601,11 +1601,11 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 								fields.put("namespace", true);
 								DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(cid), fields);
 								if (null != connectionDto && null != connectionDto.getNamespace() && !connectionDto.getNamespace().isEmpty()) {
-									return String.join(".", connectionDto.getNamespace());
+									return connectionDto.getNamespace().stream().map(v -> CommonStringUtils.escape(v, '.')).collect(Collectors.joining("."));
 								}
 								throw new RuntimeException("Connection '" + cid + "' not found 'namespace' property");
 							});
-							return String.join(".", prefix, originalName);
+							return String.join(".", CommonStringUtils.escape(prefix, '.'), CommonStringUtils.escape(originalName, '.'));
 						};
 
 						kv = metadatas.stream().collect(Collectors.toMap(m -> {

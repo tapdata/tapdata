@@ -717,6 +717,20 @@
 					<classifier>exec</classifier>
 					<!--<executable>true</executable>-->
 					<!--<outputDirectory>${project.basedir}/../dist/${project.name}-${project.version}-${profile.active}/lib/</outputDirectory>-->
+                    <requiresUnpack>
+                        <dependency>
+                            <groupId>org.bouncycastle</groupId>
+                            <artifactId>bcprov-jdk18on</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.bouncycastle</groupId>
+                            <artifactId>bcpkix-jdk18on</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.bouncycastle</groupId>
+                            <artifactId>bcutil-jdk18on</artifactId>
+                        </dependency>
+                    </requiresUnpack>
 				</configuration>
 			</plugin>
 			<plugin>

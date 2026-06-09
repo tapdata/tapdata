@@ -122,6 +122,7 @@ public class WorkerServiceImpl extends WorkerService{
 
     private final MultiTaggedCounter workerPing;
     private Random random = new Random();
+    private static final String STATUS = "status";
 
     public WorkerServiceImpl(@NonNull WorkerRepository repository) {
         super(repository);
@@ -323,10 +324,8 @@ public class WorkerServiceImpl extends WorkerService{
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
                     .and("is_deleted").ne(true)
                     .and("user_id").is(userDetail.getUserId())
-                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
-                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
-                     Criteria.where("crontabExpressionFlag").is(true),
-                     Criteria.where("planStartDateFlag").is(true));
+                    .and(STATUS).nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
+                    .orOperator(Criteria.where(STATUS).in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN));
             Query query = Query.query(criteria);
             query.fields().include("id", "name", "syncType");
             //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
@@ -604,7 +603,7 @@ public class WorkerServiceImpl extends WorkerService{
             String processId = MapUtil.getStr(data, "process_id");
             if (StringUtils.isNotBlank(processId)) {
                 String progress = MapUtil.getStr(data, "progres");
-                String status = MapUtil.getStr(data, "status");
+                String status = MapUtil.getStr(data, STATUS);
                 String msg = MapUtil.getStr(data, "msg");
                 Date now = new Date();
 
@@ -658,6 +657,7 @@ public class WorkerServiceImpl extends WorkerService{
                 .ifPresent(s -> update.set("worker_status.status", s));
         update.set("worker_status.activeTime", time);
         update.set("worker_status.pid", status.getPid());
+        Optional.ofNullable(status.getCpuCores()).ifPresent(v -> update.set("worker_status.cpuCores", v));
         update.set("auditLogPushMaxDelay", status.getAuditLogPushMaxDelay());
         Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
             update.set("worker_status.metricValues", s)
@@ -764,6 +764,7 @@ public class WorkerServiceImpl extends WorkerService{
         update.set(ServerUsageField.PROCESS_ID.field(), entity.getProcessId());
         update.set(ServerUsageField.WORK_OID.field(), entity.getWorkOid());
         update.set(ServerUsageField.TTL_KEY.field(), entity.getTtlKey());
+        update.set(ServerUsageField.CPU_CORES.field(), entity.getCpuCores());
         update.currentDate(BaseEntityFields.UPDATED_AT.field());
         return update;
     }
@@ -871,7 +872,7 @@ public class WorkerServiceImpl extends WorkerService{
     public void sendStopWorkWs(String processId, UserDetail userDetail) {
         UpdataStatusRequest updataStatusRequest = new UpdataStatusRequest();
         ClusterStateDto clusterStateDto = clusterStateService.findOne(Query.query(Criteria.where("systemInfo.process_id").
-                is(processId).and("status").is("running")));
+                is(processId).and(STATUS).is("running")));
         updataStatusRequest.setUuid(clusterStateDto.getUuid());
         updataStatusRequest.setOperation("stop");
         updataStatusRequest.setServer("backend");

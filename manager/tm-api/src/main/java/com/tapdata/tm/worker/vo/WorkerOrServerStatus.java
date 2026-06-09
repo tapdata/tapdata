@@ -44,4 +44,6 @@ public class WorkerOrServerStatus {
     Map<String, ApiServerWorkerInfo> workerBaseInfo;
 
     Long auditLogPushMaxDelay;
+
+    Integer cpuCores;
 }

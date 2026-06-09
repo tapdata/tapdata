@@ -18,6 +18,9 @@ public class DecimalFormatSerializer extends JsonSerializer<Object>
     protected int scale = 2;
     protected double scaleCompare = 0.01;
     protected RoundingMode roundingMode = RoundingMode.HALF_UP;
+    protected boolean boundEnabled = false;
+    protected double boundMin = 0D;
+    protected double boundMax = 0D;
 
     @Override
     public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers)
@@ -27,7 +30,12 @@ public class DecimalFormatSerializer extends JsonSerializer<Object>
             return;
         }
         if (value instanceof Double dVal) {
-            gen.writeNumber(format(dVal));
+            Double normalized = normalize(dVal);
+            if (normalized == null) {
+                gen.writeNull();
+            } else {
+                gen.writeNumber(format(normalized));
+            }
         } else if (value instanceof List<?> lVal) {
             try {
                 gen.writeStartArray();
@@ -35,7 +43,12 @@ public class DecimalFormatSerializer extends JsonSerializer<Object>
                     if (null == val) {
                         gen.writeNull();
                     } else if (val instanceof Double dVal) {
-                        gen.writeNumber(format(dVal));
+                        Double normalized = normalize(dVal);
+                        if (normalized == null) {
+                            gen.writeNull();
+                        } else {
+                            gen.writeNumber(format(normalized));
+                        }
                     } else {
                         gen.writeObject(val);
                     }
@@ -60,11 +73,38 @@ public class DecimalFormatSerializer extends JsonSerializer<Object>
                 serializer.scale = format.scale();
                 serializer.maxScale = format.maxScale();
                 serializer.roundingMode = format.roundingMode();
-                serializer.scaleCompare = BigDecimal.ONE.movePointLeft(scale).doubleValue();
+                serializer.scaleCompare = BigDecimal.ONE.movePointLeft(serializer.scale).doubleValue();
+                DoubleValueBound bound = property.getAnnotation(DoubleValueBound.class);
+                if (bound != null) {
+                    serializer.boundEnabled = true;
+                    serializer.boundMin = bound.min();
+                    serializer.boundMax = bound.max();
+                }
                 return serializer;
             }
         }
         return this;
+    }
+
+    protected Double normalize(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return null;
+        }
+        if (!boundEnabled) {
+            return value;
+        }
+        double low = Math.min(boundMin, boundMax);
+        double high = Math.max(boundMin, boundMax);
+        if (value < low) {
+            return low;
+        }
+        if (value > high) {
+            return high;
+        }
+        if (value == 0D) {
+            return 0D;
+        }
+        return value;
     }
 
     protected BigDecimal format(double value) {

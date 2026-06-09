@@ -5,6 +5,7 @@ import com.tapdata.tm.cluster.dto.ComponentStoppedRequest;
 import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.schedule.TaskAlarmScheduler;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
@@ -41,6 +42,7 @@ public class ClusterComponentStopService {
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
     private UserService userService;
+    private TaskAlarmScheduler taskAlarmScheduler;
 
     public Map<String, Object> componentStopped(ComponentStoppedRequest req, UserDetail caller) {
         log.info("ClusterComponent event=received component={} uuid={} processId={} callerUserId={}",
@@ -64,6 +66,7 @@ public class ClusterComponentStopService {
                 workerUpdated = markWorkerStopped(processId, "connector");
                 taskRescheduled = failoverTasksOf(processId);
                 clusterStateUpdated = setClusterStateComponentStopped(uuid, "engine");
+                sendEngineOfflineAlarm(processId);
                 break;
             case ComponentStoppedRequest.COMPONENT_APISERVER:
                 workerUpdated = markWorkerStopped(processId, WorkerType.API_SERVER.getType());
@@ -83,6 +86,21 @@ public class ClusterComponentStopService {
         result.put("clusterStateUpdated", clusterStateUpdated);
         result.put("taskRescheduled", taskRescheduled);
         return result;
+    }
+
+    private void sendEngineOfflineAlarm(String processId) {
+        if (StringUtils.isBlank(processId)) {
+            log.warn("ClusterComponent sendEngineOfflineAlarm: processId is blank");
+            return;
+        }
+        if (taskAlarmScheduler != null) {
+            boolean created = taskAlarmScheduler.createEngineOfflineAlarm(processId, null);
+            if (created) {
+                log.info("ClusterComponent sendEngineOfflineAlarm: alarm created successfully processId={} reason=agent_initiated_stop", processId);
+            }
+        } else {
+            log.warn("ClusterComponent sendEngineOfflineAlarm: taskAlarmScheduler is null, cannot create alarm");
+        }
     }
 
     private void validate(ComponentStoppedRequest req) {
@@ -128,7 +146,10 @@ public class ClusterComponentStopService {
 
         Update update = new Update()
                 .set(componentField + ".status", "stopped")
-                .set("last_updated", new Date());
+                .set("last_updated", new Date())
+                // 时序锚：statusInfo 在 executor 任务里用 receivedAt 比这个字段判 stale。
+                // 必须每次 componentStopped 都刷，保证最近的 stop 时刻被记录。
+                .set("componentStoppedAt", new Date());
         if (willAllStopped) {
             update.set("status", "stopped");
             update.set("ttl", new Date(System.currentTimeMillis() - 1000L));

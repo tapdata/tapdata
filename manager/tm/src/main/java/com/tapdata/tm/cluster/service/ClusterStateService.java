@@ -308,6 +308,10 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
      * @param map
      */
     public void statusInfo(Map map) {
+        // 接收瞬间 capture：用来跟 ClusterState.componentStoppedAt 比对，识别"携带 componentStopped
+        // 之前快照"的过期 statusInfo。capture 必须在异步提交之前完成，否则跟 executor 消费时刻没区别。
+        final long receivedAt = System.currentTimeMillis();
+
         Map data = (Map) map.get("data");
         Double reportInterval = (Double) data.get("reportInterval");
         Map systemInfo = (Map) data.get("systemInfo");
@@ -334,6 +338,11 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         ClusterStateEntity clusterStateEntity = BeanUtil.mapToBean(data, ClusterStateEntity.class, false, CopyOptions.create());
         Document doc = new Document();
         repository.getMongoOperations().getConverter().write(clusterStateEntity, doc);
+        // 时序锚仅由 ClusterComponentStopService.setClusterStateComponentStopped 写。
+        // Entity 上 componentStoppedAt 在本上下文里恒为 null，converter 会把 null 写进 doc，
+        // 不剔除则 Update.fromDocument 会生成 $set:{componentStoppedAt:null}，每条正常 statusInfo
+        // 都把锚抹掉，下一轮 race 的 stale statusInfo 不再 skip → 修复失效。
+        doc.remove("componentStoppedAt");
         Update update = Update.fromDocument(doc);
         update.set("status", "running");
         update.set("uuid",uuid);
@@ -344,11 +353,30 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
 
         statusInfoExecutor.execute(() -> {
             try {
+                // race-safe：当本 statusInfo 接收时刻早于（或并发于）最近一次 componentStopped，
+                // 整条丢弃 —— 它携带的是 componentStopped 之前的 snapshot，写入会回滚 stopped 状态。
+                ClusterStateEntity current = repository.getMongoOperations()
+                        .findOne(query, ClusterStateEntity.class, "ClusterState");
+                if (shouldSkipStaleStatusInfo(receivedAt, current)) {
+                    log.info("statusInfo skipped (stale snapshot) uuid={} receivedAt={} componentStoppedAt={}",
+                            uuid, receivedAt, current.getComponentStoppedAt().getTime());
+                    return;
+                }
                 repository.getMongoOperations().upsert(query, update, "ClusterState");
             } catch (Exception e) {
                 log.warn("ClusterState upsert failed for uuid={}, will retry on next statusInfo", uuid, e);
             }
         });
+    }
+
+    /**
+     * 判定一条 statusInfo 是否携带"早于最近一次 componentStopped"的过期快照，应被整条丢弃。
+     * 抽成 package-private 纯函数便于单测，不需要 mock Mongo。
+     * 语义：receivedAt &lt;= current.componentStoppedAt 即 stale（同毫秒并发让 componentStopped 赢）。
+     */
+    static boolean shouldSkipStaleStatusInfo(long receivedAt, ClusterStateEntity current) {
+        if (current == null || current.getComponentStoppedAt() == null) return false;
+        return current.getComponentStoppedAt().getTime() >= receivedAt;
     }
 
 

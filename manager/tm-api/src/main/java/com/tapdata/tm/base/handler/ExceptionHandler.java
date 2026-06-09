@@ -161,7 +161,9 @@ public class ExceptionHandler extends BaseController {
 
 
 		ResponseMessage<Object> failed;
-		if (!StringUtils.isEmpty(message)) {
+		if ("NotLogin".equals(e.getErrorCode())) {
+			failed = failed(e.getErrorCode(), message);
+		} else if (!StringUtils.isEmpty(message)) {
 			failed = failed(e.getErrorCode(), message, e);
 		} else {
 

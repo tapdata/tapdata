@@ -692,6 +692,7 @@ public class TaskController extends BaseController {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
 			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+				taskService.clearAgentAffinityForManualStart(objectId, userDetail);
 				taskService.start(objectId, userDetail);
 				return null;
 			});
@@ -913,7 +914,10 @@ public class TaskController extends BaseController {
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
             syncType = resolveSyncType(syncType, taskObjectIds);
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Start,
-				() -> taskService.batchStart(taskObjectIds, userDetail, request, response)
+				() -> {
+					taskService.clearAgentAffinityForManualStart(taskObjectIds, userDetail);
+					return taskService.batchStart(taskObjectIds, userDetail, request, response);
+				}
 			);
 			return success(responseMessages);
 		}

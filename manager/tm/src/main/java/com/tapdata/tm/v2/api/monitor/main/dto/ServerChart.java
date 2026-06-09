@@ -1,6 +1,7 @@
 package com.tapdata.tm.v2.api.monitor.main.dto;
 
 import com.tapdata.tm.commons.base.DecimalFormat;
+import com.tapdata.tm.commons.base.DoubleValueBound;
 import com.tapdata.tm.worker.entity.ConnectionPoolEntity;
 import com.tapdata.tm.worker.entity.ServerUsageMetric;
 import com.tapdata.tm.worker.entity.UsageBase;
@@ -80,17 +81,23 @@ public class ServerChart extends ValueBase {
 
     @Data
     public static class Usage {
+        @DoubleValueBound
         @DecimalFormat
         List<Double> cpuUsage;
+        @DoubleValueBound
         @DecimalFormat
         List<Double> memoryUsage;
 
+        @DoubleValueBound
         @DecimalFormat
         List<Double> maxCpuUsage;
+        @DoubleValueBound
         @DecimalFormat
         List<Double> minCpuUsage;
+        @DoubleValueBound
         @DecimalFormat
         List<Double> maxMemoryUsage;
+        @DoubleValueBound
         @DecimalFormat
         List<Double> minMemoryUsage;
 
@@ -137,7 +144,11 @@ public class ServerChart extends ValueBase {
         }
 
         public void add(UsageBase usage) {
-            getCpuUsage().add(usage.getCpuUsage());
+            Integer cpuCores = usage.getCpuCores();
+            Double cpuUsage = usage.getCpuUsage();
+            boolean needBoundByCpuCores = (cpuCores == null || cpuCores <= 0) && null != cpuUsage && null != usage.getCurrentCpuUsage() && usage.getCurrentCpuUsage() > 0;
+            Integer currentCpuCores = usage.getCurrentCpuUsage();
+            getCpuUsage().add(boundByCpuCores(needBoundByCpuCores, cpuUsage, currentCpuCores));
             if (null != usage.getHeapMemoryMax()) {
                 if (usage.getHeapMemoryMax() > 0L) {
                     getMemoryUsage().add(100.0D * usage.getHeapMemoryUsage() / usage.getHeapMemoryMax());
@@ -153,8 +164,8 @@ public class ServerChart extends ValueBase {
             poolQueueSize.add(usage.getPoolQueueSize());
             if (usage instanceof ServerUsageMetric metric) {
                 initStatisticsData();
-                maxCpuUsage.add(metric.getMaxCpuUsage());
-                minCpuUsage.add(metric.getMinCpuUsage());
+                maxCpuUsage.add(boundByCpuCores(needBoundByCpuCores, metric.getMaxCpuUsage(), currentCpuCores));
+                minCpuUsage.add(boundByCpuCores(needBoundByCpuCores, metric.getMinCpuUsage(), currentCpuCores));
                 if (null != metric.getHeapMemoryMax() && metric.getHeapMemoryMax() > 0L) {
                     Double valueOfMaxMemoryUsage = Optional.ofNullable(metric.getMaxHeapMemoryUsage())
                             .map(v -> v * 100.0 / metric.getHeapMemoryMax())
@@ -169,6 +180,17 @@ public class ServerChart extends ValueBase {
                     minMemoryUsage.add(null);
                 }
             }
+        }
+
+        Double boundByCpuCores(boolean needBoundByCpuCores, Double value, Integer cpuCores) {
+            if (null == value) {
+                return null;
+            }
+            if (!needBoundByCpuCores) {
+                return value;
+            }
+            assert cpuCores != null && cpuCores > 0;
+            return value / (1.0D * cpuCores);
         }
     }
 
@@ -285,6 +307,7 @@ public class ServerChart extends ValueBase {
     @Data
     public static class Item extends ValueBase.Item {
         Long requestCount;
+        @DoubleValueBound
         Double errorRate;
         Double avg;
         Double p95;

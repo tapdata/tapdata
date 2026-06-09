@@ -34,6 +34,19 @@ public final class ApiStatusUtil {
     }
 
     public static void statusOfApi(boolean clusterStopped, Worker apiInfo, Component workerClusterStatus, Consumer<String> apiStatusFromAgent, Consumer<String> apiStatusFromApiServer) {
+        // 显式停止意图优先于自报心跳。
+        // 设计要点：
+        //  · markWorkerStopped 只写 stopping=true + ping_time=0L，不动 worker_status.metricValues.lastUpdateTime —
+        //    apiserver 由多个子进程组成，停止窗口内仍可能有 in-flight 的 update-status POST 把 lastUpdateTime
+        //    写回新鲜值。若在 markWorkerStopped 里同步清 worker_status.*，会被这条 race 立刻覆盖。
+        //  · 因此读路径以 stopping=true 短路返回 stopped，与时序无关。
+        //  · 复活路径不依赖心跳：agent 在 startApi 后显式 PATCH stopping=false，apiserver 自身心跳无法触发，
+        //    从根上规避"in-flight 心跳误清 stopping"的 race。
+        if (apiInfo != null && Boolean.TRUE.equals(apiInfo.getStopping())) {
+            if (null != workerClusterStatus) apiStatusFromAgent.accept("stopped");
+            apiStatusFromApiServer.accept("stopped");
+            return;
+        }
         // status 与 serviceStatus 同源对齐：apiserver 自身 REST 心跳（3s/次）通常远早于 agent 的
         // WebSocket statusInfo 慢通道把 ClusterState.apiServer.status 写库。启动期若仅复读 DB 陈值，
         // 会出现 serviceStatus=running 而 status=stopped 持续数十秒的分裂现象。当 apiserver 自报心跳

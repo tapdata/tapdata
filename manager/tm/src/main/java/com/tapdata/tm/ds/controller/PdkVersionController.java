@@ -1,5 +1,6 @@
 package com.tapdata.tm.ds.controller;
 
+import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
 import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import java.util.List;
 
 @Controller
 @RequestMapping("/check")
+@IgnoreLogin
 public class PdkVersionController {
 
     @Autowired
