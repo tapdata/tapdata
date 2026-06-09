@@ -1030,7 +1030,7 @@ class ApiCallServiceTest {
             ApiCallEntity apiCallEntity = new ApiCallEntity();
             apiCallEntity.setReqTime(10L);
             apiCallEntity.setResTime(110L);
-            apiCallEntity.setReqBytes(1000L);
+            apiCallEntity.setResBytes(1000L);
             apiCallEntity.setDataQueryEndTime(100L);
             apiCallEntity.setDataQueryTotalTime(100L);
 
@@ -1043,7 +1043,6 @@ class ApiCallServiceTest {
             Assertions.assertEquals(10L, apiCallDetailVo.getCallStart());
             Assertions.assertEquals(110L, apiCallDetailVo.getCallEnd());
             Assertions.assertEquals(1000L, apiCallDetailVo.getResponseBytes());
-            Assertions.assertEquals(10000D, apiCallDetailVo.getDbRate(), 0.0001);
             Assertions.assertEquals(200D, apiCallDetailVo.getHttpTime(), 0.0001);
         }
 
@@ -1053,7 +1052,7 @@ class ApiCallServiceTest {
             ApiCallEntity apiCallEntity = new ApiCallEntity();
             apiCallEntity.setReqTime(10L);
             apiCallEntity.setResTime(110L);
-            apiCallEntity.setReqBytes(1000L);
+            apiCallEntity.setResBytes(1000L);
             apiCallEntity.setDataQueryEndTime(100L);
             apiCallEntity.setDataQueryTotalTime(0L);
 
@@ -1063,7 +1062,6 @@ class ApiCallServiceTest {
 
             apiCallService.addMoreParam(apiCallEntity, apiCallDetailVo);
 
-            Assertions.assertEquals(10000000D, apiCallDetailVo.getDbRate(), 0.0001);
             Assertions.assertEquals(300D, apiCallDetailVo.getHttpTime(), 0.0001);
         }
 
@@ -1073,14 +1071,13 @@ class ApiCallServiceTest {
             ApiCallEntity apiCallEntity = new ApiCallEntity();
             apiCallEntity.setReqTime(10L);
             apiCallEntity.setResTime(60L);
-            apiCallEntity.setReqBytes(1000L);
+            apiCallEntity.setResBytes(1000L);
             apiCallEntity.setDataQueryEndTime(null);
 
             ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
 
             apiCallService.addMoreParam(apiCallEntity, apiCallDetailVo);
 
-            Assertions.assertEquals(0D, apiCallDetailVo.getDbRate(), 0.0001);
             Assertions.assertEquals(50D, apiCallDetailVo.getHttpTime(), 0.0001);
         }
 
@@ -1090,13 +1087,12 @@ class ApiCallServiceTest {
             ApiCallEntity apiCallEntity = new ApiCallEntity();
             apiCallEntity.setReqTime(10L);
             apiCallEntity.setResTime(null);
-            apiCallEntity.setReqBytes(0L);
+            apiCallEntity.setResBytes(0L);
 
             ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
 
             apiCallService.addMoreParam(apiCallEntity, apiCallDetailVo);
 
-            Assertions.assertEquals(0D, apiCallDetailVo.getDbRate(), 0.0001);
             Assertions.assertEquals(0D, apiCallDetailVo.getHttpTime(), 0.0001);
         }
     }

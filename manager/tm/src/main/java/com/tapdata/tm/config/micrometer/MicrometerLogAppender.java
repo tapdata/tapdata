@@ -23,10 +23,8 @@ public class MicrometerLogAppender extends AppenderBase<ILoggingEvent> {
     protected void append(ILoggingEvent event) {
         if (event.getLevel().toString().equals("ERROR")) {
             multiTaggedCounter.increment(event.getLevel().levelStr);
-            log.info("MicrometerLogAppender increment tm_errors_log ERROR");
         } else if (event.getLevel().toString().equals("WARN")) {
             multiTaggedCounter.increment(event.getLevel().levelStr);
-            log.info("MicrometerLogAppender increment tm_errors_log WARN");
         }
     }
 }

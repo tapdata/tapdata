@@ -23,6 +23,24 @@ import java.util.Set;
  **/
 public class ConstructIMap<T> extends BaseConstruct<T> {
 
+	/**
+	 * Process-wide write-side backpressure policy. It bounds the GLOBAL write-behind backlog (total pending
+	 * entries across all cache IMaps) so a slow/failing external storage cannot OOM the engine. Backlog is
+	 * read from the background sampler; every write path routes through {@link #applyBackpressure()}.
+	 */
+	private static final WriteBehindBackpressure BACKPRESSURE = WriteBehindBackpressure.fromEnv(
+			new WriteBehindBackpressure.BacklogSource() {
+				@Override
+				public long total() {
+					return WriteBehindBacklogSampler.getInstance().totalBacklog();
+				}
+
+				@Override
+				public long ofMap(String name) {
+					return WriteBehindBacklogSampler.getInstance().backlog(name);
+				}
+			});
+
 	protected IMap<String, Object> iMap;
 
 	public ConstructIMap(HazelcastInstance hazelcastInstance, String name) {
@@ -44,16 +62,38 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 			convertTtlDay2Second(ttlDay);
 			PersistenceStorage.getInstance().setImapTTL(this.iMap, this.ttlSecond);
 		}
+		// Only MapStore-backed (external storage) IMaps can have a write-behind queue, so only those are sampled.
+		if (BACKPRESSURE.isEnabled()) {
+			WriteBehindBacklogSampler.getInstance().register(name, iMap);
+		}
+	}
+
+	/** Apply global write-behind backpressure before a write. Delegates to the shared policy. */
+	protected void applyBackpressure() throws Exception {
+		BACKPRESSURE.apply(name);
+	}
+
+	/** Single guarded write path: every put goes through here so backpressure cannot be bypassed. */
+	protected void putInternal(String key, Object value) throws Exception {
+		applyBackpressure();
+		iMap.put(key, value);
+	}
+
+	/** Single guarded remove path: write-behind deletes also enqueue tombstones, so throttle them too. */
+	protected void removeInternal(String key) throws Exception {
+		applyBackpressure();
+		iMap.remove(key);
 	}
 
 	@Override
 	public int insert(String key, T data) throws Exception {
-		iMap.put(key, data);
+		putInternal(key, data);
 		return 1;
 	}
 
 	@Override
 	public long insertMany(Map<String, T> data) throws Exception {
+		applyBackpressure();
 		iMap.putAll(data);
 		return data.size();
 	}
@@ -70,12 +110,8 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 
 	@Override
 	public int delete(String key) throws Exception {
-		int delete = 0;
-
-		iMap.remove(key);
-		delete++;
-
-		return delete;
+		removeInternal(key);
+		return 1;
 	}
 
 	@Override
@@ -145,6 +181,7 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 
 	@Override
 	public void destroy() throws Exception {
+		WriteBehindBacklogSampler.getInstance().unregister(name);
 		if (PersistenceStorage.getInstance().destroy(referenceId, ConstructType.IMAP, name) && null != iMap) {
 			iMap.destroy();
 		}

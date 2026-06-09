@@ -38,6 +38,9 @@ class DecimalFormatSerializerTest {
     @Mock
     private DecimalFormat decimalFormat;
 
+    @Mock
+    private DoubleValueBound doubleValueBound;
+
     private DecimalFormatSerializer serializer;
 
     @BeforeEach
@@ -176,6 +179,36 @@ class DecimalFormatSerializerTest {
         DecimalFormatSerializer newSerializer = (DecimalFormatSerializer) result;
         assertEquals(4, newSerializer.scale);
         assertEquals(RoundingMode.CEILING, newSerializer.roundingMode);
+    }
+
+    @Test
+    void testCreateContextualWithAnnotationAndBound() throws JsonMappingException {
+        when(beanProperty.getAnnotation(DecimalFormat.class)).thenReturn(decimalFormat);
+        when(beanProperty.getAnnotation(DoubleValueBound.class)).thenReturn(doubleValueBound);
+        when(decimalFormat.scale()).thenReturn(2);
+        when(decimalFormat.roundingMode()).thenReturn(RoundingMode.HALF_UP);
+        when(doubleValueBound.min()).thenReturn(0D);
+        when(doubleValueBound.max()).thenReturn(100D);
+
+        JsonSerializer<?> result = serializer.createContextual(serializerProvider, beanProperty);
+
+        assertTrue(result instanceof DecimalFormatSerializer);
+        DecimalFormatSerializer newSerializer = (DecimalFormatSerializer) result;
+        assertTrue(newSerializer.boundEnabled);
+        assertEquals(0D, newSerializer.boundMin);
+        assertEquals(100D, newSerializer.boundMax);
+    }
+
+    @Test
+    void testSerializeDoubleValueWithBound() throws IOException {
+        DecimalFormatSerializer boundSerializer = new DecimalFormatSerializer();
+        boundSerializer.boundEnabled = true;
+        boundSerializer.boundMin = 0D;
+        boundSerializer.boundMax = 100D;
+
+        boundSerializer.serialize(101.2D, jsonGenerator, serializerProvider);
+
+        verify(jsonGenerator).writeNumber(eq(BigDecimal.valueOf(100D).setScale(2, RoundingMode.HALF_UP)));
     }
 
     @Test

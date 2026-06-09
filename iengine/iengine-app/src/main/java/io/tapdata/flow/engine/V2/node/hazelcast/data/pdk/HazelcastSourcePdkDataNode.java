@@ -895,18 +895,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 						// Try to start with share cdc
 						doShareCdc();
 					} catch (ShareCdcUnsupportedException e) {
-						if (e.isContinueWithNormalCdc() && !taskDto.getEnforceShareCdc()) {
-							// If share cdc is unavailable, and continue with normal cdc is true
-							obsLogger.trace("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
-							try {
-								doNormalCDC();
-							} catch (Exception ex) {
-								throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
-							}
-						} else {
-							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
-						}
+						tryNormalCdcIfNeed(e, taskDto);
 					} catch (Exception e) {
+						Throwable shareCdcUnsupportedException = CommonUtils.matchThrowable(e, ShareCdcUnsupportedException.class);
+						if (shareCdcUnsupportedException instanceof ShareCdcUnsupportedException iShareCdcUnsupportedException) {
+							tryNormalCdcIfNeed(iShareCdcUnsupportedException, taskDto);
+							return;
+						}
 						Throwable throwable = CommonUtils.matchThrowable(e, TapCodeException.class);
 						if (null != throwable) {
 							throw throwable;
@@ -918,6 +913,21 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					doNormalCDC();
 				}
 			}
+		}
+	}
+
+	protected void tryNormalCdcIfNeed(ShareCdcUnsupportedException e, TaskDto taskDto) {
+		if (e.isContinueWithNormalCdc() && null != taskDto.getEnforceShareCdc() && !taskDto.getEnforceShareCdc()) {
+			// If share cdc is unavailable, and continue with normal cdc is true
+			obsLogger.trace("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
+			try {
+				initStreamOffsetInitialAndCDC(syncProgress.getOffsetStartTime());
+				doNormalCDC();
+			} catch (Exception ex) {
+				throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, ex);
+			}
+		} else {
+			throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
 		}
 	}
 

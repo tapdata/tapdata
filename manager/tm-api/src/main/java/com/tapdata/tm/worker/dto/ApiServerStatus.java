@@ -51,4 +51,6 @@ public class ApiServerStatus {
     private Boolean updateCpuMem;
 
     Long auditLogPushMaxDelay;
+
+    Integer cpuCores;
 }

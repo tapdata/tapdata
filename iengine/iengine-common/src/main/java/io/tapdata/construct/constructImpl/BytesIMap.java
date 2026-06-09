@@ -29,7 +29,7 @@ public class BytesIMap<T> extends ConstructIMap<T> {
 
 	@Override
 	public int insert(String key, T data) throws Exception {
-		iMap.put(key, new Document(DATA_KEY, serialized(data)));
+		putInternal(key, new Document(DATA_KEY, serialized(data)));
 		return 1;
 	}
 
@@ -45,12 +45,8 @@ public class BytesIMap<T> extends ConstructIMap<T> {
 
 	@Override
 	public int delete(String key) throws Exception {
-		int delete = 0;
-
-		iMap.remove(key);
-		delete++;
-
-		return delete;
+		removeInternal(key);
+		return 1;
 	}
 
 	@Override

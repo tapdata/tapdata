@@ -29,6 +29,7 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         MINUTE_MEM(12),
         MINUTE_MEM_MAX(12),
         MINUTE_CPU(12),
+        MINUTE_CPU_CORES(12),
         MINUTE_POOL_CONNECTIONS_MAX(12),
         MINUTE_POOL_CONNECTIONS_USED(12),
         MINUTE_POOL_QUEUE_SIZE(12),
@@ -36,6 +37,7 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         HOUR_MEMORY_MAX(12 * 60),
         HOUR_MEMORY(12 * 60),
         HOUR_CPU(12 * 60),
+        HOUR_CPU_CORES(12 * 60),
         HOUR_POOL_CONNECTIONS_MAX(12 * 60),
         HOUR_POOL_CONNECTIONS_USED(12 * 60),
         HOUR_POOL_QUEUE_SIZE(12 * 60),
@@ -49,11 +51,11 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         }
 
         public static ContainerType[] ofMinute() {
-            return new ContainerType[]{MINUTE_MEM, MINUTE_MEM_MAX, MINUTE_CPU, MINUTE_POOL_CONNECTIONS_MAX, MINUTE_POOL_CONNECTIONS_USED, MINUTE_POOL_QUEUE_SIZE};
+            return new ContainerType[]{MINUTE_MEM, MINUTE_MEM_MAX, MINUTE_CPU, MINUTE_CPU_CORES, MINUTE_POOL_CONNECTIONS_MAX, MINUTE_POOL_CONNECTIONS_USED, MINUTE_POOL_QUEUE_SIZE};
         }
 
         public static ContainerType[] ofHour() {
-            return new ContainerType[]{HOUR_MEMORY_MAX, HOUR_MEMORY, HOUR_CPU, HOUR_POOL_CONNECTIONS_MAX, HOUR_POOL_CONNECTIONS_USED, HOUR_POOL_QUEUE_SIZE};
+            return new ContainerType[]{HOUR_MEMORY_MAX, HOUR_MEMORY, HOUR_CPU, HOUR_CPU_CORES, HOUR_POOL_CONNECTIONS_MAX, HOUR_POOL_CONNECTIONS_USED, HOUR_POOL_QUEUE_SIZE};
         }
     }
 
@@ -100,9 +102,11 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         this.containerMap.computeIfAbsent(ContainerType.MINUTE_MEM, k -> new Container<>(k.getInitSize(), this::acceptMemory));
         this.containerMap.computeIfAbsent(ContainerType.MINUTE_MEM_MAX, k -> new Container<>(k.getInitSize(), this::acceptMemMax));
         this.containerMap.computeIfAbsent(ContainerType.MINUTE_CPU, k -> new Container<>(k.getInitSize(), this::acceptCpu));
+        this.containerMap.computeIfAbsent(ContainerType.MINUTE_CPU_CORES, k -> new Container<>(k.getInitSize(), this::acceptCpuCores));
         this.containerMap.computeIfAbsent(ContainerType.HOUR_MEMORY_MAX, k -> new Container<>(k.getInitSize(), this::acceptMemMax));
         this.containerMap.computeIfAbsent(ContainerType.HOUR_MEMORY, k -> new Container<>(k.getInitSize(), this::acceptMemory));
         this.containerMap.computeIfAbsent(ContainerType.HOUR_CPU, k -> new Container<>(k.getInitSize(), this::acceptCpu));
+        this.containerMap.computeIfAbsent(ContainerType.HOUR_CPU_CORES, k -> new Container<>(k.getInitSize(), this::acceptCpuCores));
         this.containerMap.computeIfAbsent(ContainerType.MINUTE_POOL_CONNECTIONS_MAX, k -> new Container<>(k.getInitSize(), (u, items) -> acceptAvg(items, u::setPoolMaxConnections)));
         this.containerMap.computeIfAbsent(ContainerType.MINUTE_POOL_CONNECTIONS_USED, k -> new Container<>(k.getInitSize(), (u, items) -> acceptAvg(items, u::setPoolUsedConnections)));
         this.containerMap.computeIfAbsent(ContainerType.MINUTE_POOL_QUEUE_SIZE, k -> new Container<>(k.getInitSize(), (u, items) -> acceptAvg(items, u::setPoolQueueSize)));
@@ -146,6 +150,7 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         push(ContainerType.HOUR_MEMORY, usage, ServerUsageField.HEAP_MEMORY_USAGE, Long.class, 0L);
         push(ContainerType.HOUR_MEMORY_MAX, usage, ServerUsageField.HEAP_MEMORY_MAX, Long.class, 0L);
         push(ContainerType.HOUR_CPU, usage, ServerUsageField.CPU_USAGE, Double.class, 0D);
+        push(ContainerType.MINUTE_CPU_CORES, usage, ServerUsageField.CPU_CORES, Integer.class, 0);
 
         push(ContainerType.MINUTE_POOL_CONNECTIONS_MAX, usage, ServerUsageField.POOL_MAX_CONNECTIONS, Integer.class, 0);
         push(ContainerType.MINUTE_POOL_CONNECTIONS_USED, usage, ServerUsageField.POOL_USED_CONNECTIONS, Integer.class, 0);
@@ -153,6 +158,7 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
         push(ContainerType.HOUR_POOL_CONNECTIONS_MAX, usage, ServerUsageField.POOL_MAX_CONNECTIONS, Integer.class, 0);
         push(ContainerType.HOUR_POOL_CONNECTIONS_USED, usage, ServerUsageField.POOL_USED_CONNECTIONS, Integer.class, 0);
         push(ContainerType.HOUR_POOL_QUEUE_SIZE, usage, ServerUsageField.POOL_QUEUE_SIZE, Integer.class, 0);
+        push(ContainerType.HOUR_CPU_CORES, usage, ServerUsageField.CPU_CORES, Integer.class, 0);
     }
 
     void acceptMin() {
@@ -183,6 +189,19 @@ public final class ServerUsageMetricInstanceAcceptor implements AcceptorBase {
                 .mapToLong(Long::longValue)
                 .average()
                 .ifPresent(avg -> usage.setHeapMemoryUsage(((Double) avg).longValue()));
+    }
+
+    public void acceptCpuCores(ServerUsageMetric usage, List<Integer> cores) {
+        if (cores.isEmpty()) {
+            return;
+        }
+        for (int i = cores.size() - 1; i >= 0; i--) {
+            Integer lastCores = cores.get(i);
+            if (lastCores != null && lastCores > 0) {
+                usage.setCpuCores(lastCores);
+                return;
+            }
+        }
     }
 
     public void acceptCpu(ServerUsageMetric usage, List<Double> cpu) {

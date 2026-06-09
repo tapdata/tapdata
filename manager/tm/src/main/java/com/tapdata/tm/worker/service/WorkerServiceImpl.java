@@ -657,6 +657,7 @@ public class WorkerServiceImpl extends WorkerService{
                 .ifPresent(s -> update.set("worker_status.status", s));
         update.set("worker_status.activeTime", time);
         update.set("worker_status.pid", status.getPid());
+        Optional.ofNullable(status.getCpuCores()).ifPresent(v -> update.set("worker_status.cpuCores", v));
         update.set("auditLogPushMaxDelay", status.getAuditLogPushMaxDelay());
         Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
             update.set("worker_status.metricValues", s)
@@ -763,6 +764,7 @@ public class WorkerServiceImpl extends WorkerService{
         update.set(ServerUsageField.PROCESS_ID.field(), entity.getProcessId());
         update.set(ServerUsageField.WORK_OID.field(), entity.getWorkOid());
         update.set(ServerUsageField.TTL_KEY.field(), entity.getTtlKey());
+        update.set(ServerUsageField.CPU_CORES.field(), entity.getCpuCores());
         update.currentDate(BaseEntityFields.UPDATED_AT.field());
         return update;
     }
