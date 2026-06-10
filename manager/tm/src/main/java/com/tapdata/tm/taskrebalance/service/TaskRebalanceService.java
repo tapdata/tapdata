@@ -113,7 +113,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
 
     public TaskRebalancePreviewVo preview(UserDetail userDetail) {
         assertRebalanceEnabled();
-        assertRebalancePermission(userDetail);
+        assertRebalancePermission(userDetail, DataPermissionActionEnums.View);
         List<Worker> onlineWorkers = findAvailableAgents();
         if (CollectionUtils.isEmpty(onlineWorkers) || onlineWorkers.size() < 2) {
             TaskRebalancePreviewVo preview = new TaskRebalancePreviewVo();
@@ -135,8 +135,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
      */
     public TaskRebalanceVo createAndExecute(TaskRebalancePreviewVo submittedPreview, UserDetail userDetail) {
         assertRebalanceEnabled();
-        assertRebalancePermission(userDetail);
-        if (hasActive(userDetail)) {
+        assertRebalancePermission(userDetail, DataPermissionActionEnums.Edit);
+        if (hasActiveRebalance(userDetail)) {
             throw new BizException("task.rebalance.alreadyRunning");
         }
         if (submittedPreview == null || StringUtils.isNotBlank(submittedPreview.getReason())) {
@@ -229,7 +229,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
 
     public Page<TaskRebalanceVo> findHistory(Filter filter, UserDetail userDetail) {
         assertRebalanceEnabled();
-        assertRebalancePermission(userDetail);
+        assertRebalancePermission(userDetail, DataPermissionActionEnums.View);
         if (filter == null) {
             filter = new Filter();
         }
@@ -242,7 +242,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
 
     public TaskRebalanceDetailVo detail(String id, UserDetail userDetail) {
         assertRebalanceEnabled();
-        assertRebalancePermission(userDetail);
+        assertRebalancePermission(userDetail, DataPermissionActionEnums.View);
         TaskRebalanceDetailVo detail = new TaskRebalanceDetailVo();
         detail.setRebalance(toVo(findById(new ObjectId(id), userDetail)));
         Query query = Query.query(Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(id))
@@ -255,14 +255,18 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
 
     public boolean hasActive(UserDetail userDetail) {
         assertRebalanceEnabled();
-        assertRebalancePermission(userDetail);
+        assertRebalancePermission(userDetail, DataPermissionActionEnums.View);
+        return hasActiveRebalance(userDetail);
+    }
+
+    private boolean hasActiveRebalance(UserDetail userDetail) {
         Query query = Query.query(Criteria.where(TaskRebalanceDto.FIELD_STATUS).is(TaskRebalanceStatus.RUNNING));
         return count(query, userDetail) > 0;
     }
 
     public void cancel(String rebalanceId, UserDetail userDetail) {
         assertRebalanceEnabled();
-        assertRebalancePermission(userDetail);
+        assertRebalancePermission(userDetail, DataPermissionActionEnums.Edit);
         String cancelReason = buildCancelReason(userDetail);
         Query query = Query.query(Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(rebalanceId)
                 .and(TaskRebalanceJobDto.FIELD_STATUS).is(TaskRebalanceJobStatus.PENDING));
@@ -275,7 +279,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
 
     public void cancelJob(String rebalanceId, String taskId, UserDetail userDetail) {
         assertRebalanceEnabled();
-        assertRebalancePermission(userDetail);
+        assertRebalancePermission(userDetail, DataPermissionActionEnums.Edit);
         TaskRebalanceJobDto job = findRebalanceJob(rebalanceId, taskId, userDetail);
         if (job == null) {
             throw new BizException("task.rebalance.jobNotFound", taskId);
@@ -380,19 +384,19 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
     }
 
-    private void assertRebalancePermission(UserDetail userDetail) {
+    private void assertRebalancePermission(UserDetail userDetail, DataPermissionActionEnums action) {
         if (userDetail.isRoot() || userDetail.isFreeAuth()) {
             return;
         }
         DataPermissionHelper.check(
                 userDetail,
                 DataPermissionMenuEnums.TaskRebalance,
-                DataPermissionActionEnums.View,
+                action,
                 DataPermissionDataTypeEnums.Task,
                 null,
                 () -> true,
                 () -> {
-                    throw new BizException("insufficient.permissions", "task.view", "task.view");
+                    throw new BizException("insufficient.permissions", "task.rebalance." + action.name().toLowerCase(), "task.rebalance." + action.name().toLowerCase());
                 });
     }
 

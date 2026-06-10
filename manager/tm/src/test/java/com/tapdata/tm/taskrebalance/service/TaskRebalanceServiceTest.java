@@ -7,6 +7,10 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.taskrebalance.constant.TaskRebalanceJobStatus;
 import com.tapdata.tm.taskrebalance.constant.TaskRebalanceStatus;
@@ -21,6 +25,7 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -30,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,6 +47,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -188,6 +195,64 @@ class TaskRebalanceServiceTest {
         assertTrue(((String) set.get(TaskRebalanceDto.FIELD_ERROR_MESG)).contains("Invalid rebalance userId"));
         verify(context.userService, never()).loadUserById(any(ObjectId.class));
         verify(service, never()).execute(anyString(), any(UserDetail.class));
+    }
+
+    @Test
+    @DisplayName("read APIs require task rebalance view permission")
+    void readApisRequireViewPermission() {
+        TestContext context = new TestContext();
+        context.user.setFreeAuth(false);
+        TaskRebalanceService service = spy(context.service);
+        doReturn(0L).when(service).count(any(Query.class), eq(context.user));
+
+        try (MockedStatic<DataPermissionHelper> mocked = mockStatic(DataPermissionHelper.class)) {
+            mockPermissionCheck(mocked);
+
+            service.hasActive(context.user);
+
+            verifyPermissionCheck(mocked, context.user, DataPermissionActionEnums.View);
+        }
+    }
+
+    @Test
+    @DisplayName("operation APIs require task rebalance edit permission")
+    void operationApisRequireEditPermission() {
+        TestContext context = new TestContext();
+        context.user.setFreeAuth(false);
+
+        try (MockedStatic<DataPermissionHelper> mocked = mockStatic(DataPermissionHelper.class)) {
+            mockPermissionCheck(mocked);
+
+            BizException exception = assertThrows(BizException.class,
+                    () -> context.service.createAndExecute(null, context.user));
+
+            assertEquals("task.rebalance.noTask", exception.getErrorCode());
+            verifyPermissionCheck(mocked, context.user, DataPermissionActionEnums.Edit);
+        }
+    }
+
+    private void mockPermissionCheck(MockedStatic<DataPermissionHelper> mocked) {
+        mocked.when(() -> DataPermissionHelper.check(
+                any(UserDetail.class),
+                any(DataPermissionMenuEnums.class),
+                any(DataPermissionActionEnums.class),
+                any(DataPermissionDataTypeEnums.class),
+                any(),
+                any(),
+                any()
+        )).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
+    }
+
+    private void verifyPermissionCheck(MockedStatic<DataPermissionHelper> mocked, UserDetail user, DataPermissionActionEnums action) {
+        mocked.verify(() -> DataPermissionHelper.check(
+                eq(user),
+                eq(DataPermissionMenuEnums.TaskRebalance),
+                eq(action),
+                eq(DataPermissionDataTypeEnums.Task),
+                isNull(),
+                any(),
+                any()
+        ));
     }
 
     private static class TestContext {

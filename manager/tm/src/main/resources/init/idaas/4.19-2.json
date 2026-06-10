@@ -26,6 +26,25 @@
           }
         },
         "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_task_rebalance_Edit"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_task_rebalance",
+            "description": "编辑任务均衡",
+            "name": "v2_task_rebalance_Edit",
+            "need_permission": true,
+            "order": 1,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
       }
     ]
   },
@@ -43,6 +62,26 @@
         "u": {
           "$set": {
             "principalId": "v2_task_rebalance",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_task_rebalance_Edit",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_task_rebalance_Edit",
             "principalType": "PERMISSION",
             "roleId": {
               "$oid": "5b9a0a383fcba02649524bf1"
