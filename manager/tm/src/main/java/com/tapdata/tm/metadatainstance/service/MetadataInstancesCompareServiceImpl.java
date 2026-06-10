@@ -559,6 +559,8 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             targetNode.getConnectionId(), userDetail
         );
 
+        if(null == targetSchemaLoadTime)return null;
+
         // Get apply DTOs
         List<MetadataInstancesCompareDto> applyDtos = findAll(
             Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_APPLY))
