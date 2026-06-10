@@ -30,7 +30,6 @@ import com.tapdata.tm.taskrebalance.vo.TaskRebalanceVo;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-import jakarta.annotation.PostConstruct;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -102,19 +101,6 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
 
     @Override
     protected void beforeSave(TaskRebalanceDto dto, UserDetail userDetail) {
-    }
-
-    @PostConstruct
-    public void logUnfinishedRebalancesOnStartup() {
-        if (settingsService.isCloud()) {
-            return;
-        }
-        Query query = Query.query(Criteria.where(TaskRebalanceDto.FIELD_STATUS).is(TaskRebalanceStatus.RUNNING));
-        List<TaskRebalanceDto> rebalances = findAll(query);
-        if (CollectionUtils.isEmpty(rebalances)) {
-            return;
-        }
-        log.info("TaskRebalance found unfinished rebalances, count={}", rebalances.size());
     }
 
     public TaskRebalancePreviewVo preview(UserDetail userDetail) {
