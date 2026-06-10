@@ -1,6 +1,7 @@
 package com.tapdata.tm.taskrebalance.service;
 
 import com.tapdata.manager.common.utils.DateUtil;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -265,25 +266,54 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         String cancelReason = buildCancelReason(userDetail);
         Query query = Query.query(Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(rebalanceId)
                 .and(TaskRebalanceJobDto.FIELD_STATUS).is(TaskRebalanceJobStatus.PENDING));
-        Update update = Update.update(TaskRebalanceJobDto.FIELD_STATUS, TaskRebalanceJobStatus.CANCELLED)
-                .set(TaskRebalanceJobDto.FIELD_FINISH_AT, new Date())
-                .set(TaskRebalanceJobDto.FIELD_ERROR_MESG, cancelReason);
-        jobService.update(query, update, userDetail);
+        UpdateResult result = cancelPendingJobs(query, cancelReason, userDetail);
+        if (result.getModifiedCount() == 0 && hasRunningJob(rebalanceId, null, userDetail)) {
+            throw new BizException("task.rebalance.jobCannotCancel", rebalanceId);
+        }
         updateProgress(rebalanceId, null, userDetail);
     }
 
     public void cancelJob(String rebalanceId, String taskId, UserDetail userDetail) {
         assertRebalanceEnabled();
         assertRebalancePermission(userDetail);
+        TaskRebalanceJobDto job = findRebalanceJob(rebalanceId, taskId, userDetail);
+        if (job == null) {
+            throw new BizException("task.rebalance.jobNotFound", taskId);
+        }
+        if (!TaskRebalanceJobStatus.PENDING.equals(job.getStatus())) {
+            throw new BizException("task.rebalance.jobCannotCancel", job.getStatus());
+        }
         String cancelReason = buildCancelReason(userDetail);
         Query query = Query.query(Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(rebalanceId)
                 .and(TaskRebalanceJobDto.FIELD_TASK_ID).is(taskId)
                 .and(TaskRebalanceJobDto.FIELD_STATUS).is(TaskRebalanceJobStatus.PENDING));
+        UpdateResult result = cancelPendingJobs(query, cancelReason, userDetail);
+        if (result.getModifiedCount() == 0) {
+            throw new BizException("task.rebalance.jobCannotCancel", taskId);
+        }
+        updateProgress(rebalanceId, null, userDetail);
+    }
+
+    private UpdateResult cancelPendingJobs(Query query, String cancelReason, UserDetail userDetail) {
         Update update = Update.update(TaskRebalanceJobDto.FIELD_STATUS, TaskRebalanceJobStatus.CANCELLED)
                 .set(TaskRebalanceJobDto.FIELD_FINISH_AT, new Date())
                 .set(TaskRebalanceJobDto.FIELD_ERROR_MESG, cancelReason);
-        jobService.update(query, update, userDetail);
-        updateProgress(rebalanceId, null, userDetail);
+        return jobService.update(query, update, userDetail);
+    }
+
+    private TaskRebalanceJobDto findRebalanceJob(String rebalanceId, String taskId, UserDetail userDetail) {
+        Query query = Query.query(Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(rebalanceId)
+                .and(TaskRebalanceJobDto.FIELD_TASK_ID).is(taskId));
+        return jobService.findOne(query, userDetail);
+    }
+
+    private boolean hasRunningJob(String rebalanceId, String taskId, UserDetail userDetail) {
+        Criteria criteria = Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(rebalanceId)
+                .and(TaskRebalanceJobDto.FIELD_STATUS).in(TaskRebalanceJobStatus.STOPPING, TaskRebalanceJobStatus.STARTING);
+        if (StringUtils.isNotBlank(taskId)) {
+            criteria.and(TaskRebalanceJobDto.FIELD_TASK_ID).is(taskId);
+        }
+        return jobService.count(Query.query(criteria), userDetail) > 0;
     }
 
     static String buildCancelReason(UserDetail userDetail) {
@@ -476,7 +506,11 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             return;
         }
 
-        updateJobStatus(job, TaskRebalanceJobStatus.STOPPING, null, true, userDetail);
+        if (!transitionJobStatus(job, TaskRebalanceJobStatus.PENDING, TaskRebalanceJobStatus.STOPPING, null, true, userDetail)) {
+            log.info("TaskRebalance job transition skipped, jobId={}, taskId={}, from={}, to={}",
+                    job.getId(), job.getTaskId(), TaskRebalanceJobStatus.PENDING, TaskRebalanceJobStatus.STOPPING);
+            return;
+        }
         stopSourceTask(job, task, taskUser, userDetail, abortFlag, abortReason);
     }
 
@@ -530,7 +564,12 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             raiseAbort(abortFlag, abortReason, reason);
             return;
         }
-        updateJobStatus(job, TaskRebalanceJobStatus.STARTING, null, false, userDetail);
+        if (TaskRebalanceJobStatus.STOPPING.equals(job.getStatus())
+                && !transitionJobStatus(job, TaskRebalanceJobStatus.STOPPING, TaskRebalanceJobStatus.STARTING, null, false, userDetail)) {
+            log.info("TaskRebalance job transition skipped, jobId={}, taskId={}, from={}, to={}",
+                    job.getId(), job.getTaskId(), TaskRebalanceJobStatus.STOPPING, TaskRebalanceJobStatus.STARTING);
+            return;
+        }
         taskService.updateById(new ObjectId(job.getTaskId()), Update.update("agentId", job.getTargetAgentId()), taskUser);
         startTargetTask(job, taskUser, userDetail, abortFlag, abortReason);
     }
@@ -712,7 +751,9 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         jobService.update(query, update, userDetail);
     }
 
-    private void updateJobStatus(TaskRebalanceJobDto job, String status, String error, boolean begin, UserDetail userDetail) {
+    private boolean transitionJobStatus(TaskRebalanceJobDto job, String expectedStatus, String status, String error, boolean begin, UserDetail userDetail) {
+        Query query = Query.query(Criteria.where("_id").is(job.getId())
+                .and(TaskRebalanceJobDto.FIELD_STATUS).is(expectedStatus));
         Update update = Update.update(TaskRebalanceJobDto.FIELD_STATUS, status);
         if (begin && job.getBeginAt() == null) {
             update.set(TaskRebalanceJobDto.FIELD_BEGIN_AT, new Date());
@@ -720,7 +761,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         if (StringUtils.isNotBlank(error)) {
             update.set(TaskRebalanceJobDto.FIELD_ERROR_MESG, error);
         }
-        jobService.updateById(job.getId(), update, userDetail);
+        return jobService.update(query, update, userDetail).getModifiedCount() > 0;
     }
 
     private void finishJob(TaskRebalanceJobDto job, String status, String error, UserDetail userDetail) {

@@ -1,7 +1,9 @@
 package com.tapdata.tm.taskrebalance.service;
 
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.Settings.constant.SettingUtil;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
@@ -31,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -131,6 +134,39 @@ class TaskRebalanceServiceTest {
     }
 
     @Test
+    @DisplayName("pending job does not execute when status transition loses cancel race")
+    void pendingJobSkipsExecutionWhenTransitionFails() {
+        TestContext context = new TestContext();
+        TaskRebalanceJobDto job = context.job(TaskRebalanceJobStatus.PENDING);
+        TaskDto runningOnSource = context.task(TaskDto.STATUS_RUNNING, "source");
+        context.stubTaskLookups(runningOnSource);
+        when(context.ruleService.isMovableAtExecution(runningOnSource)).thenReturn(true);
+        UpdateResult failedTransition = context.updateResult(0);
+        when(context.jobService.update(any(Query.class), any(Update.class), eq(context.user))).thenReturn(failedTransition);
+
+        ReflectionTestUtils.invokeMethod(context.service, "executeJob", job, context.user, new AtomicBoolean(false), new AtomicReference<String>());
+
+        verify(context.taskService, never()).pause(any(TaskDto.class), eq(context.user), eq(false));
+        verify(context.taskService, never()).updateById(eq(context.taskId), any(Update.class), eq(context.user));
+        verify(context.taskService, never()).start(any(TaskDto.class), eq(context.user), eq("11"));
+    }
+
+    @Test
+    @DisplayName("cancelJob reports active non-pending job cannot be cancelled")
+    void cancelJobRejectsRunningJob() {
+        TestContext context = new TestContext();
+        TaskRebalanceJobDto job = context.job(TaskRebalanceJobStatus.STARTING);
+        job.setRebalanceId("rebalance-id");
+        when(context.jobService.findOne(any(Query.class), eq(context.user))).thenReturn(job);
+
+        BizException exception = assertThrows(BizException.class,
+                () -> context.service.cancelJob("rebalance-id", context.taskId.toHexString(), context.user));
+
+        assertEquals("task.rebalance.jobCannotCancel", exception.getErrorCode());
+        verify(context.jobService, never()).update(any(Query.class), any(Update.class), eq(context.user));
+    }
+
+    @Test
     @DisplayName("schedule marks rebalance failed when creator user id is invalid")
     void scheduleMarksInvalidUserRebalanceFailed() {
         TestContext context = new TestContext();
@@ -175,6 +211,7 @@ class TaskRebalanceServiceTest {
         );
 
         private TestContext() {
+            user.setFreeAuth(true);
             new SettingUtil(settingsService);
             when(settingsService.getByCategoryAndKey(any(String.class), any(String.class))).thenReturn("30");
             Worker target = new Worker();
@@ -185,6 +222,8 @@ class TaskRebalanceServiceTest {
                 runnable.run();
                 return null;
             }).when(jobService).runAsRebalanceOperation(any(Runnable.class));
+            UpdateResult successUpdate = updateResult(1);
+            when(jobService.update(any(Query.class), any(Update.class), any(UserDetail.class))).thenReturn(successUpdate);
         }
 
         private TaskRebalanceJobDto job(String status) {
@@ -216,6 +255,12 @@ class TaskRebalanceServiceTest {
             verify(jobService, org.mockito.Mockito.atLeastOnce()).updateById(eq(jobId), updateCaptor.capture(), eq(user));
             List<Update> updates = updateCaptor.getAllValues();
             return updates.get(updates.size() - 1);
+        }
+
+        private UpdateResult updateResult(long modifiedCount) {
+            UpdateResult result = mock(UpdateResult.class);
+            when(result.getModifiedCount()).thenReturn(modifiedCount);
+            return result;
         }
     }
 }
