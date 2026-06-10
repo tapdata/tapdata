@@ -346,6 +346,37 @@ class TaskRebalanceServiceTest {
     }
 
     @Test
+    @DisplayName("updateProgress writes parent counters from aggregated job status")
+    void updateProgressUsesAggregatedJobStatus() {
+        TestContext context = new TestContext();
+        TaskRebalanceJobService.StatusStatistics statistics = new TaskRebalanceJobService.StatusStatistics();
+        statistics.record(TaskRebalanceJobStatus.OK, 2);
+        statistics.record(TaskRebalanceJobStatus.CANCELLED, 1);
+        statistics.record(TaskRebalanceJobStatus.START_TIMEOUT, 1);
+        when(context.jobService.countStatusByRebalanceId(context.rebalanceId)).thenReturn(statistics);
+
+        ReflectionTestUtils.invokeMethod(context.service, "updateProgress", context.rebalanceId, "abort", context.user);
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(context.repository).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(context.user));
+        assertEquals(context.rebalanceObjectId, queryCaptor.getValue().getQueryObject().get("_id"));
+        org.bson.Document updateObject = updateCaptor.getValue().getUpdateObject();
+        org.bson.Document set = updateObject.get("$set", org.bson.Document.class);
+        assertEquals(4, set.get(TaskRebalanceDto.FIELD_TOTAL_COUNT));
+        assertEquals(0, set.get(TaskRebalanceDto.FIELD_PENDING_COUNT));
+        assertEquals(0, set.get(TaskRebalanceDto.FIELD_STOPPING_COUNT));
+        assertEquals(0, set.get(TaskRebalanceDto.FIELD_STARTING_COUNT));
+        assertEquals(2, set.get(TaskRebalanceDto.FIELD_OK_COUNT));
+        assertEquals(1, set.get(TaskRebalanceDto.FIELD_CANCELLED_COUNT));
+        assertEquals(1, set.get(TaskRebalanceDto.FIELD_FAILED_COUNT));
+        assertEquals("abort", set.get(TaskRebalanceDto.FIELD_ERROR_MESG));
+        assertEquals(TaskRebalanceStatus.FAILED, set.get(TaskRebalanceDto.FIELD_STATUS));
+        assertTrue(updateObject.get("$unset", org.bson.Document.class).containsKey(TaskRebalanceDto.FIELD_IS_ACTIVED));
+        verify(context.jobService, never()).findAllDto(any(Query.class), eq(context.user));
+    }
+
+    @Test
     @DisplayName("preview task query sorts by start time and id")
     void findStatTasksSortsByStartTimeAndId() {
         TestContext context = new TestContext();

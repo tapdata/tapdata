@@ -8,6 +8,8 @@ import org.bson.Document;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.Date;
@@ -23,6 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class TaskRebalanceJobServiceTest {
 
@@ -188,6 +191,33 @@ class TaskRebalanceJobServiceTest {
         doReturn(List.of(job)).when(service).findAllDto(any(Query.class), eq(user));
 
         assertFalse(service.hasBlockingActiveJob("task-1", 300000L, user));
+    }
+
+    @Test
+    @DisplayName("countStatusByRebalanceId aggregates status counters")
+    void countStatusByRebalanceIdAggregatesCounters() {
+        TaskRebalanceJobRepository repository = mock(TaskRebalanceJobRepository.class);
+        TaskRebalanceJobService service = new TaskRebalanceJobService(repository);
+        List<Document> mappedResults = List.of(
+                new Document("_id", TaskRebalanceJobStatus.PENDING).append("count", 2),
+                new Document("_id", TaskRebalanceJobStatus.STOPPING).append("count", 1),
+                new Document("_id", TaskRebalanceJobStatus.OK).append("count", 3),
+                new Document("_id", TaskRebalanceJobStatus.CANCELLED).append("count", 1),
+                new Document("_id", TaskRebalanceJobStatus.START_TIMEOUT).append("count", 4)
+        );
+        when(repository.aggregate(any(Aggregation.class), eq(Document.class)))
+                .thenReturn(new AggregationResults<>(mappedResults, new Document()));
+
+        TaskRebalanceJobService.StatusStatistics statistics = service.countStatusByRebalanceId("rebalance-1");
+
+        assertEquals(11, statistics.getTotal());
+        assertEquals(2, statistics.getPending());
+        assertEquals(1, statistics.getStopping());
+        assertEquals(0, statistics.getStarting());
+        assertEquals(3, statistics.getOk());
+        assertEquals(1, statistics.getCancelled());
+        assertEquals(4, statistics.getFailed());
+        assertEquals(3, statistics.getActiveCount());
     }
 
     private TaskRebalanceJobDto blockingJob(String status, long beginAt) {

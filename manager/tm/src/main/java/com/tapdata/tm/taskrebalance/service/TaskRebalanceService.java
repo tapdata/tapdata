@@ -1019,49 +1019,25 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     }
 
     /**
-     * Rebuilds parent progress counters from all child jobs and marks the rebalance finished
+     * Rebuilds parent progress counters from child job status statistics and marks the rebalance finished
      * when there are no pending, stopping, or starting jobs left. When an abort reason is provided,
      * it is recorded on the rebalance so operators can see why the rebalance terminated.
      */
     private void updateProgress(String rebalanceId, String errorMesg, UserDetail userDetail) {
-        Query query = Query.query(Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(rebalanceId));
-        List<TaskRebalanceJobDto> jobs = jobService.findAllDto(query, userDetail);
-        int pending = 0;
-        int stopping = 0;
-        int starting = 0;
-        int ok = 0;
-        int cancelled = 0;
-        int failed = 0;
-        for (TaskRebalanceJobDto job : jobs) {
-            String status = job.getStatus();
-            if (TaskRebalanceJobStatus.PENDING.equals(status)) {
-                pending++;
-            } else if (TaskRebalanceJobStatus.STOPPING.equals(status)) {
-                stopping++;
-            } else if (TaskRebalanceJobStatus.STARTING.equals(status)) {
-                starting++;
-            } else if (TaskRebalanceJobStatus.OK.equals(status)) {
-                ok++;
-            } else if (TaskRebalanceJobStatus.CANCELLED.equals(status)) {
-                cancelled++;
-            } else if (TaskRebalanceJobStatus.isTerminal(status)) {
-                failed++;
-            }
-        }
-        int active = pending + stopping + starting;
-        Update update = Update.update(TaskRebalanceDto.FIELD_TOTAL_COUNT, jobs.size())
-                .set(TaskRebalanceDto.FIELD_PENDING_COUNT, pending)
-                .set(TaskRebalanceDto.FIELD_STOPPING_COUNT, stopping)
-                .set(TaskRebalanceDto.FIELD_STARTING_COUNT, starting)
-                .set(TaskRebalanceDto.FIELD_OK_COUNT, ok)
-                .set(TaskRebalanceDto.FIELD_FAILED_COUNT, failed)
-                .set(TaskRebalanceDto.FIELD_CANCELLED_COUNT, cancelled);
+        TaskRebalanceJobService.StatusStatistics statistics = jobService.countStatusByRebalanceId(rebalanceId);
+        Update update = Update.update(TaskRebalanceDto.FIELD_TOTAL_COUNT, statistics.getTotal())
+                .set(TaskRebalanceDto.FIELD_PENDING_COUNT, statistics.getPending())
+                .set(TaskRebalanceDto.FIELD_STOPPING_COUNT, statistics.getStopping())
+                .set(TaskRebalanceDto.FIELD_STARTING_COUNT, statistics.getStarting())
+                .set(TaskRebalanceDto.FIELD_OK_COUNT, statistics.getOk())
+                .set(TaskRebalanceDto.FIELD_FAILED_COUNT, statistics.getFailed())
+                .set(TaskRebalanceDto.FIELD_CANCELLED_COUNT, statistics.getCancelled());
         if (StringUtils.isNotBlank(errorMesg)) {
             update.set(TaskRebalanceDto.FIELD_ERROR_MESG, errorMesg);
         }
-        if (active == 0) {
+        if (statistics.getActiveCount() == 0) {
             update.set(TaskRebalanceDto.FIELD_FINISH_AT, new Date());
-            update.set(TaskRebalanceDto.FIELD_STATUS, TaskRebalanceStatus.finalStatus(failed, cancelled));
+            update.set(TaskRebalanceDto.FIELD_STATUS, TaskRebalanceStatus.finalStatus(statistics.getFailed(), statistics.getCancelled()));
             update.unset(TaskRebalanceDto.FIELD_IS_ACTIVED);
         }
         updateById(new ObjectId(rebalanceId), update, userDetail);

@@ -8,7 +8,11 @@ import com.tapdata.tm.taskrebalance.entity.TaskRebalanceJobEntity;
 import com.tapdata.tm.taskrebalance.repository.TaskRebalanceJobRepository;
 import lombok.NonNull;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -71,6 +75,24 @@ public class TaskRebalanceJobService extends BaseService<TaskRebalanceJobDto, Ta
         return count(query, userDetail) > 0;
     }
 
+    public StatusStatistics countStatusByRebalanceId(String rebalanceId) {
+        StatusStatistics statistics = new StatusStatistics();
+        if (StringUtils.isBlank(rebalanceId)) {
+            return statistics;
+        }
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(rebalanceId)),
+                Aggregation.group(TaskRebalanceJobDto.FIELD_STATUS).count().as("count")
+        );
+        AggregationResults<Document> results = repository.aggregate(aggregation, Document.class);
+        for (Document result : results.getMappedResults()) {
+            Object status = result.get("_id");
+            Number count = result.get("count", Number.class);
+            statistics.record(status == null ? null : status.toString(), count == null ? 0 : count.intValue());
+        }
+        return statistics;
+    }
+
     public boolean isCheckBypassed() {
         return Boolean.TRUE.equals(BYPASS_REBALANCE_CHECK.get());
     }
@@ -97,6 +119,68 @@ public class TaskRebalanceJobService extends BaseService<TaskRebalanceJobDto, Ta
             } else {
                 REBALANCE_OPERATION.remove();
             }
+        }
+    }
+
+    public static class StatusStatistics {
+        private int pending;
+        private int stopping;
+        private int starting;
+        private int ok;
+        private int cancelled;
+        private int failed;
+        private int total;
+
+        public void record(String status, int count) {
+            if (count <= 0) {
+                return;
+            }
+            total += count;
+            if (TaskRebalanceJobStatus.PENDING.equals(status)) {
+                pending += count;
+            } else if (TaskRebalanceJobStatus.STOPPING.equals(status)) {
+                stopping += count;
+            } else if (TaskRebalanceJobStatus.STARTING.equals(status)) {
+                starting += count;
+            } else if (TaskRebalanceJobStatus.OK.equals(status)) {
+                ok += count;
+            } else if (TaskRebalanceJobStatus.CANCELLED.equals(status)) {
+                cancelled += count;
+            } else if (TaskRebalanceJobStatus.isTerminal(status)) {
+                failed += count;
+            }
+        }
+
+        public int getActiveCount() {
+            return pending + stopping + starting;
+        }
+
+        public int getPending() {
+            return pending;
+        }
+
+        public int getStopping() {
+            return stopping;
+        }
+
+        public int getStarting() {
+            return starting;
+        }
+
+        public int getOk() {
+            return ok;
+        }
+
+        public int getCancelled() {
+            return cancelled;
+        }
+
+        public int getFailed() {
+            return failed;
+        }
+
+        public int getTotal() {
+            return total;
         }
     }
 }
