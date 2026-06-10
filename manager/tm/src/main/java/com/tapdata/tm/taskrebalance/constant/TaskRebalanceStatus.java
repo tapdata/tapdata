@@ -4,6 +4,7 @@ public final class TaskRebalanceStatus {
     private TaskRebalanceStatus() {
     }
 
+    public static final String CREATING = "CREATING";
     public static final String RUNNING = "RUNNING";
     public static final String OK = "OK";
     public static final String FAILED = "FAILED";

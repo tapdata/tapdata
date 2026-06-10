@@ -20,6 +20,7 @@ import com.tapdata.tm.taskrebalance.dto.TaskRebalanceJobDto;
 import com.tapdata.tm.taskrebalance.entity.TaskRebalanceEntity;
 import com.tapdata.tm.taskrebalance.repository.TaskRebalanceRepository;
 import com.tapdata.tm.taskrebalance.rule.TaskRebalanceRuleService;
+import com.tapdata.tm.taskrebalance.vo.TaskRebalancePreviewVo;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -36,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -50,6 +52,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -249,6 +252,88 @@ class TaskRebalanceServiceTest {
     }
 
     @Test
+    @DisplayName("create rebalance uses CREATING active marker before jobs and activates RUNNING after jobs")
+    void createAndExecuteActivatesAfterJobsSaved() {
+        TestContext context = new TestContext();
+        context.stubCreateValidation();
+        when(context.repository.acquireActiveCreating(any(TaskRebalanceEntity.class), eq(context.user)))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0)));
+        UpdateResult successUpdate = context.updateResult(1);
+        when(context.repository.update(any(Query.class), any(Update.class), eq(context.user))).thenReturn(successUpdate);
+
+        context.service.createAndExecute(context.preview(), context.user);
+
+        ArgumentCaptor<TaskRebalanceEntity> rebalanceCaptor = ArgumentCaptor.forClass(TaskRebalanceEntity.class);
+        verify(context.repository).acquireActiveCreating(rebalanceCaptor.capture(), eq(context.user));
+        assertEquals(TaskRebalanceStatus.CREATING, rebalanceCaptor.getValue().getStatus());
+        assertEquals(Boolean.TRUE, rebalanceCaptor.getValue().getIsActived());
+        verify(context.jobService).save(any(List.class), eq(context.user));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(context.repository, org.mockito.Mockito.atLeastOnce()).update(queryCaptor.capture(), updateCaptor.capture(), eq(context.user));
+        org.bson.Document activateSet = updateCaptor.getAllValues().get(updateCaptor.getAllValues().size() - 1).getUpdateObject().get("$set", org.bson.Document.class);
+        assertEquals(TaskRebalanceStatus.RUNNING, activateSet.get(TaskRebalanceDto.FIELD_STATUS));
+        assertEquals(TaskRebalanceStatus.CREATING, queryCaptor.getAllValues().get(queryCaptor.getAllValues().size() - 1).getQueryObject().get(TaskRebalanceDto.FIELD_STATUS));
+    }
+
+    @Test
+    @DisplayName("create rebalance rejects when another active marker exists")
+    void createAndExecuteRejectsActiveMarker() {
+        TestContext context = new TestContext();
+        context.stubCreateValidation();
+        TaskRebalanceEntity existing = new TaskRebalanceEntity();
+        existing.setId(new ObjectId());
+        existing.setStatus(TaskRebalanceStatus.RUNNING);
+        existing.setIsActived(true);
+        when(context.repository.acquireActiveCreating(any(TaskRebalanceEntity.class), eq(context.user))).thenReturn(Optional.of(existing));
+
+        BizException exception = assertThrows(BizException.class, () -> context.service.createAndExecute(context.preview(), context.user));
+
+        assertEquals("task.rebalance.alreadyRunning", exception.getErrorCode());
+        verify(context.jobService, never()).save(any(List.class), eq(context.user));
+    }
+
+    @Test
+    @DisplayName("create rebalance marks creating record failed when job save fails")
+    void createAndExecuteFailsCreatingRecordWhenJobsFail() {
+        TestContext context = new TestContext();
+        context.stubCreateValidation();
+        when(context.repository.acquireActiveCreating(any(TaskRebalanceEntity.class), eq(context.user)))
+                .thenAnswer(invocation -> Optional.of(invocation.getArgument(0)));
+        UpdateResult successUpdate = context.updateResult(1);
+        when(context.repository.update(any(Query.class), any(Update.class), eq(context.user))).thenReturn(successUpdate);
+        doThrow(new RuntimeException("save jobs failed")).when(context.jobService).save(any(List.class), eq(context.user));
+
+        assertThrows(RuntimeException.class, () -> context.service.createAndExecute(context.preview(), context.user));
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(context.repository).update(any(Query.class), updateCaptor.capture(), eq(context.user));
+        org.bson.Document updateObject = updateCaptor.getValue().getUpdateObject();
+        assertEquals(TaskRebalanceStatus.FAILED, updateObject.get("$set", org.bson.Document.class).get(TaskRebalanceDto.FIELD_STATUS));
+        assertTrue(updateObject.get("$unset", org.bson.Document.class).containsKey(TaskRebalanceDto.FIELD_IS_ACTIVED));
+    }
+
+    @Test
+    @DisplayName("scheduler expires creating rebalance after one minute and does not execute it")
+    void scheduleExpiresCreatingRebalance() {
+        TestContext context = new TestContext();
+        TaskRebalanceService service = spy(context.service);
+        doReturn(List.of()).when(service).findAll(any(Query.class));
+
+        service.scheduleOnce();
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(context.repository).update(queryCaptor.capture(), updateCaptor.capture(), isNull());
+        org.bson.Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals(TaskRebalanceStatus.CREATING, query.get(TaskRebalanceDto.FIELD_STATUS));
+        assertEquals(Boolean.TRUE, query.get(TaskRebalanceDto.FIELD_IS_ACTIVED));
+        assertTrue(updateCaptor.getValue().getUpdateObject().get("$unset", org.bson.Document.class).containsKey(TaskRebalanceDto.FIELD_IS_ACTIVED));
+        verify(service, never()).execute(anyString(), any(UserDetail.class));
+    }
+
+    @Test
     @DisplayName("execute skips when rebalance owner belongs to another TM")
     void executeSkipsWhenOwnerChanged() {
         TestContext context = new TestContext();
@@ -315,9 +400,7 @@ class TaskRebalanceServiceTest {
             when(settingsService.getByCategoryAndKey(any(String.class), any(String.class))).thenReturn("30");
             when(dbLockConfiguration.getOwner()).thenReturn(executeOwner);
             stubRebalanceOwner(executeOwner);
-            Worker target = new Worker();
-            target.setProcessId("target");
-            when(workerService.findAllEntity(any(Query.class))).thenReturn(List.of(target));
+            when(workerService.findAllEntity(any(Query.class))).thenReturn(List.of(worker("target")));
             doAnswer(invocation -> {
                 Runnable runnable = invocation.getArgument(0);
                 runnable.run();
@@ -325,6 +408,36 @@ class TaskRebalanceServiceTest {
             }).when(jobService).runAsRebalanceOperation(any(Runnable.class));
             UpdateResult successUpdate = updateResult(1);
             when(jobService.update(any(Query.class), any(Update.class), any(UserDetail.class))).thenReturn(successUpdate);
+        }
+
+        private TaskRebalancePreviewVo preview() {
+            TaskRebalancePreviewVo preview = new TaskRebalancePreviewVo();
+            TaskRebalancePreviewVo.TaskPreview task = new TaskRebalancePreviewVo.TaskPreview();
+            task.setTaskId(taskId.toHexString());
+            task.setTaskName("task");
+            task.setSourceAgentId("source");
+            task.setTargetAgentId("target");
+            task.setMovable(true);
+            task.setChanged(true);
+            preview.setTasks(List.of(task));
+            return preview;
+        }
+
+        private void stubCreateValidation() {
+            when(workerService.findAllEntity(any(Query.class))).thenReturn(List.of(worker("source"), worker("target")));
+            TaskDto sourceTask = task(TaskDto.STATUS_RUNNING, "source");
+            when(taskService.findByTaskId(eq(taskId), any(String[].class))).thenReturn(sourceTask);
+            TaskRebalancePreviewVo.TaskPreview current = new TaskRebalancePreviewVo.TaskPreview();
+            current.setMovable(true);
+            current.setSourceAgentId("source");
+            when(ruleService.evaluate(eq(sourceTask), any(Set.class))).thenReturn(current);
+            when(jobService.hasAnyActiveJob(any(List.class), eq(user))).thenReturn(false);
+        }
+
+        private Worker worker(String processId) {
+            Worker worker = new Worker();
+            worker.setProcessId(processId);
+            return worker;
         }
 
         private TaskRebalanceJobDto job(String status) {

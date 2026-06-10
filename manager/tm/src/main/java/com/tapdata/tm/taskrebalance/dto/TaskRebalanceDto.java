@@ -24,6 +24,7 @@ public class TaskRebalanceDto extends BaseDto {
     public static final String FIELD_CANCELLED_COUNT = "cancelledCount";
     public static final String FIELD_ERROR_MESG = "errorMesg";
     public static final String FIELD_EXECUTE_OWNER = "executeOwner";
+    public static final String FIELD_IS_ACTIVED = "isActived";
 
     private String name;
     private String status;
@@ -37,4 +38,5 @@ public class TaskRebalanceDto extends BaseDto {
     private Integer cancelledCount;
     private String errorMesg;
     private String executeOwner;
+    private Boolean isActived;
 }

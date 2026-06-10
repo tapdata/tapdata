@@ -71,6 +71,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     private static final long POLL_INTERVAL_MS = 2000L;
     private static final int MAX_TARGET_AGENT_CONCURRENCY = 8;
     private static final long EXECUTION_WAIT_INTERVAL_MS = 1000L;
+    private static final long CREATING_TIMEOUT_MS = 60 * 1000L;
+    private static final String CREATING_TIMEOUT_ERROR = "Task rebalance creation timed out";
 
     private final TaskRebalanceJobService jobService;
     private final TaskService taskService;
@@ -140,9 +142,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     public TaskRebalanceVo createAndExecute(TaskRebalancePreviewVo submittedPreview, UserDetail userDetail) {
         assertRebalanceEnabled();
         assertRebalancePermission(userDetail, DataPermissionActionEnums.Edit);
-        if (hasActiveRebalance(userDetail)) {
-            throw new BizException("task.rebalance.alreadyRunning");
-        }
+        expireCreatingRebalances();
         if (submittedPreview == null || StringUtils.isNotBlank(submittedPreview.getReason())) {
             throw new BizException(submittedPreview == null ? "task.rebalance.noTask" : submittedPreview.getReason());
         }
@@ -151,35 +151,84 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             throw new BizException("task.rebalance.noTask");
         }
         validateSubmittedTasks(changedTasks);
-        if (jobService.hasAnyActiveJob(changedTasks.stream().map(TaskRebalancePreviewVo.TaskPreview::getTaskId).collect(Collectors.toList()), userDetail)) {
-            throw new BizException("task.rebalance.taskRebalancing");
-        }
 
-        TaskRebalanceDto rebalance = new TaskRebalanceDto();
-        rebalance.setName(MessageFormat.format("Task rebalance {0}", DateUtil.now()));
-        rebalance.setStatus(TaskRebalanceStatus.RUNNING);
-        rebalance.setTotalCount(changedTasks.size());
-        rebalance.setPendingCount(changedTasks.size());
-        rebalance.setStoppingCount(0);
-        rebalance.setStartingCount(0);
-        rebalance.setOkCount(0);
-        rebalance.setFailedCount(0);
-        rebalance.setCancelledCount(0);
-        rebalance = save(rebalance, userDetail);
-
-        List<TaskRebalanceJobDto> jobs = new ArrayList<>();
-        for (TaskRebalancePreviewVo.TaskPreview task : changedTasks) {
-            TaskRebalanceJobDto job = new TaskRebalanceJobDto();
-            job.setRebalanceId(rebalance.getId().toHexString());
-            job.setTaskId(task.getTaskId());
-            job.setTaskName(task.getTaskName());
-            job.setStatus(TaskRebalanceJobStatus.PENDING);
-            job.setSourceAgentId(task.getSourceAgentId());
-            job.setTargetAgentId(task.getTargetAgentId());
-            jobs.add(job);
+        TaskRebalanceDto rebalance = acquireCreatingRebalance(changedTasks.size(), userDetail);
+        try {
+            if (jobService.hasAnyActiveJob(changedTasks.stream().map(TaskRebalancePreviewVo.TaskPreview::getTaskId).collect(Collectors.toList()), userDetail)) {
+                throw new BizException("task.rebalance.taskRebalancing");
+            }
+            List<TaskRebalanceJobDto> jobs = new ArrayList<>();
+            for (TaskRebalancePreviewVo.TaskPreview task : changedTasks) {
+                TaskRebalanceJobDto job = new TaskRebalanceJobDto();
+                job.setRebalanceId(rebalance.getId().toHexString());
+                job.setTaskId(task.getTaskId());
+                job.setTaskName(task.getTaskName());
+                job.setStatus(TaskRebalanceJobStatus.PENDING);
+                job.setSourceAgentId(task.getSourceAgentId());
+                job.setTargetAgentId(task.getTargetAgentId());
+                jobs.add(job);
+            }
+            jobService.save(jobs, userDetail);
+            activateCreatingRebalance(rebalance.getId(), userDetail);
+            rebalance.setStatus(TaskRebalanceStatus.RUNNING);
+            return toVo(rebalance);
+        } catch (RuntimeException e) {
+            failCreatingRebalance(rebalance.getId(), e.getMessage(), userDetail);
+            throw e;
         }
-        jobService.save(jobs, userDetail);
-        return toVo(rebalance);
+    }
+
+    private TaskRebalanceDto acquireCreatingRebalance(int taskCount, UserDetail userDetail) {
+        TaskRebalanceEntity creating = new TaskRebalanceEntity();
+        creating.setId(new ObjectId());
+        creating.setName(MessageFormat.format("Task rebalance {0}", DateUtil.now()));
+        creating.setStatus(TaskRebalanceStatus.CREATING);
+        creating.setIsActived(true);
+        creating.setTotalCount(taskCount);
+        creating.setPendingCount(taskCount);
+        creating.setStoppingCount(0);
+        creating.setStartingCount(0);
+        creating.setOkCount(0);
+        creating.setFailedCount(0);
+        creating.setCancelledCount(0);
+        TaskRebalanceEntity active = repository.acquireActiveCreating(creating, userDetail)
+                .orElseThrow(() -> new BizException("task.rebalance.alreadyRunning"));
+        if (!Objects.equals(active.getId(), creating.getId())) {
+            throw new BizException("task.rebalance.alreadyRunning");
+        }
+        return convertToDto(active, TaskRebalanceDto.class);
+    }
+
+    private void activateCreatingRebalance(ObjectId rebalanceId, UserDetail userDetail) {
+        Query query = Query.query(Criteria.where("_id").is(rebalanceId)
+                .and(TaskRebalanceDto.FIELD_STATUS).is(TaskRebalanceStatus.CREATING)
+                .and(TaskRebalanceDto.FIELD_IS_ACTIVED).is(true));
+        Update update = Update.update(TaskRebalanceDto.FIELD_STATUS, TaskRebalanceStatus.RUNNING);
+        UpdateResult result = update(query, update, userDetail);
+        if (result.getModifiedCount() == 0) {
+            throw new BizException("task.rebalance.creationTimeout");
+        }
+    }
+
+    private void failCreatingRebalance(ObjectId rebalanceId, String reason, UserDetail userDetail) {
+        if (rebalanceId == null) {
+            return;
+        }
+        String errorMesg = StringUtils.defaultIfBlank(reason, "Create task rebalance failed");
+        Query jobQuery = Query.query(Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(rebalanceId.toHexString())
+                .and(TaskRebalanceJobDto.FIELD_STATUS).in(TaskRebalanceJobStatus.ACTIVE_STATUS));
+        Update jobUpdate = Update.update(TaskRebalanceJobDto.FIELD_STATUS, TaskRebalanceJobStatus.STATUS_ERROR)
+                .set(TaskRebalanceJobDto.FIELD_FINISH_AT, new Date())
+                .set(TaskRebalanceJobDto.FIELD_ERROR_MESG, errorMesg);
+        jobService.update(jobQuery, jobUpdate, userDetail);
+
+        Query query = Query.query(Criteria.where("_id").is(rebalanceId)
+                .and(TaskRebalanceDto.FIELD_STATUS).is(TaskRebalanceStatus.CREATING));
+        Update update = Update.update(TaskRebalanceDto.FIELD_STATUS, TaskRebalanceStatus.FAILED)
+                .set(TaskRebalanceDto.FIELD_FINISH_AT, new Date())
+                .set(TaskRebalanceDto.FIELD_ERROR_MESG, errorMesg)
+                .unset(TaskRebalanceDto.FIELD_IS_ACTIVED);
+        update(query, update, userDetail);
     }
 
     private List<TaskRebalancePreviewVo.TaskPreview> collectSubmittedChangedTasks(TaskRebalancePreviewVo preview) {
@@ -260,11 +309,12 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     public boolean hasActive(UserDetail userDetail) {
         assertRebalanceEnabled();
         assertRebalancePermission(userDetail, DataPermissionActionEnums.View);
+        expireCreatingRebalances();
         return hasActiveRebalance(userDetail);
     }
 
     private boolean hasActiveRebalance(UserDetail userDetail) {
-        Query query = Query.query(Criteria.where(TaskRebalanceDto.FIELD_STATUS).is(TaskRebalanceStatus.RUNNING));
+        Query query = Query.query(Criteria.where(TaskRebalanceDto.FIELD_IS_ACTIVED).is(true));
         return count(query, userDetail) > 0;
     }
 
@@ -337,6 +387,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         if (settingsService.isCloud()) {
             return;
         }
+        expireCreatingRebalances();
         Query query = Query.query(Criteria.where(TaskRebalanceDto.FIELD_STATUS).is(TaskRebalanceStatus.RUNNING))
                 .with(Sort.by(Sort.Direction.ASC, TaskRebalanceDto.FIELD_CREATE_TIME));
         List<TaskRebalanceDto> rebalances = findAll(query);
@@ -388,8 +439,21 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
         Update update = Update.update(TaskRebalanceDto.FIELD_STATUS, TaskRebalanceStatus.FAILED)
                 .set(TaskRebalanceDto.FIELD_FINISH_AT, new Date())
-                .set(TaskRebalanceDto.FIELD_ERROR_MESG, reason);
+                .set(TaskRebalanceDto.FIELD_ERROR_MESG, reason)
+                .unset(TaskRebalanceDto.FIELD_IS_ACTIVED);
         updateById(rebalance.getId(), update, null);
+    }
+
+    private void expireCreatingRebalances() {
+        Date expireBefore = new Date(System.currentTimeMillis() - CREATING_TIMEOUT_MS);
+        Query query = Query.query(Criteria.where(TaskRebalanceDto.FIELD_STATUS).is(TaskRebalanceStatus.CREATING)
+                .and(TaskRebalanceDto.FIELD_IS_ACTIVED).is(true)
+                .and(TaskRebalanceDto.FIELD_CREATE_TIME).lt(expireBefore));
+        Update update = Update.update(TaskRebalanceDto.FIELD_STATUS, TaskRebalanceStatus.FAILED)
+                .set(TaskRebalanceDto.FIELD_FINISH_AT, new Date())
+                .set(TaskRebalanceDto.FIELD_ERROR_MESG, CREATING_TIMEOUT_ERROR)
+                .unset(TaskRebalanceDto.FIELD_IS_ACTIVED);
+        update(query, update, null);
     }
 
     private void assertRebalanceEnabled() {
@@ -1004,6 +1068,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         if (active == 0) {
             update.set(TaskRebalanceDto.FIELD_FINISH_AT, new Date());
             update.set(TaskRebalanceDto.FIELD_STATUS, TaskRebalanceStatus.finalStatus(failed, cancelled));
+            update.unset(TaskRebalanceDto.FIELD_IS_ACTIVED);
         }
         updateById(new ObjectId(rebalanceId), update, userDetail);
     }
