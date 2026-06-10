@@ -16,6 +16,7 @@ import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -27,6 +28,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -85,6 +88,42 @@ class TaskRebalanceServiceTest {
         verify(context.ruleService, never()).isMovableAtExecution(any());
     }
 
+    @Test
+    @DisplayName("start failure marks current job START_TIMEOUT without aborting rebalance")
+    void startFailureMarksCurrentJobOnly() {
+        TestContext context = new TestContext();
+        TaskRebalanceJobDto job = context.job(TaskRebalanceJobStatus.STARTING);
+        AtomicBoolean abortFlag = new AtomicBoolean(false);
+        AtomicReference<String> abortReason = new AtomicReference<>();
+        TaskDto targetTask = context.task(TaskDto.STATUS_STOP, "target");
+        TaskDto sourceTask = context.task(TaskDto.STATUS_STOP, "source");
+        context.stubTaskLookups(targetTask, targetTask, sourceTask);
+
+        ReflectionTestUtils.invokeMethod(context.service, "handleStartFailure", job, context.user, "boom", context.user, abortFlag, abortReason);
+
+        assertFalse(abortFlag.get());
+        assertEquals(null, abortReason.get());
+        Update update = context.captureLastJobUpdate();
+        assertEquals(TaskRebalanceJobStatus.START_TIMEOUT, update.getUpdateObject().get("$set", org.bson.Document.class).get(TaskRebalanceJobDto.FIELD_STATUS));
+    }
+
+    @Test
+    @DisplayName("target offline marks current job INVALID_AGENT and aborts pending jobs")
+    void targetOfflineStillAbortsRebalance() {
+        TestContext context = new TestContext();
+        TaskRebalanceJobDto job = context.job(TaskRebalanceJobStatus.PENDING);
+        AtomicBoolean abortFlag = new AtomicBoolean(false);
+        AtomicReference<String> abortReason = new AtomicReference<>();
+        when(context.workerService.findAllEntity(any(Query.class))).thenReturn(List.of());
+
+        ReflectionTestUtils.invokeMethod(context.service, "executeJob", job, context.user, abortFlag, abortReason);
+
+        assertTrue(abortFlag.get());
+        assertTrue(abortReason.get().contains("Target agent target offline"));
+        Update update = context.captureLastJobUpdate();
+        assertEquals(TaskRebalanceJobStatus.INVALID_AGENT, update.getUpdateObject().get("$set", org.bson.Document.class).get(TaskRebalanceJobDto.FIELD_STATUS));
+    }
+
     private static class TestContext {
         private final ObjectId taskId = new ObjectId();
         private final ObjectId jobId = new ObjectId();
@@ -139,6 +178,13 @@ class TaskRebalanceServiceTest {
         private void stubTaskLookups(TaskDto... tasks) {
             when(taskService.findByTaskId(eq(taskId), any(String[].class)))
                     .thenReturn(tasks[0], Arrays.copyOfRange(tasks, 1, tasks.length));
+        }
+
+        private Update captureLastJobUpdate() {
+            ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+            verify(jobService, org.mockito.Mockito.atLeastOnce()).updateById(eq(jobId), updateCaptor.capture(), eq(user));
+            List<Update> updates = updateCaptor.getAllValues();
+            return updates.get(updates.size() - 1);
         }
     }
 }

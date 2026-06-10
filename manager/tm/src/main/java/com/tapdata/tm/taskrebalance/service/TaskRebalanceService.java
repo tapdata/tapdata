@@ -420,7 +420,6 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             log.warn("TaskRebalance job failed, jobId={}, taskId={}, error={}", latest.getId(), latest.getTaskId(), e.getMessage(), e);
             String reason = e.getMessage();
             finishJob(latest, TaskRebalanceJobStatus.STATUS_ERROR, reason, userDetail);
-            raiseAbort(abortFlag, abortReason, reason);
         }
     }
 
@@ -488,7 +487,6 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         if (!waitTaskStatus(job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs())) {
             String reason = formatStopTimeoutReason(job);
             finishJob(job, TaskRebalanceJobStatus.STOP_TIMEOUT, reason, userDetail);
-            raiseAbort(abortFlag, abortReason, reason);
             return;
         }
         moveStoppedTaskToTargetAndStart(job, taskUser, userDetail, abortFlag, abortReason);
@@ -525,7 +523,6 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                 if (!waitTaskStatus(job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs())) {
                     String reason = formatStopTimeoutReason(job);
                     finishJob(job, TaskRebalanceJobStatus.STOP_TIMEOUT, reason, userDetail);
-                    raiseAbort(abortFlag, abortReason, reason);
                     return;
                 }
             }
@@ -578,7 +575,6 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                 reason = reason + "; " + rollbackMessage;
             }
             finishJob(job, TaskRebalanceJobStatus.START_TIMEOUT, reason, userDetail);
-            raiseAbort(abortFlag, abortReason, reason);
             return;
         }
         finishJob(job, TaskRebalanceJobStatus.OK, null, userDetail);
@@ -600,7 +596,6 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             reason = reason + "; " + rollbackMessage;
         }
         finishJob(job, TaskRebalanceJobStatus.START_TIMEOUT, reason, userDetail);
-        raiseAbort(abortFlag, abortReason, reason);
     }
 
     private boolean isTaskRunningOnTarget(TaskRebalanceJobDto job) {
