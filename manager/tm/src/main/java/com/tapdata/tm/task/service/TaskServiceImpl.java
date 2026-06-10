@@ -16,6 +16,7 @@ import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.agent.service.AgentGroupService;
@@ -249,6 +250,8 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskServiceImpl extends TaskService{
+    private static final long DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS = 5 * 60 * 1000L;
+
     public static final String USER_ID = "user_id";
     public static final String COLLECTION_ID = "collectionId";
     public static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
@@ -401,10 +404,20 @@ public class TaskServiceImpl extends TaskService{
     }
 
     private void assertTaskNotRebalancing(ObjectId taskId, UserDetail user) {
-        if (taskRebalanceJobService != null
-                && !taskRebalanceJobService.isCheckBypassed()
-                && taskRebalanceJobService.hasActiveJob(taskId.toHexString(), user)) {
+        if (taskId == null || taskRebalanceJobService == null || taskRebalanceJobService.isCheckBypassed()) {
+            return;
+        }
+        if (taskRebalanceJobService.hasBlockingActiveJob(taskId.toHexString(), getTaskRebalanceGuardTimeoutMs(), user)) {
             throw new BizException("task.rebalance.taskRebalancing");
+        }
+    }
+
+    private long getTaskRebalanceGuardTimeoutMs() {
+        try {
+            return Long.parseLong(SettingsEnum.JOB_HEART_TIMEOUT.getValue(String.valueOf(DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS)));
+        } catch (Exception e) {
+            log.warn("TaskRebalance read jobHeartTimeout failed, using default {}ms", DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS, e);
+            return DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS;
         }
     }
 

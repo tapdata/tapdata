@@ -2,6 +2,7 @@ package com.tapdata.tm.taskrebalance.service;
 
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.taskrebalance.constant.TaskRebalanceJobStatus;
+import com.tapdata.tm.taskrebalance.dto.TaskRebalanceJobDto;
 import com.tapdata.tm.taskrebalance.repository.TaskRebalanceJobRepository;
 import org.bson.Document;
 import org.junit.jupiter.api.DisplayName;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -153,5 +155,53 @@ class TaskRebalanceJobServiceTest {
         Document query = queryCaptor.getValue().getQueryObject();
         assertEquals(taskIds, query.get("taskId", Document.class).get("$in"));
         assertEquals(TaskRebalanceJobStatus.ACTIVE_STATUS, query.get("status", Document.class).get("$in"));
+    }
+
+    @Test
+    @DisplayName("hasBlockingActiveJob queries only stopping and starting jobs")
+    void hasBlockingActiveJobQueriesBlockingStatuses() {
+        TaskRebalanceJobService service = spy(new TaskRebalanceJobService(mock(TaskRebalanceJobRepository.class)));
+        UserDetail user = mock(UserDetail.class);
+        doReturn(List.of()).when(service).findAllDto(any(Query.class), eq(user));
+
+        assertFalse(service.hasBlockingActiveJob("task-1", 300000L, user));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(service).findAllDto(queryCaptor.capture(), eq(user));
+        Document query = queryCaptor.getValue().getQueryObject();
+        assertEquals("task-1", query.get("taskId"));
+        assertEquals(List.of(TaskRebalanceJobStatus.STOPPING, TaskRebalanceJobStatus.STARTING),
+                query.get("status", Document.class).get("$in"));
+    }
+
+    @Test
+    @DisplayName("hasBlockingActiveJob returns true when stopping job has not timed out")
+    void hasBlockingActiveJobReturnsTrueBeforeTimeout() {
+        TaskRebalanceJobService service = spy(new TaskRebalanceJobService(mock(TaskRebalanceJobRepository.class)));
+        UserDetail user = mock(UserDetail.class);
+        TaskRebalanceJobDto job = blockingJob(TaskRebalanceJobStatus.STOPPING, System.currentTimeMillis() - 1000L);
+        doReturn(List.of(job)).when(service).findAllDto(any(Query.class), eq(user));
+
+        assertTrue(service.hasBlockingActiveJob("task-1", 300000L, user));
+    }
+
+    @Test
+    @DisplayName("hasBlockingActiveJob returns false when starting job timed out")
+    void hasBlockingActiveJobReturnsFalseAfterTimeout() {
+        TaskRebalanceJobService service = spy(new TaskRebalanceJobService(mock(TaskRebalanceJobRepository.class)));
+        UserDetail user = mock(UserDetail.class);
+        TaskRebalanceJobDto job = blockingJob(TaskRebalanceJobStatus.STARTING, System.currentTimeMillis() - 600000L);
+        doReturn(List.of(job)).when(service).findAllDto(any(Query.class), eq(user));
+
+        assertFalse(service.hasBlockingActiveJob("task-1", 300000L, user));
+    }
+
+    private TaskRebalanceJobDto blockingJob(String status, long beginAt) {
+        TaskRebalanceJobDto job = new TaskRebalanceJobDto();
+        job.setTaskId("task-1");
+        job.setStatus(status);
+        job.setBeginAt(new Date(beginAt));
+        job.setCreateAt(new Date(beginAt));
+        return job;
     }
 }
