@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.14</version>
+		<version>4.0.6</version>
 		<relativePath/>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
@@ -27,7 +27,7 @@
 		<maven.compiler.target>${java.version}</maven.compiler.target>
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
-		<mongo.version>5.5.1</mongo.version>
+		<mongo.version>5.6.5</mongo.version>
 		<tapdata-api.version>2.0.8-SNAPSHOT</tapdata-api.version>
 		<tapdata-pdk-api.version>2.0.8-SNAPSHOT</tapdata-pdk-api.version>
 		<tapdata-common.version>2.8-SNAPSHOT</tapdata-common.version>
@@ -43,11 +43,12 @@
 		<gson.version>2.12.1</gson.version>
 		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
 		<org.bouncycastle.version>1.84</org.bouncycastle.version>
-		<!-- Override spring boot version -->
-		<netty.version>4.1.133.Final</netty.version>
+		<!-- Aligned with Spring Boot 4.0.x BOM (Jakarta EE 11 baseline) -->
+		<netty.version>4.2.12.Final</netty.version>
 		<hutool.version>5.8.40</hutool.version>
         <github-api.version>1.330</github-api.version>
         <jgit.version>7.5.0.202512021534-r</jgit.version>
+		<tomcat.version>11.0.21</tomcat.version>
     </properties>
 
 	<modules>

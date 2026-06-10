@@ -26,7 +26,7 @@ public class TmAvailableRestTemplate extends RestTemplate {
   }
 
 	@Override
-	protected <T> T doExecute(URI url, HttpMethod method, RequestCallback requestCallback, ResponseExtractor<T> responseExtractor) throws RestClientException {
+	protected <T> T doExecute(URI url, String uriTemplate, HttpMethod method, RequestCallback requestCallback, ResponseExtractor<T> responseExtractor) throws RestClientException {
 		Assert.notNull(url, "'url' must not be null");
 		Assert.notNull(method, "'method' must not be null");
 		long start = 0;
