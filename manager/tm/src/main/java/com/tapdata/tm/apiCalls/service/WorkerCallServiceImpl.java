@@ -234,12 +234,39 @@ public class WorkerCallServiceImpl implements WorkerCallService {
             return;
         }
         idCriteria.add(Criteria.where("_id").lte(topOne.getId()));
-        criteria.andOperator(idCriteria);
+        criteria.andOperator(idCriteria.toArray(new Criteria[0]));
         criteria.and("supplement").ne(true);
+        criteria.and(ApiCallField.REQ_PATH.field()).ne("/openapi-readOnly.json");
         Query callQuery = Query.query(criteria);
-        callQuery.fields().include(Tag.ALL_PATH_ID, Tag.WORK_OID, "codeMsg", "httpStatus", "code", "succeed");
-        List<ApiCallEntity> apiCalls = mongoOperations.find(callQuery, ApiCallEntity.class, MongoUtils.getCollectionName(ApiCallEntity.class));
-        Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = groupCallResult(processId, apiCalls);
+        callQuery.fields().include(Tag.ALL_PATH_ID, Tag.WORK_OID, "succeed");
+        com.mongodb.client.MongoCollection<org.bson.Document> collection = mongoTemplate.getCollection(MongoUtils.getCollectionName(ApiCallEntity.class));
+        Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = new java.util.HashMap<>();
+        try (com.mongodb.client.MongoCursor<org.bson.Document> cursor = collection.find(callQuery.getQueryObject())
+                .projection(callQuery.getFieldsObject())
+                .sort(new org.bson.Document("_id", 1))
+                .batchSize(1000)
+                .iterator()) {
+            while (cursor.hasNext()) {
+                org.bson.Document doc = cursor.next();
+                String workOid = doc.getString(Tag.WORK_OID);
+                assert null != workOid;
+                String allPathId = doc.getString(Tag.ALL_PATH_ID);
+                assert null != allPathId;
+                boolean succeed = doc.getBoolean("succeed", false);
+                Map<String, WorkerCallStats> map = groupByApiAndWorker.computeIfAbsent(workOid, k -> new java.util.HashMap<>());
+                WorkerCallStats item = map.computeIfAbsent(allPathId, k -> {
+                    WorkerCallStats workerCallStats = new WorkerCallStats();
+                    workerCallStats.setAllPathId(allPathId);
+                    workerCallStats.setWorkOid(workOid);
+                    workerCallStats.setProcessId(processId);
+                    workerCallStats.setTotalCount(0);
+                    workerCallStats.setNotOkCount(0);
+                    return workerCallStats;
+                });
+                item.setTotalCount(1 + item.getTotalCount());
+                item.setNotOkCount((succeed ? 0 : 1) + item.getNotOkCount());
+            }
+        }
         List<WorkerCallStats> mappedResults = new ArrayList<>();
         groupByApiAndWorker.values().forEach(apiMap -> mappedResults.addAll(apiMap.values()));
         if (mappedResults.isEmpty()) {
@@ -408,12 +435,21 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         if (null != lastOne) {
             queryFrom = lastOne.getTimeStart();
         }
+        long currentTime = System.currentTimeMillis();
+        if (queryFrom == null) {
+            queryFrom = currentTime - (10 * 60 * 1000L);
+        }
+        long maxWindow = 10 * 60 * 1000L;
+        long toTime = currentTime;
+        if (currentTime - queryFrom > maxWindow) {
+            toTime = queryFrom + maxWindow;
+        }
         final WorkerCallsInfoGenerator.Acceptor acceptor = this::bulkUpsert;
         Criteria criteriaCall = Criteria.where(ApiCallField.WORK_O_ID.field()).is(workerOid);
         List<Criteria> timeCriteria = new ArrayList<>();
-        Optional.ofNullable(queryFrom).ifPresent(time -> timeCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(time)));
-        timeCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).lt(System.currentTimeMillis()));
-        criteriaCall.andOperator(timeCriteria);
+        timeCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).gte(queryFrom));
+        timeCriteria.add(Criteria.where(ApiCallField.REQ_TIME.field()).lt(toTime));
+        criteriaCall.andOperator(timeCriteria.toArray(new Criteria[0]));
         final MongoCollection<Document> collection = mongoTemplate.getCollection("ApiCall");
         final Query queryCall = Query.query(criteriaCall);
         String[] filterFields = CollectionField.fields(
