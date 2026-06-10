@@ -79,20 +79,6 @@ public class TaskRebalanceJobService extends BaseService<TaskRebalanceJobDto, Ta
         return Boolean.TRUE.equals(REBALANCE_OPERATION.get());
     }
 
-    public void runWithoutRebalanceCheck(Runnable runnable) {
-        Boolean old = BYPASS_REBALANCE_CHECK.get();
-        BYPASS_REBALANCE_CHECK.set(true);
-        try {
-            runnable.run();
-        } finally {
-            if (Boolean.TRUE.equals(old)) {
-                BYPASS_REBALANCE_CHECK.set(true);
-            } else {
-                BYPASS_REBALANCE_CHECK.remove();
-            }
-        }
-    }
-
     public void runAsRebalanceOperation(Runnable runnable) {
         Boolean oldBypass = BYPASS_REBALANCE_CHECK.get();
         Boolean oldOperation = REBALANCE_OPERATION.get();

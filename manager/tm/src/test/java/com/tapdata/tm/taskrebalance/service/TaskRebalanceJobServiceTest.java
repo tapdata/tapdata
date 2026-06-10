@@ -37,16 +37,6 @@ class TaskRebalanceJobServiceTest {
     }
 
     @Test
-    @DisplayName("runWithoutRebalanceCheck only bypasses the check flag")
-    void bypassFlagOnly() {
-        jobService.runWithoutRebalanceCheck(() -> {
-            assertTrue(jobService.isCheckBypassed());
-            assertFalse(jobService.isRebalanceOperation());
-        });
-        assertFalse(jobService.isCheckBypassed());
-    }
-
-    @Test
     @DisplayName("runAsRebalanceOperation sets both flags and restores them")
     void rebalanceOperationFlags() {
         jobService.runAsRebalanceOperation(() -> {
@@ -60,12 +50,16 @@ class TaskRebalanceJobServiceTest {
     @Test
     @DisplayName("nested runAsRebalanceOperation restores outer state correctly")
     void nestedRestoresOuterState() {
-        jobService.runWithoutRebalanceCheck(() ->
-                jobService.runAsRebalanceOperation(() -> {
-                    assertTrue(jobService.isCheckBypassed());
-                    assertTrue(jobService.isRebalanceOperation());
-                })
-        );
+        jobService.runAsRebalanceOperation(() -> {
+            assertTrue(jobService.isCheckBypassed());
+            assertTrue(jobService.isRebalanceOperation());
+            jobService.runAsRebalanceOperation(() -> {
+                assertTrue(jobService.isCheckBypassed());
+                assertTrue(jobService.isRebalanceOperation());
+            });
+            assertTrue(jobService.isCheckBypassed());
+            assertTrue(jobService.isRebalanceOperation());
+        });
         assertFalse(jobService.isCheckBypassed());
         assertFalse(jobService.isRebalanceOperation());
     }
