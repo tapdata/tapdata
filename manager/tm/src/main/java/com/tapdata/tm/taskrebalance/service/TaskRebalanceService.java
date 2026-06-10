@@ -306,12 +306,42 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             return;
         }
         TaskRebalanceDto rebalance = rebalances.get(0);
+        UserDetail user;
         try {
-            UserDetail user = userService.loadUserById(new ObjectId(rebalance.getUserId()));
+            user = loadRebalanceUser(rebalance);
+        } catch (Exception e) {
+            String reason = "Load rebalance user failed: " + e.getMessage();
+            log.warn("TaskRebalance load user failed, rebalanceId={}", rebalance.getId(), e);
+            failScheduledRebalance(rebalance, reason);
+            return;
+        }
+        try {
             execute(rebalance.getId().toHexString(), user);
         } catch (Exception e) {
             log.warn("TaskRebalance schedule failed, rebalanceId={}", rebalance.getId(), e);
         }
+    }
+
+    private UserDetail loadRebalanceUser(TaskRebalanceDto rebalance) {
+        String userId = rebalance == null ? null : rebalance.getUserId();
+        if (!ObjectId.isValid(userId)) {
+            throw new IllegalArgumentException("Invalid rebalance userId " + userId);
+        }
+        UserDetail user = userService.loadUserById(new ObjectId(userId));
+        if (user == null) {
+            throw new IllegalStateException("Rebalance user not found " + userId);
+        }
+        return user;
+    }
+
+    private void failScheduledRebalance(TaskRebalanceDto rebalance, String reason) {
+        if (rebalance == null || rebalance.getId() == null) {
+            return;
+        }
+        Update update = Update.update(TaskRebalanceDto.FIELD_STATUS, TaskRebalanceStatus.FAILED)
+                .set(TaskRebalanceDto.FIELD_FINISH_AT, new Date())
+                .set(TaskRebalanceDto.FIELD_ERROR_MESG, reason);
+        updateById(rebalance.getId(), update, null);
     }
 
     private void assertRebalanceEnabled() {

@@ -7,6 +7,8 @@ import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.taskrebalance.constant.TaskRebalanceJobStatus;
+import com.tapdata.tm.taskrebalance.constant.TaskRebalanceStatus;
+import com.tapdata.tm.taskrebalance.dto.TaskRebalanceDto;
 import com.tapdata.tm.taskrebalance.dto.TaskRebalanceJobDto;
 import com.tapdata.tm.taskrebalance.repository.TaskRebalanceRepository;
 import com.tapdata.tm.taskrebalance.rule.TaskRebalanceRuleService;
@@ -31,10 +33,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -124,6 +130,30 @@ class TaskRebalanceServiceTest {
         assertEquals(TaskRebalanceJobStatus.INVALID_AGENT, update.getUpdateObject().get("$set", org.bson.Document.class).get(TaskRebalanceJobDto.FIELD_STATUS));
     }
 
+    @Test
+    @DisplayName("schedule marks rebalance failed when creator user id is invalid")
+    void scheduleMarksInvalidUserRebalanceFailed() {
+        TestContext context = new TestContext();
+        TaskRebalanceService service = spy(context.service);
+        ObjectId rebalanceId = new ObjectId();
+        TaskRebalanceDto rebalance = new TaskRebalanceDto();
+        rebalance.setId(rebalanceId);
+        rebalance.setUserId("bad-user-id");
+        rebalance.setStatus(TaskRebalanceStatus.RUNNING);
+        doReturn(List.of(rebalance)).when(service).findAll(any(Query.class));
+        doReturn(null).when(service).updateById(eq(rebalanceId), any(Update.class), isNull());
+
+        service.scheduleOnce();
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(service).updateById(eq(rebalanceId), updateCaptor.capture(), isNull());
+        org.bson.Document set = updateCaptor.getValue().getUpdateObject().get("$set", org.bson.Document.class);
+        assertEquals(TaskRebalanceStatus.FAILED, set.get(TaskRebalanceDto.FIELD_STATUS));
+        assertTrue(((String) set.get(TaskRebalanceDto.FIELD_ERROR_MESG)).contains("Invalid rebalance userId"));
+        verify(context.userService, never()).loadUserById(any(ObjectId.class));
+        verify(service, never()).execute(anyString(), any(UserDetail.class));
+    }
+
     private static class TestContext {
         private final ObjectId taskId = new ObjectId();
         private final ObjectId jobId = new ObjectId();
@@ -131,6 +161,7 @@ class TaskRebalanceServiceTest {
         private final TaskRebalanceJobService jobService = mock(TaskRebalanceJobService.class);
         private final TaskService taskService = mock(TaskService.class);
         private final WorkerService workerService = mock(WorkerService.class);
+        private final UserService userService = mock(UserService.class);
         private final SettingsService settingsService = mock(SettingsService.class);
         private final TaskRebalanceRuleService ruleService = mock(TaskRebalanceRuleService.class);
         private final TaskRebalanceService service = new TaskRebalanceService(
@@ -138,7 +169,7 @@ class TaskRebalanceServiceTest {
                 jobService,
                 taskService,
                 workerService,
-                mock(UserService.class),
+                userService,
                 settingsService,
                 ruleService
         );
