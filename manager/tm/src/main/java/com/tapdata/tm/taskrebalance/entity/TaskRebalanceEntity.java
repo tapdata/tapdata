@@ -22,4 +22,5 @@ public class TaskRebalanceEntity extends BaseEntity {
     private Integer failedCount;
     private Integer cancelledCount;
     private String errorMesg;
+    private String executeOwner;
 }

@@ -10,6 +10,7 @@ import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dblock.DBLockConfiguration;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
@@ -76,6 +77,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     private final WorkerService workerService;
     private final UserService userService;
     private final SettingsService settingsService;
+    private final DBLockConfiguration dbLockConfiguration;
     private final TaskRebalanceRuleService ruleService;
 
     public TaskRebalanceService(@NonNull TaskRebalanceRepository repository,
@@ -84,6 +86,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                                 WorkerService workerService,
                                 UserService userService,
                                 SettingsService settingsService,
+                                DBLockConfiguration dbLockConfiguration,
                                 TaskRebalanceRuleService ruleService) {
         super(repository, TaskRebalanceDto.class, TaskRebalanceEntity.class);
         this.jobService = jobService;
@@ -91,6 +94,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         this.workerService = workerService;
         this.userService = userService;
         this.settingsService = settingsService;
+        this.dbLockConfiguration = dbLockConfiguration;
         this.ruleService = ruleService;
     }
 
@@ -356,6 +360,16 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
     }
 
+    public void markRunningRebalancesOwner() {
+        if (settingsService.isCloud()) {
+            return;
+        }
+        String owner = currentExecuteOwner();
+        Query query = Query.query(Criteria.where(TaskRebalanceDto.FIELD_STATUS).is(TaskRebalanceStatus.RUNNING));
+        Update update = Update.update(TaskRebalanceDto.FIELD_EXECUTE_OWNER, owner);
+        update(query, update, null);
+    }
+
     private UserDetail loadRebalanceUser(TaskRebalanceDto rebalance) {
         String userId = rebalance == null ? null : rebalance.getUserId();
         if (!ObjectId.isValid(userId)) {
@@ -408,6 +422,11 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
      * are cancelled with an abort reason.
      */
     public void execute(String rebalanceId, UserDetail userDetail) {
+        if (!isCurrentExecuteOwner(rebalanceId, userDetail)) {
+            log.info("TaskRebalance execution skipped because execute owner changed, rebalanceId={}, owner={}",
+                    rebalanceId, currentExecuteOwner());
+            return;
+        }
         Query query = Query.query(Criteria.where(TaskRebalanceJobDto.FIELD_REBALANCE_ID).is(rebalanceId)
                 .and(TaskRebalanceJobDto.FIELD_STATUS).in(TaskRebalanceJobStatus.PENDING, TaskRebalanceJobStatus.STOPPING, TaskRebalanceJobStatus.STARTING));
         List<TaskRebalanceJobDto> jobs = jobService.findAllDto(query, userDetail);
@@ -431,6 +450,11 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         } finally {
             shutdownExecutor(executor, rebalanceId);
         }
+        if (!isCurrentExecuteOwner(rebalanceId, userDetail)) {
+            log.info("TaskRebalance execution stopped before progress update because execute owner changed, rebalanceId={}, owner={}",
+                    rebalanceId, currentExecuteOwner());
+            return;
+        }
         String finalErrorMesg = abortFlag.get() ? abortReason.get() : null;
         if (abortFlag.get()) {
             abortPendingJobs(rebalanceId, finalErrorMesg, userDetail);
@@ -444,12 +468,16 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             if (Thread.currentThread().isInterrupted()) {
                 return;
             }
+            assertCurrentExecuteOwner(rebalanceId, userDetail);
             if (abortFlag.get()) {
+                assertCurrentExecuteOwner(rebalanceId, userDetail);
                 cancelOnAbort(job, abortReason.get(), userDetail);
+                assertCurrentExecuteOwner(rebalanceId, userDetail);
                 updateProgress(rebalanceId, abortReason.get(), userDetail);
                 continue;
             }
-            executeJob(job, userDetail, abortFlag, abortReason);
+            executeJob(rebalanceId, job, userDetail, abortFlag, abortReason);
+            assertCurrentExecuteOwner(rebalanceId, userDetail);
             updateProgress(rebalanceId, abortFlag.get() ? abortReason.get() : null, userDetail);
             if (Thread.currentThread().isInterrupted()) {
                 return;
@@ -463,23 +491,28 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
      * Detecting that the target agent has gone offline raises the shared abort flag so that
      * the rest of the rebalance is short-circuited; jobs that already entered stop/start finish on their own.
      */
-    private void executeJob(TaskRebalanceJobDto job, UserDetail userDetail,
+    private void executeJob(String rebalanceId, TaskRebalanceJobDto job, UserDetail userDetail,
                             AtomicBoolean abortFlag, AtomicReference<String> abortReason) {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         TaskRebalanceJobDto latest = jobService.findById(job.getId(), userDetail);
         if (latest == null || !TaskRebalanceJobStatus.ACTIVE_STATUS.contains(latest.getStatus())) {
             return;
         }
         try {
             if (TaskRebalanceJobStatus.PENDING.equals(latest.getStatus())) {
-                executePendingJob(latest, userDetail, abortFlag, abortReason);
+                executePendingJob(rebalanceId, latest, userDetail, abortFlag, abortReason);
             } else if (TaskRebalanceJobStatus.STOPPING.equals(latest.getStatus())) {
-                resumeStoppingJob(latest, userDetail, abortFlag, abortReason);
+                resumeStoppingJob(rebalanceId, latest, userDetail, abortFlag, abortReason);
             } else if (TaskRebalanceJobStatus.STARTING.equals(latest.getStatus())) {
-                resumeStartingJob(latest, userDetail, abortFlag, abortReason);
+                resumeStartingJob(rebalanceId, latest, userDetail, abortFlag, abortReason);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.info("TaskRebalance job interrupted, jobId={}, taskId={}", latest.getId(), latest.getTaskId());
+        } catch (ExecuteOwnerChangedException e) {
+            log.info("TaskRebalance job stopped because execute owner changed, rebalanceId={}, jobId={}, taskId={}, owner={}",
+                    rebalanceId, latest.getId(), latest.getTaskId(), currentExecuteOwner());
+            throw e;
         } catch (Exception e) {
             log.warn("TaskRebalance job failed, jobId={}, taskId={}, error={}", latest.getId(), latest.getTaskId(), e.getMessage(), e);
             String reason = e.getMessage();
@@ -487,8 +520,9 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
     }
 
-    private void executePendingJob(TaskRebalanceJobDto job, UserDetail userDetail,
+    private void executePendingJob(String rebalanceId, TaskRebalanceJobDto job, UserDetail userDetail,
                                    AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         if (!isAgentOnline(job.getTargetAgentId())) {
             String reason = formatTargetOfflineReason(job, "before stop");
             finishJob(job, TaskRebalanceJobStatus.INVALID_AGENT, reason, userDetail);
@@ -515,11 +549,12 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                     job.getId(), job.getTaskId(), TaskRebalanceJobStatus.PENDING, TaskRebalanceJobStatus.STOPPING);
             return;
         }
-        stopSourceTask(job, task, taskUser, userDetail, abortFlag, abortReason);
+        stopSourceTask(rebalanceId, job, task, taskUser, userDetail, abortFlag, abortReason);
     }
 
-    private void resumeStoppingJob(TaskRebalanceJobDto job, UserDetail userDetail,
+    private void resumeStoppingJob(String rebalanceId, TaskRebalanceJobDto job, UserDetail userDetail,
                                    AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         TaskDto task = findTaskForExecution(job.getTaskId());
         if (task == null) {
             finishJob(job, TaskRebalanceJobStatus.STATUS_ERROR, "Task no longer exists", userDetail);
@@ -531,7 +566,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
         UserDetail taskUser = getTaskUser(task, userDetail);
         if (Objects.equals(task.getAgentId(), job.getTargetAgentId())) {
-            resumeStartingJob(job, userDetail, abortFlag, abortReason);
+            resumeStartingJob(rebalanceId, job, userDetail, abortFlag, abortReason);
             return;
         }
         if (!Objects.equals(task.getAgentId(), job.getSourceAgentId())) {
@@ -544,24 +579,27 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             raiseAbort(abortFlag, abortReason, reason);
             return;
         }
-        stopSourceTask(job, task, taskUser, userDetail, abortFlag, abortReason);
+        stopSourceTask(rebalanceId, job, task, taskUser, userDetail, abortFlag, abortReason);
     }
 
-    private void stopSourceTask(TaskRebalanceJobDto job, TaskDto task, UserDetail taskUser, UserDetail userDetail,
+    private void stopSourceTask(String rebalanceId, TaskRebalanceJobDto job, TaskDto task, UserDetail taskUser, UserDetail userDetail,
                                 AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         if (!TaskDto.STATUS_STOP.equals(task.getStatus())) {
             jobService.runAsRebalanceOperation(() -> taskService.pause(task, taskUser, false));
         }
-        if (!waitTaskStatus(job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs())) {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
+        if (!waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs(), userDetail)) {
             String reason = formatStopTimeoutReason(job);
             finishJob(job, TaskRebalanceJobStatus.STOP_TIMEOUT, reason, userDetail);
             return;
         }
-        moveStoppedTaskToTargetAndStart(job, taskUser, userDetail, abortFlag, abortReason);
+        moveStoppedTaskToTargetAndStart(rebalanceId, job, taskUser, userDetail, abortFlag, abortReason);
     }
 
-    private void moveStoppedTaskToTargetAndStart(TaskRebalanceJobDto job, UserDetail taskUser, UserDetail userDetail,
+    private void moveStoppedTaskToTargetAndStart(String rebalanceId, TaskRebalanceJobDto job, UserDetail taskUser, UserDetail userDetail,
                                                  AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         if (!isAgentOnline(job.getTargetAgentId())) {
             String reason = formatTargetOfflineReason(job, "before start; task left stopped on source agent " + job.getSourceAgentId());
             finishJob(job, TaskRebalanceJobStatus.INVALID_AGENT, reason, userDetail);
@@ -574,12 +612,14 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                     job.getId(), job.getTaskId(), TaskRebalanceJobStatus.STOPPING, TaskRebalanceJobStatus.STARTING);
             return;
         }
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         taskService.updateById(new ObjectId(job.getTaskId()), Update.update("agentId", job.getTargetAgentId()), taskUser);
-        startTargetTask(job, taskUser, userDetail, abortFlag, abortReason);
+        startTargetTask(rebalanceId, job, taskUser, userDetail, abortFlag, abortReason);
     }
 
-    private void resumeStartingJob(TaskRebalanceJobDto job, UserDetail userDetail,
+    private void resumeStartingJob(String rebalanceId, TaskRebalanceJobDto job, UserDetail userDetail,
                                    AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         if (isTaskRunningOnTarget(job)) {
             finishJob(job, TaskRebalanceJobStatus.OK, null, userDetail);
             return;
@@ -593,13 +633,14 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         if (Objects.equals(task.getAgentId(), job.getSourceAgentId())) {
             if (!TaskDto.STATUS_STOP.equals(task.getStatus())) {
                 jobService.runAsRebalanceOperation(() -> taskService.pause(task, taskUser, false));
-                if (!waitTaskStatus(job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs())) {
+                assertCurrentExecuteOwner(rebalanceId, userDetail);
+                if (!waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs(), userDetail)) {
                     String reason = formatStopTimeoutReason(job);
                     finishJob(job, TaskRebalanceJobStatus.STOP_TIMEOUT, reason, userDetail);
                     return;
                 }
             }
-            moveStoppedTaskToTargetAndStart(job, taskUser, userDetail, abortFlag, abortReason);
+            moveStoppedTaskToTargetAndStart(rebalanceId, job, taskUser, userDetail, abortFlag, abortReason);
             return;
         }
         if (!Objects.equals(task.getAgentId(), job.getTargetAgentId())) {
@@ -608,7 +649,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
         if (!isAgentOnline(job.getTargetAgentId())) {
             String reason = formatTargetOfflineReason(job, "during start");
-            String rollbackMessage = rollbackToSourceAgent(job, taskUser);
+            String rollbackMessage = rollbackToSourceAgent(rebalanceId, job, taskUser, userDetail);
             if (StringUtils.isNotBlank(rollbackMessage)) {
                 reason = reason + "; " + rollbackMessage;
             }
@@ -617,33 +658,35 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             return;
         }
         if (TaskDto.STATUS_STOP.equals(task.getStatus())) {
-            startTargetTask(job, taskUser, userDetail, abortFlag, abortReason);
+            startTargetTask(rebalanceId, job, taskUser, userDetail, abortFlag, abortReason);
             return;
         }
-        waitTargetRunningOrRollback(job, taskUser, userDetail, abortFlag, abortReason);
+        waitTargetRunningOrRollback(rebalanceId, job, taskUser, userDetail, abortFlag, abortReason);
     }
 
-    private void startTargetTask(TaskRebalanceJobDto job, UserDetail taskUser, UserDetail userDetail,
+    private void startTargetTask(String rebalanceId, TaskRebalanceJobDto job, UserDetail taskUser, UserDetail userDetail,
                                  AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         TaskDto stoppedTask = taskService.findByTaskId(new ObjectId(job.getTaskId()));
         try {
             jobService.runAsRebalanceOperation(() -> taskService.start(stoppedTask, taskUser, "11"));
         } catch (Exception startError) {
-            handleStartFailure(job, taskUser, startError.getMessage(), userDetail, abortFlag, abortReason);
+            handleStartFailure(rebalanceId, job, taskUser, startError.getMessage(), userDetail, abortFlag, abortReason);
             return;
         }
-        waitTargetRunningOrRollback(job, taskUser, userDetail, abortFlag, abortReason);
+        waitTargetRunningOrRollback(rebalanceId, job, taskUser, userDetail, abortFlag, abortReason);
     }
 
-    private void waitTargetRunningOrRollback(TaskRebalanceJobDto job, UserDetail taskUser, UserDetail userDetail,
+    private void waitTargetRunningOrRollback(String rebalanceId, TaskRebalanceJobDto job, UserDetail taskUser, UserDetail userDetail,
                                              AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
-        if (!waitTaskStatus(job.getTaskId(), TaskDto.STATUS_RUNNING, getTaskStatusTimeoutMs())) {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
+        if (!waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_RUNNING, getTaskStatusTimeoutMs(), userDetail)) {
             if (isTaskRunningOnTarget(job)) {
                 finishJob(job, TaskRebalanceJobStatus.OK, null, userDetail);
                 return;
             }
             String reason = formatStartTimeoutReason(job);
-            String rollbackMessage = rollbackToSourceAgent(job, taskUser);
+            String rollbackMessage = rollbackToSourceAgent(rebalanceId, job, taskUser, userDetail);
             if (StringUtils.isNotBlank(rollbackMessage)) {
                 reason = reason + "; " + rollbackMessage;
             }
@@ -657,14 +700,15 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         return taskService.findByTaskId(new ObjectId(taskId), "_id", "user_id", "name", "status", "agentId", "type", "milestones", "currentEventTimestamp", "snapshotDoneAt", "accessNodeType", "accessNodeProcessIdList", "syncType");
     }
 
-    private void handleStartFailure(TaskRebalanceJobDto job, UserDetail taskUser, String errorMessage, UserDetail userDetail,
+    private void handleStartFailure(String rebalanceId, TaskRebalanceJobDto job, UserDetail taskUser, String errorMessage, UserDetail userDetail,
                                     AtomicBoolean abortFlag, AtomicReference<String> abortReason) {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         if (isTaskRunningOnTarget(job)) {
             finishJob(job, TaskRebalanceJobStatus.OK, null, userDetail);
             return;
         }
         String reason = MessageFormat.format("Task start command failed on target agent {0}: {1}", job.getTargetAgentId(), errorMessage);
-        String rollbackMessage = rollbackToSourceAgent(job, taskUser);
+        String rollbackMessage = rollbackToSourceAgent(rebalanceId, job, taskUser, userDetail);
         if (StringUtils.isNotBlank(rollbackMessage)) {
             reason = reason + "; " + rollbackMessage;
         }
@@ -678,7 +722,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                 && Objects.equals(task.getAgentId(), job.getTargetAgentId());
     }
 
-    private String rollbackToSourceAgent(TaskRebalanceJobDto job, UserDetail taskUser) {
+    private String rollbackToSourceAgent(String rebalanceId, TaskRebalanceJobDto job, UserDetail taskUser, UserDetail userDetail) {
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         TaskDto current = taskService.findByTaskId(new ObjectId(job.getTaskId()), "_id", "name", "status", "agentId");
         if (current == null) {
             return "rollback skipped because task no longer exists";
@@ -695,7 +740,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         try {
             if (!TaskDto.STATUS_STOP.equals(current.getStatus())) {
                 jobService.runAsRebalanceOperation(() -> taskService.pause(current, taskUser, false));
-                waitTaskStatus(job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs());
+                waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs(), userDetail);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -703,6 +748,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         } catch (Exception e) {
             log.warn("TaskRebalance rollback stop failed, jobId={}, taskId={}, error={}", job.getId(), job.getTaskId(), e.getMessage(), e);
         }
+        assertCurrentExecuteOwner(rebalanceId, userDetail);
         TaskDto latest = taskService.findByTaskId(new ObjectId(job.getTaskId()), "status", "agentId");
         if (latest != null
                 && Objects.equals(latest.getAgentId(), job.getTargetAgentId())
@@ -788,12 +834,13 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
     }
 
-    private boolean waitTaskStatus(String taskId, String expectedStatus, long timeoutMs) throws InterruptedException {
+    private boolean waitTaskStatus(String rebalanceId, String taskId, String expectedStatus, long timeoutMs, UserDetail userDetail) throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Task rebalance execution interrupted");
             }
+            assertCurrentExecuteOwner(rebalanceId, userDetail);
             TaskDto task = taskService.findByTaskId(new ObjectId(taskId), "status");
             if (task != null && expectedStatus.equals(task.getStatus())) {
                 return true;
@@ -822,6 +869,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                 Thread.currentThread().interrupt();
                 return;
             } catch (ExecutionException e) {
+                cancelFutures(futures);
                 log.warn("TaskRebalance target agent execution failed", e.getCause());
                 return;
             }
@@ -855,6 +903,28 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             thread.setDaemon(true);
             return thread;
         };
+    }
+
+    private String currentExecuteOwner() {
+        return dbLockConfiguration.getOwner();
+    }
+
+    private void assertCurrentExecuteOwner(String rebalanceId, UserDetail userDetail) {
+        if (!isCurrentExecuteOwner(rebalanceId, userDetail)) {
+            throw new ExecuteOwnerChangedException();
+        }
+    }
+
+    private boolean isCurrentExecuteOwner(String rebalanceId, UserDetail userDetail) {
+        if (StringUtils.isBlank(rebalanceId) || !ObjectId.isValid(rebalanceId)) {
+            return false;
+        }
+        TaskRebalanceDto rebalance = findById(new ObjectId(rebalanceId), userDetail);
+        String owner = rebalance == null ? null : rebalance.getExecuteOwner();
+        return Objects.equals(owner, currentExecuteOwner());
+    }
+
+    private static class ExecuteOwnerChangedException extends RuntimeException {
     }
 
     private boolean isAgentOnline(String agentId) {

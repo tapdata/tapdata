@@ -7,6 +7,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dblock.DBLockConfiguration;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
@@ -16,6 +17,7 @@ import com.tapdata.tm.taskrebalance.constant.TaskRebalanceJobStatus;
 import com.tapdata.tm.taskrebalance.constant.TaskRebalanceStatus;
 import com.tapdata.tm.taskrebalance.dto.TaskRebalanceDto;
 import com.tapdata.tm.taskrebalance.dto.TaskRebalanceJobDto;
+import com.tapdata.tm.taskrebalance.entity.TaskRebalanceEntity;
 import com.tapdata.tm.taskrebalance.repository.TaskRebalanceRepository;
 import com.tapdata.tm.taskrebalance.rule.TaskRebalanceRuleService;
 import com.tapdata.tm.user.service.UserService;
@@ -33,6 +35,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -79,7 +82,7 @@ class TaskRebalanceServiceTest {
         TaskDto running = context.task(TaskDto.STATUS_RUNNING, "target");
         context.stubTaskLookups(stoppedOnSource, stoppedOnSource, running);
 
-        ReflectionTestUtils.invokeMethod(context.service, "executeJob", job, context.user, new AtomicBoolean(false), new AtomicReference<String>());
+        ReflectionTestUtils.invokeMethod(context.service, "executeJob", context.rebalanceId, job, context.user, new AtomicBoolean(false), new AtomicReference<String>());
 
         verify(context.taskService, never()).pause(any(TaskDto.class), eq(context.user), eq(false));
         verify(context.taskService).updateById(eq(context.taskId), any(Update.class), eq(context.user));
@@ -96,7 +99,7 @@ class TaskRebalanceServiceTest {
         TaskDto running = context.task(TaskDto.STATUS_RUNNING, "target");
         context.stubTaskLookups(stoppedOnTarget, stoppedOnTarget, stoppedOnTarget, running);
 
-        ReflectionTestUtils.invokeMethod(context.service, "executeJob", job, context.user, new AtomicBoolean(false), new AtomicReference<String>());
+        ReflectionTestUtils.invokeMethod(context.service, "executeJob", context.rebalanceId, job, context.user, new AtomicBoolean(false), new AtomicReference<String>());
 
         verify(context.taskService, never()).pause(any(TaskDto.class), eq(context.user), eq(false));
         verify(context.taskService, never()).updateById(eq(context.taskId), any(Update.class), eq(context.user));
@@ -115,7 +118,7 @@ class TaskRebalanceServiceTest {
         TaskDto sourceTask = context.task(TaskDto.STATUS_STOP, "source");
         context.stubTaskLookups(targetTask, targetTask, sourceTask);
 
-        ReflectionTestUtils.invokeMethod(context.service, "handleStartFailure", job, context.user, "boom", context.user, abortFlag, abortReason);
+        ReflectionTestUtils.invokeMethod(context.service, "handleStartFailure", context.rebalanceId, job, context.user, "boom", context.user, abortFlag, abortReason);
 
         assertFalse(abortFlag.get());
         assertEquals(null, abortReason.get());
@@ -132,7 +135,7 @@ class TaskRebalanceServiceTest {
         AtomicReference<String> abortReason = new AtomicReference<>();
         when(context.workerService.findAllEntity(any(Query.class))).thenReturn(List.of());
 
-        ReflectionTestUtils.invokeMethod(context.service, "executeJob", job, context.user, abortFlag, abortReason);
+        ReflectionTestUtils.invokeMethod(context.service, "executeJob", context.rebalanceId, job, context.user, abortFlag, abortReason);
 
         assertTrue(abortFlag.get());
         assertTrue(abortReason.get().contains("Target agent target offline"));
@@ -151,7 +154,7 @@ class TaskRebalanceServiceTest {
         UpdateResult failedTransition = context.updateResult(0);
         when(context.jobService.update(any(Query.class), any(Update.class), eq(context.user))).thenReturn(failedTransition);
 
-        ReflectionTestUtils.invokeMethod(context.service, "executeJob", job, context.user, new AtomicBoolean(false), new AtomicReference<String>());
+        ReflectionTestUtils.invokeMethod(context.service, "executeJob", context.rebalanceId, job, context.user, new AtomicBoolean(false), new AtomicReference<String>());
 
         verify(context.taskService, never()).pause(any(TaskDto.class), eq(context.user), eq(false));
         verify(context.taskService, never()).updateById(eq(context.taskId), any(Update.class), eq(context.user));
@@ -231,6 +234,31 @@ class TaskRebalanceServiceTest {
         }
     }
 
+    @Test
+    @DisplayName("active TM marks running rebalance owner")
+    void markRunningRebalancesOwner() {
+        TestContext context = new TestContext();
+
+        context.service.markRunningRebalancesOwner();
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(context.repository).update(queryCaptor.capture(), updateCaptor.capture(), isNull());
+        assertEquals(TaskRebalanceStatus.RUNNING, queryCaptor.getValue().getQueryObject().get(TaskRebalanceDto.FIELD_STATUS));
+        assertEquals(context.executeOwner, updateCaptor.getValue().getUpdateObject().get("$set", org.bson.Document.class).get(TaskRebalanceDto.FIELD_EXECUTE_OWNER));
+    }
+
+    @Test
+    @DisplayName("execute skips when rebalance owner belongs to another TM")
+    void executeSkipsWhenOwnerChanged() {
+        TestContext context = new TestContext();
+        context.stubRebalanceOwner("other-tm");
+
+        context.service.execute(context.rebalanceId, context.user);
+
+        verify(context.jobService, never()).findAllDto(any(Query.class), eq(context.user));
+    }
+
     private void mockPermissionCheck(MockedStatic<DataPermissionHelper> mocked) {
         mocked.when(() -> DataPermissionHelper.check(
                 any(UserDetail.class),
@@ -258,20 +286,26 @@ class TaskRebalanceServiceTest {
     private static class TestContext {
         private final ObjectId taskId = new ObjectId();
         private final ObjectId jobId = new ObjectId();
+        private final ObjectId rebalanceObjectId = new ObjectId();
+        private final String rebalanceId = rebalanceObjectId.toHexString();
+        private final String executeOwner = "current-tm";
         private final UserDetail user = new UserDetail("user-id", "customer-id", "Harsen", "password", Collections.<SimpleGrantedAuthority>emptyList());
+        private final TaskRebalanceRepository repository = mock(TaskRebalanceRepository.class);
         private final TaskRebalanceJobService jobService = mock(TaskRebalanceJobService.class);
         private final TaskService taskService = mock(TaskService.class);
         private final WorkerService workerService = mock(WorkerService.class);
         private final UserService userService = mock(UserService.class);
         private final SettingsService settingsService = mock(SettingsService.class);
+        private final DBLockConfiguration dbLockConfiguration = mock(DBLockConfiguration.class);
         private final TaskRebalanceRuleService ruleService = mock(TaskRebalanceRuleService.class);
         private final TaskRebalanceService service = new TaskRebalanceService(
-                mock(TaskRebalanceRepository.class),
+                repository,
                 jobService,
                 taskService,
                 workerService,
                 userService,
                 settingsService,
+                dbLockConfiguration,
                 ruleService
         );
 
@@ -279,6 +313,8 @@ class TaskRebalanceServiceTest {
             user.setFreeAuth(true);
             new SettingUtil(settingsService);
             when(settingsService.getByCategoryAndKey(any(String.class), any(String.class))).thenReturn("30");
+            when(dbLockConfiguration.getOwner()).thenReturn(executeOwner);
+            stubRebalanceOwner(executeOwner);
             Worker target = new Worker();
             target.setProcessId("target");
             when(workerService.findAllEntity(any(Query.class))).thenReturn(List.of(target));
@@ -294,12 +330,20 @@ class TaskRebalanceServiceTest {
         private TaskRebalanceJobDto job(String status) {
             TaskRebalanceJobDto job = new TaskRebalanceJobDto();
             job.setId(jobId);
+            job.setRebalanceId(rebalanceId);
             job.setTaskId(taskId.toHexString());
             job.setStatus(status);
             job.setSourceAgentId("source");
             job.setTargetAgentId("target");
             when(jobService.findById(jobId, user)).thenReturn(job);
             return job;
+        }
+
+        private void stubRebalanceOwner(String owner) {
+            TaskRebalanceEntity rebalance = new TaskRebalanceEntity();
+            rebalance.setId(rebalanceObjectId);
+            rebalance.setExecuteOwner(owner);
+            when(repository.findById(rebalanceObjectId, user)).thenReturn(Optional.of(rebalance));
         }
 
         private TaskDto task(String status, String agentId) {

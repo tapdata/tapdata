@@ -41,8 +41,8 @@ class TaskRebalanceSchedulerTest {
     }
 
     @Test
-    @DisplayName("scheduleSafely swallows service exceptions")
-    void scheduleSafelySwallowsException() {
+    @DisplayName("scheduleSafely marks owner before scheduling and swallows service exceptions")
+    void scheduleSafelyMarksOwnerAndSwallowsException() {
         TaskRebalanceService taskRebalanceService = mock(TaskRebalanceService.class);
         TaskRebalanceScheduler scheduler = newScheduler(taskRebalanceService);
         doThrow(new RuntimeException("boom")).when(taskRebalanceService).scheduleOnce();
@@ -50,6 +50,7 @@ class TaskRebalanceSchedulerTest {
         ReflectionTestUtils.invokeMethod(scheduler, "scheduleSafely");
         scheduler.destroy();
 
+        verify(taskRebalanceService).markRunningRebalancesOwner();
         verify(taskRebalanceService).scheduleOnce();
     }
 

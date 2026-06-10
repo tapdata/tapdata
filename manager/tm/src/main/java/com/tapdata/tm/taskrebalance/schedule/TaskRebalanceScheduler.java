@@ -99,6 +99,7 @@ public class TaskRebalanceScheduler implements SmartInitializingSingleton {
 
     private void scheduleSafely() {
         try {
+            taskRebalanceService.markRunningRebalancesOwner();
             taskRebalanceService.scheduleOnce();
         } catch (Exception e) {
             log.warn("TaskRebalanceScheduler schedule failed", e);
