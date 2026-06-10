@@ -47,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -344,6 +345,21 @@ class TaskRebalanceServiceTest {
         verify(context.jobService, never()).findAllDto(any(Query.class), eq(context.user));
     }
 
+    @Test
+    @DisplayName("preview task query sorts by start time and id")
+    void findStatTasksSortsByStartTimeAndId() {
+        TestContext context = new TestContext();
+        when(context.taskService.findAll(any(Query.class))).thenReturn(List.of());
+
+        ReflectionTestUtils.invokeMethod(context.service, "findStatTasks");
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(context.taskService).findAll(queryCaptor.capture());
+        org.bson.Document sort = queryCaptor.getValue().getSortObject();
+        assertEquals(1, sort.get("startTime"));
+        assertEquals(1, sort.get("_id"));
+    }
+
     private void mockPermissionCheck(MockedStatic<DataPermissionHelper> mocked) {
         mocked.when(() -> DataPermissionHelper.check(
                 any(UserDetail.class),
@@ -431,6 +447,7 @@ class TaskRebalanceServiceTest {
             current.setMovable(true);
             current.setSourceAgentId("source");
             when(ruleService.evaluate(eq(sourceTask), any(Set.class))).thenReturn(current);
+            when(ruleService.evaluate(eq(sourceTask), any(Set.class), anyInt())).thenReturn(current);
             when(jobService.hasAnyActiveJob(any(List.class), eq(user))).thenReturn(false);
         }
 

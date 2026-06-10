@@ -1076,6 +1076,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     private List<TaskDto> findStatTasks() {
         Query query = Query.query(Criteria.where("is_deleted").ne(true)
                 .and("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN));
+        query.with(Sort.by(Sort.Order.asc("startTime"), Sort.Order.asc("_id")));
         query.fields().include("_id", "name", "status", "agentId", "type", "syncType", "accessNodeType", "accessNodeProcessIdList", "milestones", "currentEventTimestamp", "snapshotDoneAt", "dag", "startTime");
         return taskService.findAll(query);
     }
@@ -1099,8 +1100,10 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         Map<String, Integer> targetCount = targetCount(total, agents);
         Map<String, List<TaskRebalancePreviewVo.TaskPreview>> movableByAgent = new HashMap<>();
 
-        for (TaskDto task : tasks) {
-            TaskRebalancePreviewVo.TaskPreview item = ruleService.evaluate(task, workerMap.keySet());
+        for (int i = 0; i < tasks.size(); i++) {
+            TaskDto task = tasks.get(i);
+            int startTimePriority = task.getStartTime() == null ? 0 : tasks.size() - i;
+            TaskRebalancePreviewVo.TaskPreview item = ruleService.evaluate(task, workerMap.keySet(), startTimePriority);
             if (Boolean.TRUE.equals(item.getMovable())) {
                 movableByAgent.computeIfAbsent(task.getAgentId(), k -> new ArrayList<>()).add(item);
             }

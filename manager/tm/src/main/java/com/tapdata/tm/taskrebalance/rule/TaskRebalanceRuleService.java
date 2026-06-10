@@ -22,8 +22,12 @@ public class TaskRebalanceRuleService {
      * independent movability rule to produce frontend schedulable status and reason.
      */
     public TaskRebalancePreviewVo.TaskPreview evaluate(TaskDto task, Set<String> onlineAgentIds) {
+        return evaluate(task, onlineAgentIds, 0);
+    }
+
+    public TaskRebalancePreviewVo.TaskPreview evaluate(TaskDto task, Set<String> onlineAgentIds, int startTimePriority) {
         TaskRebalancePreviewVo.TaskPreview item = toTaskPreview(task);
-        applyPriorityScore(task, item);
+        applyPriorityScore(task, item, startTimePriority);
         item.setSchedulableStatus("OK");
         if (!onlineAgentIds.contains(task.getAgentId())) {
             reject(item, "AGENT_OFFLINE", "Agent offline");
@@ -56,11 +60,11 @@ public class TaskRebalanceRuleService {
         item.setMovable(false);
     }
 
-    private void applyPriorityScore(TaskDto task, TaskRebalancePreviewVo.TaskPreview item) {
+    private void applyPriorityScore(TaskDto task, TaskRebalancePreviewVo.TaskPreview item, int startTimePriority) {
         Map<String, Integer> scoreItems = new LinkedHashMap<>();
         int syncTypeScore = syncTypePriority(task.getSyncType()) * 10000;
         int nodeScore = Math.max(0, 1000 - item.getNodeCount()) * 10;
-        int startTimeScore = item.getStartTime() == null ? 0 : (int) Math.min(999, Math.max(0, item.getStartTime() / 1000 / 60 % 1000));
+        int startTimeScore = item.getStartTime() == null ? 0 : Math.max(0, startTimePriority);
         scoreItems.put("syncType", syncTypeScore);
         scoreItems.put("nodeCount", nodeScore);
         scoreItems.put("startTime", startTimeScore);

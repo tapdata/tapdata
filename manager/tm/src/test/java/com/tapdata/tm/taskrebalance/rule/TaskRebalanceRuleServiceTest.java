@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
+import java.util.Date;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -137,6 +138,30 @@ class TaskRebalanceRuleServiceTest {
             assertTrue(item.getPriorityScoreItems().containsKey("syncType"));
             assertTrue(item.getPriorityScoreItems().containsKey("nodeCount"));
             assertTrue(item.getPriorityScoreItems().containsKey("startTime"));
+        }
+
+        @Test
+        void startTimePriorityUsesPreviewListOrder() {
+            TaskDto earlier = newRunningCdcTask("a1");
+            earlier.setStartTime(new Date(1000L));
+            TaskDto later = newRunningCdcTask("a1");
+            later.setStartTime(new Date(2000L));
+
+            TaskRebalancePreviewVo.TaskPreview high = ruleService.evaluate(earlier, Set.of("a1"), 2);
+            TaskRebalancePreviewVo.TaskPreview low = ruleService.evaluate(later, Set.of("a1"), 1);
+
+            assertEquals(2, high.getPriorityScoreItems().get("startTime"));
+            assertEquals(1, low.getPriorityScoreItems().get("startTime"));
+            assertTrue(high.getPriorityScore() > low.getPriorityScore());
+        }
+
+        @Test
+        void nullStartTimeDoesNotGetStartTimePriority() {
+            TaskDto task = newRunningCdcTask("a1");
+
+            TaskRebalancePreviewVo.TaskPreview item = ruleService.evaluate(task, Set.of("a1"), 10);
+
+            assertEquals(0, item.getPriorityScoreItems().get("startTime"));
         }
     }
 
