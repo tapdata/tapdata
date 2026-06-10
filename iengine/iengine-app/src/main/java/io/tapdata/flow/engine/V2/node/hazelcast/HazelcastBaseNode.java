@@ -263,7 +263,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				doInitWithDisableNode(context);
 			}
 		} catch (Exception e) {
-			AspectUtils.executeAspect(DataNodeInitErrorAspect.class, () -> new DataNodeInitErrorAspect().dataProcessorContext((DataProcessorContext) processorBaseContext).error(e));
+			if (processorBaseContext instanceof DataProcessorContext dpc) {
+				AspectUtils.executeAspect(DataNodeInitErrorAspect.class, () -> new DataNodeInitErrorAspect().dataProcessorContext(dpc).error(e));
+			}
 			errorHandle(e);
 		}
 	}
