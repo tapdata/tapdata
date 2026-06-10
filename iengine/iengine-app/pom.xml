@@ -102,7 +102,7 @@
         </dependency>
         <dependency> <!-- exclude掉spring-boot的默认log配置 -->
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
             <exclusions>
                 <exclusion>
                     <groupId>org.springframework.boot</groupId>
@@ -110,10 +110,17 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- Boot 4 no longer auto-configures a Jackson 2 com.fasterxml.jackson.databind.ObjectMapper
+             bean (it defaults to Jackson 3). JdkHttpServerConfig injects the Jackson 2 ObjectMapper,
+             so the spring-boot-jackson2 stop-gap restores that bean (keep-Jackson-2 strategy). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jackson2</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.hibernate.validator</groupId>
             <artifactId>hibernate-validator</artifactId>
-            <version>9.0.0.CR1</version>
+            <!-- version inherited from Spring Boot 4.0.x BOM (9.0.x.Final) -->
         </dependency>
         <dependency>  <!-- 加上这个才能辨认到log4j2.yml文件 -->
             <groupId>com.fasterxml.jackson.dataformat</groupId>
@@ -388,8 +395,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>8</source>
-                    <target>8</target>
+                    <source>17</source>
+                    <target>17</target>
                 </configuration>
             </plugin>
             <!--            <plugin>-->

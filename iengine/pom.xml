@@ -4,7 +4,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.14</version>
+        <version>4.0.6</version>
         <relativePath/>
     </parent>
 
@@ -28,7 +28,7 @@
         <version.kafka.scala>2.13</version.kafka.scala>
         <version.curator>2.11.0</version.curator>
         <version.zookeeper>3.8.4</version.zookeeper>
-        <version.jackson>2.21.1</version.jackson>
+        <version.jackson>2.21.2</version.jackson>
         <!--    <version.org.slf4j>1.7.26</version.org.slf4j>-->
         <!-- check new release version at https://github.com/confluentinc/schema-registry/releases -->
         <version.confluent.platform>5.1.2</version.confluent.platform>
@@ -38,12 +38,15 @@
         <version.hana.driver>2.3.58</version.hana.driver>
         <version.mysql.binlog>0.28.0</version.mysql.binlog>
         <version.mongo.server>3.2.12</version.mongo.server>
-        <version.mongo.driver>5.5.1</version.mongo.driver>
+        <!-- align with Spring Boot 4 BOM-managed mongodb-driver-core (5.6.5); a mismatched sync/core
+             caused NoClassDefFoundError com/mongodb/internal/operation/SyncOperations at runtime -->
+        <version.mongo.driver>5.6.5</version.mongo.driver>
         <!--        <version.oracle.driver>11.2.0.3</version.oracle.driver>-->
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
         <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
-        <version.spring>6.2.18</version.spring>
+        <!-- Spring Boot 4.0.x manages Spring Framework 7.0.x; keep this aligned with the BOM -->
+        <version.spring>7.0.7</version.spring>
 
         <!-- Connectors -->
         <version.com.google.protobuf>4.29.3</version.com.google.protobuf>
@@ -179,8 +182,8 @@
         <script-engine-module.version>2.7-SNAPSHOT</script-engine-module.version>
         <gson.version>2.12.1</gson.version>
         <httpclient5.version>5.4.4</httpclient5.version>
-        <netty.version>4.1.133.Final</netty.version>
-        <tomcat.version>10.1.55</tomcat.version>
+        <!-- netty.version / tomcat.version intentionally inherited from Spring Boot 4.0.x BOM
+             (netty 4.2.x, tomcat 11.0.x for Jakarta EE 11 / Servlet 6.1) -->
     </properties>
 
     <modules>

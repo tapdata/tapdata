@@ -28,6 +28,8 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 
 import org.apache.hc.core5.http.HttpEntityContainer;
 import org.apache.hc.core5.http.NoHttpResponseException;
@@ -192,8 +194,11 @@ public class RestTemplateOperator {
 				})
 				.setConnectionManager(poolingHttpClientConnectionManager)
 				.build();
+		// Spring 7 removed HttpComponentsClientHttpRequestFactory.setConnectTimeout(int);
+		// configure the connect timeout on the HttpClient 5 connection manager instead.
+		poolingHttpClientConnectionManager.setDefaultConnectionConfig(ConnectionConfig.custom()
+				.setConnectTimeout(Timeout.ofMilliseconds(connectTimeout)).build());
 		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
-		requestFactory.setConnectTimeout(connectTimeout);
 		requestFactory.setReadTimeout(readTimeout);
 		requestFactory.setConnectionRequestTimeout(connectRequestTimeout);
 		return requestFactory;
@@ -756,10 +761,10 @@ public class RestTemplateOperator {
 					// allow retry with URL switching for all deployment modes
 				} else if (e instanceof HttpClientErrorException) {
 					// If the parameter is incorrect, no retry will be performed
-					if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
+					if (404 == ((HttpClientErrorException) e).getStatusCode().value()) {
 						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "not found url: " + retryInfo.reqURL), e);
 					}
-					if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
+					if (405 == ((HttpClientErrorException) e).getStatusCode().value()) {
 						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
 					}
 				}
