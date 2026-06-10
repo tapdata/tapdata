@@ -137,7 +137,7 @@ class TaskRebalanceServiceTest {
         TaskRebalanceJobDto job = context.job(TaskRebalanceJobStatus.PENDING);
         AtomicBoolean abortFlag = new AtomicBoolean(false);
         AtomicReference<String> abortReason = new AtomicReference<>();
-        when(context.workerService.findAllEntity(any(Query.class))).thenReturn(List.of());
+        when(context.workerService.findAvailableAgentBySystem(any(List.class))).thenReturn(List.of());
 
         ReflectionTestUtils.invokeMethod(context.service, "executeJob", context.rebalanceId, job, context.user, abortFlag, abortReason);
 
@@ -416,7 +416,7 @@ class TaskRebalanceServiceTest {
             when(settingsService.getByCategoryAndKey(any(String.class), any(String.class))).thenReturn("30");
             when(dbLockConfiguration.getOwner()).thenReturn(executeOwner);
             stubRebalanceOwner(executeOwner);
-            when(workerService.findAllEntity(any(Query.class))).thenReturn(List.of(worker("target")));
+            when(workerService.findAvailableAgentBySystem(any(List.class))).thenReturn(List.of(worker("target")));
             doAnswer(invocation -> {
                 Runnable runnable = invocation.getArgument(0);
                 runnable.run();
@@ -440,7 +440,7 @@ class TaskRebalanceServiceTest {
         }
 
         private void stubCreateValidation() {
-            when(workerService.findAllEntity(any(Query.class))).thenReturn(List.of(worker("source"), worker("target")));
+            when(workerService.findAvailableAgentBySystem(any(List.class))).thenReturn(List.of(worker("source"), worker("target")));
             TaskDto sourceTask = task(TaskDto.STATUS_RUNNING, "source");
             when(taskService.findByTaskId(eq(taskId), any(String[].class))).thenReturn(sourceTask);
             TaskRebalancePreviewVo.TaskPreview current = new TaskRebalancePreviewVo.TaskPreview();

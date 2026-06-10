@@ -1003,13 +1003,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     }
 
     private List<Worker> findAvailableAgents() {
-        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
-        Query query = Query.query(Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L) + 1L)
-                .and("isDeleted").ne(true)
-                .and("stopping").ne(true)
-                .and("agentTags").ne("disabledScheduleTask"));
-        return workerService.findAllEntity(query);
+        return workerService.findAvailableAgentBySystem(List.of());
     }
 
     private UserDetail getTaskUser(TaskDto task, UserDetail fallback) {
