@@ -218,6 +218,9 @@ class ConnectorManagerTest extends BaseTest {
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
             ReflectionTestUtils.setField(connectorManager,"clientMongoOperator",clientMongoOperator);
             HttpClientErrorException ex = mock(HttpClientErrorException.class);
+            // Spring 7: checkLicenseEngineLimit now reads getStatusCode().value() (getRawStatusCode()
+            // was removed). Stub a non-404 status so the mock returns a real HttpStatusCode, not null.
+            when(ex.getStatusCode()).thenReturn(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR);
             Map<String, Object> processId = new HashMap<>();
             processId.put("processId", "tapdata-agent-connector");
             doThrow(ex).when(clientMongoOperator).findOne(processId, ConnectorConstant.LICENSE_COLLECTION + "/checkEngineValid", CheckEngineValidResultDto.class);
