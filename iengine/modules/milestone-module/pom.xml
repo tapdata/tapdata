@@ -58,7 +58,7 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-test</artifactId>
-            <version>5.3.14</version>
+            <!-- version inherited from Spring Boot 4.0.x BOM (7.0.x) -->
             <scope>test</scope>
         </dependency>
     </dependencies>

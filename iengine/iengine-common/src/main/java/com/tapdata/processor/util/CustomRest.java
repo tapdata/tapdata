@@ -10,6 +10,8 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactoryBuilder;
 import org.apache.hc.core5.ssl.SSLContexts;
@@ -24,6 +26,7 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.util.MultiValueMap;
+import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -170,7 +173,7 @@ public class CustomRest {
 	}
 
 	public static Map<String, Object> post(String url, byte[] params, MultiValueMap<String, String> headersMap, String returnType) {
-		MultiValueMap<String, String> headers = new HttpHeaders();
+		MultiValueMap<String, String> headers = new LinkedMultiValueMap<>();
 		MapUtil.copyToNewMap(headersMap, headers);
 		HttpEntity<byte[]> httpEntity = new HttpEntity<>(params, headers);
 
@@ -179,7 +182,7 @@ public class CustomRest {
 
 	public static Map<String, Object> post(String url, byte[] params, MultiValueMap<String, String> headersMap, String returnType,
 										   int connectTimeout, int readTimeout) {
-		MultiValueMap<String, String> headers = new HttpHeaders();
+		MultiValueMap<String, String> headers = new LinkedMultiValueMap<>();
 		MapUtil.copyToNewMap(headersMap, headers);
 		HttpEntity<byte[]> httpEntity = new HttpEntity<>(params, headers);
 
@@ -260,7 +263,7 @@ public class CustomRest {
 	}
 
 	public static Map<String, Object> put(String url, byte[] params, MultiValueMap<String, String> headersMap, String returnType) {
-		MultiValueMap<String, String> headers = new HttpHeaders();
+		MultiValueMap<String, String> headers = new LinkedMultiValueMap<>();
 		MapUtil.copyToNewMap(headersMap, headers);
 		HttpEntity<byte[]> httpEntity = new HttpEntity<>(params, headers);
 
@@ -269,7 +272,7 @@ public class CustomRest {
 
 	public static Map<String, Object> put(String url, byte[] params, MultiValueMap<String, String> headersMap, String returnType,
 										  int connectTimeout, int readTimeout) {
-		MultiValueMap<String, String> headers = new HttpHeaders();
+		MultiValueMap<String, String> headers = new LinkedMultiValueMap<>();
 		MapUtil.copyToNewMap(headersMap, headers);
 		HttpEntity<byte[]> httpEntity = new HttpEntity<>(params, headers);
 
@@ -442,7 +445,7 @@ public class CustomRest {
 					put("err", "response is null");
 				}});
 			} else {
-				result.put(RESULT_CODE, responseEntity.getStatusCodeValue());
+				result.put(RESULT_CODE, responseEntity.getStatusCode().value());
 				result.put(RESULT_DATA, responseEntity.getBody());
 			}
 		} catch (RestClientException e) {
@@ -490,11 +493,12 @@ public class CustomRest {
 					.custom()
 					.setConnectionManager(connectionManager)
 					.build();
+			// Spring 7 removed HttpComponentsClientHttpRequestFactory.setConnectTimeout(int);
+			// configure the connect timeout on the HttpClient 5 connection manager instead.
+			connectionManager.setDefaultConnectionConfig(ConnectionConfig.custom()
+					.setConnectTimeout(Timeout.ofMilliseconds(connectTimeout <= 0 ? CONNECT_TIMEOUT : connectTimeout)).build());
 			factory = new HttpComponentsClientHttpRequestFactory();
 			factory.setHttpClient(httpClient);
-
-			//Connect timeout
-			factory.setConnectTimeout(connectTimeout <= 0 ? CONNECT_TIMEOUT : connectTimeout);
 
 			//Read timeout
 			factory.setReadTimeout(readTimeout <= 0 ? READ_TIMEOUT : readTimeout);
