@@ -10,8 +10,10 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -84,6 +86,19 @@ class DBLockTest {
             fail("非 ScheduledThreadPoolExecutor 类型");
         }
 
+        // 记录提交任务前已存在的 DBLock 线程（如全局 DBLock.executor 创建的线程），避免误判
+        Set<Long> baselineThreadIds = new HashSet<>();
+        Optional.of(threadMXBean.getAllThreadIds())
+            .map(ids -> threadMXBean.getThreadInfo(ids, 0))
+            .ifPresent(infos -> {
+                for (ThreadInfo info : infos) {
+                    if (null == info) continue;
+                    if (info.getThreadName().startsWith(DBLock.TAG)) {
+                        baselineThreadIds.add(info.getThreadId());
+                    }
+                }
+            });
+
         // 模拟线程执行
         AtomicInteger completedCount = new AtomicInteger(0);
         for (int i = 0; i < threadCount; i++) {
@@ -108,6 +123,7 @@ class DBLockTest {
                 .ifPresent(infos -> {
                     for (ThreadInfo info : infos) {
                         if (null == info) continue; // 已销毁
+                        if (baselineThreadIds.contains(info.getThreadId())) continue; // 排除测试前已存在的线程
                         if (info.getThreadName().startsWith(DBLock.TAG)) {
                             threadNames.add(info.getThreadName());
                         }

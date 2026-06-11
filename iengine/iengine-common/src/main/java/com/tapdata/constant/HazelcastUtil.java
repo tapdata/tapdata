@@ -14,7 +14,6 @@ import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.spi.properties.ClusterProperty;
 import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
 import com.tapdata.cache.CacheInvalidationService;
 import com.tapdata.cache.hazelcast.HazelcastCacheStats;
 import com.tapdata.cache.hazelcast.serializer.HazelcastCacheStatsSerializer;
@@ -225,29 +224,23 @@ public class HazelcastUtil {
 	 * 初始化缓存失效服务, 应该在 Hazelcast 实例启动后调用
 	 *
 	 * @param hazelcastInstance Hazelcast 实例
-	 * @param mongoUri          MongoDB 连接 URI
+	 * @param mongoClient       MongoDB 客户端
 	 * @param databaseName      MongoDB 数据库名
 	 * @param nodeId            agent 标识, 同一 cluster 内多 member 共享, 用于 self-eviction 过滤
 	 */
-	public static void initCacheInvalidationService(HazelcastInstance hazelcastInstance, String mongoUri, String databaseName, String nodeId) {
+	public static void initCacheInvalidationService(HazelcastInstance hazelcastInstance, MongoClient mongoClient, String databaseName, String nodeId) {
 		if (cacheInvalidationServiceRef.get() == null) {
 			synchronized (CACHE_INVALIDATION_LOCK) {
 				if (cacheInvalidationServiceRef.get() == null) {
-					MongoClient mongoClient = null;
+					if (mongoClient == null) {
+						throw new CoreException("Failed to initialize cache invalidation service, MongoClient is null");
+					}
 					try {
-						mongoClient = MongoClients.create(mongoUri);
 						CacheInvalidationService service = new CacheInvalidationService(hazelcastInstance, mongoClient, databaseName, nodeId);
 						service.start();
 						cacheInvalidationServiceRef.set(service);
 						logger.info("Cache invalidation service initialized and started successfully");
 					} catch (Exception e) {
-						if (mongoClient != null) {
-							try {
-								mongoClient.close();
-							} catch (Exception ce) {
-								logger.warn("Failed to close MongoClient after init failure", ce);
-							}
-						}
 						logger.error("Failed to initialize cache invalidation service", e);
 						throw new CoreException("Failed to initialize cache invalidation service", e);
 					}
