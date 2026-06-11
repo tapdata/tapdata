@@ -4,6 +4,8 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -70,7 +72,13 @@ public class CreateMigrateTask extends Tool {
         String migrateTableSelectType = getStringValue(params, "migrateTableSelectType");
         String tableExpression = getStringValue(params, "tableExpression");
         String syncType = getStringValue(params, "syncType", "initial_sync+cdc");
+        String prefix = getStringValue(params, "prefix");
+        String suffix = getStringValue(params, "suffix");
+        String replaceBefore = getStringValue(params, "replaceBefore");
+        String replaceAfter = getStringValue(params, "replaceAfter");
+        String transferCase = getStringValue(params, "transferCase", "");
         List<String> tableNames = params.get("tableNames") instanceof List ? (List<String>) params.get("tableNames") : null;
+        LinkedHashSet<TableRenameTableInfo> tableRenameTableNames = parseTableRenameTableNames(params.get("tableRenameTableNames"));
 
         if (StringUtils.isBlank(taskName)) throw new RuntimeException("Parameter taskName is required.");
         if (StringUtils.isBlank(sourceConnectionId)) throw new RuntimeException("Parameter sourceConnectionId is required.");
@@ -90,12 +98,19 @@ public class CreateMigrateTask extends Tool {
         if (expression && StringUtils.isBlank(tableExpression)) {
             throw new RuntimeException("Parameter tableExpression is required when migrateTableSelectType is 'expression' (use '.*' to replicate all tables).");
         }
+        if (StringUtils.isNotBlank(transferCase) && !"toUpperCase".equals(transferCase) && !"toLowerCase".equals(transferCase)) {
+            throw new RuntimeException("Parameter transferCase must be '', 'toUpperCase' or 'toLowerCase'.");
+        }
+        if (StringUtils.isBlank(replaceBefore) && replaceAfter != null) {
+            throw new RuntimeException("Parameter replaceBefore is required when replaceAfter is provided.");
+        }
 
         DataSourceConnectionDto sourceConnection = dataSourceService.findById(new ObjectId(sourceConnectionId), userDetail);
         DataSourceConnectionDto targetConnection = dataSourceService.findById(new ObjectId(targetConnectionId), userDetail);
 
         String sourceNodeId = UUID.randomUUID().toString();
         String targetNodeId = UUID.randomUUID().toString();
+        String tableRenameNodeId = UUID.randomUUID().toString();
 
         DatabaseNode sourceNode = buildDatabaseNode(sourceNodeId, sourceConnectionId, sourceDatabaseType, sourceConnection);
         sourceNode.setMigrateTableSelectType(migrateTableSelectType);
@@ -111,9 +126,16 @@ public class CreateMigrateTask extends Tool {
 
         List<Node> nodes = new ArrayList<>();
         nodes.add(sourceNode);
-        nodes.add(targetNode);
         List<Edge> edges = new ArrayList<>();
-        edges.add(new Edge(sourceNodeId, targetNodeId));
+        if (hasTableRenameConfig(prefix, suffix, replaceBefore, replaceAfter, transferCase, tableRenameTableNames)) {
+            TableRenameProcessNode tableRenameNode = buildTableRenameNode(tableRenameNodeId, prefix, suffix, replaceBefore, replaceAfter, transferCase, tableRenameTableNames);
+            nodes.add(tableRenameNode);
+            edges.add(new Edge(sourceNodeId, tableRenameNodeId));
+            edges.add(new Edge(tableRenameNodeId, targetNodeId));
+        } else {
+            edges.add(new Edge(sourceNodeId, targetNodeId));
+        }
+        nodes.add(targetNode);
 
         Dag dagDto = new Dag(edges, nodes);
         DAG dag = DAG.build(dagDto);
@@ -154,6 +176,71 @@ public class CreateMigrateTask extends Tool {
         node.setNodeConfig(new HashMap<>());
         node.setAttrs(buildAttrs(connection));
         return node;
+    }
+
+    private TableRenameProcessNode buildTableRenameNode(String nodeId,
+                                                        String prefix,
+                                                        String suffix,
+                                                        String replaceBefore,
+                                                        String replaceAfter,
+                                                        String transferCase,
+                                                        LinkedHashSet<TableRenameTableInfo> tableRenameTableNames) {
+        TableRenameProcessNode node = new TableRenameProcessNode();
+        node.setId(nodeId);
+        node.setName("Table rename");
+        node.setTableNames(Optional.ofNullable(tableRenameTableNames).orElseGet(LinkedHashSet::new));
+        node.setPrefix(prefix);
+        node.setSuffix(suffix);
+        node.setReplaceBefore(replaceBefore);
+        node.setReplaceAfter(replaceAfter);
+        node.setTransferCase(transferCase);
+        return node;
+    }
+
+    private boolean hasTableRenameConfig(String prefix,
+                                         String suffix,
+                                         String replaceBefore,
+                                         String replaceAfter,
+                                         String transferCase,
+                                         LinkedHashSet<TableRenameTableInfo> tableRenameTableNames) {
+        return StringUtils.isNotBlank(prefix)
+                || StringUtils.isNotBlank(suffix)
+                || StringUtils.isNotBlank(replaceBefore)
+                || replaceAfter != null
+                || StringUtils.isNotBlank(transferCase)
+                || (tableRenameTableNames != null && !tableRenameTableNames.isEmpty());
+    }
+
+    private LinkedHashSet<TableRenameTableInfo> parseTableRenameTableNames(Object tableRenameTableNamesParam) {
+        if (!(tableRenameTableNamesParam instanceof List<?> tableRenameTableNames)) {
+            return new LinkedHashSet<>();
+        }
+
+        LinkedHashSet<TableRenameTableInfo> result = new LinkedHashSet<>();
+        for (Object item : tableRenameTableNames) {
+            if (!(item instanceof Map<?, ?> tableRenameTableName)) {
+                throw new RuntimeException("Parameter tableRenameTableNames must contain objects.");
+            }
+            String originTableName = getMapStringValue(tableRenameTableName, "originTableName");
+            String previousTableName = getMapStringValue(tableRenameTableName, "previousTableName");
+            String currentTableName = getMapStringValue(tableRenameTableName, "currentTableName");
+            if (StringUtils.isBlank(originTableName)) {
+                throw new RuntimeException("Parameter tableRenameTableNames.originTableName is required.");
+            }
+            if (StringUtils.isBlank(previousTableName)) {
+                previousTableName = originTableName;
+            }
+            if (StringUtils.isBlank(currentTableName)) {
+                throw new RuntimeException("Parameter tableRenameTableNames.currentTableName is required.");
+            }
+            result.add(new TableRenameTableInfo(originTableName, previousTableName, currentTableName));
+        }
+        return result;
+    }
+
+    private String getMapStringValue(Map<?, ?> params, String key) {
+        Object value = params.get(key);
+        return value == null ? null : value.toString();
     }
 
     private Map<String, Object> buildAttrs(DataSourceConnectionDto connection) {

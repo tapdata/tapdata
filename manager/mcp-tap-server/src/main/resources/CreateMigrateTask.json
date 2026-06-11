@@ -35,6 +35,49 @@
       "type": "string",
       "description": "A regular expression used to match source table names to replicate. Required when migrateTableSelectType is 'expression'. For example 't_.*' matches tables starting with 't_'; use '.*' to replicate all tables."
     },
+    "prefix": {
+      "type": "string",
+      "description": "Optional table rename rule. Add this prefix to every replicated target table name when the user asks to add a table name prefix, e.g. 'F_'."
+    },
+    "suffix": {
+      "type": "string",
+      "description": "Optional table rename rule. Add this suffix to every replicated target table name when the user asks to add a table name suffix, e.g. '_E'."
+    },
+    "replaceBefore": {
+      "type": "string",
+      "description": "Optional table rename rule. The substring to replace in table names when the user asks to replace characters or text in table names."
+    },
+    "replaceAfter": {
+      "type": "string",
+      "description": "Optional table rename rule. The replacement substring used with replaceBefore. For example replaceBefore='a' and replaceAfter='b' changes table name substring 'a' to 'b'."
+    },
+    "transferCase": {
+      "type": "string",
+      "enum": ["", "toUpperCase", "toLowerCase"],
+      "description": "Optional table rename rule. Use 'toUpperCase' when the user asks to convert table names to uppercase, 'toLowerCase' for lowercase, or '' for no case conversion."
+    },
+    "tableRenameTableNames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "originTableName": {
+            "type": "string",
+            "description": "The original source table name."
+          },
+          "previousTableName": {
+            "type": "string",
+            "description": "The previous table name before this rename rule. Defaults to originTableName when omitted."
+          },
+          "currentTableName": {
+            "type": "string",
+            "description": "The target table name after renaming."
+          }
+        },
+        "required": ["originTableName", "currentTableName"]
+      },
+      "description": "Optional exact table rename mappings for rare cases where a specific source table must be renamed to a specific target table. This maps to the table rename node's tableNames configuration."
+    },
     "syncType": {
       "type": "string",
       "enum": ["initial_sync", "initial_sync+cdc", "cdc"],
