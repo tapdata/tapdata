@@ -51,6 +51,15 @@ class DataPermissionMenuEnumsTest {
     }
 
     @Test
+    void testTaskRebalance() {
+        Assertions.assertEquals("v2_task_rebalance", DataPermissionMenuEnums.TaskRebalance.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_task_rebalance_Edit", DataPermissionMenuEnums.TaskRebalance.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertNull(DataPermissionMenuEnums.TaskRebalance.getAllDataPermissionName(DataPermissionActionEnums.Start.name()));
+        Assertions.assertNull(DataPermissionMenuEnums.TaskRebalance.getAllDataPermissionName(DataPermissionActionEnums.Stop.name()));
+        Assertions.assertEquals(DataPermissionDataTypeEnums.Task, DataPermissionMenuEnums.TaskRebalance.getDataType());
+    }
+
+    @Test
     void testModules() {
         Assertions.assertEquals("v2_data-server-list_all_data", DataPermissionMenuEnums.Modules.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
         Assertions.assertEquals("v2_data-server-list_all_data_Edit", DataPermissionMenuEnums.Modules.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
