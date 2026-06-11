@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "properties": {
+    "taskName": {
+      "type": "string",
+      "description": "The name of the replication (migrate) task to create."
+    },
+    "sourceConnectionId": {
+      "type": "string",
+      "description": "The connection id of the source database to read from."
+    },
+    "sourceDatabaseType": {
+      "type": "string",
+      "description": "The database type of the source connection, e.g. MongoDB, Mysql, PostgreSQL, Oracle, SqlServer."
+    },
+    "targetConnectionId": {
+      "type": "string",
+      "description": "The connection id of the target database to write to."
+    },
+    "targetDatabaseType": {
+      "type": "string",
+      "description": "The database type of the target connection, e.g. MongoDB, Mysql, PostgreSQL, Oracle, SqlServer."
+    },
+    "migrateTableSelectType": {
+      "type": "string",
+      "enum": ["custom", "expression"],
+      "description": "How to select the source tables to replicate. 'custom' means the user explicitly lists the tables (provide them in 'tableNames'). 'expression' means matching tables by a regular expression (provide it in 'tableExpression'); to replicate ALL tables use the expression '.*'."
+    },
+    "tableNames": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "The explicit list of source table/collection names to replicate. Required when migrateTableSelectType is 'custom'."
+    },
+    "tableExpression": {
+      "type": "string",
+      "description": "A regular expression used to match source table names to replicate. Required when migrateTableSelectType is 'expression'. For example 't_.*' matches tables starting with 't_'; use '.*' to replicate all tables."
+    },
+    "syncType": {
+      "type": "string",
+      "enum": ["initial_sync", "initial_sync+cdc", "cdc"],
+      "description": "The sync type: initial_sync (full sync only), initial_sync+cdc (full + incremental), cdc (incremental only). Default: initial_sync+cdc."
+    }
+  },
+  "required": ["taskName", "sourceConnectionId", "sourceDatabaseType", "targetConnectionId", "targetDatabaseType", "migrateTableSelectType"]
+}
