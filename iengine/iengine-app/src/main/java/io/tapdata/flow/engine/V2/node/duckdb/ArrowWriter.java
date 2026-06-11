@@ -703,7 +703,7 @@ public class ArrowWriter implements AutoCloseable {
 
 
                 long duration = System.currentTimeMillis() - startTime;
-                logger.info("Successfully wrote {} rows using Arrow from NodeSchemaInfo to table {} in {} ms", 
+                logger.debug("Successfully wrote {} rows using Arrow from NodeSchemaInfo to table {} in {} ms",
                     data.size(), targetTableName, duration);
                 return true;
             }

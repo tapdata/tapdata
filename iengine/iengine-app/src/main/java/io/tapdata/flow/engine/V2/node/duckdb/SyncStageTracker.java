@@ -1,26 +1,26 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
 import com.tapdata.entity.SyncStage;
+import io.tapdata.observable.logging.ObsLogger;
+import lombok.Setter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+@Setter
 public class SyncStageTracker {
-    private static final Logger logger = LogManager.getLogger(SyncStageTracker.class);
-    
+    private ObsLogger logger;
     private final Map<String, SyncStage> tableStageMap = new ConcurrentHashMap<>();
+    private final AtomicInteger cdcCount = new AtomicInteger(0);
     private final AtomicBoolean allTablesIncrementalFlag = new AtomicBoolean(false);
     private volatile boolean transitionCompleted = false;
-    private Consumer<Void> onAllTablesCdcCallback;
-    
-    public void setOnAllTablesCdcCallback(Consumer<Void> callback) {
-        this.onAllTablesCdcCallback = callback;
-    }
-    
+    private Consumer<Boolean> onAllTablesCdcCallback;
+
     // Backward compatibility - old boolean API
     @Deprecated
     public void updateTableStage(String tableName, boolean incremental) {
@@ -30,9 +30,9 @@ public class SyncStageTracker {
     
     public void updateTableStage(String tableName, SyncStage stage) {
         SyncStage previous = tableStageMap.put(tableName, stage);
-        if (previous != stage) {
+        if (null != previous && previous != stage) {
             logger.debug("Table {} sync stage changed: {} -> {}", tableName, previous, stage);
-            checkAllIncremental();
+            checkAllIncremental(true);
         }
     }
     
@@ -42,9 +42,8 @@ public class SyncStageTracker {
         }
     }
     
-    private void checkAllIncremental() {
-        if (!tableStageMap.isEmpty() && 
-            tableStageMap.values().stream().allMatch(s -> s == SyncStage.CDC)) {
+    private void checkAllIncremental(boolean cdc) {
+        if (!tableStageMap.isEmpty() && tableStageMap.values().stream().allMatch(s -> s == SyncStage.CDC)) {
             if (allTablesIncrementalFlag.compareAndSet(false, true)) {
                 logger.info("All tables have transitioned to CDC stage! Total tables: {}", 
                     tableStageMap.size());
@@ -53,7 +52,7 @@ public class SyncStageTracker {
                 // Trigger callback if registered
                 if (onAllTablesCdcCallback != null) {
                     try {
-                        onAllTablesCdcCallback.accept(null);
+                        onAllTablesCdcCallback.accept(cdc);
                     } catch (Exception e) {
                         logger.error("Error in onAllTablesCdcCallback: {}", e.getMessage(), e);
                     }
@@ -87,5 +86,13 @@ public class SyncStageTracker {
         tableStageMap.clear();
         allTablesIncrementalFlag.set(false);
         transitionCompleted = false;
+    }
+
+    public void plusCDC() {
+        cdcCount.incrementAndGet();
+        if (cdcCount.get() >= tableStageMap.size()) {
+            tableStageMap.keySet().forEach(tableName -> tableStageMap.put(tableName, SyncStage.CDC));
+        }
+        checkAllIncremental(false);
     }
 }

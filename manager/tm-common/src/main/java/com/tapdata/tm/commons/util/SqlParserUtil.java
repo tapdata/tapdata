@@ -332,7 +332,19 @@ public class SqlParserUtil {
             }
 
             field.setFieldName(fieldName);
-            field.setOriginalFieldName(fieldName);
+            if (expression instanceof Column column) {
+                field.setOriginalFieldName(column.getColumnName());
+                if (wideTablePkColumns.contains(column.getColumnName())) {
+                    int indexOf = wideTablePkColumns.indexOf(column.getColumnName());
+                    wideTablePkColumns.remove(column.getColumnName());
+                    wideTablePkColumns.add(indexOf, fieldName);
+                    field.setPrimaryKey(true);
+                    field.setPrimaryKeyPosition(indexOf);
+                }
+            } else {
+                field.setOriginalFieldName(fieldName);
+            }
+
 
             // 尝试从源表获取字段信息
             if (expression instanceof Column column) {

@@ -202,8 +202,8 @@ public class DuckDbSqlNode extends ProcessorNode {
      * 根据 fromTables 配置找到第一个表对应的 schema
      */
     private Schema findFirstFromTableSchema(List<Schema> inputSchemas) {
-        if (CollectionUtils.isEmpty(fromTables) || CollectionUtils.isEmpty(inputSchemas)) {
-            return null;
+        if (CollectionUtils.isEmpty(fromTables)) {
+            return CollectionUtils.isEmpty(inputSchemas) ? null : inputSchemas.get(0);
         }
         FromTableConfig firstFromTable = fromTables.get(0);
         String preNodeId = firstFromTable.getPreNodeId();
@@ -344,7 +344,7 @@ public class DuckDbSqlNode extends ProcessorNode {
 
         // 校验：wideTablePrimaryKey 中的所有列必须在解析出的字段中存在
         if (!pkColumns.isEmpty()) {
-            List<String> fieldNames = fields.stream().map(Field::getFieldName).collect(java.util.stream.Collectors.toList());
+            List<String> fieldNames = fields.stream().map(Field::getFieldName).toList();
             for (String pkCol : pkColumns) {
                 if (!fieldNames.contains(pkCol)) {
                     throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: wideTablePrimaryKey column '" + pkCol +

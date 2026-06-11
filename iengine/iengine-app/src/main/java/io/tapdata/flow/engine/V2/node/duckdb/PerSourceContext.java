@@ -1,6 +1,8 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
 import com.tapdata.entity.TapdataEvent;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,6 +16,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>增强版：包含预加载的 Schema 信息，运行时可直接访问，
  * 无需重复查询 TapTableMap，达到性能最优。</p>
  */
+@Getter
+@Setter
 public class PerSourceContext {
 
     private final String key;
@@ -25,6 +29,8 @@ public class PerSourceContext {
     private final AtomicLong lastCommitTime = new AtomicLong(System.currentTimeMillis());
     private final Object commitLock = new Object();
     private int batchSize = 1000;
+    private long timeout = 500; //ms
+    long lastAcceptTime = -1;
 
     /**
      * ⭐ 新增：预加载的完整 Schema 信息
@@ -53,54 +59,6 @@ public class PerSourceContext {
         this.schema = schemaInfo;
     }
 
-    public String getKey() {
-        return key;
-    }
-
-    public DuckDbOperator getOperator() {
-        return operator;
-    }
-
-    public String getTargetTableName() {
-        return targetTableName;
-    }
-
-    public void setTargetTableName(String targetTableName) {
-        this.targetTableName = targetTableName;
-    }
-
-    public List<TapdataEvent> getBatchBuffer() {
-        return batchBuffer;
-    }
-
-    public boolean isTableInitialized() {
-        return tableInitialized;
-    }
-
-    public void setTableInitialized(boolean tableInitialized) {
-        this.tableInitialized = tableInitialized;
-    }
-
-    public AtomicInteger getAccumulatedRecordCount() {
-        return accumulatedRecordCount;
-    }
-
-    public AtomicLong getLastCommitTime() {
-        return lastCommitTime;
-    }
-
-    public Object getCommitLock() {
-        return commitLock;
-    }
-
-    public int getBatchSize() {
-        return batchSize;
-    }
-
-    public void setBatchSize(int batchSize) {
-        this.batchSize = batchSize;
-    }
-
     public void addEvent(TapdataEvent event) {
         batchBuffer.add(event);
         accumulatedRecordCount.incrementAndGet();
@@ -114,32 +72,6 @@ public class PerSourceContext {
             lastCommitTime.set(System.currentTimeMillis());
             return copy;
         }
-    }
-
-    /**
-     * 获取预加载的 Schema 信息
-     * 
-     * @return NodeSchemaInfo 对象，如果未初始化则返回 null
-     */
-    public NodeSchemaInfo getSchema() {
-        return schema;
-    }
-
-    /**
-     * 设置预加载的 Schema 信息
-     * 
-     * @param schema 完整的 Schema 信息对象
-     */
-    public void setSchema(NodeSchemaInfo schema) {
-        this.schema = schema;
-    }
-
-    public String getSourceId() {
-        return sourceId;
-    }
-
-    public String getTableId() {
-        return tableId;
     }
 
     /**
@@ -199,5 +131,20 @@ public class PerSourceContext {
         sb.append(", initialized=").append(tableInitialized);
         sb.append('}');
         return sb.toString();
+    }
+
+    public boolean needAccept() {
+        if (getBatchBuffer().size() >= getBatchSize()) {
+            lastCommitTime.set(System.currentTimeMillis());
+            return true;
+        }
+        if (lastAcceptTime > 0L && System.currentTimeMillis() - lastAcceptTime > timeout) {
+            lastAcceptTime = System.currentTimeMillis();
+            return true;
+        }
+        if (lastAcceptTime <= 0L) {
+            lastAcceptTime = System.currentTimeMillis();
+        }
+        return false;
     }
 }

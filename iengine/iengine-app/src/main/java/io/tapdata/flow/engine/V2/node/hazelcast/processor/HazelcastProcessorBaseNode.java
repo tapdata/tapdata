@@ -289,6 +289,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				syncStage = tapdataEvent.getSyncStage();
 			}
 			if (controlOrIgnoreEvent(tapdataEvent)) {
+				processIgnoreEvent(tapdataEvent);
 				// control tapdata event, skip the process consider process is done
 				processedEventList.add(tapdataEvent);
 				if (null != processorNodeProcessAspect) {
@@ -475,6 +476,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		return ProcessResult.create().tableId(tableName);
 	}
 
+	protected void processIgnoreEvent(TapdataEvent tapdataEvent) {
+		//do nothing
+	}
+
 	protected abstract void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer);
 
 	protected void tryProcess(List<BatchEventWrapper> tapdataEvents, Consumer<List<BatchProcessResult>> consumer) {
@@ -486,6 +491,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
 			if (controlOrIgnoreEvent(tapdataEvent)) {
 				batchProcessResults.add(new BatchProcessResult(batchEventWrapper, null));
+				processIgnoreEvent(tapdataEvent);
 				continue;
 			}
 			tryProcess(tapdataEvent, (event, processResult) -> {
@@ -500,14 +506,16 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				BatchEventWrapper finalBatchEventWrapper;
 				if (needCopyBatchEventWrapper()) {
 					try {
-						finalBatchEventWrapper = batchEventWrapper.clone();
+						finalBatchEventWrapper = new BatchEventWrapper(event);
+						finalBatchEventWrapper.processAspect = batchEventWrapper.processAspect;
+						finalBatchEventWrapper.tapValueTransform = batchEventWrapper.tapValueTransform;
 					} catch (Throwable throwable) {
 						throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
 					}
 				} else {
 					finalBatchEventWrapper = batchEventWrapper;
+					finalBatchEventWrapper.setTapdataEvent(event);
 				}
-				finalBatchEventWrapper.setTapdataEvent(event);
 				BatchProcessResult batchProcessResult = new BatchProcessResult(finalBatchEventWrapper, processResult);
 				batchProcessResults.add(batchProcessResult);
 			});

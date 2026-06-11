@@ -6,6 +6,8 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
+import io.tapdata.observable.logging.ObsLogger;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 /**
  * 宽表增量更新器（重构版）
@@ -24,7 +28,7 @@ import java.util.*;
  */
 public class WideTableIncrementalUpdater {
 
-    private static final Logger logger = LoggerFactory.getLogger(WideTableIncrementalUpdater.class);
+    private ObsLogger logger;
 
     private final String wideTablePrimaryKey;
     private final String querySql;
@@ -68,6 +72,11 @@ public class WideTableIncrementalUpdater {
                                        DuckDbOperator duckDbOperator, boolean enableWriteWideTable,
                                        NodeSchemaInfo tableSchemaInfoCache) {
         this(wideTableName, wideTableName, wideTablePrimaryKey, querySql, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, tableSchemaInfoCache);
+    }
+
+    public WideTableIncrementalUpdater log(ObsLogger obsLogger) {
+        this.logger = obsLogger;
+        return this;
     }
 
     /**
@@ -125,10 +134,10 @@ public class WideTableIncrementalUpdater {
      */
     public List<TapdataEvent> updateWideTableAsTapdataEvents(Set<Object> affectedBeforeKeys,
                                                              AbstractMap.SimpleEntry<Set<Object>, List<Map<String, Object>>> afterKeysAndResults,
-                                                              String tableName) throws SQLException, IOException {
+                                                              String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
         // 从 afterKeysAndResults 提取 afterRows（如果需要）
         // 注意：此重载不包含 afterRows，需要重新执行查询
-        return executeAndUpdate(affectedBeforeKeys, afterKeysAndResults.getKey(), afterKeysAndResults.getValue(), null, tableName);
+        return executeAndUpdate(affectedBeforeKeys, afterKeysAndResults.getKey(), afterKeysAndResults.getValue(), null, tableName, currentConsumer);
     }
 
     /**
@@ -142,15 +151,15 @@ public class WideTableIncrementalUpdater {
      * @param afterRows after 数据行（用于执行查询）
      * @param tableName 源表名（用于 WITH CTE 临时表名）
      * @return TapdataEvent 事件列表
-     * @deprecated 使用 {@link #updateWideTableAsTapdataEvents(Set, Set, List, List, String)} 代替
+     * @deprecated 使用 {@link #updateWideTableAsTapdataEvents(Set, Set, List, List, String, AtomicReference)} 代替
      */
     @Deprecated
     public List<TapdataEvent> updateWideTableAsTapdataEvents(Set<Object> affectedBeforeKeys,
                                                              Set<Object> affectedAfterKeys,
                                                              List<Map<String, Object>> afterRows,
-                                                              String tableName) throws SQLException, IOException {
+                                                              String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
         // 向后兼容：不传递预计算结果，让方法执行查询
-        return updateWideTableAsTapdataEvents(affectedBeforeKeys, affectedAfterKeys, null, afterRows, tableName);
+        return updateWideTableAsTapdataEvents(affectedBeforeKeys, affectedAfterKeys, null, afterRows, tableName, currentConsumer);
     }
 
     /**
@@ -169,8 +178,8 @@ public class WideTableIncrementalUpdater {
                                                              Set<Object> afterKeys,
                                                              List<Map<String, Object>> wideTableQueryResults,
                                                              List<Map<String, Object>> afterRows,
-                                                              String tableName) throws SQLException, IOException {
-        return executeAndUpdate(affectedBeforeKeys, afterKeys, wideTableQueryResults, afterRows, tableName);
+                                                              String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
+        return executeAndUpdate(affectedBeforeKeys, afterKeys, wideTableQueryResults, afterRows, tableName, currentConsumer);
     }
 
     /**
@@ -188,7 +197,7 @@ public class WideTableIncrementalUpdater {
                                                  Set<Object> afterKeys,
                                                  List<Map<String, Object>> wideTableQueryResults,
                                                  List<Map<String, Object>> afterRows,
-                                                 String tableName) throws SQLException, IOException {
+                                                 String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
         // 1. 使用预计算的查询结果，如果为空则尝试使用 afterRows 执行查询
         List<Map<String, Object>> results = wideTableQueryResults;
         if (results == null || results.isEmpty()) {
@@ -199,7 +208,7 @@ public class WideTableIncrementalUpdater {
                                                                    tableSchemaInfoCache != null ? tableSchemaInfoCache.getFieldNames() : Collections.emptyList());
                 results = duckDbOperator.executeQuery(afterSql);
             } else {
-                results = Collections.emptyList();
+                results = new ArrayList<>();
             }
         }
         
@@ -218,7 +227,10 @@ public class WideTableIncrementalUpdater {
         }
 
         // 4. 触发 ChangelogListener
-        emitWideTableChangelogEvents(events);
+        for (TapdataEvent e : events) {
+            currentConsumer.get().accept(e, HazelcastProcessorBaseNode.ProcessResult.create());
+        }
+        //emitWideTableChangelogEvents(events);
 
         return events;
     }

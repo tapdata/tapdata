@@ -36,17 +36,20 @@ public class FourStateJudge {
     public List<TapdataEvent> judge(Set<Object> beforePks, List<Map<String, Object>> afterData) {
         List<TapdataEvent> events = new ArrayList<>();
 
-        Set<Object> beforePkSet = beforePks != null ? beforePks : Collections.emptySet();
-        List<Map<String, Object>> afterDataList = afterData != null ? afterData : Collections.emptyList();
+        Set<Object> beforePkSet = beforePks != null ? beforePks : new HashSet<>();
+        List<Map<String, Object>> afterDataList = afterData != null ? afterData : new ArrayList<>();
 
         Set<Object> afterPks = extractPrimaryKeys(afterDataList);
 
         // 有旧无新 → DELETE
         for (Object pk : beforePkSet) {
             if (!afterPks.contains(pk)) {
+                Map<String, Object> before = new HashMap<>();
+                before.put(wideTablePrimaryKey, pk);
                 TapDeleteRecordEvent deleteEvent = TapDeleteRecordEvent.create()
                         .table(tableId)
-                        .before(Collections.singletonMap(wideTablePrimaryKey, pk));
+                        .referenceTime(System.currentTimeMillis())
+                        .before(before);
                 TapdataEvent tapdataEvent = new TapdataEvent();
                 tapdataEvent.setTapEvent(deleteEvent);
                 tapdataEvent.setSyncStage(SyncStage.CDC);
@@ -65,6 +68,7 @@ public class FourStateJudge {
             if (beforePkSet.contains(pk)) {
                 TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
                         .table(tableId)
+                        .referenceTime(System.currentTimeMillis())
                         .after(row);
                 TapdataEvent tapdataEvent = new TapdataEvent();
                 tapdataEvent.setTapEvent(updateEvent);
@@ -73,6 +77,7 @@ public class FourStateJudge {
                 logger.debug("Four-state judge: UPDATE pk={}", pk);
             } else {
                 TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create()
+                        .referenceTime(System.currentTimeMillis())
                         .table(tableId)
                         .after(row);
                 TapdataEvent tapdataEvent = new TapdataEvent();
