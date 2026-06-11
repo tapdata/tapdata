@@ -335,6 +335,19 @@ class TaskRebalanceServiceTest {
     }
 
     @Test
+    @DisplayName("scheduler skips null rebalance rows")
+    void scheduleSkipsNullRebalanceRows() {
+        TestContext context = new TestContext();
+        TaskRebalanceService service = spy(context.service);
+        doReturn(Collections.singletonList(null)).when(service).findAll(any(Query.class));
+
+        service.scheduleOnce();
+
+        verify(context.userService, never()).loadUserById(any(ObjectId.class));
+        verify(service, never()).execute(anyString(), any(UserDetail.class));
+    }
+
+    @Test
     @DisplayName("execute skips when rebalance owner belongs to another TM")
     void executeSkipsWhenOwnerChanged() {
         TestContext context = new TestContext();

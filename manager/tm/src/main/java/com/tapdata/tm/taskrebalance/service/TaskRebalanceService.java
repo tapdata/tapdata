@@ -43,6 +43,7 @@ import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
@@ -50,6 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -376,11 +378,15 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         expireCreatingRebalances();
         Query query = Query.query(Criteria.where(TaskRebalanceDto.FIELD_STATUS).is(TaskRebalanceStatus.RUNNING))
                 .with(Sort.by(Sort.Direction.ASC, TaskRebalanceDto.FIELD_CREATE_TIME));
-        List<TaskRebalanceDto> rebalances = findAll(query);
-        if (CollectionUtils.isEmpty(rebalances)) {
+        TaskRebalanceDto rebalance = Optional.ofNullable(findAll(query))
+                .orElse(Collections.emptyList())
+                .stream()
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        if (rebalance == null || rebalance.getId() == null) {
             return;
         }
-        TaskRebalanceDto rebalance = rebalances.get(0);
         UserDetail user;
         try {
             user = loadRebalanceUser(rebalance);
