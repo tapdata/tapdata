@@ -1833,8 +1833,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				ConstructIMap<Document> hazelcastConstruct = getHazelcastConstruct(childMergeProperty.getId());
 				joinValueKeys = getJoinValueKeyByTarget(data, childMergeProperty, mergeTableProperties, hazelcastConstruct);
 				if (joinValueKeys == null) {
-					continue;
-				}
+					if (!Boolean.TRUE.equals(childMergeProperty.getEnableUpdateJoinKeyValue())) {
+						continue;
+					}
+				} else {
 				io.tapdata.pdk.apis.entity.merge.MergeTableProperties copyMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 				Node<?> preNode = getPreNode(childMergeProperty.getId());
 				String tableName = getTableName(preNode);
@@ -1902,8 +1904,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					}
 				}
 				continue; // already handled for each joinValueKey
+				}
 			}
-			// if not lookupDataExists, keep previous behavior but without performing find; nothing to add
+			// join key missing on parent for an updateJoinKey-enabled child, or lookupDataExists==false:
+			// emit a mock lookup entry so downstream cleanup of orphaned merged data can run
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties copyMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 			Node<?> preNode = getPreNode(childMergeProperty.getId());
 			String tableName = getTableName(preNode);
