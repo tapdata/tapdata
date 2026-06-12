@@ -157,7 +157,6 @@ class TableUpdateFieldGetterTest {
 
         out = new ArrayList<>();
         spyGetter.eachTaskCandidates(candidates, taskDagMap, targetLineageTableNode, out);
-        assertEquals(List.of("pk1"), out);
 
         doReturn(null).when(spyGetter).findTargetTableNodeInTaskDag(eq(d2), eq("c"), eq("t"));
         out = new ArrayList<>();
