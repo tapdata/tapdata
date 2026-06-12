@@ -116,6 +116,14 @@ public class MessageUtil {
 		return getString(locale, resourceId, msg, params);
 	}
 
+	public static String getBundleMessageOrNull(Locale locale, String bundleName, String resourceId) {
+		try {
+			return getStringOrNull(getResourceBundle(locale, bundleName), resourceId);
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
 	protected static String getStringOrNull(ResourceBundle bundle, String key){
 		try{
 			return bundle.getString(key);
