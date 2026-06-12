@@ -172,55 +172,50 @@ public class GroupInfoController extends BaseController {
     @PostMapping(path = "/import/connections", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importConnections(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "vault", required = false) MultipartFile vaultFile,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
-        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
-        return success(groupInfoService.importConnections(file, importModeEnum, getLoginUser(), vaultFile, sync));
+        return success(groupInfoService.importConnections(file, ImportModeEnum.GROUP_IMPORT, getLoginUser(), vaultFile, sync));
     }
 
     @Operation(summary = "导入任务，返回记录ID和变更diff")
     @PostMapping(path = "/import/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importTasks(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
-        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
-        return success(groupInfoService.importTasks(file, importModeEnum, getLoginUser(), sync));
+        return success(groupInfoService.importTasks(file, ImportModeEnum.GROUP_IMPORT, getLoginUser(), sync));
     }
 
     @Operation(summary = "导入迁移任务")
     @PostMapping(path = "/import/migrate/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importMigrateTasks(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
-        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
-        return success(groupInfoService.importMigrateTasks(file, importModeEnum, getLoginUser(), sync));
+        return success(groupInfoService.importMigrateTasks(file, ImportModeEnum.GROUP_IMPORT, getLoginUser(), sync));
     }
 
     @Operation(summary = "导入同步任务")
     @PostMapping(path = "/import/sync/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importSyncTasks(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
-        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
-        return success(groupInfoService.importSyncTasks(file, importModeEnum, getLoginUser(), sync));
+        return success(groupInfoService.importSyncTasks(file, ImportModeEnum.GROUP_IMPORT, getLoginUser(), sync));
     }
 
     @Operation(summary = "同步导入GroupInfo，返回记录ID")
     @PostMapping(path = "/import/groupInfo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Map<String, String>> importGroupInfo(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode)
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode)
             throws IOException {
-        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
-        ObjectId recordId = groupInfoService.importGroupInfo(file, importModeEnum, getLoginUser());
+        ObjectId recordId = groupInfoService.importGroupInfo(file, ImportModeEnum.GROUP_IMPORT, getLoginUser());
         Map<String, String> result = new HashMap<>();
         result.put("recordId", recordId.toHexString());
         return success(result);
