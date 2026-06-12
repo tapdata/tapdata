@@ -858,6 +858,19 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				}
 
 				break;
+			case DUCKDB_SQL_PROCESSOR:
+				hazelcastNode = new HazelcastDuckDbSqlNode(
+						ProcessorBaseContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withNodeSchemas(nodeSchemas)
+								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
+								.build()
+				);
+				break;
 			case JOIN:
 				hazelcastNode = new HazelcastJoinProcessor(
 						ProcessorBaseContext.newBuilder()

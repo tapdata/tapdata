@@ -2,7 +2,6 @@ package io.tapdata.flow.engine.V2.task.cleaner;
 
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -13,8 +12,8 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import com.tapdata.tm.commons.dag.process.DuckDbSqlNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.task.constant.Level;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -27,8 +26,8 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastDuckDbSqlNode;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -108,6 +107,8 @@ public abstract class TaskCleaner {
 					customNodeDestroy(node);
 				} else if (node instanceof JoinProcessorNode) {
 					joinNodeDestroy(node);
+				} else if (node instanceof DuckDbSqlNode sqlNode) {
+					duckSqlNodeDestroy(sqlNode);
 				}
 			} catch (Throwable throwable) {
 				errorHandle(node, throwable);
@@ -141,6 +142,18 @@ public abstract class TaskCleaner {
 			String msg = String.format("Clean custom node state data occur an error: %s, Task: %s(%s), node: %s(%s)", e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId());
 			TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
 			failed(node, NodeResetDesc.task_reset_custom_node, (System.currentTimeMillis() - startTs), taskCleanerException);
+		}
+	}
+
+	private void duckSqlNodeDestroy(DuckDbSqlNode node) {
+		long startTs = System.currentTimeMillis();
+		try {
+			HazelcastDuckDbSqlNode.cleanCache(node);
+			succeed(node, NodeResetDesc.task_reset_duck_db_node, (System.currentTimeMillis() - startTs));
+		} catch (Exception e) {
+			String msg = String.format("Clean Duck DB node state data occur an error: %s, Task: %s(%s), node: %s(%s)", e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId());
+			TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
+			failed(node, NodeResetDesc.task_reset_duck_db_node, (System.currentTimeMillis() - startTs), taskCleanerException);
 		}
 	}
 
