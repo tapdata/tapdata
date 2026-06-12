@@ -85,10 +85,10 @@ public class McpConfig {
         }
 
         try {
-            log.info("{} {}", request.methodName(), request.uri());
+            log.info("{} {}", request.method(), request.uri());
             return next.handle(request);
         } catch (Exception e) {
-            log.error("{} {}", request.methodName(), request.uri(), e);
+            log.error("{} {}", request.method(), request.uri(), e);
             throw e;
         }
     }

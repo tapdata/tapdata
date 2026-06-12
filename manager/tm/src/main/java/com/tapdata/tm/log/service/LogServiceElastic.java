@@ -25,6 +25,7 @@ import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.data.elasticsearch.core.query.ByQueryResponse;
+import org.springframework.data.elasticsearch.core.query.DeleteQuery;
 import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.Query;
@@ -343,7 +344,7 @@ public class LogServiceElastic {
                     .and(Criteria.where("millis").lessThanEqual(deletedMillisTime));
             query = new CriteriaQuery(c);
 
-            ByQueryResponse deleteResult = elasticsearchRestTemplate.delete(query, LogEntityElastic.class, index);
+            ByQueryResponse deleteResult = elasticsearchRestTemplate.delete(DeleteQuery.builder(query).build(), LogEntityElastic.class, index);
             deleted += deleteResult.getDeleted();
             log.debug("Clean up {} row of data flow {} expired logs.", deleteResult.getDeleted(), dataFlowId);
         }
@@ -356,7 +357,7 @@ public class LogServiceElastic {
            Criteria c = Criteria.where("contextMap.dataFlowId").is(dataFlowId);
            CriteriaQuery query = new CriteriaQuery(c);
 
-           ByQueryResponse deleteResult = elasticsearchRestTemplate.delete(query, LogEntityElastic.class, getIndexCoordinates());
+           ByQueryResponse deleteResult = elasticsearchRestTemplate.delete(DeleteQuery.builder(query).build(), LogEntityElastic.class, getIndexCoordinates());
            deleteResult.getDeleted();
            log.debug("Clean up {} row of data flow {} expired logs.", deleteResult.getDeleted(), dataFlowId);
        } catch (Exception e) {

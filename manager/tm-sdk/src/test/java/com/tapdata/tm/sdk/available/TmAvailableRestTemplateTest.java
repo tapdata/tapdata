@@ -46,13 +46,13 @@ class TmAvailableRestTemplateTest {
 			Object availableTimeout = null;
 
 			URI url = URI.create("http://localhost:8080");
-			Assertions.assertTrue(availableNotTimeout == restTemplate.doExecute(url, HttpMethod.POST, null, response -> null));
+			Assertions.assertTrue(availableNotTimeout == restTemplate.doExecute(url, null, HttpMethod.POST, null, response -> null));
 			Assertions.assertTrue(TmStatusService.isNotAvailable());
-			Assertions.assertTrue(unavailableNotTimeout == restTemplate.doExecute(url, HttpMethod.POST, null, response -> null));
+			Assertions.assertTrue(unavailableNotTimeout == restTemplate.doExecute(url, null, HttpMethod.POST, null, response -> null));
 
 			TmStatusService.setAvailable();
 			url = URI.create("http://localhost:8080?param=xxx");
-			Assertions.assertTrue(availableTimeout == restTemplate.doExecute(url, HttpMethod.POST, null, response -> null));
+			Assertions.assertTrue(availableTimeout == restTemplate.doExecute(url, null, HttpMethod.POST, null, response -> null));
 		}
 	}
 
@@ -72,11 +72,6 @@ class TmAvailableRestTemplateTest {
 						return HttpStatus.OK;
 					}
 					return HttpStatus.SERVICE_UNAVAILABLE;
-				}
-
-				@Override
-				public int getRawStatusCode() throws IOException {
-					return 0;
 				}
 
 				@Override
@@ -112,13 +107,13 @@ class TmAvailableRestTemplateTest {
 
 			URI url = URI.create("http://localhost:8080");
 			TmStatusService.setAvailable();
-			Assertions.assertThrows(HttpServerErrorException.class, () -> restTemplate.doExecute(url, HttpMethod.POST, null, response -> null));
+			Assertions.assertThrows(HttpServerErrorException.class, () -> restTemplate.doExecute(url, null, HttpMethod.POST, null, response -> null));
 			Assertions.assertTrue(TmStatusService.isNotAvailable());
-			Assertions.assertThrows(HttpServerErrorException.class, () -> restTemplate.doExecute(url, HttpMethod.POST, null, response -> null));
+			Assertions.assertThrows(HttpServerErrorException.class, () -> restTemplate.doExecute(url, null, HttpMethod.POST, null, response -> null));
 			Assertions.assertTrue(TmStatusService.isNotAvailable());
-			Assertions.assertTrue(from200unavailable == restTemplate.doExecute(url, HttpMethod.POST, null, response -> null));
+			Assertions.assertTrue(from200unavailable == restTemplate.doExecute(url, null, HttpMethod.POST, null, response -> null));
 			Assertions.assertTrue(TmStatusService.isAvailable());
-			Assertions.assertTrue(from200available == restTemplate.doExecute(url, HttpMethod.POST, null, response -> null));
+			Assertions.assertTrue(from200available == restTemplate.doExecute(url, null, HttpMethod.POST, null, response -> null));
 			Assertions.assertTrue(TmStatusService.isAvailable());
 		}
 	}

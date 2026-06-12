@@ -1065,20 +1065,21 @@ class DataSourceServiceImplTest {
         }
 
         @Test
-        @DisplayName("test handleImportAsCopyConnection with name conflict - name preserved")
+        @DisplayName("test handleImportAsCopyConnection with name conflict")
         void testHandleImportAsCopyConnectionWithNameConflict() {
             // Setup
             doReturn(null).when(dataSourceService).findOne(any(Query.class));
+            doReturn(true, true, false).when(dataSourceService).checkRepeatNameBool(eq(user), anyString(), eq(null));
             doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
             doNothing().when(agentGroupService).importAgentInfo(connectionDto);
 
             // Execute
             DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
 
-            // Verify - name should NOT be modified, _id is used for uniqueness
+            // Verify
             assertNotNull(result);
-            assertEquals("test_connection", connectionDto.getName());
-            verify(dataSourceService, never()).checkRepeatNameBool(eq(user), anyString(), eq(null));
+            assertEquals("test_connection_import_import", connectionDto.getName()); // Name should be modified to avoid conflict
+            verify(dataSourceService, times(3)).checkRepeatNameBool(eq(user), anyString(), eq(null));
             verify(dataSourceService, times(1)).importEntity(connectionDto, user);
         }
 
