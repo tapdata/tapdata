@@ -54,7 +54,7 @@ public class TaskAop {
 
             Operation operation = force ? Operation.FORCE_STOP : Operation.STOP;
             if (null != taskDto) {
-                userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
+                userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
                         operation, userDetail, taskDto.getId().toString(), taskDto.getName(), system);
             }
         } else if (args[0] instanceof List<?>){
@@ -67,7 +67,7 @@ public class TaskAop {
             Operation operation = Operation.STOP;
             if (CollectionUtils.isNotEmpty(taskList)) {
                 taskList.forEach(taskDto ->
-                    userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
+                    userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
                             operation, userDetail, taskDto.getId().toString(), taskDto.getName())
                 );
             }
@@ -92,13 +92,13 @@ public class TaskAop {
             //查询任务是否存在
             TaskDto taskDto = taskService.checkExistById(id, userDetail);
             if (null != taskDto) {
-                userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
+                userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
                         Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
             }
 
         } else if (arg instanceof TaskDto) {
             TaskDto taskDto = (TaskDto) arg;
-            userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
+            userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
                     Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
 
         }else if (arg instanceof List<?>){
@@ -110,7 +110,7 @@ public class TaskAop {
 
                 if (CollectionUtils.isNotEmpty(taskList)) {
                     taskList.forEach(taskDto -> {
-                                userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
+                                userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
                                         Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
                             }
                     );

@@ -1136,13 +1136,13 @@ public class TaskServiceImpl extends TaskService{
         taskAutoInspectResultsService.cleanResultsByTask(taskDto);
 
         //add message
+        Modular modular = Modular.ofTaskSyncType(taskDto.getSyncType());
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
             messageService.addMigration(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
-            userLogService.addUserLog(Modular.MIGRATION, Operation.DELETE, user, id.toString(), taskDto.getName());
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
             messageService.addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
-            userLogService.addUserLog(Modular.SYNC, Operation.DELETE, user, id.toString(), taskDto.getName());
         }
+        userLogService.addUserLog(modular, Operation.DELETE, user, id.toString(), taskDto.getName());
 
         try {
             metadataInstancesService.deleteTaskMetadata(id.toHexString(), user);
@@ -1308,7 +1308,8 @@ public class TaskServiceImpl extends TaskService{
         //taskService.flushStatus(taskDto, user);
 
         try {
-            userLogService.addUserLog(Modular.MIGRATION, com.tapdata.tm.userLog.constant.Operation.COPY, user, id.toHexString(), originalName, taskDto.getName(), false);
+            Modular modular = Modular.ofTaskSyncType(taskDto.getSyncType());
+            userLogService.addUserLog(modular, com.tapdata.tm.userLog.constant.Operation.COPY, user, id.toHexString(), originalName, taskDto.getName(), false);
         } catch (Exception e) {
             log.error("Logging to copy task fail", e);
         }
