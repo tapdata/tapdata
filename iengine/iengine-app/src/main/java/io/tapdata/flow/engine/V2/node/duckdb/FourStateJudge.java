@@ -35,14 +35,10 @@ public class FourStateJudge {
      */
     public List<TapdataEvent> judge(Set<Object> beforePks, List<Map<String, Object>> afterData) {
         List<TapdataEvent> events = new ArrayList<>();
-
-        Set<Object> beforePkSet = beforePks != null ? beforePks : new HashSet<>();
         List<Map<String, Object>> afterDataList = afterData != null ? afterData : new ArrayList<>();
-
         Set<Object> afterPks = extractPrimaryKeys(afterDataList);
-
         // 有旧无新 → DELETE
-        for (Object pk : beforePkSet) {
+        for (Object pk : beforePks) {
             if (!afterPks.contains(pk)) {
                 Map<String, Object> before = new HashMap<>();
                 before.put(wideTablePrimaryKey, pk);
@@ -57,7 +53,6 @@ public class FourStateJudge {
                 logger.debug("Four-state judge: DELETE pk={}", pk);
             }
         }
-
         // 无旧有新 → INSERT / 新旧都有 → UPDATE
         for (Map<String, Object> row : afterDataList) {
             Object pk = row.get(wideTablePrimaryKey);
@@ -65,7 +60,7 @@ public class FourStateJudge {
                 logger.warn("Wide table primary key '{}' not found in row: {}", wideTablePrimaryKey, row);
                 continue;
             }
-            if (beforePkSet.contains(pk)) {
+            if (beforePks.contains(pk)) {
                 TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
                         .table(tableId)
                         .referenceTime(System.currentTimeMillis())
@@ -87,9 +82,8 @@ public class FourStateJudge {
                 logger.debug("Four-state judge: INSERT pk={}", pk);
             }
         }
-
         logger.debug("Four-state judge result: {} events (beforePks={}, afterPks={})",
-                events.size(), beforePkSet.size(), afterPks.size());
+                events.size(), beforePks.size(), afterPks.size());
 
         return events;
     }

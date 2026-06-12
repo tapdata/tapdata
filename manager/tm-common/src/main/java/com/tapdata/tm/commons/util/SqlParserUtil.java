@@ -1,18 +1,22 @@
 package com.tapdata.tm.commons.util;
 
 import com.tapdata.tm.commons.dag.process.FromTableConfig;
+import com.tapdata.tm.commons.dag.process.duck.JoinField;
+import com.tapdata.tm.commons.dag.process.duck.JoinInfo;
+import com.tapdata.tm.commons.dag.process.duck.JoinKeyPair;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.select.*;
-import net.sf.jsqlparser.util.TablesNamesFinder;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -23,7 +27,9 @@ public class SqlParserUtil {
 
     public static List<Field> parseSelectFields(String sql, List<FromTableConfig> fromTables,
                                                   List<Schema> inputSchemas, Object node,
-                                                  List<String> wideTablePkColumns) throws Exception {
+                                                  List<String> wideTablePkColumns,
+                                                  List<JoinInfo> joinInfo,
+                                                  Map<String, String> aliasTableMap) throws Exception {
         log.info("SqlParserUtil.parseSelectFields() called");
         log.info("  sql: {}", sql);
         log.info("  fromTables: {}", CollectionUtils.isEmpty(fromTables) ? "empty" : fromTables.size());
@@ -49,6 +55,8 @@ public class SqlParserUtil {
         }
 
         PlainSelect plainSelect = (PlainSelect) select.getSelectBody();
+        buildAliasTableMap(plainSelect, aliasTableMap);
+        parseJoinCondition(plainSelect, joinInfo, aliasTableMap);
 
         // Build alias -> tableName map using visitor pattern
         Map<String, String> aliasToTableNameMap = buildAliasMap(plainSelect);
@@ -78,6 +86,79 @@ public class SqlParserUtil {
         }
 
         return fields;
+    }
+
+    public static void parseJoinCondition(PlainSelect plainSelect, List<JoinInfo> result, Map<String, String> aliasTableMap) {
+        if (plainSelect.getJoins() == null) {
+            return;
+        }
+        for (Join join : plainSelect.getJoins()) {
+            JoinInfo info = new JoinInfo();
+            if (join.getRightItem() instanceof Table) {
+                info.setTable(((Table) join.getRightItem()).getName());
+            }
+            Expression on = join.getOnExpression();
+            parseJoinCondition(on, info.getJoinKeys(), aliasTableMap);
+            result.add(info);
+        }
+    }
+
+    static void parseJoinCondition(
+            Expression expr,
+            List<JoinKeyPair> joinKeys,
+            Map<String, String> aliasTableMap) {
+        if (expr == null) {
+            return;
+        }
+        if (expr instanceof AndExpression and) {
+            parseJoinCondition(and.getLeftExpression(), joinKeys, aliasTableMap);
+            parseJoinCondition(and.getRightExpression(), joinKeys, aliasTableMap);
+            return;
+        }
+        if (expr instanceof EqualsTo equalsTo) {
+            if (!(equalsTo.getLeftExpression() instanceof Column leftColumn)
+                    || !(equalsTo.getRightExpression() instanceof Column rightColumn)) {
+                return;
+            }
+            JoinKeyPair pair = new JoinKeyPair();
+            pair.setLeft(buildField(leftColumn, aliasTableMap));
+            pair.setRight(buildField(rightColumn, aliasTableMap));
+            joinKeys.add(pair);
+        }
+    }
+
+    static JoinField buildField(
+            Column column,
+            Map<String, String> aliasTableMap) {
+        JoinField field = new JoinField();
+        String alias = column.getTable() == null ? null : column.getTable().getName();
+        field.setTable(aliasTableMap.getOrDefault(alias, alias));
+        field.setField(column.getColumnName());
+        return field;
+    }
+
+    private static void buildAliasTableMap(PlainSelect plainSelect, Map<String, String> aliasMap) {
+        if (plainSelect.getFromItem() instanceof Table table) {
+            String tableName = table.getName();
+            if (table.getAlias() != null) {
+                aliasMap.put(table.getAlias().getName(), tableName);
+            } else {
+                aliasMap.put(tableName, tableName);
+            }
+        }
+        if (plainSelect.getJoins() != null) {
+            for (Join join : plainSelect.getJoins()) {
+                if (!(join.getRightItem() instanceof Table table)) {
+                    continue;
+                }
+                String tableName = table.getName();
+                if (table.getAlias() != null) {
+                    aliasMap.put(table.getAlias().getName(), tableName);
+                } else {
+                    aliasMap.put(tableName, tableName);
+                }
+            }
+        }
     }
 
     /**

@@ -6,6 +6,9 @@ import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
+import com.tapdata.tm.commons.dag.process.duck.JoinField;
+import com.tapdata.tm.commons.dag.process.duck.JoinInfo;
+import com.tapdata.tm.commons.dag.process.duck.JoinKeyPair;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
@@ -18,6 +21,10 @@ import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.schema.Column;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.codecs.pojo.annotations.BsonProperty;
@@ -25,6 +32,7 @@ import org.bson.codecs.pojo.annotations.BsonProperty;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +42,11 @@ import java.util.Map;
 @Setter
 @Slf4j
 public class DuckDbSqlNode extends ProcessorNode {
+    public static final String TABLE_PROPS = "TABLE_PROPS";
+    public static final String PK_INFO = "PK_INFO";
+    public static final String JOIN_KEY_INFO = "JOIN_KEY_INFO";
+    public static final String TABLE_ALAIN_NAME = "TABLE_ALAIN_NAME";
+    public static final String PK = "PK";
 
     /** 默认查询 SQL（null 表示未设置） */
     public static final String DEFAULT_QUERY_SQL = null;
@@ -283,8 +296,10 @@ public class DuckDbSqlNode extends ProcessorNode {
                     .map(String::trim)
                     .collect(java.util.stream.Collectors.toList());
         }
+        List<JoinInfo> joinInfo = new ArrayList<>();
+        Map<String, String> aliasTableMap = new HashMap<>();
         try {
-            fields = SqlParserUtil.parseSelectFields(querySql, fromTables, inputSchemas, this, pkColumns);
+            fields = SqlParserUtil.parseSelectFields(querySql, fromTables, inputSchemas, this, pkColumns, joinInfo, aliasTableMap);
         } catch (Exception e) {
             throw new RuntimeException("DuckDbSqlNode.mergeSchema() failed to parse SQL query: " + querySql, e);
         }
@@ -378,8 +393,48 @@ public class DuckDbSqlNode extends ProcessorNode {
                 log.info("  Added wide table TapTableDto to preNodeTapTables: {}", wideTableTapTableDtos.get(0).getName());
             }
         }
-        
-        return super.mergeSchema(Lists.newArrayList(resultSchema), schema, options);
+        Schema merged = super.mergeSchema(Lists.newArrayList(resultSchema), schema, options);
+        initTableAttrIfNeed(merged);
+        collectPk(merged, inputSchemas);
+        collectJoinKey(merged, joinInfo);
+        Map<String, Object> tableAlainName = iniTableAttr(merged, TABLE_ALAIN_NAME);
+        tableAlainName.putAll(aliasTableMap);
+        return merged;
+    }
+
+    protected void initTableAttrIfNeed(Schema merged) {
+        if (merged.getTableAttr() == null) {
+            merged.setTableAttr(new HashMap<>());
+        }
+    }
+
+    protected void collectPk(Schema merged, List<Schema> inputSchemas) {
+        Map<String, Object> pks = iniTableAttr(merged, PK_INFO);
+        for (Schema inputSchema : inputSchemas) {
+            Map<String, Object> tableInfo = new HashMap<>();
+            List<String> pk = inputSchema.getFields()
+                    .stream()
+                    .filter(Field::getPrimaryKey)
+                    .sorted(Comparator.comparing(Field::getPrimaryKeyPosition))
+                    .map(Field::getFieldName)
+                    .toList();
+            tableInfo.put(PK, pk);
+            pks.put(inputSchema.getName(), tableInfo);
+        }
+    }
+
+    protected void collectJoinKey(Schema merged, List<JoinInfo> joinKeyInfo) {
+        Map<String, Object> joinKeys = iniTableAttr(merged, JOIN_KEY_INFO);
+        joinKeys.putAll(JoinInfo.toMap(joinKeyInfo));
+    }
+
+    protected Map<String, Object> iniTableAttr(Schema merged, String key) {
+        Map<String, Object> tableAttr = merged.getTableAttr();
+        Map<String, Object> tableProps = new HashMap<>();
+        tableAttr.put(TABLE_PROPS, tableProps);
+        Map<String, Object> pks = new HashMap<>();
+        tableProps.put(key, pks);
+        return pks;
     }
 
     // ========== Schema → TapTableDto 转换方法 ==========
@@ -400,74 +455,6 @@ public class DuckDbSqlNode extends ProcessorNode {
         // 使用 schemaConverter 进行转换（支持缓存）
         return schemaConverter.convert(inputSchemas);
     }
-
-//    /**
-//     * 将单个 Schema 转换为 TapTableDto
-//     */
-//    private TapTableDto schemaToTapTableDto(Schema schema) {
-//        if (schema == null) {
-//            return null;
-//        }
-//
-//        TapTableDto dto = new TapTableDto();
-//        // id 使用 nodeId（转为 String），name 使用表名
-//        Object nodeId = schema.getNodeId();
-//        String nodeIdStr;
-//        if (nodeId != null) {
-//            nodeIdStr = nodeId instanceof org.bson.types.ObjectId
-//                    ? ((org.bson.types.ObjectId) nodeId).toString()
-//                    : nodeId.toString();
-//        } else {
-//            Object id = schema.getId();
-//            nodeIdStr = id != null ? id.toString() : null;
-//        }
-//        dto.setId(nodeIdStr);
-//        dto.setName(schema.getName());
-//
-//        // 提取主键
-//        List<String> primaryKeys = new ArrayList<>();
-//        List<TapFieldDto> fieldDtos = new ArrayList<>();
-//        if (schema.getFields() != null) {
-//            for (Field field : schema.getFields()) {
-//                if (Boolean.TRUE.equals(field.getPrimaryKey())) {
-//                    primaryKeys.add(field.getFieldName());
-//                }
-//                fieldDtos.add(fieldToTapFieldDto(field));
-//            }
-//        }
-//        dto.setPrimaryKeys(primaryKeys);
-//        dto.setFields(fieldDtos);
-//
-//        return dto;
-//    }
-//
-//    /**
-//     * 将 Schema.Field 转换为 TapFieldDto
-//     */
-//    private TapFieldDto fieldToTapFieldDto(Field field) {
-//        if (field == null) {
-//            return null;
-//        }
-//        TapFieldDto dto = new TapFieldDto();
-//        dto.setName(field.getFieldName());
-//        dto.setOriginalFieldName(field.getOriginalFieldName());
-//        dto.setDataType(field.getDataType());
-//        dto.setIsPrimaryKey(Boolean.TRUE.equals(field.getPrimaryKey()));
-//        if (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0) {
-//            dto.setPrimaryKeyPos(field.getPrimaryKeyPosition());
-//        }
-//        dto.setNullable(field.getIsNullable() != null && field.getIsNullable() instanceof Boolean isNull ? isNull : true);
-//        if (field.getColumnPosition() != null && field.getColumnPosition() > 0) {
-//            dto.setPos(field.getColumnPosition());
-//        }
-//
-//        // 转换 TapType（如果有）
-//        if (field.getTapType() != null) {
-//            dto.setTapTypeName(field.getTapType().getClass().getSimpleName());
-//        }
-//
-//        return dto;
-//    }
 
     @Override
     public boolean equals(Object o) {

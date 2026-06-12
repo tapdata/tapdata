@@ -1,10 +1,15 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  * DuckDB SQL 节点全局配置
  * 
  * 用于控制节点行为的全局开关，支持环境变量覆盖
  */
+@Getter
+@Setter
 public class DuckDbSqlConfig {
 
     private static final String ENV_USE_NEW_UPDATER = "DUCKDB_USE_NEW_WIDE_TABLE_UPDATER";

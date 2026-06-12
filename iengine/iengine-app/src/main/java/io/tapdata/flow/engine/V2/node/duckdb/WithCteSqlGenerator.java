@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import io.tapdata.flow.engine.V2.node.duckdb.utils.SqlJoinUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,7 +73,7 @@ public class WithCteSqlGenerator {
         }
         String valuesClause = "VALUES " + String.join(", ", valueRows);
         String sql = String.format("WITH %s (%s) AS (%s) %s",
-                tableName, String.join(", ", fields), valuesClause, sqlTemplate);
+                tableName, String.join(", ", fields), valuesClause, SqlJoinUtil.forceInnerJoin(sqlTemplate, tableName));
         logger.debug("Generated batch WITH CTE SQL for table {} ({} rows)", tableName, rows.size());
         return sql;
     }

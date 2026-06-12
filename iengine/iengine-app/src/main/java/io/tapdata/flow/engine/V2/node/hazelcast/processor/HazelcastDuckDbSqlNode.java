@@ -4,6 +4,8 @@ import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.tm.commons.dag.process.DuckDbSqlNode;
+import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -27,12 +29,15 @@ import io.tapdata.flow.engine.V2.node.duckdb.WideTableIncrementalUpdater;
 import io.tapdata.flow.engine.V2.node.duckdb.WithCteSqlGenerator;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,13 +50,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * DuckDB SQL 处理器节点
@@ -61,8 +65,11 @@ import java.util.function.Consumer;
 @Getter
 @Setter
 public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
+    protected static final String DEFAULT_DUCK_DB_PATH = "DEFAULT_DUCK_DB_PATH";
 
-    /** DuckDB 操作器 */
+    /**
+     * DuckDB 操作器
+     */
     private DuckDbOperator duckDbOperator;
     private static final int DEFAULT_BATCH_SIZE = 1000;
     private int batchSize = DEFAULT_BATCH_SIZE;
@@ -75,18 +82,18 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     /**
      * 核心优化：前置节点 Schema 信息缓存
-     *
+     * <p>
      * [nodeSchemaCache]Key: 前置节点的唯一标识 (sourceId/nodeId)
      * [tableSchemaCache]Key: 前置节点的唯一标识 (sourceId/nodeId)
      * Value: 该节点的完整 Schema 信息 (NodeSchemaInfo)
-     *
+     * <p>
      * 包含信息：
      * - tableName (表名)
      * - qualifiedName (完全限定名，全局唯一)
      * - primaryKeys (主键列表)
      * - fieldMap (字段名 → 字段定义映射)
      * - fieldTypeMap (字段名 → 字段类型映射)
-     *
+     * <p>
      * 性能优势：
      * - 初始化时一次性加载（O(N)，N = 前置节点数量）
      * - 运行时 O(1) 直接访问（0 次额外查询）
@@ -119,7 +126,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     // SQL configuration
     private String querySql = "SELECT * FROM %s";
     private String wideTableName;
-    /** DuckDB 数据库文件路径（支持节点级、全局级配置） */
+    /**
+     * DuckDB 数据库文件路径（支持节点级、全局级配置）
+     */
     private String dbPath;
     private boolean executeQueryOnFullSyncComplete = false;
 
@@ -130,7 +139,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private String mainTablePrimaryKey;
     private List<FromTableConfig> fromTables = new ArrayList<>();
     private Map<String, String> customJoinQueries = new HashMap<>();
-
 
 
     public String getCustomJoinQuery(String fromTableName, java.util.Set<Object> fromTablePks) {
@@ -151,6 +159,52 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         super(processorBaseContext);
     }
 
+    static String initDBPath(com.tapdata.tm.commons.dag.process.DuckDbSqlNode nodeConfig) {
+        String path = CommonUtils.getProperty(DEFAULT_DUCK_DB_PATH);
+        // 读取 dbPath 配置（三级优先级：节点 > 全局 > 默认null）
+        if (nodeConfig.getDbPath() != null && !nodeConfig.getDbPath().trim().isEmpty()) {
+            path = nodeConfig.getDbPath().trim();
+        }
+        if (path != null && !path.isEmpty()) {
+            File file = new File(path);
+            if (!file.exists()) {
+                file.mkdirs();
+            }
+            if (!file.isDirectory()) {
+                throw new IllegalArgumentException("Path is not a directory, Cannot be used as a working directory for duck db: " + path);
+            }
+            String nodeId = nodeConfig.getId();
+            if (nodeId != null && !nodeId.isEmpty()) {
+                path = buildDbPathWithNodeId(path, nodeConfig.getId());
+            }
+        }
+        return path;
+    }
+
+    static DuckDbOperatorImpl initDuckDbOperator(DuckDbSqlNode node, String dbPath, int batchSize) {
+        // 读取 DuckLake 配置（支持三级优先级：节点 > 全局 > 默认值）
+        DuckLakeConfig duckLakeConfig = DuckLakeConfig.disabled();
+        Boolean nodeDuckLakeEnabled = node.getDuckLakeEnabled();
+        if (Boolean.TRUE.equals(nodeDuckLakeEnabled) ||
+                (nodeDuckLakeEnabled == null && DuckDbSqlConfig.isDuckLakeEnabled())) {
+            // 使用节点配置或回退到全局配置
+            String storageType = node.getDuckLakeStorageType() != null ?
+                    node.getDuckLakeStorageType() : DuckDbSqlConfig.getDuckLakeStorageType();
+            String storagePath = node.getDuckLakeStoragePath() != null ?
+                    node.getDuckLakeStoragePath() : DuckDbSqlConfig.getDuckLakeStoragePath();
+            String metadataUrl = node.getDuckLakeMetadataDbUrl() != null ?
+                    node.getDuckLakeMetadataDbUrl() : DuckDbSqlConfig.getDuckLakeMetadataDbUrl();
+            duckLakeConfig = new io.tapdata.flow.engine.V2.node.duckdb.DuckLakeConfig(
+                    true, storageType, storagePath, metadataUrl
+            );
+        }
+        try {
+            return new DuckDbOperatorImpl(dbPath, false, batchSize, 5000, duckLakeConfig);
+        } catch (Exception e) {
+            throw new TapCodeException("Failed to initialize DuckDbOperator", e);
+        }
+    }
+
     @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
         super.doInit(context);
@@ -158,142 +212,90 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             clientMongoOperator = initClientMongoOperator();
         }
 
-        DuckLakeConfig duckLakeConfig = DuckLakeConfig.disabled();
-        this.dbPath = "/Users/gavinxiao/kit/duckDB/data/lack";
+
         com.tapdata.tm.commons.dag.process.DuckDbSqlNode nodeConfig =
                 (com.tapdata.tm.commons.dag.process.DuckDbSqlNode) getNode();
-        try {
-            duckDbOperator = new DuckDbOperatorImpl(dbPath, false, batchSize, 5000, duckLakeConfig);
-        } catch (Exception e) {
-            obsLogger.error("Failed to load DuckDB Operator, using defaults: {}", e.getMessage(), e);
-            throw new TapCodeException("Failed to initialize DuckDbOperator", e);
-        }
+        this.dbPath = initDBPath(nodeConfig);
+        this.duckDbOperator = initDuckDbOperator(nodeConfig, dbPath, OUTPUT_BATCH_SIZE);
         // 读取节点配置
         try {
-            if (nodeConfig != null) {
-                // 读取 SQL 查询
-                if (nodeConfig.getQuerySql() != null) {
-                    this.querySql = nodeConfig.getQuerySql();
-                }
-
-                // 验证 SQL 必须是 SELECT 查询语句
-                DuckDbOperator.ensureSelectQuery(this.querySql, "DuckDbSqlNode querySql configuration");
-
-                // 读取宽表名
-                if (nodeConfig.getWideTableName() != null) {
-                    this.wideTableName = nodeConfig.getWideTableName();
-                }
-
-                // 读取批大小
-                if (nodeConfig.getBatchSize() != null) {
-                    this.batchSize = nodeConfig.getBatchSize();
-                }
-
-                // 读取是否在全量结束后执行查询
-                if (nodeConfig.getExecuteQueryOnFullSyncComplete() != null) {
-                    this.executeQueryOnFullSyncComplete = nodeConfig.getExecuteQueryOnFullSyncComplete();
-                }
-
-                // 读取 DuckLake 配置（支持三级优先级：节点 > 全局 > 默认值）
-                Boolean nodeDuckLakeEnabled = nodeConfig.getDuckLakeEnabled();
-                if (Boolean.TRUE.equals(nodeDuckLakeEnabled) || 
-                    (nodeDuckLakeEnabled == null && DuckDbSqlConfig.isDuckLakeEnabled())) {
-                    
-                    // 使用节点配置或回退到全局配置
-                    String storageType = nodeConfig.getDuckLakeStorageType() != null ? 
-                        nodeConfig.getDuckLakeStorageType() : DuckDbSqlConfig.getDuckLakeStorageType();
-                    String storagePath = nodeConfig.getDuckLakeStoragePath() != null ? 
-                        nodeConfig.getDuckLakeStoragePath() : DuckDbSqlConfig.getDuckLakeStoragePath();
-                    String metadataUrl = nodeConfig.getDuckLakeMetadataDbUrl() != null ? 
-                        nodeConfig.getDuckLakeMetadataDbUrl() : DuckDbSqlConfig.getDuckLakeMetadataDbUrl();
-                    
-                    duckLakeConfig = new io.tapdata.flow.engine.V2.node.duckdb.DuckLakeConfig(
-                            true, storageType, storagePath, metadataUrl
-                    );
-                }
-                
-                // 读取 dbPath 配置（三级优先级：节点 > 全局 > 默认null）
-                if (nodeConfig.getDbPath() != null && !nodeConfig.getDbPath().trim().isEmpty()) {
-                    dbPath = nodeConfig.getDbPath().trim();
-                    obsLogger.info("Using node-level dbPath: {}", dbPath);
-                } else if (DuckDbSqlConfig.getDbPath() != null && !DuckDbSqlConfig.getDbPath().trim().isEmpty()) {
-                    dbPath = DuckDbSqlConfig.getDbPath().trim();
-                    obsLogger.info("Using global config dbPath: {}", dbPath);
-                }
-
-                // ========== 新增: 追加 nodeId 到 dbPath 中 ==========
-                if (dbPath != null && !dbPath.isEmpty() && processorBaseContext != null) {
-                    com.tapdata.tm.commons.dag.Node<?> node = processorBaseContext.getNode();
-                    if (node != null && node.getId() != null && !node.getId().isEmpty()) {
-                        dbPath = buildDbPathWithNodeId(dbPath, node.getId());
-                        obsLogger.info("Final dbPath with nodeId: {}", dbPath);
-                    }
-                }
-
-
-                // ========== 新增: 读取实时增量物化视图配置 ==========
-                if (nodeConfig.getWideTablePrimaryKey() != null) {
-                    TapTable tapTable = processorBaseContext.getTapTableMap().get(nodeConfig.getId());
-                    Collection<String> strings = tapTable.primaryKeys(true);
-                    this.wideTablePrimaryKey = strings.stream().findFirst().orElse(null);
-                    if (null == this.wideTablePrimaryKey) {
-                        obsLogger.warn("Wide table primary key not found");
-                        throw new TapCodeException("Wide table primary key not found");
-                    }
-                }
-                if (nodeConfig.getOutputChangelogEnabled() != null) {
-                    this.outputChangelogEnabled = nodeConfig.getOutputChangelogEnabled();
-                }
-                if (nodeConfig.getMainTableName() != null) {
-                    this.mainTableName = nodeConfig.getMainTableName();
-                }
-                if (nodeConfig.getMainTablePrimaryKey() != null) {
-                    this.mainTablePrimaryKey = nodeConfig.getMainTablePrimaryKey();
-                }
-                if (nodeConfig.getFromTables() != null) {
-                    // 将 Manager 端配置转换为 Engine 端 FromTableConfig
-                    this.fromTables = nodeConfig.getFromTables().stream()
-                            .map(ft -> {
-                                try {
-                                    String preNodeId = (String) ft.getClass().getMethod("getPreNodeId").invoke(ft);
-                                    String tableNameInSql = (String) ft.getClass().getMethod("getTableNameInSql").invoke(ft);
-                                    return new FromTableConfig(preNodeId, tableNameInSql);
-                                } catch (Exception e) {
-                                    obsLogger.warn("Failed to convert FromTableConfig: {}", e.getMessage());
-                                    return null;
-                                }
-                            })
-                            .filter(java.util.Objects::nonNull)
-                            .collect(java.util.stream.Collectors.toList());
-                }
-                if (nodeConfig.getCustomJoinQueries() != null) {
-                    this.customJoinQueries = new HashMap<>(nodeConfig.getCustomJoinQueries());
-                }
-
-                // ========== 核心优化：初始化 Schema 缓存 ==========
-                initSchemaCache();
-
-                // ========== QuerySql 统一处理 ==========
-                if (this.querySql != null) {
-                    String normalizedSql = QuerySqlProcessor.normalize(this.querySql);
-                    QuerySqlProcessor.ValidationResult result = 
-                        QuerySqlProcessor.validate(normalizedSql, this.nodeSchemaCache);
-                    
-                    if (!result.isValid) {
-                        throw new IllegalArgumentException("QuerySql validation failed: " + result.errorMessage);
-                    }
-                    
-                    this.querySql = normalizedSql;  // 直接替换原值
-                    obsLogger.info("QuerySql normalized and validated successfully");
-                }
-
-                // ========== 新增: 确定主表信息和默认值 ==========
-                resolveMainTableInfo();
-
-                obsLogger.info("DuckDbSqlNode loaded config: querySql={}, wideTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, duckLake={}, materializedView={}",
-                        querySql, wideTableName, batchSize, executeQueryOnFullSyncComplete, duckLakeConfig.isEnabled(),
-                        wideTablePrimaryKey != null ? "enabled" : "disabled");
+            // 读取 SQL 查询
+            if (nodeConfig.getQuerySql() != null) {
+                this.querySql = nodeConfig.getQuerySql();
             }
+            // 验证 SQL 必须是 SELECT 查询语句
+            DuckDbOperator.ensureSelectQuery(this.querySql, "DuckDbSqlNode querySql configuration");
+
+            // 读取宽表名
+            if (nodeConfig.getWideTableName() != null) {
+                this.wideTableName = nodeConfig.getWideTableName();
+            }
+            // 读取批大小
+            if (nodeConfig.getBatchSize() != null) {
+                this.batchSize = nodeConfig.getBatchSize();
+            }
+            // 读取是否在全量结束后执行查询
+            if (nodeConfig.getExecuteQueryOnFullSyncComplete() != null) {
+                this.executeQueryOnFullSyncComplete = nodeConfig.getExecuteQueryOnFullSyncComplete();
+            }
+            // ========== 新增: 读取实时增量物化视图配置 ==========
+            if (nodeConfig.getWideTablePrimaryKey() != null) {
+                TapTable tapTable = processorBaseContext.getTapTableMap().get(nodeConfig.getId());
+                Collection<String> strings = tapTable.primaryKeys(true);
+                this.wideTablePrimaryKey = strings.stream().findFirst().orElse(null);
+                if (null == this.wideTablePrimaryKey) {
+                    obsLogger.warn("Wide table primary key not found");
+                    throw new TapCodeException("Wide table primary key not found");
+                }
+            }
+            if (nodeConfig.getOutputChangelogEnabled() != null) {
+                this.outputChangelogEnabled = nodeConfig.getOutputChangelogEnabled();
+            }
+            if (nodeConfig.getMainTableName() != null) {
+                this.mainTableName = nodeConfig.getMainTableName();
+            }
+            if (nodeConfig.getMainTablePrimaryKey() != null) {
+                this.mainTablePrimaryKey = nodeConfig.getMainTablePrimaryKey();
+            }
+            if (nodeConfig.getFromTables() != null) {
+                // 将 Manager 端配置转换为 Engine 端 FromTableConfig
+                this.fromTables = nodeConfig.getFromTables().stream()
+                        .map(ft -> {
+                            try {
+                                String preNodeId = (String) ft.getClass().getMethod("getPreNodeId").invoke(ft);
+                                String tableNameInSql = (String) ft.getClass().getMethod("getTableNameInSql").invoke(ft);
+                                return new FromTableConfig(preNodeId, tableNameInSql);
+                            } catch (Exception e) {
+                                obsLogger.warn("Failed to convert FromTableConfig: {}", e.getMessage());
+                                return null;
+                            }
+                        })
+                        .filter(java.util.Objects::nonNull)
+                        .collect(java.util.stream.Collectors.toList());
+            }
+            if (nodeConfig.getCustomJoinQueries() != null) {
+                this.customJoinQueries = new HashMap<>(nodeConfig.getCustomJoinQueries());
+            }
+            // ========== 核心优化：初始化 Schema 缓存 ==========
+            initSchemaCache();
+            // ========== QuerySql 统一处理 ==========
+            if (this.querySql != null) {
+                String normalizedSql = QuerySqlProcessor.normalize(this.querySql);
+                QuerySqlProcessor.ValidationResult result =
+                        QuerySqlProcessor.validate(normalizedSql, this.nodeSchemaCache);
+
+                if (!result.isValid) {
+                    throw new IllegalArgumentException("QuerySql validation failed: " + result.errorMessage);
+                }
+
+                this.querySql = normalizedSql;  // 直接替换原值
+                obsLogger.info("QuerySql normalized and validated successfully");
+            }
+            // ========== 新增: 确定主表信息和默认值 ==========
+            resolveMainTableInfo();
+            obsLogger.info("DuckDbSqlNode loaded config: querySql={}, wideTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, materializedView={}",
+                    querySql, wideTableName, batchSize, executeQueryOnFullSyncComplete,
+                    wideTablePrimaryKey != null ? "enabled" : "disabled");
         } catch (Exception e) {
             obsLogger.error("Failed to load DuckDbSqlNode config, using defaults: {}", e.getMessage());
             throw e;
@@ -330,8 +332,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 );
 
                 obsLogger.info("AffectedKeyCalculator initialized with {} schema(s), querySql length={}",
-                           nodeSchemaCache.size(),
-                           this.querySql.length());
+                        nodeSchemaCache.size(),
+                        this.querySql.length());
 
                 // ========== 核心功能：SQL 表别名解析与替换 ==========
                 resolveSqlTableAliases();
@@ -356,7 +358,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 } else {
                     throw new IllegalArgumentException("Wide table name not found: " + wideTableName);
                 }
-                
+
                 wideTableUpdater = new WideTableIncrementalUpdater(
                         wideTableName,
                         wideTablePrimaryKey,
@@ -365,7 +367,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                         duckDbOperator,
                         true, // 是否写宽表
                         wideTableSchemaInfo
-                ).log(obsLogger);
+                ).log(obsLogger).withDeleteSemantics(io.tapdata.flow.engine.V2.node.duckdb.WideTableSourceRegistry.from(mainTableName, fromTables, nodeSchemaCache));
 
                 obsLogger.info("Materialized view components initialized: affectedKeyCalculator={}, wideTableUpdater={}",
                         affectedKeyCalculator != null, wideTableUpdater != null);
@@ -385,7 +387,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             obsLogger.info("DuckDbSqlNode initialized with batchSize={}, output batch size={}, error threshold={}% (count: {}), schemaCache={}",
                     batchSize, OUTPUT_BATCH_SIZE, ERROR_THRESHOLD_RATE * 100, ERROR_THRESHOLD_COUNT,
-                    nodeSchemaCache.size() > 0 ? "loaded (" + nodeSchemaCache.size() + " nodes)" : "empty");
+                    !nodeSchemaCache.isEmpty() ? "loaded (" + nodeSchemaCache.size() + " nodes)" : "empty");
         } catch (SQLException e) {
             throw new TapCodeException("Failed to initialize DuckDbOperator", e);
         }
@@ -407,7 +409,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     duckDbOperator.executeInTransaction(this::updateWideTableInFullSyncComplete);
                     obsLogger.info("全量结束后宽表更新完成");
                 } catch (Exception e) {
-                    e.printStackTrace();
                     obsLogger.error("全量结束后更新宽表失败: {}", e.getMessage(), e);
                 }
             }
@@ -443,9 +444,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
         // 构建 INSERT INTO ... SELECT ... 语句
         String insertSql = String.format(
-            "INSERT INTO %s %s",
-            wideTableName,
-            querySql
+                "INSERT INTO %s %s",
+                wideTableName,
+                querySql
         );
 
         obsLogger.info("全量结束后执行宽表更新 SQL: {}", insertSql);
@@ -459,8 +460,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         List<TapdataEvent> events = new ArrayList<>();
 
         // 直接用 select 查询宽表语句查询出所有结果集
-        String selectSql = String.format("SELECT * FROM %s",wideTableName);
+        String selectSql = String.format("SELECT * FROM %s", wideTableName);
         List<Map<String, Object>> rows = duckDbOperator.executeQuery(selectSql);
+        NodeSchemaInfo wideTableSchemaInfo = tableSchemaCache.get(wideTableName);
+        rows = io.tapdata.flow.engine.V2.node.duckdb.WideTableRowTypeNormalizer.normalizeRows(rows, wideTableSchemaInfo);
 
         if (rows.isEmpty()) {
             obsLogger.warn("宽表中没有数据，跳过生成 CDC 事件");
@@ -561,7 +564,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * 处理记录事件（统一方法）
      * 根据同步阶段决定是否执行CDC物化视图逻辑
      *
-     * @param recordEvent 记录事件
+     * @param recordEvent  记录事件
      * @param tapdataEvent 数据事件
      */
     private void processRecordEvent(TapRecordEvent recordEvent, TapdataEvent tapdataEvent) {
@@ -571,10 +574,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             if (tableId == null || tableId.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "Table ID is missing or empty in record event. " +
-                    "Source: " + sourceId + ", " +
-                    "Event type: " + (recordEvent != null ? recordEvent.getClass().getSimpleName() : "null") + ", " +
-                    "Event: " + recordEvent);
+                        "Table ID is missing or empty in record event. " +
+                                "Source: " + sourceId + ", " +
+                                "Event type: " + (recordEvent != null ? recordEvent.getClass().getSimpleName() : "null") + ", " +
+                                "Event: " + recordEvent);
             }
 
             NodeSchemaInfo schemaInfo = getNodeSchema(sourceId);
@@ -587,25 +590,25 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 contextKey = sourceId + "|" + schemaInfo.getQualifiedName();
 
                 obsLogger.debug("Using preloaded schema - sourceId: {}, table: {}, qn: {}, targetTable: {}",
-                           sourceId, schemaInfo.getTableName(), schemaInfo.getQualifiedName(),
-                           targetTableName);
+                        sourceId, schemaInfo.getTableName(), schemaInfo.getQualifiedName(),
+                        targetTableName);
             } else {
                 targetTableName = buildTargetTableName(sourceId, tableId);
                 contextKey = buildContextKey(sourceId, tableId);
 
                 obsLogger.debug("Using fallback mode - sourceId: {}, tableId: {}, contextKey: {}",
-                           sourceId, tableId, contextKey);
+                        sourceId, tableId, contextKey);
             }
 
             // 步骤5: 同步阶段追踪
             trackSyncStage(targetTableName, tapdataEvent);
 
             PerSourceContext context = getOrCreateContext(
-                contextKey,
-                targetTableName,
-                sourceId,
-                tableId,
-                schemaInfo
+                    contextKey,
+                    targetTableName,
+                    sourceId,
+                    tableId,
+                    schemaInfo
             );
 
             if (obsLogger.isDebugEnabled() && context.hasSchema()) {
@@ -616,16 +619,16 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     for (String fieldName : after.keySet()) {
                         if (ctxSchema.isPrimaryKey(fieldName)) {
                             obsLogger.debug("Primary key field detected: {} (from table {})",
-                                       fieldName, ctxSchema.getTableName());
+                                    fieldName, ctxSchema.getTableName());
                         }
                     }
 
                     for (Map.Entry<String, Object> entry : after.entrySet()) {
                         io.tapdata.entity.schema.type.TapType fieldType =
-                            ctxSchema.getFieldType(entry.getKey());
+                                ctxSchema.getFieldType(entry.getKey());
                         if (fieldType != null) {
                             obsLogger.debug("Field type: {} -> {}",
-                                       entry.getKey(), fieldType.getClass().getSimpleName());
+                                    entry.getKey(), fieldType.getClass().getSimpleName());
                         }
                     }
                 }
@@ -674,7 +677,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 if (dlqWriter != null && sourceData != null && tapEvent instanceof TapRecordEvent) {
                     try {
                         writeDeadLetterQueue(tapdataEvent, (TapRecordEvent) tapEvent,
-                                            sourceId, schemaInfo, sourceData, e);
+                                sourceId, schemaInfo, sourceData, e);
                     } catch (Exception dlqError) {
                         obsLogger.warn("Failed to write DLQ: {}", dlqError.getMessage());
                     }
@@ -690,7 +693,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * Build detailed error context for logging
      */
     private String buildErrorContext(TapEvent tapEvent, String sourceId,
-                                    NodeSchemaInfo schemaInfo, Exception e) {
+                                     NodeSchemaInfo schemaInfo, Exception e) {
         StringBuilder sb = new StringBuilder();
         sb.append(e.getClass().getSimpleName()).append(": ").append(e.getMessage());
 
@@ -727,7 +730,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * Enrich source data with schema metadata for better debugging
      */
     private void enrichSourceDataWithSchema(Map<String, Object> sourceData,
-                                           NodeSchemaInfo schemaInfo) {
+                                            NodeSchemaInfo schemaInfo) {
         if (sourceData == null || schemaInfo == null || !schemaInfo.isValid()) {
             return;
         }
@@ -758,8 +761,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * Write failed event to Dead Letter Queue with schema-aware context
      */
     private void writeDeadLetterQueue(TapdataEvent tapdataEvent, TapRecordEvent recordEvent,
-                                     String sourceId, NodeSchemaInfo schemaInfo,
-                                     Map<String, Object> sourceData, Exception e) {
+                                      String sourceId, NodeSchemaInfo schemaInfo,
+                                      Map<String, Object> sourceData, Exception e) {
         String tableId = TapEventUtil.getTableId(recordEvent);
 
         String contextKey;
@@ -770,21 +773,21 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             contextKey = sourceId + "|" + schemaInfo.getQualifiedName();
 
             obsLogger.debug("Writing to DLQ with preloaded schema - sourceId: {}, table: {}, qn: {}, targetTable: {}",
-                       sourceId, schemaInfo.getTableName(), schemaInfo.getQualifiedName(),
-                       targetTableName);
+                    sourceId, schemaInfo.getTableName(), schemaInfo.getQualifiedName(),
+                    targetTableName);
         } else {
             if (tableId == null || tableId.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "Cannot write to DLQ: Table ID is missing in failed event. " +
-                    "Source: " + sourceId + ", " +
-                    "This indicates a corrupted event that cannot be properly handled.");
+                        "Cannot write to DLQ: Table ID is missing in failed event. " +
+                                "Source: " + sourceId + ", " +
+                                "This indicates a corrupted event that cannot be properly handled.");
             }
 
             targetTableName = buildTargetTableName(sourceId, tableId);
             contextKey = buildContextKey(sourceId, tableId);
 
             obsLogger.debug("Writing to DLQ with fallback mode - sourceId: {}, tableId: {}, contextKey: {}",
-                       sourceId, tableId, contextKey);
+                    sourceId, tableId, contextKey);
         }
 
         dlqWriter.write(contextKey, targetTableName, Collections.singletonList(sourceData), e);
@@ -812,7 +815,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
         return null;
     }
-
 
 
     /**
@@ -856,18 +858,18 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     /**
      * 处理全量阶段
      * 职责：只负责数据合并和写入 DuckDB，不包含宽表更新逻辑
-     *
+     * <p>
      * 流程：
      * 1. 使用 SmartMerger 合并事件（第二步、第三步）
      * 2. ensureTableExists()
      * 3. DuckDB 事务开启（可选）
      * 4. Before 的所有数据全部执行 delete 操作
      * 5. After 的数据执行 Arrow 批量写入
-     *
+     * <p>
      * 注意：宽表更新由 handleAllTablesCdcTransition 统一处理
      */
     private void processInitialSyncStage(PerSourceContext context, List<TapdataEvent> eventsToFlush)
-        throws SQLException, java.io.IOException {
+            throws SQLException, java.io.IOException {
 
         if (eventsToFlush == null || eventsToFlush.isEmpty()) {
             return;
@@ -895,6 +897,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     /**
      * 获取 Context 对应的 DuckDbOperator
+     *
      * @param context PerSourceContext
      * @return DuckDbOperator 实例
      * @throws SQLException 如果 Operator 未初始化
@@ -910,7 +913,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     /**
      * 处理增量阶段
      * 职责：完整的数据写入 + 宽表更新 + CDC 事件生成流程
-     *
+     * <p>
      * 流程：
      * 1. 使用 SmartMerger 合并事件（第二步、第三步、第四步都用）
      * 2. 计算 beforeKeys（数据写入 DuckDB 之前）
@@ -923,7 +926,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * 9. 生成宽表 CDC 事件，触发 ChangelogListener，发射到下游
      */
     private void processCdcStage(PerSourceContext context, List<TapdataEvent> eventsToFlush)
-        throws SQLException, java.io.IOException {
+            throws SQLException, java.io.IOException {
 
         if (eventsToFlush == null || eventsToFlush.isEmpty()) {
             return;
@@ -952,27 +955,27 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         // 步骤4-6: DuckDB 事务开启，写入数据
 //        operator.
 //                executeInTransaction(() -> {
-            // 步骤5: Before 的所有数据全部执行 delete 操作
-            deleteBeforeData(operator, context.getTargetTableName(), mergedRecords, context.getSchema());
+        // 步骤5: Before 的所有数据全部执行 delete 操作
+        deleteBeforeData(operator, context.getTargetTableName(), mergedRecords, context.getSchema());
 
-            // 步骤6: After 的数据执行 Arrow 批量写入
-            writeAfterData(operator, context.getSchema(), mergedRecords);
+        // 步骤6: After 的数据执行 Arrow 批量写入
+        writeAfterData(operator, context.getSchema(), mergedRecords);
 
-            // 步骤7: 计算 afterKeys（数据写入 DuckDB 之后、宽表更新之前）
-            // 返回 AffectedKeysResult 包含 PKs、查询结果和 afterRows，避免重复计算
-            AffectedKeyCalculator.AffectedKeysResult afterKeysResult = null;
-            if (affectedKeyCalculator != null && !mergedRecords.isEmpty()) {
-                afterKeysResult = affectedKeyCalculator.calculateAffectedAfterKeys(mergedRecords, context.getTargetTableName());
-            }
+        // 步骤7: 计算 afterKeys（数据写入 DuckDB 之后、宽表更新之前）
+        // 返回 AffectedKeysResult 包含 PKs、查询结果和 afterRows，避免重复计算
+        AffectedKeyCalculator.AffectedKeysResult afterKeysResult = null;
+        if (affectedKeyCalculator != null && !mergedRecords.isEmpty()) {
+            afterKeysResult = affectedKeyCalculator.calculateAffectedAfterKeys(mergedRecords, context.getTargetTableName());
+        }
 
-            // 步骤8: 更新宽表（可选），发送宽表事件到下游
-            // 传递 AffectedKeysResult，避免重复查询和计算
-            updateWideTable(context.getTargetTableName(), beforeKeys, afterKeysResult, mergedRecords);
+        // 步骤8: 更新宽表（可选），发送宽表事件到下游
+        // 传递 AffectedKeysResult，避免重复查询和计算
+        updateWideTable(context.getTargetTableName(), beforeKeys, afterKeysResult, mergedRecords);
 
 //        });
 
         obsLogger.debug("增量阶段刷写 {} 条记录到DuckDB表: {} (原始 {} 条)",
-            mergedRecords.size(), context.getTargetTableName(), eventsToFlush.size());
+                mergedRecords.size(), context.getTargetTableName(), eventsToFlush.size());
     }
 
     /**
@@ -983,12 +986,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * <p>Optimized per 2026-06-07: accepts AffectedKeysResult to avoid redundant computation.</p>
      *
      * @param targetTableName
-     * @param beforeKeys        写入前的主键集合
-     * @param afterKeysResult   写入后的主键计算结果（包含PKs、查询结果、afterRows）
-     * @param mergedRecords    合并后的记录列表（备用，优先使用 afterKeysResult 中的数据）
+     * @param beforeKeys      写入前的主键集合
+     * @param afterKeysResult 写入后的主键计算结果（包含PKs、查询结果、afterRows）
+     * @param mergedRecords   合并后的记录列表（备用，优先使用 afterKeysResult 中的数据）
      */
-    private void updateWideTable(String targetTableName, 
-                                 Set<Object> beforeKeys, 
+    private void updateWideTable(String targetTableName,
+                                 Set<Object> beforeKeys,
                                  AffectedKeyCalculator.AffectedKeysResult afterKeysResult,
                                  List<SmartMerger.MergedRecord> mergedRecords) {
         if (wideTableUpdater == null || beforeKeys == null || afterKeysResult == null) {
@@ -1000,10 +1003,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             Set<Object> afterKeys = afterKeysResult.getWideTablePks();
             List<Map<String, Object>> afterRows = afterKeysResult.getAfterRows();
             List<Map<String, Object>> wideTableQueryResults = afterKeysResult.getWideTableQueryResults();
-            
+
             // 传递预计算的查询结果，避免重复执行 WITH CTE 查询
             List<TapdataEvent> wideTableEvents = wideTableUpdater.updateWideTableAsTapdataEvents(
-                beforeKeys, afterKeys, wideTableQueryResults, afterRows, targetTableName, currentConsumer);
+                    beforeKeys, afterKeys, wideTableQueryResults, afterRows, targetTableName, currentConsumer);
             obsLogger.info("增量阶段更新宽表: {} 个事件", wideTableEvents.size());
         } catch (Exception e) {
             obsLogger.error("更新宽表失败: {}", e.getMessage(), e);
@@ -1017,15 +1020,15 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * {@link SmartMerger.MergedRecord#getBeforeRows()}, avoiding re-traversal
      * of original operations.</p>
      *
-     * @param operator DuckDB 操作器
-     * @param tableName 目标表名
+     * @param operator      DuckDB 操作器
+     * @param tableName     目标表名
      * @param mergedRecords 合并后的记录列表
-     * @param schema 表的 schema 信息（用于获取真实主键）
+     * @param schema        表的 schema 信息（用于获取真实主键）
      * @throws SQLException 如果数据库操作失败
      */
     private void deleteBeforeData(DuckDbOperator operator, String tableName,
-                                   List<SmartMerger.MergedRecord> mergedRecords,
-                                   NodeSchemaInfo schema) throws SQLException {
+                                  List<SmartMerger.MergedRecord> mergedRecords,
+                                  NodeSchemaInfo schema) throws SQLException {
         List<Object> beforePks = new ArrayList<>(mergedRecords.stream().map(SmartMerger.MergedRecord::getMainTableBeforePks).filter(Objects::nonNull).flatMap(Collection::stream).toList());
 
         if (!beforePks.isEmpty()) {
@@ -1041,10 +1044,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * {@link SmartMerger.MergedRecord#getAfterRows()}, avoiding re-traversal
      * of original operations.</p>
      *
-     * @param operator    DuckDB 操作器
-     * @param schemaInfo 预加载的Schema信息
+     * @param operator      DuckDB 操作器
+     * @param schemaInfo    预加载的Schema信息
      * @param mergedRecords 合并后的记录列表
-     * @throws SQLException 如果数据库操作失败
+     * @throws SQLException        如果数据库操作失败
      * @throws java.io.IOException 如果写入失败
      */
     private void writeAfterData(DuckDbOperator operator, NodeSchemaInfo schemaInfo,
@@ -1060,7 +1063,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     /**
      * @deprecated 已迁移至 {@link DuckDbOperator#deleteByIds}。
-     *             此方法将在未来版本中移除。
+     * 此方法将在未来版本中移除。
      */
     @Deprecated
     private void buildDeleteSql() {
@@ -1168,7 +1171,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             if (nodeConfig != null && CollectionUtils.isNotEmpty(nodeConfig.getPreNodeTapTables())) {
                 obsLogger.info("Initializing schema cache from nodeConfig, total {} TapTableDtos",
-                           nodeConfig.getPreNodeTapTables().size());
+                        nodeConfig.getPreNodeTapTables().size());
 
                 // 使用 IengineSchemaConverter 进行转换
                 io.tapdata.flow.engine.V2.node.duckdb.converter.IengineSchemaConverter converter =
@@ -1189,7 +1192,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
                 schemaCacheInitialized = true;
                 obsLogger.info("Schema cache initialized from nodeConfig: {}/{}",
-                           successCount, nodeConfig.getPreNodeTapTables().size());
+                        successCount, nodeConfig.getPreNodeTapTables().size());
                 return;
             }
 
@@ -1245,7 +1248,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         boolean shouldRecreate = shouldRecreateTables();
 
         obsLogger.info("Starting DuckDB table management. shouldRecreate={}, fromTables count={}",
-                   shouldRecreate, fromTables != null ? fromTables.size() : 0);
+                shouldRecreate, fromTables != null ? fromTables.size() : 0);
 
         int createdCount = 0;
         int recreatedCount = 0;
@@ -1259,8 +1262,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
                 try {
                     duckDbOperator.ensureTableExists(
-                        mainTableSchema,
-                        shouldRecreate
+                            mainTableSchema,
+                            shouldRecreate
                     );
 
                     if (shouldRecreate) {
@@ -1270,7 +1273,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     }
 
                     obsLogger.info("Main table managed: {} -> {} (recreate={})",
-                               mainTableName, targetTableName, shouldRecreate);
+                            mainTableName, targetTableName, shouldRecreate);
                 } catch (Exception e) {
                     throw new TapCodeException("Failed to manage main table: " + mainTableName, e);
                 }
@@ -1303,8 +1306,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
                 try {
                     duckDbOperator.ensureTableExists(
-                        schemaInfo,
-                        shouldRecreate
+                            schemaInfo,
+                            shouldRecreate
                     );
 
                     if (shouldRecreate) {
@@ -1314,10 +1317,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     }
 
                     obsLogger.debug("From table managed: {} -> {} (recreate={})",
-                                preNodeId, targetTableName, shouldRecreate);
+                            preNodeId, targetTableName, shouldRecreate);
                 } catch (Exception e) {
                     throw new TapCodeException(
-                        "Failed to manage table for predecessor node: " + preNodeId, e);
+                            "Failed to manage table for predecessor node: " + preNodeId, e);
                 }
             }
         }
@@ -1339,7 +1342,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
 
         obsLogger.info("DuckDB table management completed. Created={}, Recreated={}, Total={}",
-                   createdCount, recreatedCount, createdCount + recreatedCount);
+                createdCount, recreatedCount, createdCount + recreatedCount);
     }
 
     /**
@@ -1364,14 +1367,14 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     /**
      * 管理宽表创建
-     * 
+     *
      * @param shouldRecreate 是否需要重建表
      * @return true 表示表被创建/重建，false 表示表已存在且不需要重建
      */
     private boolean manageWideTable(boolean shouldRecreate) throws SQLException {
         // 1. 先检查表是否已存在
         boolean tableExists = isTableExists(wideTableName);
-        
+
         // 如果表已存在且不需要重建，直接返回
         if (tableExists && !shouldRecreate) {
             obsLogger.info("Wide table '{}' already exists, skipping creation", wideTableName);
@@ -1386,10 +1389,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
         // 2. 创建宽表
         obsLogger.info("Creating wide table '{}'...", wideTableName);
-        
+
         // 尝试多种创建策略
         boolean created = false;
-        
+
         // 策略1：优先使用 NodeSchemaInfo（如果有）
         NodeSchemaInfo wideTableSchemaInfo = tableSchemaCache.get(wideTableName);
         if (wideTableSchemaInfo == null) {
@@ -1401,7 +1404,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 }
             }
         }
-        
+
         if (wideTableSchemaInfo != null && wideTableSchemaInfo.getFieldMap() != null && !wideTableSchemaInfo.getFieldMap().isEmpty()) {
             obsLogger.info("Creating wide table using NodeSchemaInfo: {}", wideTableSchemaInfo.getTableName());
             String createDdl = WideTableDdlGenerator.generateCreateTableDdl(wideTableSchemaInfo, wideTablePrimaryKey);
@@ -1412,7 +1415,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             // 策略2：尝试 CREATE TABLE ... AS SELECT ... WHERE 1=0
             obsLogger.info("Creating wide table using CREATE TABLE AS SELECT...");
             created = createTableUsingAsSelect(wideTableName, querySql);
-            
+
             // 策略3：降级到传统字段列表方式
             if (!created) {
                 obsLogger.warn("CREATE TABLE AS SELECT failed, falling back to traditional DDL");
@@ -1424,7 +1427,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         if (created) {
             obsLogger.info("Successfully created wide table '{}'", wideTableName);
         }
-        
+
         return created;
     }
 
@@ -1435,19 +1438,19 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         try {
             // DuckDB 查询系统表检查表是否存在
             String checkSql = String.format(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '%s'",
-                tableName.toLowerCase()
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '%s'",
+                    tableName.toLowerCase()
             );
-            
+
             List<Map<String, Object>> results = duckDbOperator.executeQuery(checkSql);
-            
+
             if (results != null && !results.isEmpty()) {
                 Object countObj = results.get(0).values().iterator().next();
                 if (countObj instanceof Number) {
                     return ((Number) countObj).intValue() > 0;
                 }
             }
-            
+
             return false;
         } catch (Exception e) {
             obsLogger.warn("Failed to check if table '{}' exists: {}", tableName, e.getMessage());
@@ -1475,16 +1478,16 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      */
     private void createTableUsingFieldList(String tableName, String primaryKey) throws SQLException {
         List<String> selectFields = WideTableDdlGenerator.extractSelectFields(querySql);
-        
+
         if (selectFields.isEmpty()) {
             throw new SQLException("Cannot extract fields from querySql");
         }
-        
+
         String createDdl = WideTableDdlGenerator.generateCreateTableDdl(tableName, selectFields, primaryKey);
         duckDbOperator.executeUpdate(createDdl);
 
         obsLogger.info("Successfully created table '{}' using traditional DDL with {} fields",
-                   tableName, selectFields.size());
+                tableName, selectFields.size());
     }
 
     /**
@@ -1545,9 +1548,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             if (schemaInfo == null) {
                 obsLogger.error("Cannot find NodeSchemaInfo for preNodeId={}, " +
-                           "SQL alias resolution may be incomplete. " +
-                           "Available nodes: {}",
-                           preNodeId, nodeSchemaCache.keySet());
+                                "SQL alias resolution may be incomplete. " +
+                                "Available nodes: {}",
+                        preNodeId, nodeSchemaCache.keySet());
                 throw new TapCodeException("Failed to find schema info for predecessor node: " + preNodeId);
             }
 
@@ -1555,7 +1558,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             String targetTableName = schemaInfo.getTargetTableName();
 
             obsLogger.info("Resolved table alias: '{}' -> '{}' (preNodeId={})",
-                       tableNameInSql, targetTableName, preNodeId);
+                    tableNameInSql, targetTableName, preNodeId);
 
             aliasToTargetMap.put(tableNameInSql, targetTableName);
         }
@@ -1568,13 +1571,13 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         // 使用正则边界检测进行替换
         this.querySql = replaceWithBoundaryDetection(originalSql, aliasToTargetMap);
 
-        obsLogger.info("SQL alias resolution completed. Original: {} -> Resolved: {}",originalSql,this.querySql);
+        obsLogger.info("SQL alias resolution completed. Original: {} -> Resolved: {}", originalSql, this.querySql);
     }
 
     /**
      * 使用正则边界检测替换 SQL 中的表别名
      *
-     * @param sql 原始 SQL 语句
+     * @param sql      原始 SQL 语句
      * @param aliasMap 别名映射（alias → targetTableName）
      * @return 替换后的 SQL 语句
      */
@@ -1587,7 +1590,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // 使用 \b 单词边界确保只替换完整的标识符，避免部分匹配
             java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-                "\\b" + java.util.regex.Pattern.quote(alias) + "\\b"
+                    "\\b" + java.util.regex.Pattern.quote(alias) + "\\b"
             );
 
             java.util.regex.Matcher matcher = pattern.matcher(currentSql);
@@ -1633,14 +1636,14 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private String sanitizeIdentifier(String value) {
         if (value == null) {
             throw new IllegalArgumentException(
-                "Cannot sanitize identifier: value is null. " +
-                "This indicates a programming error where a required identifier was not properly initialized.");
+                    "Cannot sanitize identifier: value is null. " +
+                            "This indicates a programming error where a required identifier was not properly initialized.");
         }
 
         if (value.isBlank()) {
             throw new IllegalArgumentException(
-                "Cannot sanitize identifier: value is blank (empty or whitespace only). " +
-                "Original value: '" + value + "'");
+                    "Cannot sanitize identifier: value is blank (empty or whitespace only). " +
+                            "Original value: '" + value + "'");
         }
 
         String sanitized = value.replaceAll("[^A-Za-z0-9_]", "_");
@@ -1663,7 +1666,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             DuckDbOperator contextOperator = createContextOperator();
 
             PerSourceContext context = new PerSourceContext(
-                contextKey, contextOperator, sourceId, tableId, schemaInfo);
+                    contextKey, contextOperator, sourceId, tableId, schemaInfo);
             context.setBatchSize(batchSize);
             context.setTargetTableName(targetTableName);
 
@@ -1671,8 +1674,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             sourceAccessOrder.put(contextKey, Boolean.TRUE);
 
             obsLogger.debug("Created new Context: {}, sourceId={}, tableId={}, schema={}",
-                        contextKey, sourceId, tableId,
-                        schemaInfo != null ? "loaded" : "null");
+                    contextKey, sourceId, tableId,
+                    schemaInfo != null ? "loaded" : "null");
 
             return context;
         }
@@ -1681,7 +1684,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private PerSourceContext getOrCreateContext(String contextKey, String targetTableName) {
         return getOrCreateContext(contextKey, targetTableName, null, null, null);
     }
-
 
 
     private DuckDbOperator createContextOperator() {
@@ -1776,13 +1778,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             sourceAccessOrder.clear();
         }
 
-        //@todo 重置的时候需要删除dbckDB缓存宽表
-        try {
-            duckDbOperator.dropTable(wideTableName);
-        } catch (SQLException e) {
-            obsLogger.warn("Failed to drop wide cdc table {}: {}", wideTableName, e.getMessage(), e);
-        }
-
         // 关闭 DuckDB 操作器
         if (duckDbOperator != null) {
             try {
@@ -1824,7 +1819,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 if (firstFromTable == null) {
                     throw new IllegalStateException("First fromTableConfig is null, cannot resolve mainTableName");
                 } else {
-                    if (StringUtils.isEmpty(firstFromTable.getTableNameInSql())){
+                    if (StringUtils.isEmpty(firstFromTable.getTableNameInSql())) {
                         throw new IllegalStateException("Cannot resolve mainTableName, no schema info for tableNameInSql: " + firstFromTable.getTableNameInSql());
                     } else {
                         mainTableName = firstFromTable.getTableNameInSql();
@@ -1884,26 +1879,55 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * 3. 用 _ 连接 dbPath 和 nodeId
      */
     public static String buildDbPathWithNodeId(String dbPath, String nodeId) {
-        if (dbPath == null || dbPath.isEmpty()) {
-            throw new IllegalArgumentException("dbPath cannot be null or empty");
-        }
-        if (nodeId == null || nodeId.isEmpty()) {
-            throw new IllegalArgumentException("nodeId cannot be null or empty");
-        }
-        
-        // 去掉末尾的路径分隔符（/ 或 \）
         String result = dbPath;
         while (result.endsWith("/") || result.endsWith("\\")) {
             result = result.substring(0, result.length() - 1);
         }
-        
-        // 用 _ 连接 dbPath 和 nodeId
-//        return result + "_" + nodeId;
-        return result;
+        return Path.of(dbPath, nodeId).toAbsolutePath().toString();
     }
 
     @Override
     public boolean needCopyBatchEventWrapper() {
         return true;
+    }
+
+    public static void cleanCache(DuckDbSqlNode node) {
+        String dbPath = initDBPath(node);
+        DuckDbOperator duckDbOperator;
+        Set<String> tables = Optional.ofNullable(node.getPreNodeTapTables())
+                .orElse(new ArrayList<>())
+                .stream()
+                .map(TapTableDto::getName)
+                .collect(Collectors.toSet());
+        try {
+            duckDbOperator = initDuckDbOperator(node, dbPath, 100);
+        } catch (Exception e) {
+            throw new TapCodeException("Failed to initialize DuckDbOperator", e);
+        }
+        String wideTableName = node.getWideTableName();
+        tables.add(wideTableName);
+        try {
+            dropTable(duckDbOperator, tables);
+        } finally {
+            try {
+                duckDbOperator.close();
+            } catch (Exception e) {
+                throw new TapCodeException("Failed to close DuckDbOperator", e);
+            }
+        }
+    }
+
+    static void dropTable(DuckDbOperator duckDbOperator, Set<String> tableName) {
+        StringJoiner joiner = new StringJoiner(" | ");
+        for (String table : tableName) {
+            try {
+                duckDbOperator.dropTable(table);
+            } catch (Exception e) {
+                joiner.add(table + " dropped failed: " + e.getMessage());
+            }
+        }
+        if (joiner.length() > 0) {
+            throw new TapCodeException(joiner.toString());
+        }
     }
 }

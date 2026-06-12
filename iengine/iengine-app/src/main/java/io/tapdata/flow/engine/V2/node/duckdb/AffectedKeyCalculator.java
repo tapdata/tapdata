@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
+import io.tapdata.flow.engine.V2.node.duckdb.utils.SqlJoinConverter;
+import io.tapdata.flow.engine.V2.node.duckdb.utils.SqlJoinUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -123,7 +125,11 @@ public class AffectedKeyCalculator {
         
         // 生成 WITH CTE SQL
         String withSql = withCteSqlGenerator.generateBatch(querySql, tableName, dataRows, fields);
-        
+
+        //@todo
+        //getQuerySqlWhere(dataRows, fields)
+        String finalSql = SqlJoinUtil.forceInnerJoin(withSql, tableName);
+        //String joinSal = SqlJoinConverter.convertJoinToInner(withSql, tableName);
         // 执行查询
         List<Map<String, Object>> results = operator.executeQuery(withSql);
         
@@ -168,6 +174,19 @@ public class AffectedKeyCalculator {
                     resolvedQuerySql.substring(0, Math.min(50, resolvedQuerySql.length())));
 
         return resolvedQuerySql;
+    }
+
+    private String getQuerySqlWhere(List<Map<String, Object>> dataRows, List<String> pks) {
+        StringJoiner joiner = new StringJoiner(" or ");
+        for (Map<String, Object> row : dataRows) {
+            StringJoiner j = joiner.add(" and ");
+            pks.forEach(key -> {
+                Object o = row.get(key);
+                j.add(key + " = " + o);
+            });
+            joiner.add(" ( " + j + " ) ");
+        }
+        return "where " + joiner;
     }
 
     /**

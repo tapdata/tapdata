@@ -303,6 +303,10 @@
             <artifactId>duckdb_jdbc</artifactId>
             <version>1.5.2.1</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+        </dependency>
         
         <!-- Apache Arrow Core -->
         <dependency>

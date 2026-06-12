@@ -41,6 +41,9 @@ public class WideTableIncrementalUpdater {
     
     /** 宽表的完整 NodeSchemaInfo 缓存（包含预计算的字段列表和类型信息） */
     private final NodeSchemaInfo tableSchemaInfoCache;
+    private WideTableSourceRegistry sourceRegistry;
+    private WideTableFieldOwnershipResolver fieldOwnershipResolver;
+    private final WideTableDeleteAdjustmentService deleteAdjustmentService;
     
     /** 标记宽表是否已创建（避免重复解析 SQL） */
     private volatile boolean wideTableCreated = false;
@@ -107,9 +110,20 @@ public class WideTableIncrementalUpdater {
         this.enableWriteWideTable = enableWriteWideTable;
         this.wideTableName = wideTableName;
         this.tableSchemaInfoCache = tableSchemaInfoCache;
+        this.sourceRegistry = WideTableSourceRegistry.empty();
+        this.fieldOwnershipResolver = WideTableFieldOwnershipResolver.noop();
+        this.deleteAdjustmentService = new WideTableDeleteAdjustmentService(Collections.singletonList(new ChildTableDeleteRetainStrategy()));
         
         // 注意：宽表创建已统一移到 HazelcastDuckDbSqlNode.manageDuckDbTables() 中
         // 这里不再重复创建
+    }
+
+    public WideTableIncrementalUpdater withDeleteSemantics(WideTableSourceRegistry sourceRegistry) {
+        this.sourceRegistry = sourceRegistry == null ? WideTableSourceRegistry.empty() : sourceRegistry;
+        this.fieldOwnershipResolver = this.sourceRegistry.isEmpty()
+                ? WideTableFieldOwnershipResolver.noop()
+                : new JSqlParserWideTableFieldOwnershipResolver(querySql, this.sourceRegistry);
+        return this;
     }
 
     /**
@@ -212,6 +226,9 @@ public class WideTableIncrementalUpdater {
             }
         }
         
+        results = deleteAdjustmentService.adjust(new WideTableDeleteAdjustmentContext(tableName, affectedBeforeKeys, results, (afterRows != null && !afterRows.isEmpty()) ? Collections.emptyList() : Collections.singletonList(new SmartMerger.MergedRecord() {{ setTableName(tableName); getBeforeRows().add(Collections.singletonMap(wideTablePrimaryKey, "marker")); }}), wideTableName, wideTablePrimaryKey, duckDbOperator, sourceRegistry, fieldOwnershipResolver));
+        results = WideTableRowTypeNormalizer.normalizeRows(results, tableSchemaInfoCache);
+
         // 创建 final 副本以便在 lambda 中使用
         final List<Map<String, Object>> finalResults = results;
         final Set<Object> finalAffectedBeforeKeys = affectedBeforeKeys;
