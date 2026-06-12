@@ -110,7 +110,7 @@ public class ExternalStorageUtil {
 		logger.info("Added hazelcast persistence config: " + persistenceConfig);
 	}
 
-	private static PersistenceStorageAbstractConfig getPersistenceConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
+	public static PersistenceStorageAbstractConfig getPersistenceConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		PersistenceStorageAbstractConfig persistenceStorageAbstractConfig;
 		ExternalStorageType externalStorageType;
 		try {

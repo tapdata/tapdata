@@ -262,6 +262,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     private Boolean checkMemoryHeap;
 
+    private String taskStartVersion;
+
 
     public DAG getDag() {
         if (dag != null) {
