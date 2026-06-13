@@ -317,6 +317,9 @@ public class ShareCdcLogContentResolver {
 		PersistenceStorageStore<PersistenceStorageAbstractConfig, ExternalResource<PersistenceStorageAbstractConfig>> store = null;
 		try {
 			ExternalStorageDto externalStorage = copyExternalStorage(context.externalStorage);
+			if(null == externalStorage) {
+				throw new UnsupportedOperationException("externalStorage no found");
+			}
 			externalStorage.setTable(context.criteria.getRingBuffer());
 			PersistenceStorageAbstractConfig storageConfig = ExternalStorageUtil.getPersistenceConfig(
 					externalStorage,
@@ -326,7 +329,7 @@ public class ShareCdcLogContentResolver {
 			store = PersistenceStorage.getInstance().createStore(storageConfig);
 			if (store == null) {
 				throw new UnsupportedOperationException("Unsupported change log external storage type: "
-						+ (externalStorage == null ? null : externalStorage.getType()));
+						+ externalStorage.getType());
 			}
 			for (Map<String, Object> document : store.find(query, context.limit)) {
 				logs.add(buildLog(document, context.tapTable));
