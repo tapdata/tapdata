@@ -1,0 +1,96 @@
+[
+  {
+    "update": "Permission",
+    "updates": [
+      {
+        "q": {
+          "name": "v2_task_rebalance"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_advanced_features",
+            "description": "任务均衡",
+            "name": "v2_task_rebalance",
+            "need_permission": true,
+            "order": 7,
+            "resources": [
+              {
+                "type": "page",
+                "code": "v2_task_rebalance",
+                "path": "/task-rebalance"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_task_rebalance_Edit"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_task_rebalance",
+            "description": "编辑任务均衡",
+            "name": "v2_task_rebalance_Edit",
+            "need_permission": true,
+            "order": 1,
+            "resources": [{"type": "button", "code": "v2_task_rebalance_Edit"}],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  },
+  {
+    "update": "RoleMapping",
+    "updates": [
+      {
+        "q": {
+          "principalId": "v2_task_rebalance",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_task_rebalance",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_task_rebalance_Edit",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_task_rebalance_Edit",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]
