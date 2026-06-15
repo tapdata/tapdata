@@ -92,7 +92,7 @@
             "default_value": "5000"
           }
         },
-        "upsert": true
+        "upsert": false
       },
       {
         "q": {
@@ -105,7 +105,7 @@
             "default_value": "200"
           }
         },
-        "upsert": true
+        "upsert": false
       }
     ]
   }
