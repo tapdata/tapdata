@@ -38,7 +38,7 @@
             "name": "v2_task_rebalance_Edit",
             "need_permission": true,
             "order": 1,
-            "resources": [],
+            "resources": [{"type": "button", "code": "v2_task_rebalance_Edit"}],
             "status": "enable",
             "type": "read",
             "version": "v2"

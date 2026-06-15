@@ -15,6 +15,8 @@ public class TaskRebalanceJobDto extends BaseDto {
     public static final String FIELD_REBALANCE_ID = "rebalanceId";
     public static final String FIELD_TASK_ID = "taskId";
     public static final String FIELD_TASK_NAME = "taskName";
+    public static final String FIELD_TYPE = "type";
+    public static final String FIELD_SYNC_TYPE = "syncType";
     public static final String FIELD_STATUS = "status";
     public static final String FIELD_ERROR_MESG = "errorMesg";
     public static final String FIELD_SOURCE_AGENT_ID = "sourceAgentId";
@@ -25,6 +27,8 @@ public class TaskRebalanceJobDto extends BaseDto {
     private String rebalanceId;
     private String taskId;
     private String taskName;
+    private String type;
+    private String syncType;
     private String status;
     private String errorMesg;
     private String sourceAgentId;

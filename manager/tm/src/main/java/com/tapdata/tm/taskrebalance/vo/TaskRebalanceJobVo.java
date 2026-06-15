@@ -16,6 +16,8 @@ public class TaskRebalanceJobVo {
     private String rebalanceId;
     private String taskId;
     private String taskName;
+    private String type;
+    private String syncType;
     private String status;
     private String errorMesg;
     private String sourceAgentId;

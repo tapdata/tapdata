@@ -151,6 +151,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
                 job.setRebalanceId(rebalance.getId().toHexString());
                 job.setTaskId(task.getTaskId());
                 job.setTaskName(task.getTaskName());
+                job.setType(task.getType());
+                job.setSyncType(task.getSyncType());
                 job.setStatus(TaskRebalanceJobStatus.PENDING);
                 job.setSourceAgentId(task.getSourceAgentId());
                 job.setTargetAgentId(task.getTargetAgentId());
@@ -1168,6 +1170,8 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         vo.setRebalanceId(dto.getRebalanceId());
         vo.setTaskId(dto.getTaskId());
         vo.setTaskName(dto.getTaskName());
+        vo.setType(dto.getType());
+        vo.setSyncType(dto.getSyncType());
         vo.setStatus(dto.getStatus());
         vo.setErrorMesg(dto.getErrorMesg());
         vo.setSourceAgentId(dto.getSourceAgentId());

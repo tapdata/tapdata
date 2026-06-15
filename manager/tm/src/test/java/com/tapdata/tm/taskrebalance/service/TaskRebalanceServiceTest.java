@@ -268,7 +268,10 @@ class TaskRebalanceServiceTest {
         verify(context.repository).acquireActiveCreating(rebalanceCaptor.capture(), eq(context.user));
         assertEquals(TaskRebalanceStatus.CREATING, rebalanceCaptor.getValue().getStatus());
         assertEquals(Boolean.TRUE, rebalanceCaptor.getValue().getIsActived());
-        verify(context.jobService).save(any(List.class), eq(context.user));
+        ArgumentCaptor<List<TaskRebalanceJobDto>> jobsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(context.jobService).save(jobsCaptor.capture(), eq(context.user));
+        assertEquals("initial_sync+cdc", jobsCaptor.getValue().get(0).getType());
+        assertEquals("sync", jobsCaptor.getValue().get(0).getSyncType());
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
@@ -475,6 +478,8 @@ class TaskRebalanceServiceTest {
             TaskRebalancePreviewVo.TaskPreview task = new TaskRebalancePreviewVo.TaskPreview();
             task.setTaskId(taskId.toHexString());
             task.setTaskName("task");
+            task.setType("initial_sync+cdc");
+            task.setSyncType("sync");
             task.setSourceAgentId("source");
             task.setTargetAgentId("target");
             task.setMovable(true);
