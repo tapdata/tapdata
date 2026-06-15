@@ -126,7 +126,7 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                 .authorizationGrantType(AuthorizationGrantType.JWT_BEARER)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                .authorizationGrantType(AuthorizationGrantType.PASSWORD)
+                // OAuth2 Resource Owner Password grant removed in Spring Security 7 (OAuth 2.1)
                 .redirectUri("http://127.0.0.1")
                 .scope("admin")
                 .clientSettings(ClientSettings.builder().requireAuthorizationConsent(false).build())

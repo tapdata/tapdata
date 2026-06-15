@@ -319,6 +319,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String ENCODE_PREFIX = "_tap_encode_";
     public static final String TASK_INCREMENT_DELAY = "taskIncrementDelay";
     public static final String TASK_INCREMENT_DELAY_THRESHOLD = "taskIncrementDelayThreshold";
+    public static final String AGENT_NOT_FOUND = "Agent.Not.Found";
 
     @NotNull
     private static String getTableName() {
@@ -1006,15 +1007,14 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void checkEngineStatus(TaskDto taskDto, UserDetail user) {
-        String errCode = "Agent.Not.Found";
         String accessNodeType = taskDto.getAccessNodeType();
         List<String> taskProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType) && taskProcessIdList.isEmpty()) {
-            throw new BizException(errCode);
+            throw new BizException(AGENT_NOT_FOUND);
         }
         List<Worker> availableAgentByAccessNode = workerService.findAvailableAgentByAccessNode(user, taskProcessIdList);
         if (CollectionUtils.isEmpty(availableAgentByAccessNode)) {
-            throw new BizException(errCode);
+            throw new BizException(AGENT_NOT_FOUND);
         }
     }
 
@@ -1695,24 +1695,7 @@ public class TaskServiceImpl extends TaskService{
             where = new Where();
             filter.setWhere(where);
         }
-        if (where.get(STATUS) == null) {
-            Document statusCondition = new Document();
-            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
-            where.put(STATUS, statusCondition);
-        }
-        //过滤掉挖掘任务
-        String syncType = (String) where.get(SYNC_TYPE);
-        if (StringUtils.isBlank(syncType)) {
-            Document logCollectorFilter = new Document();
-            logCollectorFilter.put("$nin", Lists.of(TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT));
-            where.put(SYNC_TYPE, logCollectorFilter);
-        }
-
-        //过滤调共享缓存任务
-        HashMap<String, Object> notShareCache = new HashMap<>();
-        notShareCache.put("$ne", true);
-        where.put("shareCache", notShareCache);
-
+        TaskFilter.filter(where);
 
         if (where.get(IS_DELETED) == null) {
             Document document = new Document();
@@ -3742,14 +3725,11 @@ public class TaskServiceImpl extends TaskService{
                // 根据导入模式处理
                switch (importMode) {
                    case REPLACE,REUSE_EXISTING: {
-                       // 基于 _id 查找现有任务，不使用 name 匹配，避免不同用户相同名称任务相互覆盖
-                       if (taskDto.getId() == null) {
-                           throw new BizException("Task.ImportMissingId", taskDto.getName());
-                       }
-                       Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
-                       idQuery.fields().include("_id", USER_ID, "name");
-                       TaskDto existingTaskById = findOne(idQuery, user);
-                       handleReplaceMode(taskDto, existingTaskById, user, tagList, conMap, nodeMap, taskMap, importResult);
+                       // 按名称查找现有任务
+                       Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
+                       nameQuery.fields().include("_id", USER_ID, "name");
+                       TaskDto existingTaskByName = findOne(nameQuery, user);
+                       handleReplaceMode(taskDto, existingTaskByName, user, tagList, conMap, nodeMap, taskMap, importResult);
                        break;
                    }
                    case GROUP_IMPORT: {
@@ -3767,14 +3747,10 @@ public class TaskServiceImpl extends TaskService{
                        handleImportAsCopyMode(taskDto, user, tagList, conMap,nodeMap,taskMap);
                        break;
                    case CANCEL_IMPORT: {
-                       // 基于 _id 查找现有任务
-                       TaskDto existingTaskById = null;
-                       if (taskDto.getId() != null) {
-                           Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
-                           idQuery.fields().include("_id", USER_ID, "name");
-                           existingTaskById = findOne(idQuery, user);
-                       }
-                       if(null != existingTaskById){
+                       Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
+                       nameQuery.fields().include("_id", USER_ID, "name");
+                       TaskDto existingTaskByName = findOne(nameQuery, user);
+                       if(null != existingTaskByName){
                            throw new BizException("Task.RepeatName");
                        }else{
                            if(checkConnectionIdDuplicate(taskDto, conMap)){
@@ -3819,11 +3795,13 @@ public class TaskServiceImpl extends TaskService{
                 && taskDto.getId() != null
                 && resetTaskList.contains(taskDto.getId().toHexString());
 
-        // 统一基于 _id 查找现有任务，避免不同用户相同名称任务相互覆盖
-        if (taskDto.getId() == null) {
-            return false;
+        // GROUP_IMPORT 按 _id 查，其他模式按 name 查
+        Query existingQuery;
+        if (importMode == ImportModeEnum.GROUP_IMPORT && taskDto.getId() != null) {
+            existingQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
+        } else {
+            existingQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
         }
-        Query existingQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
         existingQuery.fields().exclude("user_id","create_user","pingTime","taskRecordId","last_updated");
 
         // 使用工具类比较任务配置是否一致
@@ -4026,7 +4004,9 @@ public class TaskServiceImpl extends TaskService{
         Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
         idQuery.fields().include("_id", USER_ID, "name");
         TaskDto existingTaskByID= findOne(idQuery);
-        // 不再基于名称重命名，使用 _id 保证唯一性
+        while (checkTaskNameNotError(taskDto.getName(), user, null)) {
+            taskDto.setName(taskDto.getName() + "_import");
+        }
 
         if(null != existingTaskByID){
             // 分配新ID
@@ -6165,7 +6145,7 @@ public class TaskServiceImpl extends TaskService{
             taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);
         }
         if(taskDto.getAgentId() == null){
-           throw new BizException("Agent.Not.Found");
+           throw new BizException(AGENT_NOT_FOUND);
         }
         taskDto.setCheckMemoryHeap(true);
         update(Query.query(Criteria.where("_id").is(taskDto.getId())),Update.update("agentId",taskDto.getAgentId()).set("checkMemoryHeap",true));

@@ -107,8 +107,8 @@
         <!--
         <dependency>
             <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-common</artifactId>
-            <version>1.8.0</version>
+            <artifactId>springdoc-openapi-starter-common</artifactId>
+            <version>3.0.3</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>

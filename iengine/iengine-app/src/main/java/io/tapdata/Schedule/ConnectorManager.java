@@ -365,7 +365,7 @@ public class ConnectorManager {
 				resultDto = clientMongoOperator.findOne(processId, ConnectorConstant.LICENSE_COLLECTION + "/checkEngineValid", CheckEngineValidResultDto.class);
 			} catch (Exception e) {
 				Throwable cause = CommonUtils.matchThrowable(e, HttpClientErrorException.class);
-				if (cause instanceof HttpClientErrorException && ((HttpClientErrorException) cause).getRawStatusCode() == 404 ){
+				if (cause instanceof HttpClientErrorException && ((HttpClientErrorException) cause).getStatusCode().value() == 404 ){
 					return null;
 				}
 				Throwable throwable =CommonUtils.matchThrowable(e, RestException.class);

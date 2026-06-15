@@ -238,5 +238,20 @@ public class TaskScheduleServiceImplTest {
             });
             taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
         }
+
+        @Test
+        void testTaskIsGroupManually_availableAgent_is_Empty(){
+            taskDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            taskDto.setAgentId("offline-worker");
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(Arrays.asList("worker_test1","worker_test2"));
+            when(workerService.findAvailableAgentByAccessNode(any(),anyList())).thenReturn(new ArrayList<>());
+
+            CalculationEngineVo result = taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
+
+            Assertions.assertNull(taskDto.getAgentId());
+            Assertions.assertEquals(0, result.getAvailable());
+            Assertions.assertEquals(Integer.MAX_VALUE, result.getTaskLimit());
+            verify(workerService, never()).scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+        }
     }
 }
