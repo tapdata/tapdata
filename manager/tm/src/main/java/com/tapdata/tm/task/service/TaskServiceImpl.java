@@ -315,6 +315,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String ENCODE_PREFIX = "_tap_encode_";
     public static final String TASK_INCREMENT_DELAY = "taskIncrementDelay";
     public static final String TASK_INCREMENT_DELAY_THRESHOLD = "taskIncrementDelayThreshold";
+    public static final String AGENT_NOT_FOUND = "Agent.Not.Found";
 
     @NotNull
     private static String getTableName() {
@@ -983,15 +984,14 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void checkEngineStatus(TaskDto taskDto, UserDetail user) {
-        String errCode = "Agent.Not.Found";
         String accessNodeType = taskDto.getAccessNodeType();
         List<String> taskProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType) && taskProcessIdList.isEmpty()) {
-            throw new BizException(errCode);
+            throw new BizException(AGENT_NOT_FOUND);
         }
         List<Worker> availableAgentByAccessNode = workerService.findAvailableAgentByAccessNode(user, taskProcessIdList);
         if (CollectionUtils.isEmpty(availableAgentByAccessNode)) {
-            throw new BizException(errCode);
+            throw new BizException(AGENT_NOT_FOUND);
         }
     }
 
@@ -1671,24 +1671,7 @@ public class TaskServiceImpl extends TaskService{
             where = new Where();
             filter.setWhere(where);
         }
-        if (where.get(STATUS) == null) {
-            Document statusCondition = new Document();
-            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
-            where.put(STATUS, statusCondition);
-        }
-        //过滤掉挖掘任务
-        String syncType = (String) where.get(SYNC_TYPE);
-        if (StringUtils.isBlank(syncType)) {
-            Document logCollectorFilter = new Document();
-            logCollectorFilter.put("$nin", Lists.of(TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT));
-            where.put(SYNC_TYPE, logCollectorFilter);
-        }
-
-        //过滤调共享缓存任务
-        HashMap<String, Object> notShareCache = new HashMap<>();
-        notShareCache.put("$ne", true);
-        where.put("shareCache", notShareCache);
-
+        TaskFilter.filter(where);
 
         if (where.get(IS_DELETED) == null) {
             Document document = new Document();
@@ -6136,7 +6119,7 @@ public class TaskServiceImpl extends TaskService{
             taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);
         }
         if(taskDto.getAgentId() == null){
-           throw new BizException("Agent.Not.Found");
+           throw new BizException(AGENT_NOT_FOUND);
         }
         taskDto.setCheckMemoryHeap(true);
         update(Query.query(Criteria.where("_id").is(taskDto.getId())),Update.update("agentId",taskDto.getAgentId()).set("checkMemoryHeap",true));
