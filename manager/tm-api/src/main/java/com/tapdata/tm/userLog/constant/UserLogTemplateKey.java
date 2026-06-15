@@ -4,7 +4,6 @@ public final class UserLogTemplateKey {
 
     public static final String BUNDLE_NAME = "userLogsTemplate";
     public static final String PREFIX = "userLogs.";
-    public static final String INTERNAL_PREFIX = PREFIX + "_";
     public static final String DEFAULT_PREFIX = PREFIX + "_default.";
     public static final String MODULE_PREFIX = PREFIX + "_module.";
 

@@ -19,17 +19,19 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * @description
  */
 public class MessageUtil {
+	private static final ResourceBundle.Control NO_DEFAULT_LOCALE_CONTROL =
+			ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_DEFAULT);
 
 	private static ResourceBundle getResourceBundle(Locale locale){
 		if (locale == null)
 			locale = Locale.CHINA;
-		return ResourceBundle.getBundle("messages", locale);
+		return ResourceBundle.getBundle("messages", locale, NO_DEFAULT_LOCALE_CONTROL);
 	}
 
 	private static ResourceBundle getResourceBundle(Locale locale, String bundleName){
 		if (locale == null)
 			locale = Locale.CHINA;
-		return ResourceBundle.getBundle(bundleName, locale);
+		return ResourceBundle.getBundle(bundleName, locale, NO_DEFAULT_LOCALE_CONTROL);
 	}
 
 	/**
@@ -125,11 +127,10 @@ public class MessageUtil {
 	}
 
 	protected static String getStringOrNull(ResourceBundle bundle, String key){
-		try{
-			return bundle.getString(key);
-		} catch (Exception e){
+		if (bundle == null || key == null || !bundle.containsKey(key)) {
 			return null;
 		}
+		return bundle.getString(key);
 	}
 
 	/**

@@ -227,6 +227,10 @@ public class UserLogServiceImplTest {
             assertTrue(missingMappings.isEmpty(),
                     "SyncType values must map to a valid Modular in Modular.ofTaskSyncType: " + missingMappings);
             assertEquals(Modular.MEM_CACHE, Modular.ofTaskSyncType(TaskDto.SYNC_TYPE_MEM_CACHE));
+            assertEquals(Modular.MIGRATION, Modular.ofTaskSyncType(TaskDto.SYNC_TYPE_TEST_RUN));
+            assertEquals(Modular.MIGRATION, Modular.ofTaskSyncType(TaskDto.SYNC_TYPE_PREVIEW));
+            assertEquals(Modular.MIGRATION, Modular.ofTaskSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
+            assertEquals(Modular.MIGRATION, Modular.ofTaskSyncType(null));
         }
 
         private Properties loadTemplate(String templateFile) throws IOException {
@@ -239,9 +243,10 @@ public class UserLogServiceImplTest {
         }
 
         private boolean hasSpecificOperationTemplate(Properties properties, String operation) {
+            String internalPrefix = UserLogTemplateKey.PREFIX + "_";
             return properties.stringPropertyNames().stream()
                     .anyMatch(key -> key.startsWith(UserLogTemplateKey.PREFIX)
-                            && !key.startsWith(UserLogTemplateKey.INTERNAL_PREFIX)
+                            && !key.startsWith(internalPrefix)
                             && key.endsWith("." + operation));
         }
     }

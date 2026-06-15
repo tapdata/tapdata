@@ -255,10 +255,10 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
             return fallbackI18nMessage(dto, modular, operation);
         }
 
-        return MessageUtil.formatString(template, buildTemplateParams(dto, locale, modular));
+        return MessageUtil.formatString(template, buildTemplateParams(locale, modular));
     }
 
-    private Map<String, Object> buildTemplateParams(UserLogDto dto, Locale locale, String modular) {
+    private Map<String, Object> buildTemplateParams(Locale locale, String modular) {
         Map<String, Object> params = new HashMap<>();
         params.put("moduleName", getModuleName(locale, modular));
         return params;
