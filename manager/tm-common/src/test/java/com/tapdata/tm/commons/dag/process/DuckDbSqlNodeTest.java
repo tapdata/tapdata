@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
+import com.tapdata.tm.commons.util.DuckDbSqlPrimaryKeyAnalyzer;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -108,5 +109,19 @@ public class DuckDbSqlNodeTest {
     @Test
     void testDefaultBatchSizeConstant() {
         assertEquals(1000, DuckDbSqlNode.DEFAULT_BATCH_SIZE);
+    }
+
+    @Test
+    void testAnalyzePrimaryKeysUsesJoinKeyProjection() {
+        DuckDbSqlNode node = new DuckDbSqlNode();
+        node.setMainTableName("u");
+        node.setMainTablePrimaryKey("id");
+
+        List<String> primaryKeys = DuckDbSqlPrimaryKeyAnalyzer.analyzePrimaryKeys(
+                "SELECT upper(o.user_id) AS wide_user_id, o.amount " +
+                        "FROM users u LEFT JOIN orders o ON u.id = o.user_id"
+        );
+
+        assertEquals(Collections.singletonList("wide_user_id"), primaryKeys);
     }
 }

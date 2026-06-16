@@ -6,28 +6,20 @@ import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
-import com.tapdata.tm.commons.dag.process.duck.JoinField;
+import com.tapdata.tm.commons.dag.process.converter.TmSchemaConverter;
+import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import com.tapdata.tm.commons.dag.process.duck.JoinInfo;
-import com.tapdata.tm.commons.dag.process.duck.JoinKeyPair;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.util.DuckDbSqlPrimaryKeyAnalyzer;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.commons.util.SqlParserUtil;
-import com.tapdata.tm.commons.dag.process.converter.TmSchemaConverter;
-import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
-import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
-import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
-import net.sf.jsqlparser.schema.Column;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.codecs.pojo.annotations.BsonProperty;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,7 +42,7 @@ public class DuckDbSqlNode extends ProcessorNode {
 
     /** 默认查询 SQL（null 表示未设置） */
     public static final String DEFAULT_QUERY_SQL = null;
-    
+
     /** 默认批大小 */
     public static final int DEFAULT_BATCH_SIZE = 1000;
 
@@ -60,70 +52,70 @@ public class DuckDbSqlNode extends ProcessorNode {
 
     @EqField
     private String wideTableName;
-    
+
     @EqField
     private Integer batchSize = DEFAULT_BATCH_SIZE;
-    
+
     @EqField
     private Boolean executeQueryOnFullSyncComplete = true;
-    
+
     @EqField
     private Integer memoryLimitMB = 1024;
-    
+
     @EqField
     private Integer queryTimeoutMs = 5000;
-    
+
     @EqField
     private Integer maxActiveSources = 50;
-    
+
     @EqField
     private Integer commitIntervalMs = 5000;
-    
+
     @EqField
     private Integer errorThresholdCount = 100;
-    
+
     @EqField
     private Double errorThresholdRate = 0.01;
-    
+
     @EqField
     private Boolean duckLakeEnabled = false;
-    
+
     @EqField
     private String duckLakeStorageType = "LOCAL";
-    
+
     @EqField
     private String duckLakeStoragePath = "/tmp/ducklake";
-    
+
     @EqField
     private String duckLakeMetadataDbUrl = null;
-    
+
     /** DuckDB 数据库文件路径（null=内存模式，支持文件持久化） */
     @EqField
     @JsonAlias({"databasePath"})  // 兼容旧版 API 字段名
     private String dbPath = null;
 
     // ========== 新增: 实时增量物化视图配置 ==========
-    
+
     /** 宽表主键字段名（必填） */
     @EqField
     private String wideTablePrimaryKey;
-    
+
     /** 是否启用宽表 CDC 输出（默认 false） */
     @EqField
     private Boolean outputChangelogEnabled = true;
-    
+
     /** 主表名 */
     @EqField
     private String mainTableName;
-    
+
     /** 主表主键字段 */
     @EqField
     private String mainTablePrimaryKey;
-    
+
     /** 从表配置列表 */
     @EqField
     private List<FromTableConfig> fromTables = new ArrayList<>();
-    
+
     /** 自定义 JOIN 查询（当 SQL 自动解析失败时使用） */
     @EqField
     private Map<String, String> customJoinQueries = new HashMap<>();
@@ -131,7 +123,7 @@ public class DuckDbSqlNode extends ProcessorNode {
     /** 前置节点 Schema 列表（用于传递到 Engine 端，不需要持久化） */
     @EqField
     private List<TapTableDto> preNodeTapTables = new ArrayList<>();
-    
+
     /** Schema 转换器（用于缓存和优化类型转换） */
     @JsonIgnore
     private transient TmSchemaConverter schemaConverter;
@@ -200,9 +192,10 @@ public class DuckDbSqlNode extends ProcessorNode {
         }
 
         // 4. 确定宽表主键
-        if (StringUtils.isBlank(wideTablePrimaryKey)) {
-            wideTablePrimaryKey = mainTablePrimaryKey;
-            log.info("Resolved wideTablePrimaryKey from mainTablePrimaryKey: {}", wideTablePrimaryKey);
+        List<String> analyzedPrimaryKeys = DuckDbSqlPrimaryKeyAnalyzer.analyzePrimaryKeys(querySql);
+        if (CollectionUtils.isNotEmpty(analyzedPrimaryKeys)) {
+            wideTablePrimaryKey = String.join(",", analyzedPrimaryKeys);
+            log.info("Resolved wideTablePrimaryKey from SQL analysis: {}", wideTablePrimaryKey);
         }
 
         // 验证关键配置
@@ -221,7 +214,7 @@ public class DuckDbSqlNode extends ProcessorNode {
         FromTableConfig firstFromTable = fromTables.get(0);
         String preNodeId = firstFromTable.getPreNodeId();
         String tableNameInSql = firstFromTable.getTableNameInSql();
-        
+
         // 先尝试匹配 preNodeId（如果有的话）
         if (StringUtils.isNotBlank(preNodeId)) {
             for (Schema schema : inputSchemas) {
@@ -230,23 +223,21 @@ public class DuckDbSqlNode extends ProcessorNode {
                 }
             }
         }
-        
+
         // 然后尝试匹配表名
         if (StringUtils.isNotBlank(tableNameInSql)) {
             for (Schema schema : inputSchemas) {
-                if (tableNameInSql.equals(schema.getName()) || 
-                    tableNameInSql.equals(schema.getOriginalName()) || 
+                if (tableNameInSql.equals(schema.getName()) ||
+                    tableNameInSql.equals(schema.getOriginalName()) ||
                     tableNameInSql.equals(schema.getQualifiedName())) {
                     return schema;
                 }
             }
         }
-        
+
         // 如果都没找到，返回第一个 schema 作为 fallback
         return inputSchemas.get(0);
     }
-
-    List<String>
 
     /**
      * 合并输入的 Schema 到输出 Schema 中
@@ -264,22 +255,22 @@ public class DuckDbSqlNode extends ProcessorNode {
         log.info("  inputSchemas: {}", CollectionUtils.isEmpty(inputSchemas) ? "empty" : inputSchemas.size());
         log.info("  querySql: {}", querySql);
         log.info("  fromTables: {}", CollectionUtils.isEmpty(fromTables) ? "empty" : fromTables.size());
-        
+
         // ========== 严格校验：输入参数不能为空 ==========
         if (CollectionUtils.isEmpty(inputSchemas)) {
             throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: inputSchemas is empty or null");
         }
-        
+
         // ========== 严格校验：必须配置 querySql ==========
         if (StringUtils.isBlank(querySql)) {
             throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: querySql is blank or null");
         }
-        
+
         // ========== 严格执行：解析主表信息 ==========
         resolveMainTableInfo(inputSchemas);
-        log.info("  resolved mainTableInfo: mainTableName={}, mainTablePrimaryKey={}, wideTableName={}, wideTablePrimaryKey={}", 
+        log.info("  resolved mainTableInfo: mainTableName={}, mainTablePrimaryKey={}, wideTableName={}, wideTablePrimaryKey={}",
             mainTableName, mainTablePrimaryKey, wideTableName, wideTablePrimaryKey);
-        
+
         // 校验主表信息
         if (StringUtils.isBlank(mainTableName)) {
             throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: mainTableName is blank after resolution");
@@ -287,7 +278,7 @@ public class DuckDbSqlNode extends ProcessorNode {
         if (StringUtils.isBlank(wideTableName)) {
             throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: wideTableName is blank after resolution");
         }
-        
+
         // ========== 严格执行：解析 SQL 查询 ==========
         log.info("  Parsing SQL query to generate schema...");
         List<Field> fields;
@@ -305,17 +296,15 @@ public class DuckDbSqlNode extends ProcessorNode {
         } catch (Exception e) {
             throw new RuntimeException("DuckDbSqlNode.mergeSchema() failed to parse SQL query: " + querySql, e);
         }
-        
+
         // ========== 严格校验：必须解析出字段 ==========
         if (CollectionUtils.isEmpty(fields)) {
             throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: no fields parsed from SQL query: " + querySql);
         }
-        
-        log.info("  Parsed {} fields from SQL", fields.size());
-        
+
         // ========== 构建输出 Schema ==========
         Schema resultSchema = new Schema();
-        
+
         // 复制输入 schema 的基本属性
         Schema firstInputSchema = inputSchemas.get(0);
         if (schema != null) {
@@ -325,21 +314,21 @@ public class DuckDbSqlNode extends ProcessorNode {
             resultSchema.setMetaType(firstInputSchema.getMetaType());
             resultSchema.setSourceType(firstInputSchema.getSourceType());
         }
-        
+
         // 关键修复：设置 databaseId，用于后续 Schema 保存
         if (firstInputSchema.getDatabaseId() != null) {
             resultSchema.setDatabaseId(firstInputSchema.getDatabaseId());
             log.info("  Set databaseId from input schema: {}", firstInputSchema.getDatabaseId());
         }
-        
+
         resultSchema.setCreateSource("job_analyze");
-        
+
         // 设置宽表名称
         resultSchema.setName(wideTableName);
         resultSchema.setOriginalName(mainTableName);
-        
+
         resultSchema.setFields(fields);
-        
+
         // 设置字段并填充详细信息（主键已在 SqlParserUtil.copyFieldProperties 中根据 wideTablePkColumns 设置）
         for (Field field : fields) {
             // 设置字段来源
@@ -369,23 +358,23 @@ public class DuckDbSqlNode extends ProcessorNode {
                 }
             }
         }
-        
+
         // 设置 Schema 的 qualifiedName（参考 MergeTableNode 的做法）
         String taskIdStr = taskId() != null ? taskId().toHexString() : null;
         String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), this.getId(), null, taskIdStr);
         resultSchema.setQualifiedName(qualifiedName);
-        
+
         // 设置 Schema 的 taskId 和 nodeId
         resultSchema.setTaskId(taskIdStr);
         resultSchema.setNodeId(this.getId());
-        
-        log.info("  Successfully generated schema: name={}, qualifiedName={}, fields={}", 
+
+        log.info("  Successfully generated schema: name={}, qualifiedName={}, fields={}",
             resultSchema.getName(), resultSchema.getQualifiedName(), resultSchema.getFields().size());
 
         // ========== 填充 preNodeTapTables（用于 Engine 端初始化 schema 缓存）==========
         this.preNodeTapTables = convertSchemasToTapTableDtos(inputSchemas);
         log.info("  Populated preNodeTapTables: {} tables", preNodeTapTables.size());
-        
+
         // ========== 同时也把宽表的 resultSchema 加入到 preNodeTapTables ==========
         if (resultSchema != null && resultSchema.getFields() != null && !resultSchema.getFields().isEmpty()) {
             List<Schema> wideTableSchemaList = Collections.singletonList(resultSchema);
@@ -448,12 +437,12 @@ public class DuckDbSqlNode extends ProcessorNode {
         if (inputSchemas == null) {
             return new ArrayList<>();
         }
-        
+
         // 获取或初始化 schemaConverter
         if (schemaConverter == null) {
             schemaConverter = new TmSchemaConverter();
         }
-        
+
         // 使用 schemaConverter 进行转换（支持缓存）
         return schemaConverter.convert(inputSchemas);
     }

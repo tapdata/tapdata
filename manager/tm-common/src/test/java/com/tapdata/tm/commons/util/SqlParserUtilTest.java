@@ -57,20 +57,49 @@ class SqlParserUtilTest {
         Assertions.assertEquals(1, fields.get(0).getPrimaryKeyPosition());
     }
 
+    @Test
+    void shouldMarkFunctionFieldAsPrimaryKeyWhenWideTablePrimaryKeyUsesSelectAlias() throws Exception {
+        List<String> wideTablePkColumns = new ArrayList<>(Collections.singletonList("wide_user_id"));
+
+        List<Field> fields = SqlParserUtil.parseSelectFields(
+                "SELECT upper(o.user_id) AS wide_user_id, o.name FROM users u LEFT JOIN orders o ON u.id = o.user_id",
+                List.of(new FromTableConfig("source-1", "u"), new FromTableConfig("source-2", "o")),
+                List.of(buildSchema("users", buildField("id", "String"), buildField("name", "String")),
+                        buildSchema("orders", buildField("user_id", "String"), buildField("name", "String"))),
+                buildNode("u"),
+                wideTablePkColumns,
+                new ArrayList<>(),
+                new HashMap<>()
+        );
+
+        Assertions.assertEquals(Collections.singletonList("wide_user_id"), wideTablePkColumns);
+        Assertions.assertEquals(2, fields.size());
+        Assertions.assertEquals("wide_user_id", fields.get(0).getFieldName());
+        Assertions.assertTrue(fields.get(0).getPrimaryKey());
+        Assertions.assertEquals(1, fields.get(0).getPrimaryKeyPosition());
+    }
+
     private static DuckDbSqlNode buildNode() {
+        return buildNode("main_table");
+    }
+
+    private static DuckDbSqlNode buildNode(String mainTableName) {
         DuckDbSqlNode node = new DuckDbSqlNode();
-        node.setMainTableName("main_table");
+        node.setMainTableName(mainTableName);
         return node;
     }
 
     private static Schema buildSchema() {
+        return buildSchema("main_table", buildField("id", "String"), buildField("name", "String"));
+    }
+
+    private static Schema buildSchema(String tableName, Field... fields) {
         Schema schema = new Schema();
-        schema.setName("main_table");
-        schema.setOriginalName("main_table");
-        schema.setQualifiedName("main_table");
+        schema.setName(tableName);
+        schema.setOriginalName(tableName);
+        schema.setQualifiedName(tableName);
         schema.setFields(new ArrayList<>());
-        schema.getFields().add(buildField("id", "String"));
-        schema.getFields().add(buildField("name", "String"));
+        Collections.addAll(schema.getFields(), fields);
         return schema;
     }
 

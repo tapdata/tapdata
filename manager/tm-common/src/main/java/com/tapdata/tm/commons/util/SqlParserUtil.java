@@ -77,11 +77,21 @@ public class SqlParserUtil {
         List<SelectItem> selectItems = plainSelect.getSelectItems();
         if (CollectionUtils.isNotEmpty(selectItems)) {
             List<String> pkColumns = new ArrayList<>();
-            String mainTableName = node.getMainTableName();
-            String mainTableAliasName = aliasToTableNameMap.get(mainTableName);
+            String fromTableName = null;
+            String fromTableAlias = null;
+            if (plainSelect.getFromItem() instanceof Table fromTable) {
+                fromTableName = fromTable.getName();
+                if (fromTable.getAlias() != null) {
+                    fromTableAlias = fromTable.getAlias().getName();
+                }
+            }
             for (String key : wideTablePkColumns) {
-                pkColumns.add(mainTableAliasName + "." + key);
-                pkColumns.add(mainTableName + "." + key);
+                if (StringUtils.isNotBlank(fromTableAlias)) {
+                    pkColumns.add(fromTableAlias + "." + key);
+                }
+                if (StringUtils.isNotBlank(fromTableName)) {
+                    pkColumns.add(fromTableName + "." + key);
+                }
                 pkColumns.add(key);
             }
             for (SelectItem selectItem : selectItems) {
@@ -426,6 +436,7 @@ public class SqlParserUtil {
             }
 
             field.setFieldName(fieldName);
+            markPrimaryKeyByFieldName(field, fieldName, wideTablePkColumns);
             if (CollectionUtils.isNotEmpty(referencedColumns)) {
                 field.setOriginalFieldName(referencedColumns.get(0).getColumnName());
                 transferPrimaryKeyField(referencedColumns, fieldName, wideTablePkColumns, pkColumns, field);
@@ -522,6 +533,17 @@ public class SqlParserUtil {
         if (firstPrimaryKeyPosition != null) {
             field.setPrimaryKey(true);
             field.setPrimaryKeyPosition(firstPrimaryKeyPosition);
+        }
+    }
+
+    private static void markPrimaryKeyByFieldName(Field field, String fieldName, List<String> wideTablePkColumns) {
+        if (field == null || StringUtils.isBlank(fieldName) || CollectionUtils.isEmpty(wideTablePkColumns)) {
+            return;
+        }
+        int indexOf = wideTablePkColumns.indexOf(fieldName);
+        if (indexOf >= 0) {
+            field.setPrimaryKey(true);
+            field.setPrimaryKeyPosition(indexOf + 1);
         }
     }
 
