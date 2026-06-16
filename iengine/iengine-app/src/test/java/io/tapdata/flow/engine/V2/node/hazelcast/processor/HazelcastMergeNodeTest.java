@@ -259,6 +259,85 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
+	@DisplayName("pruneOrphanMergeProperties Method Test (TAP-11889)")
+	class PruneOrphanMergePropertiesTest {
+
+		@BeforeEach
+		void setup() {
+			when(processorBaseContext.getNode()).thenReturn((Node) mergeTableNode);
+		}
+
+		private MergeTableProperties prop(String id, MergeTableProperties... children) {
+			MergeTableProperties p = new MergeTableProperties();
+			p.setId(id);
+			p.setMergeType(MergeTableProperties.MergeType.updateOrInsert);
+			if (children.length > 0) {
+				p.setChildren(new ArrayList<>(Arrays.asList(children)));
+			}
+			return p;
+		}
+
+		private Node nodeWithId(String id) {
+			TableNode n = mock(TableNode.class);
+			when(n.getId()).thenReturn(id);
+			return n;
+		}
+
+		private List<MergeTableProperties> currentMergeProperties() {
+			return ((MergeTableNode) processorBaseContext.getNode()).getMergeProperties();
+		}
+
+		@Test
+		@DisplayName("removes a leaf merge property whose node was deleted from the DAG")
+		void removesOrphanLeaf() {
+			// master A with two children: B (exists) and C (deleted from DAG)
+			mergeTableNode.setMergeProperties(new ArrayList<>(Arrays.asList(prop("A", prop("B"), prop("C")))));
+			List<Node> nodes = new ArrayList<>(Arrays.asList(nodeWithId("A"), nodeWithId("B")));
+			when(processorBaseContext.getNodes()).thenReturn(nodes);
+
+			hazelcastMergeNode.pruneOrphanMergeProperties();
+
+			List<MergeTableProperties> result = currentMergeProperties();
+			assertEquals(1, result.size());
+			assertEquals("A", result.get(0).getId());
+			assertEquals(1, result.get(0).getChildren().size());
+			assertEquals("B", result.get(0).getChildren().get(0).getId());
+		}
+
+		@Test
+		@DisplayName("drops the whole sub-tree when an intermediate node was deleted")
+		void dropsOrphanSubtree() {
+			// A -> C(deleted) -> D ; D's merge path is broken, so C and D are both dropped
+			mergeTableNode.setMergeProperties(new ArrayList<>(Arrays.asList(prop("A", prop("C", prop("D"))))));
+			List<Node> nodes = new ArrayList<>(Arrays.asList(nodeWithId("A"), nodeWithId("D")));
+			when(processorBaseContext.getNodes()).thenReturn(nodes);
+
+			hazelcastMergeNode.pruneOrphanMergeProperties();
+
+			List<MergeTableProperties> result = currentMergeProperties();
+			assertEquals(1, result.size());
+			assertEquals("A", result.get(0).getId());
+			assertEquals(0, result.get(0).getChildren().size());
+		}
+
+		@Test
+		@DisplayName("keeps all merge properties when every referenced node exists")
+		void keepsAllWhenNoOrphan() {
+			mergeTableNode.setMergeProperties(new ArrayList<>(Arrays.asList(prop("A", prop("B")))));
+			List<Node> nodes = new ArrayList<>(Arrays.asList(nodeWithId("A"), nodeWithId("B")));
+			when(processorBaseContext.getNodes()).thenReturn(nodes);
+
+			hazelcastMergeNode.pruneOrphanMergeProperties();
+
+			List<MergeTableProperties> result = currentMergeProperties();
+			assertEquals(1, result.size());
+			assertEquals("A", result.get(0).getId());
+			assertEquals(1, result.get(0).getChildren().size());
+			assertEquals("B", result.get(0).getChildren().get(0).getId());
+		}
+	}
+
+	@Nested
 	@DisplayName("UpsertCache Method Test")
 	class UpsertCacheTest {
 
