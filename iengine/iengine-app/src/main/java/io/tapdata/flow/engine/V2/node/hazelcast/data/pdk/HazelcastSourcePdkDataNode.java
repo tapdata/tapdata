@@ -786,19 +786,29 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		executeDataFuncAspect(TableCountFuncAspect.class, () -> new TableCountFuncAspect()
 						.dataProcessorContext(this.getDataProcessorContext())
 						.start(),
-				tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT,
-						createPdkMethodInvoker().runnable(
-								() -> {
-									try {
-										long count = batchCountFunction.count(getConnectorNode().getConnectorContext(), tapTable);
-										atomicLong.set(count);
-									} catch (Exception e) {
-										throw new NodeException("Count " + tableId + " failed: " + e.getMessage(), e)
-												.context(getProcessorBaseContext());
-									}
-								}
-						)
-				));
+				tableCountFuncAspect -> {
+					// Hold the invoker in a local so we can deregister it from
+					// TASK_RETRY_CLEANUP_HOOKS after use; otherwise the static map
+					// keeps capturing ConnectorNode -> MongoClient and leaks it.
+					PDKMethodInvoker invoker = createPdkMethodInvoker();
+					try {
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT,
+								invoker.runnable(
+										() -> {
+											try {
+												long count = batchCountFunction.count(getConnectorNode().getConnectorContext(), tapTable);
+												atomicLong.set(count);
+											} catch (Exception e) {
+												throw new NodeException("Count " + tableId + " failed: " + e.getMessage(), e)
+														.context(getProcessorBaseContext());
+											}
+										}
+								)
+						);
+					} finally {
+						removePdkMethodInvoker(invoker);
+					}
+				});
 		return atomicLong.get() <= BATCH_COUNT_LIMIT;
 	}
 
@@ -873,6 +883,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		if (connectorNode == null) {
 			logger.warn("Failed to get source node");
 			return;
+		}
+		// Prevent TASK_RETRY_CLEANUP_HOOKS leak: when doCdc() is re-entered
+		// (e.g. via restartPdkConnector -> initAndStartSourceRunner -> startSourceRunner -> doCdc),
+		// the previous streamReadMethodInvoker stays registered in the static hook map and keeps
+		// its captured ConnectorNode -> MongodbConnector -> MongoClient chain alive forever.
+		// Always deregister the old one before overwriting the field.
+		if (streamReadMethodInvoker != null) {
+			removePdkMethodInvoker(streamReadMethodInvoker);
 		}
 		streamReadMethodInvoker = createPdkMethodInvoker();
 		streamReadConsumer = generateStreamReadConsumer(connectorNode, streamReadMethodInvoker);

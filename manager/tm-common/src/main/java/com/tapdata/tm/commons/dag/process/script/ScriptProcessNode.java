@@ -39,8 +39,10 @@ import java.util.stream.Collectors;
 @Getter
 @Setter
 public class ScriptProcessNode extends ProcessorNode {
+    @EqField
     protected String script;
 
+    @EqField
     protected String declareScript;
 
     @EqField/* default value is 0, it's sepresents default JS ; if value is 1, */

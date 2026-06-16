@@ -8,7 +8,7 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.AppenderRef;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
-import org.springframework.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 
@@ -104,8 +104,8 @@ public class WebSocketTest {
 
 			org.springframework.web.socket.client.WebSocketClient client = new StandardWebSocketClient();
 
-			ListenableFuture<WebSocketSession> listenableFuture = client
-					.doHandshake(this, url, params);
+			CompletableFuture<WebSocketSession> listenableFuture = client
+					.execute(this, url, params);
 
 			session = listenableFuture.get();
 			session.setTextMessageSizeLimit(10 * 1024 * 1024);

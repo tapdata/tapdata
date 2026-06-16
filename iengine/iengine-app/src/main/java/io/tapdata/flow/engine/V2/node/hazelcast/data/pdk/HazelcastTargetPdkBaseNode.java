@@ -33,7 +33,9 @@ import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
+import com.tapdata.tm.enums.SettingType;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
+import com.tapdata.tm.utils.SettingValueUtil;
 import io.tapdata.TargetAllInitialCompleteNotify;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
@@ -63,6 +65,7 @@ import io.tapdata.error.TapdataEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.common.StreamReadTag;
 import io.tapdata.flow.engine.V2.common.TapdataEventsRunner;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
@@ -81,6 +84,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.Tap
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
+import io.tapdata.flow.engine.V2.util.TaskAnalyze;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -115,6 +119,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -149,6 +154,7 @@ import static io.tapdata.flow.engine.V2.util.PdkUtil.ENCODE_PREFIX;
  * @Description
  * @create 2022-05-11 14:58
  **/
+@Slf4j
 public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
     public static final long DEFAULT_TARGET_BATCH_INTERVAL_MS = 1000;
@@ -209,6 +215,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private Long earliestTimestamp = Long.MAX_VALUE;
 	private final Map<String, Long> firstCDCTimestampMap = new ConcurrentHashMap<>();
 	private final Map<String, Long> lastCDCTimestampMap = new ConcurrentHashMap<>();
+	protected int sourceNodeCount;
+	protected StreamReadTag streamReadTag;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -231,9 +239,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
+		this.sourceNodeCount = TaskAnalyze.sourceNodeCount(dataProcessorContext.getTaskDto());
         syncMetricCollector = ISyncMetricCollector.init(dataProcessorContext);
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInit(context);
+			initShareCdcCollectorIfNeed();
 			initOffsetCallbackEnable();
 			createPdkAndInit(context);
 			everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
@@ -251,6 +261,53 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
 		initSyncPartitionTableEnable();
+	}
+
+	protected void initShareCdcCollectorIfNeed() {
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		Boolean shareCache = taskDto.getShareCdcEnable();
+		if (null == shareCache || !shareCache) {
+			obsLogger.info("The task configuration has not enabled shared mining, and the target node does not need to enable it");
+			return;
+		}
+		settingService.loadSettings(SettingType.SHARE_CDC_ENABLE.getKey());
+		Setting setting = settingService.getSetting(SettingType.SHARE_CDC_ENABLE.getKey());
+		if (null == setting) {
+			obsLogger.info("The system configuration did not find the global configuration item for shared mining, and the target node does not need to enable shared mining");
+			return;
+		}
+		boolean ableShareCdc = SettingValueUtil.getBoolean(setting.getValue(), setting.getDefault_value());
+		if (!ableShareCdc) {
+			obsLogger.info("System configuration enables shared mining global configuration items, and the target node does not need to enable shared mining");
+			return;
+		}
+		Node<?> node = getNode();
+		List<String> tables = new ArrayList<>();
+		if (node instanceof TableNode tableNode) {
+			tables.add(tableNode.getTableName());
+		} else if (node instanceof DatabaseNode databaseNode) {
+			tables.addAll(databaseNode.getTableNames());
+		} else {
+			return;
+		}
+		if (tables.isEmpty()) {
+			return;
+		}
+		String connectionId = ((DataParentNode<?>) node).getConnectionId();
+		streamReadTag = new StreamReadTag(this.sourceNodeCount, () -> {
+			long startTime = System.currentTimeMillis();
+			Map<String, Object> body = new HashMap<>();
+			body.put("connectionId", connectionId);
+			body.put("tableNames", tables);
+			body.put("nodeConfig", Map.of("enableFillingModifiedData", false, "noCursorTimeout", false, "preImage", true, "writeConcern", "w1"));
+			try {
+				this.clientMongoOperator.postOne(body, "logcollector/start-and-wait", Map.class);
+				long endTime = System.currentTimeMillis();
+				obsLogger.info("The system configuration has enabled the shared mining global configuration item, and the task has enabled the shared mining switch. The target table has been added to the mining task, time cost {}ms", endTime - startTime);
+			} catch (Exception e) {
+				obsLogger.warn("The system configuration has enabled the global configuration item for shared mining, and the task has turned on the shared mining switch. However, the target table has not been properly added to the mining task: {}", e.getMessage());
+			}
+		});
 	}
 
 	protected void initFlushOffsetConsumer() {
@@ -894,7 +951,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         }
                         if (obsLogger != null && obsLogger.isDebugEnabled())
                             DataCacheFactory.getInstance().getDataCache(getNode().getTaskId()).processCompleted(tapdataEvent.getEventId());
-                        enqueue(this.tapEventQueue, tapdataEvent);
+
+						TapdataEvent finalTapdataEvent = tapdataEvent;
+						Optional.ofNullable(streamReadTag).ifPresent(runner -> runner.accept(finalTapdataEvent));
+
+						enqueue(this.tapEventQueue, tapdataEvent);
                         if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
                             if (((TapdataAdjustMemoryEvent) tapdataEvent).needAdjust()) {
                                 synchronized (this.dynamicAdjustQueueLock) {

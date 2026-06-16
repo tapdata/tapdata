@@ -116,25 +116,33 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 							throw new CoreException("Can not get test data from source, QueryByAdvanceFilterFunction is not supported.");
 						}
 						TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
-						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-								createPdkMethodInvoker().runnable(
-										() -> queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+						// Hold the invoker locally so it can be deregistered after use;
+						// otherwise it leaks via TASK_RETRY_CLEANUP_HOOKS holding the
+						// ConnectorNode -> MongoClient chain.
+						PDKMethodInvoker sampleInvoker = createPdkMethodInvoker();
+						try {
+							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+									sampleInvoker.runnable(
+											() -> queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 
-											List<Map<String, Object>> results = filterResults.getResults();
-											List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
-											if (CollectionUtils.isNotEmpty(events)) {
-												events.forEach(tapEvent -> {
-													tapRecordToTapValue(tapEvent, codecsFilterManager);
-													//Simulate null data
-													if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
-														SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
-													}
-												});
+												List<Map<String, Object>> results = filterResults.getResults();
+												List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
+												if (CollectionUtils.isNotEmpty(events)) {
+													events.forEach(tapEvent -> {
+														tapRecordToTapValue(tapEvent, codecsFilterManager);
+														//Simulate null data
+														if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
+															SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+														}
+													});
 
-												finalTapEventList.addAll(events);
-											}
-										})).logTag(TAG)
-						);
+													finalTapEventList.addAll(events);
+												}
+											})).logTag(TAG)
+							);
+						} finally {
+							removePdkMethodInvoker(sampleInvoker);
+						}
 						if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
 							sampleDataCacheMap.put(sampleDataId, tapEventList);
 						}

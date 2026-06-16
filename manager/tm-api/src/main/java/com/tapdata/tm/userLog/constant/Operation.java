@@ -10,6 +10,8 @@ public enum Operation {
     START("start"),
     STOP("stop"),
     FORCE_STOP("forceStop"),
+    REBALANCE_START("rebalanceStart"),
+    REBALANCE_STOP("rebalanceStop"),
 
     RENAME("rename"),
     PAUSE("pause"),

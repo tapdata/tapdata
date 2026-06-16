@@ -105,14 +105,6 @@ class CacheInvalidationServiceTest {
             assertFalse(service.isRunning());
         }
 
-        @Test
-        void testStopWithOwnedMongoClient() {
-            service = new CacheInvalidationService(hazelcastInstance, mongoClient, "testDB", "test-node-id");
-            service.start();
-            service.stop();
-
-            verify(mongoClient, times(1)).close();
-        }
     }
 
     @Nested

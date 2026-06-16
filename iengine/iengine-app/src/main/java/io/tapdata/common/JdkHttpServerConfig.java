@@ -8,10 +8,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
-import org.springframework.boot.actuate.health.HealthEndpoint;
-import org.springframework.boot.actuate.health.SystemHealth;
-import org.springframework.boot.actuate.metrics.export.prometheus.PrometheusOutputFormat;
-import org.springframework.boot.actuate.metrics.export.prometheus.PrometheusScrapeEndpoint;
+import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
+import org.springframework.boot.health.actuate.endpoint.HealthDescriptor;
+import org.springframework.boot.micrometer.metrics.autoconfigure.export.prometheus.PrometheusOutputFormat;
+import org.springframework.boot.micrometer.metrics.autoconfigure.export.prometheus.PrometheusScrapeEndpoint;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
@@ -186,7 +186,7 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
             try {
                 // 调用官方健康端点
-                SystemHealth health = (SystemHealth) healthEndpoint.health();
+                HealthDescriptor health = healthEndpoint.health();
                 String response = objectMapper.writeValueAsString(health);
 
                 exchange.getResponseHeaders().set("Content-Type", "application/json");

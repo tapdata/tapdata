@@ -43,6 +43,12 @@
             <artifactId>spring-webmvc</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- Spring Boot 4 relocated ServletWebServerApplicationContext into spring-boot-web-server -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-web-server</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>com.tapdata</groupId>
             <artifactId>tm-api</artifactId>
