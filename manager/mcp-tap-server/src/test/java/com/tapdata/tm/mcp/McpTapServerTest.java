@@ -15,11 +15,10 @@ import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.verification.VerificationMode;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -35,7 +34,7 @@ import static org.mockito.Mockito.*;
 class McpTapServerTest {
 
     @Mock
-    private SseServerTransportProvider transportProvider;
+    private StreamableMcpTransportProvider transportProvider;
 
     @Mock
     private ApplicationContext applicationContext;
@@ -67,12 +66,12 @@ class McpTapServerTest {
         // 设置 mock 行为
         try (MockedStatic<McpServer> mcpServerMock = mockStatic(McpServer.class)) {
             // Mock McpServer.sync() 方法
-            McpServer.SyncSpecification mockSyncSpecification = mock(McpServer.SyncSpecification.class);
+            McpServer.StreamableSyncSpecification mockSyncSpecification =
+                    mock(McpServer.StreamableSyncSpecification.class);
             when(mockSyncSpecification.serverInfo(anyString(), anyString())).thenReturn(mockSyncSpecification);
             when(mockSyncSpecification.capabilities(any())).thenReturn(mockSyncSpecification);
-            when(mockSyncSpecification.resourceTemplates(anyList())).thenReturn(mockSyncSpecification);
             when(mockSyncSpecification.build()).thenReturn(mcpServer);
-            mcpServerMock.when(() -> McpServer.sync(any())).thenReturn(mockSyncSpecification);
+            mcpServerMock.when(() -> McpServer.sync(any(StreamableMcpTransportProvider.class))).thenReturn(mockSyncSpecification);
 
             // Mock Resource
             when(applicationContext.getBeanNamesForType(Resource.class)).thenReturn(resourceBeanNames);
@@ -93,12 +92,13 @@ class McpTapServerTest {
             mcpTapServer.afterPropertiesSet();
 
             // 验证 Resource 相关调用
-            verify(applicationContext).getBeanNamesForType(Resource.class);
-            verify(applicationContext).getBean(resourceName);
+            verify(applicationContext, times(2)).getBeanNamesForType(Resource.class);
+            verify(applicationContext, times(2)).getBean(resourceName);
             verify(mockResource).getUri();
             verify(mockResource).getName();
             verify(mockResource).getDescription();
             verify(mockResource).getMimeType();
+            verify(mcpServer, times(2)).addResourceTemplate(any(McpServerFeatures.SyncResourceTemplateSpecification.class));
 
             // 验证 Tool 相关调用
             verify(applicationContext).getBeanNamesForType(Tool.class);
@@ -184,7 +184,8 @@ class McpTapServerTest {
 
         try (MockedConstruction<McpServerFeatures.SyncToolSpecification> mockSyncToolSpec = mockConstruction(McpServerFeatures.SyncToolSpecification.class, (mock, context) -> {
             Object tool = context.arguments().get(0);
-            BiFunction<McpSyncServerExchange, Map<String, Object>, McpSchema.CallToolResult> call = (BiFunction<McpSyncServerExchange, Map<String, Object>, McpSchema.CallToolResult>) context.arguments().get(1);
+            BiFunction<McpSyncServerExchange, McpSchema.CallToolRequest, McpSchema.CallToolResult> call =
+                    (BiFunction<McpSyncServerExchange, McpSchema.CallToolRequest, McpSchema.CallToolResult>) context.arguments().get(1);
 
             // 验证参数
             Assertions.assertNotNull(tool);
@@ -193,7 +194,7 @@ class McpTapServerTest {
             Assertions.assertEquals(mockTool.getName(), ((McpSchema.Tool)tool).name());
 
             // 执行工具调用
-            call.apply(null, null);
+            call.apply(null, new McpSchema.CallToolRequest("Test Tool", Collections.emptyMap()));
         })) {
 
             // 执行测试
@@ -232,4 +233,4 @@ class McpTapServerTest {
         // 验证调用 - 不应该添加没有 schema 的工具
         verify(mcpServer, never()).addTool(any(McpServerFeatures.SyncToolSpecification.class));
     }
-} 
+}

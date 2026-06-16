@@ -61,7 +61,7 @@ public class ConnectionResource extends Resource{
             }
         }
 
-        List<McpSchema.ResourceContents> result = null;
+        List<McpSchema.ResourceContents> result = Collections.emptyList();
 
         if (StringUtils.isNotBlank(dataSchemaId)) {
             String finalDataSchemaId = dataSchemaId;
