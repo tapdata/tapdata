@@ -126,7 +126,7 @@ jobs:
     needs:
       - Get-Stable-Branch
       - Push-Code-To-Gitee
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Clean Directory
         run: |
