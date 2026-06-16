@@ -109,6 +109,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.executor.ThreadFactory;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -1755,30 +1756,40 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             executeDataFuncAspect(TableCountFuncAspect.class, () -> new TableCountFuncAspect()
                             .dataProcessorContext(this.getDataProcessorContext())
                             .start(),
-                    tableCountFuncAspect -> PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_COUNT,
-                            createPdkMethodInvoker().runnable(
-                                    () -> {
-                                        try {
-                                            long count;
-                                            if (displayTableListFirst) {
-                                                count = -1;
-                                            } else {
-                                                count = batchCountFunction.count(connectorNode.getConnectorContext(), table);
-                                                if (null == snapshotRowSizeMap) {
-                                                    snapshotRowSizeMap = new HashMap<>();
+                    tableCountFuncAspect -> {
+                        // Hold the invoker locally so it can be deregistered after use;
+                        // otherwise it leaks via TASK_RETRY_CLEANUP_HOOKS holding the
+                        // ConnectorNode -> MongoClient chain.
+                        PDKMethodInvoker invoker = createPdkMethodInvoker();
+                        try {
+                            PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_COUNT,
+                                    invoker.runnable(
+                                            () -> {
+                                                try {
+                                                    long count;
+                                                    if (displayTableListFirst) {
+                                                        count = -1;
+                                                    } else {
+                                                        count = batchCountFunction.count(connectorNode.getConnectorContext(), table);
+                                                        if (null == snapshotRowSizeMap) {
+                                                            snapshotRowSizeMap = new HashMap<>();
+                                                        }
+                                                        snapshotRowSizeMap.putIfAbsent(tableName, count);
+                                                    }
+                                                    if (null != tableCountFuncAspect) {
+                                                        AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), getCountResult(count,tableName));
+                                                    }
+                                                } catch (Exception e) {
+                                                    throw new NodeException("Count " + table.getId() + " failed: " + e.getMessage(), e)
+                                                            .context(getProcessorBaseContext());
                                                 }
-                                                snapshotRowSizeMap.putIfAbsent(tableName, count);
                                             }
-                                            if (null != tableCountFuncAspect) {
-                                                AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), getCountResult(count,tableName));
-                                            }
-                                        } catch (Exception e) {
-                                            throw new NodeException("Count " + table.getId() + " failed: " + e.getMessage(), e)
-                                                    .context(getProcessorBaseContext());
-                                        }
-                                    }
-                            )
-                    ));
+                                    )
+                            );
+                        } finally {
+                            removePdkMethodInvoker(invoker);
+                        }
+                    });
         }
     }
 
@@ -1817,18 +1828,25 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         executeDataFuncAspect(
                 TableCountFuncAspect.class,
                 () -> new TableCountFuncAspect().dataProcessorContext(getDataProcessorContext()).start(),
-                tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT, createPdkMethodInvoker().runnable(() -> {
+                tableCountFuncAspect -> {
+                    PDKMethodInvoker invoker = createPdkMethodInvoker();
                     try {
-                        counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
+                        PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT, invoker.runnable(() -> {
+                            try {
+                                counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
 
-                        if (null != tableCountFuncAspect) {
-                            AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), getCountResult(counts.get(),table.getName()));
-                        }
-                    } catch (Throwable e) {
-                        throw new NodeException("Query table '" + table.getName() + "'  count failed: " + e.getMessage(), e)
-                                .context(getProcessorBaseContext());
+                                if (null != tableCountFuncAspect) {
+                                    AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), getCountResult(counts.get(),table.getName()));
+                                }
+                            } catch (Throwable e) {
+                                throw new NodeException("Query table '" + table.getName() + "'  count failed: " + e.getMessage(), e)
+                                        .context(getProcessorBaseContext());
+                            }
+                        }));
+                    } finally {
+                        removePdkMethodInvoker(invoker);
                     }
-                }))
+                }
         );
         return counts.get();
     }

@@ -13,6 +13,7 @@ import org.kohsuke.github.GitHubBuilder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -29,12 +30,12 @@ import java.util.regex.Pattern;
 @Slf4j
 public class GitHubService extends GitBaseService {
 
-	private static final Pattern REPO_PATTERN = Pattern.compile("github\\.com[:/]([^/]+)/([^/.]+)");
+	private static final Pattern REPO_PATTERN =
+			Pattern.compile("^(?:https?://|git@)[^/:]+[:/]([^/]+)/([^/]+?)(?:\\.git)?/?$");
 
 	@Override
 	public boolean supports(GroupGitInfoDto gitInfoDto) {
-		return StringUtils.isNotBlank(gitInfoDto.getRepoUrl())
-				&& gitInfoDto.getRepoUrl().contains("github.com");
+		return gitInfoDto != null && StringUtils.isNotBlank(gitInfoDto.getRepoUrl());
 	}
 
 	/**
@@ -47,7 +48,7 @@ public class GitHubService extends GitBaseService {
 		}
 		try {
 			String[] ownerAndRepo = parseOwnerAndRepo(gitInfoDto.getRepoUrl());
-			GitHub github = createGitHubClient(gitInfoDto.getToken());
+			GitHub github = createGitHubClient(gitInfoDto.getRepoUrl(), gitInfoDto.getToken());
 			GHRepository repository = github.getRepository(ownerAndRepo[0] + "/" + ownerAndRepo[1]);
 			List<GitTag> gitTags = new ArrayList<>();
 			for (GHTag ghTag : repository.listTags()) {
@@ -90,7 +91,7 @@ public class GitHubService extends GitBaseService {
 			String owner = ownerAndRepo[0];
 			String repo = ownerAndRepo[1];
 
-			GitHub github = createGitHubClient(gitInfoDto.getToken());
+			GitHub github = createGitHubClient(gitInfoDto.getRepoUrl(), gitInfoDto.getToken());
 			GHRepository repository = github.getRepository(owner + "/" + repo);
 
 			String baseBranch = StringUtils.isNotBlank(gitInfoDto.getBranch())
@@ -129,19 +130,39 @@ public class GitHubService extends GitBaseService {
 		if (!matcher.find()) {
 			throw new BizException("Git.RepoUrl.InvalidFormat", repoUrl);
 		}
-		String owner = matcher.group(1);
-		String repo = matcher.group(2);
-		if (repo.endsWith(".git")) {
-			repo = repo.substring(0, repo.length() - 4);
-		}
-		return new String[]{owner, repo};
+		return new String[]{matcher.group(1), matcher.group(2)};
 	}
 
-	private GitHub createGitHubClient(String token) throws IOException {
+	private GitHub createGitHubClient(String repoUrl, String token) throws IOException {
+		GitHubBuilder builder = new GitHubBuilder();
+		String host = extractHost(repoUrl);
+		if (host != null
+				&& !"github.com".equalsIgnoreCase(host)
+				&& !"api.github.com".equalsIgnoreCase(host)) {
+			builder = builder.withEndpoint("https://" + host + "/api/v3");
+		}
 		if (StringUtils.isNotBlank(token)) {
-			return new GitHubBuilder().withOAuthToken(token).build();
-		} else {
-			return GitHub.connectAnonymously();
+			return builder.withOAuthToken(token).build();
+		}
+		return builder.build();
+	}
+
+	private String extractHost(String repoUrl) {
+		if (StringUtils.isBlank(repoUrl)) {
+			return null;
+		}
+		if (repoUrl.startsWith("git@")) {
+			int colonIdx = repoUrl.indexOf(':');
+			if (colonIdx > 4) {
+				return repoUrl.substring(4, colonIdx);
+			}
+			return null;
+		}
+		try {
+			return URI.create(repoUrl).getHost();
+		} catch (IllegalArgumentException e) {
+			log.warn("Failed to parse host from repo URL: {}", repoUrl);
+			return null;
 		}
 	}
 }
