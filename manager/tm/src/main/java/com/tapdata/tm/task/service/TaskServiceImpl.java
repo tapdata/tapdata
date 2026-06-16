@@ -43,6 +43,7 @@ import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.proxy.utils.RemoteCallerUtil;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.userLog.constant.Operation;
@@ -378,6 +379,7 @@ public class TaskServiceImpl extends TaskService{
     private final Map<String, ReentrantLock> scheduleLockMap = new ConcurrentHashMap<>();
 
     private SettingsServiceImpl settingsService;
+    private CpuMemoryService cpuMemoryService;
 
     private TaskNodeService taskNodeService;
     private final AsyncContextManager asyncContextManager = new AsyncContextManager();
@@ -1786,8 +1788,19 @@ public class TaskServiceImpl extends TaskService{
             }
 
         }
-
+        ignoreMetricInfoIfNeed(taskDtoPage.getItems());
         return taskDtoPage;
+    }
+
+    protected void ignoreMetricInfoIfNeed(List<TaskDto> taskInfos) {
+        if (CollectionUtils.isEmpty(taskInfos)) {
+            return;
+        }
+        boolean switchOpen = cpuMemoryService.hasOpenCpuMemory();
+        if (switchOpen) {
+            return;
+        }
+        taskInfos.forEach(info -> info.setMetricInfo(null));
     }
 
     public Page<TaskDto> superFind(Filter filter, UserDetail userDetail) {
