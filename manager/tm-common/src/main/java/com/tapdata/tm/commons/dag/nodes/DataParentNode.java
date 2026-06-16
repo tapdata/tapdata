@@ -3,10 +3,7 @@ package com.tapdata.tm.commons.dag.nodes;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
-import com.tapdata.tm.commons.dag.vo.FieldInfo;
-import com.tapdata.tm.commons.dag.vo.FieldProcess;
-import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
+import com.tapdata.tm.commons.dag.vo.*;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -119,6 +116,8 @@ public abstract class DataParentNode<S> extends Node<S> {
 
 	private Boolean incrementExactlyOnceEnable;
 	private Integer incrementExactlyOnceEnableTimeWindowDay = 3;
+
+    private List<FieldPostion> fieldsAfter;
     /**
      * constructor for node
      *
@@ -142,6 +141,68 @@ public abstract class DataParentNode<S> extends Node<S> {
             }
         }
         return tableName;
+    }
+
+    /**
+     * 根据 fieldsAfter 配置调整目标表字段顺序。
+     * 表名、字段名均兼容改名前后：表名同时匹配 originalName/ancestorsName，字段名同时匹配 fieldName/originalFieldName。
+     * 命中配置的字段按配置顺序排列，未命中（新增）的字段统一追加到末尾并保留相对顺序。
+     */
+    protected void sortFieldsByPostion(Schema schema) {
+        if (CollectionUtils.isEmpty(fieldsAfter) || schema == null || CollectionUtils.isEmpty(schema.getFields())) {
+            return;
+        }
+        FieldPostion fieldPostion = fieldsAfter.stream()
+                .filter(fp -> fp != null && matchTable(fp.getTableName(), schema))
+                .findFirst()
+                .orElse(null);
+        if (fieldPostion == null || CollectionUtils.isEmpty(fieldPostion.getFields())) {
+            return;
+        }
+
+        Map<String, Integer> positionMap = new HashMap<>();
+        for (FieldPostion.Postion p : fieldPostion.getFields()) {
+            if (p == null || p.getFieldName() == null) {
+                continue;
+            }
+            positionMap.put(p.getFieldName(), null == p.getColumnPosition() ? 0 : p.getColumnPosition());
+        }
+
+        List<Field> configured = new ArrayList<>();
+        List<Field> appended = new ArrayList<>();
+        for (Field field : schema.getFields()) {
+            Integer position = matchPosition(positionMap, field);
+            if (position != null) {
+                field.setColumnPosition(position);
+                configured.add(field);
+            } else {
+                appended.add(field);
+            }
+        }
+        configured.sort(Comparator.comparing(f -> null == f.getColumnPosition() ? 0 : f.getColumnPosition()));
+
+        List<Field> result = new ArrayList<>(configured.size() + appended.size());
+        result.addAll(configured);
+        result.addAll(appended);
+        schema.setFields(result);
+    }
+
+    protected boolean matchTable(String configTableName, Schema schema) {
+        if (configTableName == null) {
+            return false;
+        }
+        return configTableName.equals(schema.getOriginalName())
+                || configTableName.equals(schema.getAncestorsName());
+    }
+
+    private Integer matchPosition(Map<String, Integer> positionMap, Field field) {
+        if (field.getFieldName() != null && positionMap.containsKey(field.getFieldName())) {
+            return positionMap.get(field.getFieldName());
+        }
+        if (field.getOriginalFieldName() != null && positionMap.containsKey(field.getOriginalFieldName())) {
+            return positionMap.get(field.getOriginalFieldName());
+        }
+        return null;
     }
 
     protected void  transformResults(List<Field> targetFields, DataSourceConnectionDto dataSource, String _metaType, List<SchemaTransformerResult> schemaTransformerResults, String currentDbName, Schema s) {

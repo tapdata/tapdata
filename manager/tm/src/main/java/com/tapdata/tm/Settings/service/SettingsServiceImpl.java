@@ -376,4 +376,17 @@ public class SettingsServiceImpl implements SettingsService {
         log.info("app version: {}", appVersion);
         return appVersion;
     }
+
+    @Override
+    public SettingsDto getSettingInfo(String category, String settingKey) {
+        if (StringUtils.isEmpty(settingKey) || StringUtils.isEmpty(category)) {
+            return null;
+        }
+        Query query = Query.query(Criteria.where("key").is(settingKey.trim()).and("category").is(category.trim()));
+        List<SettingsDto> settings = mongoTemplate.find(query, SettingsDto.class, "Settings");
+        if (CollectionUtils.isNotEmpty(settings)) {
+            return settings.get(0);
+        }
+        return null;
+    }
 }

@@ -4,6 +4,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.taskrebalance.service.TaskRebalanceJobService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -29,6 +30,7 @@ public class TaskAop {
 
     UserLogService userLogService;
     TaskService taskService;
+    TaskRebalanceJobService taskRebalanceJobService;
 
     @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.start(..)) || execution(* com.tapdata.tm.task.service.TaskService.batchStart(..))")
     public void startPointcut() {}
@@ -36,6 +38,10 @@ public class TaskAop {
     @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.pause(..)) || execution(* com.tapdata.tm.task.service.TaskService.batchStop(..))")
     public void stoppedPointcut() {}
 
+    /**
+     * Handles task stop overloads and writes operation logs, using rebalance-specific
+     * operation values when the stop is executed by task rebalance.
+     */
     @After("stoppedPointcut()")
     public Object afterStoppedPointcut(JoinPoint joinPoint) {
         Object[] args = joinPoint.getArgs();
@@ -52,7 +58,7 @@ public class TaskAop {
             //查询任务是否存在
             TaskDto taskDto = taskService.checkExistById(id, userDetail);
 
-            Operation operation = force ? Operation.FORCE_STOP : Operation.STOP;
+            Operation operation = stopOperation(force);
             if (null != taskDto) {
                 userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
                         operation, userDetail, taskDto.getId().toString(), taskDto.getName(), system);
@@ -64,7 +70,7 @@ public class TaskAop {
 
             List<TaskEntity> taskList = taskService.findByIds(ObjectIds);
 
-            Operation operation = Operation.STOP;
+            Operation operation = stopOperation(false);
             if (CollectionUtils.isNotEmpty(taskList)) {
                 taskList.forEach(taskDto ->
                     userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
@@ -76,6 +82,10 @@ public class TaskAop {
         return null;
     }
 
+    /**
+     * Handles task start overloads and writes operation logs, using rebalance-specific
+     * operation values when the start is executed by task rebalance.
+     */
     @After("startPointcut()")
     public Object afterStartPointcut(JoinPoint joinPoint) {
         Object[] args = joinPoint.getArgs();
@@ -93,13 +103,13 @@ public class TaskAop {
             TaskDto taskDto = taskService.checkExistById(id, userDetail);
             if (null != taskDto) {
                 userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
-                        Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
+                        startOperation(), userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
             }
 
         } else if (arg instanceof TaskDto) {
             TaskDto taskDto = (TaskDto) arg;
             userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
-                    Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
+                    startOperation(), userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
 
         }else if (arg instanceof List<?>){
             List<ObjectId> list = (List<ObjectId>) arg;
@@ -111,12 +121,27 @@ public class TaskAop {
                 if (CollectionUtils.isNotEmpty(taskList)) {
                     taskList.forEach(taskDto -> {
                                 userLogService.addUserLog(Modular.ofTaskSyncType(taskDto.getSyncType()),
-                                        Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
+                                        startOperation(), userDetail, taskDto.getId().toString(), taskDto.getName());
                             }
                     );
                 }
             }
         }
         return null;
+    }
+
+    private Operation startOperation() {
+        return isRebalanceOperation() ? Operation.REBALANCE_START : Operation.START;
+    }
+
+    private Operation stopOperation(boolean force) {
+        if (isRebalanceOperation()) {
+            return Operation.REBALANCE_STOP;
+        }
+        return force ? Operation.FORCE_STOP : Operation.STOP;
+    }
+
+    private boolean isRebalanceOperation() {
+        return taskRebalanceJobService != null && taskRebalanceJobService.isRebalanceOperation();
     }
 }

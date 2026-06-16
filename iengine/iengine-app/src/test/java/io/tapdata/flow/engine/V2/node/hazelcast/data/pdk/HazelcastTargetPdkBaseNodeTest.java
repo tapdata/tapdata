@@ -985,7 +985,17 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			node.setId("1");
 			node.setName("test");
 			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn(node);
-			dataProcessorContext = new DataProcessorContext.DataProcessorContextBuilder().build();
+			TaskDto taskDto = new TaskDto();
+			DAG dag = mock(DAG.class);
+			List<Node> nodes = new ArrayList<>();
+			nodes.add(new DatabaseNode());
+			nodes.add(new TableNode());
+			nodes.add(new DatabaseNode());
+			when(dag.getNodes()).thenReturn(nodes);
+			taskDto.setDag(dag);
+			dataProcessorContext = new DataProcessorContext.DataProcessorContextBuilder()
+					.withTaskDto(taskDto)
+					.build();
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", dataProcessorContext);
 		}
 

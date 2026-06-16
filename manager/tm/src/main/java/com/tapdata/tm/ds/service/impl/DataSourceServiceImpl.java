@@ -1949,6 +1949,9 @@ public class DataSourceServiceImpl extends DataSourceService{
             DataSourceConnectionDto connectionByUser = findOne(query,user);
             if (connectionByUser == null) {
 				DataSourceConnectionDto connection = findOne(new Query(Criteria.where("_id").is(dtoId)));
+                while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
+                    connectionDto.setName(connectionDto.getName() + "_import");
+                }
 				if(connection != null){
 					connectionDto.setId(null);
                 }
@@ -1966,6 +1969,9 @@ public class DataSourceServiceImpl extends DataSourceService{
             } else {
                 if (cover) {
                     ObjectId objectId = connectionByUser.getId();
+                    while (checkRepeatNameBool(user, connectionDto.getName(), objectId)) {
+                        connectionDto.setName(connectionDto.getName() + "_import");
+                    }
                     agentGroupService.importAgentInfo(connectionDto);
                     connectionByUser = save(connectionDto, user);
                 }
@@ -1993,27 +1999,21 @@ public class DataSourceServiceImpl extends DataSourceService{
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 
         if(importMode.equals(ImportModeEnum.CANCEL_IMPORT)){
-            List<ObjectId> idList = connectionDtos.stream()
-                    .map(DataSourceConnectionDto::getId).filter(Objects::nonNull).collect(Collectors.toList());
-            if (!idList.isEmpty()) {
-                Query idQuery = new Query(Criteria.where("_id").in(idList).and("is_deleted").ne(true));
-                long count = count(idQuery, user);
-                if (count > 0) {
-                    throw new BizException("Datasource.RepeatName");
-                }
+            List<String> nameList = connectionDtos.stream().map(DataSourceConnectionDto::getName).collect(Collectors.toList());
+            Query nameQuery = new Query(Criteria.where("name").in(nameList).and("is_deleted").ne(true));
+            long count = count(nameQuery, user);
+            if(count > 0){
+                throw new BizException("Datasource.RepeatName");
             }
         }
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
             ObjectId dtoId = connectionDto.getId();
             String connId = dtoId != null ? dtoId.toString() : null;
-            // 基于 _id 查找现有连接，不使用 name 匹配，避免不同用户相同名称连接相互覆盖
-            DataSourceConnectionDto existingConnection = null;
-            if (dtoId != null) {
-                Query idQuery = new Query(Criteria.where("_id").is(dtoId).and("is_deleted").ne(true));
-                idQuery.fields().include("_id", "name");
-                existingConnection = findOne(idQuery, user);
-            }
+            // 基于名称查找现有连接
+            Query nameQuery = new Query(Criteria.where("name").is(connectionDto.getName()).and("is_deleted").ne(true));
+            nameQuery.fields().include("_id", "name");
+            DataSourceConnectionDto existingConnectionByName = findOne(nameQuery, user);
 
             DataSourceConnectionDto resultConnection = null;
 
@@ -2022,9 +2022,9 @@ public class DataSourceServiceImpl extends DataSourceService{
                     if (dtoId == null) {
                         throw new BizException("Import.ConnectionMissingId", connectionDto.getName());
                     }
-                    if (existingConnection != null) {
+                    if (existingConnectionByName != null) {
                         // 替换模式：保留现有ID，使用导入数据覆盖
-                        ObjectId existingId = existingConnection.getId();
+                        ObjectId existingId = existingConnectionByName.getId();
                         connectionDto.setId(existingId);
 
                         if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
@@ -2044,9 +2044,10 @@ public class DataSourceServiceImpl extends DataSourceService{
                     }
                     break;
                 case REUSE_EXISTING:
-                    if (existingConnection != null) {
-                        resultConnection = existingConnection;
+                    if (existingConnectionByName != null) {
+                        resultConnection = existingConnectionByName;
                     } else {
+                        // 不存在同名连接，作为新连接导入
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
                     break;
@@ -2062,7 +2063,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
                 case CANCEL_IMPORT:
                     // 取消导入，使用原有连接（如果存在）
-                    if (existingConnection == null) {
+                    if (existingConnectionByName == null) {
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
                     break;
@@ -2089,7 +2090,10 @@ public class DataSourceServiceImpl extends DataSourceService{
         Query idQuery = new Query(Criteria.where("_id").is(connectionDto.getId()).and("is_deleted").ne(true));
         idQuery.fields().include("_id", "name");
         DataSourceConnectionDto existingConnectionById = findOne(idQuery);
-        // 不再基于名称重命名，使用 _id 保证唯一性
+        // 检查名称冲突并重命名
+        while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
+            connectionDto.setName(connectionDto.getName() + "_import");
+        }
         if(null != existingConnectionById){
             // 分配新ID
             connectionDto.setId(null);
