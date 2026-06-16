@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "The id of the TapData task to start."
+    },
+    "taskIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional list of TapData task ids to start together. Use this when starting multiple tasks."
+    }
+  },
+  "anyOf": [
+    { "required": ["taskId"] },
+    { "required": ["taskIds"] }
+  ]
+}
