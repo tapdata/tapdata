@@ -1,8 +1,12 @@
 package com.tapdata.tm.task.res;
 
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SettingValueUtil;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +40,7 @@ import java.util.Optional;
 @Slf4j
 public class CpuMemoryService {
     MongoTemplate mongoOperations;
+    SettingsService settingsService;
 
     /**
      * @deprecated unused
@@ -95,6 +100,29 @@ public class CpuMemoryService {
             bulkOps.execute();
         } catch (Exception e) {
             log.error("bulkUpsert Task's cpu and memory error", e);
+        }
+    }
+
+    public boolean hasOpenCpuMemory() {
+        Settings byKey = settingsService.getByKey("cpu_mem_collector");
+        return Optional.ofNullable(byKey)
+                .map(Settings::getValue)
+                .map(v -> SettingValueUtil.getBoolean(v, false))
+                .orElse(false);
+    }
+
+    public void ignoreMeasureInfoIfNeed(MeasurementQueryParam measurementQueryParam,Map<String, Object> result) {
+        Map<String, MeasurementQueryParam.MeasurementQuerySample> samples = measurementQueryParam.getSamples();
+        MeasurementQueryParam.MeasurementQuerySample dataInfo = samples.get("data");
+        String type = dataInfo.getType();
+        if (MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS.equals(type)) {
+            boolean usageOpen = hasOpenCpuMemory();
+            result.put("usageOpen", usageOpen);
+            if (!usageOpen) {
+                List<String> fields = dataInfo.getFields();
+                fields.remove("cpuUsage");
+                fields.remove("memoryUsage");
+            }
         }
     }
 }
