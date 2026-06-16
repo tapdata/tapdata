@@ -3961,6 +3961,52 @@ class TaskServiceImplTest {
             assertEquals(id.toHexString(),actual);
         }
     }
+
+    @Nested
+    class TaskStatusReporterValidationTest {
+        private ObjectId id;
+        private TaskDto dto;
+        private StateMachineService stateMachineService;
+
+        @BeforeEach
+        void beforeEach() {
+            id = mock(ObjectId.class);
+            dto = mock(TaskDto.class);
+            when(dto.getId()).thenReturn(id);
+            when(dto.getName()).thenReturn("rebalance-task");
+            stateMachineService = mock(StateMachineService.class);
+            ReflectionTestUtils.setField(taskService, "stateMachineService", stateMachineService);
+        }
+
+        @Test
+        @DisplayName("ignore running report from stale agent")
+        void ignoreRunningReportFromStaleAgent() {
+            when(taskService.checkExistById(id, user, "_id", "status", "name", "taskRecordId", "agentId", "startTime", "scheduleDate")).thenReturn(dto);
+            when(dto.getAgentId()).thenReturn("fe2");
+            when(dto.getTaskRecordId()).thenReturn("record-1");
+            doCallRealMethod().when(taskService).running(id, user, "fe1", "record-1");
+
+            String actual = taskService.running(id, user, "fe1", "record-1");
+
+            assertNull(actual);
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), any(DataFlowEvent.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("ignore stopped report from stale task record")
+        void ignoreStoppedReportFromStaleTaskRecord() {
+            when(taskService.checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId", "stopedDate", "restartFlag")).thenReturn(dto);
+            when(dto.getAgentId()).thenReturn("fe2");
+            when(dto.getTaskRecordId()).thenReturn("record-2");
+            doCallRealMethod().when(taskService).stopped(id, user, "fe2", "record-1");
+
+            String actual = taskService.stopped(id, user, "fe2", "record-1");
+
+            assertNull(actual);
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), any(DataFlowEvent.class), any(UserDetail.class));
+        }
+    }
+
     @Nested
     class RunTimeInfoTest{
         private ObjectId id;
