@@ -99,6 +99,7 @@ import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.task.vo.*;
+import com.tapdata.tm.taskrebalance.service.TaskRebalanceJobService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -199,6 +200,57 @@ class TaskServiceImplTest {
         taskUpdateDagService = mock(TaskUpdateDagService.class);
         ReflectionTestUtils.setField(taskService,"taskUpdateDagService",taskUpdateDagService);
         doNothing().when(taskUpdateDagService).updateDag(any(TaskDto.class), any(TaskDto.class), any(UserDetail.class), anyBoolean());
+    }
+
+    @Nested
+    class TaskRebalanceGuardTest {
+        private TaskRebalanceJobService taskRebalanceJobService;
+
+        @BeforeEach
+        void beforeEach() {
+            taskRebalanceJobService = mock(TaskRebalanceJobService.class);
+            ReflectionTestUtils.setField(taskService, "taskRebalanceJobService", taskRebalanceJobService);
+        }
+
+        @Test
+        @DisplayName("task rebalance guard ignores null task id")
+        void ignoreNullTaskId() {
+            assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(taskService, "assertTaskNotRebalancing", null, user));
+
+            verify(taskRebalanceJobService, never()).hasBlockingActiveJob(anyString(), anyLong(), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("task rebalance guard bypasses rebalance operation")
+        void bypassRebalanceOperation() {
+            ObjectId taskId = new ObjectId();
+            when(taskRebalanceJobService.isCheckBypassed()).thenReturn(true);
+
+            assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(taskService, "assertTaskNotRebalancing", taskId, user));
+
+            verify(taskRebalanceJobService, never()).hasBlockingActiveJob(anyString(), anyLong(), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("task rebalance guard blocks unexpired stopping or starting job")
+        void blockUnexpiredStoppingOrStartingJob() {
+            ObjectId taskId = new ObjectId();
+            when(taskRebalanceJobService.hasBlockingActiveJob(eq(taskId.toHexString()), anyLong(), eq(user))).thenReturn(true);
+
+            BizException exception = assertThrows(BizException.class,
+                    () -> ReflectionTestUtils.invokeMethod(taskService, "assertTaskNotRebalancing", taskId, user));
+
+            assertEquals("task.rebalance.taskRebalancing", exception.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("task rebalance guard allows expired or non-blocking rebalance job")
+        void allowExpiredOrNonBlockingJob() {
+            ObjectId taskId = new ObjectId();
+            when(taskRebalanceJobService.hasBlockingActiveJob(eq(taskId.toHexString()), anyLong(), eq(user))).thenReturn(false);
+
+            assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(taskService, "assertTaskNotRebalancing", taskId, user));
+        }
     }
 
     @Nested

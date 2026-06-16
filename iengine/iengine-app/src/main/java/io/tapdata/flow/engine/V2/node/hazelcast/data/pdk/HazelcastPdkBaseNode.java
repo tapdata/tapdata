@@ -193,9 +193,16 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			}
 			cleanFunctionRetry(taskIdHex);
 		};
-		TASK_RETRY_CLEANUP_HOOKS
-				.computeIfAbsent(taskIdHex, k -> new ConcurrentHashMap<>())
-				.put(pdkMethodInvoker, cleanupHook);
+		ConcurrentHashMap<PDKMethodInvoker, Runnable> taskHooks = TASK_RETRY_CLEANUP_HOOKS
+				.computeIfAbsent(taskIdHex, k -> new ConcurrentHashMap<>());
+		taskHooks.put(pdkMethodInvoker, cleanupHook);
+		// Defensive monitoring: every 50 accumulated hooks per task, emit a WARN so a regression
+		// (createPdkMethodInvoker called without a paired removePdkMethodInvoker) shows up in logs
+		// before it grows into a real leak. Steady-state size should be small.
+		int hookSize = taskHooks.size();
+		if (hookSize > 0 && hookSize % 50 == 0) {
+			logger.warn("TASK_RETRY_CLEANUP_HOOKS accumulated {} entries for task {} — possible invoker leak (missing removePdkMethodInvoker?)", hookSize, taskIdHex);
+		}
 		return pdkMethodInvoker;
 	}
 
@@ -446,9 +453,23 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		try {
 			CommonUtils.ignoreAnyError(() -> {
 				if (null != pdkMethodInvokerList) {
-					for (PDKMethodInvoker pdkMethodInvoker : pdkMethodInvokerList) {
+					// Snapshot first because removePdkMethodInvoker mutates pdkMethodInvokerList.
+					List<PDKMethodInvoker> invokersSnapshot = new java.util.ArrayList<>(pdkMethodInvokerList);
+					for (PDKMethodInvoker pdkMethodInvoker : invokersSnapshot) {
 						if (null == pdkMethodInvoker) continue;
 						pdkMethodInvoker.cancelRetry();
+					}
+					// Deregister every invoker from TASK_RETRY_CLEANUP_HOOKS so that the
+					// captured ConnectorNode -> MongodbConnector -> MongoClient chain becomes
+					// GC-eligible after this node closes. Without this, leaked invokers
+					// accumulate in the static map across the JVM lifetime.
+					for (PDKMethodInvoker pdkMethodInvoker : invokersSnapshot) {
+						if (null == pdkMethodInvoker) continue;
+						try {
+							removePdkMethodInvoker(pdkMethodInvoker);
+						} catch (Throwable ignore) {
+							// keep cleaning the remaining ones
+						}
 					}
 				}
 			}, TAG);

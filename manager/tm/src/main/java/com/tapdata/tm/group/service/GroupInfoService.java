@@ -2153,13 +2153,15 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 UserDto userDto = EXPORT_MAPPER.convertValue(normalizedMap, UserDto.class);
                 ObjectId userOid = userDto.getId();
                 if (userOid == null) continue;
-                // 新建时生成 accessCode（@SetOnInsert 保证更新时不覆盖已有 accessCode）
-                if (userService.count(Query.query(Criteria.where("_id").is(userOid))) == 0) {
+                // 判断是否为新建用户（用于决定 accessCode 与 password 的写入）
+                boolean isNewUser = userService.count(Query.query(Criteria.where("_id").is(userOid))) == 0;
+                if (isNewUser) {
+                    // 新建时生成 accessCode（@SetOnInsert 保证更新时不覆盖已有 accessCode）
                     userDto.setAccessCode(generateAccessCode());
                 }
                 userService.upsert(Query.query(Criteria.where("_id").is(userOid)), userDto);
-                // UserDto 无 password 字段，直接从导入 Map 中提取并单独写入（UserEntity 有 password）
-                if (passwordRaw instanceof String && StringUtils.isNotBlank((String) passwordRaw)) {
+                // password 仅对新建用户写入；已存在用户保留其原有密码，避免导入覆盖真实用户密码
+                if (isNewUser && passwordRaw instanceof String && StringUtils.isNotBlank((String) passwordRaw)) {
                     userRepository.upsert(Query.query(Criteria.where("_id").is(userOid)),
                             new Update().set("password", passwordRaw));
                 }

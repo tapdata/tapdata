@@ -267,66 +267,76 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 						.maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
 						.start()
 						.table(tapTable),
-				getReadPartitionsFuncAspect -> PDKInvocationMonitor.invoke(
-						getConnectorNode(),
-						PDKMethod.SOURCE_GET_READ_PARTITIONS,
-						createPdkMethodInvoker().runnable(() ->
-						{
-							BatchReadFuncAspect batchReadFuncAspect = new BatchReadFuncAspect()
-									.eventBatchSize(batchSize)
-									.connectorContext(getConnectorNode().getConnectorContext())
-									.offsetState(null)
-									.dataProcessorContext(dataProcessorContext)
-									.start()
-									.table(tapTable);
-							aspectManager.executeAspect(batchReadFuncAspect);
-							List<ReadPartition> readPartitionList = new ArrayList<>();
-							Runnable completedRunnable = new PartitionsCompletedRunnable(tapTable, partitionsReader, aspectManager, batchReadFuncAspect, readPartitionList, this, jobCompleted);
-							Consumer<ReadPartition> partitionConsumer = new PartitionConsumer(pdkSourceContext, tapTable, partitionsReader, getReadPartitionsFuncAspect, batchReadFuncAspect, readPartitionList, tableEventPartitionDispatcher, this);
-							//Recover from TM
-							List<ReadPartition> recoveredPartitions = null;
-							Map<String, Long> completedPartitionIds = null;
-							Boolean tableCompleted = null;
-							Object batchOffsetObj = syncProgress.getBatchOffsetObj();
-							if (batchOffsetObj instanceof Map) {
-								PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
-								if (partitionTableOffset != null) {
-									recoveredPartitions = partitionTableOffset.getPartitions();
-									completedPartitionIds = partitionTableOffset.getCompletedPartitions();
-									tableCompleted = partitionTableOffset.getTableCompleted();
-								}
-								obsLogger.trace("PartitionTableOffset recoveredPartitions {}, completedPartitions {}, tableCompleted {}", (recoveredPartitions != null ? recoveredPartitions.size() : 0), (completedPartitionIds != null ? completedPartitionIds.size() : 0), tableCompleted);
-							}
-
-							if (tableCompleted != null && tableCompleted) {
-								//Table has been read completed, ignore this table.
-							} else if (recoveredPartitions != null && !recoveredPartitions.isEmpty()) {
-								//Read partition has been split, recover reading partitions.
-								for (ReadPartition readPartition : recoveredPartitions) {
-									if (completedPartitionIds != null && completedPartitionIds.containsKey(readPartition.getId())) {
-										obsLogger.trace("Read partition {} has read completed, count {}", readPartition, completedPartitionIds.get(readPartition.getId()));
-										continue;
+				getReadPartitionsFuncAspect -> {
+					// Hold the invoker locally so it can be deregistered after use;
+					// otherwise it leaks via TASK_RETRY_CLEANUP_HOOKS holding the
+					// ConnectorNode -> MongoClient chain.
+					PDKMethodInvoker invoker = createPdkMethodInvoker();
+					try {
+						PDKInvocationMonitor.invoke(
+								getConnectorNode(),
+								PDKMethod.SOURCE_GET_READ_PARTITIONS,
+								invoker.runnable(() ->
+								{
+									BatchReadFuncAspect batchReadFuncAspect = new BatchReadFuncAspect()
+											.eventBatchSize(batchSize)
+											.connectorContext(getConnectorNode().getConnectorContext())
+											.offsetState(null)
+											.dataProcessorContext(dataProcessorContext)
+											.start()
+											.table(tapTable);
+									aspectManager.executeAspect(batchReadFuncAspect);
+									List<ReadPartition> readPartitionList = new ArrayList<>();
+									Runnable completedRunnable = new PartitionsCompletedRunnable(tapTable, partitionsReader, aspectManager, batchReadFuncAspect, readPartitionList, this, jobCompleted);
+									Consumer<ReadPartition> partitionConsumer = new PartitionConsumer(pdkSourceContext, tapTable, partitionsReader, getReadPartitionsFuncAspect, batchReadFuncAspect, readPartitionList, tableEventPartitionDispatcher, this);
+									//Recover from TM
+									List<ReadPartition> recoveredPartitions = null;
+									Map<String, Long> completedPartitionIds = null;
+									Boolean tableCompleted = null;
+									Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+									if (batchOffsetObj instanceof Map) {
+										PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
+										if (partitionTableOffset != null) {
+											recoveredPartitions = partitionTableOffset.getPartitions();
+											completedPartitionIds = partitionTableOffset.getCompletedPartitions();
+											tableCompleted = partitionTableOffset.getTableCompleted();
+										}
+										obsLogger.trace("PartitionTableOffset recoveredPartitions {}, completedPartitions {}, tableCompleted {}", (recoveredPartitions != null ? recoveredPartitions.size() : 0), (completedPartitionIds != null ? completedPartitionIds.size() : 0), tableCompleted);
 									}
-									partitionConsumer.accept(readPartition);
-								}
-								partitionsReader.start();
-								completedRunnable.run();
-							} else {
-								//Can not recover from TM, split read partitions through PDK function.
-								TypeSplitterMap typeSplitterMap = new TypeSplitterMap();
-								getReadPartitionsFunction.getReadPartitions(
-										getConnectorNode().getConnectorContext(),
-										tapTable,
-										GetReadPartitionOptions.create().maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
-												.minMaxSplitPieces(finalReadPartitionOptions.getMinMaxSplitPieces())
-												.splitType(finalReadPartitionOptions.getSplitType())
-												.typeSplitterMap(typeSplitterMap)
-												.consumer(partitionConsumer)
-												.completedRunnable(completedRunnable));
-								partitionsReader.start();
-							}
-						})
-				));
+
+									if (tableCompleted != null && tableCompleted) {
+										//Table has been read completed, ignore this table.
+									} else if (recoveredPartitions != null && !recoveredPartitions.isEmpty()) {
+										//Read partition has been split, recover reading partitions.
+										for (ReadPartition readPartition : recoveredPartitions) {
+											if (completedPartitionIds != null && completedPartitionIds.containsKey(readPartition.getId())) {
+												obsLogger.trace("Read partition {} has read completed, count {}", readPartition, completedPartitionIds.get(readPartition.getId()));
+												continue;
+											}
+											partitionConsumer.accept(readPartition);
+										}
+										partitionsReader.start();
+										completedRunnable.run();
+									} else {
+										//Can not recover from TM, split read partitions through PDK function.
+										TypeSplitterMap typeSplitterMap = new TypeSplitterMap();
+										getReadPartitionsFunction.getReadPartitions(
+												getConnectorNode().getConnectorContext(),
+												tapTable,
+												GetReadPartitionOptions.create().maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
+														.minMaxSplitPieces(finalReadPartitionOptions.getMinMaxSplitPieces())
+														.splitType(finalReadPartitionOptions.getSplitType())
+														.typeSplitterMap(typeSplitterMap)
+														.consumer(partitionConsumer)
+														.completedRunnable(completedRunnable));
+										partitionsReader.start();
+									}
+								})
+						);
+					} finally {
+						removePdkMethodInvoker(invoker);
+					}
+				});
 	}
 
 	public void handleEnterCDCStage(ParallelWorker partitionsReader, TapTable tapTable) {

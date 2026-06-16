@@ -58,4 +58,6 @@ public interface SettingsService {
     void setMongoTemplate(org.springframework.data.mongodb.core.MongoTemplate mongoTemplate);
 
     String applicationVersion();
+
+    SettingsDto getSettingInfo(String category, String settingKey);
 }
