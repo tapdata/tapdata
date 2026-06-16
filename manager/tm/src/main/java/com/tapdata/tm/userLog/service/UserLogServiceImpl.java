@@ -9,11 +9,13 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserServiceImpl;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.constant.UserLogTemplateKey;
 import com.tapdata.tm.userLog.constant.UserLogType;
 import com.tapdata.tm.userLog.dto.UserLogDto;
 import com.tapdata.tm.userLog.dto.User;
 import com.tapdata.tm.userLog.entity.UserLogs;
 import com.tapdata.tm.userLog.repository.UserLogRepository;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +38,6 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
     MessageSource messageSource;
 
     private final String DESC_PREFIX = "desc.";
-
 
     public UserLogServiceImpl(@NonNull UserLogRepository repository) {
         super(repository, UserLogDto.class, UserLogs.class);
@@ -232,7 +233,52 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
         long total = userLogRepository.count(filter.getWhere(), userDetail);
 
         List<UserLogDto> items = convertToDto(entityList, UserLogDto.class, "password");
+        Locale locale = MessageUtil.getLocale();
+        items.forEach(item -> item.setI18nMessage(renderI18nMessage(item, locale)));
 
         return new Page<>(total, items);
+    }
+
+    protected String renderI18nMessage(UserLogDto dto, Locale locale) {
+        String modular = valueOrEmpty(dto.getModular());
+        String operation = valueOrEmpty(dto.getOperation());
+        String specificKey = UserLogTemplateKey.specificOperation(modular, operation);
+        String defaultKey = UserLogTemplateKey.defaultOperation(operation);
+
+        String template = MessageUtil.getBundleMessageOrNull(locale, UserLogTemplateKey.BUNDLE_NAME, specificKey);
+        if (template == null) {
+            template = MessageUtil.getBundleMessageOrNull(locale, UserLogTemplateKey.BUNDLE_NAME, defaultKey);
+        }
+        if (template == null) {
+            log.warn("User log i18n template not found, modular: {}, operation: {}, specificKey: {}, defaultKey: {}",
+                    modular, operation, specificKey, defaultKey);
+            return fallbackI18nMessage(dto, modular, operation);
+        }
+
+        return MessageUtil.formatString(template, buildTemplateParams(locale, modular));
+    }
+
+    private Map<String, Object> buildTemplateParams(Locale locale, String modular) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("moduleName", getModuleName(locale, modular));
+        return params;
+    }
+
+    private String getModuleName(Locale locale, String modular) {
+        String moduleKey = UserLogTemplateKey.moduleName(modular);
+        String moduleName = MessageUtil.getBundleMessageOrNull(locale, UserLogTemplateKey.BUNDLE_NAME, moduleKey);
+        if (moduleName == null) {
+            log.warn("User log i18n module name not found, modular: {}, moduleKey: {}", modular, moduleKey);
+            return modular;
+        }
+        return moduleName;
+    }
+
+    private String fallbackI18nMessage(UserLogDto dto, String modular, String operation) {
+        return valueOrEmpty(dto.getUsername()) + " " + modular + "." + operation + " " + valueOrEmpty(dto.getParameter1());
+    }
+
+    private String valueOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 }
