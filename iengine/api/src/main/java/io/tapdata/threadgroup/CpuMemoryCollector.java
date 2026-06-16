@@ -382,7 +382,7 @@ public class CpuMemoryCollector {
     }
 
     public static Map<String, Usage> collectOnce(List<String> taskIds) {
-        final Map<String, Usage> usageMap = new HashMap<>();
+        final Map<String, Usage> usageMap = new ConcurrentHashMap<>();
         if (!COLLECTOR.doCollect) {
             COLLECTOR.stopCollect(taskIds, usageMap);
             return usageMap;

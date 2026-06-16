@@ -76,6 +76,34 @@ class DuckDbOperatorImplTest {
         assertTrue(result.isEmpty());
     }
 
+    @Test
+    void testExecuteQueryInBatches_Success() throws SQLException {
+        List<List<Map<String, Object>>> batches = new ArrayList<>();
+
+        duckDbOperator.executeQueryInBatches("SELECT * FROM test_table", 1, batch ->
+                batches.add(new ArrayList<>(batch)));
+
+        assertEquals(2, batches.size());
+        assertEquals(1, batches.get(0).size());
+        assertEquals(1L, batches.get(0).get(0).get("id"));
+        assertEquals(1, batches.get(1).size());
+        assertEquals(2L, batches.get(1).get(0).get("id"));
+        verify(mockStatement).setFetchSize(1);
+        verify(mockStatement).executeQuery("SELECT * FROM test_table");
+    }
+
+    @Test
+    void testExecuteQueryInBatches_EmptyResult() throws SQLException {
+        when(mockResultSet.next()).thenReturn(false);
+        List<List<Map<String, Object>>> batches = new ArrayList<>();
+
+        duckDbOperator.executeQueryInBatches("SELECT * FROM empty_table", 10, batches::add);
+
+        assertTrue(batches.isEmpty());
+        verify(mockStatement).setFetchSize(10);
+        verify(mockStatement).executeQuery("SELECT * FROM empty_table");
+    }
+
     // ==================== executeUpdate 测试 ====================
 
     @Test

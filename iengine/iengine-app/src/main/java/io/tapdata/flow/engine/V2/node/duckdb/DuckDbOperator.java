@@ -8,6 +8,7 @@ import io.tapdata.entity.schema.TapTable;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 /**
@@ -34,6 +35,30 @@ public interface DuckDbOperator extends AutoCloseable {
      * @throws SQLException SQL执行异常
      */
     List<Map<String, Object>> executeQuery(String sql) throws SQLException;
+
+    /**
+     * 按批消费查询结果。
+     *
+     * <p>默认实现会先调用 {@link #executeQuery(String)} 再拆批，具体实现可覆盖为真正的流式读取，
+     * 以避免一次性将全部结果加载到内存中。</p>
+     *
+     * @param sql 查询语句
+     * @param batchSize 每批大小，<=0 时按 1 处理
+     * @param batchConsumer 批量消费回调
+     * @throws SQLException SQL执行异常
+     */
+    default void executeQueryInBatches(String sql, int batchSize, Consumer<List<Map<String, Object>>> batchConsumer) throws SQLException {
+        List<Map<String, Object>> results = executeQuery(sql);
+        if (results == null || results.isEmpty() || batchConsumer == null) {
+            return;
+        }
+
+        int effectiveBatchSize = Math.max(1, batchSize);
+        for (int start = 0; start < results.size(); start += effectiveBatchSize) {
+            int end = Math.min(start + effectiveBatchSize, results.size());
+            batchConsumer.accept(results.subList(start, end));
+        }
+    }
 
     /**
      * 执行更新SQL（INSERT/UPDATE/DELETE/DDL）

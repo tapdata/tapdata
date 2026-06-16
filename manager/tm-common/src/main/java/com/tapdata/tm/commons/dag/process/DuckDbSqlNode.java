@@ -246,6 +246,8 @@ public class DuckDbSqlNode extends ProcessorNode {
         return inputSchemas.get(0);
     }
 
+    List<String>
+
     /**
      * 合并输入的 Schema 到输出 Schema 中
      * 关键工作流程

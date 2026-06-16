@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.util;
 
+import com.tapdata.tm.commons.dag.process.DuckDbSqlNode;
 import com.tapdata.tm.commons.dag.process.FromTableConfig;
 import com.tapdata.tm.commons.dag.process.duck.JoinField;
 import com.tapdata.tm.commons.dag.process.duck.JoinInfo;
@@ -10,8 +11,11 @@ import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
@@ -26,7 +30,7 @@ import java.util.*;
 public class SqlParserUtil {
 
     public static List<Field> parseSelectFields(String sql, List<FromTableConfig> fromTables,
-                                                  List<Schema> inputSchemas, Object node,
+                                                  List<Schema> inputSchemas, DuckDbSqlNode node,
                                                   List<String> wideTablePkColumns,
                                                   List<JoinInfo> joinInfo,
                                                   Map<String, String> aliasTableMap) throws Exception {
@@ -63,7 +67,7 @@ public class SqlParserUtil {
         log.info("  aliasToTableNameMap: {}", aliasToTableNameMap);
 
         // 建立表名到 schema 的映射
-        Map<String, Schema> tableSchemaMap = buildTableSchemaMap(fromTables, inputSchemas, node);
+        Map<String, Schema> tableSchemaMap = buildTableSchemaMap(fromTables, inputSchemas);
         log.info("  tableSchemaMap keys: {}", tableSchemaMap.keySet());
 
         // 解析选择项
@@ -72,8 +76,16 @@ public class SqlParserUtil {
 
         List<SelectItem> selectItems = plainSelect.getSelectItems();
         if (CollectionUtils.isNotEmpty(selectItems)) {
+            List<String> pkColumns = new ArrayList<>();
+            String mainTableName = node.getMainTableName();
+            String mainTableAliasName = aliasToTableNameMap.get(mainTableName);
+            for (String key : wideTablePkColumns) {
+                pkColumns.add(mainTableAliasName + "." + key);
+                pkColumns.add(mainTableName + "." + key);
+                pkColumns.add(key);
+            }
             for (SelectItem selectItem : selectItems) {
-                Field field = parseSelectItem(selectItem, tableSchemaMap, aliasToTableNameMap, wideTablePkColumns);
+                Field field = parseSelectItem(selectItem, tableSchemaMap, aliasToTableNameMap, wideTablePkColumns, pkColumns);
 
                 // 检查字段重名
                 String fieldName = field.getFieldName();
@@ -300,7 +312,7 @@ public class SqlParserUtil {
     }
 
     private static Map<String, Schema> buildTableSchemaMap(List<FromTableConfig> fromTables,
-                                                            List<Schema> inputSchemas, Object node) {
+                                                            List<Schema> inputSchemas) {
         log.info("  buildTableSchemaMap() called");
         Map<String, Schema> tableSchemaMap = new HashMap<>();
         Map<String, Schema> inputSchemaMap = new HashMap<>();
@@ -386,7 +398,7 @@ public class SqlParserUtil {
     }
 
     private static Field parseSelectItem(SelectItem selectItem, Map<String, Schema> tableSchemaMap, Map<String, String> aliasToTableNameMap,
-                                          List<String> wideTablePkColumns) {
+                                          List<String> wideTablePkColumns, List<String> pkColumns) {
         Field field = new Field();
         field.setSource(Field.SOURCE_JOB_ANALYZE);
 
@@ -400,6 +412,7 @@ public class SqlParserUtil {
         } else if (selectItem instanceof SelectExpressionItem selectExpressionItem) {
             Expression expression = selectExpressionItem.getExpression();
             Alias alias = selectExpressionItem.getAlias();
+            List<Column> referencedColumns = extractColumns(expression);
 
             // 设置字段名
             String fieldName;
@@ -413,15 +426,11 @@ public class SqlParserUtil {
             }
 
             field.setFieldName(fieldName);
-            if (expression instanceof Column column) {
-                field.setOriginalFieldName(column.getColumnName());
-                if (wideTablePkColumns.contains(column.getColumnName())) {
-                    int indexOf = wideTablePkColumns.indexOf(column.getColumnName());
-                    wideTablePkColumns.remove(column.getColumnName());
-                    wideTablePkColumns.add(indexOf, fieldName);
-                    field.setPrimaryKey(true);
-                    field.setPrimaryKeyPosition(indexOf);
-                }
+            if (CollectionUtils.isNotEmpty(referencedColumns)) {
+                field.setOriginalFieldName(referencedColumns.get(0).getColumnName());
+                transferPrimaryKeyField(referencedColumns, fieldName, wideTablePkColumns, pkColumns, field);
+            } else if (expression instanceof Function function) {
+                field.setOriginalFieldName(function.getName());
             } else {
                 field.setOriginalFieldName(fieldName);
             }
@@ -471,6 +480,71 @@ public class SqlParserUtil {
         }
 
         return field;
+    }
+
+    private static List<Column> extractColumns(Expression expression) {
+        if (expression == null) {
+            return Collections.emptyList();
+        }
+        List<Column> columns = new ArrayList<>();
+        expression.accept(new ExpressionVisitorAdapter() {
+            @Override
+            public void visit(Column column) {
+                columns.add(column);
+            }
+        });
+        return columns;
+    }
+
+    private static void transferPrimaryKeyField(List<Column> referencedColumns, String fieldName,
+                                                List<String> wideTablePkColumns, List<String> pkColumns,
+                                                Field field) {
+        if (CollectionUtils.isEmpty(referencedColumns) || CollectionUtils.isEmpty(wideTablePkColumns)) {
+            return;
+        }
+        LinkedHashSet<String> matchedPrimaryKeys = new LinkedHashSet<>();
+        for (Column column : referencedColumns) {
+            if (isPrimaryKeyColumn(column, wideTablePkColumns, pkColumns)) {
+                matchedPrimaryKeys.add(column.getColumnName());
+            }
+        }
+        Integer firstPrimaryKeyPosition = null;
+        for (String primaryKeyColumn : matchedPrimaryKeys) {
+            int indexOf = wideTablePkColumns.indexOf(primaryKeyColumn);
+            if (indexOf < 0) {
+                continue;
+            }
+            wideTablePkColumns.set(indexOf, fieldName);
+            if (firstPrimaryKeyPosition == null) {
+                firstPrimaryKeyPosition = indexOf + 1;
+            }
+        }
+        if (firstPrimaryKeyPosition != null) {
+            field.setPrimaryKey(true);
+            field.setPrimaryKeyPosition(firstPrimaryKeyPosition);
+        }
+    }
+
+    private static boolean isPrimaryKeyColumn(Column column, List<String> wideTablePkColumns, List<String> pkColumns) {
+        if (column == null || StringUtils.isBlank(column.getColumnName())) {
+            return false;
+        }
+        String columnName = column.getColumnName();
+        if (CollectionUtils.isNotEmpty(wideTablePkColumns) && wideTablePkColumns.contains(columnName)) {
+            return true;
+        }
+        if (CollectionUtils.isEmpty(pkColumns)) {
+            return false;
+        }
+        String fullColumnName = buildFullColumnName(column);
+        return pkColumns.contains(columnName) || (StringUtils.isNotBlank(fullColumnName) && pkColumns.contains(fullColumnName));
+    }
+
+    private static String buildFullColumnName(Column column) {
+        if (column == null || column.getTable() == null || StringUtils.isBlank(column.getTable().getName())) {
+            return null;
+        }
+        return column.getTable().getName() + "." + column.getColumnName();
     }
 
     private static Field findFieldByName(Schema schema, String fieldName) {

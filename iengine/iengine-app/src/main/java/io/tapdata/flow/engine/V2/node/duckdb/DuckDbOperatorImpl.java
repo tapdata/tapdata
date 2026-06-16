@@ -188,6 +188,48 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     }
 
     @Override
+    public void executeQueryInBatches(String sql, int batchSize, java.util.function.Consumer<List<Map<String, Object>>> batchConsumer) throws SQLException {
+        checkClosed();
+
+        if (batchConsumer == null) {
+            return;
+        }
+
+        int effectiveBatchSize = Math.max(1, batchSize);
+
+        try (Statement stmt = connection.createStatement()) {
+            stmt.setFetchSize(effectiveBatchSize);
+            try (ResultSet rs = stmt.executeQuery(sql)) {
+                ResultSetMetaData metaData = rs.getMetaData();
+                int columnCount = metaData.getColumnCount();
+                List<String> columnNames = new ArrayList<>(columnCount);
+
+                for (int i = 1; i <= columnCount; i++) {
+                    columnNames.add(metaData.getColumnName(i));
+                }
+
+                List<Map<String, Object>> batch = new ArrayList<>(effectiveBatchSize);
+                while (rs.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    for (int i = 0; i < columnCount; i++) {
+                        row.put(columnNames.get(i), rs.getObject(i + 1));
+                    }
+                    batch.add(row);
+
+                    if (batch.size() >= effectiveBatchSize) {
+                        batchConsumer.accept(batch);
+                        batch = new ArrayList<>(effectiveBatchSize);
+                    }
+                }
+
+                if (!batch.isEmpty()) {
+                    batchConsumer.accept(batch);
+                }
+            }
+        }
+    }
+
+    @Override
     public int executeUpdate(String sql) throws SQLException {
         checkClosed();
         
@@ -1597,20 +1639,40 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         StringBuilder sql = new StringBuilder();
         sql.append("CREATE TABLE ").append(safeTableName).append(" (\n");
         
+        java.util.LinkedHashSet<String> pkRawOrdered = new java.util.LinkedHashSet<>();
+        java.util.HashSet<String> pkSanitizedSet = new java.util.HashSet<>();
+        if (primaryKeys != null) {
+            for (String pk : primaryKeys) {
+                if (pk == null || pk.isBlank()) {
+                    continue;
+                }
+                pkRawOrdered.add(pk);
+                pkSanitizedSet.add(sanitizeIdentifier(pk));
+            }
+        }
+        
         List<String> columnDefs = new ArrayList<>();
+        java.util.List<String> pkColsSanitizedOrdered = new java.util.ArrayList<>();
         for (TapField field : fields) {
             if (field == null || field.getName() == null) {
                 continue;
             }
             
-            String colName = sanitizeIdentifier(field.getName());
+            String rawColName = field.getName();
+            String colName = sanitizeIdentifier(rawColName);
             String colType = mapToDuckDbType(field.getTapType());
             
             StringBuilder def = new StringBuilder()
                 .append("  ").append(colName).append(" ").append(colType);
             
-            if (primaryKeys != null && primaryKeys.contains(field.getName())) {
-                def.append(" PRIMARY KEY NOT NULL");
+            boolean isPrimaryKey = pkRawOrdered.contains(rawColName) || pkSanitizedSet.contains(colName);
+            if (isPrimaryKey) {
+                pkColsSanitizedOrdered.add(colName);
+                if (pkRawOrdered.size() <= 1) {
+                    def.append(" PRIMARY KEY NOT NULL");
+                } else {
+                    def.append(" NOT NULL");
+                }
             }
             
             columnDefs.add(def.toString());
@@ -1619,6 +1681,10 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         if (columnDefs.isEmpty()) {
             throw new IllegalArgumentException(
                 "Cannot create table '" + safeTableName + "' with no valid columns");
+        }
+        
+        if (pkColsSanitizedOrdered.size() > 1) {
+            columnDefs.add("  PRIMARY KEY (" + String.join(", ", pkColsSanitizedOrdered) + ")");
         }
         
         sql.append(String.join(",\n", columnDefs));

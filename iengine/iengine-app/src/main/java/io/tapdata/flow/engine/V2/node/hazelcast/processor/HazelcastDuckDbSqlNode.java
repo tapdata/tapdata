@@ -398,7 +398,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * 当所有表都从全量同步切换到增量同步时触发
      */
     private void handleAllTablesCdcTransition(boolean isCdc) {
-        obsLogger.info("所有表已切换到CDC阶段，执行查询并发射结果...");
+        obsLogger.info("All tables have been switched to the CDC stage, executing queries and submitting results");
 
         try {
             // 步骤1: 刷写所有剩余数据
@@ -407,29 +407,24 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             if (wideTableUpdater != null) {
                 try {
                     duckDbOperator.executeInTransaction(this::updateWideTableInFullSyncComplete);
-                    obsLogger.info("全量结束后宽表更新完成");
+                    obsLogger.info("After the full amount is completed, the wide table update is finished");
                 } catch (Exception e) {
-                    obsLogger.error("全量结束后更新宽表失败: {}", e.getMessage(), e);
+                    obsLogger.error("Failed to update the wide table after full completion: {}", e.getMessage(), e);
                 }
             }
             // 步骤3: 生成宽表 CDC 事件，直接用 select 查询宽表语句查询出所有结果集拼接 insertEvent
             if (outputChangelogEnabled) {
                 try {
-                    List<TapdataEvent> wideTableEvents = generateWideTableInsertEvents();
-                    if (!wideTableEvents.isEmpty()) {
-                        // 发射宽表 CDC 事件到下游
-                        for (TapdataEvent event : wideTableEvents) {
-                            //pendingEvents.offer(event);
-                            currentConsumer.get().accept(event, getProcessResult(TapEventUtil.getTableId(event.getTapEvent())));
-                        }
-                        obsLogger.info("发射 {} 个宽表 CDC 事件到下游", wideTableEvents.size());
+                    int emittedCount = generateWideTableInsertEvents();
+                    if (emittedCount > 0) {
+                        obsLogger.info("Submit {} wide table CDC events to downstream", emittedCount);
                     }
                 } catch (Exception e) {
-                    obsLogger.error("生成宽表 CDC 事件失败: {}", e.getMessage(), e);
+                    obsLogger.error("Failed to generate wide table CDC event: {}", e.getMessage(), e);
                 }
             }
         } catch (Exception e) {
-            obsLogger.error("全量同步完成后处理失败: {}", e.getMessage(), e);
+            obsLogger.error("Processing failed after completing full synchronization: {}", e.getMessage(), e);
         }
     }
 
@@ -438,7 +433,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      */
     private void updateWideTableInFullSyncComplete() throws SQLException {
         if (querySql == null || querySql.isEmpty()) {
-            obsLogger.warn("querySql 为空，跳过宽表更新");
+            obsLogger.warn("QuerySQL is empty, skip wide table update");
             return;
         }
 
@@ -449,43 +444,47 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 querySql
         );
 
-        obsLogger.info("全量结束后执行宽表更新 SQL: {}", insertSql);
+        obsLogger.info("Perform wide table update after full completion SQL: {}", insertSql);
         duckDbOperator.executeUpdate(insertSql);
     }
 
     /**
      * 生成宽表 CDC 事件，直接用 select 查询宽表语句查询出所有结果集拼接 insertEvent
      */
-    private List<TapdataEvent> generateWideTableInsertEvents() throws SQLException {
-        List<TapdataEvent> events = new ArrayList<>();
-
-        // 直接用 select 查询宽表语句查询出所有结果集
+    private int generateWideTableInsertEvents() throws SQLException {
         String selectSql = String.format("SELECT * FROM %s", wideTableName);
-        List<Map<String, Object>> rows = duckDbOperator.executeQuery(selectSql);
         NodeSchemaInfo wideTableSchemaInfo = tableSchemaCache.get(wideTableName);
-        rows = io.tapdata.flow.engine.V2.node.duckdb.WideTableRowTypeNormalizer.normalizeRows(rows, wideTableSchemaInfo);
+        int effectiveBatchSize = Math.max(1, batchSize);
+        final int[] emittedCount = {0};
 
-        if (rows.isEmpty()) {
-            obsLogger.warn("宽表中没有数据，跳过生成 CDC 事件");
-            return events;
+        duckDbOperator.executeQueryInBatches(selectSql, effectiveBatchSize, rows -> {
+            List<Map<String, Object>> normalizedRows =
+                    io.tapdata.flow.engine.V2.node.duckdb.WideTableRowTypeNormalizer.normalizeRows(rows, wideTableSchemaInfo);
+
+            for (Map<String, Object> row : normalizedRows) {
+                long now = System.currentTimeMillis();
+                TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create()
+                        .referenceTime(now)
+                        .table(wideTableName)
+                        .after(row);
+
+                TapdataEvent tapdataEvent = new TapdataEvent();
+                tapdataEvent.setSourceTime(now);
+                tapdataEvent.setTapEvent(insertEvent);
+                tapdataEvent.setSyncStage(Optional.ofNullable(syncStage).orElse(SyncStage.INITIAL_SYNC));
+
+                currentConsumer.get().accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent())));
+                emittedCount[0]++;
+            }
+        });
+
+        if (emittedCount[0] == 0) {
+            obsLogger.info("There is no data in the wide table, skip generating CDC events");
+            return 0;
         }
 
-        // 为每一行数据生成 INSERT 类型的 TapdataEvent
-        for (Map<String, Object> row : rows) {
-            TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create()
-                    .referenceTime(System.currentTimeMillis())
-                    .table(wideTableName)
-                    .after(row);
-
-            TapdataEvent tapdataEvent = new TapdataEvent();
-            tapdataEvent.setSourceTime(System.currentTimeMillis());
-            tapdataEvent.setTapEvent(insertEvent);
-            tapdataEvent.setSyncStage(Optional.ofNullable(syncStage).orElse(SyncStage.INITIAL_SYNC));
-            events.add(tapdataEvent);
-        }
-
-        obsLogger.info("从宽表查询到 {} 条数据，生成了 {} 个 INSERT 事件", rows.size(), events.size());
-        return events;
+        obsLogger.info("Join the table and obtain a wide table record with {} rows", emittedCount[0]);
+        return emittedCount[0];
     }
 
     public void setQuerySql(String querySql) {
@@ -521,7 +520,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // 检查是否超过错误阈值需要停止任务
             if (errorHandler.shouldStopTask()) {
-                obsLogger.error("超过错误阈值，任务应停止");
+                obsLogger.error("Exceeding the error threshold, the task should be stopped");
                 return;
             }
         }
