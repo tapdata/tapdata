@@ -58,7 +58,6 @@ class UpdateFieldDescriptionTest {
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
-            ms.when(() -> Utils.makeCallToolResult(any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             doNothing().when(metadataInstancesService).updateTableFieldDesc(any(), any(), any());
@@ -98,7 +97,6 @@ class UpdateFieldDescriptionTest {
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
-            ms.when(() -> Utils.makeCallToolResult(any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             doNothing().when(metadataInstancesService).batchUpdateTableFieldDescByName(any(), any(), any());

@@ -78,7 +78,7 @@ public class StreamableMcpTransportProvider extends HttpServlet
         SessionCaptureResponseWrapper responseWrapper = new SessionCaptureResponseWrapper(response);
 
         Map<String, Object> authenticatedAttributes = authenticateInitializeRequest(requestWrapper, responseWrapper);
-        if (responseWrapper.isCommitted()) {
+        if (responseWrapper.isCommitted() || responseWrapper.getStatus() >= HttpStatus.BAD_REQUEST.value()) {
             return;
         }
 

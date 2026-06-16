@@ -70,7 +70,6 @@ class ListDataModelTest {
             // 设置 mock 行为
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
-            ms.when(() -> Utils.makeCallToolResult(any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             when(metadataInstancesService.list(any(Filter.class), eq(mockUserDetail)))
@@ -98,7 +97,6 @@ class ListDataModelTest {
             // 设置 mock 行为
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
-            ms.when(() -> Utils.makeCallToolResult(any())).thenCallRealMethod();
 
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
@@ -155,7 +153,6 @@ class ListDataModelTest {
             // 设置 mock 行为
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
-            ms.when(() -> Utils.makeCallToolResult(any())).thenCallRealMethod();
 
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
@@ -186,7 +183,6 @@ class ListDataModelTest {
             // 设置 mock 行为
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
-            ms.when(() -> Utils.makeCallToolResult(any())).thenCallRealMethod();
 
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);

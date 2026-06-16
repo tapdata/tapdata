@@ -20,9 +20,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -122,6 +124,50 @@ class StartTaskTest {
         assertNotNull(result);
         verify(taskService).clearAgentAffinityForManualStart(taskObjectIds, userDetail);
         verify(taskService).batchStart(taskObjectIds, userDetail, null, null);
+    }
+
+    @Test
+    void testCallDeduplicateTaskIdAndTaskIds() {
+        UserDetail userDetail = mockUser();
+        ObjectId firstTaskId = new ObjectId();
+        ObjectId secondTaskId = new ObjectId();
+        List<ObjectId> taskObjectIds = List.of(firstTaskId, secondTaskId);
+        TaskDto firstTask = buildTask(firstTaskId, "FirstTask", TaskDto.STATUS_WAIT_START);
+        TaskDto secondTask = buildTask(secondTaskId, "SecondTask", TaskDto.STATUS_STOP);
+
+        when(taskService.checkExistById(firstTaskId, userDetail)).thenReturn(firstTask);
+        when(taskService.checkExistById(secondTaskId, userDetail)).thenReturn(secondTask);
+        when(taskService.batchStart(eq(taskObjectIds), eq(userDetail), isNull(), isNull()))
+                .thenReturn(Collections.emptyList());
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("taskId", firstTaskId.toHexString());
+        params.put("taskIds", List.of(firstTaskId.toHexString(), secondTaskId.toHexString(), firstTaskId.toHexString()));
+
+        McpSchema.CallToolResult result = startTask.call(exchange, params);
+
+        assertNotNull(result);
+        verify(taskService).checkExistById(firstTaskId, userDetail);
+        verify(taskService).checkExistById(secondTaskId, userDetail);
+        verify(taskService).clearAgentAffinityForManualStart(taskObjectIds, userDetail);
+        verify(taskService).batchStart(taskObjectIds, userDetail, null, null);
+    }
+
+    @Test
+    void testCallTaskNotFound() {
+        UserDetail userDetail = mockUser();
+        ObjectId taskId = new ObjectId();
+
+        when(taskService.checkExistById(taskId, userDetail)).thenReturn(null);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("taskId", taskId.toHexString());
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> startTask.call(exchange, params));
+
+        assertTrue(exception.getMessage().contains("Task not found"));
+        verify(taskService, never()).clearAgentAffinityForManualStart(anyList(), eq(userDetail));
+        verify(taskService, never()).batchStart(anyList(), eq(userDetail), isNull(), isNull());
     }
 
     @Test

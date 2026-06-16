@@ -4,7 +4,7 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.externalStorage.dto.ExternalStorageDto;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.mcp.Utils;
@@ -88,7 +88,6 @@ class CreateMergeTableTaskTest {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.getStringValue(any(), any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
-            ms.when(() -> Utils.makeCallToolResult(any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             when(dataSourceService.findById(any(ObjectId.class), eq(mockUserDetail)))

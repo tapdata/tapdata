@@ -1,6 +1,5 @@
 package com.tapdata.tm.mcp;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.role.dto.RoleDto;
@@ -13,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.RequestPath;
 import org.springframework.mock.web.MockHttpSession;
@@ -42,9 +42,6 @@ class McpConfigTest {
     @Mock
     private UserLogService userLogService;
 
-    @Mock
-    private ObjectMapper objectMapper;
-
     @InjectMocks
     private McpConfig mcpConfig;
 
@@ -63,22 +60,26 @@ class McpConfigTest {
     private MockHttpSession session;
 
     @Test
-    void testWebMvcSseServerTransportProvider() {
-        // 测试创建 SseServerTransportProvider
-        SseServerTransportProvider provider = mcpConfig.webMvcSseServerTransportProvider(objectMapper, userLogService);
+    void testStreamableMcpTransportProvider() {
+        StreamableMcpTransportProvider provider =
+                mcpConfig.streamableMcpTransportProvider(accessTokenService, userService, userLogService);
+
         assertNotNull(provider);
     }
 
     @Test
-    void testMcpRouterFunction() {
-        // 测试创建路由函数
-        SseServerTransportProvider transportProvider = mock(SseServerTransportProvider.class);
-        RouterFunction<ServerResponse> mockRouterFunction = mock(RouterFunction.class);
-        when(mockRouterFunction.filter(any())).thenReturn(mockRouterFunction);
-        when(transportProvider.getRouterFunction()).thenReturn(mockRouterFunction);
+    void testMcpServletRegistration() {
+        StreamableMcpTransportProvider transportProvider =
+                new StreamableMcpTransportProvider("/mcp", accessTokenService, userService, userLogService);
 
-        var routerFunction = mcpConfig.mcpRouterFunction(transportProvider, accessTokenService, userService);
-        assertNotNull(routerFunction);
+        ServletRegistrationBean<StreamableMcpTransportProvider> registration =
+                mcpConfig.mcpServletRegistration(transportProvider);
+
+        assertNotNull(registration);
+        assertEquals("mcpStreamableHttpServlet", registration.getServletName());
+        assertEquals(transportProvider, registration.getServlet());
+        assertTrue(registration.getUrlMappings().contains(mcpConfig.mcpEndpoint));
+        assertTrue(registration.isAsyncSupported());
     }
 
     @Test
@@ -224,4 +225,4 @@ class McpConfigTest {
         // 执行过滤器并验证异常
         assertThrows(RuntimeException.class, () -> mcpConfig.authFilter(serverRequest, handlerFunction));
     }
-} 
+}
