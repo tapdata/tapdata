@@ -177,6 +177,7 @@ class TaskServiceImplTest {
     UserLogService userLogService;
     MetadataDefinitionService metadataDefinitionService;
     TaskUpdateDagService taskUpdateDagService;
+    CpuMemoryService cpuMemoryService;
     @BeforeEach
     void init() {
         taskService = mock(TaskServiceImpl.class);
@@ -200,6 +201,10 @@ class TaskServiceImplTest {
         taskUpdateDagService = mock(TaskUpdateDagService.class);
         ReflectionTestUtils.setField(taskService,"taskUpdateDagService",taskUpdateDagService);
         doNothing().when(taskUpdateDagService).updateDag(any(TaskDto.class), any(TaskDto.class), any(UserDetail.class), anyBoolean());
+        cpuMemoryService = mock(CpuMemoryService.class);
+        ReflectionTestUtils.setField(taskService, "cpuMemoryService", cpuMemoryService);
+        when(cpuMemoryService.hasOpenCpuMemory()).thenReturn(true);
+        doNothing().when(cpuMemoryService).ignoreMeasureInfoIfNeed(any(), any());
     }
 
     @Nested
@@ -2566,6 +2571,9 @@ class TaskServiceImplTest {
             new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
             transformerService = mock(MetadataTransformerService.class);
             ReflectionTestUtils.setField(taskService,"transformerService",transformerService);
+            ReflectionTestUtils.setField(taskService, "cpuMemoryService", cpuMemoryService);
+            when(cpuMemoryService.hasOpenCpuMemory()).thenReturn(true);
+            doNothing().when(cpuMemoryService).ignoreMeasureInfoIfNeed(any(), any());
         }
         @Test
         @DisplayName("test find method when is agent request")

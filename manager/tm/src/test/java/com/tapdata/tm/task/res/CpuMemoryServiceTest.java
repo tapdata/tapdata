@@ -1,18 +1,19 @@
 package com.tapdata.tm.task.res;
 
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
@@ -27,12 +28,15 @@ class CpuMemoryServiceTest {
 
     private CpuMemoryService cpuMemoryService;
     private MongoTemplate mongoOperations;
+    private SettingsService settingsService;
 
     @BeforeEach
     void setUp() {
         mongoOperations = mock(MongoTemplate.class);
+        settingsService = mock(SettingsService.class);
         cpuMemoryService = new CpuMemoryService();
         cpuMemoryService.setMongoOperations(mongoOperations);
+        cpuMemoryService.setSettingsService(settingsService);
     }
 
     @Nested
@@ -289,6 +293,111 @@ class CpuMemoryServiceTest {
             usageMap.put(new ObjectId().toHexString(), new HashMap<>());
             cpuMemoryService.updateTaskCpuMemory(usageMap);
             verify(mongoOperations, times(1)).bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("Method hasOpenCpuMemory test")
+    class HasOpenCpuMemoryTest {
+        @Test
+        @DisplayName("should return true when setting value is true")
+        void testReturnTrue() {
+            Settings settings = new Settings();
+            settings.setValue(true);
+            when(settingsService.getByKey("cpu_mem_collector")).thenReturn(settings);
+
+            boolean result = cpuMemoryService.hasOpenCpuMemory();
+
+            assertTrue(result);
+            verify(settingsService).getByKey("cpu_mem_collector");
+        }
+
+        @Test
+        @DisplayName("should return false when setting is null")
+        void testReturnFalseWhenSettingIsNull() {
+            when(settingsService.getByKey("cpu_mem_collector")).thenReturn(null);
+
+            boolean result = cpuMemoryService.hasOpenCpuMemory();
+
+            assertFalse(result);
+            verify(settingsService).getByKey("cpu_mem_collector");
+        }
+
+        @Test
+        @DisplayName("should return false when setting value is false")
+        void testReturnFalseWhenSettingValueIsFalse() {
+            Settings settings = new Settings();
+            settings.setValue(false);
+            when(settingsService.getByKey("cpu_mem_collector")).thenReturn(settings);
+
+            boolean result = cpuMemoryService.hasOpenCpuMemory();
+
+            assertFalse(result);
+            verify(settingsService).getByKey("cpu_mem_collector");
+        }
+    }
+
+    @Nested
+    @DisplayName("Method ignoreMeasureInfoIfNeed test")
+    class IgnoreMeasureInfoIfNeedTest {
+        @Test
+        @DisplayName("should remove cpu and memory fields when collector is disabled")
+        void testRemoveFieldsWhenUsageClosed() {
+            Settings settings = new Settings();
+            settings.setValue(false);
+            when(settingsService.getByKey("cpu_mem_collector")).thenReturn(settings);
+
+            MeasurementQueryParam measurementQueryParam = new MeasurementQueryParam();
+            MeasurementQueryParam.MeasurementQuerySample sample = new MeasurementQueryParam.MeasurementQuerySample();
+            List<String> fields = new ArrayList<>(Arrays.asList("cpuUsage", "memoryUsage", "qps"));
+            sample.setFields(fields);
+            sample.setType(MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS);
+            measurementQueryParam.setSamples(Collections.singletonMap("data", sample));
+            Map<String, Object> result = new HashMap<>();
+
+            cpuMemoryService.ignoreMeasureInfoIfNeed(measurementQueryParam, result);
+
+            assertEquals(Boolean.FALSE, result.get("usageOpen"));
+            assertEquals(Collections.singletonList("qps"), sample.getFields());
+        }
+
+        @Test
+        @DisplayName("should keep cpu and memory fields when collector is enabled")
+        void testKeepFieldsWhenUsageOpen() {
+            Settings settings = new Settings();
+            settings.setValue(true);
+            when(settingsService.getByKey("cpu_mem_collector")).thenReturn(settings);
+
+            MeasurementQueryParam measurementQueryParam = new MeasurementQueryParam();
+            MeasurementQueryParam.MeasurementQuerySample sample = new MeasurementQueryParam.MeasurementQuerySample();
+            List<String> fields = new ArrayList<>(Arrays.asList("cpuUsage", "memoryUsage", "qps"));
+            sample.setFields(fields);
+            sample.setType(MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS);
+            measurementQueryParam.setSamples(Collections.singletonMap("data", sample));
+            Map<String, Object> result = new HashMap<>();
+
+            cpuMemoryService.ignoreMeasureInfoIfNeed(measurementQueryParam, result);
+
+            assertEquals(Boolean.TRUE, result.get("usageOpen"));
+            assertEquals(Arrays.asList("cpuUsage", "memoryUsage", "qps"), sample.getFields());
+        }
+
+        @Test
+        @DisplayName("should ignore non continuous sample")
+        void testIgnoreNonContinuousSample() {
+            MeasurementQueryParam measurementQueryParam = new MeasurementQueryParam();
+            MeasurementQueryParam.MeasurementQuerySample sample = new MeasurementQueryParam.MeasurementQuerySample();
+            List<String> fields = new ArrayList<>(Arrays.asList("cpuUsage", "memoryUsage", "qps"));
+            sample.setFields(fields);
+            sample.setType(MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT);
+            measurementQueryParam.setSamples(Collections.singletonMap("data", sample));
+            Map<String, Object> result = new HashMap<>();
+
+            cpuMemoryService.ignoreMeasureInfoIfNeed(measurementQueryParam, result);
+
+            assertFalse(result.containsKey("usageOpen"));
+            assertEquals(Arrays.asList("cpuUsage", "memoryUsage", "qps"), sample.getFields());
+            verify(settingsService, never()).getByKey("cpu_mem_collector");
         }
     }
 }
