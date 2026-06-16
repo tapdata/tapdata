@@ -3780,9 +3780,9 @@ public class TaskServiceImpl extends TaskService{
                if(null != taskDto.getId()){
                    importResult.put(taskDto.getId().toHexString(), ExceptionUtils.getStackTrace(e));
                }
-               if(importMode != ImportModeEnum.GROUP_IMPORT){
-                   throw e;
-               }
+               // TAP-11891: 所有导入模式统一 fail-fast，单任务失败立即抛出、中断本批后续任务，
+               // 避免 group_import 静默吞错导致部分导入却整体报成功
+               throw e;
            }
         }
         return importResult;

@@ -172,7 +172,7 @@ public class GroupInfoController extends BaseController {
     @PostMapping(path = "/import/connections", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importConnections(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "vault", required = false) MultipartFile vaultFile,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
@@ -184,7 +184,7 @@ public class GroupInfoController extends BaseController {
     @PostMapping(path = "/import/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importTasks(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
         ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
@@ -195,7 +195,7 @@ public class GroupInfoController extends BaseController {
     @PostMapping(path = "/import/migrate/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importMigrateTasks(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
         ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
@@ -206,7 +206,7 @@ public class GroupInfoController extends BaseController {
     @PostMapping(path = "/import/sync/tasks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importSyncTasks(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
         ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
@@ -217,7 +217,7 @@ public class GroupInfoController extends BaseController {
     @PostMapping(path = "/import/groupInfo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Map<String, String>> importGroupInfo(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode)
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode)
             throws IOException {
         ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
         ObjectId recordId = groupInfoService.importGroupInfo(file, importModeEnum, getLoginUser());
@@ -244,7 +244,7 @@ public class GroupInfoController extends BaseController {
     @PostMapping(path = "/import/apis", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importApis(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
         ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
