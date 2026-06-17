@@ -35,7 +35,9 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
+import org.graalvm.polyglot.EnvironmentAccess;
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.PolyglotAccess;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -78,6 +80,44 @@ public class ScriptUtil {
 
 	public static final String SCRIPT_FACTORY_TYPE = "tapdata";
 
+	public static final HostAccess SANDBOX_HOST_ACCESS = HostAccess.newBuilder()
+			.allowPublicAccess(true)
+			.allowMapAccess(true)
+			.allowListAccess(true)
+			.allowArrayAccess(true)
+			.allowIterableAccess(true)
+			.allowIteratorAccess(true)
+			.denyAccess(Class.class)
+			.denyAccess(ClassLoader.class, true)
+			.denyAccess(File.class, true)
+			.denyAccess(ProcessBuilder.class, true)
+			.denyAccess(Runtime.class, true)
+			.denyAccess(System.class)
+			.targetTypeMapping(Value.class, Object.class,
+					v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class))
+			.build();
+
+	public static final Set<String> ALLOWED_HOST_CLASSES = new HashSet<>(Arrays.asList(
+			"java.util.HashMap",
+			"java.util.LinkedHashMap",
+			"java.util.ArrayList",
+			"java.util.Collections",
+			"java.lang.Thread",
+			"com.tapdata.constant.DateUtil",
+			"com.tapdata.constant.UUIDGenerator",
+			"com.tapdata.constant.JSONUtil",
+			"com.tapdata.constant.HanLPUtil",
+			"com.tapdata.constant.MD5Util",
+			"com.tapdata.constant.MapUtil",
+			"com.tapdata.processor.util.Util",
+			"io.tapdata.entity.schema.value.DateTime",
+			"com.tapdata.constant.NetworkUtil",
+			"com.tapdata.processor.util.CustomRest",
+			"com.tapdata.http.HttpUtil",
+			"com.tapdata.processor.util.CustomTcp",
+			"com.tapdata.processor.util.CustomMongodb"
+	));
+
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
 		return getScriptEngine(jsEngineName,
 				new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO),
@@ -90,7 +130,7 @@ public class ScriptUtil {
 	 * @param jsEngineName
 	 * @return
 	 */
-	private static ScriptEngine getScriptEngine(String jsEngineName, OutputStream out, OutputStream err) {
+	public static ScriptEngine getScriptEngine(String jsEngineName, OutputStream out, OutputStream err) {
 		JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
 		ScriptEngine scriptEngine;
 		if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
@@ -102,10 +142,14 @@ public class ScriptUtil {
 									.err(err)
 									.build(),
 							Context.newBuilder("js")
-									.allowAllAccess(true)
-									.allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
-											.targetTypeMapping(Value.class, Object.class,
-													v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class)).build())
+									.allowAllAccess(false)
+									.allowHostAccess(SANDBOX_HOST_ACCESS)
+									.allowHostClassLookup(ScriptUtil::isAllowedHostClass)
+									.hostClassFilter(ScriptUtil::isAllowedHostClass)
+									.allowNativeAccess(false)
+									.allowCreateProcess(false)
+									.allowEnvironmentAccess(EnvironmentAccess.NONE)
+									.allowPolyglotAccess(PolyglotAccess.NONE)
 									.out(out)
 									.err(err)
 					);
@@ -117,6 +161,10 @@ public class ScriptUtil {
 			scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 		}
 		return scriptEngine;
+	}
+
+	public static boolean isAllowedHostClass(String className) {
+		return ALLOWED_HOST_CLASSES.contains(className);
 	}
 
 	public static Invocable getScriptEngine(String script,

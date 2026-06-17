@@ -31,6 +31,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 public class ScriptUtilTest {
@@ -45,6 +46,101 @@ public class ScriptUtilTest {
         Assert.assertNotNull(result);
 
     }
+
+    @Test
+    public void getScriptEngineShouldRejectDangerousJavaTypeAccess() throws Exception {
+        final Log logger = new NoopLog();
+        String script = "function process(record) {\n" +
+                "  Java.type('java.lang.Runtime');\n" +
+                "  return record;\n" +
+                "}";
+
+        Invocable engine = ScriptUtil.getScriptEngine(
+                JSEngineEnum.GRAALVM_JS.getEngineName(),
+                script,
+                null,
+                null,
+                null,
+                null,
+                null,
+                logger,
+                true);
+
+        assertThrows(Exception.class, () -> engine.invokeFunction("process", new HashMap<>()));
+    }
+
+    @Test
+    public void getScriptEngineShouldRejectFileJavaTypeAccess() throws Exception {
+        final Log logger = new NoopLog();
+        String script = "function process(record) {\n" +
+                "  Java.type('java.io.File');\n" +
+                "  return record;\n" +
+                "}";
+
+        Invocable engine = ScriptUtil.getScriptEngine(
+                JSEngineEnum.GRAALVM_JS.getEngineName(),
+                script,
+                null,
+                null,
+                null,
+                null,
+                null,
+                logger,
+                true);
+
+        assertThrows(Exception.class, () -> engine.invokeFunction("process", new HashMap<>()));
+    }
+
+    @Test
+    public void initBuildInMethodShouldKeepCompatMappingsWithoutDangerousClasses() {
+        String buildInMethod = ScriptUtil.initBuildInMethod(null, null, null, false);
+
+        assertTrue(buildInMethod.contains("var DateUtil = Java.type(\"com.tapdata.constant.DateUtil\");"));
+        assertTrue(buildInMethod.contains("var UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\");"));
+        assertTrue(buildInMethod.contains("var MD5Util = Java.type(\"com.tapdata.constant.MD5Util\");"));
+        assertTrue(buildInMethod.contains("var sleep = function(ms){"));
+        assertTrue(!buildInMethod.contains("java.lang.Runtime"));
+        assertTrue(!buildInMethod.contains("java.io.File"));
+    }
+
+    private static class NoopLog implements Log {
+        @Override
+        public void debug(String message, Object... params) {
+        }
+
+        @Override
+        public void info(CharSequence message) {
+        }
+
+        @Override
+        public void info(String message, Object... params) {
+        }
+
+        @Override
+        public void trace(CharSequence message) {
+        }
+
+        @Override
+        public void trace(String message, Object... params) {
+        }
+
+        @Override
+        public void warn(String message, Object... params) {
+        }
+
+        @Override
+        public void error(String message, Object... params) {
+        }
+
+        @Override
+        public void error(String message, Throwable throwable) {
+        }
+
+        @Override
+        public void fatal(String message, Object... params) {
+        }
+    }
+
     @Test
     public void testInvokeScript()  {
         Map<String,Object> input = new HashMap<>();
