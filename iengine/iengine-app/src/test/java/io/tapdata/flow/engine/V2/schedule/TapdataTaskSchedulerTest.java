@@ -75,7 +75,7 @@ public class TapdataTaskSchedulerTest {
 				ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
 				try (MockedStatic<ObsLoggerFactory> of = Mockito
 						.mockStatic(ObsLoggerFactory.class)) {
-					mb.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+					of.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
 					when(obsLoggerFactory.getObsLogger(anyString())).thenReturn(mock(ObsLogger.class));
 					TaskRetryService taskRetryService = mock(TaskRetryService.class);
 					when(factory.getTaskRetryService(anyString())).thenReturn(Optional.ofNullable(taskRetryService));
@@ -656,13 +656,16 @@ public class TapdataTaskSchedulerTest {
 			Logger logger = mock(Logger.class);
 			MessageDao messageDao = mock(MessageDao.class);
 			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			TaskRetryFactory taskRetryFactory = mock(TaskRetryFactory.class);
+			ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
 			TaskDto taskDto = new TaskDto();
 			taskDto.setId(new ObjectId());
 			taskDto.setName("rebalance-residual-task");
+			String taskId = taskDto.getId().toHexString();
 
 			Map<String, TaskClient<TaskDto>> internalStopTaskClientMap = (Map<String, TaskClient<TaskDto>>) ReflectionTestUtils.getField(scheduler, "internalStopTaskClientMap");
 			internalStopTaskClientMap.clear();
-			internalStopTaskClientMap.put(taskDto.getId().toHexString(), taskClient);
+			internalStopTaskClientMap.put(taskId, taskClient);
 			ReflectionTestUtils.setField(scheduler, "logger", logger);
 			ReflectionTestUtils.setField(scheduler, "messageDao", messageDao);
 			ReflectionTestUtils.setField(scheduler, "instanceNo", "fe1");
@@ -670,10 +673,18 @@ public class TapdataTaskSchedulerTest {
 			when(taskClient.stop()).thenReturn(true);
 			when(taskClient.getCacheName()).thenReturn("");
 
-			ReflectionTestUtils.invokeMethod(scheduler, "internalStopTask");
+			try (MockedStatic<TaskRetryFactory> taskRetryFactoryMockedStatic = mockStatic(TaskRetryFactory.class);
+				 MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)) {
+				taskRetryFactoryMockedStatic.when(TaskRetryFactory::getInstance).thenReturn(taskRetryFactory);
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+
+				ReflectionTestUtils.invokeMethod(scheduler, "internalStopTask");
+			}
 
 			assertTrue(internalStopTaskClientMap.isEmpty());
 			verify(taskClient).stop();
+			verify(taskRetryFactory).removeTaskRetryService(taskId);
+			verify(obsLoggerFactory).removeTaskLoggerMarkRemove(taskDto);
 		}
 
 		@Test
@@ -681,22 +692,33 @@ public class TapdataTaskSchedulerTest {
 			TapdataTaskScheduler scheduler = new TapdataTaskScheduler();
 			Logger logger = mock(Logger.class);
 			TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+			TaskRetryFactory taskRetryFactory = mock(TaskRetryFactory.class);
+			ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
 			TaskDto taskDto = new TaskDto();
 			taskDto.setId(new ObjectId());
 			taskDto.setName("rebalance-residual-task");
+			String taskId = taskDto.getId().toHexString();
 
 			Map<String, TaskClient<TaskDto>> internalStopTaskClientMap = (Map<String, TaskClient<TaskDto>>) ReflectionTestUtils.getField(scheduler, "internalStopTaskClientMap");
 			internalStopTaskClientMap.clear();
-			internalStopTaskClientMap.put(taskDto.getId().toHexString(), taskClient);
+			internalStopTaskClientMap.put(taskId, taskClient);
 			ReflectionTestUtils.setField(scheduler, "logger", logger);
 			ReflectionTestUtils.setField(scheduler, "instanceNo", "fe1");
 			when(taskClient.getTask()).thenReturn(taskDto);
 			when(taskClient.stop()).thenReturn(false);
 
-			ReflectionTestUtils.invokeMethod(scheduler, "internalStopTask");
+			try (MockedStatic<TaskRetryFactory> taskRetryFactoryMockedStatic = mockStatic(TaskRetryFactory.class);
+				 MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)) {
+				taskRetryFactoryMockedStatic.when(TaskRetryFactory::getInstance).thenReturn(taskRetryFactory);
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
 
-			assertTrue(internalStopTaskClientMap.containsKey(taskDto.getId().toHexString()));
+				ReflectionTestUtils.invokeMethod(scheduler, "internalStopTask");
+			}
+
+			assertTrue(internalStopTaskClientMap.containsKey(taskId));
 			verify(taskClient).stop();
+			verifyNoInteractions(taskRetryFactory);
+			verifyNoInteractions(obsLoggerFactory);
 		}
 	}
 
