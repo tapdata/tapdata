@@ -57,6 +57,8 @@ import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -145,29 +147,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			 * 2、上报任务已停止/错误的状态信息
 			 */
 			try {
-				for (Map.Entry<String, TaskClient<TaskDto>> entry : taskClientMap.entrySet()) {
-					TaskClient<TaskDto> subTaskDtoTaskClient = entry.getValue();
-					final TaskDto taskDto = subTaskDtoTaskClient.getTask();
-					String taskId = taskDto.getId().toHexString();
-					Criteria rescheduleCriteria = where("_id").is(taskId).andOperator(where("agentId").ne(instanceNo), where("agentId").ne(null));
-
-					Query query = new Query(rescheduleCriteria);
-					query.fields().include("id").include("status");
-					final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-					if (CollectionUtils.isNotEmpty(subTaskDtos)) {
-						internalStopTaskClientMap.put(taskId, subTaskDtoTaskClient);
-						removeTask(taskId);
-					} else {
-						TmStatusService.setAllowReport(taskId);
-					}
-				}
+				scanAndInternalStopRescheduledTasks();
 			} catch (Exception e) {
 				logger.error("Scan reschedule task failed {}", e.getMessage(), e);
 			}
 		});
-		if (AppType.currentType().isCloud()) {
-			taskScheduler.scheduleAtFixedRate(this::internalStopTask, Duration.ofSeconds(10));
-		}
+		taskScheduler.scheduleAtFixedRate(this::internalStopTask, Duration.ofSeconds(10));
 		taskOperationThreadPool.submit(() -> {
 			Thread.currentThread().setName("Task-Operation-Consumer");
 			while (true) {
@@ -540,7 +525,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
 			Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
 				.ifPresent(log -> log.info("This task is already running"));
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskOpRespDto.class);
+			clientMongoOperator.updateById(new Update(), taskStatusResource(taskDto, "running"), taskId, TaskOpRespDto.class);
 			return;
 		}
 
@@ -551,7 +536,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 			// Claim the task first so TM immediately moves wait_run→running; if this fails the
 			// task is still in scheduling/wait_run and we abort rather than start a phantom job.
-			TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskOpRespDto.class);
+			TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), taskStatusResource(taskDto, "running"), taskId, TaskOpRespDto.class);
 			if (null == taskOpRespDto || !taskOpRespDto.getSuccessIds().contains(taskId)) {
 				// 防止任务异常状态下再次启动任务
 				throw new RuntimeException("Update task status to 'running' failed");
@@ -574,7 +559,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				} else {
 					logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
 				}
-				CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class)).join();
+				CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), taskStatusResource(taskDto, "runError"), taskId, TaskDto.class)).join();
 			}
 			if (ObsLoggerFactory.getInstance().getObsLogger(taskDto) != null) {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDto).error( "Start task failed: " + e.getMessage(), e);
@@ -602,6 +587,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	public void forceStoppingTask() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.STOP_TASK_THREAD, instanceNo));
 		try {
+			scanAndInternalStopRescheduledTasks();
+
 			for (Map.Entry<String, TaskClient<TaskDto>> entry : taskClientMap.entrySet()) {
 				TaskClient<TaskDto> taskClient = entry.getValue();
 				final TaskDto taskDto = taskClient.getTask();
@@ -616,7 +603,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
 			for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
 				final String taskId = timeoutStoppingTask.getId().toHexString();
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+				clientMongoOperator.updateById(new Update(), taskStatusResource("stopped"), taskId, TaskDto.class);
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
@@ -694,8 +681,38 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 
 
+	private void scanAndInternalStopRescheduledTasks() {
+		for (Map.Entry<String, TaskClient<TaskDto>> entry : taskClientMap.entrySet()) {
+			TaskClient<TaskDto> taskClient = entry.getValue();
+			if (taskClient == null || taskClient.getTask() == null || taskClient.getTask().getId() == null) {
+				continue;
+			}
+			String taskId = taskClient.getTask().getId().toHexString();
+			if (isTaskRescheduledToAnotherAgent(taskId)) {
+				TaskClient<TaskDto> removed = taskClientMap.remove(taskId);
+				if (removed == null) {
+					removed = taskClient;
+				}
+				internalStopTaskClientMap.put(taskId, removed);
+				TmStatusService.removeTask(taskId);
+				logger.info("TaskHA event=internal_stop_rescheduled_task taskId={} taskName={} localAgentId={}",
+						taskId, removed.getTask().getName(), instanceNo);
+			} else {
+				TmStatusService.setAllowReport(taskId);
+			}
+		}
+	}
+
+	private boolean isTaskRescheduledToAnotherAgent(String taskId) {
+		Criteria rescheduleCriteria = where("_id").is(taskId).andOperator(where("agentId").ne(instanceNo), where("agentId").ne(null));
+		Query query = new Query(rescheduleCriteria);
+		query.fields().include("id").include("status").include("agentId");
+		final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		return CollectionUtils.isNotEmpty(subTaskDtos);
+	}
+
 	private void internalStopTask() {
-		Thread.currentThread().setName(String.format(ConnectorConstant.CLOUD_INTERNAL_STOP_TASK_THREAD, instanceNo));
+		Thread.currentThread().setName(String.format(ConnectorConstant.INTERNAL_STOP_TASK_THREAD, instanceNo));
 		try {
 			Iterator<Map.Entry<String, TaskClient<TaskDto>>> iterator = internalStopTaskClientMap.entrySet().iterator();
 			while (iterator.hasNext()) {
@@ -710,6 +727,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					} catch (Exception e) {
 						throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskId), e);
 					}
+					clearTaskRetryCache(taskId);
+					ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskClient.getTask());
 					iterator.remove();
 				}
 			}
@@ -781,14 +800,13 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		long jobHeartTimeout = getJobHeartTimeout();
 		long expiredTimeMillis = System.currentTimeMillis() - jobHeartTimeout;
 		Criteria timeoutCriteria = where("status").is(TaskDto.STATUS_STOPPING)
-//      .and("agentId").is(instanceNo)
 				.orOperator(
 						where("pingTime").lt(Double.valueOf(String.valueOf(expiredTimeMillis))),
 						where("pingTime").is(null),
 						where("pingTime").exists(false));
 
 		Query query = new Query(timeoutCriteria);
-		query.fields().include("id").include("status");
+		query.fields().include("id").include("status").include("agentId").include("taskRecordId");
 		return clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 	}
 
@@ -831,7 +849,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				logger.info("Call {} api to modify task [{}] status", resource, taskName);
 				AtomicBoolean success = new AtomicBoolean(true);
 				CompletableFuture.runAsync(() -> {
-					TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
+					TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), taskStatusResource(task, stopTaskResource.getResource()), taskId, TaskOpRespDto.class);
 					if (CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())) {
 						success.set(false);
 					}
@@ -841,7 +859,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
 					// 违反TM状态机，不再进行修改任务状态的重试
 					logger.warn("Call api to stop task status to {} failed, will set task to error, message: {}", resource, e.getMessage(), e);
-					CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class)).join();
+					CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), taskStatusResource(task, StopTaskResource.RUN_ERROR.getResource()), taskId, TaskDto.class)).join();
 					return true;
 				} else {
 					logger.warn("Call stop task api failed, api uri: {}, task: {}[{}]", resource, taskName, taskId, e);
@@ -877,6 +895,29 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		update.set("agentId", instanceNo);
 	}
 
+	private String taskStatusResource(String statusResource) {
+		return new StringBuilder(ConnectorConstant.TASK_COLLECTION).append("/").append(statusResource).toString();
+	}
+
+	private String taskStatusResource(TaskDto taskDto, String statusResource) {
+		StringBuilder resource = new StringBuilder(taskStatusResource(statusResource));
+		List<String> queryParams = new ArrayList<>();
+		if (StringUtils.isNotBlank(instanceNo)) {
+			queryParams.add("agentId=" + encodeQueryParam(instanceNo));
+		}
+		if (taskDto != null && StringUtils.isNotBlank(taskDto.getTaskRecordId())) {
+			queryParams.add("taskRecordId=" + encodeQueryParam(taskDto.getTaskRecordId()));
+		}
+		if (CollectionUtils.isNotEmpty(queryParams)) {
+			resource.append("?").append(String.join("&", queryParams));
+		}
+		return resource.toString();
+	}
+
+	private String encodeQueryParam(String value) {
+		return URLEncoder.encode(value, StandardCharsets.UTF_8);
+	}
+
 	private long getJobHeartTimeout() {
 		return settingService.getLong("jobHeartTimeout", 60000L);
 	}
@@ -885,7 +926,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 		if (null == taskDtoTaskClient) {
 			try {
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+				clientMongoOperator.updateById(new Update(), taskStatusResource(null, "stopped"), taskId, TaskDto.class);
 				Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId)).ifPresent(log -> log.info("This task already stopped."));
 			} catch (Exception e) {
 				logger.warn(e.getMessage(), e);

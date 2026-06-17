@@ -647,7 +647,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             jobService.runAsRebalanceOperation(() -> taskService.pause(task, taskUser, false));
         }
         assertCurrentExecuteOwner(rebalanceId, userDetail);
-        if (!waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs(), userDetail)) {
+        if (!waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_STOP, job.getSourceAgentId(), getTaskStatusTimeoutMs(), userDetail)) {
             String reason = formatStopTimeoutReason(job);
             finishJob(job, TaskRebalanceJobStatus.STOP_TIMEOUT, reason, userDetail);
             return;
@@ -692,7 +692,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
             if (!TaskDto.STATUS_STOP.equals(task.getStatus())) {
                 jobService.runAsRebalanceOperation(() -> taskService.pause(task, taskUser, false));
                 assertCurrentExecuteOwner(rebalanceId, userDetail);
-                if (!waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs(), userDetail)) {
+                if (!waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_STOP, job.getSourceAgentId(), getTaskStatusTimeoutMs(), userDetail)) {
                     String reason = formatStopTimeoutReason(job);
                     finishJob(job, TaskRebalanceJobStatus.STOP_TIMEOUT, reason, userDetail);
                     return;
@@ -738,7 +738,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
     private void waitTargetRunningOrRollback(String rebalanceId, TaskRebalanceJobDto job, UserDetail taskUser, UserDetail userDetail,
                                              AtomicBoolean abortFlag, AtomicReference<String> abortReason) throws InterruptedException {
         assertCurrentExecuteOwner(rebalanceId, userDetail);
-        if (!waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_RUNNING, getTaskStatusTimeoutMs(), userDetail)) {
+        if (!waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_RUNNING, job.getTargetAgentId(), getTaskStatusTimeoutMs(), userDetail)) {
             if (isTaskRunningOnTarget(job)) {
                 finishJob(job, TaskRebalanceJobStatus.OK, null, userDetail);
                 return;
@@ -798,7 +798,7 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         try {
             if (!TaskDto.STATUS_STOP.equals(current.getStatus())) {
                 jobService.runAsRebalanceOperation(() -> taskService.pause(current, taskUser, false));
-                waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_STOP, getTaskStatusTimeoutMs(), userDetail);
+                waitTaskStatus(rebalanceId, job.getTaskId(), TaskDto.STATUS_STOP, job.getTargetAgentId(), getTaskStatusTimeoutMs(), userDetail);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -892,15 +892,16 @@ public class TaskRebalanceService extends BaseService<TaskRebalanceDto, TaskReba
         }
     }
 
-    private boolean waitTaskStatus(String rebalanceId, String taskId, String expectedStatus, long timeoutMs, UserDetail userDetail) throws InterruptedException {
+    private boolean waitTaskStatus(String rebalanceId, String taskId, String expectedStatus, String expectedAgentId, long timeoutMs, UserDetail userDetail) throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Task rebalance execution interrupted");
             }
             assertCurrentExecuteOwner(rebalanceId, userDetail);
-            TaskDto task = taskService.findByTaskId(new ObjectId(taskId), "status");
-            if (task != null && expectedStatus.equals(task.getStatus())) {
+            TaskDto task = taskService.findByTaskId(new ObjectId(taskId), "status", "agentId");
+            if (task != null && expectedStatus.equals(task.getStatus())
+                    && (StringUtils.isBlank(expectedAgentId) || Objects.equals(expectedAgentId, task.getAgentId()))) {
                 return true;
             }
             Thread.sleep(POLL_INTERVAL_MS);

@@ -263,7 +263,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 
 		validateToken();
 
-		final String resource = addToken(collection + "/" + id);
+		final String resource = addToken(resourceWithId(collection, id));
 
 		T result = null;
 		try {
@@ -511,9 +511,17 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 	public String addToken(String url) {
 		StringBuilder sb = new StringBuilder(url);
 
-		sb.append("?").append("access_token=").append(configCenter.getConfig(ConfigurationCenter.TOKEN));
+		sb.append(url.contains("?") ? "&" : "?").append("access_token=").append(configCenter.getConfig(ConfigurationCenter.TOKEN));
 
 		return sb.toString();
+	}
+
+	private String resourceWithId(String collection, String id) {
+		int queryStart = collection.indexOf('?');
+		if (queryStart < 0) {
+			return collection + "/" + id;
+		}
+		return collection.substring(0, queryStart) + "/" + id + collection.substring(queryStart);
 	}
 
 	public String cookies() {
