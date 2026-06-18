@@ -4449,8 +4449,7 @@ public class TaskServiceImpl extends TaskService{
         }
         Query query = Query.query(Criteria.where("_id").in(taskIds)
                 .and(STATUS).in(TaskOpStatusEnum.to_start_status.v())
-                .and(AGENT_ID).exists(true).ne(null)
-                .and("accessNodeType").ne(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name()));
+                .and(AGENT_ID).exists(true).ne(null));
         Update update = new Update().unset(AGENT_ID)
                 .set("lastUpdBy", user.getUserId())
                 .set("last_updated", new Date());
