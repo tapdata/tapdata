@@ -95,6 +95,7 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
         private Boolean dataSourceMonitor;
         private String monitorCron;
         private Long nextMonitorDate;
+        private Set<String> passwordTag;
         private String database_host;
         private String database_username;
         private Integer database_port;

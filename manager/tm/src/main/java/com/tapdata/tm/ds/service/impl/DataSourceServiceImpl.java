@@ -291,10 +291,12 @@ public class DataSourceServiceImpl extends DataSourceService{
             }
             if (Objects.nonNull(config)) {
                 Map<String, Object> dataConfig = oldConnection.getConfig();
-                if (dataConfig.containsKey("password") && !config.containsKey("password")) {
-                    config.put("password", dataConfig.get("password"));
-                } else if (dataConfig.containsKey("mqPassword") && !config.containsKey("mqPassword")) {
-                    config.put("mqPassword", dataConfig.get("mqPassword"));
+                if (CollectionUtils.isNotEmpty(updateDto.getPasswordTag())) {
+                    updateDto.getPasswordTag().forEach(v -> {
+                        if (dataConfig.containsKey(v) && !config.containsKey(v)) {
+                            config.put(v, dataConfig.get(v));
+                        }
+                    });
                 }
             }
         }
@@ -327,6 +329,20 @@ public class DataSourceServiceImpl extends DataSourceService{
         return updateDto;
     }
 
+    public void generatePasswordTag(DataSourceConnectionDto dto, UserDetail user) {
+        DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dto.getDatabase_type(), user);
+        Object connection = definitionDto.getProperties().get("connection");
+        if (connection instanceof LinkedHashMap<?,?>) {
+            modulesService.analyzeApiServerKey(dto, (LinkedHashMap) connection, null);
+        }
+        dto.setPasswordTag(((LinkedHashMap<String, Object>)((LinkedHashMap) connection).get("properties")).entrySet().stream().filter(v -> {
+            if(v.getValue() instanceof LinkedHashMap map) {
+                return "Password".equals(map.get("x-component"));
+            }
+            return false;
+        }).map(Map.Entry::getKey).collect(Collectors.toSet()));
+    }
+
     protected void assertProcessNode(String nodeType, String accessProcessId, Collection<String> processNodeListWithGroup) {
         if (!AccessNodeTypeEnum.isManually(nodeType)) {
             return;
@@ -353,7 +369,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (connectionDto == null) {
             throw new BizException("Datasource.NotFound", "Data source connections not found or not belong to current user");
         }
-
+        generatePasswordTag(updateDto, user);
         // should encode the password even if the username not exist
         if (StringUtils.isNotBlank(updateDto.getPlain_password())) {
             restoreAccessNodeType(updateDto, connectionDto, processNodeListWithGroup);
@@ -384,18 +400,15 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         Map<String, Object> config = updateDto.getConfig();
         if (config != null) {
-            Object password = config.get("password");
-            if (password == null || StringUtils.isBlank((String) password)) {
-                if (StringUtils.isNotBlank((String) connectionDto.getConfig().get("password"))) {
-                    config.put("password", connectionDto.getConfig().get("password"));
-                }
-            }
-
-            Object mqPassword = config.get("mqPassword");
-            if (mqPassword == null || StringUtils.isBlank((String) mqPassword)) {
-                if (StringUtils.isNotBlank((String) connectionDto.getConfig().get("password"))) {
-                    config.put("mqPassword", connectionDto.getConfig().get("mqPassword"));
-                }
+            if (CollectionUtils.isNotEmpty(updateDto.getPasswordTag())) {
+                updateDto.getPasswordTag().forEach(v -> {
+                    Object password = config.get(v);
+                    if (password == null || StringUtils.isBlank((String) password)) {
+                        if (StringUtils.isNotBlank((String) connectionDto.getConfig().get(v))) {
+                            config.put(v, connectionDto.getConfig().get(v));
+                        }
+                    }
+                });
             }
 
             if (updateDto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && config.get("uri") != null) {
@@ -583,6 +596,12 @@ public class DataSourceServiceImpl extends DataSourceService{
                 if (connection instanceof LinkedHashMap<?,?>) {
                     modulesService.analyzeApiServerKey(item, (LinkedHashMap) connection, null);
                 }
+                item.setPasswordTag(((LinkedHashMap<String, Object>)((LinkedHashMap) connection).get("properties")).entrySet().stream().filter(v -> {
+                    if(v.getValue() instanceof LinkedHashMap map) {
+                        return "Password".equals(map.get("x-component"));
+                    }
+                    return false;
+                }).map(Map.Entry::getKey).collect(Collectors.toSet()));
             }}
 	}
 
@@ -703,11 +722,12 @@ public class DataSourceServiceImpl extends DataSourceService{
     protected void hiddenMqPasswd(DataSourceConnectionDto item) {
         if (item != null && !isAgentReq() && !Objects.isNull(item.getConfig())
                 && !item.getConfig().isEmpty()) {
-            if (item.getConfig().containsKey("password")) {
-                item.getConfig().put("password", null);
-            }
-            if (item.getConfig().containsKey("mqPassword")) {
-                item.getConfig().put("mqPassword", null);
+            if (CollectionUtils.isNotEmpty(item.getPasswordTag())) {
+                item.getPasswordTag().forEach(tag -> {
+                    if (item.getConfig().containsKey(tag)) {
+                        item.getConfig().put(tag, null);
+                    }
+                });
             }
 
 
