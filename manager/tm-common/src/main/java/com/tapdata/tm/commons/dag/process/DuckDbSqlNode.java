@@ -11,6 +11,8 @@ import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import com.tapdata.tm.commons.dag.process.duck.JoinInfo;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.TableIndexColumn;
 import com.tapdata.tm.commons.util.DuckDbSqlPrimaryKeyAnalyzer;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
@@ -292,7 +294,7 @@ public class DuckDbSqlNode extends ProcessorNode {
         List<JoinInfo> joinInfo = new ArrayList<>();
         Map<String, String> aliasTableMap = new HashMap<>();
         try {
-            fields = SqlParserUtil.parseSelectFields(querySql, fromTables, inputSchemas, this, pkColumns, joinInfo, aliasTableMap);
+            fields = SqlParserUtil.parseSelectFields(querySql, fromTables, inputSchemas, mainTableName, pkColumns, joinInfo, aliasTableMap);
         } catch (Exception e) {
             throw new RuntimeException("DuckDbSqlNode.mergeSchema() failed to parse SQL query: " + querySql, e);
         }
@@ -371,26 +373,42 @@ public class DuckDbSqlNode extends ProcessorNode {
         log.info("  Successfully generated schema: name={}, qualifiedName={}, fields={}",
             resultSchema.getName(), resultSchema.getQualifiedName(), resultSchema.getFields().size());
 
-        // ========== 填充 preNodeTapTables（用于 Engine 端初始化 schema 缓存）==========
         this.preNodeTapTables = convertSchemasToTapTableDtos(inputSchemas);
         log.info("  Populated preNodeTapTables: {} tables", preNodeTapTables.size());
 
-        // ========== 同时也把宽表的 resultSchema 加入到 preNodeTapTables ==========
-        if (resultSchema != null && resultSchema.getFields() != null && !resultSchema.getFields().isEmpty()) {
-            List<Schema> wideTableSchemaList = Collections.singletonList(resultSchema);
-            List<TapTableDto> wideTableTapTableDtos = convertSchemasToTapTableDtos(wideTableSchemaList);
-            if (wideTableTapTableDtos != null && !wideTableTapTableDtos.isEmpty()) {
-                this.preNodeTapTables.addAll(wideTableTapTableDtos);
-                log.info("  Added wide table TapTableDto to preNodeTapTables: {}", wideTableTapTableDtos.get(0).getName());
-            }
-        }
         Schema merged = super.mergeSchema(Lists.newArrayList(resultSchema), schema, options);
         initTableAttrIfNeed(merged);
         collectPk(merged, inputSchemas);
         collectJoinKey(merged, joinInfo);
+        collectIndex(merged, pkColumns);
         Map<String, Object> tableAlainName = iniTableAttr(merged, TABLE_ALAIN_NAME);
         tableAlainName.putAll(aliasTableMap);
+
+        List<Schema> wideTableSchemaList = Collections.singletonList(merged);
+        List<TapTableDto> wideTableTapTable = convertSchemasToTapTableDtos(wideTableSchemaList);
+        if (wideTableTapTable != null && !wideTableTapTable.isEmpty()) {
+            this.preNodeTapTables.addAll(wideTableTapTable);
+        }
         return merged;
+    }
+
+    protected void collectIndex(Schema schema, List<String> wideTablePkColumns) {
+        List<TableIndex> indices = schema.getIndices();
+        if (null == indices) {
+            indices = new ArrayList<>();
+            schema.setIndices(indices);
+        }
+        TableIndex index = new TableIndex();
+        index.setIndexName(String.format("INDEX_TABLE_DUCK_%s", String.join("_", wideTablePkColumns)));
+        indices.add(index);
+        List<TableIndexColumn> columns = new ArrayList<>(wideTablePkColumns.size());
+        index.setColumns(columns);
+        for (int i = 1; i <= wideTablePkColumns.size(); i++) {
+            TableIndexColumn indexColumn = new TableIndexColumn();
+            indexColumn.setColumnName(wideTablePkColumns.get(i - 1));
+            indexColumn.setColumnPosition(i);
+            columns.add(indexColumn);
+        }
     }
 
     protected void initTableAttrIfNeed(Schema merged) {

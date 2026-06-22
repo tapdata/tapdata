@@ -2,13 +2,17 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.flow.engine.V2.node.duckdb.utils.TablePkUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 四态判断器
@@ -20,9 +24,9 @@ public class FourStateJudge {
     private static final Logger logger = LoggerFactory.getLogger(FourStateJudge.class);
 
     private final String tableId;
-    private final String wideTablePrimaryKey;
+    private final List<String> wideTablePrimaryKey;
 
-    public FourStateJudge(String tableId, String wideTablePrimaryKey) {
+    public FourStateJudge(String tableId, List<String> wideTablePrimaryKey) {
         this.tableId = tableId;
         this.wideTablePrimaryKey = wideTablePrimaryKey;
     }
@@ -33,15 +37,14 @@ public class FourStateJudge {
      * @param afterData after SQL 返回的完整数据
      * @return TapdataEvent 事件列表
      */
-    public List<TapdataEvent> judge(Set<Object> beforePks, List<Map<String, Object>> afterData) {
+    public List<TapdataEvent> judge(List<Map<String, Object>> beforePks, List<Map<String, Object>> afterData) {
         List<TapdataEvent> events = new ArrayList<>();
         List<Map<String, Object>> afterDataList = afterData != null ? afterData : new ArrayList<>();
-        Set<Object> afterPks = extractPrimaryKeys(afterDataList);
+        List<Map<String, Object>> afterPks = TablePkUtils.pkValues(afterDataList, wideTablePrimaryKey);
         // 有旧无新 → DELETE
-        for (Object pk : beforePks) {
-            if (!afterPks.contains(pk)) {
-                Map<String, Object> before = new HashMap<>();
-                before.put(wideTablePrimaryKey, pk);
+        for (Map<String, Object> pk : beforePks) {
+            if (!TablePkUtils.pkExists(afterPks, pk)) {
+                Map<String, Object> before = new HashMap<>(pk);
                 TapDeleteRecordEvent deleteEvent = TapDeleteRecordEvent.create()
                         .table(tableId)
                         .referenceTime(System.currentTimeMillis())
@@ -55,12 +58,12 @@ public class FourStateJudge {
         }
         // 无旧有新 → INSERT / 新旧都有 → UPDATE
         for (Map<String, Object> row : afterDataList) {
-            Object pk = row.get(wideTablePrimaryKey);
+            Map<String, Object> pk = TablePkUtils.pkValue(row, wideTablePrimaryKey);
             if (pk == null) {
                 logger.warn("Wide table primary key '{}' not found in row: {}", wideTablePrimaryKey, row);
                 continue;
             }
-            if (beforePks.contains(pk)) {
+            if (TablePkUtils.pkExists(beforePks, pk)) {
                 TapUpdateRecordEvent updateEvent = TapUpdateRecordEvent.create()
                         .table(tableId)
                         .referenceTime(System.currentTimeMillis())
@@ -86,16 +89,5 @@ public class FourStateJudge {
                 events.size(), beforePks.size(), afterPks.size());
 
         return events;
-    }
-
-    private Set<Object> extractPrimaryKeys(List<Map<String, Object>> data) {
-        Set<Object> pks = new HashSet<>();
-        for (Map<String, Object> row : data) {
-            Object pk = row.get(wideTablePrimaryKey);
-            if (pk != null) {
-                pks.add(pk);
-            }
-        }
-        return pks;
     }
 }

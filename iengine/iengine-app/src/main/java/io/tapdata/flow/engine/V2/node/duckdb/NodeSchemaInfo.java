@@ -46,8 +46,8 @@ public class NodeSchemaInfo {
     private final String tableName;
     private final String qualifiedName;
     
-    private final List<String> primaryKeys;
-    private final Set<String> primaryKeySet;
+    private List<String> primaryKeys;
+    private Set<String> primaryKeySet;
     
     private final Map<String, TapField> fieldMap;
     private final Map<String, TapType> fieldTypeMap;
@@ -70,32 +70,31 @@ public class NodeSchemaInfo {
         this.tableName = tableName;
         this.qualifiedName = qualifiedName;
         this.tapTable = tapTable;
-        
-        this.primaryKeys = primaryKeys != null ? 
-            Collections.unmodifiableList(new ArrayList<>(primaryKeys)) : 
-            Collections.emptyList();
-        
-        this.primaryKeySet = new HashSet<>(this.primaryKeys);
-        
+        initPrimaryKeys(primaryKeys);
         this.fieldMap = fieldMap != null ?
             Collections.unmodifiableMap(new LinkedHashMap<>(fieldMap)) :
             Collections.emptyMap();
         
         Map<String, TapType> typeMapBuilder = new LinkedHashMap<>();
-        if (this.fieldMap != null) {
-            for (Map.Entry<String, TapField> entry : this.fieldMap.entrySet()) {
-                TapField field = entry.getValue();
-                if (field != null && field.getTapType() != null) {
-                    typeMapBuilder.put(entry.getKey(), field.getTapType());
-                }
+        for (Map.Entry<String, TapField> entry : this.fieldMap.entrySet()) {
+            TapField field = entry.getValue();
+            if (field != null && field.getTapType() != null) {
+                typeMapBuilder.put(entry.getKey(), field.getTapType());
             }
         }
         this.fieldTypeMap = Collections.unmodifiableMap(typeMapBuilder);
-        
-        this.fieldNames = this.fieldMap != null ?
-            Collections.unmodifiableList(new ArrayList<>(this.fieldMap.keySet())) :
-            Collections.emptyList();
-        
+
+        this.fieldNames = new ArrayList<>();
+        this.fieldMap.values()
+                .stream()
+                .peek(field -> {
+                    if (field.getPos() != null) {
+                        field.setPos(0);
+                    }
+                })
+                .sorted(Comparator.comparing(TapField::getPos))
+                .map(TapField::getOriginalFieldName)
+                .forEach(this.fieldNames::add);
         this.fieldCount = this.fieldMap.size();
         this.initializedTime = System.currentTimeMillis();
         this.arrowSchema = arrowSchema;
@@ -112,6 +111,13 @@ public class NodeSchemaInfo {
             }
         }
         this.orderedFields = Collections.unmodifiableList(orderedFieldsBuilder);
+    }
+
+    public void initPrimaryKeys(List<String> primaryKeys) {
+        this.primaryKeys = primaryKeys != null ?
+                Collections.unmodifiableList(new ArrayList<>(primaryKeys)) :
+                Collections.emptyList();
+        this.primaryKeySet = new HashSet<>(this.primaryKeys);
     }
     
     /**

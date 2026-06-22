@@ -8,7 +8,14 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.StringJoiner;
 
 /**
  * Advanced smart merger implementing full merge_events_smart (M3) from ADR D4.
@@ -51,8 +58,8 @@ public class SmartMerger {
         // ---- 6-field design (per 2026-06-07 refactor) ----
         private final List<Map<String, Object>> beforeRows = new ArrayList<>();
         private final Map<String, Map<String, Object>> afterRows  = new LinkedHashMap<>();
-        private final Set<Object> mainTableBeforePks = new LinkedHashSet<>();
-        private final Set<Object> mainTableAfterPks  = new LinkedHashSet<>();
+        private final List<Map<String, Object>> mainTableBeforePks = new ArrayList<>();
+        private final List<Map<String, Object>> mainTableAfterPks  = new ArrayList<>();
         private String tableName;
         private NodeSchemaInfo schema;
 
@@ -63,8 +70,8 @@ public class SmartMerger {
 
         public List<Map<String, Object>> getBeforeRows() { return beforeRows; }
         public Collection<Map<String, Object>> getAfterRows()  { return afterRows.values(); }
-        public Set<Object> getMainTableBeforePks() { return mainTableBeforePks; }
-        public Set<Object> getMainTableAfterPks()  { return mainTableAfterPks; }
+        public List<Map<String, Object>> getMainTableBeforePks() { return mainTableBeforePks; }
+        public List<Map<String, Object>> getMainTableAfterPks()  { return mainTableAfterPks; }
         public String getTableName() { return tableName; }
         public void setTableName(String tableName) { this.tableName = tableName; }
         public NodeSchemaInfo getSchema() { return schema; }
@@ -231,7 +238,7 @@ public class SmartMerger {
                                      Map<String, MergedRecord> mergedRecords,
                                      String tableName,
                                      NodeSchemaInfo schema) {
-        Object pk = extractAfterPrimaryKey(recordEvent, tableName, schema);
+        Map<String, Object> pk = extractAfterPrimaryKey(recordEvent, tableName, schema);
         String pkKey = pkAsString(pk);
 
         MergedRecord record = mergedRecords.get(pkKey);
@@ -250,7 +257,7 @@ public class SmartMerger {
             Map<String, Object> oldAfter = record.getAfterRow(pkKey);
             if (oldAfter != null) {
                 record.beforeRows.add(oldAfter);
-                record.mainTableBeforePks.add(pkKey);
+                record.mainTableBeforePks.add(pk);
             }
 
             // Step 3: Put new after state (Map auto-dedup)
@@ -276,7 +283,7 @@ public class SmartMerger {
                                       String tableName,
                                       NodeSchemaInfo schema) {
         // Determine which MergedRecord this event belongs to
-        Object oldPk = extractBeforePrimaryKey(recordEvent, tableName, schema);
+        Map<String, Object> oldPk = extractBeforePrimaryKey(recordEvent, tableName, schema);
         String oldPkVal = pkAsString(oldPk);
 
         MergedRecord record = mergedRecords.get(oldPkVal);
@@ -294,23 +301,34 @@ public class SmartMerger {
         // Stage 1: before data processing
         if (before != null && !before.isEmpty()) {
             record.beforeRows.add(before);
-            record.mainTableBeforePks.add(oldPkVal);
+            record.mainTableBeforePks.add(oldPk);
         }
 
         if (isDelete) {
             // No stage 2 for DELETE: clear after state
             record.afterRows.remove(oldPkVal);
-            record.mainTableAfterPks.remove(oldPkVal);
+            record.mainTableAfterPks.remove(oldPk);
         }
     }
 
     // ==================== Helper methods ====================
 
-    private static String pkAsString(Object pk) {
+    private static String pkAsString(Map<String, Object> pk) {
         if (pk == null) {
             throw new IllegalArgumentException("pk is null");
         }
-        return pk.toString();
+        StringJoiner pkValueAsStr = new StringJoiner(":");
+        new ArrayList<>(pk.keySet())
+                .stream()
+                .sorted()
+                .forEach(k -> {
+                    Object val = pk.get(k);
+                    if (val == null) {
+                        return;
+                    }
+                    pkValueAsStr.add(k + "=" + val);
+                });
+        return pkValueAsStr.toString();
     }
 
     private static boolean objectsEqual(Object a, Object b) {
@@ -350,41 +368,36 @@ public class SmartMerger {
     /**
      * Extract old primary key from before data (for UPDATE/DELETE).
      */
-    private static Object extractBeforePrimaryKey(TapRecordEvent recordEvent,
+    private static Map<String, Object> extractBeforePrimaryKey(TapRecordEvent recordEvent,
                                                   String tableName,
                                                   NodeSchemaInfo schema) {
-        List<String> primaryKeys = schema.getPrimaryKeys();
-        if (primaryKeys == null || primaryKeys.isEmpty()) {
-            throw new IllegalStateException("No primary keys defined for table: " + tableName);
-        }
-
-        String pkField = primaryKeys.get(0);
-        Map<String, Object> before = TapEventUtil.getBefore(recordEvent);
-        if (before != null) {
-            Object pk = before.get(pkField);
-            if (pk != null) return pk;
-        }
-        return null;
+        return getPkValues(schema, tableName, TapEventUtil.getBefore(recordEvent), "before");
     }
 
     /**
      * Extract new primary key from after data (for UPDATE).
      */
-    private static Object extractAfterPrimaryKey(TapRecordEvent recordEvent,
+    private static Map<String, Object> extractAfterPrimaryKey(TapRecordEvent recordEvent,
                                                  String tableName,
                                                  NodeSchemaInfo schema) {
+        return getPkValues(schema, tableName, TapEventUtil.getAfter(recordEvent), "after");
+    }
+
+    static Map<String, Object> getPkValues(NodeSchemaInfo schema, String tableName, Map<String, Object> valueMap, String tag) {
         List<String> primaryKeys = schema.getPrimaryKeys();
         if (primaryKeys == null || primaryKeys.isEmpty()) {
-            throw new IllegalStateException("No primary keys defined for table: " + tableName);
+            throw new IllegalStateException("No primary keys defined for table in " + tag+ ": " + tableName);
         }
-
-        String pkField = primaryKeys.get(0);
-        Map<String, Object> after = TapEventUtil.getAfter(recordEvent);
-        if (after != null) {
-            Object pk = after.get(pkField);
-            if (pk != null) return pk;
+        Map<String, Object> pkValues = new HashMap<>();
+        for (String pkField : primaryKeys) {
+            if (valueMap != null) {
+                Object pk = valueMap.get(pkField);
+                if (pk != null) {
+                    pkValues.put(pkField, pk);
+                }
+            }
         }
-        return null;
+        return pkValues;
     }
 
     /**

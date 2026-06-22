@@ -3,6 +3,8 @@ package com.tapdata.tm.commons.dag.check;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.task.dto.Message;
@@ -143,6 +145,54 @@ public class DAGCheckUtilTest {
 
         Assertions.assertEquals(1, messageList.size());
         Assertions.assertTrue(node.disabledNode());
+    }
+
+    @Test
+    public void testGetTargetNodeSingleTarget() {
+        Graph<Node, Edge> graph = new Graph<>();
+        JsProcessorNode node1 = new JsProcessorNode();
+        node1.setId("n1");
+        JsProcessorNode node2 = new JsProcessorNode();
+        node2.setId("n2");
+        graph.setNode(node1.getId(), node1);
+        graph.setNode(node2.getId(), node2);
+        graph.setEdge(node1.getId(), node2.getId());
+        DAG dag = new DAG(graph);
+        node1.setDag(dag);
+        node2.setDag(dag);
+        node1.setGraph(graph);
+        node2.setGraph(graph);
+
+        Node<?> targetNode = DAGCheckUtil.getTargetNode(node1);
+        Assertions.assertNotNull(targetNode);
+        Assertions.assertEquals("n2", targetNode.getId());
+    }
+
+    @Test
+    public void testGetTargetNodePreferDataNode() {
+        Graph<Node, Edge> graph = new Graph<>();
+        JsProcessorNode source = new JsProcessorNode();
+        source.setId("s");
+        DatabaseNode target = new DatabaseNode();
+        target.setId("t");
+        VirtualTargetNode virtualTarget = new VirtualTargetNode();
+        virtualTarget.setId("v");
+        graph.setNode(source.getId(), source);
+        graph.setNode(target.getId(), target);
+        graph.setNode(virtualTarget.getId(), virtualTarget);
+        graph.setEdge(source.getId(), target.getId());
+        graph.setEdge(source.getId(), virtualTarget.getId());
+        DAG dag = new DAG(graph);
+        source.setDag(dag);
+        target.setDag(dag);
+        virtualTarget.setDag(dag);
+        source.setGraph(graph);
+        target.setGraph(graph);
+        virtualTarget.setGraph(graph);
+
+        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
+        Assertions.assertNotNull(targetNode);
+        Assertions.assertEquals("t", targetNode.getId());
     }
 
     private JoinProcessorNode getJoinNode(List<Edge> edges, List<Node> preNodes) {

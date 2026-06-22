@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 /**
@@ -10,17 +11,6 @@ import java.util.stream.Collectors;
  * 职责：生成批量 DELETE/INSERT SQL，使用 VALUES 临时表 JOIN 模式
  */
 public class WideTableBatchSqlBuilder {
-
-    /**
-     * 构建批量删除 SQL（兼容旧签名）
-     * 
-     * @deprecated 使用 {@link #buildDeleteSql(String, String, List, Class)} 替代
-     */
-    @Deprecated
-    public static String buildDeleteSql(String tableName, String primaryKey, List<Object> primaryKeys) {
-        // 默认按 String 类型处理（向后兼容）
-        return buildDeleteSql(tableName, primaryKey, primaryKeys, null);
-    }
 
     /**
      * 构建批量删除 SQL
@@ -34,24 +24,26 @@ public class WideTableBatchSqlBuilder {
      * @param pkTargetType PK 字段的 Java 类型（如 Long.class、String.class）
      *                        用于正确格式化 SQL 值（避免 VARCHAR 与 BIGINT 比较错误）
      */
-    public static String buildDeleteSql(String tableName, String primaryKey, 
-                                     List<Object> primaryKeys, Class<?> pkTargetType) {
+    public static String buildDeleteSql(String tableName, List<Map<String, Object>> primaryKeys, Map<String, Class<?>> pkTargetType) {
         if (primaryKeys == null || primaryKeys.isEmpty()) {
             throw new IllegalArgumentException("primaryKeys cannot be empty");
         }
-
-        // 根据 pkTargetType 判断是否需要加引号
-        boolean quoteStrings = (pkTargetType == null || !Number.class.isAssignableFrom(pkTargetType));
-        
-        String valuesClause = primaryKeys.stream()
-                .map(pk -> "(" + formatPkValue(pk, quoteStrings) + ")")
-                .collect(Collectors.joining(", "));
+        StringJoiner joiner = new StringJoiner(" OR ");
+        for (Map<String, Object> item : primaryKeys) {
+            StringJoiner builder = new StringJoiner(" AND ");
+            item.forEach((k, v) -> {
+                Class<?> pkType = pkTargetType.get(k);
+                boolean quoteStrings = (pkType == null || !Number.class.isAssignableFrom(pkType));
+                String subSql = String.format("%s = %s", k, formatPkValue(v, quoteStrings));
+                builder.add(subSql);
+            });
+            joiner.add(" ( " + builder + " ) ");
+        }
 
         return String.format(
-                "DELETE FROM %s WHERE %s IN (SELECT pk FROM (VALUES %s) AS t(pk))",
+                "DELETE FROM %s WHERE %s",
                 tableName,
-                primaryKey,
-                valuesClause
+                joiner
         );
     }
 

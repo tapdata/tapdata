@@ -23,7 +23,7 @@ class SqlParserUtilTest {
                 "SELECT upper(t.id) AS id_upper, t.name FROM main_table t",
                 Collections.singletonList(new FromTableConfig("source-1", "main_table")),
                 Collections.singletonList(buildSchema()),
-                buildNode(),
+                "mainTable",
                 wideTablePkColumns,
                 new ArrayList<JoinInfo>(),
                 new HashMap<>()
@@ -44,7 +44,7 @@ class SqlParserUtilTest {
                 "SELECT cast(t.id AS VARCHAR) AS id_cast, t.name FROM main_table t",
                 Collections.singletonList(new FromTableConfig("source-1", "main_table")),
                 Collections.singletonList(buildSchema()),
-                buildNode(),
+                "mainTable",
                 wideTablePkColumns,
                 new ArrayList<JoinInfo>(),
                 new HashMap<>()
@@ -66,7 +66,7 @@ class SqlParserUtilTest {
                 List.of(new FromTableConfig("source-1", "u"), new FromTableConfig("source-2", "o")),
                 List.of(buildSchema("users", buildField("id", "String"), buildField("name", "String")),
                         buildSchema("orders", buildField("user_id", "String"), buildField("name", "String"))),
-                buildNode("u"),
+                "mainTable",
                 wideTablePkColumns,
                 new ArrayList<>(),
                 new HashMap<>()

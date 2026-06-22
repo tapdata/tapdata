@@ -5,13 +5,12 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.StringJoiner;
 
 /**
  * 子表纯删除时，保留一条宽表记录并将该子表字段置空。
@@ -52,7 +51,7 @@ public class ChildTableDeleteRetainStrategy implements WideTableDeleteAdjustment
             }
             Map<String, Object> retainedRow = new LinkedHashMap<>(wideRow);
             for (String field : fieldsToNull) {
-                if (!context.getWideTablePrimaryKey().equalsIgnoreCase(field) && retainedRow.containsKey(field)) {
+                if (!context.getWideTablePrimaryKey().contains(field) && retainedRow.containsKey(field)) {
                     retainedRow.put(field, null);
                 }
             }
@@ -80,16 +79,26 @@ public class ChildTableDeleteRetainStrategy implements WideTableDeleteAdjustment
     }
 
     private List<Map<String, Object>> queryExistingWideRows(WideTableDeleteAdjustmentContext context) throws SQLException {
-        String inClause = context.getBeforeKeys().stream()
-                .map(DuckDbSqlValueFormatter::format)
-                .collect(Collectors.joining(", "));
         String sql = String.format(
-                "SELECT * FROM %s WHERE %s IN (%s)",
+                "SELECT * FROM %s WHERE %s",
                 WideTableDdlGenerator.quoteIdentifier(context.getWideTableName()),
-                WideTableDdlGenerator.quoteIdentifier(context.getWideTablePrimaryKey()),
-                inClause
+                subWhere(context)
         );
         return context.getDuckDbOperator().executeQuery(sql);
+    }
+
+    String subWhere(WideTableDeleteAdjustmentContext context) {
+        StringJoiner or = new StringJoiner(" OR ");
+        context.getBeforeKeys()
+                .forEach(map -> {
+                    StringJoiner and = new StringJoiner(" AND ");
+                    map.forEach((k, v) -> {
+                        String value = DuckDbSqlValueFormatter.format(v);
+                        and.add(k + " = " + value );
+                    });
+                    or.add(" ( " + and + " ) ");
+                });
+        return or.toString();
     }
 
     private Set<String> resolveFieldsToNull(WideTableDeleteAdjustmentContext context, Map<String, Object> retainedRow) {

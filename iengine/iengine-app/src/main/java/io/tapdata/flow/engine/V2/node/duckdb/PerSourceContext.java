@@ -67,10 +67,16 @@ public class PerSourceContext {
     public List<TapdataEvent> drainBuffer() {
         synchronized (batchBuffer) {
             List<TapdataEvent> copy = new ArrayList<>(batchBuffer);
+            resetBuffer();
+            return copy;
+        }
+    }
+
+    public void resetBuffer() {
+        synchronized (batchBuffer) {
             batchBuffer.clear();
             accumulatedRecordCount.set(0);
             lastCommitTime.set(System.currentTimeMillis());
-            return copy;
         }
     }
 

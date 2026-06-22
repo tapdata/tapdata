@@ -4,10 +4,13 @@ import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.TableIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -158,6 +161,12 @@ public class TmSchemaConverter {
         
         dto.setPrimaryKeys(primaryKeys);
         dto.setFields(fieldDtos);
+        List<TableIndex> indices = schema.getIndices();
+        if (indices != null && !indices.isEmpty()) {
+            TableIndex index = indices.get(0);
+            dto.setIndexes(index);
+        }
+
         
         logger.debug("Converted schema: {} to TapTableDto with {} fields", 
             schema.getName(), fieldDtos.size());

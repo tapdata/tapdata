@@ -1,5 +1,7 @@
 package com.tapdata.tm.commons.dag.process.dto;
 
+import com.tapdata.tm.commons.schema.TableIndex;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,6 +28,8 @@ public class TapTableDto implements Serializable {
 
     /** 字段列表 */
     private List<TapFieldDto> fields;
+
+    private TableIndex indexes;
 
     public TapTableDto() {
     }
@@ -121,6 +125,14 @@ public class TapTableDto implements Serializable {
             }
         }
         return map;
+    }
+
+    public TableIndex getIndexes() {
+        return indexes;
+    }
+
+    public void setIndexes(TableIndex index) {
+        this.indexes = index;
     }
 
     @Override

@@ -3,21 +3,33 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
-import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -31,7 +43,6 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     private Connection connection;
     private ArrowWriter arrowWriter;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    
     // 批处理配置
     private final boolean batchWritingEnabled;
     private final int batchWritingSize;
@@ -98,7 +109,6 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         this.batchWritingSize = batchWritingSize;
         this.batchWritingTimeoutMs = batchWritingTimeoutMs;
         this.duckLakeConfig = duckLakeConfig;
-        
         initConnection();
         this.arrowWriter = new ArrowWriter(connection, true, duckLakeConfig);
     }
@@ -235,6 +245,9 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         
         try (Statement stmt = connection.createStatement()) {
             return stmt.executeUpdate(sql);
+        } catch (SQLException e) {
+            logger.error("Execute sql failed: {}, msg: {}", sql, e.getMessage(), e);
+            throw e;
         }
     }
 

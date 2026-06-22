@@ -2,17 +2,25 @@ package io.tapdata.flow.engine.V2.node.duckdb.converter;
 
 import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.TableIndexColumn;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.duckdb.NodeSchemaInfo;
 import io.tapdata.flow.engine.V2.node.duckdb.TypeConverter;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -98,9 +106,14 @@ public class IengineSchemaConverter extends AbstractSchemaConverter<List<TapTabl
         TapTable tapTable = convertToTapTable(dto);
         
         // 构建 NodeSchemaInfo
-        List<String> primaryKeys = dto.getPrimaryKeys() != null ? 
-            new ArrayList<>(dto.getPrimaryKeys()) : new ArrayList<>();
-        
+        List<String> primaryKeys = dto.getPrimaryKeys() != null ? new ArrayList<>(dto.getPrimaryKeys()) : new ArrayList<>();
+        if (primaryKeys.isEmpty()) {
+            List<TapIndex> indexList = tapTable.getIndexList();
+            if (indexList != null && !indexList.isEmpty()) {
+                TapIndex tapIndex = indexList.get(0);
+                tapIndex.getIndexFields().forEach(field -> primaryKeys.add(field.getName()));
+            }
+        }
         Map<String, TapField> fieldMap = new ConcurrentHashMap<>();
         if (tapTable.getNameFieldMap() != null) {
             fieldMap.putAll(tapTable.getNameFieldMap());
@@ -154,6 +167,27 @@ public class IengineSchemaConverter extends AbstractSchemaConverter<List<TapTabl
         TapTable tapTable = new TapTable();
         tapTable.setId(dto.getId());
         tapTable.setName(dto.getName());
+        TableIndex indexes = dto.getIndexes();
+        List<TapIndex> indexesList = new ArrayList<>();
+        if (indexes != null) {
+            TapIndex item = new TapIndex();
+            List<TapIndexField> indexFields = new ArrayList<>();
+            for (TableIndexColumn column : indexes.getColumns()) {
+                TapIndexField tapIndexField = new TapIndexField();
+                tapIndexField.setFieldAsc(column.getColumnIsAsc());
+                tapIndexField.setName(column.getColumnName());
+                tapIndexField.setSubPosition(column.getSubPosition());
+                indexFields.add(tapIndexField);
+            }
+            item.setIndexFields(indexFields);
+            item.setUnique(indexes.isUnique());
+            item.setCoreUnique(indexes.isCoreUnique());
+            item.setPrimary(StringUtils.isNotBlank(indexes.getPrimaryKey()));
+            item.setName(indexes.getIndexName());
+            item.setCluster(StringUtils.isNotBlank(indexes.getClustered()));
+            indexesList.add(item);
+        }
+        tapTable.setIndexList(indexesList);
         
         // 转换字段
         LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();

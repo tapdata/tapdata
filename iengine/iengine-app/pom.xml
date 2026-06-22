@@ -437,12 +437,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M7</version>
-                <configuration>
-                    <!-- Ensure Apache Arrow can initialize its MemoryUtil under Java 17+ by opening java.nio to unnamed modules -->
-                    <!-- Preserve any prior argLine additions (jacoco etc.) by appending them after the opens flag -->
-                    <argLine>--add-opens=java.base/java.nio=ALL-UNNAMED ${surefireArgLine}</argLine>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

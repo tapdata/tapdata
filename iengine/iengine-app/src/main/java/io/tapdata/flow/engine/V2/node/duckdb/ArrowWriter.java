@@ -2,11 +2,8 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapType;
 import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.*;
@@ -27,12 +24,10 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -81,8 +76,7 @@ public class ArrowWriter implements AutoCloseable {
         this.duckLakeConfig = duckLakeConfig;
         // 创建 RootAllocator，管理 Arrow 内存
         this.allocator = new RootAllocator(Long.MAX_VALUE);
-        logger.info("ArrowWriter initialized with zero-copy: {}, DuckLake: {}", 
-            zeroCopyEnabled, duckLakeConfig.isEnabled());
+        logger.info("ArrowWriter initialized with zero-copy: {}, DuckLake: {}", zeroCopyEnabled, duckLakeConfig.isEnabled());
     }
 
     /**
@@ -106,7 +100,6 @@ public class ArrowWriter implements AutoCloseable {
             Field field = new Field(fieldName, fieldType, null);
             fields.add(field);
         }
-        
         logger.debug("Built Arrow Schema with {} fields", fields.size());
         return new Schema(fields);
     }

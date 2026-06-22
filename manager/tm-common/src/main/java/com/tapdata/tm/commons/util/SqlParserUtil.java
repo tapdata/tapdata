@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.util;
 
-import com.tapdata.tm.commons.dag.process.DuckDbSqlNode;
 import com.tapdata.tm.commons.dag.process.FromTableConfig;
 import com.tapdata.tm.commons.dag.process.duck.JoinField;
 import com.tapdata.tm.commons.dag.process.duck.JoinInfo;
@@ -11,26 +10,44 @@ import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
-import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
-import net.sf.jsqlparser.statement.select.*;
+import net.sf.jsqlparser.statement.select.AllColumns;
+import net.sf.jsqlparser.statement.select.AllTableColumns;
+import net.sf.jsqlparser.statement.select.FromItem;
+import net.sf.jsqlparser.statement.select.Join;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectBody;
+import net.sf.jsqlparser.statement.select.SelectExpressionItem;
+import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.select.SelectVisitor;
+import net.sf.jsqlparser.statement.select.SetOperationList;
+import net.sf.jsqlparser.statement.select.SubSelect;
+import net.sf.jsqlparser.statement.select.WithItem;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
 @Slf4j
 public class SqlParserUtil {
 
     public static List<Field> parseSelectFields(String sql, List<FromTableConfig> fromTables,
-                                                  List<Schema> inputSchemas, DuckDbSqlNode node,
+                                                  List<Schema> inputSchemas, String mainTableName,
                                                   List<String> wideTablePkColumns,
                                                   List<JoinInfo> joinInfo,
                                                   Map<String, String> aliasTableMap) throws Exception {
@@ -95,7 +112,7 @@ public class SqlParserUtil {
                 pkColumns.add(key);
             }
             for (SelectItem selectItem : selectItems) {
-                Field field = parseSelectItem(selectItem, tableSchemaMap, aliasToTableNameMap, wideTablePkColumns, pkColumns);
+                Field field = parseSelectItem(selectItem, tableSchemaMap, aliasToTableNameMap, wideTablePkColumns, mainTableName);
 
                 // 检查字段重名
                 String fieldName = field.getFieldName();
@@ -408,46 +425,36 @@ public class SqlParserUtil {
     }
 
     private static Field parseSelectItem(SelectItem selectItem, Map<String, Schema> tableSchemaMap, Map<String, String> aliasToTableNameMap,
-                                          List<String> wideTablePkColumns, List<String> pkColumns) {
+                                          List<String> wideTablePkColumns, String mainTable) {
         Field field = new Field();
         field.setSource(Field.SOURCE_JOB_ANALYZE);
 
         if (selectItem instanceof AllColumns) {
-            // SELECT * FROM ... - 返回所有字段
             throw new UnsupportedOperationException("SELECT * is not supported, please specify fields explicitly");
         } else if (selectItem instanceof AllTableColumns allTableColumns) {
-            // SELECT table.* FROM ... - 返回指定表的所有字段
-            Table table = allTableColumns.getTable();
             throw new UnsupportedOperationException("SELECT table.* is not supported, please specify fields explicitly");
         } else if (selectItem instanceof SelectExpressionItem selectExpressionItem) {
             Expression expression = selectExpressionItem.getExpression();
             Alias alias = selectExpressionItem.getAlias();
             List<Column> referencedColumns = extractColumns(expression);
 
-            // 设置字段名
             String fieldName;
             if (alias != null) {
                 fieldName = alias.getName();
             } else if (expression instanceof Column column) {
                 fieldName = column.getColumnName();
             } else {
-                // 表达式没有别名，需要生成一个
                 fieldName = "expr_" + UUID.randomUUID().toString().substring(0, 8);
             }
 
             field.setFieldName(fieldName);
-            markPrimaryKeyByFieldName(field, fieldName, wideTablePkColumns);
             if (CollectionUtils.isNotEmpty(referencedColumns)) {
                 field.setOriginalFieldName(referencedColumns.get(0).getColumnName());
-                transferPrimaryKeyField(referencedColumns, fieldName, wideTablePkColumns, pkColumns, field);
             } else if (expression instanceof Function function) {
                 field.setOriginalFieldName(function.getName());
             } else {
                 field.setOriginalFieldName(fieldName);
             }
-
-
-            // 尝试从源表获取字段信息
             if (expression instanceof Column column) {
                 Table table = column.getTable();
                 String columnName = column.getColumnName();
@@ -465,32 +472,35 @@ public class SqlParserUtil {
                     if (schema == null) {
                         schema = tableSchemaMap.get(tableNameOrAlias);
                     }
-                    
-                    if (schema != null) {
-                        Field sourceField = findFieldByName(schema, columnName);
-                        if (sourceField != null) {
-                            // 复制源字段的属性（主键由 wideTablePkColumns 决定，不从源表继承）
-                            copyFieldProperties(sourceField, field, wideTablePkColumns);
-                        }
-                    }
+                    boolean allowNullable = !Objects.equals(mainTable, realTableName);
+                    copyFieldProperties(schema, columnName, field, wideTablePkColumns, allowNullable);
                 } else {
-                    // 没有表名，遍历所有 schema 查找
                     for (Schema schema : tableSchemaMap.values()) {
-                        Field sourceField = findFieldByName(schema, columnName);
-                        if (sourceField != null) {
-                            copyFieldProperties(sourceField, field, wideTablePkColumns);
-                            break;
-                        }
+                        copyFieldProperties(schema, columnName, field, wideTablePkColumns, true);
                     }
                 }
             } else {
-                // 表达式字段，设置默认类型
                 field.setDataType("VARCHAR");
                 field.setJavaType("String");
             }
         }
 
         return field;
+    }
+
+    static void copyFieldProperties(Schema schema, String columnName, Field field, List<String> wideTablePkColumns, boolean allowNullable) {
+        if (schema == null) {
+            return;
+        }
+        Field sourceField = findFieldByName(schema, columnName);
+        if (sourceField != null) {
+            if (!allowNullable) {
+                if (sourceField.getIsNullable() instanceof Boolean allow) {
+                    allowNullable = allow;
+                }
+            }
+            copyFieldProperties(sourceField, field, wideTablePkColumns, allowNullable);
+        }
     }
 
     private static List<Column> extractColumns(Expression expression) {
@@ -530,21 +540,6 @@ public class SqlParserUtil {
                 firstPrimaryKeyPosition = indexOf + 1;
             }
         }
-        if (firstPrimaryKeyPosition != null) {
-            field.setPrimaryKey(true);
-            field.setPrimaryKeyPosition(firstPrimaryKeyPosition);
-        }
-    }
-
-    private static void markPrimaryKeyByFieldName(Field field, String fieldName, List<String> wideTablePkColumns) {
-        if (field == null || StringUtils.isBlank(fieldName) || CollectionUtils.isEmpty(wideTablePkColumns)) {
-            return;
-        }
-        int indexOf = wideTablePkColumns.indexOf(fieldName);
-        if (indexOf >= 0) {
-            field.setPrimaryKey(true);
-            field.setPrimaryKeyPosition(indexOf + 1);
-        }
     }
 
     private static boolean isPrimaryKeyColumn(Column column, List<String> wideTablePkColumns, List<String> pkColumns) {
@@ -581,17 +576,15 @@ public class SqlParserUtil {
         return null;
     }
 
-    private static void copyFieldProperties(Field source, Field target, List<String> wideTablePkColumns) {
+    private static void copyFieldProperties(Field source, Field target, List<String> wideTablePkColumns, boolean allowNullable) {
         target.setDataType(source.getDataType());
         target.setJavaType(source.getJavaType());
         target.setTapType(source.getTapType());
-        // 主键由 wideTablePkColumns 决定，不从源表继承
-        if (wideTablePkColumns != null) {
-            int pos = wideTablePkColumns.indexOf(target.getFieldName());
-            target.setPrimaryKey(pos >= 0);
-            target.setPrimaryKeyPosition(pos >= 0 ? pos + 1 : 0);
+        boolean nullable = wideTablePkColumns != null && wideTablePkColumns.contains(target.getFieldName());
+        if (!nullable) {
+            nullable = allowNullable;
         }
-        target.setIsNullable(source.getIsNullable());
+        target.setIsNullable(nullable);
         target.setPrecision(source.getPrecision());
         target.setScale(source.getScale());
         target.setDefaultValue(source.getDefaultValue());

@@ -2,15 +2,29 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 
 import io.tapdata.entity.schema.TapField;
 import net.sf.jsqlparser.JSQLParserException;
-import net.sf.jsqlparser.expression.*;
-import net.sf.jsqlparser.schema.Column;
+import net.sf.jsqlparser.expression.Alias;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.statement.Statement;
-import net.sf.jsqlparser.statement.select.*;
+import net.sf.jsqlparser.statement.select.AllColumns;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectBody;
+import net.sf.jsqlparser.statement.select.SelectExpressionItem;
+import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.select.SetOperationList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -319,7 +333,7 @@ public class WideTableDdlGenerator {
     /**
      * 根据字段列表生成 CREATE TABLE DDL（传统方式）
      */
-    public static String generateCreateTableDdl(String tableName, List<String> fields, String primaryKey) {
+    public static String generateCreateTableDdl(String tableName, List<String> fields, List<String> primaryKey) {
         validateTableName(tableName);
         validateFields(fields);
 
@@ -331,8 +345,14 @@ public class WideTableDdlGenerator {
             columnDefs.add("    " + quoteIdentifier(field) + " VARCHAR");
         }
 
-        if (primaryKey != null && !primaryKey.isBlank() && fields.contains(primaryKey)) {
-            columnDefs.add("    PRIMARY KEY (" + quoteIdentifier(primaryKey) + ")");
+        StringJoiner pkQuote = new StringJoiner(",");
+        primaryKey.forEach(pk -> {
+            if (pk != null && !pk.isBlank() && fields.contains(pk)) {
+                pkQuote.add(quoteIdentifier(pk));
+            }
+        });
+        if (pkQuote.length() > 0) {
+            columnDefs.add("    PRIMARY KEY (" + quoteIdentifier(pkQuote.toString()) + ")");
         }
 
         ddl.append(String.join(",\n", columnDefs));
@@ -468,7 +488,7 @@ public class WideTableDdlGenerator {
      * 根据宽表 NodeSchemaInfo 生成完整的 CREATE TABLE DDL
      * 直接使用预计算的类型信息，避免重复转换
      */
-    public static String generateCreateTableDdl(NodeSchemaInfo wideTableSchemaInfo, String primaryKey) {
+    public static String generateCreateTableDdl(NodeSchemaInfo wideTableSchemaInfo) {
         if (wideTableSchemaInfo == null) {
             throw new IllegalArgumentException("wideTableSchemaInfo cannot be null");
         }
@@ -491,17 +511,34 @@ public class WideTableDdlGenerator {
             String duckDbType = convertTapTypeToDuckDbType(tapField);
             columnDefs.add("    " + quoteIdentifier(fieldName) + " " + duckDbType);
         }
-        
-        if (primaryKey != null && !primaryKey.isBlank() && fieldMap.containsKey(primaryKey)) {
-            columnDefs.add("    PRIMARY KEY (" + quoteIdentifier(primaryKey) + ")");
-        }
-        
         ddl.append(String.join(",\n", columnDefs));
         ddl.append("\n)");
         
         logger.info("Generated CREATE TABLE DDL from NodeSchemaInfo: {}", ddl);
         return ddl.toString();
     }
+
+    public static String generateIndex(NodeSchemaInfo wideTableSchemaInfo, List<String> primaryKey) {
+        Map<String, TapField> fieldMap = wideTableSchemaInfo.getFieldMap();
+        if (fieldMap == null || fieldMap.isEmpty()) {
+            throw new IllegalArgumentException("fieldMap in wideTableSchemaInfo cannot be null or empty");
+        }
+        String tableName = wideTableSchemaInfo.getTableName();
+        StringJoiner pkQuote = new StringJoiner(",");
+        StringJoiner indexName = new StringJoiner("_");
+        indexName.add(tableName);
+        primaryKey.forEach(pk -> {
+            if (pk != null && !pk.isBlank() && fieldMap.containsKey(pk)) {
+                pkQuote.add(quoteIdentifier(pk));
+                indexName.add(pk);
+            }
+        });
+        if (pkQuote.length() > 0) {
+            return String.format("CREATE UNIQUE INDEX %s ON %s (%s)", indexName, tableName, pkQuote);
+        }
+        return null;
+    }
+
     
     /**
      * 将 TapField 转换为 DuckDB 类型字符串

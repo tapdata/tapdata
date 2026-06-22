@@ -1,49 +1,77 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 删除语义调整的上下文对象。
  */
-public class WideTableDeleteAdjustmentContext {
-    private final String sourceTableName;
-    private final Set<Object> beforeKeys;
-    private final List<Map<String, Object>> afterResults;
-    private final List<SmartMerger.MergedRecord> mergedRecords;
-    private final String wideTableName;
-    private final String wideTablePrimaryKey;
-    private final DuckDbOperator duckDbOperator;
-    private final WideTableSourceRegistry sourceRegistry;
-    private final WideTableFieldOwnershipResolver fieldOwnershipResolver;
+public final class WideTableDeleteAdjustmentContext {
+    private String sourceTableName;
+    private List<Map<String, Object>> beforeKeys;
+    private List<Map<String, Object>> afterResults;
+    private List<SmartMerger.MergedRecord> mergedRecords;
+    private String wideTableName;
+    private List<String> wideTablePrimaryKey;
+    private DuckDbOperator duckDbOperator;
+    private WideTableSourceRegistry sourceRegistry;
+    private WideTableFieldOwnershipResolver fieldOwnershipResolver;
 
-    public WideTableDeleteAdjustmentContext(String sourceTableName,
-                                            Set<Object> beforeKeys,
-                                            List<Map<String, Object>> afterResults,
-                                            List<SmartMerger.MergedRecord> mergedRecords,
-                                            String wideTableName,
-                                            String wideTablePrimaryKey,
-                                            DuckDbOperator duckDbOperator,
-                                            WideTableSourceRegistry sourceRegistry,
-                                            WideTableFieldOwnershipResolver fieldOwnershipResolver) {
+    public WideTableDeleteAdjustmentContext() {
+
+    }
+
+    public WideTableDeleteAdjustmentContext sourceTableName(String sourceTableName) {
         this.sourceTableName = sourceTableName;
-        this.beforeKeys = beforeKeys;
-        this.afterResults = afterResults == null ? Collections.emptyList() : afterResults;
-        this.mergedRecords = mergedRecords == null ? Collections.emptyList() : mergedRecords;
+        return this;
+    }
+
+    public WideTableDeleteAdjustmentContext wideTableName(String wideTableName) {
         this.wideTableName = wideTableName;
+        return this;
+    }
+
+    public WideTableDeleteAdjustmentContext wideTablePrimaryKey(List<String> wideTablePrimaryKey) {
         this.wideTablePrimaryKey = wideTablePrimaryKey;
-        this.duckDbOperator = duckDbOperator;
+        return this;
+    }
+
+    public WideTableDeleteAdjustmentContext sourceRegistry(WideTableSourceRegistry sourceRegistry) {
         this.sourceRegistry = sourceRegistry;
+        return this;
+    }
+
+    public WideTableDeleteAdjustmentContext fieldOwnershipResolver(WideTableFieldOwnershipResolver fieldOwnershipResolver) {
         this.fieldOwnershipResolver = fieldOwnershipResolver;
+        return this;
+    }
+
+    public WideTableDeleteAdjustmentContext duckDbOperator(DuckDbOperator duckDbOperator) {
+        this.duckDbOperator = duckDbOperator;
+        return this;
+    }
+
+    public WideTableDeleteAdjustmentContext beforeKeys(List<Map<String, Object>> beforeKeys) {
+        this.beforeKeys = beforeKeys;
+        return this;
+    }
+
+    public WideTableDeleteAdjustmentContext afterResults(List<Map<String, Object>> afterResults) {
+        this.afterResults = afterResults == null ? new ArrayList<>() : afterResults;
+        return this;
+    }
+
+    public WideTableDeleteAdjustmentContext mergedRecords(List<SmartMerger.MergedRecord> mergedRecords) {
+        this.mergedRecords = mergedRecords == null ? new ArrayList<>() : mergedRecords;
+        return this;
     }
 
     public String getSourceTableName() {
         return sourceTableName;
     }
 
-    public Set<Object> getBeforeKeys() {
+    public List<Map<String, Object>> getBeforeKeys() {
         return beforeKeys;
     }
 
@@ -59,7 +87,7 @@ public class WideTableDeleteAdjustmentContext {
         return wideTableName;
     }
 
-    public String getWideTablePrimaryKey() {
+    public List<String> getWideTablePrimaryKey() {
         return wideTablePrimaryKey;
     }
 

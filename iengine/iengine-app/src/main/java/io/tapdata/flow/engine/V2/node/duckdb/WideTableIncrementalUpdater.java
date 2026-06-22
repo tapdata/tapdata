@@ -1,22 +1,21 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
 import com.tapdata.entity.TapdataEvent;
-import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.observable.logging.ObsLogger;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * 宽表增量更新器（重构版）
@@ -30,7 +29,7 @@ public class WideTableIncrementalUpdater {
 
     private ObsLogger logger;
 
-    private final String wideTablePrimaryKey;
+    private final List<String> wideTablePrimaryKey;
     private final String querySql;
     private final WithCteSqlGenerator withCteSqlGenerator;
     private final DuckDbOperator duckDbOperator;
@@ -60,7 +59,7 @@ public class WideTableIncrementalUpdater {
      * 构造函数（完整）
      * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
      */
-    public WideTableIncrementalUpdater(String wideTableName, String wideTablePrimaryKey, String querySql,
+    public WideTableIncrementalUpdater(String wideTableName, List<String> wideTablePrimaryKey, String querySql,
                                        WithCteSqlGenerator withCteSqlGenerator,
                                        DuckDbOperator duckDbOperator, boolean enableWriteWideTable) {
         this(wideTableName, wideTableName, wideTablePrimaryKey, querySql, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, null);
@@ -70,7 +69,7 @@ public class WideTableIncrementalUpdater {
      * 构造函数（完整，带 NodeSchemaInfo）
      * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
      */
-    public WideTableIncrementalUpdater(String wideTableName, String wideTablePrimaryKey, String querySql,
+    public WideTableIncrementalUpdater(String wideTableName, List<String> wideTablePrimaryKey, String querySql,
                                        WithCteSqlGenerator withCteSqlGenerator,
                                        DuckDbOperator duckDbOperator, boolean enableWriteWideTable,
                                        NodeSchemaInfo tableSchemaInfoCache) {
@@ -86,7 +85,7 @@ public class WideTableIncrementalUpdater {
      * 构造函数（完整版，包含宽表名）
      * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
      */
-    public WideTableIncrementalUpdater(String tableId, String wideTableName, String wideTablePrimaryKey, 
+    public WideTableIncrementalUpdater(String tableId, String wideTableName, List<String> wideTablePrimaryKey,
                                        String querySql,
                                        WithCteSqlGenerator withCteSqlGenerator,
                                        DuckDbOperator duckDbOperator, boolean enableWriteWideTable) {
@@ -97,7 +96,7 @@ public class WideTableIncrementalUpdater {
      * 构造函数（完整版，包含宽表名 + NodeSchemaInfo）
      * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
      */
-    public WideTableIncrementalUpdater(String tableId, String wideTableName, String wideTablePrimaryKey,
+    public WideTableIncrementalUpdater(String tableId, String wideTableName, List<String> wideTablePrimaryKey,
                                        String querySql,
                                        WithCteSqlGenerator withCteSqlGenerator,
                                        DuckDbOperator duckDbOperator, boolean enableWriteWideTable,
@@ -136,64 +135,21 @@ public class WideTableIncrementalUpdater {
     }
 
     /**
-     * 批量更新宽表（唯一核心方法）
-     * 
-     * 事务模式：包裹 executeInTransaction + 真实更新宽表 + 生成事件
-     * 非事务模式：仅生成事件，不更新宽表
-     * 
-     * @param affectedBeforeKeys before 受影响主键集合
-     * @param afterKeysAndResults  after 受影响主键和查询结果的键值对
-     * @param tableName 源表名（用于 WITH CTE 临时表名）
-     * @return TapdataEvent 事件列表
-     */
-    public List<TapdataEvent> updateWideTableAsTapdataEvents(Set<Object> affectedBeforeKeys,
-                                                             AbstractMap.SimpleEntry<Set<Object>, List<Map<String, Object>>> afterKeysAndResults,
-                                                              String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
-        // 从 afterKeysAndResults 提取 afterRows（如果需要）
-        // 注意：此重载不包含 afterRows，需要重新执行查询
-        return executeAndUpdate(affectedBeforeKeys, afterKeysAndResults.getKey(), afterKeysAndResults.getValue(), null, tableName, currentConsumer);
-    }
-
-    /**
-     * 批量更新宽表（向后兼容：4参数版本）
-     * 
-     * <p>此重载保持向后兼容，内部将 afterRows 作为数据行传递，不传递预计算结果，
-     * 从而保持原有的查询执行行为。</p>
-     * 
-     * @param affectedBeforeKeys before 受影响主键集合
-     * @param affectedAfterKeys after 受影响主键集合
-     * @param afterRows after 数据行（用于执行查询）
-     * @param tableName 源表名（用于 WITH CTE 临时表名）
-     * @return TapdataEvent 事件列表
-     * @deprecated 使用 {@link #updateWideTableAsTapdataEvents(Set, Set, List, List, String, AtomicReference)} 代替
-     */
-    @Deprecated
-    public List<TapdataEvent> updateWideTableAsTapdataEvents(Set<Object> affectedBeforeKeys,
-                                                             Set<Object> affectedAfterKeys,
-                                                             List<Map<String, Object>> afterRows,
-                                                              String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
-        // 向后兼容：不传递预计算结果，让方法执行查询
-        return updateWideTableAsTapdataEvents(affectedBeforeKeys, affectedAfterKeys, null, afterRows, tableName, currentConsumer);
-    }
-
-    /**
      * 批量更新宽表（优化版：接受预计算的查询结果）
      * 
      * <p>此重载接受预计算的宽表查询结果，避免重复执行 WITH CTE 查询。</p>
      * 
      * @param affectedBeforeKeys   before 受影响主键集合
-     * @param afterKeys            after 受影响主键集合
      * @param wideTableQueryResults 预计算的宽表查询结果（可为空，为空时自动执行查询）
      * @param afterRows            after 数据行（从 CDC 事件提取，用于备用查询）
      * @param tableName            源表名（用于 WITH CTE 临时表名）
      * @return TapdataEvent 事件列表
      */
-    public List<TapdataEvent> updateWideTableAsTapdataEvents(Set<Object> affectedBeforeKeys,
-                                                             Set<Object> afterKeys,
+    public List<TapdataEvent> updateWideTableAsTapDataEvents(List<Map<String, Object>> affectedBeforeKeys,
                                                              List<Map<String, Object>> wideTableQueryResults,
                                                              List<Map<String, Object>> afterRows,
-                                                              String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
-        return executeAndUpdate(affectedBeforeKeys, afterKeys, wideTableQueryResults, afterRows, tableName, currentConsumer);
+                                                             String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
+        return executeAndUpdate(affectedBeforeKeys, wideTableQueryResults, afterRows, tableName, currentConsumer);
     }
 
     /**
@@ -202,13 +158,12 @@ public class WideTableIncrementalUpdater {
      * <p>优化说明：</p>
      * <ul>
      *   <li>使用预计算的查询结果，避免重复执行 WITH CTE 查询</li>
-     *   <li>宽表更新直接使用 {@link #applyWideTableChanges(Set, List)}，避免 TapdataEvent 解析</li>
+     *   <li>宽表更新直接使用 {@link #applyWideTableChanges(List, List)}，避免 TapdataEvent 解析</li>
      *   <li>四态判断仅用于生成 Changelog 事件，不用于宽表更新</li>
      *   <li>事务模式：在 executeInTransaction 中执行宽表更新</li>
      * </ul>
      */
-    private List<TapdataEvent> executeAndUpdate(Set<Object> affectedBeforeKeys,
-                                                 Set<Object> afterKeys,
+    private List<TapdataEvent> executeAndUpdate(List<Map<String, Object>>  affectedBeforeKeys,
                                                  List<Map<String, Object>> wideTableQueryResults,
                                                  List<Map<String, Object>> afterRows,
                                                  String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
@@ -218,20 +173,40 @@ public class WideTableIncrementalUpdater {
             // 预计算结果不可用，需要使用 afterRows 重新执行查询
             if (afterRows != null && !afterRows.isEmpty()) {
                 logger.info("Pre-computed query results not available, executing WITH CTE query");
-                String afterSql = withCteSqlGenerator.generateBatch(querySql, tableName, afterRows, 
-                                                                   tableSchemaInfoCache != null ? tableSchemaInfoCache.getFieldNames() : Collections.emptyList());
+                List<String> fields = tableSchemaInfoCache != null ? tableSchemaInfoCache.getFieldNames() : Collections.emptyList();
+                String afterSql = withCteSqlGenerator.generateBatch(querySql, tableName, afterRows, fields);
                 results = duckDbOperator.executeQuery(afterSql);
             } else {
                 results = new ArrayList<>();
             }
         }
-        
-        results = deleteAdjustmentService.adjust(new WideTableDeleteAdjustmentContext(tableName, affectedBeforeKeys, results, (afterRows != null && !afterRows.isEmpty()) ? Collections.emptyList() : Collections.singletonList(new SmartMerger.MergedRecord() {{ setTableName(tableName); getBeforeRows().add(Collections.singletonMap(wideTablePrimaryKey, "marker")); }}), wideTableName, wideTablePrimaryKey, duckDbOperator, sourceRegistry, fieldOwnershipResolver));
+
+        List<SmartMerger.MergedRecord> mapInfo = new ArrayList<>();
+        if (afterRows == null || afterRows.isEmpty()) {
+            SmartMerger.MergedRecord marker = new SmartMerger.MergedRecord();
+            marker.setTableName(tableName);
+            Map<String, Object> rowPkValue = new HashMap<>();
+            for (String key : wideTablePrimaryKey) {
+                rowPkValue.put(key, "marker");
+            }
+            marker.getBeforeRows().add(rowPkValue);
+            mapInfo.add(marker);
+        }
+        WideTableDeleteAdjustmentContext context = new WideTableDeleteAdjustmentContext()
+                .sourceTableName(tableName)
+                .beforeKeys(affectedBeforeKeys)
+                .afterResults(results)
+                .mergedRecords(mapInfo)
+                .wideTableName(wideTableName)
+                .wideTablePrimaryKey(wideTablePrimaryKey)
+                .duckDbOperator(duckDbOperator)
+                .sourceRegistry(sourceRegistry)
+                .fieldOwnershipResolver(fieldOwnershipResolver);
+        results = deleteAdjustmentService.adjust(context);
         results = WideTableRowTypeNormalizer.normalizeRows(results, tableSchemaInfoCache);
 
         // 创建 final 副本以便在 lambda 中使用
         final List<Map<String, Object>> finalResults = results;
-        final Set<Object> finalAffectedBeforeKeys = affectedBeforeKeys;
 
         // 2. 四态判断（用于生成 Changelog 事件）
         // 注意：即使 results 为空，fourStateJudge 也会生成 DELETE 事件
@@ -240,7 +215,7 @@ public class WideTableIncrementalUpdater {
         // 3. 真实更新宽表（事务模式：在 executeInTransaction 中执行）
         if (enableWriteWideTable && !events.isEmpty()) {
             // 事务模式：在 executeInTransaction 中执行宽表更新
-            applyWideTableChanges(finalAffectedBeforeKeys, finalResults);
+            applyWideTableChanges(affectedBeforeKeys, finalResults);
         }
 
         // 4. 触发 ChangelogListener
@@ -269,76 +244,6 @@ public class WideTableIncrementalUpdater {
     }
 
     /**
-     * 将事件应用到宽表（批量模式：直接刷写，不走 buffer 缓存）
-     * 
-     * @deprecated 使用 {@link #applyWideTableChanges(Set, List)} 代替，避免 TapdataEvent 解析开销
-     */
-    @Deprecated
-    private void applyEventsToWideTable(List<TapdataEvent> events) throws SQLException, IOException {
-        // 0. 确保宽表存在（如果尚未创建）
-        ensureWideTableExists();
-        
-        // 1. 收集 DELETE 主键和 INSERT 数据
-        List<Object> deletePks = new ArrayList<>();
-        List<Map<String, Object>> inserts = new ArrayList<>();
-
-        // 获取主键字段的 TapType，用于类型转换
-        Class<?> pkTargetType = getPkTargetType();
-        logger.debug("PK target type for '{}': {}", wideTablePrimaryKey, pkTargetType.getSimpleName());
-
-        for (TapdataEvent event : events) {
-            TapEvent tapEvent = event.getTapEvent();
-            if (tapEvent instanceof TapInsertRecordEvent) {
-                inserts.add(((TapInsertRecordEvent) tapEvent).getAfter());
-            } else if (tapEvent instanceof TapUpdateRecordEvent) {
-                // UPDATE = DELETE old + INSERT new
-                Map<String, Object> before = ((TapUpdateRecordEvent) tapEvent).getBefore();
-                if (before != null && before.containsKey(wideTablePrimaryKey)) {
-                    Object rawPk = before.get(wideTablePrimaryKey);
-                    Object convertedPk = convertPkValue(rawPk, pkTargetType);
-                    logger.debug("PK value conversion: {} ({}) → {} ({})", 
-                            rawPk, rawPk.getClass().getSimpleName(),
-                            convertedPk, convertedPk.getClass().getSimpleName());
-                    deletePks.add(convertedPk);
-                }
-                inserts.add(((TapUpdateRecordEvent) tapEvent).getAfter());
-            } else if (tapEvent instanceof TapDeleteRecordEvent) {
-                Map<String, Object> before = ((TapDeleteRecordEvent) tapEvent).getBefore();
-                if (before != null && before.containsKey(wideTablePrimaryKey)) {
-                    Object rawPk = before.get(wideTablePrimaryKey);
-                    Object convertedPk = convertPkValue(rawPk, pkTargetType);
-                    logger.debug("PK value conversion: {} ({}) → {} ({})", 
-                            rawPk, rawPk.getClass().getSimpleName(),
-                            convertedPk, convertedPk.getClass().getSimpleName());
-                    deletePks.add(convertedPk);
-                }
-            }
-        }
-
-        // 2. 批量删除（使用 deleteByIds，类型精准）
-        if (!deletePks.isEmpty()) {
-            if (tableSchemaInfoCache != null) {
-                logger.debug("Batch delete by ids, count: {}", deletePks.size());
-                duckDbOperator.deleteByIds(deletePks, tableSchemaInfoCache);
-            } else {
-                // 降级：tableSchemaInfoCache 为空时走旧路径
-                String deleteSql = WideTableBatchSqlBuilder.buildDeleteSql(
-                        wideTableName, wideTablePrimaryKey, deletePks, pkTargetType);
-                logger.debug("Batch delete SQL: {}", deleteSql);
-                duckDbOperator.executeUpdate(deleteSql);
-            }
-        }
-
-        // 3. 批量插入（一条 SQL，直接刷写）
-        if (!inserts.isEmpty()) {
-            String insertSql = WideTableBatchSqlBuilder.buildInsertSql(
-                    wideTableName, tableSchemaInfoCache.getFieldNames(), inserts);
-            logger.debug("Batch insert SQL: {}", insertSql);
-            duckDbOperator.executeUpdate(insertSql);
-        }
-    }
-
-    /**
      * 高效批量更新宽表（优化版：直接接受主键和集合，避免 TapdataEvent 解析）
      * 
      * <p>核心优化：</p>
@@ -353,7 +258,7 @@ public class WideTableIncrementalUpdater {
      * @throws SQLException 数据库操作异常
      * @throws IOException  IO 异常（Arrow 写入）
      */
-    private void applyWideTableChanges(Set<Object> affectedBeforeKeys,
+    private void applyWideTableChanges(List<Map<String, Object>> affectedBeforeKeys,
                                        List<Map<String, Object>> wideTableQueryResults) throws SQLException, IOException {
         // 0. 确保宽表存在
         ensureWideTableExists();
@@ -370,14 +275,19 @@ public class WideTableIncrementalUpdater {
                 duckDbOperator.deleteByIds(pkList, tableSchemaInfoCache);
             } else {
                 // 降级：tableSchemaInfoCache 为空时走旧路径
-                Class<?> pkTargetType = getPkTargetType();
-                List<Object> convertedKeys = affectedBeforeKeys.stream()
-                        .map(pk -> convertPkValue(pk, pkTargetType))
-                        .collect(java.util.stream.Collectors.toList());
+                Map<String, Class<?>> pkTargetType = getPkTargetType();
+                List<Map<String, Object>> convertedKeys = affectedBeforeKeys.stream()
+                        .map(pk -> {
+                            Map<String, Object> rowPkValue = new HashMap<>();
+                            pk.forEach((k, v) -> {
+                                Class<?> pkType = pkTargetType.get(k);
+                                rowPkValue.put(k, convertPkValue(pk, pkType));
+                            });
+                            return rowPkValue;
+                        })
+                        .collect(Collectors.toList());
 
-                String deleteSql = WideTableBatchSqlBuilder.buildDeleteSql(
-                        wideTableName, wideTablePrimaryKey,
-                        convertedKeys, pkTargetType);
+                String deleteSql = WideTableBatchSqlBuilder.buildDeleteSql(wideTableName, convertedKeys, pkTargetType);
                 logger.debug("Batch delete SQL: {}", deleteSql);
                 duckDbOperator.executeUpdate(deleteSql);
             }
@@ -485,13 +395,16 @@ public class WideTableIncrementalUpdater {
      * @param tableName 表名
      * @param primaryKey 主键字段名
      */
-    private void createTableUsingFieldList(String tableName, String primaryKey) throws SQLException {
+    private void createTableUsingFieldList(String tableName, List<String> primaryKey) throws SQLException {
         // ========== 优先使用 NodeSchemaInfo（如果有） ==========
         if (this.tableSchemaInfoCache != null && this.tableSchemaInfoCache.getFieldMap() != null && !this.tableSchemaInfoCache.getFieldMap().isEmpty()) {
             logger.info("Creating wide table using NodeSchemaInfo: {}", tableSchemaInfoCache.getTableName());
-            String createDdl = WideTableDdlGenerator.generateCreateTableDdl(tableSchemaInfoCache, primaryKey);
+            String createDdl = WideTableDdlGenerator.generateCreateTableDdl(tableSchemaInfoCache);
             duckDbOperator.executeUpdate(createDdl);
             logger.info("Successfully created table '{}' from NodeSchemaInfo", tableName);
+            String createIndexDdl = WideTableDdlGenerator.generateIndex(tableSchemaInfoCache, primaryKey);
+            duckDbOperator.executeUpdate(createIndexDdl);
+            logger.info("Successfully created Index for '{}'", tableName);
             return;
         }
         
@@ -555,42 +468,29 @@ public class WideTableIncrementalUpdater {
      * 
      * @return 主键字段对应的 Java 类型，如 Long.class、String.class 等
      */
-    private Class<?> getPkTargetType() {
+    private Map<String, Class<?>> getPkTargetType() {
         if (tableSchemaInfoCache == null) {
             logger.warn("tableSchemaInfoCache is null, defaulting PK type to String");
-            return String.class; // 无法判断类型，默认 String
+            return defaultPkTargetType();
         }
-        
-        TapType pkTapType = tableSchemaInfoCache.getFieldType(wideTablePrimaryKey);
-        if (pkTapType == null) {
-            logger.warn("PK field '{}' has no TapType, defaulting to String", wideTablePrimaryKey);
-            return String.class; // 未知类型，默认 String
+        Map<String, Class<?>> pkTargetType = new HashMap<>();
+        for (String pk : wideTablePrimaryKey) {
+            Class<?> type = String.class;
+            TapType pkTapType = tableSchemaInfoCache.getFieldType(pk);
+            if (pkTapType instanceof io.tapdata.entity.schema.type.TapNumber) {
+                type = Long.class;
+            } else if (pkTapType instanceof io.tapdata.entity.schema.type.TapBoolean) {
+                type = Boolean.class;
+            }
+            pkTargetType.put(pk, type);
         }
-        
-        logger.debug("PK field '{}' TapType: {}", wideTablePrimaryKey, pkTapType.getClass().getSimpleName());
-        
-        // 根据 TapType 判断目标 Java 类型
-        if (pkTapType instanceof io.tapdata.entity.schema.type.TapNumber) {
-            // 数值类型 → Long（DuckDB BIGINT）
-            return Long.class;
-        } else if (pkTapType instanceof io.tapdata.entity.schema.type.TapString) {
-            // 字符串类型 → String（DuckDB VARCHAR）
-            return String.class;
-        } else if (pkTapType instanceof io.tapdata.entity.schema.type.TapBoolean) {
-            // 布尔类型 → Boolean
-            return Boolean.class;
-        } else if (pkTapType instanceof io.tapdata.entity.schema.type.TapDate) {
-            // 日期类型 → String（DuckDB DATE，格式化后用字符串比较）
-            return String.class;
-        } else if (pkTapType instanceof io.tapdata.entity.schema.type.TapDateTime) {
-            // 时间戳类型 → String（DuckDB TIMESTAMP，格式化后用字符串比较）
-            return String.class;
-        }
-        
-        // 默认返回 String
-        logger.warn("Unknown TapType for PK field '{}': {}, defaulting to String", 
-                wideTablePrimaryKey, pkTapType.getClass().getSimpleName());
-        return String.class;
+        return pkTargetType;
+    }
+
+    private Map<String, Class<?>> defaultPkTargetType() {
+        Map<String, Class<?>> pkTargetType = new HashMap<>();
+        wideTablePrimaryKey.forEach(pk -> pkTargetType.put(pk, String.class));
+        return pkTargetType;
     }
 
     /**
