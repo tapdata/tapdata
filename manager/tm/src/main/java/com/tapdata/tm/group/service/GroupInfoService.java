@@ -2765,6 +2765,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             GroupInfoDto groupInfoCopy = BeanUtil.deepClone(groupInfo, GroupInfoDto.class);
 
             if (groupInfoCopy != null) {
+                // BeanUtil.deepClone 走 fastjson 序列化，无法正确还原 ObjectId 类型的 BaseDto.id，
+                // 反序列化时会 new ObjectId() 生成一个全新的 _id，导致每次导出的 GroupInfo.json 里
+                // 分组 _id 都不同、且与 DB 不一致（ResourceItem.id 是 String，不受影响）。
+                // 这里显式用源对象的 _id 覆盖回去，保证导出严格保留分组 _id、实现跨环境强一致。
+                groupInfoCopy.setId(groupInfo.getId());
                 groupInfoCopy.setCreateUser(null);
                 groupInfoCopy.setCustomId(null);
                 groupInfoCopy.setLastUpdBy(null);
