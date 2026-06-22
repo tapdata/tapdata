@@ -78,7 +78,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
                     param.put("alarmDate", alarmDate);
                     param.put("errorEvent",taskDto.getErrorEvents());
                     AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.EMERGENCY).component(AlarmComponentEnum.FE)
-                            .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
+                            .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId).desc(data.getTaskDto().getDesc())
                             .name(data.getTaskName()).summary("TASK_STATUS_STOP_ERROR").metric(AlarmKeyEnum.TASK_STATUS_ERROR)
                             .param(param)
                             .build();
@@ -94,7 +94,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
                     param.put("stopTime", DateUtil.now());
                     param.put("alarmDate", alarmDate);
                     AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.NORMAL).component(AlarmComponentEnum.FE)
-                            .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
+                            .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId).desc(data.getTaskDto().getDesc())
                             .name(data.getTaskName()).summary("TASK_STATUS_STOP").metric(AlarmKeyEnum.TASK_STATUS_STOP)
                             .param(param)
                             .build();
