@@ -369,7 +369,6 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (connectionDto == null) {
             throw new BizException("Datasource.NotFound", "Data source connections not found or not belong to current user");
         }
-        generatePasswordTag(updateDto, user);
         // should encode the password even if the username not exist
         if (StringUtils.isNotBlank(updateDto.getPlain_password())) {
             restoreAccessNodeType(updateDto, connectionDto, processNodeListWithGroup);
@@ -400,6 +399,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         Map<String, Object> config = updateDto.getConfig();
         if (config != null) {
+            generatePasswordTag(updateDto, user);
             if (CollectionUtils.isNotEmpty(updateDto.getPasswordTag())) {
                 updateDto.getPasswordTag().forEach(v -> {
                     Object password = config.get(v);
