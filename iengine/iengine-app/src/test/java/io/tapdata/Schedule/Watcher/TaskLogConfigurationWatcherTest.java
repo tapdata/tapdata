@@ -19,7 +19,7 @@ public class TaskLogConfigurationWatcherTest {
         TaskLogConfigurationWatcher taskLogConfigurationWatcher = new TaskLogConfigurationWatcher();
         try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)){
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
-            when(ObsLoggerFactory.getInstance()).thenReturn(obsLoggerFactory);
+            obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
             LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).build();
             when(obsLoggerFactory.getLogConfiguration("task")).thenReturn(logConfiguration);
             LogConfiguration logConf = taskLogConfigurationWatcher.getLogConfig();
@@ -33,7 +33,7 @@ public class TaskLogConfigurationWatcherTest {
         LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
         try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)){
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
-            when(ObsLoggerFactory.getInstance()).thenReturn(obsLoggerFactory);
+            obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
             Map<String, TaskLogger> taskLoggerMap=new HashMap<>();
             TaskLogger mock1 = mock(TaskLogger.class);
             TaskLogger mock2 = mock(TaskLogger.class);

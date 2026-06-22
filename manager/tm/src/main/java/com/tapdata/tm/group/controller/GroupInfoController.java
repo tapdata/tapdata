@@ -239,7 +239,7 @@ public class GroupInfoController extends BaseController {
     @PostMapping(path = "/import/apis", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<GroupImportResult> importApis(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "importMode", required = false, defaultValue = "replace") String importMode,
+            @RequestParam(value = "importMode", required = false, defaultValue = "group_import") String importMode,
             @RequestParam(value = "sync", required = false, defaultValue = "true") boolean sync)
             throws IOException {
         ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);

@@ -427,7 +427,7 @@
 		<dependency>
 			<groupId>com.networknt</groupId>
 			<artifactId>json-schema-validator</artifactId>
-			<version>1.0.58</version>
+			<version>3.0.0</version>
 		</dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>

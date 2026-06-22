@@ -252,11 +252,19 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract String running(ObjectId id, UserDetail user);
 
+    public abstract String running(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId);
+
     public abstract String runError(ObjectId id, UserDetail user, String errMsg, String errStack);
+
+    public abstract String runError(ObjectId id, UserDetail user, String errMsg, String errStack, String reportAgentId, String reportTaskRecordId);
 
     public abstract String complete(ObjectId id, UserDetail user);
 
+    public abstract String complete(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId);
+
     public abstract String stopped(ObjectId id, UserDetail user);
+
+    public abstract String stopped(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId);
 
     public abstract RunTimeInfo runtimeInfo(ObjectId id, Long endTime, UserDetail user);
 

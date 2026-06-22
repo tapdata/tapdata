@@ -14,6 +14,8 @@ import org.springframework.stereotype.Component;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -23,11 +25,11 @@ import java.util.List;
 @Slf4j
 public class McpTapServer implements InitializingBean {
 
-    private final SseServerTransportProvider transportProvider;
+    private final StreamableMcpTransportProvider transportProvider;
     private McpSyncServer mcpServer;
     private ApplicationContext applicationContext;
 
-    public McpTapServer(SseServerTransportProvider transportProvider, ApplicationContext applicationContext) {
+    public McpTapServer(StreamableMcpTransportProvider transportProvider, ApplicationContext applicationContext) {
         this.transportProvider = transportProvider;
         this.applicationContext = applicationContext;
     }
@@ -42,19 +44,12 @@ public class McpTapServer implements InitializingBean {
                         .prompts(false)
                         .logging()
                         .build())
-                .resourceTemplates(getResourceTemplate())
                 .build();
 
         addResources();
+        addResourceTemplates();
         addTools();
         addPrompts();
-
-        // Send logging notifications
-        mcpServer.loggingNotification(McpSchema.LoggingMessageNotification.builder()
-                .level(McpSchema.LoggingLevel.INFO)
-                .logger("mcp-tap-server")
-                .data("Server initialized")
-                .build());
     }
 
     private List<McpSchema.ResourceTemplate> getResourceTemplate() {
@@ -67,29 +62,43 @@ public class McpTapServer implements InitializingBean {
     private void addResources() {
         Arrays.stream(applicationContext.getBeanNamesForType(Resource.class))
                 .map(n -> (Resource)applicationContext.getBean(n)).forEach(res -> {
-                    McpSchema.Resource resource = new McpSchema.Resource(res.getUri(), res.getName(), res.getDescription(), res.getMimeType(), res.getAnnotations());
+                    McpSchema.Resource resource = McpSchema.Resource.builder()
+                            .uri(res.getUri())
+                            .name(res.getName())
+                            .description(res.getDescription())
+                            .mimeType(res.getMimeType())
+                            .annotations(res.getAnnotations())
+                            .build();
                     McpServerFeatures.SyncResourceSpecification syncResourceSpecification =
                             new McpServerFeatures.SyncResourceSpecification(resource, res::call);
                     mcpServer.addResource(syncResourceSpecification);
                 });
     }
 
+    private void addResourceTemplates() {
+        Resource resource = Arrays.stream(applicationContext.getBeanNamesForType(Resource.class))
+                .map(n -> (Resource)applicationContext.getBean(n))
+                .findFirst()
+                .orElse(null);
+        if (resource == null) {
+            return;
+        }
+        getResourceTemplate().forEach(template -> mcpServer.addResourceTemplate(
+                new McpServerFeatures.SyncResourceTemplateSpecification(template, resource::call)));
+    }
+
     private void addTools() {
         Arrays.stream(applicationContext.getBeanNamesForType(Tool.class))
             .map(n -> (Tool)applicationContext.getBean(n)).forEach(tool -> {
-                    McpSchema.Tool mcpTool = null;
-                if (tool.getInputSchema() != null)
-                    mcpTool = new McpSchema.Tool(tool.getName(), tool.getDescription(), tool.getInputSchema());
-                else if (tool.getJsonSchema() != null)
-                    mcpTool = new McpSchema.Tool(tool.getName(), tool.getDescription(), tool.getJsonSchema());
-                else {
+                Optional<McpSchema.Tool> mcpTool = buildTool(tool);
+                if (mcpTool.isEmpty()) {
                     log.error("Tool {} input schema cannot be empty, ignore register this tool", tool.getName());
                     return;
                 }
-                McpServerFeatures.SyncToolSpecification syncToolSpecification = new McpServerFeatures.SyncToolSpecification(mcpTool, (exchange, params) -> {
+                McpServerFeatures.SyncToolSpecification syncToolSpecification = new McpServerFeatures.SyncToolSpecification(mcpTool.get(), (exchange, request) -> {
                     try {
                         long start = System.currentTimeMillis();
-                        McpSchema.CallToolResult result = tool.call(exchange, params);
+                        McpSchema.CallToolResult result = tool.call(exchange, request.arguments());
                         log.info("Execute tool {} for {}ms ", tool.getName(), System.currentTimeMillis() - start);
                         return result;
                     } catch (RuntimeException e) {
@@ -104,15 +113,30 @@ public class McpTapServer implements InitializingBean {
             });
     }
 
+    private Optional<McpSchema.Tool> buildTool(Tool tool) {
+        McpSchema.Tool.Builder builder = McpSchema.Tool.builder()
+                .name(tool.getName())
+                .description(tool.getDescription());
+        if (tool.getInputSchema() != null) {
+            builder.inputSchema(io.modelcontextprotocol.json.McpJsonDefaults.getMapper(), tool.getInputSchema());
+        } else if (tool.getJsonSchema() != null) {
+            builder.inputSchema(tool.getJsonSchema());
+        } else {
+            return Optional.empty();
+        }
+        return Optional.of(builder.build());
+    }
+
     private void addPrompts() {
         mcpServer.addPrompt(new McpServerFeatures.SyncPromptSpecification(
                 new McpSchema.Prompt("Load data model", "Indicates the order in which the data model is loaded and the tools to be used", Collections.emptyList()), (exchange, params) -> {
 
                     return new McpSchema.GetPromptResult("Load data model", Arrays.asList(
-                            new McpSchema.PromptMessage(McpSchema.Role.ASSISTANT, new McpSchema.TextContent(Arrays.asList(McpSchema.Role.ASSISTANT), 1.0,
+                            new McpSchema.PromptMessage(McpSchema.Role.ASSISTANT, new McpSchema.TextContent(null,
                                     "When you need to load the data model, you need to follow the steps below\n" +
                                             "1. Execute listConnection to load all available database connections and obtain the database connection ID;\n" +
-                                            "2. Based on the database connection ID in the previous step, execute listDataModel to obtain the data model"))
+                                            "2. Based on the database connection ID in the previous step, execute listDataModel to obtain the data model",
+                                    null))
                     ));
         }));
     }

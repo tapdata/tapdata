@@ -26,6 +26,7 @@ import com.tapdata.tm.monitor.vo.SyncStatusStatisticsVo;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.monitor.vo.TaskMetricsTrendVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
+import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
@@ -38,6 +39,7 @@ import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.MongoExpression;
@@ -106,6 +108,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     private final MetadataInstancesService metadataInstancesService;
     private final TaskService taskService;
     private Map<String, Long> taskDelayTimeMap;
+    @Autowired
+    private CpuMemoryService cpuMemoryService;
 
     public MeasurementServiceV2Impl(@Qualifier(value = "obsMongoTemplate") CompletableFuture<MongoTemplate> mongoTemplateCompletableFuture, MetadataInstancesService metadataInstancesService, TaskService taskService) throws ExecutionException, InterruptedException {
         this.mongoOperations = mongoTemplateCompletableFuture.get();
@@ -287,6 +291,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     public Object getSamples(MeasurementQueryParam measurementQueryParam) {
         Map<String, Object> ret = new HashMap<>();
         Map<String, List<Map<String, Object>>> data = new HashMap<>();
+        cpuMemoryService.ignoreMeasureInfoIfNeed(measurementQueryParam, ret);
 
         if (ObjectUtils.anyNull(measurementQueryParam.getStartAt(), measurementQueryParam.getEndAt())) {
             return ret;

@@ -44,6 +44,7 @@ import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.proxy.utils.RemoteCallerUtil;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.userLog.constant.Operation;
@@ -383,6 +384,7 @@ public class TaskServiceImpl extends TaskService{
     private final Map<String, ReentrantLock> scheduleLockMap = new ConcurrentHashMap<>();
 
     private SettingsServiceImpl settingsService;
+    private CpuMemoryService cpuMemoryService;
 
     private TaskNodeService taskNodeService;
     private final AsyncContextManager asyncContextManager = new AsyncContextManager();
@@ -1794,8 +1796,19 @@ public class TaskServiceImpl extends TaskService{
             }
 
         }
-
+        ignoreMetricInfoIfNeed(taskDtoPage.getItems());
         return taskDtoPage;
+    }
+
+    protected void ignoreMetricInfoIfNeed(List<TaskDto> taskInfos) {
+        if (CollectionUtils.isEmpty(taskInfos)) {
+            return;
+        }
+        boolean switchOpen = cpuMemoryService.hasOpenCpuMemory();
+        if (switchOpen) {
+            return;
+        }
+        taskInfos.forEach(info -> info.setMetricInfo(null));
     }
 
     public Page<TaskDto> superFind(Filter filter, UserDetail userDetail) {
@@ -3771,9 +3784,9 @@ public class TaskServiceImpl extends TaskService{
                if(null != taskDto.getId()){
                    importResult.put(taskDto.getId().toHexString(), ExceptionUtils.getStackTrace(e));
                }
-               if(importMode != ImportModeEnum.GROUP_IMPORT){
-                   throw e;
-               }
+               // TAP-11891: 所有导入模式统一 fail-fast，单任务失败立即抛出、中断本批后续任务，
+               // 避免 group_import 静默吞错导致部分导入却整体报成功
+               throw e;
            }
         }
         return importResult;
@@ -4903,9 +4916,23 @@ public class TaskServiceImpl extends TaskService{
      * @param id
      */
     public String running(ObjectId id, UserDetail user) {
+        return runningInternal(id, user, null, null);
+    }
+
+    @Override
+    public String running(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
+        return runningInternal(id, user, reportAgentId, reportTaskRecordId);
+    }
+
+    private String runningInternal(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
 
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, START_TIME, SCHEDULE_DATE);
+        TaskDto taskDto = StringUtils.isBlank(reportAgentId) && StringUtils.isBlank(reportTaskRecordId)
+                ? checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, START_TIME, SCHEDULE_DATE)
+                : checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, AGENT_ID, START_TIME, SCHEDULE_DATE);
+        if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.RUNNING)) {
+            return null;
+        }
 				// 已经运行中，直接返回
 				if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
 					return id.toHexString();
@@ -4941,8 +4968,22 @@ public class TaskServiceImpl extends TaskService{
      * @param id
      */
     public String runError(ObjectId id, UserDetail user, String errMsg, String errStack) {
+        return runErrorInternal(id, user, errMsg, errStack, null, null);
+    }
+
+    @Override
+    public String runError(ObjectId id, UserDetail user, String errMsg, String errStack, String reportAgentId, String reportTaskRecordId) {
+        return runErrorInternal(id, user, errMsg, errStack, reportAgentId, reportTaskRecordId);
+    }
+
+    private String runErrorInternal(ObjectId id, UserDetail user, String errMsg, String errStack, String reportAgentId, String reportTaskRecordId) {
         //判断任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID,"dag");
+        TaskDto taskDto = StringUtils.isBlank(reportAgentId) && StringUtils.isBlank(reportTaskRecordId)
+                ? checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, "dag")
+                : checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, AGENT_ID, "dag");
+        if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.ERROR)) {
+            return null;
+        }
 
         //将子任务状态更新成错误.
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, user);
@@ -4967,8 +5008,22 @@ public class TaskServiceImpl extends TaskService{
      * @param id
      */
     public String complete(ObjectId id, UserDetail user) {
+        return completeInternal(id, user, null, null);
+    }
+
+    @Override
+    public String complete(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
+        return completeInternal(id, user, reportAgentId, reportTaskRecordId);
+    }
+
+    private String completeInternal(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID);
+        TaskDto taskDto = StringUtils.isBlank(reportAgentId) && StringUtils.isBlank(reportTaskRecordId)
+                ? checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID)
+                : checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, AGENT_ID);
+        if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.COMPLETED)) {
+            return null;
+        }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.COMPLETED, user);
         if (stateMachineResult.isFail()) {
@@ -4985,8 +5040,20 @@ public class TaskServiceImpl extends TaskService{
      * @param id
      */
     public String stopped(ObjectId id, UserDetail user) {
+        return stoppedInternal(id, user, null, null);
+    }
+
+    @Override
+    public String stopped(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
+        return stoppedInternal(id, user, reportAgentId, reportTaskRecordId);
+    }
+
+    private String stoppedInternal(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
         //判断子任务是否存在。
         TaskDto taskDto = checkExistById(id, user, "dag", "name", STATUS, "_id", TASK_RECORD_ID, AGENT_ID, STOPED_DATE, RESTART_FLAG);
+        if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.STOPPED)) {
+            return null;
+        }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
@@ -5025,6 +5092,22 @@ public class TaskServiceImpl extends TaskService{
         }
         taskUpdateDagService.updateDag(taskDto.getId(), dag,false);
         return id.toHexString();
+    }
+
+    private boolean isValidTaskStatusReporter(TaskDto taskDto, String reportAgentId, String reportTaskRecordId, DataFlowEvent event) {
+        if (StringUtils.isNotBlank(reportAgentId) && !Objects.equals(taskDto.getAgentId(), reportAgentId)) {
+            log.warn("TaskHA event=ignore_status_report reason=agent_mismatch taskId={} taskName={} status={} event={} currentAgentId={} reportAgentId={}",
+                    taskDto.getId().toHexString(), taskDto.getName(), taskDto.getStatus(), event, taskDto.getAgentId(), reportAgentId);
+            return false;
+        }
+        if (StringUtils.isNotBlank(reportTaskRecordId)
+                && StringUtils.isNotBlank(taskDto.getTaskRecordId())
+                && !Objects.equals(taskDto.getTaskRecordId(), reportTaskRecordId)) {
+            log.warn("TaskHA event=ignore_status_report reason=task_record_mismatch taskId={} taskName={} status={} event={} currentTaskRecordId={} reportTaskRecordId={}",
+                    taskDto.getId().toHexString(), taskDto.getName(), taskDto.getStatus(), event, taskDto.getTaskRecordId(), reportTaskRecordId);
+            return false;
+        }
+        return true;
     }
 
     /**

@@ -1868,7 +1868,11 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						break;
 				}
 			}catch (Exception e){
-				importResult.put(modulesDto.getId().toHexString(), ExceptionUtils.getStackTrace(e));
+				if (null != modulesDto.getId()) {
+					importResult.put(modulesDto.getId().toHexString(), ExceptionUtils.getStackTrace(e));
+				}
+				// TAP-11891: 模块(API)导入同样 fail-fast，错误立即抛出，避免静默吞错导致部分导入却整体报成功
+				throw e;
 			}
 		}
 		return importResult;
