@@ -332,7 +332,8 @@ public class DuckDbSqlNode extends ProcessorNode {
         resultSchema.setFields(fields);
 
         // 设置字段并填充详细信息（主键已在 SqlParserUtil.copyFieldProperties 中根据 wideTablePkColumns 设置）
-        for (Field field : fields) {
+        for (int index = 0; index < fields.size(); index++) {
+            Field field = fields.get(index);
             // 设置字段来源
             field.setSource("job_analyze");
 
@@ -342,7 +343,7 @@ public class DuckDbSqlNode extends ProcessorNode {
             // 设置字段ID（参考 MergeTableNode 和 JoinProcessorNode 的做法）
             String fieldId = MetaDataBuilderUtils.generateFieldId(this.getId(), mainTableName, field.getFieldName());
             field.setId(fieldId);
-            field.setColumnPosition(1);
+            field.setColumnPosition(index + 1);
 
             // 如果没有设置原始字段名，则使用字段名
             if (StringUtils.isBlank(field.getOriginalFieldName())) {
