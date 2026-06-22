@@ -17,7 +17,8 @@ public enum KeyEnum {
     LDAP_SSL_ENABLE("ldap.ssl.enable"),
     LOGIN_SINGLE_SESSION("login.single.session"),
     LOGIN_BRIEF_TIPS("login.brief.tips"),
-    TASK_START_TRANSFORM_WAIT_SECONDS("task.start.transformWaitSeconds")
+    TASK_START_TRANSFORM_WAIT_SECONDS("task.start.transformWaitSeconds"),
+    TOKEN_IDLE_TIMEOUT_MINUTES("access.token.idle.timeout.minutes")
     ;
 
     private String value;
