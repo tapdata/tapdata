@@ -1337,11 +1337,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					pdkMethodInvoker.runnable(() -> {
 								try {
 									transactionBegin();
-									processEvents(tapEvents, false);
+									processEvents(tapEvents,false);
 									writeRecordFunction.writeRecord(
 											connectorNode.getConnectorContext(),
 											tapRecordEvents,
-											dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME),
+											dataProcessorContext.getTapTableMap().get(exactlyOnceTableName),
 											result -> {
 												Map<TapRecordEvent, Throwable> errorMap = result.getErrorMap();
 												if (MapUtils.isNotEmpty(errorMap)) {
@@ -1353,12 +1353,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 									transactionCommit();
 								} catch (Exception e) {
 									transactionRollback();
-									throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED));
+									throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, e));
 								}
 							}
 					));
 		} finally {
-			// Deregister from TASK_RETRY_CLEANUP_HOOKS to prevent ConnectorNode -> MongoClient leak.
 			removePdkMethodInvoker(pdkMethodInvoker);
 		}
 	}
