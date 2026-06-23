@@ -8,7 +8,7 @@
           "$set": {
             "category": "Login",
             "category_sort": 1,
-            "default_value": 30,
+            "default_value": 20160,
             "documentation": "Access_Token_Idle_Timeout_Minutes_doc",
             "hot_reloading": true,
             "key": "access.token.idle.timeout.minutes",
