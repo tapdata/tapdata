@@ -2799,4 +2799,54 @@ class ModulesServiceTest {
 			assertEquals("DateTime", rootField.getSimpleTypeName());
 		}
 	}
+
+	@Nested
+	class analyzeApiServerKey {
+		@Test
+		void testPassword() {
+			ModulesService service = mock(ModulesService.class);
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			LinkedHashMap connection = new LinkedHashMap();
+			LinkedHashMap properties = new LinkedHashMap();
+			LinkedHashMap info = new LinkedHashMap();
+			connection.put("properties", properties);
+			properties.put("key", info);
+			info.put("apiServerKey", "abc");
+			info.put("x-component", "Password");
+			String parent = "parent";
+			doCallRealMethod().when(service).analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+			doNothing().when(service).setApiServerKey(any(DataSourceConnectionDto.class), anyString(), anyString());
+			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+		}
+		@Test
+		void testPassword1() {
+			ModulesService service = mock(ModulesService.class);
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			LinkedHashMap connection = new LinkedHashMap();
+			LinkedHashMap properties = new LinkedHashMap();
+			LinkedHashMap info = new LinkedHashMap();
+			connection.put("properties", properties);
+			properties.put("key", info);
+			info.put("apiServerKey", "abc");
+			info.put("x-component", "Password1");
+			String parent = "parent";
+			doCallRealMethod().when(service).analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+			doNothing().when(service).setApiServerKey(any(DataSourceConnectionDto.class), anyString(), anyString());
+			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+		}
+		@Test
+		void testPassword2() {
+			ModulesService service = mock(ModulesService.class);
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			LinkedHashMap connection = new LinkedHashMap();
+			LinkedHashMap properties = new LinkedHashMap();
+			LinkedHashMap info = new LinkedHashMap();
+			properties.put("key", info);
+			connection.put("properties", properties);
+			String parent = "parent";
+			doCallRealMethod().when(service).analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+			doNothing().when(service).setApiServerKey(any(DataSourceConnectionDto.class), anyString(), anyString());
+			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+		}
+	}
 }

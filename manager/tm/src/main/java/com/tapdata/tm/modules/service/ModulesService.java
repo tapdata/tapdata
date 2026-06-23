@@ -914,7 +914,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					analyzeApiServerKey(dataSourceConnectionDto, v1, key);
 				}
 				String apiServerKey = (String) v1.get("apiServerKey");
-				if (StringUtils.isNotBlank(apiServerKey)) {
+				if (StringUtils.isNotBlank(apiServerKey) && !"Password".equals(v1.get("x-component"))) {
 					setApiServerKey(dataSourceConnectionDto, key, apiServerKey);
 				}
 				LinkedHashMap<String, Object> properties = (LinkedHashMap) v1.get("properties");
@@ -925,7 +925,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 	}
 
-	private void setApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, String k, String apiServerKey) {
+	protected void setApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, String k, String apiServerKey) {
 		Map<String, Object> config = dataSourceConnectionDto.getConfig();
 		Object value = getValue(k, config);
 		Class<? extends DataSourceConnectionDto> aClass = dataSourceConnectionDto.getClass();
