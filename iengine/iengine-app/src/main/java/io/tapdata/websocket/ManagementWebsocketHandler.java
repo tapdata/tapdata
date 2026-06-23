@@ -350,6 +350,17 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	@Override
 	public void afterConnectionEstablished(WebSocketSession session) {
 		handleWhenPingSucceed();
+		// TAP-12028 (A1): WS 连接/重连成功后立即主动拉取分配给本引擎的 wait_run/stopping 任务，
+		// 不再单纯依赖 WS 推送（推送侧 MessageQueueWatch 存在 offset 永久丢失竞态，整机重启后
+		// 启动信号可能丢失，导致任务卡在「启动中」）。异步执行，避免阻塞 WS 连接回调线程。
+		try {
+			TapdataTaskScheduler scheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+			if (null != scheduler) {
+				scheduler.reconcileAssignedTasksAsync("ws-connected");
+			}
+		} catch (Exception e) {
+			logger.warn("Trigger reconcile on websocket connected failed: {}", e.getMessage(), e);
+		}
 	}
 
 	@Override
