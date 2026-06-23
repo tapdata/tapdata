@@ -46,7 +46,7 @@ public class DuckDbSqlNode extends ProcessorNode {
     public static final String DEFAULT_QUERY_SQL = null;
 
     /** 默认批大小 */
-    public static final int DEFAULT_BATCH_SIZE = 1000;
+    public static final int DEFAULT_BATCH_SIZE = 2000;
 
     @EqField
     @JsonAlias({"querySql"})
@@ -60,9 +60,6 @@ public class DuckDbSqlNode extends ProcessorNode {
 
     @EqField
     private Boolean executeQueryOnFullSyncComplete = true;
-
-    @EqField
-    private Integer memoryLimitMB = 1024;
 
     @EqField
     private Integer queryTimeoutMs = 5000;
@@ -87,6 +84,14 @@ public class DuckDbSqlNode extends ProcessorNode {
 
     @EqField
     private String duckLakeStoragePath = "/tmp/ducklake";
+
+    /** example: 16 */
+    @EqField
+    private Integer threads;
+
+    /** example: 32 */
+    @EqField
+    private Integer memoryLimitGB;
 
     @EqField
     private String duckLakeMetadataDbUrl = null;

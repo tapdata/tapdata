@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
@@ -47,18 +48,7 @@ public interface DuckDbOperator extends AutoCloseable {
      * @param batchConsumer 批量消费回调
      * @throws SQLException SQL执行异常
      */
-    default void executeQueryInBatches(String sql, int batchSize, Consumer<List<Map<String, Object>>> batchConsumer) throws SQLException {
-        List<Map<String, Object>> results = executeQuery(sql);
-        if (results == null || results.isEmpty() || batchConsumer == null) {
-            return;
-        }
-
-        int effectiveBatchSize = Math.max(1, batchSize);
-        for (int start = 0; start < results.size(); start += effectiveBatchSize) {
-            int end = Math.min(start + effectiveBatchSize, results.size());
-            batchConsumer.accept(results.subList(start, end));
-        }
-    }
+    void executeQueryInBatches(String sql, int batchSize, Predicate<Boolean> isAlive, Consumer<Map<String, Object>> batchConsumer) throws SQLException;
 
     /**
      * 执行更新SQL（INSERT/UPDATE/DELETE/DDL）
@@ -128,6 +118,9 @@ public interface DuckDbOperator extends AutoCloseable {
      */
     void writeBatch(List<Map<String, Object>> data, NodeSchemaInfo schemaInfo) throws SQLException, java.io.IOException;
 
+    boolean isBatchWritingEnabled();
+
+    void setBatchWritingEnabled(boolean batchWritingEnabled);
     /**
      * 根据TapTable Schema创建表
      * @param tapTable 表结构定义

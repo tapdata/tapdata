@@ -26,11 +26,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -44,7 +46,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     private ArrowWriter arrowWriter;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     // 批处理配置
-    private final boolean batchWritingEnabled;
+    private boolean batchWritingEnabled;
     private final int batchWritingSize;
     private final long batchWritingTimeoutMs;
     private final Collection<Map<String, Object>> batchBuffer = new ArrayList<>();
@@ -55,6 +57,16 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     
     // 数据库文件路径（null=内存模式）
     private final String dbPath;
+
+    @Override
+    public void setBatchWritingEnabled(boolean batchWritingEnabled) {
+        this.batchWritingEnabled = batchWritingEnabled;
+    }
+
+    @Override
+    public boolean isBatchWritingEnabled() {
+        return batchWritingEnabled;
+    }
 
     /**
      * 创建内存数据库实例
@@ -198,42 +210,31 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     }
 
     @Override
-    public void executeQueryInBatches(String sql, int batchSize, java.util.function.Consumer<List<Map<String, Object>>> batchConsumer) throws SQLException {
+    public void executeQueryInBatches(String sql, int batchSize, Predicate<Boolean> isAlive, java.util.function.Consumer<Map<String, Object>> batchConsumer) throws SQLException {
+        assert sql != null && !sql.trim().isEmpty();
         checkClosed();
-
         if (batchConsumer == null) {
             return;
         }
-
-        int effectiveBatchSize = Math.max(1, batchSize);
-
+        int effectiveBatchSize = Math.max(100,  Math.min(10000, batchSize));
         try (Statement stmt = connection.createStatement()) {
             stmt.setFetchSize(effectiveBatchSize);
             try (ResultSet rs = stmt.executeQuery(sql)) {
                 ResultSetMetaData metaData = rs.getMetaData();
                 int columnCount = metaData.getColumnCount();
-                List<String> columnNames = new ArrayList<>(columnCount);
-
+                List<String> columnNames = new ArrayList<>(2 * columnCount);
                 for (int i = 1; i <= columnCount; i++) {
                     columnNames.add(metaData.getColumnName(i));
                 }
-
-                List<Map<String, Object>> batch = new ArrayList<>(effectiveBatchSize);
                 while (rs.next()) {
-                    Map<String, Object> row = new LinkedHashMap<>();
+                    Map<String, Object> row = new HashMap<>(2 * columnCount);
                     for (int i = 0; i < columnCount; i++) {
                         row.put(columnNames.get(i), rs.getObject(i + 1));
                     }
-                    batch.add(row);
-
-                    if (batch.size() >= effectiveBatchSize) {
-                        batchConsumer.accept(batch);
-                        batch = new ArrayList<>(effectiveBatchSize);
+                    batchConsumer.accept(row);
+                    if (!isAlive.test(null)) {
+                        break;
                     }
-                }
-
-                if (!batch.isEmpty()) {
-                    batchConsumer.accept(batch);
                 }
             }
         }

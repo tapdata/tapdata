@@ -115,6 +115,11 @@ public class PerSourceContext {
         return schema != null ? schema.getFieldType(fieldName) : null;
     }
 
+    public void updateAcceptor(int batchSize, long timeout) {
+        this.batchSize = batchSize;
+        this.timeout = timeout;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
