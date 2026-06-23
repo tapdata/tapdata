@@ -36,6 +36,7 @@ import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -118,6 +119,18 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private final ScheduledExecutorService engineStartTaskScheduler = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Engine-Start-Task-Scheduler"));
 	private volatile boolean engineStartTaskSchedulerStarted = false;
 
+	// TAP-12028: 常驻低频对账兜底 + WS(重)连即拉取，确保分配给本引擎(agentId=instanceNo)的
+	// wait_run/stopping 任务最终一定被接管，不再单纯依赖 WS 推送（推送侧 MessageQueueWatch
+	// 存在 offset 永久丢失竞态，整机重启后启动信号可能丢失，导致任务卡在「启动中」）。
+	// 单线程串行，daemon 不阻塞 JVM 退出。
+	private final ScheduledExecutorService taskReconcileScheduler = new ScheduledThreadPoolExecutor(1, r -> {
+		Thread t = new Thread(r, "Engine-Task-Reconcile-Scheduler");
+		t.setDaemon(true);
+		return t;
+	});
+	private static final long RECONCILE_INTERVAL_MS = CommonUtils.getPropertyLong("ENGINE_TASK_RECONCILE_INTERVAL_MS", 30_000L);
+	private static final long RECONCILE_INITIAL_DELAY_MS = CommonUtils.getPropertyLong("ENGINE_TASK_RECONCILE_INITIAL_DELAY_MS", 30_000L);
+
 	// startTask 方法的限流控制
 	private final Object startTaskLock = new Object();
 	private volatile long lastStartTaskTime = 0L;
@@ -169,6 +182,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			}
 		});
 		initScheduleTask();
+		// TAP-12028 (A2): 常驻低频对账兜底，独立于 WS 健康状态。WS 推送仍是低延迟主路径，
+		// 该轮询只保证 wait_run/stopping 任务最终被本引擎接管（默认 30s，可经
+		// ENGINE_TASK_RECONCILE_INTERVAL_MS 调整；云版可调大以降低 DB 压力）。
+		taskReconcileScheduler.scheduleWithFixedDelay(this::reconcileAssignedTasksOnce, RECONCILE_INITIAL_DELAY_MS, RECONCILE_INTERVAL_MS, TimeUnit.MILLISECONDS);
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::resetTaskRetryServiceIfNeed, 1L, 1L, TimeUnit.MINUTES);
 		PDKIntegration.registerMemoryFetcher("taskScheduler", this);
 	}
@@ -336,6 +353,36 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			}
 		} catch (Exception e) {
 			logger.error("Schedule start task failed {}", e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * TAP-12028: 一次性对账——主动认领分配给本引擎(agentId=instanceNo)的 wait_run / stopping 任务。
+	 * <p>触发来源：A1（{@link io.tapdata.websocket.ManagementWebsocketHandler#afterConnectionEstablished}
+	 * 在 WS (重)连成功时立即触发）与 A2（{@link #taskReconcileScheduler} 常驻低频周期触发）。
+	 * <p>安全性：{@link #scheduledTask()} 用 findAndModify 原子认领，{@link #startTask} 经 taskClientMap
+	 * 幂等，与 WS 推送 / WS-down 轮询并存不会重复启动。本方法不抛异常，避免拖垮常驻调度。
+	 */
+	public void reconcileAssignedTasksOnce() {
+		try {
+			scheduledTask();
+			forceStoppingTask();
+		} catch (Throwable t) {
+			logger.warn("Reconcile assigned tasks once failed: {}", t.getMessage(), t);
+		}
+	}
+
+	/**
+	 * 异步触发一次对账，避免阻塞调用线程（如 WS 连接回调线程）。
+	 */
+	public void reconcileAssignedTasksAsync(String reason) {
+		try {
+			taskReconcileScheduler.execute(() -> {
+				logger.info("Reconcile assigned tasks triggered by: {}", reason);
+				reconcileAssignedTasksOnce();
+			});
+		} catch (Exception e) {
+			logger.warn("Submit reconcile assigned tasks failed: {}", e.getMessage(), e);
 		}
 	}
 
