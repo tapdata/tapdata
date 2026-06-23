@@ -35,6 +35,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.utils.AppType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -42,7 +43,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -93,8 +93,6 @@ public class UserController extends BaseController {
     @Autowired
     UserLogService userLogService;
 
-    @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
-    private List<String> productList;
     @Autowired
     @Qualifier("caffeineCache")
     private CaffeineCacheManager userCache;
@@ -127,7 +125,9 @@ public class UserController extends BaseController {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
         Locale locale = WebUtils.getLocale(request);
-        return success(userService.updateUserSetting(id, settingJson, getLoginUser(),locale));
+        UserDetail userDetail = getLoginUser();
+        boolean hasPermission = checkUserPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, userDetail.getUserId());
+        return success(userService.updateUserSetting(id, settingJson, userDetail, locale, hasPermission));
     }
 
     /**
@@ -194,7 +194,7 @@ public class UserController extends BaseController {
      */
     @GetMapping("{userId}")
     public ResponseMessage<UserDto> getUser(@PathVariable(value = "userId") String userId) {
-        if (productList != null && productList.contains("dfs")) {
+        if (AppType.currentType().isDfs()) {
             return success(Optional.ofNullable(userCache.getCache("userCache"))
                     .map(cache -> cache.get(userId, () -> userService.getUserDetail(userId)))
                     .orElseGet(() -> userService.getUserDetail(userId)));
@@ -429,8 +429,9 @@ public class UserController extends BaseController {
     @Operation(summary = "user deletePermissionRoleMapping")
     @DeleteMapping("/deletePermissionRoleMapping")
     public ResponseMessage<Page<RoleDto>> deletePermissionRoleMapping(@RequestParam(value = "id") String id, @RequestBody DeletePermissionRoleMappingDto dto) {
-
         UserDetail userDetail = getLoginUser();
+        checkRoleManagementPermission(userDetail);
+
         roleMappingService.deleteAll(Query.query(Criteria.where("roleId").is(toObjectId(id)).and("principalType").is("PERMISSION")));
         if (CollectionUtils.isNotEmpty(dto.getData())) {
             roleMappingService.save(dto.getData(), userDetail);
@@ -442,8 +443,10 @@ public class UserController extends BaseController {
     @Operation(summary = "user updatePermissionRoleMapping")
     @PutMapping("/updatePermissionRoleMapping")
     public ResponseMessage<Page<RoleDto>> updatePermissionRoleMapping(@RequestBody UpdatePermissionRoleMappingDto dto) {
-        userService.updatePermissionRoleMapping(dto, getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        checkRoleManagementPermission(userDetail);
 
+        userService.updatePermissionRoleMapping(dto, userDetail);
         return success();
 
     }
@@ -463,8 +466,11 @@ public class UserController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody UserDto userDto) {
+        UserDetail userDetail = getLoginUser();
+        checkUserManagementPermission(userDetail);
+
         Where where = parseWhere(whereJson);
-        long count = userService.updateByWhere(where, userDto, getLoginUser());
+        long count = userService.updateByWhere(where, userDto, userDetail);
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
         return success(countValue);
@@ -473,12 +479,10 @@ public class UserController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<UserDto> save(@RequestBody @Validated CreateUserRequest request) {
-        if ((productList != null && productList.contains("dfs")) ||
-                Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId()))) {
-            return success(userService.save(request, getLoginUser()));
-        } else {
-            throw new BizException("NotAuthorized");
-        }
+        UserDetail userDetail = getLoginUser();
+        checkUserManagementPermission(userDetail);
+
+        return success(userService.save(request, userDetail));
     }
 
     @Operation(summary = "User change password")
@@ -529,7 +533,10 @@ public class UserController extends BaseController {
     @Operation(summary = "企业版重置密码")
     @DeleteMapping("{id}")
     public ResponseMessage<Long> delete(@PathVariable("id") String id) {
-        userService.delete(id, getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        checkUserManagementPermission(userDetail);
+
+        userService.delete(id, userDetail);
         return success();
     }
 
@@ -558,10 +565,33 @@ public class UserController extends BaseController {
     @Operation(summary = " 批量修改所属类别")
     @PatchMapping("batchUpdateListtags")
     public ResponseMessage<String> batchUpdateListTags( @RequestBody BatchUpdateParam batchUpdateParam) {
+        UserDetail userDetail = getLoginUser();
+        checkUserManagementPermission(userDetail);
+
         List<String> idList = batchUpdateParam.getId();
         List<com.tapdata.tm.commons.schema.Tag> listTags = batchUpdateParam.getListtags();
         Update update = new Update().set("listtags", listTags);
-        userService.update(new Query(Criteria.where("id").in(idList)), update, getLoginUser());
+        userService.update(new Query(Criteria.where("id").in(idList)), update, userDetail);
         return success();
+    }
+
+    private void checkUserManagementPermission(UserDetail userDetail) {
+        if (!checkUserPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, userDetail.getUserId())) {
+            throw new BizException("NotAuthorized");
+        }
+    }
+
+    private void checkRoleManagementPermission(UserDetail userDetail) {
+        if (!checkUserPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, userDetail.getUserId())) {
+            throw new BizException("NotAuthorized");
+        }
+    }
+
+    private boolean checkUserPermission(String permissionName, String userId) {
+        if (AppType.currentType().isCloud()) {
+            return true;
+        }
+
+        return permissionService.checkCurrentUserHasPermission(permissionName, userId);
     }
 }

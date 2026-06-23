@@ -89,6 +89,34 @@ public class UserServiceImpl extends UserService{
      * 权限过滤关键字：包含这些关键字的子权限不会被自动添加，需要用户手动指定
      */
     private static final List<String> EXCLUDED_PERMISSION_KEYWORDS = List.of("import", "export", "all_data", "copy", "creation");
+    private static final Set<String> SELF_UPDATE_FIELDS = Set.of(
+            "notification",
+            "guideData",
+            "isCompleteGuide",
+            "locale",
+            "photo"
+    );
+    private static final Set<String> USER_MANAGEMENT_UPDATE_FIELDS = Set.of(
+            "id",
+            "username",
+            "email",
+            "ldapAccount",
+            "roleusers",
+            "status",
+            "password",
+            "accesscode",
+            "emailVerified",
+            "emailVerified_from_frontend",
+            "account_status",
+            "listtags",
+            "phone",
+            "photo",
+            "locale"
+    );
+    private static final Set<String> IGNORED_USER_UPDATE_FIELDS = Set.of(
+            "id",
+            "groups"
+    );
 
     public UserServiceImpl(@NonNull UserRepository repository) {
         super(repository);
@@ -331,11 +359,17 @@ public class UserServiceImpl extends UserService{
      *                                                                                                                                                               {\"guideData\":{\"noShow\":false,\"updateTime\":1632380823831,\"action\":false}}"
      * @return
      */
-    public UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail,Locale locale) {
+    @Override
+    public UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail, Locale locale, boolean userManagementAllowed) {
         JSONObject jsonObject = new JSONObject(settingJson);
+        validateUserSettingFields(id, jsonObject, userDetail, userManagementAllowed);
+        boolean updateRoleUsers = jsonObject.containsKey("roleusers");
         Iterator<String> iterator = jsonObject.keySet().iterator();
         while (iterator.hasNext()) {
             String key = iterator.next();
+            if (IGNORED_USER_UPDATE_FIELDS.contains(key) || "roleusers".equals(key)) {
+                continue;
+            }
             Object value = jsonObject.get(key);
             if ("password".equals(key) && value != null) {
                 if (StringUtils.isEmpty(value.toString())) {
@@ -350,10 +384,37 @@ public class UserServiceImpl extends UserService{
             UpdateResult updateResult = repository.getMongoOperations().updateMulti(query, update, User.class);
         }
         UserDto userDto = findById(toObjectId(id));
-        List<RoleMappingDto> roleMappingDtos = updateRoleMapping(id, userDto.getRoleusers(), userDetail);
-        userDto.setRoleMappings(roleMappingDtos);
+        if (updateRoleUsers) {
+            List<Object> roleusers = jsonObject.getJSONArray("roleusers") == null
+                    ? Collections.emptyList()
+                    : jsonObject.getJSONArray("roleusers").toList(Object.class);
+            List<RoleMappingDto> roleMappingDtos = updateRoleMapping(id, roleusers, userDetail);
+            userDto.setRoleMappings(roleMappingDtos);
+        }
         userLogService.addUserLog(Modular.USER, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), StringUtils.isNotBlank(userDto.getLdapAccount()) ? userDto.getLdapAccount() : userDto.getEmail());
         return userDto;
+    }
+
+    protected void validateUserSettingFields(String id, JSONObject jsonObject, UserDetail userDetail, boolean userManagementAllowed) {
+        if (jsonObject == null || jsonObject.isEmpty()) {
+            throw new BizException("IllegalArgument", "settingJson");
+        }
+        boolean selfUpdate = StringUtils.equals(id, userDetail.getUserId());
+        Set<String> allowedFields = userManagementAllowed ? USER_MANAGEMENT_UPDATE_FIELDS : SELF_UPDATE_FIELDS;
+        for (String key : jsonObject.keySet()) {
+            if (IGNORED_USER_UPDATE_FIELDS.contains(key)) {
+                if (!"id".equals(key) && !userManagementAllowed) {
+                    throw new BizException("NotAuthorized");
+                }
+                continue;
+            }
+            if (!allowedFields.contains(key)) {
+                throw new BizException("NotAuthorized");
+            }
+        }
+        if (!userManagementAllowed && !selfUpdate) {
+            throw new BizException("NotAuthorized");
+        }
     }
 
     /**
@@ -431,7 +492,8 @@ public class UserServiceImpl extends UserService{
     }
     protected List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
         // delete old role mapping
-        if (CollectionUtils.isNotEmpty(roleusers)) {
+        if (roleusers != null) {
+            validateRoleUsers(roleusers);
             long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
             log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
         // add new role mapping
@@ -447,6 +509,24 @@ public class UserServiceImpl extends UserService{
             }
         }
         return null;
+    }
+
+    protected void validateRoleUsers(List<Object> roleusers) {
+        if (CollectionUtils.isEmpty(roleusers)) {
+            return;
+        }
+        List<ObjectId> roleIds = roleusers.stream()
+                .map(roleId -> {
+                    if (!(roleId instanceof String) || !ObjectId.isValid((String) roleId)) {
+                        throw new BizException("IllegalArgument", "roleusers");
+                    }
+                    return new ObjectId((String) roleId);
+                })
+                .collect(Collectors.toList());
+        long roleCount = roleService.count(Query.query(Criteria.where("_id").in(roleIds)));
+        if (roleCount != new HashSet<>(roleIds).size()) {
+            throw new BizException("IllegalArgument", "roleusers");
+        }
     }
 
     protected String randomHexString() {
