@@ -80,7 +80,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      */
     public Page<AgentGroupDto> groupAllAgent(Filter filter, Boolean containWorker, UserDetail userDetail) {
         filter = agentGroupUtil.initFilter(filter);
-        Page<GroupDto> groupDtoPage = find(filter, userDetail);
+        Page<GroupDto> groupDtoPage = find(filter);
         List<GroupDto> items = groupDtoPage.getItems();
         if (CollectionUtils.isEmpty(items)) {
             return new Page<>(groupDtoPage.getTotal(), Lists.newArrayList());
@@ -150,7 +150,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      */
     protected Query verifyCountGroupByName(String name, UserDetail userDetail) {
         Query query = Query.query(Criteria.where(AgentGroupTag.TAG_NAME).is(name).and(AgentGroupTag.TAG_DELETE).is(false));
-        if (count(query, userDetail) > 0) {
+        if (count(query) > 0) {
             //Group Name重复
             throw new BizException("group.repeat");
         }
@@ -179,7 +179,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
 
     protected List<AgentGroupDto> batchRemoveAll(UserDetail loginUser) {
         Query query = Query.query(Criteria.where(AgentGroupTag.TAG_DELETE).is(false));
-        update(query, new Update().set(AgentGroupTag.TAG_AGENT_IDS, Lists.newArrayList()), loginUser);
+        update(query, new Update().set(AgentGroupTag.TAG_AGENT_IDS, Lists.newArrayList()));
         return findAgentGroupInfo(query, loginUser);
     }
 
@@ -189,7 +189,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         }
         Criteria and = Criteria.where(AgentGroupTag.TAG_DELETE).is(false)
                 .and(AgentGroupTag.TAG_AGENT_IDS).in(agentIds);
-        List<AgentGroupEntity> all = findAll(Query.query(and), loginUser);
+        List<AgentGroupEntity> all = findAllEntity(Query.query(and));
         List<String> allGroupId = all.stream()
                 .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getGroupId()))
                 .map(AgentGroupEntity::getGroupId)
@@ -197,7 +197,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         Criteria criteria = findCriteria(allGroupId);
         criteria.and(AgentGroupTag.TAG_AGENT_IDS).in(agentIds);
         update(Query.query(criteria),
-                new Update().pullAll(AgentGroupTag.TAG_AGENT_IDS, agentIds.toArray()), loginUser);
+                new Update().pullAll(AgentGroupTag.TAG_AGENT_IDS, agentIds.toArray()));
         log.info("Agent remove: remove all group when group's agent list contains {}, group: {}", agentIds, allGroupId);
         return findAgentGroupInfoMany(allGroupId, loginUser);
     }
@@ -215,10 +215,10 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
             return Lists.newArrayList();
         }
         if (CollectionUtils.isEmpty(newAgentIds)) {
-            update(Query.query(findCriteria(groupIds)), new Update().set(AgentGroupTag.TAG_AGENT_IDS, newAgentIds), loginUser);
+            update(Query.query(findCriteria(groupIds)), new Update().set(AgentGroupTag.TAG_AGENT_IDS, newAgentIds));
             return findAgentGroupInfoMany(groupIds, loginUser);
         }
-        List<AgentGroupEntity> all = findAll(Query.query(Criteria.where("agentIds").in(newAgentIds)), loginUser);
+        List<AgentGroupEntity> all = findAllEntity(Query.query(Criteria.where("agentIds").in(newAgentIds)));
         List<String> needUpdateGroupIds = new ArrayList<>();
         List<String> needAppendGroupIds = new ArrayList<>();
         List<String> collect = all.stream().map(a -> {
@@ -232,16 +232,16 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
 
         String[] strings = new String[newAgentIds.size()];
         String[] toArray = newAgentIds.toArray(strings);
-        update(Query.query(findCriteria(collect)), new Update().pullAll(AgentGroupTag.TAG_AGENT_IDS, toArray), loginUser);
+        update(Query.query(findCriteria(collect)), new Update().pullAll(AgentGroupTag.TAG_AGENT_IDS, toArray));
 
         //需要更新Agent的Agent的分组
         if (!needUpdateGroupIds.isEmpty()) {
-            update(Query.query(findCriteria(needUpdateGroupIds)), new Update().addToSet(AgentGroupTag.TAG_AGENT_IDS).each(toArray), loginUser);
+            update(Query.query(findCriteria(needUpdateGroupIds)), new Update().addToSet(AgentGroupTag.TAG_AGENT_IDS).each(toArray));
         }
 
         //需要新增Agent的Agent的分组
         if (!needAppendGroupIds.isEmpty()) {
-            update(Query.query(findCriteria(needAppendGroupIds)), new Update().addToSet(AgentGroupTag.TAG_AGENT_IDS).each(toArray), loginUser);
+            update(Query.query(findCriteria(needAppendGroupIds)), new Update().addToSet(AgentGroupTag.TAG_AGENT_IDS).each(toArray));
         }
         return findAgentGroupInfoMany(collect, loginUser);
     }
@@ -333,7 +333,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         result.setAgentIds(groupDto.getAgentIds());
 
         if (beUsedConnections.isEmpty() && serviceAllDto.isEmpty()) {
-            boolean deleted = deleteById(groupDto.getId(), loginUser);
+            boolean deleted = deleteById(groupDto.getId());
             result.setDeleted(deleted);
             if (deleted) {
                 result.setDeleteMsg("Delete [\"" + groupDto.getName() + "\"] succeed");
@@ -359,7 +359,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         String name = dto.getName();
         verifyCountGroupByName(name, loginUser);
         Criteria criteria = findCriteria(Lists.newArrayList(groupId));
-        update(Query.query(criteria), new Update().set(AgentGroupTag.TAG_NAME, name), loginUser);
+        update(Query.query(criteria), new Update().set(AgentGroupTag.TAG_NAME, name));
         return findAgentGroupInfo(dto.getGroupId(), loginUser);
     }
 
@@ -369,7 +369,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      * */
     protected GroupDto findGroupById(String groupId, UserDetail loginUser) {
         Criteria criteria = findCriteria(Lists.newArrayList(groupId));
-        GroupDto groupDto = findOne(Query.query(criteria), loginUser);
+        GroupDto groupDto = findOne(Query.query(criteria));
         if (null == groupDto) {
             //找不到当前标签
             throw new BizException(AgentGroupTag.GROUP_NOT_FUND, groupId);
@@ -433,14 +433,14 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      * 查询引擎分组信息，包含分组中引擎的信息
      * */
     public List<AgentGroupDto> findAgentGroupInfo(Query query, UserDetail loginUser) {
-        List<GroupDto> groupDto = findAllDto(query, loginUser);
+        List<GroupDto> groupDto = findAll(query);
         return findAgentGroupInfo(groupDto, loginUser);
     }
 
     public List<AgentGroupDto> findAgentGroupInfo(Filter filter, UserDetail loginUser) {
         filter = agentGroupUtil.initFilter(filter);
-        GroupDto groupDto = findOne(filter, loginUser);
-        return findAgentGroupInfo(Lists.newArrayList(groupDto), loginUser);
+        Page<GroupDto> groupDtos = find(filter);
+        return findAgentGroupInfo(groupDtos.getItems(), loginUser);
     }
 
     /**
@@ -452,7 +452,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         }
         Criteria criteria = Criteria.where(AgentGroupTag.TAG_PROCESS_ID).in(agentIds)
                 .and(AgentGroupTag.TAG_WORKER_TYPE).is(AgentGroupTag.TAG_CONNECTOR);
-        return workerServiceImpl.findAllDto(Query.query(criteria), loginUser);
+        return workerServiceImpl.findAll(Query.query(criteria));
     }
 
     /**
@@ -468,7 +468,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
                 .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getProcessId()))
                 .collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a));
         Criteria criteria = findCriteria(null);
-        List<AgentGroupEntity> entities = findAll(Query.query(criteria), loginUser);
+        List<AgentGroupEntity> entities = findAllEntity(Query.query(criteria));
         List<AccessNodeInfo> groupAgentList = entities.stream()
                 .filter(Objects::nonNull)
                 .sorted(agentGroupUtil::sortAgentGroup)
@@ -592,7 +592,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         String accessNodeType = dto.getAccessNodeType();
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
             String accessNodeProcessId = dto.getAccessNodeProcessId();
-            GroupDto one = findOne(Query.query(findCriteria(Lists.newArrayList(accessNodeProcessId))), userDetail);
+            GroupDto one = findOne(Query.query(findCriteria(Lists.newArrayList(accessNodeProcessId))));
             if (null != one) {
                 Map<String, Object> info = new HashMap<>();
                 info.put(AgentGroupTag.TAG_GROUP_ID, one.getGroupId());
