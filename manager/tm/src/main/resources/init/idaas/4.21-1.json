@@ -1,0 +1,29 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": { "key": "access.token.idle.timeout.minutes" },
+        "u": {
+          "$set": {
+            "category": "Login",
+            "category_sort": 1,
+            "default_value": 20160,
+            "documentation": "Access_Token_Idle_Timeout_Minutes_doc",
+            "hot_reloading": true,
+            "key": "access.token.idle.timeout.minutes",
+            "key_label": "Access Token Idle Timeout Minutes",
+            "last_update": 0,
+            "last_update_by": "",
+            "scope": "global",
+            "sort": 10,
+            "user_visible": true,
+            "min": 1
+          },
+          "$setOnInsert": { "value": 60 }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]
