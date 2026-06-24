@@ -6,11 +6,8 @@ import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.mcp.Utils;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
+import com.tapdata.tm.mcp.tools.McpToolSupport;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
@@ -35,30 +33,25 @@ import static org.mockito.Mockito.*;
 class ConnectionResourceTest {
 
     @Mock
-    private SessionAttribute sessionAttribute;
-
-    @Mock
-    private UserService userService;
+    private McpToolSupport toolSupport;
 
     @Mock
     private DataSourceService dataSourceService;
 
     @Mock
-    private McpSyncServerExchange exchange;
+    private McpSyncRequestContext context;
 
     private ConnectionResource connectionResource;
 
     @BeforeEach
     void setUp() {
-        connectionResource = new ConnectionResource(sessionAttribute, userService, dataSourceService);
+        connectionResource = new ConnectionResource(toolSupport, dataSourceService);
     }
 
     @Test
     void testCallWithValidConnectionId() {
         // 准备测试数据
-        String sessionId = "test-session-id";
         String connectionId = "507f1f77bcf86cd799439011";
-        String userId = "507f1f77bcf86cd799439013";
         UserDetail mockUserDetail = mock(UserDetail.class);
         DataSourceEntity mockDataSource = new DataSourceEntity();
         mockDataSource.setId(new ObjectId(connectionId));
@@ -71,20 +64,15 @@ class ConnectionResourceTest {
             ms.when(() -> Utils.readConnection(any())).thenReturn(createMockConnectionData(connectionId));
             ms.when(() -> Utils.toJson(any())).thenReturn("{}");
 
-            when(exchange.sessionId()).thenReturn(sessionId);
-            when(sessionAttribute.getAttribute(sessionId, "userId")).thenReturn(userId);
-            when(userService.loadUserById(any())).thenReturn(mockUserDetail);
+            when(toolSupport.getUserDetail(context)).thenReturn(mockUserDetail);
             when(dataSourceService.findAll(any(Query.class), eq(mockUserDetail)))
                     .thenReturn(Collections.singletonList(mockDataSource));
 
             // 执行测试
-            McpSchema.ReadResourceResult result = connectionResource.call(exchange,
-                    new McpSchema.ReadResourceRequest("tap://" + connectionId));
+            String result = connectionResource.getConnection(context, connectionId);
 
             // 验证结果
-            assertNotNull(result);
-            assertNotNull(result.contents());
-            assertEquals(1, result.contents().size());
+            assertEquals("{}", result);
             verify(dataSourceService).findAll(any(Query.class), eq(mockUserDetail));
         }
     }
@@ -92,10 +80,8 @@ class ConnectionResourceTest {
     @Test
     void testCallWithDataSchemaId() {
         // 准备测试数据
-        String sessionId = "test-session-id";
         String connectionId = "507f1f77bcf86cd799439011";
         String dataSchemaId = "507f1f77bcf86cd799439012";
-        String userId = "507f1f77bcf86cd799439013";
         UserDetail mockUserDetail = mock(UserDetail.class);
         
         DataSourceConnectionDto mockConnection = new DataSourceConnectionDto();
@@ -109,54 +95,32 @@ class ConnectionResourceTest {
             // 设置 mock 行为
             ms.when(() -> Utils.toJson(any())).thenReturn("{}");
 
-            when(exchange.sessionId()).thenReturn(sessionId);
-            when(sessionAttribute.getAttribute(sessionId, "userId")).thenReturn(userId);
-            when(userService.loadUserById(new ObjectId(userId))).thenReturn(mockUserDetail);
+            when(toolSupport.getUserDetail(context)).thenReturn(mockUserDetail);
             when(dataSourceService.getById(any(), any(), eq(false), eq(mockUserDetail)))
                     .thenReturn(mockConnection);
 
             // 执行测试
-            McpSchema.ReadResourceResult result = connectionResource.call(exchange,
-                    new McpSchema.ReadResourceRequest(String.format("tap://%s/%s", connectionId, dataSchemaId)));
+            String result = connectionResource.getDataModel(context, connectionId, dataSchemaId);
 
             // 验证结果
-            assertNotNull(result);
-            assertNotNull(result.contents());
-            assertEquals(1, result.contents().size());
+            assertEquals("{}", result);
             verify(dataSourceService).getById(any(), any(), eq(false), eq(mockUserDetail));
         }
     }
 
     @Test
     void testCallWithInvalidUri() {
-        // 准备测试数据
-        String sessionId = "test-session-id";
-        String userId = "507f1f77bcf86cd799439013";
-        UserDetail mockUserDetail = mock(UserDetail.class);
+        String result = connectionResource.read(context, "invalid_uri");
 
-        try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
-            // 设置 mock 行为
-            when(exchange.sessionId()).thenReturn(sessionId);
-            when(sessionAttribute.getAttribute(sessionId, "userId")).thenReturn(userId);
-            when(userService.loadUserById(any())).thenReturn(mockUserDetail);
-
-            // 执行测试
-            McpSchema.ReadResourceResult result = connectionResource.call(exchange,
-                    new McpSchema.ReadResourceRequest("invalid_uri"));
-
-            // 验证结果
-            assertNotNull(result);
-            assertTrue(result.contents().isEmpty());
-        }
+        assertNull(result);
+        verifyNoInteractions(toolSupport, dataSourceService);
     }
 
     @Test
     void testCallWithNonExistentDataSchema() {
         // 准备测试数据
-        String sessionId = "test-session-id";
         String connectionId = "507f1f77bcf86cd799439011";
         String dataSchemaId = "507f1f77bcf86cd799439014";
-        String userId = "507f1f77bcf86cd799439013";
         UserDetail mockUserDetail = mock(UserDetail.class);
         
         DataSourceConnectionDto mockConnection = new DataSourceConnectionDto();
@@ -164,22 +128,15 @@ class ConnectionResourceTest {
         mockSchema.setTables(Collections.emptyList());
         mockConnection.setSchema(mockSchema);
 
-        try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
-            // 设置 mock 行为
-            when(exchange.sessionId()).thenReturn(sessionId);
-            when(sessionAttribute.getAttribute(sessionId, "userId")).thenReturn(userId);
-            when(userService.loadUserById(new ObjectId(userId))).thenReturn(mockUserDetail);
-            when(dataSourceService.getById(any(), any(), eq(false), eq(mockUserDetail)))
-                    .thenReturn(mockConnection);
+        when(toolSupport.getUserDetail(context)).thenReturn(mockUserDetail);
+        when(dataSourceService.getById(any(), any(), eq(false), eq(mockUserDetail)))
+                .thenReturn(mockConnection);
 
-            // 执行测试
-            McpSchema.ReadResourceResult result = connectionResource.call(exchange,
-                    new McpSchema.ReadResourceRequest(String.format("tap://%s/%s", connectionId, dataSchemaId)));
+        // 执行测试
+        String result = connectionResource.getDataModel(context, connectionId, dataSchemaId);
 
-            // 验证结果
-            assertNotNull(result);
-            assertTrue(result.contents().isEmpty());
-        }
+        // 验证结果
+        assertNull(result);
     }
 
     private Map<String, Object> createMockConnectionData(String connectionId) {

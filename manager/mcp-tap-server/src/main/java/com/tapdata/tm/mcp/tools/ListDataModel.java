@@ -7,20 +7,17 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
-
-import static com.tapdata.tm.mcp.Utils.*;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -28,22 +25,24 @@ import static com.tapdata.tm.mcp.Utils.*;
  */
 @Slf4j
 @Component
-public class ListDataModel extends Tool{
+public class ListDataModel {
 
+    private final McpToolSupport toolSupport;
     private final MetadataInstancesService metadataInstancesService;
 
-    public ListDataModel(SessionAttribute sessionAttribute, MetadataInstancesService metadataInstancesService, UserService userService) {
-        super("listDataModel", "List all data model loaded by connection in TapData",
-                readJsonSchema("ListDataModel.json"), sessionAttribute, userService);
+    public ListDataModel(McpToolSupport toolSupport, MetadataInstancesService metadataInstancesService) {
+        this.toolSupport = toolSupport;
         this.metadataInstancesService = metadataInstancesService;
     }
 
-    public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
-
-        UserDetail userDetail = getUserDetail(exchange);
-        String connectionId = getStringValue(params, "connectionId");
-        boolean includeFields = Boolean.TRUE.equals(params.get("includeFields"));
-        String name = getStringValue(params, "name");
+    @McpTool(name = "listDataModel", description = "List data models loaded by a TapData connection")
+    public List<Map<String, Object>> listDataModel(
+            McpSyncRequestContext context,
+            @McpToolParam(description = "TapData connection id.") String connectionId,
+            @McpToolParam(required = false, description = "Whether to include fields and indexes in each data model.") Boolean includeFields,
+            @McpToolParam(required = false, description = "Optional case-insensitive table or collection name keyword.") String name) {
+        UserDetail userDetail = toolSupport.getUserDetail(context);
+        boolean fieldsIncluded = Boolean.TRUE.equals(includeFields);
 
         if (StringUtils.isBlank(connectionId))
             throw new RuntimeException("Parameter connectionId is required.");
@@ -68,7 +67,7 @@ public class ListDataModel extends Tool{
         fields.put("original_name", true);
         fields.put("meta_type", true);
         fields.put("id", true);
-        if (includeFields) {
+        if (fieldsIncluded) {
             fields.put("fields", true);
             fields.put("indices", true);
         }
@@ -84,7 +83,7 @@ public class ListDataModel extends Tool{
             data.put("type", metadata.getMetaType());
             data.put("name", metadata.getOriginalName());
             data.put("collectionName", metadata.getOriginalName());
-            if (includeFields && CollectionUtils.isNotEmpty(metadata.getFields())) {
+            if (fieldsIncluded && CollectionUtils.isNotEmpty(metadata.getFields())) {
                 data.put("fields", metadata.getFields().stream().map(field -> {
                     Map<String, Object> f = new HashMap<>();
                     f.put("name", field.getFieldName());
@@ -115,6 +114,6 @@ public class ListDataModel extends Tool{
             return data;
         }).collect(Collectors.toList());
 
-        return makeCallToolResult(result);
+        return result;
     }
 }

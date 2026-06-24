@@ -11,9 +11,6 @@ import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpServerSession;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 
 import java.util.*;
 
@@ -57,21 +55,20 @@ class CreateMergeTableTaskTest {
     private DataSourceService dataSourceService;
 
     @Mock
-    private McpSyncServerExchange exchange;
+    private McpSyncRequestContext context;
 
     private CreateMergeTableTask createMergeTableTask;
 
     @BeforeEach
     void setUp() {
         createMergeTableTask = new CreateMergeTableTask(
-                sessionAttribute, userService, taskService,
+                new McpToolSupport(sessionAttribute, userService), taskService,
                 taskSaveService, externalStorageService, dataSourceService);
     }
 
     @Test
     void testCallSuccess() {
         UserDetail mockUserDetail = mock(UserDetail.class);
-        McpServerSession mockSession = mock(McpServerSession.class);
 
         DataSourceConnectionDto sourceConn = createMockConnection("SourceDB", "source", "MySQL");
         DataSourceConnectionDto targetConn = createMockConnection("TargetDB", "target", "MongoDB");
@@ -87,7 +84,6 @@ class CreateMergeTableTaskTest {
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             ms.when(() -> Utils.getStringValue(any(), any(), any())).thenCallRealMethod();
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             when(dataSourceService.findById(any(ObjectId.class), eq(mockUserDetail)))
@@ -96,11 +92,20 @@ class CreateMergeTableTaskTest {
             doNothing().when(taskSaveService).supplementAlarm(any(), any());
             when(taskService.create(any(TaskDto.class), eq(mockUserDetail))).thenReturn(createdTask);
 
-            Map<String, Object> params = buildValidParams();
-            McpSchema.CallToolResult result = createMergeTableTask.call(exchange, params);
+            TestMergeInput input = buildValidInput();
+            Map<String, Object> result = createMergeTableTask.createMergeTableTask(context,
+                    input.taskName,
+                    input.sourceConnectionId,
+                    input.sourceDatabaseType,
+                    input.targetConnectionId,
+                    input.targetDatabaseType,
+                    input.targetTableName,
+                    input.mainTable,
+                    input.childTables,
+                    null);
 
             assertNotNull(result);
-            assertFalse(result.isError() != null && result.isError());
+            assertEquals("TestMergeTask", result.get("name"));
             verify(taskService).create(any(TaskDto.class), eq(mockUserDetail));
             verify(dataSourceService, times(2)).findById(any(ObjectId.class), eq(mockUserDetail));
         }
@@ -109,48 +114,70 @@ class CreateMergeTableTaskTest {
     @Test
     void testCallWithoutTaskName() {
         UserDetail mockUserDetail = mock(UserDetail.class);
-        McpServerSession mockSession = mock(McpServerSession.class);
 
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
 
-            Map<String, Object> params = new HashMap<>();
             RuntimeException exception = assertThrows(RuntimeException.class,
-                    () -> createMergeTableTask.call(exchange, params));
+                    () -> createMergeTableTask.createMergeTableTask(context,
+                            null, null, null, null, null, null, null, null, null));
             assertTrue(exception.getMessage().contains("taskName"));
         }
     }
 
     @Test
     void testCallWithInvalidSession() {
-        Map<String, Object> params = buildValidParams();
-        assertThrows(RuntimeException.class, () -> createMergeTableTask.call(exchange, params));
+        TestMergeInput input = buildValidInput();
+        assertThrows(RuntimeException.class, () -> createMergeTableTask.createMergeTableTask(context,
+                input.taskName,
+                input.sourceConnectionId,
+                input.sourceDatabaseType,
+                input.targetConnectionId,
+                input.targetDatabaseType,
+                input.targetTableName,
+                input.mainTable,
+                input.childTables,
+                null));
     }
 
-    private Map<String, Object> buildValidParams() {
-        Map<String, Object> params = new HashMap<>();
-        params.put("taskName", "TestMergeTask");
-        params.put("sourceConnectionId", new ObjectId().toHexString());
-        params.put("sourceDatabaseType", "MySQL");
-        params.put("targetConnectionId", new ObjectId().toHexString());
-        params.put("targetDatabaseType", "MongoDB");
-        params.put("targetTableName", "merged_output");
+    private TestMergeInput buildValidInput() {
+        TestMergeInput input = new TestMergeInput();
+        input.taskName = "TestMergeTask";
+        input.sourceConnectionId = new ObjectId().toHexString();
+        input.sourceDatabaseType = "MySQL";
+        input.targetConnectionId = new ObjectId().toHexString();
+        input.targetDatabaseType = "MongoDB";
+        input.targetTableName = "merged_output";
 
-        Map<String, Object> mainTable = new HashMap<>();
-        mainTable.put("tableName", "orders");
-        mainTable.put("arrayKeys", Arrays.asList("id"));
-        params.put("mainTable", mainTable);
+        CreateMergeTableTask.MainTable mainTable = new CreateMergeTableTask.MainTable();
+        mainTable.tableName = "orders";
+        mainTable.arrayKeys = Arrays.asList("id");
+        input.mainTable = mainTable;
 
-        Map<String, Object> childTable = new HashMap<>();
-        childTable.put("tableName", "order_items");
-        childTable.put("targetPath", "items");
-        childTable.put("joinKeys", Arrays.asList(Map.of("source", "order_id", "target", "id")));
-        params.put("childTables", Arrays.asList(childTable));
+        CreateMergeTableTask.JoinKey joinKey = new CreateMergeTableTask.JoinKey();
+        joinKey.source = "order_id";
+        joinKey.target = "id";
 
-        return params;
+        CreateMergeTableTask.ChildTable childTable = new CreateMergeTableTask.ChildTable();
+        childTable.tableName = "order_items";
+        childTable.targetPath = "items";
+        childTable.joinKeys = Arrays.asList(joinKey);
+        input.childTables = Arrays.asList(childTable);
+
+        return input;
+    }
+
+    private static class TestMergeInput {
+        String taskName;
+        String sourceConnectionId;
+        String sourceDatabaseType;
+        String targetConnectionId;
+        String targetDatabaseType;
+        String targetTableName;
+        CreateMergeTableTask.MainTable mainTable;
+        List<CreateMergeTableTask.ChildTable> childTables;
     }
 
     private DataSourceConnectionDto createMockConnection(String name, String type, String dbType) {

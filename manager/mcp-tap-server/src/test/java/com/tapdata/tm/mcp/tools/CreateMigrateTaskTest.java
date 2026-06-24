@@ -13,8 +13,6 @@ import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,13 +20,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -59,13 +56,13 @@ class CreateMigrateTaskTest {
     private DataSourceService dataSourceService;
 
     @Mock
-    private McpSyncServerExchange exchange;
+    private McpSyncRequestContext context;
 
     private CreateMigrateTask createMigrateTask;
 
     @BeforeEach
     void setUp() {
-        createMigrateTask = new CreateMigrateTask(sessionAttribute, userService, taskService, taskSaveService, dataSourceService);
+        createMigrateTask = new CreateMigrateTask(new McpToolSupport(sessionAttribute, userService), taskService, taskSaveService, dataSourceService);
     }
 
     @Test
@@ -81,15 +78,25 @@ class CreateMigrateTaskTest {
         when(dataSourceService.findById(targetConnectionId, userDetail)).thenReturn(targetConnection);
         when(taskService.create(any(TaskDto.class), eq(userDetail))).thenReturn(created);
 
-        Map<String, Object> params = validParams(sourceConnectionId, targetConnectionId);
-        params.put("migrateTableSelectType", "custom");
-        params.put("tableNames", List.of("orders", "customers"));
-
-        McpSchema.CallToolResult result = createMigrateTask.call(exchange, params);
+        Map<String, Object> result = createMigrateTask.createMigrateTask(context,
+                "ReplicateOrders",
+                sourceConnectionId.toHexString(),
+                "mysql",
+                targetConnectionId.toHexString(),
+                "mongodb",
+                "custom",
+                List.of("orders", "customers"),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
 
         assertNotNull(result);
-        assertFalse(Boolean.TRUE.equals(result.isError()));
-        assertTrue(text(result).contains("ReplicateOrders"));
+        assertEquals("ReplicateOrders", result.get("name"));
 
         ArgumentCaptor<TaskDto> taskCaptor = ArgumentCaptor.forClass(TaskDto.class);
         verify(taskService).create(taskCaptor.capture(), eq(userDetail));
@@ -133,19 +140,26 @@ class CreateMigrateTaskTest {
         when(dataSourceService.findById(targetConnectionId, userDetail)).thenReturn(targetConnection);
         when(taskService.create(any(TaskDto.class), eq(userDetail))).thenReturn(created);
 
-        Map<String, Object> params = validParams(sourceConnectionId, targetConnectionId);
-        params.put("taskName", "ReplicateWithRename");
-        params.put("migrateTableSelectType", "expression");
-        params.put("tableExpression", ".*");
-        params.put("prefix", "ods_");
-        params.put("suffix", "_copy");
-        params.put("transferCase", "toUpperCase");
-        params.put("tableRenameTableNames", List.of(Map.of(
-                "originTableName", "orders",
-                "currentTableName", "orders_archive"
-        )));
+        CreateMigrateTask.TableRenameRule renameRule = new CreateMigrateTask.TableRenameRule();
+        renameRule.originTableName = "orders";
+        renameRule.currentTableName = "orders_archive";
 
-        createMigrateTask.call(exchange, params);
+        createMigrateTask.createMigrateTask(context,
+                "ReplicateWithRename",
+                sourceConnectionId.toHexString(),
+                "mysql",
+                targetConnectionId.toHexString(),
+                "mongodb",
+                "expression",
+                null,
+                ".*",
+                "ods_",
+                "_copy",
+                null,
+                null,
+                "toUpperCase",
+                List.of(renameRule),
+                null);
 
         ArgumentCaptor<TaskDto> taskCaptor = ArgumentCaptor.forClass(TaskDto.class);
         verify(taskService).create(taskCaptor.capture(), eq(userDetail));
@@ -182,10 +196,24 @@ class CreateMigrateTaskTest {
     @Test
     void testCallCustomWithoutTableNamesThrows() {
         mockUser();
-        Map<String, Object> params = validParams(new ObjectId(), new ObjectId());
-        params.put("migrateTableSelectType", "custom");
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> createMigrateTask.call(exchange, params));
+        ObjectId sourceConnectionId = new ObjectId();
+        ObjectId targetConnectionId = new ObjectId();
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> createMigrateTask.createMigrateTask(context,
+                "ReplicateOrders",
+                sourceConnectionId.toHexString(),
+                "mysql",
+                targetConnectionId.toHexString(),
+                "mongodb",
+                "custom",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
 
         assertTrue(exception.getMessage().contains("tableNames"));
         verify(dataSourceService, never()).findById(any(ObjectId.class), any(UserDetail.class));
@@ -194,20 +222,10 @@ class CreateMigrateTaskTest {
 
     private UserDetail mockUser() {
         UserDetail userDetail = mock(UserDetail.class);
-        when(exchange.sessionId()).thenReturn("session-1");
+        when(context.sessionId()).thenReturn("session-1");
         when(sessionAttribute.getAttribute("session-1", "userId")).thenReturn(new ObjectId().toHexString());
         when(userService.loadUserById(any(ObjectId.class))).thenReturn(userDetail);
         return userDetail;
-    }
-
-    private Map<String, Object> validParams(ObjectId sourceConnectionId, ObjectId targetConnectionId) {
-        Map<String, Object> params = new HashMap<>();
-        params.put("taskName", "ReplicateOrders");
-        params.put("sourceConnectionId", sourceConnectionId.toHexString());
-        params.put("sourceDatabaseType", "mysql");
-        params.put("targetConnectionId", targetConnectionId.toHexString());
-        params.put("targetDatabaseType", "mongodb");
-        return params;
     }
 
     private DataSourceConnectionDto connection(ObjectId id, String name, String connectionType, String databaseType) {
@@ -241,7 +259,4 @@ class CreateMigrateTaskTest {
         return assertInstanceOf(DatabaseNode.class, node);
     }
 
-    private String text(McpSchema.CallToolResult result) {
-        return ((McpSchema.TextContent) result.content().get(0)).text();
-    }
 }

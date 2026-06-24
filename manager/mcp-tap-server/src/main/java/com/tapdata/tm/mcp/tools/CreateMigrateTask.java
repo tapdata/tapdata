@@ -11,21 +11,17 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.mcp.SessionAttribute;
-import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-
-import static com.tapdata.tm.mcp.Utils.getStringValue;
 
 /**
  * MCP tool for creating a replication (复制/migrate) task in TapData.
@@ -38,47 +34,45 @@ import static com.tapdata.tm.mcp.Utils.getStringValue;
  */
 @Slf4j
 @Component
-public class CreateMigrateTask extends Tool {
+public class CreateMigrateTask {
 
+    private final McpToolSupport toolSupport;
     private final TaskService taskService;
     private final TaskSaveService taskSaveService;
     private final DataSourceService dataSourceService;
 
-    public CreateMigrateTask(SessionAttribute sessionAttribute,
-                             UserService userService,
+    public CreateMigrateTask(McpToolSupport toolSupport,
                              TaskService taskService,
                              TaskSaveService taskSaveService,
                              DataSourceService dataSourceService) {
-        super("createMigrateTask",
-                "Create a replication (复制) task in TapData that copies tables from a source database to a target database. " +
-                        "Source tables are selected either explicitly (migrateTableSelectType=custom with tableNames) " +
-                        "or by a regular expression (migrateTableSelectType=expression with tableExpression; use '.*' for all tables).",
-                Utils.readJsonSchema("CreateMigrateTask.json"), sessionAttribute, userService);
+        this.toolSupport = toolSupport;
         this.taskService = taskService;
         this.taskSaveService = taskSaveService;
         this.dataSourceService = dataSourceService;
     }
 
-    @Override
-    @SuppressWarnings("unchecked")
-    public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
-        UserDetail userDetail = getUserDetail(exchange);
-
-        String taskName = getStringValue(params, "taskName");
-        String sourceConnectionId = getStringValue(params, "sourceConnectionId");
-        String sourceDatabaseType = getStringValue(params, "sourceDatabaseType");
-        String targetConnectionId = getStringValue(params, "targetConnectionId");
-        String targetDatabaseType = getStringValue(params, "targetDatabaseType");
-        String migrateTableSelectType = getStringValue(params, "migrateTableSelectType");
-        String tableExpression = getStringValue(params, "tableExpression");
-        String syncType = getStringValue(params, "syncType", "initial_sync+cdc");
-        String prefix = getStringValue(params, "prefix");
-        String suffix = getStringValue(params, "suffix");
-        String replaceBefore = getStringValue(params, "replaceBefore");
-        String replaceAfter = getStringValue(params, "replaceAfter");
-        String transferCase = getStringValue(params, "transferCase", "");
-        List<String> tableNames = params.get("tableNames") instanceof List ? (List<String>) params.get("tableNames") : null;
-        LinkedHashSet<TableRenameTableInfo> tableRenameTableNames = parseTableRenameTableNames(params.get("tableRenameTableNames"));
+    @McpTool(name = "createMigrateTask", description = "Create a replication task in TapData that copies tables from a source database to a target database.")
+    public Map<String, Object> createMigrateTask(
+            McpSyncRequestContext context,
+            @McpToolParam(description = "Task name.") String taskName,
+            @McpToolParam(description = "Source connection id.") String sourceConnectionId,
+            @McpToolParam(description = "Source database type, for example mongodb, mysql, oracle, sqlserver, or postgresql.") String sourceDatabaseType,
+            @McpToolParam(description = "Target connection id.") String targetConnectionId,
+            @McpToolParam(description = "Target database type, for example mongodb, mysql, oracle, sqlserver, or postgresql.") String targetDatabaseType,
+            @McpToolParam(description = "Table selection mode: custom or expression.") String migrateTableSelectType,
+            @McpToolParam(required = false, description = "Tables to migrate when migrateTableSelectType is custom.") List<String> tableNames,
+            @McpToolParam(required = false, description = "Regular expression for selecting tables when migrateTableSelectType is expression. Use .* for all tables.") String tableExpression,
+            @McpToolParam(required = false, description = "Prefix added to target table names.") String prefix,
+            @McpToolParam(required = false, description = "Suffix added to target table names.") String suffix,
+            @McpToolParam(required = false, description = "Text to replace in target table names.") String replaceBefore,
+            @McpToolParam(required = false, description = "Replacement text used with replaceBefore. Empty string is allowed.") String replaceAfter,
+            @McpToolParam(required = false, description = "Target table name case conversion: empty, toUpperCase, or toLowerCase.") String transferCase,
+            @McpToolParam(required = false, description = "Explicit table rename rules.") List<TableRenameRule> tableRenameTableNames,
+            @McpToolParam(required = false, description = "Task sync type. Defaults to initial_sync+cdc.") String syncType) {
+        UserDetail userDetail = toolSupport.getUserDetail(context);
+        String resolvedSyncType = StringUtils.defaultIfBlank(syncType, "initial_sync+cdc");
+        String resolvedTransferCase = StringUtils.defaultString(transferCase);
+        LinkedHashSet<TableRenameTableInfo> tableRenameInfos = parseTableRenameTableNames(tableRenameTableNames);
 
         if (StringUtils.isBlank(taskName)) throw new RuntimeException("Parameter taskName is required.");
         if (StringUtils.isBlank(sourceConnectionId)) throw new RuntimeException("Parameter sourceConnectionId is required.");
@@ -98,7 +92,7 @@ public class CreateMigrateTask extends Tool {
         if (expression && StringUtils.isBlank(tableExpression)) {
             throw new RuntimeException("Parameter tableExpression is required when migrateTableSelectType is 'expression' (use '.*' to replicate all tables).");
         }
-        if (StringUtils.isNotBlank(transferCase) && !"toUpperCase".equals(transferCase) && !"toLowerCase".equals(transferCase)) {
+        if (StringUtils.isNotBlank(resolvedTransferCase) && !"toUpperCase".equals(resolvedTransferCase) && !"toLowerCase".equals(resolvedTransferCase)) {
             throw new RuntimeException("Parameter transferCase must be '', 'toUpperCase' or 'toLowerCase'.");
         }
         if (StringUtils.isBlank(replaceBefore) && replaceAfter != null) {
@@ -127,8 +121,8 @@ public class CreateMigrateTask extends Tool {
         List<Node> nodes = new ArrayList<>();
         nodes.add(sourceNode);
         List<Edge> edges = new ArrayList<>();
-        if (hasTableRenameConfig(prefix, suffix, replaceBefore, replaceAfter, transferCase, tableRenameTableNames)) {
-            TableRenameProcessNode tableRenameNode = buildTableRenameNode(tableRenameNodeId, prefix, suffix, replaceBefore, replaceAfter, transferCase, tableRenameTableNames);
+        if (hasTableRenameConfig(prefix, suffix, replaceBefore, replaceAfter, resolvedTransferCase, tableRenameInfos)) {
+            TableRenameProcessNode tableRenameNode = buildTableRenameNode(tableRenameNodeId, prefix, suffix, replaceBefore, replaceAfter, resolvedTransferCase, tableRenameInfos);
             nodes.add(tableRenameNode);
             edges.add(new Edge(sourceNodeId, tableRenameNodeId));
             edges.add(new Edge(tableRenameNodeId, targetNodeId));
@@ -144,7 +138,7 @@ public class CreateMigrateTask extends Tool {
         taskDto.setName(taskName);
         taskDto.setDag(dag);
         taskDto.setSyncType(TaskDto.SYNC_TYPE_MIGRATE);
-        taskDto.setType(syncType);
+        taskDto.setType(resolvedSyncType);
 
         TaskDto.SyncPoint sp = new TaskDto.SyncPoint();
         sp.setNodeId(sourceNodeId);
@@ -164,7 +158,7 @@ public class CreateMigrateTask extends Tool {
         response.put("name", result.getName());
         response.put("status", result.getStatus());
         response.put("message", "Replication task created successfully. You can view it in the TapData console.");
-        return makeCallToolResult(response);
+        return response;
     }
 
     private DatabaseNode buildDatabaseNode(String nodeId, String connectionId, String databaseType, DataSourceConnectionDto connection) {
@@ -211,19 +205,16 @@ public class CreateMigrateTask extends Tool {
                 || (tableRenameTableNames != null && !tableRenameTableNames.isEmpty());
     }
 
-    private LinkedHashSet<TableRenameTableInfo> parseTableRenameTableNames(Object tableRenameTableNamesParam) {
-        if (!(tableRenameTableNamesParam instanceof List<?> tableRenameTableNames)) {
+    private LinkedHashSet<TableRenameTableInfo> parseTableRenameTableNames(List<TableRenameRule> tableRenameTableNames) {
+        if (tableRenameTableNames == null) {
             return new LinkedHashSet<>();
         }
 
         LinkedHashSet<TableRenameTableInfo> result = new LinkedHashSet<>();
-        for (Object item : tableRenameTableNames) {
-            if (!(item instanceof Map<?, ?> tableRenameTableName)) {
-                throw new RuntimeException("Parameter tableRenameTableNames must contain objects.");
-            }
-            String originTableName = getMapStringValue(tableRenameTableName, "originTableName");
-            String previousTableName = getMapStringValue(tableRenameTableName, "previousTableName");
-            String currentTableName = getMapStringValue(tableRenameTableName, "currentTableName");
+        for (TableRenameRule item : tableRenameTableNames) {
+            String originTableName = item == null ? null : item.originTableName;
+            String previousTableName = item == null ? null : item.previousTableName;
+            String currentTableName = item == null ? null : item.currentTableName;
             if (StringUtils.isBlank(originTableName)) {
                 throw new RuntimeException("Parameter tableRenameTableNames.originTableName is required.");
             }
@@ -238,11 +229,6 @@ public class CreateMigrateTask extends Tool {
         return result;
     }
 
-    private String getMapStringValue(Map<?, ?> params, String key) {
-        Object value = params.get(key);
-        return value == null ? null : value.toString();
-    }
-
     private Map<String, Object> buildAttrs(DataSourceConnectionDto connection) {
         Map<String, Object> attrs = new HashMap<>();
         if (connection != null) {
@@ -255,5 +241,16 @@ public class CreateMigrateTask extends Tool {
             attrs.put("db_version", connection.getDb_version());
         }
         return attrs;
+    }
+
+    public static class TableRenameRule {
+        @McpToolParam(description = "Original source table name.")
+        public String originTableName;
+
+        @McpToolParam(required = false, description = "Previous table name before rename. Defaults to originTableName.")
+        public String previousTableName;
+
+        @McpToolParam(description = "Current target table name after rename.")
+        public String currentTableName;
     }
 }

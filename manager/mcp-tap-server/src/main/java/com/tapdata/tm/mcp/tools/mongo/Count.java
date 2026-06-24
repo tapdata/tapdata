@@ -1,46 +1,54 @@
 package com.tapdata.tm.mcp.tools.mongo;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.mcp.SessionAttribute;
-import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.mcp.mongodb.MongoOperator;
-import com.tapdata.tm.mcp.tools.Tool;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.types.ObjectId;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
-
-import static com.tapdata.tm.mcp.Utils.*;
-import static java.util.Collections.emptyList;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
  * create at 2025/3/26 19:24
  */
 @Component
-public class Count extends MongoTool {
+public class Count {
 
-    public Count(SessionAttribute sessionAttribute, UserService userService, DataSourceService dataSourceService) {
-        super("count", "Query the number of rows in a MongoDB Collection that match the filter criteria",
-                readJsonSchema("MongoCount.json"), sessionAttribute, userService, dataSourceService);
+    private final MongoOperatorFactory mongoOperatorFactory;
+
+    public Count(MongoOperatorFactory mongoOperatorFactory) {
+        this.mongoOperatorFactory = mongoOperatorFactory;
     }
 
-    @Override
-    public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
-
-        String collectionName = getStringValue(params, "collectionName");
+    @McpTool(name = "count", description = "Count MongoDB documents that match a query through a TapData MongoDB connection.")
+    public Map<String, Object> count(
+            McpSyncRequestContext context,
+            @McpToolParam(description = "TapData MongoDB connection id.") String connectionId,
+            @McpToolParam(description = "MongoDB collection name.") String collectionName,
+            @McpToolParam(required = false, description = "MongoDB count query filter document.") Map<String, Object> query,
+            @McpToolParam(required = false, description = "Maximum number of documents to count.") Integer limit,
+            @McpToolParam(required = false, description = "Number of documents to skip before counting.") Integer skip,
+            @McpToolParam(required = false, description = "MongoDB hint document.") Map<String, Object> hint,
+            @McpToolParam(required = false, description = "MongoDB read concern document.") Map<String, Object> readConcern,
+            @McpToolParam(required = false, description = "Maximum execution time in milliseconds.") Long maxTimeMS,
+            @McpToolParam(required = false, description = "MongoDB collation document.") Map<String, Object> collation) {
         if (StringUtils.isBlank(collectionName)) {
             throw new RuntimeException("Parameter collectionName is required");
         }
 
-        try (MongoOperator mongoOperator = createMongoClient(exchange, params)){
+        Map<String, Object> params = new java.util.LinkedHashMap<>();
+        params.put("query", query);
+        params.put("limit", limit);
+        params.put("skip", skip);
+        params.put("hint", hint);
+        params.put("readConcern", readConcern);
+        params.put("maxTimeMS", maxTimeMS);
+        params.put("collation", collation);
+
+        try (MongoOperator mongoOperator = mongoOperatorFactory.create(context, connectionId)){
 
             mongoOperator.connect();
             long count = mongoOperator.count(collectionName, params);
@@ -49,11 +57,10 @@ public class Count extends MongoTool {
             result.put("count", count);
             result.put("ok", 1);
 
-            return makeCallToolResult(result);
+            return result;
 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
     }
 }

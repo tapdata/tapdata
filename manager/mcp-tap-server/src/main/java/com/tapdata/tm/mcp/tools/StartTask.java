@@ -3,16 +3,15 @@ package com.tapdata.tm.mcp.tools;
 import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -26,34 +25,33 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.mcp.Utils.getStringValue;
-import static com.tapdata.tm.mcp.Utils.readJsonSchema;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 @Slf4j
 @Component
-public class StartTask extends Tool {
+public class StartTask {
 
+    private final McpToolSupport toolSupport;
     private final TaskService taskService;
 
-    public StartTask(SessionAttribute sessionAttribute,
-                     UserService userService,
+    public StartTask(McpToolSupport toolSupport,
                      TaskService taskService) {
-        super("startTask",
-                "Start one or more TapData tasks. If a task is in edit status, confirm it first so it becomes wait_start before starting.",
-                readJsonSchema("StartTask.json"), sessionAttribute, userService);
+        this.toolSupport = toolSupport;
         this.taskService = taskService;
     }
 
-    @Override
-    public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
-        UserDetail userDetail = getUserDetail(exchange);
-        List<String> taskIds = resolveTaskIds(params);
-        if (taskIds.isEmpty()) {
+    @McpTool(name = "startTask", description = "Start one or more TapData tasks. Tasks in edit status are confirmed before starting.")
+    public Map<String, Object> startTask(
+            McpSyncRequestContext context,
+            @McpToolParam(required = false, description = "Single TapData task id to start.") String taskId,
+            @McpToolParam(required = false, description = "Multiple TapData task ids to start.") List<String> taskIds) {
+        UserDetail userDetail = toolSupport.getUserDetail(context);
+        List<String> resolvedTaskIds = resolveTaskIds(taskId, taskIds);
+        if (resolvedTaskIds.isEmpty()) {
             throw new RuntimeException("Parameter taskId or taskIds is required.");
         }
 
-        List<ObjectId> objectIds = taskIds.stream().map(id -> toObjectId(id)).collect(Collectors.toList());
+        List<ObjectId> objectIds = resolvedTaskIds.stream().map(id -> toObjectId(id)).collect(Collectors.toList());
         List<Map<String, Object>> taskStatuses = new ArrayList<>();
         List<String> confirmedTaskIds = new ArrayList<>();
 
@@ -88,13 +86,13 @@ public class StartTask extends Tool {
         List<MutiResponseMessage> startResults = taskService.batchStart(objectIds, userDetail, request, httpResponse);
 
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("taskIds", taskIds);
+        response.put("taskIds", resolvedTaskIds);
         response.put("confirmedTaskIds", confirmedTaskIds);
         response.put("tasks", taskStatuses);
         response.put("startResults", startResults);
         response.put("message", "Task start request submitted.");
 
-        return makeCallToolResult(response);
+        return response;
     }
 
     private ServletRequestAttributes getCurrentRequestAttributes() {
@@ -105,18 +103,16 @@ public class StartTask extends Tool {
         return null;
     }
 
-    private List<String> resolveTaskIds(Map<String, Object> params) {
+    private List<String> resolveTaskIds(String taskId, List<String> taskIds) {
         Set<String> ids = new LinkedHashSet<>();
-        String taskId = getStringValue(params, "taskId");
         if (StringUtils.isNotBlank(taskId)) {
             ids.add(taskId);
         }
 
-        Object taskIdsParam = params == null ? null : params.get("taskIds");
-        if (taskIdsParam instanceof List<?> taskIds) {
-            for (Object id : taskIds) {
-                if (id != null && StringUtils.isNotBlank(id.toString())) {
-                    ids.add(id.toString());
+        if (taskIds != null) {
+            for (String id : taskIds) {
+                if (StringUtils.isNotBlank(id)) {
+                    ids.add(id);
                 }
             }
         }
