@@ -6,13 +6,17 @@
  */
 package com.tapdata.tm.roleMapping.controller;
 
+import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -23,14 +27,19 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import io.tapdata.utils.AppType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -41,6 +50,8 @@ import org.springframework.web.bind.annotation.*;
 public class RoleMappingController extends BaseController {
 
     private final RoleMappingService roleMappingService;
+    @Autowired
+    private PermissionService permissionService;
 
     public RoleMappingController(RoleMappingService roleMappingService) {
         this.roleMappingService = roleMappingService;
@@ -55,6 +66,7 @@ public class RoleMappingController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<RoleMappingDto> save(@RequestBody RoleMappingDto roleDto) {
+        checkRoleMappingPermission(roleDto);
         roleDto.setId(null);
         return success(roleMappingService.save(roleDto, getLoginUser()));
     }
@@ -70,6 +82,7 @@ public class RoleMappingController extends BaseController {
     public ResponseMessage<List<RoleMappingDto>> saveAll(@RequestBody List<RoleMappingDto> roleDtos) {
 //		return success(roleDtos.stream().map(roleDto -> save(roleDto).getData()).collect(Collectors.toList()));
         if (CollectionUtils.isNotEmpty(roleDtos)){
+            checkRoleMappingPermission(roleDtos);
             UserDetail userDetail=getLoginUser();
             roleMappingService.saveAll(roleDtos,userDetail);
         }
@@ -85,6 +98,7 @@ public class RoleMappingController extends BaseController {
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
     public ResponseMessage<RoleMappingDto> update(@RequestBody RoleMappingDto roleDto) {
+        checkRoleMappingPermission(roleDto);
         return success(roleMappingService.save(roleDto, getLoginUser()));
     }
 
@@ -122,6 +136,7 @@ public class RoleMappingController extends BaseController {
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
     public ResponseMessage<RoleMappingDto> put(@RequestBody RoleMappingDto roleDto) {
+        checkRoleMappingPermission(roleDto);
         return success(roleMappingService.replaceOrInsert(roleDto, getLoginUser()));
     }
 
@@ -149,6 +164,7 @@ public class RoleMappingController extends BaseController {
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
     public ResponseMessage<RoleMappingDto> updateById(@PathVariable("id") String id, @RequestBody RoleMappingDto roleDto) {
+        checkRoleMappingPermission(id, roleDto);
         roleDto.setId(MongoUtils.toObjectId(id));
         return success(roleMappingService.save(roleDto, getLoginUser()));
     }
@@ -177,6 +193,7 @@ public class RoleMappingController extends BaseController {
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PutMapping("{id}")
     public ResponseMessage<RoleMappingDto> replceById(@PathVariable("id") String id, @RequestBody RoleMappingDto roleDto) {
+        checkRoleMappingPermission(id, roleDto);
         return success(roleMappingService.replaceById(MongoUtils.toObjectId(id), roleDto, getLoginUser()));
     }
 
@@ -189,6 +206,7 @@ public class RoleMappingController extends BaseController {
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PostMapping("{id}/replace")
     public ResponseMessage<RoleMappingDto> replaceById2(@PathVariable("id") String id, @RequestBody RoleMappingDto roleDto) {
+        checkRoleMappingPermission(id, roleDto);
         return success(roleMappingService.replaceById(MongoUtils.toObjectId(id), roleDto, getLoginUser()));
     }
 
@@ -202,6 +220,8 @@ public class RoleMappingController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
+        RoleMappingDto roleMappingDto = roleMappingService.findById(MongoUtils.toObjectId(id), new Field());
+        checkRoleMappingPermission(roleMappingDto);
         roleMappingService.removeRoleFromUser(id);
         return success();
     }
@@ -277,6 +297,7 @@ public class RoleMappingController extends BaseController {
             _body.put("$set", update);
             update = _body;
         }
+        checkRoleMappingUpdateByWherePermission(where, update);
 
         long count = roleMappingService.updateByWhere(where, update, getLoginUser());
         HashMap<String, Long> countValue = new HashMap<>();
@@ -293,7 +314,108 @@ public class RoleMappingController extends BaseController {
     @Operation(summary = "Update an existing model instance or insert a new one into the data source based on the where criteria.")
     @PostMapping("upsertWithWhere")
     public ResponseMessage<RoleMappingDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody RoleMappingDto roleDto) {
+        checkRoleMappingPermission(roleDto);
         Where where = parseWhere(whereJson);
         return success(roleMappingService.upsertByWhere(where, roleDto, getLoginUser()));
+    }
+
+    private void checkRoleMappingPermission(List<RoleMappingDto> roleDtos) {
+        for (RoleMappingDto roleDto : roleDtos) {
+            checkRoleMappingPermission(roleDto);
+        }
+    }
+
+    private void checkRoleMappingPermission(RoleMappingDto roleDto) {
+        if (roleDto == null) {
+            throw new BizException("IllegalArgument", "roleMapping");
+        }
+        if (roleDto.getId() != null) {
+            checkRoleMappingPermission(roleDto.getId().toHexString(), roleDto);
+            return;
+        }
+        checkRoleMappingPrincipalTypePermission(roleDto.getPrincipalType());
+    }
+
+    private void checkRoleMappingPermission(String id, RoleMappingDto roleDto) {
+        RoleMappingDto oldRoleMapping = roleMappingService.findById(MongoUtils.toObjectId(id), new Field());
+        if (oldRoleMapping != null) {
+            checkRoleMappingPrincipalTypePermission(oldRoleMapping.getPrincipalType());
+        }
+        if (roleDto != null && roleDto.getPrincipalType() != null) {
+            checkRoleMappingPrincipalTypePermission(roleDto.getPrincipalType());
+            return;
+        }
+        if (oldRoleMapping == null) {
+            throw new BizException("IllegalArgument", "roleMapping");
+        }
+    }
+
+    private void checkRoleMappingPrincipalTypePermission(String principalType) {
+        if (PrincipleType.USER.getValue().equals(principalType)) {
+            checkUserManagementPermission();
+        } else if (PrincipleType.PERMISSION.getValue().equals(principalType)) {
+            checkRoleManagementPermission();
+        } else {
+            throw new BizException("IllegalArgument", "principalType");
+        }
+    }
+
+    private void checkRoleMappingUpdateByWherePermission(Where where, Document update) {
+        Set<String> principalTypes = new HashSet<>();
+        if (where != null) {
+            collectPrincipalTypes(where.get("principalType"), principalTypes);
+        }
+        Object set = update.get("$set");
+        if (set instanceof Map) {
+            collectPrincipalTypes(((Map<?, ?>) set).get("principalType"), principalTypes);
+        }
+        if (principalTypes.isEmpty()) {
+            checkUserManagementPermission();
+            checkRoleManagementPermission();
+            return;
+        }
+        for (String principalType : principalTypes) {
+            checkRoleMappingPrincipalTypePermission(principalType);
+        }
+    }
+
+    private void collectPrincipalTypes(Object value, Set<String> principalTypes) {
+        if (value instanceof String) {
+            principalTypes.add((String) value);
+        } else if (value instanceof Collection) {
+            ((Collection<?>) value).stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .forEach(principalTypes::add);
+        } else if (value instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) value;
+            collectPrincipalTypes(map.get("$eq"), principalTypes);
+            collectPrincipalTypes(map.get("$in"), principalTypes);
+        }
+    }
+
+    private void checkUserManagementPermission() {
+        if (!hasUserManagementPermission()) {
+            throw new BizException("NotAuthorized");
+        }
+    }
+
+    private boolean hasUserManagementPermission() {
+        if (AppType.currentType().isCloud()) {
+            return true;
+        }
+        UserDetail userDetail = getLoginUser();
+        String userId = userDetail.getUserId();
+        return permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, userId);
+    }
+
+    private void checkRoleManagementPermission() {
+        UserDetail userDetail = getLoginUser();
+        String userId = userDetail.getUserId();
+        if (AppType.currentType().isCloud()
+            || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, userId)) {
+            return;
+        }
+        throw new BizException("NotAuthorized");
     }
 }

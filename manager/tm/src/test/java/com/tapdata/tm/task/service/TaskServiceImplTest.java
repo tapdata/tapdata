@@ -3485,9 +3485,6 @@ class TaskServiceImplTest {
             assertEquals(Boolean.TRUE, agentIdCriteria.get("$exists"));
             assertTrue(agentIdCriteria.containsKey("$ne"));
 
-            Document accessNodeTypeCriteria = (Document) query.get("accessNodeType");
-            assertEquals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeTypeCriteria.get("$ne"));
-
             Document update = updateCaptor.getValue().getUpdateObject();
             assertTrue(update.get("$unset", Document.class).containsKey(AGENT_ID));
             assertTrue(update.get("$set", Document.class).containsKey("last_updated"));

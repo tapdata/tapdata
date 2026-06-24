@@ -18,10 +18,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.Level;
-import org.graalvm.polyglot.Context;
-import org.graalvm.polyglot.Engine;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.*;
 
 import javax.script.Bindings;
 import javax.script.Invocable;
@@ -82,15 +79,16 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 										.err(err)
 										.build(),
 								Context.newBuilder("js")
-										.allowAllAccess(true)
+										.allowAllAccess(false)
+										.allowHostAccess(ScriptUtil.SANDBOX_HOST_ACCESS)
+										.allowHostClassLookup(ScriptUtil::isAllowedHostClass)
+										.hostClassFilter(ScriptUtil::isAllowedHostClass)
+										.allowNativeAccess(false)
+										.allowCreateProcess(false)
+										.allowEnvironmentAccess(EnvironmentAccess.NONE)
+										.allowPolyglotAccess(PolyglotAccess.NONE)
 										.out(out)
 										.err(err)
-										.allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
-												.targetTypeMapping(Value.class, Object.class
-														, v -> v.hasArrayElements() && v.hasMembers()
-														, v -> v.as(List.class)
-												).build()
-										)
 						);
 				SimpleScriptContext scriptContext = new SimpleScriptContext();
 				scriptContext.setWriter(new OutputStreamWriter(out));
