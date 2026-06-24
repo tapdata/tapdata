@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.RequestPath;
 import org.springframework.mock.web.MockHttpSession;
@@ -197,7 +198,7 @@ class McpConfigTest {
     void testAuthFilter_NonSseEndpoint() throws Exception {
         // 模拟非 SSE 端点请求
         when(serverRequest.requestPath()).thenReturn(requestPath);
-        when(serverRequest.methodName()).thenReturn("GET");
+        when(serverRequest.method()).thenReturn(org.springframework.http.HttpMethod.GET);
         when(serverRequest.uri()).thenReturn(new java.net.URI("http://test.com/other/endpoint"));
 
         // 模拟处理函数返回成功响应
@@ -215,7 +216,7 @@ class McpConfigTest {
     void testAuthFilter_HandlerException() throws Exception {
         // 模拟非 SSE 端点请求
         when(serverRequest.requestPath()).thenReturn(requestPath);
-        when(serverRequest.methodName()).thenReturn("GET");
+        when(serverRequest.method()).thenReturn(org.springframework.http.HttpMethod.GET);
         when(serverRequest.uri()).thenReturn(new java.net.URI("http://test.com/other/endpoint"));
 
         // 模拟处理函数抛出异常
