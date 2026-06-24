@@ -256,6 +256,24 @@ class ModulesServiceTest {
 		}
 
 		@Test
+		@DisplayName("test save method when base path and version repeated")
+		void testBasePathAndVersionRepeat() {
+			modulesDto = new ModulesDto();
+			modulesDto.setName("test");
+			modulesDto.setBasePath("path");
+			modulesDto.setApiVersion("v1");
+			modulesDto.setPrefix("prefix");
+
+			doReturn(false).when(modulesService).nameExists(null, "test");
+			doReturn(1L).when(modulesService).count(any(Query.class));
+
+			BizException exception = assertThrows(BizException.class, () -> modulesService.save(modulesDto, userDetail));
+
+			assertEquals("Modules.BasePathAndVersion.Existed", exception.getErrorCode());
+			assertArrayEquals(new Object[]{"v1/prefix/path"}, exception.getArgs());
+		}
+
+		@Test
 		@DisplayName("test save method normal")
 		void test2() {
 			String name = "test";
@@ -265,6 +283,42 @@ class ModulesServiceTest {
 			when(modulesRepository.save(any(), any())).thenReturn(mock(ModulesEntity.class));
 			modulesService.save(modulesDto, userDetail);
 			verify(modulesRepository).save(any(), any());
+		}
+	}
+
+	@Nested
+	class updateModuleByIdTest {
+		private UserDetail userDetail;
+
+		@BeforeEach
+		void beforeEach() {
+			modulesService = spy(modulesService);
+			userDetail = mock(UserDetail.class);
+		}
+
+		@Test
+		@DisplayName("test updateModuleById when base path and version repeated")
+		void testBasePathAndVersionRepeat() {
+			ObjectId moduleId = new ObjectId();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(moduleId);
+			modulesDto.setName("test");
+			modulesDto.setBasePath("path");
+			modulesDto.setApiVersion("v1");
+			modulesDto.setPrefix("prefix");
+
+			ModulesDto existedDto = new ModulesDto();
+			existedDto.setId(moduleId);
+			existedDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+
+			doReturn(existedDto).when(modulesService).findOne(any(Query.class), eq(userDetail));
+			doReturn(false).when(modulesService).nameExists(moduleId, "test");
+			doReturn(1L).when(modulesService).count(any(Query.class));
+
+			BizException exception = assertThrows(BizException.class, () -> modulesService.updateModuleById(modulesDto, userDetail));
+
+			assertEquals("Modules.BasePathAndVersion.Existed", exception.getErrorCode());
+			assertArrayEquals(new Object[]{"v1/prefix/path"}, exception.getArgs());
 		}
 	}
 
