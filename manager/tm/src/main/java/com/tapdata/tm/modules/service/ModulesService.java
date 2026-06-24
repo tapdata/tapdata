@@ -293,9 +293,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 //        if (findByName(modulesDto.getName()).size() > 0) {
 //            throw new BizException("Modules.Name.Existed");
 //        }
-//        if (!isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).isEmpty()) {
-//            throw new BizException("Modules.BasePathAndVersion.Existed");
-//        }
 //        if (null == modulesDto.getDataSource()) {
 //            throw new BizException("Modules.Connection.Null");
 //        }
@@ -304,6 +301,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 		if (nameExists(null, modulesDto.getName()))
 			throw new BizException("Modules.Name.Existed");
+		if (isBasePathAndVersionRepeat(modulesDto.getId(), modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
+			throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
+		}
 		modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
 		modulesDto.setLastUpdAt(new Date());
 		modulesDto.setCreateAt(new Date());
@@ -358,7 +358,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(dto.getStatus()))
 			throw new BizException("generating status can't release");
 		//点击生成按钮 才校验(撤销发布等不校验)
-		if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
+		if (!(ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus()))) {
 			if (nameExists(dto.getId(), modulesDto.getName()))
 				throw new BizException("Modules.Name.Existed");
 			if (isBasePathAndVersionRepeat(id, modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()))
