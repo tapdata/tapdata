@@ -10,7 +10,6 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.DuckDbSqlNode;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import com.tapdata.tm.commons.dag.process.duck.JoinInfo;
-import com.tapdata.tm.commons.dag.process.duck.JoinKeyPair;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -246,6 +245,17 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     @Override
+    public int concurrentBatchSize() {
+        this.batchSize = super.concurrentBatchSize();
+        DuckDbSqlNode nodeConfig = (DuckDbSqlNode) getNode();
+        // 读取批大小
+        if (nodeConfig.getBatchSize() != null) {
+            this.batchSize = nodeConfig.getBatchSize();
+        }
+        return this.batchSize;
+    }
+
+    @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
         super.doInit(context);
         if (null == clientMongoOperator) {
@@ -268,10 +278,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             // 读取宽表名
             if (nodeConfig.getWideTableName() != null) {
                 this.wideTableName = nodeConfig.getWideTableName();
-            }
-            // 读取批大小
-            if (nodeConfig.getBatchSize() != null) {
-                this.batchSize = nodeConfig.getBatchSize();
             }
             // 读取是否在全量结束后执行查询
             if (nodeConfig.getExecuteQueryOnFullSyncComplete() != null) {
@@ -322,7 +328,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             // ========== 新增: 确定主表信息和默认值 ==========
             resolveMainTableInfo();
             obsLogger.info("DuckDbSqlNode loaded config: querySql={}, wideTableName={}, batchSize={}, executeQueryOnFullSyncComplete={}, materializedView={}",
-                    querySql, wideTableName, batchSize, executeQueryOnFullSyncComplete,
+                    querySql, wideTableName, concurrentBatchSize, executeQueryOnFullSyncComplete,
                     wideTablePrimaryKey != null ? "enabled" : "disabled");
         } catch (Exception e) {
             obsLogger.error("Failed to load DuckDbSqlNode config, using defaults: {}", e.getMessage());
@@ -393,7 +399,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             manageDuckDbTables();
 
             obsLogger.info("DuckDbSqlNode initialized with batchSize={}, output batch size={}, error threshold={}% (count: {}), schemaCache={}",
-                    batchSize, OUTPUT_BATCH_SIZE, ERROR_THRESHOLD_RATE * 100, ERROR_THRESHOLD_COUNT,
+                    concurrentBatchSize, OUTPUT_BATCH_SIZE, ERROR_THRESHOLD_RATE * 100, ERROR_THRESHOLD_COUNT,
                     !nodeSchemaCache.isEmpty() ? "loaded (" + nodeSchemaCache.size() + " nodes)" : "empty");
         } catch (SQLException e) {
             throw new TapCodeException("Failed to initialize DuckDbOperator", e);
@@ -465,7 +471,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             return;
         }
         try {
-            duckDbOperator.executeQueryInBatches(querySql, batchSize, t -> this.isRunning() && !stopped.get(), row -> {
+            duckDbOperator.executeQueryInBatches(querySql, concurrentBatchSize, t -> this.isRunning() && !stopped.get(), row -> {
                 try {
                     long now = System.currentTimeMillis();
                     TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create()
@@ -1549,7 +1555,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             DuckDbOperator contextOperator = createContextOperator();
 
             PerSourceContext context = new PerSourceContext(contextKey, contextOperator, sourceId, tableId, schemaInfo);
-            context.updateAcceptor(batchSize, DEFAULT_COMMIT_INTERVAL_MS);
+            context.updateAcceptor(concurrentBatchSize, DEFAULT_COMMIT_INTERVAL_MS);
             context.setTargetTableName(targetTableName);
 
             sourceContexts.put(contextKey, context);
@@ -1567,7 +1573,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private DuckDbOperator createContextOperator() {
         try {
             // 使用与主 Operator 相同的 dbPath 配置
-            return new DuckDbOperatorImpl(dbPath, false, batchSize, commitIntervalMs);
+            return new DuckDbOperatorImpl(dbPath, false, concurrentBatchSize, commitIntervalMs);
         } catch (SQLException e) {
             obsLogger.warn("Failed to create dedicated DuckDB operator, fallback to shared operator: {}", e.getMessage());
             return duckDbOperator;

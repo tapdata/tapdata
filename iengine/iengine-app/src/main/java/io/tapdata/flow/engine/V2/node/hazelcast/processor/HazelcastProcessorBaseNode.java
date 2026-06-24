@@ -76,7 +76,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private Boolean enableConcurrentProcess;
 	private int concurrentNum;
 	private SimpleConcurrentProcessorImpl<List<BatchEventWrapper>, List<TapdataEvent>> simpleConcurrentProcessor;
-	private int concurrentBatchSize;
+	protected int concurrentBatchSize;
 
 	private ObsLogger scriptObsLogger;
 
@@ -107,7 +107,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		if (concurrentNum <= 1) {
 			enableConcurrentProcess = false;
 		}
-		concurrentBatchSize = CommonUtils.getPropertyInt(PROCESSOR_BATCH_SIZE_PROP_KEY, DEFAULT_BATCH_SIZE);
+		concurrentBatchSize = concurrentBatchSize();
 		if (Boolean.TRUE.equals(enableConcurrentProcess)) {
 			if (!supportConcurrentProcess()) {
 				obsLogger.trace("Node {}({}: {}) enable concurrent process, but not support concurrent process, disable concurrent process", getNode().getType(), getNode().getName(), getNode().getId());
@@ -119,6 +119,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				obsLogger.trace("Node {}({}: {}) enable concurrent process, concurrent num: {}", getNode().getType(), getNode().getName(), getNode().getId(), concurrentNum);
 			}
 		}
+	}
+
+	protected int concurrentBatchSize() {
+		return CommonUtils.getPropertyInt(PROCESSOR_BATCH_SIZE_PROP_KEY, DEFAULT_BATCH_SIZE);
 	}
 
 	protected void initBatchProcessorIfNeed() {
