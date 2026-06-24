@@ -3,24 +3,45 @@
     "update": "Settings",
     "updates": [
       {
-        "q": { "key": "access.token.idle.timeout.minutes" },
+        "q": {
+          "key": "max.change.log.query.limit"
+        },
         "u": {
-          "$set": {
-            "category": "Login",
-            "category_sort": 1,
-            "default_value": 20160,
-            "documentation": "Access_Token_Idle_Timeout_Minutes_doc",
-            "hot_reloading": true,
-            "key": "access.token.idle.timeout.minutes",
-            "key_label": "Access Token Idle Timeout Minutes",
-            "last_update": 0,
-            "last_update_by": "",
+          "$setOnInsert": {
+            "_id": "1314459259346f3e3b573520",
+            "documentation": "The maximum query range days for a single change log",
+            "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
+            "category": "data_trace",
+            "default_value": 7,
+            "key": "max.change.log.query.limit",
             "scope": "global",
-            "sort": 10,
+            "user_visible": false,
+            "value": 7
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "global_share_cdc_enable"
+        },
+        "u": {
+          "$setOnInsert": {
+            "_id": "1314460259346f3e3b573520",
+            "category": "share_cdc",
+            "scope": "global",
+            "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
+            "documentation": "global_share_cdc_enable_doc",
+            "category_sort": 20,
+            "default_value": "false",
+            "hot_reloading": false,
+            "key": "global_share_cdc_enable",
+            "key_label": "global_share_cdc_enable",
+            "sort": 0,
             "user_visible": true,
-            "min": 1
-          },
-          "$setOnInsert": { "value": 60 }
+            "value": "false",
+            "enums": ["true", "false"]
+          }
         },
         "upsert": true
       }
