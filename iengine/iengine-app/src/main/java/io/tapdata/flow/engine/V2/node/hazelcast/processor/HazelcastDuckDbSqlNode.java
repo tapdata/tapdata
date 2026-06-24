@@ -9,6 +9,8 @@ import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.DuckDbSqlNode;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
+import com.tapdata.tm.commons.dag.process.duck.JoinInfo;
+import com.tapdata.tm.commons.dag.process.duck.JoinKeyPair;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -107,8 +109,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * - 运行时 O(1) 直接访问（0 次额外查询）
      * - 避免每次事件处理时重复查询 TapTableMap
      */
-    private final ConcurrentHashMap<String, NodeSchemaInfo> nodeSchemaCache = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, NodeSchemaInfo> tableSchemaCache = new ConcurrentHashMap<>();
+    private final Map<String, NodeSchemaInfo> nodeSchemaCache = new HashMap<>();
+    private final Map<String, NodeSchemaInfo> tableSchemaCache = new HashMap<>();
 
     /**
      * Schema 缓存是否已初始化的标志位
@@ -398,6 +400,43 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
     }
 
+    void loadTableIndex() {
+        TapTable tapTable = processorBaseContext.getTapTableMap().get(getNode().getId());
+        if (tapTable == null) {
+            return;
+        }
+        Map<String, Object> tableAttr = tapTable.getTableAttr();
+        if (tableAttr == null) {
+            return;
+        }
+        tableSchemaCache.keySet().forEach(tableName -> {
+            if (Objects.equals(tableName, wideTableName)) {
+                return;
+            }
+            List<String> joinKeys = JoinInfo.getJoinKeys(tableAttr, tableName);
+            if (joinKeys.isEmpty()) {
+                return;
+            }
+            String indexName = String.format("index_%s_%s", tableName, String.join("_", joinKeys));
+            String indexJudgeSql = String.format("SELECT 1 FROM duckdb_indexes() WHERE index_name = '%s'", indexName);
+            try {
+                DuckDbOperator.ExecuteResult execute = duckDbOperator.execute(indexJudgeSql);
+                List<Map<String, Object>> resultSet = execute.getResultSet();
+                if (!resultSet.isEmpty()) {
+                    return;
+                }
+            } catch (SQLException e) {
+                return;
+            }
+            try {
+                duckDbOperator.createIndex(tableName, indexName, joinKeys, false);
+            } catch (Exception e) {
+                String sql = String.format("CREATE INDEX %s ON %s (%s)", indexName, tableName, String.join(", ", joinKeys));
+                obsLogger.warn("Failed to create index for duck db cache table: {}， msg: {}", sql, e.getMessage());
+            }
+        });
+    }
+
     /**
      * 处理所有表进入CDC阶段的转换
      * 当所有表都从全量同步切换到增量同步时触发
@@ -405,10 +444,18 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private void handleAllTablesCdcTransition(boolean isCdc) {
         obsLogger.info("All tables have been switched to the CDC stage, executing queries and submitting results");
         flushAllContexts(isCdc);
+        loadTableIndex();
         try {
-            duckDbOperator.executeUpdate(this.mergerWideTableSql);
-        } catch (SQLException e) {
-            obsLogger.error("Failed to update wide table in full sync complete: {}", e.getMessage(), e);
+            duckDbOperator.executeInTransaction(() -> {
+                try {
+                    duckDbOperator.truncateTable(wideTableName);
+                    duckDbOperator.executeUpdate(this.mergerWideTableSql);
+                } catch (SQLException e) {
+                    obsLogger.error("Failed to update wide table in full sync complete: {}", e.getMessage(), e);
+                }
+            });
+        } catch (Exception e) {
+            obsLogger.error("Failed to update wide table in full sync complete: {}, InTransaction failed", e.getMessage(), e);
             return;
         }
         obsLogger.info("All tables have been switched to the CDC stage");

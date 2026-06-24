@@ -36,11 +36,7 @@ import java.util.Map;
 @Setter
 @Slf4j
 public class DuckDbSqlNode extends ProcessorNode {
-    public static final String TABLE_PROPS = "TABLE_PROPS";
-    public static final String PK_INFO = "PK_INFO";
-    public static final String JOIN_KEY_INFO = "JOIN_KEY_INFO";
-    public static final String TABLE_ALAIN_NAME = "TABLE_ALAIN_NAME";
-    public static final String PK = "PK";
+
 
     /** 默认查询 SQL（null 表示未设置） */
     public static final String DEFAULT_QUERY_SQL = null;
@@ -387,7 +383,7 @@ public class DuckDbSqlNode extends ProcessorNode {
         collectPk(merged, inputSchemas);
         collectJoinKey(merged, joinInfo);
         collectIndex(merged, pkColumns);
-        Map<String, Object> tableAlainName = iniTableAttr(merged, TABLE_ALAIN_NAME);
+        Map<String, Object> tableAlainName = iniTableAttr(merged, JoinInfo.TABLE_ALAIN_NAME);
         tableAlainName.putAll(aliasTableMap);
 
         List<Schema> wideTableSchemaList = Collections.singletonList(merged);
@@ -424,7 +420,7 @@ public class DuckDbSqlNode extends ProcessorNode {
     }
 
     protected void collectPk(Schema merged, List<Schema> inputSchemas) {
-        Map<String, Object> pks = iniTableAttr(merged, PK_INFO);
+        Map<String, Object> pks = iniTableAttr(merged, JoinInfo.PK_INFO);
         for (Schema inputSchema : inputSchemas) {
             Map<String, Object> tableInfo = new HashMap<>();
             List<String> pk = inputSchema.getFields()
@@ -433,20 +429,19 @@ public class DuckDbSqlNode extends ProcessorNode {
                     .sorted(Comparator.comparing(Field::getPrimaryKeyPosition))
                     .map(Field::getFieldName)
                     .toList();
-            tableInfo.put(PK, pk);
+            tableInfo.put(JoinInfo.PK, pk);
             pks.put(inputSchema.getName(), tableInfo);
         }
     }
 
     protected void collectJoinKey(Schema merged, List<JoinInfo> joinKeyInfo) {
-        Map<String, Object> joinKeys = iniTableAttr(merged, JOIN_KEY_INFO);
+        Map<String, Object> joinKeys = iniTableAttr(merged, JoinInfo.JOIN_KEY_INFO);
         joinKeys.putAll(JoinInfo.toMap(joinKeyInfo));
     }
 
     protected Map<String, Object> iniTableAttr(Schema merged, String key) {
         Map<String, Object> tableAttr = merged.getTableAttr();
-        Map<String, Object> tableProps = new HashMap<>();
-        tableAttr.put(TABLE_PROPS, tableProps);
+        Map<String, Object> tableProps = (Map<String, Object>) tableAttr.computeIfAbsent(JoinInfo.TABLE_PROPS, k -> new HashMap<>());
         Map<String, Object> pks = new HashMap<>();
         tableProps.put(key, pks);
         return pks;
