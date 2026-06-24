@@ -135,7 +135,7 @@ class AgentGroupServiceTest {
 
             when(agentGroupUtil.initFilter(filter)).thenReturn(filter);
 
-            when(agentGroupService.find(filter, userDetail)).thenReturn(groupDtoPage);
+            when(agentGroupService.find(filter)).thenReturn(groupDtoPage);
             items = new ArrayList<>();
             items.add(mock(GroupDto.class));
             when(groupDtoPage.getItems()).thenReturn(items);
@@ -156,7 +156,7 @@ class AgentGroupServiceTest {
         void testNormal() {
             Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
             verify(agentGroupUtil, times(1)).initFilter(filter);
-            verify(agentGroupService, times(1)).find(filter, userDetail);
+            verify(agentGroupService, times(1)).find(filter);
             verify(groupDtoPage, times(1)).getItems();
             verify(groupDtoPage, times(1)).getTotal();
             verify(agentGroupService, times(1)).getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class));
@@ -168,7 +168,7 @@ class AgentGroupServiceTest {
             items.remove(0);
             Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
             verify(agentGroupUtil, times(1)).initFilter(filter);
-            verify(agentGroupService, times(1)).find(filter, userDetail);
+            verify(agentGroupService, times(1)).find(filter);
             verify(groupDtoPage, times(1)).getItems();
             verify(groupDtoPage, times(1)).getTotal();
             verify(agentGroupService, times(0)).getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class));
@@ -180,7 +180,7 @@ class AgentGroupServiceTest {
             when(agentGroupService.groupAllAgent(filter, containWorker, userDetail)).thenCallRealMethod();
             Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
             verify(agentGroupUtil, times(1)).initFilter(filter);
-            verify(agentGroupService, times(1)).find(filter, userDetail);
+            verify(agentGroupService, times(1)).find(filter);
             verify(groupDtoPage, times(1)).getItems();
             verify(groupDtoPage, times(1)).getTotal();
             verify(agentGroupService, times(1)).getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class));
@@ -191,7 +191,7 @@ class AgentGroupServiceTest {
             when(workerDto.getProcessId()).thenReturn(null);
             Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
             verify(agentGroupUtil, times(1)).initFilter(filter);
-            verify(agentGroupService, times(1)).find(filter, userDetail);
+            verify(agentGroupService, times(1)).find(filter);
             verify(groupDtoPage, times(1)).getItems();
             verify(groupDtoPage, times(1)).getTotal();
             verify(agentGroupService, times(1)).getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class));
@@ -339,18 +339,18 @@ class AgentGroupServiceTest {
     class VerifyCountGroupByNameTest {
         @Test
         void testNormal() {
-            when(agentGroupService.count(any(Query.class), any(UserDetail.class))).thenReturn(0L);
+            when(agentGroupService.count(any(Query.class))).thenReturn(0L);
             when(agentGroupService.verifyCountGroupByName(anyString(), any(UserDetail.class))).thenCallRealMethod();
             Assertions.assertDoesNotThrow(() -> agentGroupService.verifyCountGroupByName("name", userDetail));
-            verify(agentGroupService, times(1)).count(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).count(any(Query.class));
         }
 
         @Test
         void testCountLessThanZero() {
-            when(agentGroupService.count(any(Query.class), any(UserDetail.class))).thenReturn(1L);
+            when(agentGroupService.count(any(Query.class))).thenReturn(1L);
             when(agentGroupService.verifyCountGroupByName(anyString(), any(UserDetail.class))).thenCallRealMethod();
             Assertions.assertThrows(BizException.class, () -> agentGroupService.verifyCountGroupByName("name", userDetail));
-            verify(agentGroupService, times(1)).count(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).count(any(Query.class));
         }
     }
 
@@ -432,7 +432,7 @@ class AgentGroupServiceTest {
         @Test
         void testNormal() {
             Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAll(userDetail));
-            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class));
             verify(agentGroupService, times(1)).findAgentGroupInfo(any(Query.class), any(UserDetail.class));
         }
     }
@@ -456,7 +456,7 @@ class AgentGroupServiceTest {
             when(agentGroupEntity.getGroupId()).thenReturn("id");
             all.add(agentGroupEntity);
 
-            when(agentGroupService.findAll(any(Query.class), any(UserDetail.class))).thenReturn(all);
+            when(agentGroupService.findAllEntity(any(Query.class))).thenReturn(all);
 
             criteria = mock(Criteria.class);
             when(criteria.and(AgentGroupTag.TAG_AGENT_IDS)).thenReturn(criteria);
@@ -476,14 +476,14 @@ class AgentGroupServiceTest {
             Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAllAgent(agentIds, userDetail));
             verify(agentIds, times(1)).isEmpty();
 
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(agentGroupEntity, times(2)).getGroupId();
             verify(agentGroupService, times(1)).findCriteria(anyList());
 
             verify(criteria, times(1)).and(AgentGroupTag.TAG_AGENT_IDS);
             verify(criteria, times(1)).in(anyList());
 
-            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class));
 
             verify(log, times(1)).info(anyString(), anyList(), anyList());
             verify(agentGroupService, times(1)).findAgentGroupInfoMany(any(List.class), any(UserDetail.class));
@@ -515,14 +515,14 @@ class AgentGroupServiceTest {
             Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAllAgent(agentIds, userDetail));
             verify(agentIds, times(1)).isEmpty();
 
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(agentGroupEntity, times(2)).getGroupId();
             verify(agentGroupService, times(1)).findCriteria(anyList());
 
             verify(criteria, times(1)).and(AgentGroupTag.TAG_AGENT_IDS);
             verify(criteria, times(1)).in(anyList());
 
-            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class));
 
             verify(log, times(1)).info(anyString(), anyList(), anyList());
             verify(agentGroupService, times(1)).findAgentGroupInfoMany(any(List.class), any(UserDetail.class));
@@ -534,14 +534,14 @@ class AgentGroupServiceTest {
             Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAllAgent(agentIds, userDetail));
             verify(agentIds, times(1)).isEmpty();
 
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(agentGroupEntity, times(1)).getGroupId();
             verify(agentGroupService, times(1)).findCriteria(anyList());
 
             verify(criteria, times(1)).and(AgentGroupTag.TAG_AGENT_IDS);
             verify(criteria, times(1)).in(anyList());
 
-            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class));
 
             verify(log, times(1)).info(anyString(), anyList(), anyList());
             verify(agentGroupService, times(1)).findAgentGroupInfoMany(any(List.class), any(UserDetail.class));
@@ -587,7 +587,7 @@ class AgentGroupServiceTest {
             all.add(entity);
 
             groupIds.add("id");
-            when(agentGroupService.findAll(any(Query.class), any(UserDetail.class))).thenReturn(all);
+            when(agentGroupService.findAllEntity(any(Query.class))).thenReturn(all);
 
 
             criteria = mock(Criteria.class);
@@ -602,7 +602,7 @@ class AgentGroupServiceTest {
         void testNormal() {
             Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
             verify(agentGroupService, times(2)).findCriteria(anyList());
-            verify(agentGroupService, times(2)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(2)).update(any(Query.class), any(Update.class));
             verify(agentGroupService, times(1)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
         }
 
@@ -620,7 +620,7 @@ class AgentGroupServiceTest {
             all.clear();
             Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
             verify(agentGroupService, times(2)).findCriteria(anyList());
-            verify(agentGroupService, times(2)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(2)).update(any(Query.class), any(Update.class));
             verify(agentGroupService, times(1)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
         }
 
@@ -629,7 +629,7 @@ class AgentGroupServiceTest {
             when(agentId.isEmpty()).thenReturn(true);
             Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
             verify(agentGroupService, times(1)).findCriteria(anyList());
-            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class));
             verify(agentGroupService, times(1)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
         }
 
@@ -651,7 +651,7 @@ class AgentGroupServiceTest {
             groupIds.add("xxx1");
             Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
             verify(agentGroupService, times(3)).findCriteria(anyList());
-            verify(agentGroupService, times(3)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(3)).update(any(Query.class), any(Update.class));
             verify(agentGroupService, times(1)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
         }
     }
@@ -974,7 +974,7 @@ class AgentGroupServiceTest {
 
             when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(beUsedConnections);
             when(taskService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(serviceAllDto);
-            when(agentGroupService.deleteById(any(ObjectId.class), any(UserDetail.class))).thenReturn(true);
+            when(agentGroupService.deleteById(any(ObjectId.class))).thenReturn(true);
             doNothing().when(log).info("Agent group has be deleted: {} ", "name");
             when(agentGroupService.deleteGroup("groupId", userDetail)).thenCallRealMethod();
         }
@@ -985,7 +985,7 @@ class AgentGroupServiceTest {
             verify(agentGroupService, times(1)).findGroupById("groupId", userDetail);
             verify(dataSourceService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
             verify(taskService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
-            verify(agentGroupService, times(1)).deleteById(any(ObjectId.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).deleteById(any(ObjectId.class));
             verify(log, times(1)).info("Agent group has be deleted: {} ", "name");
         }
 
@@ -1013,12 +1013,12 @@ class AgentGroupServiceTest {
 
         @Test
         void testNotDeleted() {
-            when(agentGroupService.deleteById(any(ObjectId.class), any(UserDetail.class))).thenReturn(false);
+            when(agentGroupService.deleteById(any(ObjectId.class))).thenReturn(false);
             Assertions.assertNotNull(agentGroupService.deleteGroup("groupId", userDetail));
             verify(agentGroupService, times(1)).findGroupById("groupId", userDetail);
             verify(dataSourceService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
             verify(taskService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
-            verify(agentGroupService, times(1)).deleteById(any(ObjectId.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).deleteById(any(ObjectId.class));
             verify(log, times(0)).info("Agent group has be deleted: {} ", "name");
         }
     }
@@ -1055,7 +1055,7 @@ class AgentGroupServiceTest {
                 verify(dto, times(1)).getName();
                 verify(agentGroupService, times(1)).verifyCountGroupByName("name", userDetail);
                 verify(agentGroupService, times(1)).findCriteria(anyList());
-                verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+                verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class));
                 verify(agentGroupService, times(1)).findAgentGroupInfo("id", userDetail);
                 verify(agentGroupUtil, times(1)).verifyUpdateGroupInfo(dto);
             }
@@ -1078,14 +1078,14 @@ class AgentGroupServiceTest {
 
         @Test
         void testNormal() {
-            when(agentGroupService.findOne(query, userDetail)).thenReturn(groupDto);
+            when(agentGroupService.findOne(query)).thenReturn(groupDto);
             try(MockedStatic<Query> q = mockStatic(Query.class)) {
                 q.when(() -> Query.query(criteria)).thenReturn(query);
                 Assertions.assertNotNull(agentGroupService.findGroupById("groupId", userDetail));
                 q.verify(() -> Query.query(criteria), times(1));
             }
             verify(agentGroupService, times(1)).findCriteria(anyList());
-            verify(agentGroupService, times(1)).findOne(query, userDetail);
+            verify(agentGroupService, times(1)).findOne(query);
         }
 
         @Test
@@ -1097,7 +1097,7 @@ class AgentGroupServiceTest {
                 q.verify(() -> Query.query(criteria), times(1));
             }
             verify(agentGroupService, times(1)).findCriteria(anyList());
-            verify(agentGroupService, times(1)).findOne(query, userDetail);
+            verify(agentGroupService, times(1)).findOne(query);
         }
     }
 
@@ -1328,7 +1328,7 @@ class AgentGroupServiceTest {
             @Test
             void testNormal() {
                 Assertions.assertDoesNotThrow(() -> agentGroupService.findAgentGroupInfo(query, userDetail));
-                verify(agentGroupService, times(1)).findAllDto(query, userDetail);
+                verify(agentGroupService, times(1)).findAll(query);
                 verify(agentGroupService, times(1)).findAgentGroupInfo(anyList(), any(UserDetail.class));
             }
         }
@@ -1340,7 +1340,8 @@ class AgentGroupServiceTest {
             void init() {
                 filter = mock(Filter.class);
                 when(agentGroupUtil.initFilter(filter)).thenReturn(filter);
-                when(agentGroupService.findOne(filter, userDetail)).thenReturn(mock(GroupDto.class));
+                Page<GroupDto> groupDtos = new Page<>(1, Lists.newArrayList(mock(GroupDto.class)));
+                when(agentGroupService.find(filter)).thenReturn(groupDtos);
                 when(agentGroupService.findAgentGroupInfo(anyList(), any(UserDetail.class))).thenReturn(mock(List.class));
                 when(agentGroupService.findAgentGroupInfo(filter, userDetail)).thenCallRealMethod();
             }
@@ -1349,7 +1350,7 @@ class AgentGroupServiceTest {
             void testNormal() {
                 Assertions.assertDoesNotThrow(() -> agentGroupService.findAgentGroupInfo(filter, userDetail));
                 verify(agentGroupUtil, times(1)).initFilter(filter);
-                verify(agentGroupService, times(1)).findOne(filter, userDetail);
+                verify(agentGroupService, times(1)).find(filter);
                 verify(agentGroupService, times(1)).findAgentGroupInfo(anyList(), any(UserDetail.class));
             }
         }
@@ -1370,7 +1371,7 @@ class AgentGroupServiceTest {
         void testNormal() {
             List<WorkerDto> allAgent = agentGroupService.findAllAgent(agentIds, userDetail);
             Assertions.assertNotNull(allAgent);
-            verify(workerServiceImpl, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(workerServiceImpl, times(1)).findAll(any(Query.class));
         }
 
         @Test
@@ -1411,7 +1412,7 @@ class AgentGroupServiceTest {
 
             when(settingsService.isCloud()).thenReturn(false);
             when(agentGroupService.findCriteria(null)).thenReturn(criteria);
-            when(agentGroupService.findAll(any(Query.class), any(UserDetail.class))).thenReturn(entities);
+            when(agentGroupService.findAllEntity(any(Query.class))).thenReturn(entities);
 
             when(agentGroupService.filterGroupList(info, userDetail)).thenCallRealMethod();
         }
@@ -1423,7 +1424,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1451,7 +1452,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(0)).getProcessId();
             verify(agentGroupService, times(0)).findCriteria(null);
-            verify(agentGroupService, times(0)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(0)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(0)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1464,7 +1465,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1477,7 +1478,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1490,7 +1491,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1503,7 +1504,7 @@ class AgentGroupServiceTest {
             verify(settingsService, times(1)).isCloud();
             verify(accessNodeInfo, times(1)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
-            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAllEntity(any(Query.class));
             verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
@@ -1729,6 +1730,7 @@ class AgentGroupServiceTest {
             when(agentGroupService.getProcessNodeListByGroupId(groupIds, userDetail)).thenCallRealMethod();
             when(agentGroupService.findCriteria(groupIds)).thenReturn(criteria);
             when(agentGroupService.findAll(query, userDetail)).thenReturn(all);
+            when(agentGroupService.findAllEntity(query)).thenReturn(all);
             when(settingsService.isCloud()).thenReturn(Boolean.TRUE);
             ReflectionTestUtils.setField(agentGroupService, "settingsService", settingsService);
         }
@@ -1816,7 +1818,7 @@ class AgentGroupServiceTest {
             dto = mock(TaskDto.class);
             when(dto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
             when(dto.getAccessNodeProcessId()).thenReturn("id");
-            when(agentGroupService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(one);
+            when(agentGroupService.findOne(any(Query.class))).thenReturn(one);
             when(one.getGroupId()).thenReturn("id");
             when(one.getName()).thenReturn("name");
             doNothing().when(dto).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
@@ -1831,7 +1833,7 @@ class AgentGroupServiceTest {
             agentGroupService.uploadAgentInfo(dto, userDetail);
             verify(dto, times(1)).getAccessNodeType();
             verify(dto, times(1)).getAccessNodeProcessId();
-            verify(agentGroupService, times(1)).findOne(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findOne(any(Query.class));
             verify(one, times(1)).getGroupId();
             verify(one, times(1)).getName();
             verify(dto, times(0)).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
@@ -1841,11 +1843,11 @@ class AgentGroupServiceTest {
         }
         @Test
         void testFindNullDto() {
-            when(agentGroupService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(null);
+            when(agentGroupService.findOne(any(Query.class))).thenReturn(null);
             agentGroupService.uploadAgentInfo(dto, userDetail);
             verify(dto, times(1)).getAccessNodeType();
             verify(dto, times(1)).getAccessNodeProcessId();
-            verify(agentGroupService, times(1)).findOne(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findOne(any(Query.class));
             verify(one, times(0)).getGroupId();
             verify(one, times(0)).getName();
             verify(dto, times(0)).setAgentGroupInfo(anyMap());
