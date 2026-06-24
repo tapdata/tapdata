@@ -3731,7 +3731,7 @@ public class TaskServiceImpl extends TaskService{
            try{
                taskDto.setTaskRecordId(new ObjectId().toHexString());
 
-               if(checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap)){
+               if(ImportModeEnum.GROUP_IMPORT.equals(importMode) && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap)){
                    importResult.put(taskDto.getId().toHexString(),0L);
                    continue;
                }
