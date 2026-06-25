@@ -484,8 +484,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 						if(getNode() instanceof TableNode && ((TableNode) getNode()).isReFullRun()){
 							obsLogger.info("Table {} has been completed batch read, but will be need to rebuild cache", tableId);
 						}else{
-							obsLogger.trace("Skip table [{}] in batch read, reason: last task, this table has been completed batch read",
+							executeAspect(new SnapshotReadTableBeginAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
+							obsLogger.info("Skip table [{}] in batch read, reason: last task, this table has been completed batch read",
 									tableId);
+							executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
+							TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
+							tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName));
+							tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+							enqueue(tapdataCompleteTableSnapshotEvent);
 							continue;
 						}
 					}

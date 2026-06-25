@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.task.dto.Message;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -162,5 +163,22 @@ public class DAGCheckUtil {
         visiting.remove(nodeId);
         memo.put(nodeId, maxDepth);
         return maxDepth;
+    }
+
+    public static int preNodeCount(Node<?> node) {
+        DAG dag = node.getDag();
+        if (null == dag) {
+            return 0;
+        }
+        String id = node.getId();
+        LinkedList<Edge> edges = dag.getEdges();
+        int count = 0;
+        for (Edge edge : edges) {
+            String target = edge.getTarget();
+            if (target.equals(id)) {
+                count++;
+            }
+        }
+        return count;
     }
 }

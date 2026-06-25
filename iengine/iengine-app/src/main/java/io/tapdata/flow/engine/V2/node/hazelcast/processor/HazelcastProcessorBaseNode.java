@@ -302,7 +302,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				syncStage = tapdataEvent.getSyncStage();
 			}
 			if (controlOrIgnoreEvent(tapdataEvent)) {
-				processIgnoreEvent(tapdataEvent);
 				// control tapdata event, skip the process consider process is done
 				processedEventList.add(tapdataEvent);
 				if (null != processorNodeProcessAspect) {
@@ -493,10 +492,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		return ProcessResult.create().tableId(tableName);
 	}
 
-	protected void processIgnoreEvent(TapdataEvent tapdataEvent) {
-		//do nothing
-	}
-
 	protected abstract void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer);
 
 	protected void tryProcess(List<BatchEventWrapper> tapdataEvents, Consumer<List<BatchProcessResult>> consumer) {
@@ -508,7 +503,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
 			if (controlOrIgnoreEvent(tapdataEvent)) {
 				batchProcessResults.add(new BatchProcessResult(batchEventWrapper, null));
-				processIgnoreEvent(tapdataEvent);
 				continue;
 			}
 			tryProcess(tapdataEvent, (event, processResult) -> {

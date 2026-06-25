@@ -1908,6 +1908,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
 			if (null != tapdataEvent.getBatchOffset() && syncProgress.getBatchOffsetObj() instanceof Map) {
 				((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
+				flushOffset.set(true);
+				saveToSnapshot();
 			}
 		} else {
 			if (!offsetCallbackEnable) {

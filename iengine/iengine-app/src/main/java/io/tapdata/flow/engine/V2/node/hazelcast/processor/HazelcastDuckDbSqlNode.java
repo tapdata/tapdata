@@ -2,7 +2,9 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
@@ -60,6 +62,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -75,6 +78,9 @@ import java.util.stream.Collectors;
 @Setter
 public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     protected static final String DEFAULT_DUCK_DB_PATH = "DEFAULT_DUCK_DB_PATH";
+    public static final String INIT_CACHE_TABLE = "INIT_CACHE_TABLE";
+    public static final String JOIN_TO_WIDE_TABLE = "JOIN_TO_WIDE_TABLE";
+    public static final String TABLE_TO_DOWNSTREAM = "TABLE_TO_DOWNSTREAM";
 
     /**
      * DuckDB 操作器
@@ -141,6 +147,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private Map<String, String> customJoinQueries = new HashMap<>();
     private volatile AtomicReference<BiConsumer<TapdataEvent, ProcessResult>> currentConsumer = new AtomicReference<>(null);
     private String mergerWideTableSql;
+    private int preNodeCount = 0;
+    private int acceptPreNodeCount = 0;
+    private Map<String, Boolean> process;
 
     public HazelcastDuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -186,6 +195,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 obsLogger.warn("Failed to set threads to {}", threads, e);
             }
         }
+    }
+
+    void initPreNodeCount() {
+        this.preNodeCount = DAGCheckUtil.preNodeCount(getNode());
+        this.acceptPreNodeCount = 0;
+        this.process = new HashMap<>();
     }
 
     static DuckDbOperatorImpl initDuckDbOperator(DuckDbSqlNode node, String dbPath, int batchSize) {
@@ -266,6 +281,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         obsLogger.info("Database path: {}", dbPath);
         this.duckDbOperator = initDuckDbOperator(nodeConfig, dbPath, OUTPUT_BATCH_SIZE);
         initDBSettingsIfNeed(nodeConfig);
+        initPreNodeCount();
         // 读取节点配置
         try {
             // 读取 SQL 查询
@@ -386,14 +402,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             }
 
             // Register callback for when all tables enter CDC
-            syncStageTracker.setOnAllTablesCdcCallback(isCdc -> {
-                try {
-                    handleAllTablesCdcTransition(isCdc);
-                    createWideTableIndex();
-                } catch (Exception e) {
-                    obsLogger.error("Error handling all tables CDC transition: {}", e.getMessage(), e);
-                }
-            });
+            syncStageTracker.setOnAllTablesCdcCallback(this::callDuckDB);
 
             // ========== 核心功能：DuckDB 表生命周期管理： ==========
             manageDuckDbTables();
@@ -403,6 +412,15 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     !nodeSchemaCache.isEmpty() ? "loaded (" + nodeSchemaCache.size() + " nodes)" : "empty");
         } catch (SQLException e) {
             throw new TapCodeException("Failed to initialize DuckDbOperator", e);
+        }
+    }
+
+    void callDuckDB(boolean isCdc) {
+        try {
+            handleAllTablesCdcTransition(isCdc);
+            createWideTableIndex();
+        } catch (Exception e) {
+            obsLogger.error("Error handling all tables CDC transition: {}", e.getMessage(), e);
         }
     }
 
@@ -443,14 +461,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         });
     }
 
-    /**
-     * 处理所有表进入CDC阶段的转换
-     * 当所有表都从全量同步切换到增量同步时触发
-     */
-    private void handleAllTablesCdcTransition(boolean isCdc) {
-        obsLogger.info("All tables have been switched to the CDC stage, executing queries and submitting results");
-        flushAllContexts(isCdc);
-        loadTableIndex();
+    void joinToWideTable() {
+        Boolean statusOfJoinToWideTable = process.get(JOIN_TO_WIDE_TABLE);
+        if (statusOfJoinToWideTable != null && statusOfJoinToWideTable) {
+            obsLogger.info("All tables have been switched to the CDC stage");
+            return;
+        }
         try {
             duckDbOperator.executeInTransaction(() -> {
                 try {
@@ -464,12 +480,21 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             obsLogger.error("Failed to update wide table in full sync complete: {}, InTransaction failed", e.getMessage(), e);
             return;
         }
+        process.put(JOIN_TO_WIDE_TABLE, true);
         obsLogger.info("All tables have been switched to the CDC stage");
-        final int[] emittedCount = {0};
-        AtomicReference<Boolean> stopped = new AtomicReference<>(false);
+    }
+
+    void table2Downstream() {
+        Boolean statusOfTable2Downstream = process.get(TABLE_TO_DOWNSTREAM);
+        if (statusOfTable2Downstream != null && statusOfTable2Downstream) {
+            obsLogger.info("Join the table and obtain a wide table record");
+            return;
+        }
         if (!outputChangelogEnabled) {
             return;
         }
+        final int[] emittedCount = {0};
+        AtomicReference<Boolean> stopped = new AtomicReference<>(false);
         try {
             duckDbOperator.executeQueryInBatches(querySql, concurrentBatchSize, t -> this.isRunning() && !stopped.get(), row -> {
                 try {
@@ -489,6 +514,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     stopped.set(true);
                 }
             });
+            process.put(TABLE_TO_DOWNSTREAM, true);
             if (emittedCount[0] == 0) {
                 obsLogger.info("There is no data in the wide table, skip generating CDC events");
                 return;
@@ -499,11 +525,21 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
     }
 
+    /**
+     * 处理所有表进入CDC阶段的转换
+     * 当所有表都从全量同步切换到增量同步时触发
+     */
+    private void handleAllTablesCdcTransition(boolean isCdc) {
+        obsLogger.info("All tables have been switched to the CDC stage, executing queries and submitting results");
+        flushAllContexts(isCdc);
+        loadTableIndex();
+        joinToWideTable();
+        table2Downstream();
+    }
+
     @Override
-    protected void processIgnoreEvent(TapdataEvent tapdataEvent) {
-        if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-            syncStageTracker.plusCDC();
-        }
+    protected boolean controlOrIgnoreEvent(TapdataEvent tapdataEvent) {
+        return false;
     }
 
     @Override
@@ -531,8 +567,20 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 return;
             }
         }
+
         if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-            syncStageTracker.plusCDC();
+            acceptPreNodeCount++;
+            if (acceptPreNodeCount < preNodeCount) {
+                Boolean initStatus = process.get(INIT_CACHE_TABLE);
+                if (initStatus != null && initStatus) {
+                    initSnapshotComplete();
+                    consumer.accept(tapdataEvent, null);
+                }
+                return;
+            }
+            initSnapshotComplete();
+            consumer.accept(tapdataEvent, null);
+            return;
         }
 
         // 步骤6: 事件分类处理
@@ -544,6 +592,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             // 非DML事件: 直接透传
             consumer.accept(tapdataEvent, null);
         }
+    }
+
+    void initSnapshotComplete() {
+        process.put(INIT_CACHE_TABLE, true);
+        callDuckDB(false);
+        syncStageTracker.initCdc();
     }
 
     /**
