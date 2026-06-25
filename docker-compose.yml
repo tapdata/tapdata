@@ -49,6 +49,7 @@ services:
     environment:
       - managerMem=4g
       - tm_port=3000
+      - app_type=DAAS
       - MONGO_URI=mongodb://tapdata-mongo-official:27017/tapdata?replicaSet=rs0
     volumes: []
     networks:
