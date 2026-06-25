@@ -19,10 +19,8 @@ import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-import org.apache.commons.lang3.StringUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -113,12 +111,14 @@ public class TaskRestartSchedule {
             UserDetail user = userDetailMap.get(taskDto.getUserId());
             if (null == user || restartInCloud(isCloud, taskDto, user)) continue;
 
-            // Skip OVERTIME if the task's current agent is still alive — a stale task.pingTime
-            // alone is not enough evidence that the engine is dead. Without this guard, a brief
-            // ping update glitch (GC pause, MongoDB write delay, network blip) on a healthy
-            // engine causes its tasks to be wrongly rescheduled.
-            if (isAgentAlive(taskDto.getAgentId(), user)) {
-                logSkipReschedule("engineRestartNeedStartTask", taskDto, "task_ping_stale_but_worker_alive");
+            // The criteria already selected this RUNNING task because its task.pingTime is stale.
+            // Re-confirm with a fresh read before demoting it: the engine refreshes task.pingTime
+            // only for tasks it is actually executing, so a fresh pingTime here means the engine
+            // is genuinely running it (the batch list was momentarily behind) and it must be left
+            // alone. A bare "worker process alive" signal is NOT proof the task is running, and is
+            // also unreliable on single-node DAAS (user-scoped worker lookup / blank agentId).
+            if (isTaskActiveOnAgent(taskDto, heartExpire)) {
+                logSkipReschedule("engineRestartNeedStartTask", taskDto, "running_and_agent_pinging");
                 continue;
             }
 
@@ -134,22 +134,22 @@ public class TaskRestartSchedule {
     }
 
     /**
-     * Returns true iff the given agent is still alive (worker.ping_time within
-     * WORKER_HEART_OVERTIME). Used by TM-side reschedule paths to suppress false-positive
-     * OVERTIME events caused by transient task.pingTime staleness on otherwise healthy
-     * engines. Reads worker.ping_time from MongoDB once per call (cheap; drill scenarios
-     * have ≤ a few hundred running tasks).
+     * Returns true iff the engine is actually executing the task right now — i.e. its
+     * task-level heartbeat ({@code task.pingTime}) has been refreshed within {@code heartExpire}.
+     * {@code TaskPingTimeMonitor} pings {@code pingTime} every 5s ONLY for tasks the engine is
+     * running, so a fresh {@code pingTime} is direct evidence the assigned engine holds the task —
+     * unlike "worker process alive", which says nothing about whether this particular task is
+     * being executed (a stuck task shows no thread on the engine). Queried in MongoDB because
+     * {@code pingTime} is persisted as an epoch-millis {@code long}; reading the {@code Date}
+     * entity getter would mis-map it.
      */
-    private boolean isAgentAlive(String agentId, UserDetail user) {
-        if (StringUtils.isBlank(agentId)) return false;
-        try {
-            WorkerDto worker = workerService.findByProcessId(agentId, user, "process_id", "ping_time");
-            if (worker == null || worker.getPingTime() == null) return false;
-            return !workerService.isAgentTimeout(worker.getPingTime());
-        } catch (Exception e) {
-            log.warn("isAgentAlive lookup failed for agentId={}, treating as dead: {}", agentId, e.getMessage());
+    private boolean isTaskActiveOnAgent(TaskDto taskDto, long heartExpire) {
+        if (Objects.isNull(taskDto) || Objects.isNull(taskDto.getId())) {
             return false;
         }
+        Query query = Query.query(Criteria.where("_id").is(taskDto.getId())
+                .and(TaskDto.PING_TIME_FIELD).gte(System.currentTimeMillis() - heartExpire));
+        return taskService.count(query) > 0;
     }
 
     private final AtomicLong lastSkipWarnAt = new AtomicLong(0L);
@@ -258,6 +258,7 @@ public class TaskRestartSchedule {
 
     public void schedulingTask() {
         long timeout = 30000L;
+        long heartExpire = getHeartExpire();
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
             .and("schedulingTime").lt(new Date(System.currentTimeMillis() - timeout));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
@@ -271,19 +272,32 @@ public class TaskRestartSchedule {
             String agentId = taskDto.getAgentId();
             UserDetail user = userMap.get(taskDto.getUserId());
             if (Objects.isNull(user)
-                || isCloud() && skipCloudEngineOffline(agentId, user)) {
+                || (isCloud() && skipCloudEngineOffline(agentId, user))) {
                 continue;
             }
 
-            // Same guard as engineRestartNeedStartTask: a stuck-in-SCHEDULING task whose
-            // current agent is still alive should not trigger OVERTIME — let the existing
-            // start flow finish.
-            if (!isCloud() && isAgentAlive(agentId, user)) {
-                logSkipReschedule("schedulingTask", taskDto, "stuck_in_scheduling_but_worker_alive");
+            if (!isCloud()) {
+                // Skip re-dispatch ONLY when the assigned engine is actually executing this task —
+                // it refreshes task.pingTime only for tasks it runs, so a fresh pingTime means it
+                // genuinely holds the task. A live worker *process* is NOT proof the task is
+                // running (a stuck task shows no thread on the engine), so anything else must be
+                // re-dispatched rather than abandoned in SCHEDULING.
+                if (isTaskActiveOnAgent(taskDto, heartExpire)) {
+                    logSkipReschedule("schedulingTask", taskDto, "scheduling_but_agent_running_task");
+                    continue;
+                }
+                // Engine is not running it -> re-dispatch. scheduling() re-selects an agent and
+                // moves SCHEDULING->WAIT_RUN; if none is available it keeps the task in SCHEDULING
+                // for the next round (it no longer marks a recoverable task as schedule_failed).
+                // Guarded per task so one selection failure can't abort the whole scan.
+                FunctionUtils.ignoreAnyError(() -> {
+                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
+                    taskScheduleService.scheduling(taskDto, user, true);
+                });
                 continue;
             }
 
-            long heartExpire = getHeartExpire();
+            // Cloud: preserve the existing timeout-based behavior.
             if (Objects.nonNull(taskDto.getSchedulingTime()) && (
                 System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
                 asyncTaskWarnLog(taskDto, user, "The engine[{0}] takes over the task with a timeout of {1}ms."
@@ -292,7 +306,7 @@ public class TaskRestartSchedule {
                 stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             } else {
                 transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                taskScheduleService.scheduling(taskDto, user,true);
+                taskScheduleService.scheduling(taskDto, user, true);
             }
         }
     }
