@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.websocket.v1.ResultWrap;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.schedule.TaskRestartSchedule;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
@@ -117,6 +118,16 @@ public class WebSocketServer extends TextWebSocketHandler {
 		log.info("WebSocket connect,id: {},userId: {}, agentId: {}, singletonLock: {}, remote address {}", id, userId, agentId, singletonLock, remoteIp);
 		WebSocketInfo webSocketInfo = new WebSocketInfo(session.getId(), agentId, singletonLock, userId, session, remoteIp);
 		WebSocketManager.addSession(webSocketInfo);
+		// An engine (re)connecting is the universal "engine is back" signal — immediately re-dispatch
+		// its tasks parked in SCHEDULING (graceful stop/start handover or crash restart) instead of
+		// waiting for the periodic poll. Off-thread + bounded retry inside; the 30s poll is the backstop.
+		if (agentId != null && !agentId.isEmpty()) {
+			try {
+				applicationContext.getBean(TaskRestartSchedule.class).onEngineOnlineAsync(agentId);
+			} catch (Exception e) {
+				log.warn("engine-online re-dispatch trigger failed, agentId {}: {}", agentId, e.getMessage());
+			}
+		}
 		try {
 			session.sendMessage(new PingMessage());
 		} catch (IOException e) {
