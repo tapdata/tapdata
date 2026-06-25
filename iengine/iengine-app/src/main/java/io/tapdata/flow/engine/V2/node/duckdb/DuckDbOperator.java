@@ -48,7 +48,7 @@ public interface DuckDbOperator extends AutoCloseable {
      * @param batchConsumer 批量消费回调
      * @throws SQLException SQL执行异常
      */
-    void executeQueryInBatches(String sql, int batchSize, Predicate<Boolean> isAlive, Consumer<Map<String, Object>> batchConsumer) throws SQLException;
+    void executeQueryInBatches(String sql, int batchSize, Predicate<Boolean> isAlive, Consumer<Map<String, Object>> batchConsumer, Consumer<Boolean> finalCall) throws SQLException;
 
     /**
      * 执行更新SQL（INSERT/UPDATE/DELETE/DDL）

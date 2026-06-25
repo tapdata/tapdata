@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -210,13 +211,14 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     }
 
     @Override
-    public void executeQueryInBatches(String sql, int batchSize, Predicate<Boolean> isAlive, java.util.function.Consumer<Map<String, Object>> batchConsumer) throws SQLException {
+    public void executeQueryInBatches(String sql, int batchSize, Predicate<Boolean> isAlive, java.util.function.Consumer<Map<String, Object>> batchConsumer, Consumer<Boolean> finalCall) throws SQLException {
         assert sql != null && !sql.trim().isEmpty();
         checkClosed();
         if (batchConsumer == null) {
             return;
         }
         int effectiveBatchSize = Math.max(100,  Math.min(10000, batchSize));
+        boolean normal = true;
         try (Statement stmt = connection.createStatement()) {
             stmt.setFetchSize(effectiveBatchSize);
             try (ResultSet rs = stmt.executeQuery(sql)) {
@@ -227,17 +229,23 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
                     columnNames.add(metaData.getColumnName(i));
                 }
                 while (rs.next()) {
+                    if (!isAlive.test(null)) {
+                        normal = false;
+                        break;
+                    }
                     Map<String, Object> row = new HashMap<>(2 * columnCount);
                     for (int i = 0; i < columnCount; i++) {
                         row.put(columnNames.get(i), rs.getObject(i + 1));
                     }
                     batchConsumer.accept(row);
-                    if (!isAlive.test(null)) {
-                        break;
-                    }
                 }
             }
+        } catch (SQLException e) {
+            normal = false;
+            finalCall.accept(normal);
+            throw e;
         }
+        finalCall.accept(normal);
     }
 
     @Override

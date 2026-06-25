@@ -1,10 +1,9 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import com.hazelcast.map.IMap;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
@@ -12,6 +11,8 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.DuckDbSqlNode;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import com.tapdata.tm.commons.dag.process.duck.JoinInfo;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -21,6 +22,7 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.DlqWriter;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperator;
@@ -40,6 +42,7 @@ import io.tapdata.flow.engine.V2.node.duckdb.WithCteSqlGenerator;
 import io.tapdata.flow.engine.V2.node.duckdb.converter.IengineSchemaConverter;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import com.tapdata.constant.HazelcastUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Getter;
 import lombok.Setter;
@@ -62,7 +65,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -150,6 +152,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private int preNodeCount = 0;
     private int acceptPreNodeCount = 0;
     private Map<String, Boolean> process;
+    private transient ConstructIMap<Object> processStore;
+    private static final String PROCESS_STORE_KEY = "process";
+    private static final String ACCEPT_PRE_NODE_COUNT_STORE_KEY = "acceptPreNodeCount";
+    private static final String PROCESS_STORE_NAME_PREFIX = "DuckDbSqlNodeProcess";
 
     public HazelcastDuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -199,8 +205,111 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     void initPreNodeCount() {
         this.preNodeCount = DAGCheckUtil.preNodeCount(getNode());
-        this.acceptPreNodeCount = 0;
-        this.process = new HashMap<>();
+        initProcessStoreIfNeed();
+        Map<String, Boolean> loaded = loadProcessFromStore();
+        Integer loadedAcceptPreNodeCount = loadAcceptPreNodeCountFromStore();
+        this.process = loaded != null ? loaded : new HashMap<>();
+        this.acceptPreNodeCount = loadedAcceptPreNodeCount != null ? loadedAcceptPreNodeCount : 0;
+        if (loaded == null) {
+            obsLogger.info("Process state not found in external storage during init, keep in-memory empty state and skip overwriting external storage");
+        }
+        if (loadedAcceptPreNodeCount == null) {
+            obsLogger.info("acceptPreNodeCount state not found in external storage during init, use default value 0");
+        }
+    }
+
+    private void initProcessStoreIfNeed() {
+        if (processStore != null) {
+            return;
+        }
+        if (processorBaseContext == null || processorBaseContext.getTaskDto() == null || getNode() == null) {
+            return;
+        }
+        if (processorBaseContext.getTaskDto().isPreviewTask()) {
+            return;
+        }
+        ExternalStorageDto dto = this.externalStorageDto;
+        if (dto == null || StringUtils.isBlank(dto.getType())) {
+            return;
+        }
+        if (jetContext == null || jetContext.hazelcastInstance() == null) {
+            return;
+        }
+        String taskId = processorBaseContext.getTaskDto().getId().toHexString();
+        String storeName = buildProcessStoreName(taskId, getNode().getId());
+        try {
+            processStore = new ConstructIMap<>(jetContext.hazelcastInstance(), taskId, storeName, dto);
+        } catch (Exception e) {
+            obsLogger.warn("Failed to init process persistence store, will fallback to in-memory process state only, storeName: {}, msg: {}", storeName, e.getMessage());
+            processStore = null;
+        }
+    }
+
+    private static String buildProcessStoreName(String taskId, String nodeId) {
+        return String.join("_", PROCESS_STORE_NAME_PREFIX, taskId, nodeId);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Boolean> loadProcessFromStore() {
+        if (processStore == null) {
+            return null;
+        }
+        try {
+            IMap<String, Object> storedMap = processStore.getiMap();
+            Object stored = storedMap.get(PROCESS_STORE_KEY);
+            if (stored instanceof Map iMap) {
+                return new HashMap<>(iMap);
+            }
+        } catch (Exception e) {
+            obsLogger.warn("Failed to load process state from external storage, msg: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private Integer loadAcceptPreNodeCountFromStore() {
+        if (processStore == null) {
+            return null;
+        }
+        try {
+            IMap<String, Object> storedMap = processStore.getiMap();
+            Object stored = storedMap.get(ACCEPT_PRE_NODE_COUNT_STORE_KEY);
+            if (stored instanceof Number) {
+                return ((Number) stored).intValue();
+            }
+        } catch (Exception e) {
+            obsLogger.warn("Failed to load acceptPreNodeCount from external storage, msg: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private void persistProcessIfPossible() {
+        if (processStore == null || process == null) {
+            return;
+        }
+        try {
+            processStore.upsert(PROCESS_STORE_KEY, new HashMap<>(process));
+        } catch (Exception e) {
+            obsLogger.warn("Failed to persist process state to external storage, msg: {}", e.getMessage());
+        }
+    }
+
+    private void persistAcceptPreNodeCountIfPossible() {
+        if (processStore == null) {
+            return;
+        }
+        try {
+            processStore.upsert(ACCEPT_PRE_NODE_COUNT_STORE_KEY, acceptPreNodeCount);
+        } catch (Exception e) {
+            obsLogger.warn("Failed to persist acceptPreNodeCount to external storage, msg: {}", e.getMessage());
+        }
+    }
+
+    private void markProcessDone(String key) {
+        if (process == null) {
+            process = new HashMap<>();
+        }
+        process.put(key, true);
+        persistProcessIfPossible();
     }
 
     static DuckDbOperatorImpl initDuckDbOperator(DuckDbSqlNode node, String dbPath, int batchSize) {
@@ -413,12 +522,24 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         } catch (SQLException e) {
             throw new TapCodeException("Failed to initialize DuckDbOperator", e);
         }
+
+        if (acceptPreNodeCount >= preNodeCount) {
+            Boolean initStatus = process.get(INIT_CACHE_TABLE);
+            Boolean downStatus = process.get(TABLE_TO_DOWNSTREAM);
+            if (initStatus == null || downStatus == null || !initStatus || !downStatus) {
+                initSnapshotComplete();
+            }
+        }
     }
 
     void callDuckDB(boolean isCdc) {
+        Boolean statusOfTable2Downstream = process.get(TABLE_TO_DOWNSTREAM);
         try {
             handleAllTablesCdcTransition(isCdc);
-            createWideTableIndex();
+            Boolean statusOfTable2DownstreamAfter = process.get(TABLE_TO_DOWNSTREAM);
+            if ((statusOfTable2Downstream == null || !statusOfTable2Downstream) && statusOfTable2DownstreamAfter != null && statusOfTable2DownstreamAfter) {
+                createWideTableIndex();
+            }
         } catch (Exception e) {
             obsLogger.error("Error handling all tables CDC transition: {}", e.getMessage(), e);
         }
@@ -480,7 +601,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             obsLogger.error("Failed to update wide table in full sync complete: {}, InTransaction failed", e.getMessage(), e);
             return;
         }
-        process.put(JOIN_TO_WIDE_TABLE, true);
+        markProcessDone(JOIN_TO_WIDE_TABLE);
         obsLogger.info("All tables have been switched to the CDC stage");
     }
 
@@ -496,7 +617,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         final int[] emittedCount = {0};
         AtomicReference<Boolean> stopped = new AtomicReference<>(false);
         try {
-            duckDbOperator.executeQueryInBatches(querySql, concurrentBatchSize, t -> this.isRunning() && !stopped.get(), row -> {
+            duckDbOperator.executeQueryInBatches(String.format("select * from %s", wideTableName), concurrentBatchSize, t -> this.isRunning() && !stopped.get(), row -> {
                 try {
                     long now = System.currentTimeMillis();
                     TapInsertRecordEvent insertEvent = TapInsertRecordEvent.create()
@@ -507,14 +628,17 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     tapdataEvent.setSourceTime(now);
                     tapdataEvent.setTapEvent(insertEvent);
                     tapdataEvent.setSyncStage(Optional.ofNullable(syncStage).orElse(SyncStage.INITIAL_SYNC));
-                    currentConsumer.get().accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent())));
+                    accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent())));
                     emittedCount[0] += 1;
                 } catch (Exception e) {
                     obsLogger.error("Failed to update the wide table after full completion: {}", e.getMessage(), e);
                     stopped.set(true);
                 }
+            }, bol -> {
+                if (bol) {
+                    markProcessDone(TABLE_TO_DOWNSTREAM);
+                }
             });
-            process.put(TABLE_TO_DOWNSTREAM, true);
             if (emittedCount[0] == 0) {
                 obsLogger.info("There is no data in the wide table, skip generating CDC events");
                 return;
@@ -522,6 +646,15 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             obsLogger.info("Join the table and obtain a wide table record with {} rows", emittedCount[0]);
         } catch (Exception e) {
             obsLogger.error("Failed to generate wide table CDC event: {}", e.getMessage(), e);
+        }
+    }
+
+    void accept(TapdataEvent tapdataEvent, ProcessResult result) {
+        BiConsumer<TapdataEvent, ProcessResult> consumer = currentConsumer.get();
+        if (consumer != null) {
+            consumer.accept(tapdataEvent, result);
+        } else {
+            enqueue(List.of(tapdataEvent));
         }
     }
 
@@ -570,15 +703,18 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
         if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
             acceptPreNodeCount++;
+            persistAcceptPreNodeCountIfPossible();
             if (acceptPreNodeCount < preNodeCount) {
                 Boolean initStatus = process.get(INIT_CACHE_TABLE);
                 if (initStatus != null && initStatus) {
                     initSnapshotComplete();
+                    markProcessDone(INIT_CACHE_TABLE);
                     consumer.accept(tapdataEvent, null);
                 }
                 return;
             }
             initSnapshotComplete();
+            markProcessDone(INIT_CACHE_TABLE);
             consumer.accept(tapdataEvent, null);
             return;
         }
@@ -595,7 +731,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     void initSnapshotComplete() {
-        process.put(INIT_CACHE_TABLE, true);
         callDuckDB(false);
         syncStageTracker.initCdc();
     }
@@ -1297,12 +1432,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * @return true 表示需要删除并重建表，false 表示仅创建（如果不存在）
      */
     private boolean shouldRecreateTables() {
-        // TODO: 根据实际业务需求实现
-        // 可能的判断依据：
-        // - 任务配置中的 rebuild 标识
-        // - 任务重置/重启状态
-        // - Schema 变更检测
-        return true;
+        // Restart should preserve DuckDB data. Only create missing tables during init.
+        return false;
     }
 
     /**
@@ -1693,6 +1824,8 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     @Override
     protected void doClose() {
         super.doClose();
+        persistProcessIfPossible();
+        persistAcceptPreNodeCountIfPossible();
         if (contextFlusher != null) {
             contextFlusher.shutdownNow();
         }
@@ -1808,12 +1941,32 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         tables.add(wideTableName);
         try {
             dropTable(duckDbOperator, tables);
+            clearProcessState(node);
         } finally {
             try {
                 duckDbOperator.close();
             } catch (Exception e) {
                 throw new TapCodeException("Failed to close DuckDbOperator", e);
             }
+        }
+    }
+
+    private static void clearProcessState(DuckDbSqlNode node) {
+        if (node == null || node.taskId() == null || StringUtils.isBlank(node.getId())) {
+            return;
+        }
+        ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
+        if (externalStorage == null || StringUtils.isBlank(externalStorage.getType())) {
+            return;
+        }
+        String taskId = node.taskId().toHexString();
+        String storeName = buildProcessStoreName(taskId, node.getId());
+        try {
+            ConstructIMap<Object> stateStore = new ConstructIMap<>(HazelcastUtil.getInstance(), taskId, storeName, externalStorage);
+            stateStore.delete(PROCESS_STORE_KEY);
+            stateStore.delete(ACCEPT_PRE_NODE_COUNT_STORE_KEY);
+        } catch (Exception e) {
+            throw new TapCodeException("Failed to clear DuckDbSqlNode process state cache", e);
         }
     }
 
