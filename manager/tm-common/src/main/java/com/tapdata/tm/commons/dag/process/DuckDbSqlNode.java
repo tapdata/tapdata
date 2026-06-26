@@ -495,4 +495,9 @@ public class DuckDbSqlNode extends ProcessorNode {
         }
         return false;
     }
+
+    @Override
+    public boolean snapshotCdcBarrierEnable() {
+        return true;
+    }
 }

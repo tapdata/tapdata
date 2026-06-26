@@ -26,7 +26,6 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
 import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Setting;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -51,7 +50,6 @@ import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.*;
-import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.utils.MergeTablePropertiesUtil;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -119,6 +117,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -405,6 +404,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 		TaskConfig taskConfig = getTaskConfig(taskDtoAtomicReference.get());
 		if (taskDto.isNormalTask()) {
 			initSourceInitialCounter(taskDtoAtomicReference.get());
+			initSnapshotCdcBarrierIfNeed(taskDtoAtomicReference.get());
 			// init snapshot order (only for normal task)
 			checkMergeTaskReBuildCache(taskDtoAtomicReference.get());
 			initSnapshotOrder(taskDtoAtomicReference);
@@ -1203,6 +1203,58 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 				((AtomicInteger)value).incrementAndGet();
 				taskGlobalVariable.put(key, value);
 			}
+		}
+	}
+
+	protected void initSnapshotCdcBarrierIfNeed(TaskDto taskDto) {
+		if (taskDto == null || !taskDto.isNormalTask()) {
+			return;
+		}
+		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
+		try {
+			taskGlobalVariable.remove(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_ENABLED);
+			taskGlobalVariable.remove(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_REMAINING);
+			taskGlobalVariable.remove(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_DONE_SET);
+
+			if (!TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType())) {
+				return;
+			}
+			if (taskDto.getDag() == null || CollectionUtils.isEmpty(taskDto.getDag().getNodes())) {
+				return;
+			}
+
+			boolean supported = taskDto.getDag().getNodes().stream()
+					.filter(Objects::nonNull)
+					.map(Node::snapshotCdcBarrierEnable)
+					.filter(v -> v)
+					.findFirst().orElse(false);
+			if (!supported) {
+				return;
+			}
+
+			long totals = taskDto.getDag().getNodes().stream().filter(n -> {
+				if (n == null || n.disabledNode()) {
+					return false;
+				}
+				if (!(n instanceof TableNode) && !(n instanceof DatabaseNode)) {
+					return false;
+				}
+				if (CollectionUtils.isNotEmpty(n.predecessors())) {
+					return false;
+				}
+				return CollectionUtils.isNotEmpty(n.successors());
+			}).count();
+			if (totals <= 0) {
+				return;
+			}
+
+			AtomicInteger remaining = new AtomicInteger((int) totals);
+			Set<String> doneSet = ConcurrentHashMap.newKeySet();
+			taskGlobalVariable.put(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_ENABLED, true);
+			taskGlobalVariable.put(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_REMAINING, remaining);
+			taskGlobalVariable.put(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_DONE_SET, doneSet);
+		} catch (Exception e) {
+			logger.warn("Init snapshot cdc barrier failed, task: {}, message: {}", taskDto.getId(), e.getMessage());
 		}
 	}
 

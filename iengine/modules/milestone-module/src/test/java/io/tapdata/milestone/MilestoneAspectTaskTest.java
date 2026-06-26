@@ -36,6 +36,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -130,6 +131,7 @@ class MilestoneAspectTaskTest {
 		Map<String, MilestoneStatus> dataNodeInitMap;
 		AtomicLong snapshotTableCounts;
 		AtomicLong snapshotTableProgress;
+		AtomicBoolean snapshotTotalsInitialized;
 
 
 		MilestoneEntity m;
@@ -153,6 +155,7 @@ class MilestoneAspectTaskTest {
 			dataNodeInitMap = new HashMap<>();
 			snapshotTableCounts = new AtomicLong();
 			snapshotTableProgress = new AtomicLong();
+			snapshotTotalsInitialized = new AtomicBoolean(false);
 
 
 			ReflectionTestUtils.setField(milestoneAspectTask, "observerHandlers", observerHandlers);
@@ -167,6 +170,7 @@ class MilestoneAspectTaskTest {
 			ReflectionTestUtils.setField(milestoneAspectTask, "dataNodeInitMap", dataNodeInitMap);
 			ReflectionTestUtils.setField(milestoneAspectTask, "snapshotTableCounts", snapshotTableCounts);
 			ReflectionTestUtils.setField(milestoneAspectTask, "snapshotTableProgress", snapshotTableProgress);
+			ReflectionTestUtils.setField(milestoneAspectTask, "snapshotTotalsInitialized", snapshotTotalsInitialized);
 
 			when(observerHandlers.register(any(Class.class), any(Function.class))).thenReturn(observerHandlers);
 			doNothing().when(milestoneAspectTask).setRunning(m);

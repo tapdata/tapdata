@@ -131,6 +131,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -347,6 +348,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				}
 				Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 			}
+			markSnapshotDoneForCdcBarrier();
 			Snapshot2CDCAspect.execute(dataProcessorContext);
 			if (need2CDC()) {
 				waitAllSnapshotCompleteIfNeed();
@@ -389,6 +391,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 
 	protected void waitAllSnapshotCompleteIfNeed() {
 		while (isRunning()) {
+			if (waitSnapshotCdcBarrierIfNeed()) {
+				continue;
+			}
 			boolean need2InitialSync = need2InitialSync(syncProgress);
 			boolean checkRebuildMergeTableCache = checkRebuildMergeTableCache(false);
 			if (hasMergeNode() && (need2InitialSync || checkRebuildMergeTableCache)) {
@@ -425,6 +430,72 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			} else {
 				break;
 			}
+		}
+	}
+
+	protected boolean waitSnapshotCdcBarrierIfNeed() {
+		String taskId = Optional.ofNullable(dataProcessorContext)
+				.map(DataProcessorContext::getTaskDto)
+				.map(TaskDto::getId)
+				.map(ObjectId::toHexString)
+				.orElse(null);
+		if (StringUtils.isBlank(taskId)) {
+			return false;
+		}
+		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskId);
+		Object enabled = taskGlobalVariable.get(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_ENABLED);
+		if (!Boolean.TRUE.equals(enabled)) {
+			return false;
+		}
+		Object remainingObj = taskGlobalVariable.get(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_REMAINING);
+		if (!(remainingObj instanceof AtomicInteger remaining)) {
+			return false;
+		}
+		if (remaining.get() <= 0) {
+			return false;
+		}
+		try {
+			TimeUnit.SECONDS.sleep(1L);
+		} catch (InterruptedException ignored) {
+			Thread.currentThread().interrupt();
+		}
+		return true;
+	}
+
+	protected void markSnapshotDoneForCdcBarrier() {
+		String taskId = Optional.ofNullable(dataProcessorContext)
+				.map(DataProcessorContext::getTaskDto)
+				.map(TaskDto::getId)
+				.map(ObjectId::toHexString)
+				.orElse(null);
+		if (StringUtils.isBlank(taskId)) {
+			return;
+		}
+		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskId);
+		Object enabled = taskGlobalVariable.get(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_ENABLED);
+		if (!Boolean.TRUE.equals(enabled)) {
+			return;
+		}
+		Object remainingObj = taskGlobalVariable.get(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_REMAINING);
+		Object doneSetObj = taskGlobalVariable.get(TaskGlobalVariable.SNAPSHOT_CDC_BARRIER_DONE_SET);
+		if (!(remainingObj instanceof AtomicInteger remaining)) {
+			return;
+		}
+		if (!(doneSetObj instanceof Set<?> doneSet)) {
+			return;
+		}
+		String nodeId = Optional.ofNullable(getNode()).map(Node::getId).orElse(null);
+		if (StringUtils.isBlank(nodeId)) {
+			return;
+		}
+		boolean added;
+		try {
+			added = ((Set<String>) doneSet).add(nodeId);
+		} catch (Exception e) {
+			return;
+		}
+		if (added) {
+			remaining.decrementAndGet();
 		}
 	}
 

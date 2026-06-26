@@ -31,6 +31,7 @@ import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -95,6 +96,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     private final Set<String> targetNodes = new HashSet<>();
 	private final AtomicLong snapshotTableCounts = new AtomicLong(0);
 	private final AtomicLong snapshotTableProgress = new AtomicLong(0);
+	private final AtomicBoolean snapshotTotalsInitialized = new AtomicBoolean(false);
 
     private String statusTag(MilestoneStatus status) {
         return Optional.ofNullable(status).map(s -> s.name().toLowerCase(Locale.ROOT)).orElse("");
@@ -190,6 +192,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             taskMilestone(KPI_DATA_NODE_INIT, m2 -> setError(aspect, m2));
         });
         nodeRegister(SnapshotReadBeginAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
+			ensureSnapshotTotalsInitialized();
             m.setProgress(0L);
             m.setTotals((long) aspect.getTables().size());
             setRunning(m);
@@ -224,7 +227,8 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         nodeRegister(SnapshotWriteBeginAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> setRunning(m));
         nodeRegister(SnapshotWriteEndAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> {
             setFinish(m);
-            if (snapshotTableProgress.get() >= snapshotTableCounts.get()) {
+			ensureSnapshotTotalsInitialized();
+            if (snapshotTableCounts.get() > 0 && snapshotTableProgress.get() >= snapshotTableCounts.get()) {
                 taskMilestone(KPI_SNAPSHOT, this::setFinish);
             }
         });
@@ -244,9 +248,10 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                     }
         }));
         nodeRegister(SnapshotWriteFinishAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> {
-            if (hasSnapshot()) {
-                taskMilestone(KPI_SNAPSHOT, this::setFinish);
-            }
+			ensureSnapshotTotalsInitialized();
+			if (hasSnapshot() && snapshotTableCounts.get() > 0 && snapshotTableProgress.get() >= snapshotTableCounts.get()) {
+				taskMilestone(KPI_SNAPSHOT, this::setFinish);
+			}
         });
     }
 
@@ -325,6 +330,53 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         return ParentTaskDto.TYPE_INITIAL_SYNC_CDC.equals(task.getType()) || ParentTaskDto.TYPE_CDC.equals(task.getType());
     }
 
+	protected void ensureSnapshotTotalsInitialized() {
+		if (!hasSnapshot()) {
+			return;
+		}
+		if (!snapshotTotalsInitialized.compareAndSet(false, true)) {
+			return;
+		}
+		try {
+			if (task == null || task.getDag() == null || task.getDag().getNodes() == null || task.getDag().getNodes().isEmpty()) {
+				snapshotTotalsInitialized.set(false);
+				return;
+			}
+			long totals = 0;
+			for (Node<?> node : task.getDag().getNodes()) {
+				if (node == null || !node.isDataNode() || node.disabledNode()) {
+					continue;
+				}
+				List<? extends Node<?>> predecessors = node.predecessors();
+				if (predecessors != null && !predecessors.isEmpty()) {
+					continue;
+				}
+				List<? extends Node<?>> successors = node.successors();
+				if (successors == null || successors.isEmpty()) {
+					continue;
+				}
+				if (node instanceof TableNode) {
+					totals += 1;
+				} else if (node instanceof DatabaseNode) {
+					totals += ((DatabaseNode) node).tableSize();
+				}
+			}
+			if (totals <= 0) {
+				snapshotTotalsInitialized.set(false);
+				return;
+			}
+			long finalTotals = totals;
+			snapshotTableCounts.set(finalTotals);
+			long finalProgress = snapshotTableProgress.get();
+			taskMilestone(KPI_SNAPSHOT, tm -> {
+				tm.setTotals(finalTotals);
+				tm.setProgress(finalProgress);
+			});
+		} catch (Exception e) {
+			snapshotTotalsInitialized.set(false);
+		}
+	}
+
     protected Void handleDataNodeInit(DataNodeInitAspect aspect) {
         DataProcessorContext dataProcessorContext = aspect.getDataProcessorContext();
         String nodeId = nodeId(dataProcessorContext);
@@ -332,7 +384,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         taskMilestone(KPI_DATA_NODE_INIT, this::setRunning);
         Node<?> node = dataProcessorContext.getNode();
         List<? extends Node<?>> predecessors = node.predecessors();
-        if (null == predecessors || predecessors.isEmpty()) {
+        if (!snapshotTotalsInitialized.get() && (null == predecessors || predecessors.isEmpty())) {
             if (node instanceof TableNode && !node.disabledNode()) {
                 snapshotTableCounts.addAndGet(1);
             } else if (node instanceof DatabaseNode && !node.disabledNode()) {
