@@ -1261,8 +1261,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
             if (tapdataEvent instanceof TapdataHeartbeatEvent) {
                 handleTapdataHeartbeatEvent(tapdataEvent);
-            } else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-                handleTapdataCompleteSnapshotEvent();
+            } else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent completeSnapshotEvent) {
+				if (completeSnapshotEvent.isAllCompleted()) {
+					handleTapdataCompleteSnapshotEvent();
+				}
             } else if (tapdataEvent instanceof TapdataMergeTableCacheRebuildCompleteEvent) {
 				handleTapdataMergeTableCacheRebuildCompleteEvent((TapdataMergeTableCacheRebuildCompleteEvent) tapdataEvent);
 			} else if (tapdataEvent instanceof TapdataStartingCdcEvent) {

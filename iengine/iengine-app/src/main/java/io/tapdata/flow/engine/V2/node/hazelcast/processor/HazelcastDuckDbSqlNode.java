@@ -542,7 +542,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 createWideTableIndex();
             }
         } catch (Exception e) {
-            obsLogger.error("Error handling all tables CDC transition: {}", e.getMessage(), e);
+            throw new TapCodeException("Error handling all tables CDC transition: " + e.getMessage(), e);
         }
     }
 
@@ -599,8 +599,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 }
             });
         } catch (Exception e) {
-            obsLogger.error("Failed to update wide table in full sync complete: {}, InTransaction failed", e.getMessage(), e);
-            return;
+            throw new TapCodeException("Failed to update wide table in full sync complete: " + e.getMessage(), e);
         }
         markProcessDone(JOIN_TO_WIDE_TABLE);
         obsLogger.info("All tables have been switched to the CDC stage");
@@ -646,7 +645,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             }
             obsLogger.info("Join the table and obtain a wide table record with {} rows", emittedCount[0]);
         } catch (Exception e) {
-            obsLogger.error("Failed to generate wide table CDC event: {}", e.getMessage(), e);
+            throw new TapCodeException("Failed to generate wide table CDC event: " + e.getMessage(), e);
         }
     }
 
@@ -702,20 +701,23 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             }
         }
 
-        if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
+        if (tapdataEvent instanceof TapdataCompleteSnapshotEvent completeSnapshotEvent) {
             acceptPreNodeCount++;
             persistAcceptPreNodeCountIfPossible();
             if (acceptPreNodeCount < preNodeCount) {
+                completeSnapshotEvent.completing();
                 Boolean initStatus = process.get(INIT_CACHE_TABLE);
                 if (initStatus != null && initStatus) {
                     initSnapshotComplete();
                     markProcessDone(INIT_CACHE_TABLE);
-                    consumer.accept(tapdataEvent, null);
+                    completeSnapshotEvent.completeAll();
                 }
+                consumer.accept(tapdataEvent, null);
                 return;
             }
             initSnapshotComplete();
             markProcessDone(INIT_CACHE_TABLE);
+            completeSnapshotEvent.completeAll();
             consumer.accept(tapdataEvent, null);
             return;
         } else if (tapdataEvent instanceof TapdataBeginTableSnapshotEvent begin) {
