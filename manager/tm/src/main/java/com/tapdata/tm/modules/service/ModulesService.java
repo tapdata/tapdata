@@ -370,14 +370,17 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return super.upsertByWhere(where, modulesDto, userDetail);
 	}
 
-	void checkModule(ModulesDto dto) {
+	protected void checkModule(ModulesDto dto) {
 		if (null == dto) {
 			return;
 		}
-		if (nameExists(dto.getId(), dto.getName()))
-			throw new BizException("Modules.Name.Existed");
-		if (isBasePathAndVersionRepeat(dto.getId(), dto.getBasePath(), dto.getApiVersion(), dto.getPrefix()))
+		if (isBasePathAndVersionRepeat(dto.getId(), dto.getBasePath(), dto.getApiVersion(), dto.getPrefix())) {
 			throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(dto.getBasePath(), dto.getApiVersion(), dto.getPrefix()));
+		}
+		boolean nameExists = nameExists(dto.getId(), dto.getName());
+		if (nameExists) {
+			throw new BizException("Modules.Name.Existed");
+		}
 		checkoutInputParamIsValid(dto);
 	}
 
