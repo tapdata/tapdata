@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.map.IMap;
 import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataBeginTableSnapshotEvent;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
@@ -717,6 +718,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             markProcessDone(INIT_CACHE_TABLE);
             consumer.accept(tapdataEvent, null);
             return;
+        } else if (tapdataEvent instanceof TapdataBeginTableSnapshotEvent begin) {
+            String sourceTableName = begin.getSourceTableName();
+            initTable(sourceTableName);
+            return;
         }
 
         // 步骤6: 事件分类处理
@@ -727,6 +732,19 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         } else {
             // 非DML事件: 直接透传
             consumer.accept(tapdataEvent, null);
+        }
+    }
+
+    void initTable(String tableName) {
+        NodeSchemaInfo schemaInfo = tableSchemaCache.get(tableName);
+        if (schemaInfo == null) {
+            obsLogger.warn("Table {} not found, unable init table in DuckDB", tableName);
+            return;
+        }
+        try {
+            duckDbOperator.ensureTableExists(schemaInfo, true);
+        } catch (Exception e) {
+            obsLogger.error("Failed to ensure table {} exists", tableName, e);
         }
     }
 

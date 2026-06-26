@@ -597,6 +597,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
         ExecuteCommandFunction executeCommandFunction = functions.getExecuteCommandFunction();
 
         PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		TapdataBeginTableSnapshotEvent begin = new TapdataBeginTableSnapshotEvent(tableName);
+		begin.setSyncStage(SyncStage.INITIAL_SYNC);
+		enqueue(begin);
         try {
             executeDataFuncAspect(
                 BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
