@@ -298,6 +298,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String STOP_RETRY_TIMES = "stopRetryTimes";
     public static final String SCHEDULE_DATE = "scheduleDate";
     public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
+    public static final String TASK_RETRY_START_TIME = "taskRetryStartTime";
     public static final String TASK_ID = "taskId";
     public static final String MAPPINGS = "mappings";
     public static final String TASK_RECORD_ID = "taskRecordId";
@@ -4792,10 +4793,12 @@ public class TaskServiceImpl extends TaskService{
 
         //判断子任务是否存在
         TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, START_TIME, SCHEDULE_DATE);
-				// 已经运行中，直接返回
-				if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
-					return id.toHexString();
-				}
+        // 已经运行中，直接返回
+        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+            update(Query.query(Criteria.where("_id").is(id)), Update.update(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE)
+                    .set(TASK_RETRY_START_TIME, 0), user);
+            return id.toHexString();
+        }
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -4809,7 +4812,9 @@ public class TaskServiceImpl extends TaskService{
         });
 
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        Update update = Update.update(SCHEDULE_DATE, null);
+        Update update = Update.update(SCHEDULE_DATE, null)
+                .set(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE)
+                .set(TASK_RETRY_START_TIME, 0);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RUNNING, user);
         if (stateMachineResult.isFail()) {
