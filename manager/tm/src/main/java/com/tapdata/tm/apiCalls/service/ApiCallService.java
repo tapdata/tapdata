@@ -424,7 +424,9 @@ public class ApiCallService {
         item.setBody(e.getBody());
         item.setApiPath(e.getApiPath());
         item.setCreateTime(e.getCreateTime());
-        item.setReqTime(new Date(e.getReqTime()));
+        // Legacy/imported ApiCall docs (e.g. old Node apiserver records) may have no reqTime;
+        // guard the unboxing so the whole audit page doesn't NPE on a single such row.
+        item.setReqTime(e.getReqTime() == null ? null : new Date(e.getReqTime()));
         item.setCreateAt(e.getApiCreateAt());
         item.setMethod(e.getMethod());
         item.setFailed(!e.isSucceed());
