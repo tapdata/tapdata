@@ -382,15 +382,31 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(dto.getStatus()))
 			throw new BizException("generating status can't release");
 		//点击生成按钮 才校验(撤销发布等不校验)
-		if (!(ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus()))) {
-			if (nameExists(dto.getId(), modulesDto.getName()))
-				throw new BizException("Modules.Name.Existed");
-			if (isBasePathAndVersionRepeat(id, modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()))
-				throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
-			checkoutInputParamIsValid(modulesDto);
+		ModulesDto checkItem;
+		if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.PENDING.getValue().equals(dto.getStatus())) {
+			checkItem = dto;
+		} else if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
+			checkItem = null;
+		} else {
+			checkItem = modulesDto;
 		}
+		checkModule(checkItem);
 		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
 		return super.upsertByWhere(where, modulesDto, userDetail);
+	}
+
+	protected void checkModule(ModulesDto dto) {
+		if (null == dto) {
+			return;
+		}
+		if (isBasePathAndVersionRepeat(dto.getId(), dto.getBasePath(), dto.getApiVersion(), dto.getPrefix())) {
+			throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(dto.getBasePath(), dto.getApiVersion(), dto.getPrefix()));
+		}
+		boolean nameExists = nameExists(dto.getId(), dto.getName());
+		if (nameExists) {
+			throw new BizException("Modules.Name.Existed");
+		}
+		checkoutInputParamIsValid(dto);
 	}
 
 	protected String paths(String basePath, String version, String prefix) {
