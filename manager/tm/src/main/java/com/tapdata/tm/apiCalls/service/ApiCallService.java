@@ -424,8 +424,8 @@ public class ApiCallService {
         item.setBody(e.getBody());
         item.setApiPath(e.getApiPath());
         item.setCreateTime(e.getCreateTime());
-        // Legacy/imported ApiCall docs (e.g. old Node apiserver records) may have no reqTime;
-        // guard the unboxing so the whole audit page doesn't NPE on a single such row.
+        // Some legacy and imported audit rows, such as old Node apiserver records, have no
+        // request time, so the null check stops one such row from breaking the whole page.
         item.setReqTime(e.getReqTime() == null ? null : new Date(e.getReqTime()));
         item.setCreateAt(e.getApiCreateAt());
         item.setMethod(e.getMethod());
