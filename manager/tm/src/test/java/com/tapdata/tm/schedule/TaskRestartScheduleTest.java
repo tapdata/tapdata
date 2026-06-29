@@ -16,10 +16,12 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.ArrayList;
@@ -482,6 +484,35 @@ public class TaskRestartScheduleTest {
 
             verify(taskScheduleService, never()).scheduling(any(), any(), any());
             org.junit.jupiter.api.Assertions.assertEquals(0, n);
+        }
+
+        @Test
+        void testUsesTightActivePingWindowNotHeartExpire() {
+            // getHeartExpire() defaults to 300000ms (5min) when settings are absent. The "is the
+            // engine running this task" probe MUST use a far tighter recent-ping window, otherwise a
+            // task the engine just stopped looks "active" for ~5min and is never re-dispatched —
+            // exactly the observed "only recovers after the task times out" symptom.
+            TaskDto taskDto = schedulingTask();
+            wire(taskDto, 0L);
+            ArgumentCaptor<Query> cap = ArgumentCaptor.forClass(Query.class);
+            when(taskService.count(cap.capture())).thenReturn(0L);
+
+            long before = System.currentTimeMillis();
+            taskRestartSchedule.reDispatchSchedulingTasksOf(agentId);
+
+            long gte = -1L;
+            for (Query q : cap.getAllValues()) {
+                Object pingTime = q.getQueryObject().get("pingTime");
+                if (pingTime instanceof Document) {
+                    Object g = ((Document) pingTime).get("$gte");
+                    if (g instanceof Number) {
+                        gte = ((Number) g).longValue();
+                    }
+                }
+            }
+            long windowMs = before - gte;
+            org.junit.jupiter.api.Assertions.assertTrue(gte > 0 && windowMs <= 60_000L,
+                    "active-ping window must be tight (<=60s) to detect a just-stopped task; was " + windowMs + "ms");
         }
     }
 }

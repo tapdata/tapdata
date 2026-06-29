@@ -283,7 +283,7 @@ public class TaskRestartSchedule {
                 // Non-cloud: re-dispatch unless the assigned engine is actually executing this task
                 // (fresh task.pingTime). A live worker *process* is NOT proof the task is running
                 // (a stuck task shows no thread on the engine). Shared with the engine-online trigger.
-                reDispatchIfIdle(taskDto, user, heartExpire, "schedulingTask");
+                reDispatchIfIdle(taskDto, user, "schedulingTask");
                 continue;
             }
 
@@ -310,7 +310,6 @@ public class TaskRestartSchedule {
         if (agentId == null || agentId.trim().isEmpty()) {
             return 0;
         }
-        long heartExpire = getHeartExpire();
         // Parked tasks the restarted engine should reclaim: still SCHEDULING and either assigned to
         // this agent (manually-pinned tasks keep agentId) or unassigned (automatic tasks get agentId
         // cleared when the stop-time scheduling() found no live worker — see cloudTaskLimitNum).
@@ -332,7 +331,7 @@ public class TaskRestartSchedule {
             if (Objects.isNull(user)) {
                 continue;
             }
-            if (reDispatchIfIdle(taskDto, user, heartExpire, "engineOnline")) {
+            if (reDispatchIfIdle(taskDto, user, "engineOnline")) {
                 redispatched++;
             }
         }
@@ -340,12 +339,22 @@ public class TaskRestartSchedule {
     }
 
     /**
-     * Re-dispatch a single SCHEDULING task unless the assigned engine is actually executing it
-     * (fresh task.pingTime). Returns true iff it was (re)dispatched. Shared by schedulingTask()
-     * and the engine-online trigger so the "is the engine running it?" decision lives in one place.
+     * "Actively running now" window for task.pingTime. The engine's TaskPingTimeMonitor pings every
+     * 5s ONLY for tasks it is executing, so a pingTime within a few intervals means the engine truly
+     * holds the task. Deliberately far smaller than heartExpire (the ~5-min death threshold): using
+     * heartExpire here would make a task the engine JUST stopped (graceful handover) look "active"
+     * for up to ~5 min and block its re-dispatch — i.e. it would only recover after the task timeout.
      */
-    private boolean reDispatchIfIdle(TaskDto taskDto, UserDetail user, long heartExpire, String scheduler) {
-        if (isTaskActiveOnAgent(taskDto, heartExpire)) {
+    static final long TASK_ACTIVE_PING_WINDOW_MS = 15_000L;
+
+    /**
+     * Re-dispatch a single SCHEDULING task unless the assigned engine is actually executing it
+     * (pingTime refreshed within TASK_ACTIVE_PING_WINDOW_MS). Returns true iff it was (re)dispatched.
+     * Shared by schedulingTask() and the engine-online trigger so the "is the engine running it?"
+     * decision lives in one place.
+     */
+    private boolean reDispatchIfIdle(TaskDto taskDto, UserDetail user, String scheduler) {
+        if (isTaskActiveOnAgent(taskDto, TASK_ACTIVE_PING_WINDOW_MS)) {
             logSkipReschedule(scheduler, taskDto, "scheduling_but_agent_running_task");
             return false;
         }
