@@ -375,7 +375,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			return;
 		}
 		if (isBasePathAndVersionRepeat(dto.getId(), dto.getBasePath(), dto.getApiVersion(), dto.getPrefix())) {
-			throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(dto.getBasePath(), dto.getApiVersion(), dto.getPrefix()));
+			throw new BizException("Modules.BasePathAndVersion.Existed", paths(dto.getBasePath(), dto.getApiVersion(), dto.getPrefix()));
 		}
 		boolean nameExists = nameExists(dto.getId(), dto.getName());
 		if (nameExists) {
