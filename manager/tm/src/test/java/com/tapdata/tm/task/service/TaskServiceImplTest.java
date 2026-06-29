@@ -3802,7 +3802,7 @@ class TaskServiceImplTest {
         private StateMachineService stateMachineService;
         @BeforeEach
         void beforeEach(){
-            id = mock(ObjectId.class);
+            id = new ObjectId();
             dto = mock(TaskDto.class);
             when(taskService.checkExistById(id,user, "_id", "status", "name", "taskRecordId", "startTime", "scheduleDate")).thenReturn(dto);
             monitoringLogsService = mock(MonitoringLogsService.class);
@@ -3816,7 +3816,12 @@ class TaskServiceImplTest {
             when(dto.getStatus()).thenReturn("running");
             doCallRealMethod().when(taskService).running(id,user);
             String actual = taskService.running(id, user);
-            assertEquals(null,actual);
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(taskService, times(1)).update(any(Query.class), updateCaptor.capture(), eq(user));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals(TaskDto.RETRY_STATUS_NONE, set.get(TaskServiceImpl.FUNCTION_RETRY_STATUS));
+            assertEquals(0, set.get(TaskServiceImpl.TASK_RETRY_START_TIME));
+            assertEquals(id.toHexString(),actual);
         }
         @Test
         @DisplayName("test running method when state machine result is fail")
@@ -3838,6 +3843,11 @@ class TaskServiceImplTest {
             when(stateMachineService.executeAboutTask(dto, DataFlowEvent.RUNNING, user)).thenReturn(stateMachineResult);
             doCallRealMethod().when(taskService).running(id,user);
             String actual = taskService.running(id, user);
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(taskService, times(1)).update(any(Query.class), updateCaptor.capture(), eq(user));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals(TaskDto.RETRY_STATUS_NONE, set.get(TaskServiceImpl.FUNCTION_RETRY_STATUS));
+            assertEquals(0, set.get(TaskServiceImpl.TASK_RETRY_START_TIME));
             assertEquals(id.toHexString(),actual);
         }
     }

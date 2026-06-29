@@ -1768,7 +1768,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                                                 try {
                                                     long count;
                                                     if (displayTableListFirst) {
-                                                        count = -1;
+                                                        count = 0;
                                                     } else {
                                                         count = batchCountFunction.count(connectorNode.getConnectorContext(), table);
                                                         if (null == snapshotRowSizeMap) {
