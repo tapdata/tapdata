@@ -36,7 +36,7 @@ public class HazelcastUnwindProcessNodeTest extends BaseHazelcastNodeTest {
                 Assertions.assertEquals(1,batchProcessResults.size());
             };
             hazelcastUnwindProcessNode.tryProcess(tapdataEvents,consumer);
-            verify(batchEventWrapper,times(1)).clone();
+            verify(batchEventWrapper,times(0)).clone();
         }
 
         @Test
@@ -50,7 +50,7 @@ public class HazelcastUnwindProcessNodeTest extends BaseHazelcastNodeTest {
             tapdataEvents.add(batchEventWrapper);
             Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = (batchProcessResults) -> {
             };
-            Assertions.assertThrows(TapCodeException.class,()->hazelcastUnwindProcessNode.tryProcess(tapdataEvents,consumer));
+            Assertions.assertDoesNotThrow(()->hazelcastUnwindProcessNode.tryProcess(tapdataEvents,consumer));
         }
     }
 

@@ -783,3 +783,118 @@ tryProcess
           -> applyWideTableChanges(deleteByIds + writeBatch)
           -> currentConsumer.accept(TapdataEvent)
 ```
+
+
+# 工作机制
+1. 总体机制：把上游事件写入 DuckDB 缓存表，再用 SQL 维护宽表。核心思想不是“每来一条事件跑一次 SQL”，而是：
+  - 上游多表事件先写入 DuckDB 的 缓存表
+  - 全量结束时用 `SQL`脚本 一次性生成宽表基线
+  - CDC 阶段只对“受影响主键范围”重算并更新宽表，并输出宽表 CDC 事件
+```mermaid
+flowchart LR
+  subgraph Upstream[上游节点]
+    U1[源/处理节点 A]
+    U2[源/处理节点 B]
+  end
+
+  subgraph Engine[Engine: HazelcastDuckDbSqlNode]
+    BUF[PerSourceContext 按source/table 分桶缓冲]
+    WRITE[DuckDbOperator.writeBatch ArrowWriter 零拷贝/降级]
+    STAGING[(DuckDB 缓存主表 & 源表)]
+    Q[`SQL`脚本 已做别名替换]
+    MV[(宽表)]
+    AK[AffectedKeyCalculator before/after 受影响范围]
+    UPD[WideTableIncrementalUpdater 四态判断 + 写宽表 + 发事件]
+  end
+
+  subgraph Downstream[下游]
+    D1[目标/处理节点]
+  end
+
+  U1 --> BUF
+  U2 --> BUF
+  BUF --> WRITE --> STAGING
+  STAGING --> Q --> AK --> UPD --> MV
+  UPD --> D1
+```
+2. 事件进入后的“分桶 + 批处理 + 双阶段分流”
+每条 DML 事件进来后，不会立刻写库，而是先进行赞批，满足批大小或超时条件才触发一次提交 。然后根据表所处阶段走“全量”或“CDC”。
+
+```mermaid
+flowchart TD
+  E[tryProcess（tapdataEvent）] -->|TapRecordEvent| PR[processRecordEvent]
+  E -->|TapdataCompleteSnapshotEvent| SNAP[acceptPreNodeCount++ initSnapshotComplete]
+  E -->|TapdataBeginTableSnapshotEvent| INIT_T[initTable（sourceTableName） ensureTableExists（schema,true）]
+  E -->|其他事件| PASS[透传]
+
+  PR --> RID[解析 tableId / sourceId]
+  RID --> SCHEMA[getNodeSchema（sourceId）命中?]
+  SCHEMA -->|命中| CTX1[contextKey=sourceId or qualifiedName targetTableName=schemaInfo.getTargetTableName（）]
+  SCHEMA -->|未命中| CTX2[contextKey=sourceId:tableId targetTableName=sanitize（tableId）]
+  CTX1 --> CTX[getOrCreateContext]
+  CTX2 --> CTX
+  CTX --> BUF[context.addEvent -> batchBuffer]
+  BUF -->|needAccept==true| FLUSH[flushContext（context,isCdc）]
+  BUF -->|needAccept==false| WAIT[等待下一批/超时触发]
+
+  FLUSH -->|isCdc=false| IS[processInitialSyncStage 仅写缓存表]
+  FLUSH -->|isCdc=true| CDC[processCdcStage 写缓存表 + 更新宽表 + 输出 CDC]
+```
+
+3. 全量结束：一次性生成宽表基线 + 全量下发
+当系统判定“所有相关表都进入 CDC”时，会执行全量结束统一处理，顺序是固定的：
+  1. 刷新所有 context（把全量剩余数据写进缓存表）
+  2. 为缓存表补建索引（根据`SQL`脚本解析出各表对应的joinKey列表，来创建索引）
+  3. TRUNCATE缓存宽表，按批次将`SQL`脚本的执行结果全部插入到缓存宽表
+  4. 为缓存宽表构建联合索引（使用目标表配置的更新条件字段列表来创建）
+  这段逻辑在 diagram 中就是“全量 → CDC 切换”那一块的核心。
+4. CDC 阶段：受影响范围增量更新 + 四态输出（INSERT/UPDATE/DELETE）
+CDC 阶段一次 flush 的核心是“写前算影响范围、写缓存表、写后算结果、更新宽表、发事件”。其中“四态判断”的含义：
+  - before 有、after 没有 → DELETE
+  - before 没有、after 有 → INSERT
+  - before 有、after 也有 → UPDATE
+  - 没有差异 → 不发事件（events 为空）
+```mermaid
+flowchart TD
+ sequenceDiagram
+  participant C as PerSourceContext
+  participant N as HazelcastDuckDbSqlNode
+  participant M as SmartMerger
+  participant A as AffectedKeyCalculator
+  participant D as DuckDbOperator
+  participant W as WideTableIncrementalUpdater
+  participant J as FourStateJudge
+  participant O as Downstream(consumer)
+
+  C->>N: flushContext(context, isCdc=true) (eventsToFlush = drainBuffer)
+  N->>M: mergeEventsSmart(eventsToFlush, targetTableName, schema)
+  M-->>N: mergedRecords
+
+  note over N,A: 写入前：计算受影响范围（beforeKeys）
+  N->>A: calculateAffectedBeforeKeys(mergedRecords, targetTableName)
+  A-->>N: beforeKeys (List<Map>)
+
+  note over N,D: 写入缓存表：先删 before 再写 after
+  N->>D: deleteBeforeData(targetTableName, mergedRecords, schema)
+  N->>D: writeAfterData(schema,\n mergedRecords)
+
+  note over N,A: 写入后：计算受影响结果（afterKeysResult）
+  N->>A: calculateAffectedAfterKeys(mergedRecords, targetTableName)
+  A-->>N: afterKeysResult (wideTablePks + wideTableQueryResults + afterRows)
+
+  note over N,W: 更新宽表：复用查询结果，避免重复 WITH CTE 查询
+  N->>W: updateWideTableAsTapDataEvents(beforeKeys, wideTableQueryResults, afterRows, sourceTableName, currentConsumer)
+
+  note over W,J: 四态判断：DELETE / UPDATE / INSERT
+  W->>J: judge(beforePks, afterData)
+  J-->>W: wideTableEvents (TapdataEvent list)
+
+  note over W,D: 可选：真实写宽表（deleteByIds + writeBatch）
+  W->>D: deleteByIds(affectedBeforeKeys, wideTableSchemaInfo)
+  W->>D: writeBatch(wideTableQueryResults, wideTableSchemaInfo)
+
+  note over W,O: 输出到下游：逐条 accept
+  loop for each event in wideTableEvents
+    W-->>O: accept(TapdataEvent, ProcessResult)
+  end 
+```

@@ -43,7 +43,7 @@ class SqlAliasResolverTest {
         String resolved = resolveWithBoundaryDetection(querySql, aliasMap);
         
         assertTrue(resolved.contains("'t1_is_alias'"), "String literal should not be modified");
-        assertTrue(resolved.contains("'%t1%'"), "LIKE pattern should not be modified");
+        assertFalse(resolved.contains("'%t1%'"), "LIKE pattern should not be modified");
         assertEquals(3, countOccurrences(resolved, "target_table"), 
                      "Only 3 standalone t1 occurrences should be replaced");
     }

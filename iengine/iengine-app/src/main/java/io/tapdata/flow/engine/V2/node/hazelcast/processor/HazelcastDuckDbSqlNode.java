@@ -1031,7 +1031,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 }
 
             } catch (Exception e) {
-                obsLogger.error("刷写Context {} 到DuckDB失败: {}", context.getKey(), e.getMessage(), e);
+                obsLogger.error("Refresh Context {} to DuckDB failed: {}", context.getKey(), e.getMessage(), e);
                 context.getAccumulatedRecordCount().addAndGet(eventsToFlush.size());
                 writeToDlq(context, extractDataFromEvents(eventsToFlush), e);
                 eventsToFlush.clear();
@@ -1133,7 +1133,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
 //        });
 
-        obsLogger.debug("增量阶段刷写 {} 条记录到DuckDB表: {} (原始 {} 条)",
+        obsLogger.debug("During the incremental phase, write {} records to the DuckDB table: {} (original {} records)",
                 mergedRecords.size(), context.getTargetTableName(), eventsToFlush.size());
     }
 
@@ -1167,7 +1167,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             List<TapdataEvent> wideTableEvents = wideTableUpdater.updateWideTableAsTapDataEvents(
                     beforeKeys, wideTableQueryResults, afterRows, targetTableName, currentConsumer);
         } catch (Exception e) {
-            obsLogger.error("更新宽表失败: {}", e.getMessage(), e);
+            obsLogger.error("Failed to update wide table: {}", e.getMessage(), e);
         }
     }
 
@@ -1269,7 +1269,11 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * @throws IllegalArgumentException if source ID cannot be resolved
      */
     private String resolveSourceId(TapdataEvent tapdataEvent) {
-        return tapdataEvent.getNodeIds().get(0);
+        List<String> nodeIds = tapdataEvent.getNodeIds();
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return null;
+        }
+        return nodeIds.get(0);
     }
 
     // ========== 核心优化：Schema 预加载系统 ==========

@@ -1,9 +1,14 @@
 package com.tapdata.tm.commons.dag.process;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.util.DuckDbSqlPrimaryKeyAnalyzer;
+import io.github.openlg.graphlib.Graph;
 import org.junit.jupiter.api.Test;
+import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -108,7 +113,7 @@ public class DuckDbSqlNodeTest {
 
     @Test
     void testDefaultBatchSizeConstant() {
-        assertEquals(1000, DuckDbSqlNode.DEFAULT_BATCH_SIZE);
+        assertEquals(2000, DuckDbSqlNode.DEFAULT_BATCH_SIZE);
     }
 
     @Test
@@ -123,5 +128,162 @@ public class DuckDbSqlNodeTest {
         );
 
         assertEquals(Collections.singletonList("wide_user_id"), primaryKeys);
+    }
+
+    @Test
+    void mergeSchemaRejectsEmptyInputSchemas() {
+        DuckDbSqlNode node = newDuckDbSqlNodeWithDag("node_1");
+        node.setQuerySql("SELECT 1");
+        node.setMainTableName("t");
+        node.setWideTablePrimaryKey("id");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+                node.mergeSchema(Collections.emptyList(), null, new DAG.Options())
+        );
+        assertTrue(ex.getMessage().contains("inputSchemas is empty"));
+    }
+
+    @Test
+    void mergeSchemaRejectsBlankQuerySql() {
+        DuckDbSqlNode node = newDuckDbSqlNodeWithDag("node_1");
+        node.setMainTableName("users");
+        node.setWideTablePrimaryKey("id");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+                node.mergeSchema(List.of(buildSchema("pre_1", "users", List.of(pkField("id"), normalField("name")))), null, new DAG.Options())
+        );
+        assertTrue(ex.getMessage().contains("querySql is blank"));
+    }
+
+    @Test
+    void mergeSchemaResolvesMainTableFromFromTablesAndBuildsWideSchema() {
+        DuckDbSqlNode node = newDuckDbSqlNodeWithDag("node_1");
+        node.setQuerySql("SELECT u.id AS id, u.name AS name FROM users u");
+        node.setWideTablePrimaryKey("id");
+        node.setFromTables(List.of(new FromTableConfig("pre_1", "users")));
+
+        Schema input = buildSchema("pre_1", "users", List.of(pkField("id"), normalField("name")));
+        input.setDatabaseId("db_1");
+
+        Schema merged = node.mergeSchema(List.of(input), null, new DAG.Options());
+
+        assertEquals("wide_users", merged.getName());
+        assertEquals("users", merged.getOriginalName());
+        assertEquals("db_1", merged.getDatabaseId());
+        assertNotNull(merged.getQualifiedName());
+        assertNotNull(merged.getTaskId());
+        assertEquals("node_1", merged.getNodeId());
+
+        assertNotNull(merged.getFields());
+        assertEquals(2, merged.getFields().size());
+
+        Field id = merged.getFields().stream().filter(f -> "id".equals(f.getFieldName())).findFirst().orElseThrow();
+        assertEquals("id", id.getFieldName());
+        assertEquals(Field.SOURCE_JOB_ANALYZE, id.getSource());
+        assertEquals("users", id.getTableName());
+        assertNotNull(id.getId());
+        assertNotNull(id.getOriginalFieldName());
+
+        Field name = merged.getFields().stream().filter(f -> "name".equals(f.getFieldName())).findFirst().orElseThrow();
+        assertEquals("name", name.getFieldName());
+        assertEquals(Field.SOURCE_JOB_ANALYZE, name.getSource());
+        assertEquals("users", name.getTableName());
+        assertNotNull(name.getId());
+        assertNotNull(name.getOriginalFieldName());
+
+        assertNotNull(node.getPreNodeTapTables());
+        assertTrue(node.getPreNodeTapTables().size() >= 2);
+    }
+
+    @Test
+    void mergeSchemaUsesSqlAnalysisToDeriveWideTablePrimaryKeyWhenJoinPresent() {
+        DuckDbSqlNode node = newDuckDbSqlNodeWithDag("node_1");
+        node.setMainTableName("users");
+        node.setQuerySql("SELECT upper(o.user_id) AS wide_user_id, o.amount AS amount " +
+                "FROM users u LEFT JOIN orders o ON u.id = o.user_id");
+
+        Schema users = buildSchema("pre_users", "users", List.of(pkField("id"), normalField("name")));
+        Schema orders = buildSchema("pre_orders", "orders", List.of(pkField("order_id"), normalField("user_id"), normalField("amount")));
+
+        Schema merged = node.mergeSchema(List.of(users, orders), null, new DAG.Options());
+
+        assertEquals("wide_users", merged.getName());
+        assertNotNull(merged.getFields());
+        assertTrue(merged.getFields().stream().anyMatch(f -> "wide_user_id".equals(f.getFieldName())));
+
+        assertNotNull(merged.getIndices());
+        assertFalse(merged.getIndices().isEmpty());
+        assertEquals("wide_user_id", merged.getIndices().get(0).getColumns().get(0).getColumnName());
+    }
+
+    @Test
+    void mergeSchemaRejectsWideTablePrimaryKeyNotInParsedFields() {
+        DuckDbSqlNode node = newDuckDbSqlNodeWithDag("node_1");
+        node.setMainTableName("users");
+        node.setQuerySql("SELECT id AS id, name AS name FROM users");
+        node.setWideTablePrimaryKey("missing_pk");
+
+        Schema input = buildSchema("pre_1", "users", List.of(pkField("id"), normalField("name")));
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+                node.mergeSchema(List.of(input), null, new DAG.Options())
+        );
+        assertTrue(ex.getMessage().contains("wideTablePrimaryKey column"));
+        assertTrue(ex.getMessage().contains("missing_pk"));
+    }
+
+    @Test
+    void mergeSchemaRejectsSelectStar() {
+        DuckDbSqlNode node = newDuckDbSqlNodeWithDag("node_1");
+        node.setMainTableName("users");
+        node.setQuerySql("SELECT * FROM users");
+        node.setWideTablePrimaryKey("id");
+
+        Schema input = buildSchema("pre_1", "users", List.of(pkField("id"), normalField("name")));
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                node.mergeSchema(List.of(input), null, new DAG.Options())
+        );
+        assertTrue(ex.getMessage().contains("failed to parse SQL query"));
+    }
+
+    private static DuckDbSqlNode newDuckDbSqlNodeWithDag(String nodeId) {
+        DuckDbSqlNode node = new DuckDbSqlNode();
+        node.setId(nodeId);
+        DAG dag = new DAG(new Graph<>());
+        dag.setTaskId(new ObjectId());
+        node.setDag(dag);
+        return node;
+    }
+
+    private static Schema buildSchema(String preNodeId, String tableName, List<Field> fields) {
+        Schema schema = new Schema();
+        schema.setNodeId(preNodeId);
+        schema.setName(tableName);
+        schema.setOriginalName(tableName);
+        schema.setQualifiedName(tableName);
+        schema.setMetaType("collection");
+        schema.setSourceType("source");
+        schema.setFields(fields);
+        return schema;
+    }
+
+    private static Field pkField(String name) {
+        Field field = new Field();
+        field.setFieldName(name);
+        field.setPrimaryKey(true);
+        field.setPrimaryKeyPosition(1);
+        field.setDataType("INT");
+        field.setJavaType("Integer");
+        field.setOriginalFieldName(name);
+        return field;
+    }
+
+    private static Field normalField(String name) {
+        Field field = new Field();
+        field.setFieldName(name);
+        field.setPrimaryKey(false);
+        field.setDataType("VARCHAR");
+        field.setJavaType("String");
+        field.setOriginalFieldName(name);
+        return field;
     }
 }

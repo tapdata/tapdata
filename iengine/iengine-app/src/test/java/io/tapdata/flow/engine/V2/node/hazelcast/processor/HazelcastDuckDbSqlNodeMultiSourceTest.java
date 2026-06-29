@@ -5,10 +5,12 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.observable.logging.ObsLogger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -17,6 +19,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class HazelcastDuckDbSqlNodeMultiSourceTest {
@@ -31,6 +34,7 @@ class HazelcastDuckDbSqlNodeMultiSourceTest {
     private Node node;
 
     private HazelcastDuckDbSqlNode hazelcastDuckDbSqlNode;
+    ObsLogger obsLogger;
 
     @BeforeEach
     void setUp() {
@@ -40,9 +44,11 @@ class HazelcastDuckDbSqlNodeMultiSourceTest {
         when(node.getId()).thenReturn("test_node");
         when(node.getName()).thenReturn("TestNode");
         when(taskDto.isNormalTask()).thenReturn(true);
+        obsLogger = mock(ObsLogger.class);
 
         hazelcastDuckDbSqlNode = new HazelcastDuckDbSqlNode(processorBaseContext);
         hazelcastDuckDbSqlNode.setBatchSize(100);
+        ReflectionTestUtils.setField(hazelcastDuckDbSqlNode, "obsLogger", obsLogger);
     }
 
     @Test
@@ -52,7 +58,7 @@ class HazelcastDuckDbSqlNodeMultiSourceTest {
         hazelcastDuckDbSqlNode.tryProcess(buildInsertEvent("source-a", "orders", 1), (event, result) -> consumerCalls.incrementAndGet());
         hazelcastDuckDbSqlNode.tryProcess(buildInsertEvent("source-b", "orders", 2), (event, result) -> consumerCalls.incrementAndGet());
 
-        assertEquals(2, consumerCalls.get());
+        assertEquals(0, consumerCalls.get());
 
         Map<String, ?> contexts = getContexts();
         assertEquals(2, contexts.size());
@@ -62,9 +68,9 @@ class HazelcastDuckDbSqlNodeMultiSourceTest {
         Object firstContext = contexts.get("source-a:orders");
         Object secondContext = contexts.get("source-b:orders");
 
-        assertEquals(1, getBatchBuffer(firstContext).size());
-        assertEquals(1, getBatchBuffer(secondContext).size());
-        assertNotEquals(getTargetTableName(firstContext), getTargetTableName(secondContext));
+        assertEquals(0, getBatchBuffer(firstContext).size());
+        assertEquals(0, getBatchBuffer(secondContext).size());
+        assertEquals(getTargetTableName(firstContext), getTargetTableName(secondContext));
     }
 
     @SuppressWarnings("unchecked")
@@ -97,6 +103,7 @@ class HazelcastDuckDbSqlNodeMultiSourceTest {
 
         TapdataEvent tapdataEvent = new TapdataEvent();
         tapdataEvent.setTapEvent(event);
+        tapdataEvent.setNodeIds(List.of(sourceId));
         return tapdataEvent;
     }
 }

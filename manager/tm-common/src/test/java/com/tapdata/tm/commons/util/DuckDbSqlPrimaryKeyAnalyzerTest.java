@@ -63,4 +63,29 @@ class DuckDbSqlPrimaryKeyAnalyzerTest {
 
         assertEquals(List.of("warehouse_id", "item_id"), primaryKeys);
     }
+
+    @Test
+    void shouldReturnEmptyForBlankOrInvalidSql() {
+        assertEquals(List.of(), DuckDbSqlPrimaryKeyAnalyzer.analyzePrimaryKeys(" "));
+        assertEquals(List.of(), DuckDbSqlPrimaryKeyAnalyzer.analyzePrimaryKeys("SELECT FROM"));
+    }
+
+    @Test
+    void shouldReturnEmptyWhenNoJoinExists() {
+        List<String> primaryKeys = DuckDbSqlPrimaryKeyAnalyzer.analyzePrimaryKeys(
+                "SELECT u.id, u.name FROM users u"
+        );
+
+        assertEquals(List.of(), primaryKeys);
+    }
+
+    @Test
+    void shouldIgnoreSelectExpressionsWithoutAliasOrDirectColumnName() {
+        List<String> primaryKeys = DuckDbSqlPrimaryKeyAnalyzer.analyzePrimaryKeys(
+                "SELECT upper(o.user_id), o.amount " +
+                        "FROM users u LEFT JOIN orders o ON u.id = o.user_id"
+        );
+
+        assertEquals(List.of(), primaryKeys);
+    }
 }

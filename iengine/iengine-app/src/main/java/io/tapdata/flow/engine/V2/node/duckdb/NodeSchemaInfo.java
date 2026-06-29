@@ -88,7 +88,7 @@ public class NodeSchemaInfo {
         this.fieldMap.values()
                 .stream()
                 .peek(field -> {
-                    if (field.getPos() != null) {
+                    if (field.getPos() == null) {
                         field.setPos(0);
                     }
                 })
