@@ -2,7 +2,9 @@ package com.tapdata.tm.task.utils;
 
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.group.vo.DagChangeDetail;
@@ -946,6 +948,109 @@ class TaskConfigCompareUtilTest {
             List<String> added = (List<String>) tableChange.getTo();
             assertTrue(removed.containsAll(List.of("a", "b")));
             assertTrue(added.containsAll(List.of("c", "d")));
+        }
+    }
+
+    @Nested
+    @DisplayName("Script-node @EqField tests (standard_js_processor / js_processor)")
+    class ScriptNodeEqFieldTest {
+
+        private DAG buildDagWithGenericNode(Node node) {
+            Dag dag = new Dag();
+            dag.setNodes(new ArrayList<>(List.of(node)));
+            dag.setEdges(Collections.emptyList());
+            return DAG.build(dag);
+        }
+
+        @Test
+        @DisplayName("script change on standard_js_processor is detected")
+        void testScriptFieldChangeOnStandardJsProcessor() {
+            StandardJsProcessorNode n1 = new StandardJsProcessorNode();
+            n1.setId("js-node-1");
+            n1.setName("My JS");
+            n1.setScript("return record;");
+            n1.setJsType(0);
+
+            StandardJsProcessorNode n2 = new StandardJsProcessorNode();
+            n2.setId("js-node-1");
+            n2.setName("My JS");
+            n2.setScript("record.x = 1; return record;");
+            n2.setJsType(0);
+
+            TaskDto importTask = buildTask("task1", "initial_sync", "sync");
+            importTask.setDag(buildDagWithGenericNode(n2));
+            TaskDto existingTask = buildTask("task1", "initial_sync", "sync");
+            existingTask.setDag(buildDagWithGenericNode(n1));
+
+            DagChangeDetail detail = new DagChangeDetail();
+            TaskConfigCompareUtil.getDetailedChanges(importTask, existingTask, detail);
+
+            FieldChange scriptChange = detail.getNodeConfigChanges().stream()
+                    .filter(c -> c.getField().endsWith(".script"))
+                    .findFirst().orElse(null);
+            assertNotNull(scriptChange,
+                    "script change on standard_js_processor must be detected; got: " + detail.getNodeConfigChanges());
+            assertEquals("return record;", scriptChange.getFrom());
+            assertEquals("record.x = 1; return record;", scriptChange.getTo());
+        }
+
+        @Test
+        @DisplayName("declareScript change on standard_js_processor is detected")
+        void testDeclareScriptFieldChangeOnStandardJsProcessor() {
+            StandardJsProcessorNode n1 = new StandardJsProcessorNode();
+            n1.setId("js-node-1");
+            n1.setName("My JS");
+            n1.setScript("return record;");
+            n1.setDeclareScript("var a = 1;");
+
+            StandardJsProcessorNode n2 = new StandardJsProcessorNode();
+            n2.setId("js-node-1");
+            n2.setName("My JS");
+            n2.setScript("return record;");
+            n2.setDeclareScript("var a = 2;");
+
+            TaskDto importTask = buildTask("task1", "initial_sync", "sync");
+            importTask.setDag(buildDagWithGenericNode(n2));
+            TaskDto existingTask = buildTask("task1", "initial_sync", "sync");
+            existingTask.setDag(buildDagWithGenericNode(n1));
+
+            DagChangeDetail detail = new DagChangeDetail();
+            TaskConfigCompareUtil.getDetailedChanges(importTask, existingTask, detail);
+
+            FieldChange declareScriptChange = detail.getNodeConfigChanges().stream()
+                    .filter(c -> c.getField().endsWith(".declareScript"))
+                    .findFirst().orElse(null);
+            assertNotNull(declareScriptChange,
+                    "declareScript change must be detected; got: " + detail.getNodeConfigChanges());
+            assertEquals("var a = 1;", declareScriptChange.getFrom());
+            assertEquals("var a = 2;", declareScriptChange.getTo());
+        }
+
+        @Test
+        @DisplayName("Identical scripts produce no DAG change")
+        void testNoChangeWhenScriptIdentical() {
+            StandardJsProcessorNode n1 = new StandardJsProcessorNode();
+            n1.setId("js-node-1");
+            n1.setName("My JS");
+            n1.setScript("return record;");
+            n1.setDeclareScript("var a = 1;");
+            n1.setJsType(0);
+
+            StandardJsProcessorNode n2 = new StandardJsProcessorNode();
+            n2.setId("js-node-1");
+            n2.setName("My JS");
+            n2.setScript("return record;");
+            n2.setDeclareScript("var a = 1;");
+            n2.setJsType(0);
+
+            TaskDto importTask = buildTask("task1", "initial_sync", "sync");
+            importTask.setDag(buildDagWithGenericNode(n2));
+            TaskDto existingTask = buildTask("task1", "initial_sync", "sync");
+            existingTask.setDag(buildDagWithGenericNode(n1));
+
+            DagChangeDetail detail = new DagChangeDetail();
+            TaskConfigCompareUtil.getDetailedChanges(importTask, existingTask, detail);
+            assertFalse(detail.hasChanges(), "No changes expected when JS node scripts are identical");
         }
     }
 }

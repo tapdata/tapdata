@@ -1,6 +1,7 @@
 package com.tapdata.mongo;
 
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.LoginResp;
 import com.tapdata.entity.User;
 import org.apache.logging.log4j.Logger;
@@ -8,8 +9,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -59,6 +63,46 @@ public class HttpClientMongoOperatorTest {
             verify(httpClientMongoOperator,times(1)).refreshToken();
         }
     }
+    @Nested
+    class UpdateByIdTest {
+        HttpClientMongoOperator httpClientMongoOperator;
+        ConfigurationCenter configurationCenter;
+        CapturingRestTemplateOperator restTemplateOperator;
+
+        @BeforeEach
+        void init() {
+            configurationCenter = new ConfigurationCenter();
+            restTemplateOperator = new CapturingRestTemplateOperator();
+            httpClientMongoOperator = new HttpClientMongoOperator(null, null, restTemplateOperator, configurationCenter);
+            configurationCenter.putConfig(ConfigurationCenter.TOKEN, "token");
+            LoginResp loginResp = new LoginResp();
+            loginResp.setTtl(300L);
+            loginResp.setExpiredTimestamp(System.currentTimeMillis() + 300000L);
+            configurationCenter.putConfig(ConfigurationCenter.LOGIN_INFO, loginResp);
+        }
+
+        @Test
+        void shouldAppendIdBeforeQueryParameters() {
+            httpClientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running?agentId=fe1&taskRecordId=record1", "task1", Object.class);
+
+            assertEquals(ConnectorConstant.TASK_COLLECTION + "/running/task1?agentId=fe1&taskRecordId=record1&access_token=token", restTemplateOperator.resource);
+        }
+
+        class CapturingRestTemplateOperator extends RestTemplateOperator {
+            String resource;
+
+            CapturingRestTemplateOperator() {
+                super(Collections.singletonList("http://localhost"), 0);
+            }
+
+            @Override
+            public <T> T postOne(Object obj, String resource, Class<T> className) {
+                this.resource = resource;
+                return null;
+            }
+        }
+    }
+
     @Nested
     class RefreshTokenClass{
         HttpClientMongoOperator httpClientMongoOperator;

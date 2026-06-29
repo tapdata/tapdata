@@ -194,6 +194,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             } else if(AccessNodeTypeEnum.isGroupManually(taskDto.getAccessNodeType())
                     && CollectionUtils.isNotEmpty(accessNodeProcessIdList)){
                 List<Worker> availableAgent = workerService.findAvailableAgentByAccessNode(user,accessNodeProcessIdList);
+                if (CollectionUtils.isEmpty(availableAgent)) {
+                    log.warn("No available agent found in specified agent group for task [{}]", taskDto.getName());
+                    taskDto.setAgentId(null);
+                    return noAvailableAgentResult();
+                }
                 List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
                 String finalAgentId = null;
                 if(StringUtils.isNotEmpty(taskDto.getPriorityProcessId()) && processIds.contains(taskDto.getPriorityProcessId())){
@@ -233,6 +238,17 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 throw new BizException("Task.ScheduleLimit");
             }
         }
+        return calculationEngineVo;
+    }
+
+    private CalculationEngineVo noAvailableAgentResult() {
+        CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
+        calculationEngineVo.setAvailable(0);
+        calculationEngineVo.setRunningNum(0);
+        calculationEngineVo.setTaskLimit(Integer.MAX_VALUE);
+        calculationEngineVo.setTotalLimit(Integer.MAX_VALUE);
+        calculationEngineVo.setThreadLog(new ArrayList<>());
+        calculationEngineVo.setManually(true);
         return calculationEngineVo;
     }
 

@@ -32,7 +32,6 @@ import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
-import org.springframework.util.concurrent.ListenableFuture;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.adapter.NativeWebSocketSession;
 import org.springframework.web.socket.client.WebSocketClient;
@@ -110,7 +109,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	/**
 	 * 与管理端建立连接
 	 */
-	private ListenableFuture<WebSocketSession> listenableFuture;
+	private CompletableFuture<WebSocketSession> listenableFuture;
 
 	/**
 	 * 管理端地址列表
@@ -226,10 +225,16 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	 * worker.ping_time 需至少 5s）。
 	 */
 	@EventListener(ApplicationReadyEvent.class)
-	public void startHttpFallbackBeforeWsReady() {
-		TapdataTaskScheduler scheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
-		if (scheduler == null) {
-			logger.warn("TapdataTaskScheduler bean not available at ApplicationReadyEvent; HTTP fallback not started");
+	public void startHttpFallbackBeforeWsReady(ApplicationReadyEvent event) {
+		// ApplicationReadyEvent fires INSIDE SpringApplication.run(), before Application.main assigns
+		// BeanUtil.configurableApplicationContext (which only happens after run() returns). So
+		// BeanUtil.getBean(...) would still see a null context here and return null. Use the
+		// fully-refreshed context carried by the event itself instead.
+		TapdataTaskScheduler scheduler;
+		try {
+			scheduler = event.getApplicationContext().getBean(TapdataTaskScheduler.class);
+		} catch (org.springframework.beans.BeansException e) {
+			logger.warn("TapdataTaskScheduler bean not available at ApplicationReadyEvent; HTTP fallback not started", e);
 			return;
 		}
 		scheduler.startScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
@@ -319,10 +324,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			if (org.apache.commons.lang3.StringUtils.isNotEmpty(version)) {
 				WebSocketHttpHeaders webSocketHttpHeaders = new WebSocketHttpHeaders();
 				webSocketHttpHeaders.add(HttpHeaders.USER_AGENT, version);
-				this.listenableFuture = client.doHandshake(this, webSocketHttpHeaders,
+				this.listenableFuture = client.execute(this, webSocketHttpHeaders,
 						URI.create(currentWsUrl));
 			} else {
-				this.listenableFuture = client.doHandshake(this, UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8));
+				this.listenableFuture = client.execute(this, UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8));
 			}
 
 			session.setSession(listenableFuture.get(HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS));
@@ -350,6 +355,17 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	@Override
 	public void afterConnectionEstablished(WebSocketSession session) {
 		handleWhenPingSucceed();
+		// TAP-12028 (A1): WS 连接/重连成功后立即主动拉取分配给本引擎的 wait_run/stopping 任务，
+		// 不再单纯依赖 WS 推送（推送侧 MessageQueueWatch 存在 offset 永久丢失竞态，整机重启后
+		// 启动信号可能丢失，导致任务卡在「启动中」）。异步执行，避免阻塞 WS 连接回调线程。
+		try {
+			TapdataTaskScheduler scheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+			if (null != scheduler) {
+				scheduler.reconcileAssignedTasksAsync("ws-connected");
+			}
+		} catch (Exception e) {
+			logger.warn("Trigger reconcile on websocket connected failed: {}", e.getMessage(), e);
+		}
 	}
 
 	@Override

@@ -37,7 +37,11 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
 
     public abstract User buildUserFromTcmUser(UserInfoDto userInfoDto, String externalUserId);
 
-    public abstract UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail, Locale locale);
+    public UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail, Locale locale) {
+        return updateUserSetting(id, settingJson, userDetail, locale, false);
+    }
+
+    public abstract UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail, Locale locale, boolean userManagementAllowed);
 
     public abstract UpdateResult updateById(User user);
 
@@ -81,4 +85,3 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
 
     public abstract String refreshAccessCode(UserDetail userDetail);
 }
-

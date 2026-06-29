@@ -16,6 +16,7 @@ import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.agent.service.AgentGroupService;
@@ -152,6 +153,7 @@ import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.task.service.dashboard.TaskDashboardService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
+import com.tapdata.tm.taskrebalance.service.TaskRebalanceJobService;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
@@ -249,6 +251,8 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskServiceImpl extends TaskService{
+    private static final long DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS = 5 * 60 * 1000L;
+
     public static final String USER_ID = "user_id";
     public static final String COLLECTION_ID = "collectionId";
     public static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
@@ -303,6 +307,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String STOP_RETRY_TIMES = "stopRetryTimes";
     public static final String SCHEDULE_DATE = "scheduleDate";
     public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
+    public static final String TASK_RETRY_START_TIME = "taskRetryStartTime";
     public static final String TASK_ID = "taskId";
     public static final String MAPPINGS = "mappings";
     public static final String TASK_RECORD_ID = "taskRecordId";
@@ -316,6 +321,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String ENCODE_PREFIX = "_tap_encode_";
     public static final String TASK_INCREMENT_DELAY = "taskIncrementDelay";
     public static final String TASK_INCREMENT_DELAY_THRESHOLD = "taskIncrementDelayThreshold";
+    public static final String AGENT_NOT_FOUND = "Agent.Not.Found";
 
     @NotNull
     private static String getTableName() {
@@ -395,9 +401,28 @@ public class TaskServiceImpl extends TaskService{
     private ILicenseService iLicenseService;
     private MetadataInstancesCompareService metadataInstancesCompareService;
     private AnalyzerService analyzerService;
+    private TaskRebalanceJobService taskRebalanceJobService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
+    }
+
+    private void assertTaskNotRebalancing(ObjectId taskId, UserDetail user) {
+        if (taskId == null || taskRebalanceJobService == null || taskRebalanceJobService.isCheckBypassed()) {
+            return;
+        }
+        if (taskRebalanceJobService.hasBlockingActiveJob(taskId.toHexString(), getTaskRebalanceGuardTimeoutMs(), user)) {
+            throw new BizException("task.rebalance.taskRebalancing");
+        }
+    }
+
+    private long getTaskRebalanceGuardTimeoutMs() {
+        try {
+            return Long.parseLong(SettingsEnum.JOB_HEART_TIMEOUT.getValue(String.valueOf(DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS)));
+        } catch (Exception e) {
+            log.warn("TaskRebalance read jobHeartTimeout failed, using default {}ms", DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS, e);
+            return DEFAULT_TASK_REBALANCE_GUARD_TIMEOUT_MS;
+        }
     }
 
 	public Supplier<TaskDto> dataPermissionFindById(ObjectId taskId, Field fields) {
@@ -985,15 +1010,14 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void checkEngineStatus(TaskDto taskDto, UserDetail user) {
-        String errCode = "Agent.Not.Found";
         String accessNodeType = taskDto.getAccessNodeType();
         List<String> taskProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType) && taskProcessIdList.isEmpty()) {
-            throw new BizException(errCode);
+            throw new BizException(AGENT_NOT_FOUND);
         }
         List<Worker> availableAgentByAccessNode = workerService.findAvailableAgentByAccessNode(user, taskProcessIdList);
         if (CollectionUtils.isEmpty(availableAgentByAccessNode)) {
-            throw new BizException(errCode);
+            throw new BizException(AGENT_NOT_FOUND);
         }
     }
 
@@ -1138,13 +1162,13 @@ public class TaskServiceImpl extends TaskService{
         taskAutoInspectResultsService.cleanResultsByTask(taskDto);
 
         //add message
+        Modular modular = Modular.ofTaskSyncType(taskDto.getSyncType());
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
             messageService.addMigration(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
-            userLogService.addUserLog(Modular.MIGRATION, Operation.DELETE, user, id.toString(), taskDto.getName());
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
             messageService.addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
-            userLogService.addUserLog(Modular.SYNC, Operation.DELETE, user, id.toString(), taskDto.getName());
         }
+        userLogService.addUserLog(modular, Operation.DELETE, user, id.toString(), taskDto.getName());
 
         try {
             metadataInstancesService.deleteTaskMetadata(id.toHexString(), user);
@@ -1310,7 +1334,8 @@ public class TaskServiceImpl extends TaskService{
         //taskService.flushStatus(taskDto, user);
 
         try {
-            userLogService.addUserLog(Modular.MIGRATION, com.tapdata.tm.userLog.constant.Operation.COPY, user, id.toHexString(), originalName, taskDto.getName(), false);
+            Modular modular = Modular.ofTaskSyncType(taskDto.getSyncType());
+            userLogService.addUserLog(modular, com.tapdata.tm.userLog.constant.Operation.COPY, user, id.toHexString(), originalName, taskDto.getName(), false);
         } catch (Exception e) {
             log.error("Logging to copy task fail", e);
         }
@@ -1352,6 +1377,7 @@ public class TaskServiceImpl extends TaskService{
 
     public void renew(ObjectId id, UserDetail user, boolean system) {
         TaskDto taskDto = checkExistById(id, user);
+        assertTaskNotRebalancing(id, user);
         boolean needCreateRecord = !Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_WAIT_START).contains(taskDto.getStatus());
         //boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
         TaskEntity taskSnapshot = null;
@@ -1673,24 +1699,7 @@ public class TaskServiceImpl extends TaskService{
             where = new Where();
             filter.setWhere(where);
         }
-        if (where.get(STATUS) == null) {
-            Document statusCondition = new Document();
-            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
-            where.put(STATUS, statusCondition);
-        }
-        //过滤掉挖掘任务
-        String syncType = (String) where.get(SYNC_TYPE);
-        if (StringUtils.isBlank(syncType)) {
-            Document logCollectorFilter = new Document();
-            logCollectorFilter.put("$nin", Lists.of(TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT));
-            where.put(SYNC_TYPE, logCollectorFilter);
-        }
-
-        //过滤调共享缓存任务
-        HashMap<String, Object> notShareCache = new HashMap<>();
-        notShareCache.put("$ne", true);
-        where.put("shareCache", notShareCache);
-
+        TaskFilter.filter(where);
 
         if (where.get(IS_DELETED) == null) {
             Document document = new Document();
@@ -3723,7 +3732,7 @@ public class TaskServiceImpl extends TaskService{
            try{
                taskDto.setTaskRecordId(new ObjectId().toHexString());
 
-               if(checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap)){
+               if(ImportModeEnum.GROUP_IMPORT.equals(importMode) && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap)){
                    importResult.put(taskDto.getId().toHexString(),0L);
                    continue;
                }
@@ -3731,14 +3740,11 @@ public class TaskServiceImpl extends TaskService{
                // 根据导入模式处理
                switch (importMode) {
                    case REPLACE,REUSE_EXISTING: {
-                       // 基于 _id 查找现有任务，不使用 name 匹配，避免不同用户相同名称任务相互覆盖
-                       if (taskDto.getId() == null) {
-                           throw new BizException("Task.ImportMissingId", taskDto.getName());
-                       }
-                       Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
-                       idQuery.fields().include("_id", USER_ID, "name");
-                       TaskDto existingTaskById = findOne(idQuery, user);
-                       handleReplaceMode(taskDto, existingTaskById, user, tagList, conMap, nodeMap, taskMap, importResult);
+                       // 按名称查找现有任务
+                       Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
+                       nameQuery.fields().include("_id", USER_ID, "name");
+                       TaskDto existingTaskByName = findOne(nameQuery, user);
+                       handleReplaceMode(taskDto, existingTaskByName, user, tagList, conMap, nodeMap, taskMap, importResult);
                        break;
                    }
                    case GROUP_IMPORT: {
@@ -3756,14 +3762,10 @@ public class TaskServiceImpl extends TaskService{
                        handleImportAsCopyMode(taskDto, user, tagList, conMap,nodeMap,taskMap);
                        break;
                    case CANCEL_IMPORT: {
-                       // 基于 _id 查找现有任务
-                       TaskDto existingTaskById = null;
-                       if (taskDto.getId() != null) {
-                           Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
-                           idQuery.fields().include("_id", USER_ID, "name");
-                           existingTaskById = findOne(idQuery, user);
-                       }
-                       if(null != existingTaskById){
+                       Query nameQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
+                       nameQuery.fields().include("_id", USER_ID, "name");
+                       TaskDto existingTaskByName = findOne(nameQuery, user);
+                       if(null != existingTaskByName){
                            throw new BizException("Task.RepeatName");
                        }else{
                            if(checkConnectionIdDuplicate(taskDto, conMap)){
@@ -3783,9 +3785,9 @@ public class TaskServiceImpl extends TaskService{
                if(null != taskDto.getId()){
                    importResult.put(taskDto.getId().toHexString(), ExceptionUtils.getStackTrace(e));
                }
-               if(importMode != ImportModeEnum.GROUP_IMPORT){
-                   throw e;
-               }
+               // TAP-11891: 所有导入模式统一 fail-fast，单任务失败立即抛出、中断本批后续任务，
+               // 避免 group_import 静默吞错导致部分导入却整体报成功
+               throw e;
            }
         }
         return importResult;
@@ -3808,11 +3810,13 @@ public class TaskServiceImpl extends TaskService{
                 && taskDto.getId() != null
                 && resetTaskList.contains(taskDto.getId().toHexString());
 
-        // 统一基于 _id 查找现有任务，避免不同用户相同名称任务相互覆盖
-        if (taskDto.getId() == null) {
-            return false;
+        // GROUP_IMPORT 按 _id 查，其他模式按 name 查
+        Query existingQuery;
+        if (importMode == ImportModeEnum.GROUP_IMPORT && taskDto.getId() != null) {
+            existingQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
+        } else {
+            existingQuery = new Query(Criteria.where("name").is(taskDto.getName()).and(IS_DELETED).ne(true));
         }
-        Query existingQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
         existingQuery.fields().exclude("user_id","create_user","pingTime","taskRecordId","last_updated");
 
         // 使用工具类比较任务配置是否一致
@@ -4015,7 +4019,9 @@ public class TaskServiceImpl extends TaskService{
         Query idQuery = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
         idQuery.fields().include("_id", USER_ID, "name");
         TaskDto existingTaskByID= findOne(idQuery);
-        // 不再基于名称重命名，使用 _id 保证唯一性
+        while (checkTaskNameNotError(taskDto.getName(), user, null)) {
+            taskDto.setName(taskDto.getName() + "_import");
+        }
 
         if(null != existingTaskByID){
             // 分配新ID
@@ -4462,8 +4468,7 @@ public class TaskServiceImpl extends TaskService{
         }
         Query query = Query.query(Criteria.where("_id").in(taskIds)
                 .and(STATUS).in(TaskOpStatusEnum.to_start_status.v())
-                .and(AGENT_ID).exists(true).ne(null)
-                .and("accessNodeType").ne(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name()));
+                .and(AGENT_ID).exists(true).ne(null));
         Update update = new Update().unset(AGENT_ID)
                 .set("lastUpdBy", user.getUserId())
                 .set("last_updated", new Date());
@@ -4524,6 +4529,7 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        assertTaskNotRebalancing(taskDto.getId(), user);
         cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
@@ -4835,6 +4841,7 @@ public class TaskServiceImpl extends TaskService{
      * @param restart
      */
     public void pause(TaskDto taskDto, UserDetail user, boolean force, boolean restart) {
+        assertTaskNotRebalancing(taskDto.getId(), user);
 
         //重启的特殊处理，共享挖掘的比较多
         Field field = new Field();
@@ -4909,13 +4916,29 @@ public class TaskServiceImpl extends TaskService{
      * @param id
      */
     public String running(ObjectId id, UserDetail user) {
+        return runningInternal(id, user, null, null);
+    }
+
+    @Override
+    public String running(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
+        return runningInternal(id, user, reportAgentId, reportTaskRecordId);
+    }
+
+    private String runningInternal(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
 
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, START_TIME, SCHEDULE_DATE);
-				// 已经运行中，直接返回
-				if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
-					return id.toHexString();
-				}
+        TaskDto taskDto = StringUtils.isBlank(reportAgentId) && StringUtils.isBlank(reportTaskRecordId)
+                ? checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, START_TIME, SCHEDULE_DATE)
+                : checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, AGENT_ID, START_TIME, SCHEDULE_DATE);
+        if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.RUNNING)) {
+            return null;
+        }
+        // 已经运行中，直接返回
+        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+            update(Query.query(Criteria.where("_id").is(id)), Update.update(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE)
+                    .set(TASK_RETRY_START_TIME, 0), user);
+            return id.toHexString();
+        }
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -4929,7 +4952,9 @@ public class TaskServiceImpl extends TaskService{
         });
 
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        Update update = Update.update(SCHEDULE_DATE, null);
+        Update update = Update.update(SCHEDULE_DATE, null)
+                .set(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE)
+                .set(TASK_RETRY_START_TIME, 0);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RUNNING, user);
         if (stateMachineResult.isFail()) {
@@ -4947,8 +4972,22 @@ public class TaskServiceImpl extends TaskService{
      * @param id
      */
     public String runError(ObjectId id, UserDetail user, String errMsg, String errStack) {
+        return runErrorInternal(id, user, errMsg, errStack, null, null);
+    }
+
+    @Override
+    public String runError(ObjectId id, UserDetail user, String errMsg, String errStack, String reportAgentId, String reportTaskRecordId) {
+        return runErrorInternal(id, user, errMsg, errStack, reportAgentId, reportTaskRecordId);
+    }
+
+    private String runErrorInternal(ObjectId id, UserDetail user, String errMsg, String errStack, String reportAgentId, String reportTaskRecordId) {
         //判断任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID,"dag");
+        TaskDto taskDto = StringUtils.isBlank(reportAgentId) && StringUtils.isBlank(reportTaskRecordId)
+                ? checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, "dag")
+                : checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, AGENT_ID, "dag");
+        if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.ERROR)) {
+            return null;
+        }
 
         //将子任务状态更新成错误.
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, user);
@@ -4973,8 +5012,22 @@ public class TaskServiceImpl extends TaskService{
      * @param id
      */
     public String complete(ObjectId id, UserDetail user) {
+        return completeInternal(id, user, null, null);
+    }
+
+    @Override
+    public String complete(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
+        return completeInternal(id, user, reportAgentId, reportTaskRecordId);
+    }
+
+    private String completeInternal(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID);
+        TaskDto taskDto = StringUtils.isBlank(reportAgentId) && StringUtils.isBlank(reportTaskRecordId)
+                ? checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID)
+                : checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, AGENT_ID);
+        if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.COMPLETED)) {
+            return null;
+        }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.COMPLETED, user);
         if (stateMachineResult.isFail()) {
@@ -4991,8 +5044,20 @@ public class TaskServiceImpl extends TaskService{
      * @param id
      */
     public String stopped(ObjectId id, UserDetail user) {
+        return stoppedInternal(id, user, null, null);
+    }
+
+    @Override
+    public String stopped(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
+        return stoppedInternal(id, user, reportAgentId, reportTaskRecordId);
+    }
+
+    private String stoppedInternal(ObjectId id, UserDetail user, String reportAgentId, String reportTaskRecordId) {
         //判断子任务是否存在。
         TaskDto taskDto = checkExistById(id, user, "dag", "name", STATUS, "_id", TASK_RECORD_ID, AGENT_ID, STOPED_DATE, RESTART_FLAG);
+        if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.STOPPED)) {
+            return null;
+        }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
@@ -5031,6 +5096,22 @@ public class TaskServiceImpl extends TaskService{
         }
         taskUpdateDagService.updateDag(taskDto.getId(), dag,false);
         return id.toHexString();
+    }
+
+    private boolean isValidTaskStatusReporter(TaskDto taskDto, String reportAgentId, String reportTaskRecordId, DataFlowEvent event) {
+        if (StringUtils.isNotBlank(reportAgentId) && !Objects.equals(taskDto.getAgentId(), reportAgentId)) {
+            log.warn("TaskHA event=ignore_status_report reason=agent_mismatch taskId={} taskName={} status={} event={} currentAgentId={} reportAgentId={}",
+                    taskDto.getId().toHexString(), taskDto.getName(), taskDto.getStatus(), event, taskDto.getAgentId(), reportAgentId);
+            return false;
+        }
+        if (StringUtils.isNotBlank(reportTaskRecordId)
+                && StringUtils.isNotBlank(taskDto.getTaskRecordId())
+                && !Objects.equals(taskDto.getTaskRecordId(), reportTaskRecordId)) {
+            log.warn("TaskHA event=ignore_status_report reason=task_record_mismatch taskId={} taskName={} status={} event={} currentTaskRecordId={} reportTaskRecordId={}",
+                    taskDto.getId().toHexString(), taskDto.getName(), taskDto.getStatus(), event, taskDto.getTaskRecordId(), reportTaskRecordId);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -6152,7 +6233,7 @@ public class TaskServiceImpl extends TaskService{
             taskScheduleService.cloudTaskLimitNum(taskDto, userDetail, false);
         }
         if(taskDto.getAgentId() == null){
-           throw new BizException("Agent.Not.Found");
+           throw new BizException(AGENT_NOT_FOUND);
         }
         taskDto.setCheckMemoryHeap(true);
         update(Query.query(Criteria.where("_id").is(taskDto.getId())),Update.update("agentId",taskDto.getAgentId()).set("checkMemoryHeap",true));

@@ -224,6 +224,70 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
+	/**
+	 * TAP-11889: 主从合并任务删除某个源节点后，DAG 中已无该节点，但合并节点的 mergeProperties 树中可能仍残留
+	 * 对该节点 id 的引用（删节点未同步清理配置，且经 CICD group_import 按 _id 覆盖后被原样带到目标环境）。
+	 * 这种悬空引用会在 {@link #initSourcePkOrUniqueFieldMap(List)} 等初始化方法里因节点找不到而抛
+	 * {@link TaskMergeProcessorExCode_16#TAP_MERGE_TABLE_NODE_NOT_FOUND}，导致任务启动失败。
+	 * <p>
+	 * 这里在所有初始化遍历之前，以 DAG 现存节点为准剪除引用了不存在节点的合并配置（连同其子树），
+	 * 使任务能用剩余节点继续运行，符合"删除源节点即从合并中移除该表"的预期语义。
+	 */
+	protected void pruneOrphanMergeProperties() {
+		Node<?> node = processorBaseContext.getNode();
+		if (!(node instanceof MergeTableNode)) {
+			return;
+		}
+		List<MergeTableProperties> mergeProperties = ((MergeTableNode) node).getMergeProperties();
+		if (CollectionUtils.isEmpty(mergeProperties)) {
+			return;
+		}
+		List<Node> nodes = processorBaseContext.getNodes();
+		if (CollectionUtils.isEmpty(nodes)) {
+			// 没有可对照的节点列表时不做剪枝，避免误删全部配置
+			return;
+		}
+		Set<String> existsNodeIds = nodes.stream().map(Node::getId).collect(Collectors.toSet());
+		List<String> prunedIds = new ArrayList<>();
+		List<MergeTableProperties> kept = filterExistsMergeProperties(mergeProperties, existsNodeIds, prunedIds);
+		if (!prunedIds.isEmpty()) {
+			((MergeTableNode) node).setMergeProperties(kept);
+			obsLogger.warn("Detected merge properties referencing node(s) that no longer exist in the task DAG; removed them (and their sub-tree) so the task can run with the remaining nodes. Removed node id(s): {}", prunedIds);
+		}
+	}
+
+	private List<MergeTableProperties> filterExistsMergeProperties(List<MergeTableProperties> mergeProperties, Set<String> existsNodeIds, List<String> prunedIds) {
+		List<MergeTableProperties> result = new ArrayList<>();
+		if (CollectionUtils.isEmpty(mergeProperties)) {
+			return result;
+		}
+		for (MergeTableProperties mergeProperty : mergeProperties) {
+			if (null == mergeProperty) {
+				continue;
+			}
+			if (!existsNodeIds.contains(mergeProperty.getId())) {
+				// 该节点已从 DAG 删除：剪除此配置及其整棵子树
+				collectPrunedIds(mergeProperty, prunedIds);
+				continue;
+			}
+			mergeProperty.setChildren(filterExistsMergeProperties(mergeProperty.getChildren(), existsNodeIds, prunedIds));
+			result.add(mergeProperty);
+		}
+		return result;
+	}
+
+	private void collectPrunedIds(MergeTableProperties mergeProperty, List<String> prunedIds) {
+		if (null == mergeProperty) {
+			return;
+		}
+		prunedIds.add(mergeProperty.getId());
+		if (CollectionUtils.isNotEmpty(mergeProperty.getChildren())) {
+			for (MergeTableProperties child : mergeProperty.getChildren()) {
+				collectPrunedIds(child, prunedIds);
+			}
+		}
+	}
+
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
@@ -319,6 +383,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	}
 
 	protected void initRuntimeParameters() {
+		pruneOrphanMergeProperties();
 		autoMarkIsArrayByParentModel();
 		selfCheckNode(getNode());
 		initFirstLevelIds();
@@ -1833,8 +1898,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				ConstructIMap<Document> hazelcastConstruct = getHazelcastConstruct(childMergeProperty.getId());
 				joinValueKeys = getJoinValueKeyByTarget(data, childMergeProperty, mergeTableProperties, hazelcastConstruct);
 				if (joinValueKeys == null) {
-					continue;
-				}
+					if (!Boolean.TRUE.equals(childMergeProperty.getEnableUpdateJoinKeyValue())) {
+						continue;
+					}
+				} else {
 				io.tapdata.pdk.apis.entity.merge.MergeTableProperties copyMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 				Node<?> preNode = getPreNode(childMergeProperty.getId());
 				String tableName = getTableName(preNode);
@@ -1902,8 +1969,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					}
 				}
 				continue; // already handled for each joinValueKey
+				}
 			}
-			// if not lookupDataExists, keep previous behavior but without performing find; nothing to add
+			// join key missing on parent for an updateJoinKey-enabled child, or lookupDataExists==false:
+			// emit a mock lookup entry so downstream cleanup of orphaned merged data can run
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties copyMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 			Node<?> preNode = getPreNode(childMergeProperty.getId());
 			String tableName = getTableName(preNode);

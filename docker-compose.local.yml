@@ -65,6 +65,7 @@ services:
     environment:
       - JAVA_OPTS=${TM_JAVA_OPTS:-"-Xmx4g"}
       - SERVER_PORT=3000
+      - app_type=DAAS
       - TM_HEAP_SIZE=${TM_HEAP_SIZE:-4G}
       - SPRING_DATA_MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0
       - DEFAULT_MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-tapdata_best2019}@mongo:27017/${MONGO_INITDB_DATABASE:-tapdata}?authSource=admin&replicaSet=rs0

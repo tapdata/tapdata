@@ -1,5 +1,7 @@
 package com.tapdata.tm.userLog.constant;
 
+import com.tapdata.tm.commons.task.dto.TaskDto;
+
 /**
  * 随着业务增加，可以新增新的枚举值
  * 这里需要和国际化的资源属性文件里的key对应，
@@ -7,6 +9,9 @@ package com.tapdata.tm.userLog.constant;
 public enum Modular {
     SYNC("sync"),
     MIGRATION("migration"),
+    LOG_COLLECTOR(TaskDto.SYNC_TYPE_LOG_COLLECTOR),
+    CONN_HEARTBEAT(TaskDto.SYNC_TYPE_CONN_HEARTBEAT),
+    MEM_CACHE(TaskDto.SYNC_TYPE_MEM_CACHE),
     CONNECTION("connection"),
     AGENT("agent"),
     INSPECT("inspect"),
@@ -45,5 +50,19 @@ public enum Modular {
             }
         }
         return SYSTEM;
+    }
+
+    public static Modular ofTaskSyncType(String taskSyncType) {
+        if (null == taskSyncType) {
+            return MIGRATION;
+        }
+        return switch (taskSyncType) {
+            case TaskDto.SYNC_TYPE_SYNC -> SYNC;
+            case TaskDto.SYNC_TYPE_MIGRATE -> MIGRATION;
+            case TaskDto.SYNC_TYPE_LOG_COLLECTOR -> LOG_COLLECTOR;
+            case TaskDto.SYNC_TYPE_CONN_HEARTBEAT -> CONN_HEARTBEAT;
+            case TaskDto.SYNC_TYPE_MEM_CACHE -> MEM_CACHE;
+            default -> MIGRATION;
+        };
     }
 }

@@ -24,6 +24,7 @@ public class UserLogDto extends BaseDto {
 
     private String messageId;
     private String username;
+    private String i18nMessage;
     private String type;
     //是否修改名称
     private Boolean rename;

@@ -8,17 +8,11 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.exception.TmUnavailableException;
-import io.tapdata.observable.logging.appender.FileAppender;
-import io.tapdata.observable.logging.debug.DataCache;
 import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.types.ObjectId;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
@@ -51,31 +45,42 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		return INSTANCE;
 	}
 
-	private static final AtomicBoolean initialized = new AtomicBoolean(false);
 	private ObsLoggerFactory() {
-		this.settingService = Optional.ofNullable(BeanUtil.getBean(SettingService.class)).orElse((SettingService) getBeanAsync(SettingService.class));
-		this.clientMongoOperator = Optional.ofNullable(BeanUtil.getBean(ClientMongoOperator.class)).orElse((ClientMongoOperator) getBeanAsync(ClientMongoOperator.class));
+		this.settingService = getBeanWaitAvailableOrTimeout(SettingService.class);
+		this.clientMongoOperator = getBeanWaitAvailableOrTimeout(ClientMongoOperator.class);
 		this.scheduleExecutorService = new ScheduledThreadPoolExecutor(1);
 		scheduleExecutorService.scheduleWithFixedDelay(this::removeTaskLogger, PERIOD_SECOND, PERIOD_SECOND, TimeUnit.SECONDS);
 	}
 
-	Object getBeanAsync(Class<?> clz){
-		while (!initialized.get()) {
-			synchronized (initialized) {
+	<T> T getBeanWaitAvailableOrTimeout(Class<T> clz) {
+		return getBeanWaitAvailableOrTimeout(clz, GET_BEAN_TIMEOUT_MILLIS);
+	}
+
+	<T> T getBeanWaitAvailableOrTimeout(Class<T> clz, long timeoutMillis) {
+		long deadline = System.currentTimeMillis() + timeoutMillis;
+		T ins = BeanUtil.getBean(clz);
+		while (null == ins) {
+			long remainingMillis = deadline - System.currentTimeMillis();
+			if (remainingMillis <= 0L) {
+				logger.warn("Timed out waiting for bean {}, timeout {}ms", clz.getName(), timeoutMillis);
+				return null;
+			}
+			synchronized (GET_BEAN_LOCK) {
 				try {
-					initialized.wait(100L);
-					Object bean = BeanUtil.getBean(clz);
-					if (null != bean ){
-						return bean;
-					}
+					GET_BEAN_LOCK.wait(Math.min(GET_BEAN_WAIT_INTERVAL_MILLIS, remainingMillis));
 				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
 					throw new RuntimeException(e);
 				}
 			}
+			ins = BeanUtil.getBean(clz);
 		}
-		return null;
+		return ins;
 	}
 
+	private static final Object GET_BEAN_LOCK = new Object();
+	private static final long GET_BEAN_WAIT_INTERVAL_MILLIS = 100L;
+	private static final long GET_BEAN_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(5L);
 	private static final long PERIOD_SECOND = 10L;
 	private static final long LOGGER_REMOVE_WAIT_AFTER_MILLIS = TimeUnit.HOURS.toMillis(1L);
 	private final SettingService settingService;

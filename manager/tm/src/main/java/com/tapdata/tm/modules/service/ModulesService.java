@@ -150,7 +150,7 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
 	public static final String USER_ID = "user_id";
-
+	public static final String MODULES_BASE_PATH_AND_VERSION_EXISTED = "Modules.BasePathAndVersion.Existed";
 	private static final String URI = "uri";
 	private static final String PROPERTIES = "properties";
 	protected static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
@@ -316,9 +316,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 //        if (findByName(modulesDto.getName()).size() > 0) {
 //            throw new BizException("Modules.Name.Existed");
 //        }
-//        if (!isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).isEmpty()) {
-//            throw new BizException("Modules.BasePathAndVersion.Existed");
-//        }
 //        if (null == modulesDto.getDataSource()) {
 //            throw new BizException("Modules.Connection.Null");
 //        }
@@ -327,6 +324,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 		if (nameExists(null, modulesDto.getName()))
 			throw new BizException("Modules.Name.Existed");
+		if (isBasePathAndVersionRepeat(modulesDto.getId(), modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
+			throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
+		}
 		modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
 		modulesDto.setLastUpdAt(new Date());
 		modulesDto.setCreateAt(new Date());
@@ -382,15 +382,31 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(dto.getStatus()))
 			throw new BizException("generating status can't release");
 		//点击生成按钮 才校验(撤销发布等不校验)
-		if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
-			if (nameExists(dto.getId(), modulesDto.getName()))
-				throw new BizException("Modules.Name.Existed");
-			if (isBasePathAndVersionRepeat(id, modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()))
-				throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
-			checkoutInputParamIsValid(modulesDto);
+		ModulesDto checkItem;
+		if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.PENDING.getValue().equals(dto.getStatus())) {
+			checkItem = dto;
+		} else if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
+			checkItem = null;
+		} else {
+			checkItem = modulesDto;
 		}
+		checkModule(checkItem);
 		FieldTypeUtil.validCustomWhereIfNeed(modulesDto);
 		return super.upsertByWhere(where, modulesDto, userDetail);
+	}
+
+	protected void checkModule(ModulesDto dto) {
+		if (null == dto) {
+			return;
+		}
+		if (isBasePathAndVersionRepeat(dto.getId(), dto.getBasePath(), dto.getApiVersion(), dto.getPrefix())) {
+			throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(dto.getBasePath(), dto.getApiVersion(), dto.getPrefix()));
+		}
+		boolean nameExists = nameExists(dto.getId(), dto.getName());
+		if (nameExists) {
+			throw new BizException("Modules.Name.Existed");
+		}
+		checkoutInputParamIsValid(dto);
 	}
 
 	protected String paths(String basePath, String version, String prefix) {
@@ -1606,7 +1622,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			throw new BizException("Modules.Name.Existed");
 		}
 		if (isBasePathAndVersionRepeat(modulesDto.getId(), modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
-			throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
+			throw new BizException(MODULES_BASE_PATH_AND_VERSION_EXISTED, paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 		}
 		checkoutInputParamIsValid(modulesDto);
 		modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
@@ -1837,14 +1853,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				// 根据导入模式处理
 				switch (importMode) {
 					case REPLACE,REUSE_EXISTING: {
-						// 基于 _id 查找现有模块，不使用 name 匹配，避免不同用户相同名称模块相互覆盖
-						if (modulesDto.getId() == null) {
-							throw new BizException("Modules.ImportMissingId", modulesDto.getName());
-						}
-						Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
-						idQuery.fields().include("_id", "user_id", "name", "status");
-						ModulesDto existingModuleById = findOne(idQuery, user);
-						handleReplaceMode(modulesDto, existingModuleById, user, conMap, importResult);
+						// 基于名称查找现有模块
+						ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
+						handleReplaceMode(modulesDto, existingModuleByName, user, conMap, importResult);
 						break;
 					}
 					case GROUP_IMPORT:
@@ -1855,14 +1866,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						handleImportAsCopyMode(modulesDto, user, conMap);
 						break;
 					case CANCEL_IMPORT: {
-						// 基于 _id 查找现有模块
-						ModulesDto existingModuleById = null;
-						if (modulesDto.getId() != null) {
-							Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
-							idQuery.fields().include("_id", "user_id", "name", "status");
-							existingModuleById = findOne(idQuery, user);
-						}
-						if (null != existingModuleById) {
+						ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
+						if (null != existingModuleByName) {
 							return importResult;
 						} else {
 							if (checkConnectionIdDuplicate(modulesDto, conMap)) {
@@ -1879,7 +1884,11 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						break;
 				}
 			}catch (Exception e){
-				importResult.put(modulesDto.getId().toHexString(), ExceptionUtils.getStackTrace(e));
+				if (null != modulesDto.getId()) {
+					importResult.put(modulesDto.getId().toHexString(), ExceptionUtils.getStackTrace(e));
+				}
+				// TAP-11891: 模块(API)导入同样 fail-fast，错误立即抛出，避免静默吞错导致部分导入却整体报成功
+				throw e;
 			}
 		}
 		return importResult;

@@ -424,7 +424,9 @@ public class ApiCallService {
         item.setBody(e.getBody());
         item.setApiPath(e.getApiPath());
         item.setCreateTime(e.getCreateTime());
-        item.setReqTime(new Date(e.getReqTime()));
+        // Some legacy and imported audit rows, such as old Node apiserver records, have no
+        // request time, so the null check stops one such row from breaking the whole page.
+        item.setReqTime(e.getReqTime() == null ? null : new Date(e.getReqTime()));
         item.setCreateAt(e.getApiCreateAt());
         item.setMethod(e.getMethod());
         item.setFailed(!e.isSucceed());

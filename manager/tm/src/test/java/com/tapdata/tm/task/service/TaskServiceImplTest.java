@@ -99,6 +99,7 @@ import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.task.vo.*;
+import com.tapdata.tm.taskrebalance.service.TaskRebalanceJobService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -204,6 +205,57 @@ class TaskServiceImplTest {
         ReflectionTestUtils.setField(taskService, "cpuMemoryService", cpuMemoryService);
         when(cpuMemoryService.hasOpenCpuMemory()).thenReturn(true);
         doNothing().when(cpuMemoryService).ignoreMeasureInfoIfNeed(any(), any());
+    }
+
+    @Nested
+    class TaskRebalanceGuardTest {
+        private TaskRebalanceJobService taskRebalanceJobService;
+
+        @BeforeEach
+        void beforeEach() {
+            taskRebalanceJobService = mock(TaskRebalanceJobService.class);
+            ReflectionTestUtils.setField(taskService, "taskRebalanceJobService", taskRebalanceJobService);
+        }
+
+        @Test
+        @DisplayName("task rebalance guard ignores null task id")
+        void ignoreNullTaskId() {
+            assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(taskService, "assertTaskNotRebalancing", null, user));
+
+            verify(taskRebalanceJobService, never()).hasBlockingActiveJob(anyString(), anyLong(), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("task rebalance guard bypasses rebalance operation")
+        void bypassRebalanceOperation() {
+            ObjectId taskId = new ObjectId();
+            when(taskRebalanceJobService.isCheckBypassed()).thenReturn(true);
+
+            assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(taskService, "assertTaskNotRebalancing", taskId, user));
+
+            verify(taskRebalanceJobService, never()).hasBlockingActiveJob(anyString(), anyLong(), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("task rebalance guard blocks unexpired stopping or starting job")
+        void blockUnexpiredStoppingOrStartingJob() {
+            ObjectId taskId = new ObjectId();
+            when(taskRebalanceJobService.hasBlockingActiveJob(eq(taskId.toHexString()), anyLong(), eq(user))).thenReturn(true);
+
+            BizException exception = assertThrows(BizException.class,
+                    () -> ReflectionTestUtils.invokeMethod(taskService, "assertTaskNotRebalancing", taskId, user));
+
+            assertEquals("task.rebalance.taskRebalancing", exception.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("task rebalance guard allows expired or non-blocking rebalance job")
+        void allowExpiredOrNonBlockingJob() {
+            ObjectId taskId = new ObjectId();
+            when(taskRebalanceJobService.hasBlockingActiveJob(eq(taskId.toHexString()), anyLong(), eq(user))).thenReturn(false);
+
+            assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(taskService, "assertTaskNotRebalancing", taskId, user));
+        }
     }
 
     @Nested
@@ -3433,9 +3485,6 @@ class TaskServiceImplTest {
             assertEquals(Boolean.TRUE, agentIdCriteria.get("$exists"));
             assertTrue(agentIdCriteria.containsKey("$ne"));
 
-            Document accessNodeTypeCriteria = (Document) query.get("accessNodeType");
-            assertEquals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeTypeCriteria.get("$ne"));
-
             Document update = updateCaptor.getValue().getUpdateObject();
             assertTrue(update.get("$unset", Document.class).containsKey(AGENT_ID));
             assertTrue(update.get("$set", Document.class).containsKey("last_updated"));
@@ -3753,7 +3802,7 @@ class TaskServiceImplTest {
         private StateMachineService stateMachineService;
         @BeforeEach
         void beforeEach(){
-            id = mock(ObjectId.class);
+            id = new ObjectId();
             dto = mock(TaskDto.class);
             when(taskService.checkExistById(id,user, "_id", "status", "name", "taskRecordId", "startTime", "scheduleDate")).thenReturn(dto);
             monitoringLogsService = mock(MonitoringLogsService.class);
@@ -3767,7 +3816,12 @@ class TaskServiceImplTest {
             when(dto.getStatus()).thenReturn("running");
             doCallRealMethod().when(taskService).running(id,user);
             String actual = taskService.running(id, user);
-            assertEquals(null,actual);
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(taskService, times(1)).update(any(Query.class), updateCaptor.capture(), eq(user));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals(TaskDto.RETRY_STATUS_NONE, set.get(TaskServiceImpl.FUNCTION_RETRY_STATUS));
+            assertEquals(0, set.get(TaskServiceImpl.TASK_RETRY_START_TIME));
+            assertEquals(id.toHexString(),actual);
         }
         @Test
         @DisplayName("test running method when state machine result is fail")
@@ -3789,6 +3843,11 @@ class TaskServiceImplTest {
             when(stateMachineService.executeAboutTask(dto, DataFlowEvent.RUNNING, user)).thenReturn(stateMachineResult);
             doCallRealMethod().when(taskService).running(id,user);
             String actual = taskService.running(id, user);
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(taskService, times(1)).update(any(Query.class), updateCaptor.capture(), eq(user));
+            Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+            assertEquals(TaskDto.RETRY_STATUS_NONE, set.get(TaskServiceImpl.FUNCTION_RETRY_STATUS));
+            assertEquals(0, set.get(TaskServiceImpl.TASK_RETRY_START_TIME));
             assertEquals(id.toHexString(),actual);
         }
     }
@@ -3917,6 +3976,52 @@ class TaskServiceImplTest {
             assertEquals(id.toHexString(),actual);
         }
     }
+
+    @Nested
+    class TaskStatusReporterValidationTest {
+        private ObjectId id;
+        private TaskDto dto;
+        private StateMachineService stateMachineService;
+
+        @BeforeEach
+        void beforeEach() {
+            id = mock(ObjectId.class);
+            dto = mock(TaskDto.class);
+            when(dto.getId()).thenReturn(id);
+            when(dto.getName()).thenReturn("rebalance-task");
+            stateMachineService = mock(StateMachineService.class);
+            ReflectionTestUtils.setField(taskService, "stateMachineService", stateMachineService);
+        }
+
+        @Test
+        @DisplayName("ignore running report from stale agent")
+        void ignoreRunningReportFromStaleAgent() {
+            when(taskService.checkExistById(id, user, "_id", "status", "name", "taskRecordId", "agentId", "startTime", "scheduleDate")).thenReturn(dto);
+            when(dto.getAgentId()).thenReturn("fe2");
+            when(dto.getTaskRecordId()).thenReturn("record-1");
+            doCallRealMethod().when(taskService).running(id, user, "fe1", "record-1");
+
+            String actual = taskService.running(id, user, "fe1", "record-1");
+
+            assertNull(actual);
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), any(DataFlowEvent.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("ignore stopped report from stale task record")
+        void ignoreStoppedReportFromStaleTaskRecord() {
+            when(taskService.checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId", "stopedDate", "restartFlag")).thenReturn(dto);
+            when(dto.getAgentId()).thenReturn("fe2");
+            when(dto.getTaskRecordId()).thenReturn("record-2");
+            doCallRealMethod().when(taskService).stopped(id, user, "fe2", "record-1");
+
+            String actual = taskService.stopped(id, user, "fe2", "record-1");
+
+            assertNull(actual);
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), any(DataFlowEvent.class), any(UserDetail.class));
+        }
+    }
+
     @Nested
     class RunTimeInfoTest{
         private ObjectId id;

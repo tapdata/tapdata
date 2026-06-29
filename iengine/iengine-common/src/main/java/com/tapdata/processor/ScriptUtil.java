@@ -35,7 +35,9 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
+import org.graalvm.polyglot.EnvironmentAccess;
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.PolyglotAccess;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -78,6 +80,64 @@ public class ScriptUtil {
 
 	public static final String SCRIPT_FACTORY_TYPE = "tapdata";
 
+	public static final HostAccess SANDBOX_HOST_ACCESS = HostAccess.newBuilder()
+			.allowPublicAccess(true)
+			.allowMapAccess(true)
+			.allowListAccess(true)
+			.allowArrayAccess(true)
+			.allowIterableAccess(true)
+			.allowIteratorAccess(true)
+			.denyAccess(Class.class)
+			.denyAccess(ClassLoader.class, true)
+			.denyAccess(File.class, true)
+			.denyAccess(ProcessBuilder.class, true)
+			.denyAccess(Runtime.class, true)
+			.denyAccess(System.class)
+			.targetTypeMapping(Value.class, Object.class,
+					v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class))
+			.build();
+
+	public static final Set<String> ALLOWED_HOST_CLASSES = new HashSet<>(Arrays.asList(
+			"java.util.HashMap",
+			"java.util.LinkedHashMap",
+			"java.util.ArrayList",
+			"java.util.Collections",
+			"java.lang.Thread",
+			"com.tapdata.constant.DateUtil",
+			"com.tapdata.constant.UUIDGenerator",
+			"com.tapdata.constant.JSONUtil",
+			"com.tapdata.constant.HanLPUtil",
+			"com.tapdata.constant.MD5Util",
+			"com.tapdata.constant.MapUtil",
+			"com.tapdata.processor.util.Util",
+			"io.tapdata.entity.schema.value.DateTime",
+			"com.tapdata.constant.NetworkUtil",
+			"com.tapdata.processor.util.CustomRest",
+			"com.tapdata.http.HttpUtil",
+			"com.tapdata.processor.util.CustomTcp",
+			"com.tapdata.processor.util.CustomMongodb"
+	));
+
+	private static final Set<String> DENIED_HOST_CLASSES = new HashSet<>(Arrays.asList(
+			"java.lang.Class",
+			"java.lang.ClassLoader",
+			"java.lang.ProcessBuilder",
+			"java.lang.Runtime",
+			"java.lang.System",
+			"java.io.File"
+	));
+
+	private static final List<String> DENIED_HOST_CLASS_PREFIXES = Arrays.asList(
+			"java.",
+			"javax.",
+			"jdk.",
+			"sun.",
+			"com.sun.",
+			"com.oracle.truffle.",
+			"org.graalvm.",
+			"javax.script."
+	);
+
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
 		return getScriptEngine(jsEngineName,
 				new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO),
@@ -90,10 +150,28 @@ public class ScriptUtil {
 	 * @param jsEngineName
 	 * @return
 	 */
-	private static ScriptEngine getScriptEngine(String jsEngineName, OutputStream out, OutputStream err) {
+	public static ScriptEngine getScriptEngine(String jsEngineName, OutputStream out, OutputStream err) {
+		return getScriptEngine(jsEngineName, out, err, null);
+	}
+
+	public static ScriptEngine getScriptEngine(String jsEngineName, OutputStream out, OutputStream err, ClassLoader externalClassLoader) {
 		JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
 		ScriptEngine scriptEngine;
 		if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
+			Context.Builder contextBuilder = Context.newBuilder("js")
+					.allowAllAccess(false)
+					.allowHostAccess(SANDBOX_HOST_ACCESS)
+					.allowHostClassLookup(className -> isAllowedHostClass(className, externalClassLoader))
+					.hostClassFilter(className -> isAllowedHostClass(className, externalClassLoader))
+					.allowNativeAccess(false)
+					.allowCreateProcess(false)
+					.allowEnvironmentAccess(EnvironmentAccess.NONE)
+					.allowPolyglotAccess(PolyglotAccess.NONE)
+					.out(out)
+					.err(err);
+			if (externalClassLoader != null) {
+				contextBuilder.hostClassLoader(externalClassLoader);
+			}
 			scriptEngine = GraalJSScriptEngine
 					.create(Engine.newBuilder()
 									.allowExperimentalOptions(true)
@@ -101,13 +179,7 @@ public class ScriptUtil {
 									.out(out)
 									.err(err)
 									.build(),
-							Context.newBuilder("js")
-									.allowAllAccess(true)
-									.allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
-											.targetTypeMapping(Value.class, Object.class,
-													v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class)).build())
-									.out(out)
-									.err(err)
+							contextBuilder
 					);
 			SimpleScriptContext scriptContext = new SimpleScriptContext();
 			scriptContext.setWriter(new OutputStreamWriter(out));
@@ -117,6 +189,41 @@ public class ScriptUtil {
 			scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 		}
 		return scriptEngine;
+	}
+
+	public static boolean isAllowedHostClass(String className) {
+		return isAllowedHostClass(className, null);
+	}
+
+	public static boolean isAllowedHostClass(String className, ClassLoader externalClassLoader) {
+		if (ALLOWED_HOST_CLASSES.contains(className)) {
+			return true;
+		}
+		if (isDeniedHostClass(className) || externalClassLoader == null) {
+			return false;
+		}
+		return isLoadedByExternalClassLoader(className, externalClassLoader);
+	}
+
+	private static boolean isDeniedHostClass(String className) {
+		if (DENIED_HOST_CLASSES.contains(className)) {
+			return true;
+		}
+		for (String prefix : DENIED_HOST_CLASS_PREFIXES) {
+			if (className.startsWith(prefix)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isLoadedByExternalClassLoader(String className, ClassLoader externalClassLoader) {
+		try {
+			Class<?> hostClass = Class.forName(className, false, externalClassLoader);
+			return hostClass.getClassLoader() == externalClassLoader;
+		} catch (ClassNotFoundException | LinkageError e) {
+			return false;
+		}
 	}
 
 	public static Invocable getScriptEngine(String script,
@@ -169,7 +276,6 @@ public class ScriptUtil {
 		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
 		try(LoggingOutputStream info = new LoggingOutputStream(logger, Level.INFO);
 			LoggingOutputStream error = new LoggingOutputStream(logger, Level.ERROR)) {
-			ScriptEngine e = getScriptEngine(jsEngineName, info,error);
 			final ClassLoader[] externalClassLoader = new ClassLoader[1];
 			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader, standard);
 			if (externalClassLoader[0] != null) {
@@ -178,6 +284,7 @@ public class ScriptUtil {
 			if (Thread.currentThread().getContextClassLoader() == null) {
 				Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
 			}
+			ScriptEngine e = getScriptEngine(jsEngineName, info, error, externalClassLoader[0]);
 			String scripts = script + System.lineSeparator() + buildInMethod;
 			e.eval(scripts);
 			if (source != null) {

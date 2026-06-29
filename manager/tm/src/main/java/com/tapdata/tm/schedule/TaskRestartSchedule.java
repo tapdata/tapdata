@@ -19,10 +19,8 @@ import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-import org.apache.commons.lang3.StringUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -38,6 +36,9 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -113,12 +114,14 @@ public class TaskRestartSchedule {
             UserDetail user = userDetailMap.get(taskDto.getUserId());
             if (null == user || restartInCloud(isCloud, taskDto, user)) continue;
 
-            // Skip OVERTIME if the task's current agent is still alive — a stale task.pingTime
-            // alone is not enough evidence that the engine is dead. Without this guard, a brief
-            // ping update glitch (GC pause, MongoDB write delay, network blip) on a healthy
-            // engine causes its tasks to be wrongly rescheduled.
-            if (isAgentAlive(taskDto.getAgentId(), user)) {
-                logSkipReschedule("engineRestartNeedStartTask", taskDto, "task_ping_stale_but_worker_alive");
+            // The criteria already selected this RUNNING task because its task.pingTime is stale.
+            // Re-confirm with a fresh read before demoting it: the engine refreshes task.pingTime
+            // only for tasks it is actually executing, so a fresh pingTime here means the engine
+            // is genuinely running it (the batch list was momentarily behind) and it must be left
+            // alone. A bare "worker process alive" signal is NOT proof the task is running, and is
+            // also unreliable on single-node DAAS (user-scoped worker lookup / blank agentId).
+            if (isTaskActiveOnAgent(taskDto, heartExpire)) {
+                logSkipReschedule("engineRestartNeedStartTask", taskDto, "running_and_agent_pinging");
                 continue;
             }
 
@@ -134,22 +137,22 @@ public class TaskRestartSchedule {
     }
 
     /**
-     * Returns true iff the given agent is still alive (worker.ping_time within
-     * WORKER_HEART_OVERTIME). Used by TM-side reschedule paths to suppress false-positive
-     * OVERTIME events caused by transient task.pingTime staleness on otherwise healthy
-     * engines. Reads worker.ping_time from MongoDB once per call (cheap; drill scenarios
-     * have ≤ a few hundred running tasks).
+     * Returns true iff the engine is actually executing the task right now — i.e. its
+     * task-level heartbeat ({@code task.pingTime}) has been refreshed within {@code heartExpire}.
+     * {@code TaskPingTimeMonitor} pings {@code pingTime} every 5s ONLY for tasks the engine is
+     * running, so a fresh {@code pingTime} is direct evidence the assigned engine holds the task —
+     * unlike "worker process alive", which says nothing about whether this particular task is
+     * being executed (a stuck task shows no thread on the engine). Queried in MongoDB because
+     * {@code pingTime} is persisted as an epoch-millis {@code long}; reading the {@code Date}
+     * entity getter would mis-map it.
      */
-    private boolean isAgentAlive(String agentId, UserDetail user) {
-        if (StringUtils.isBlank(agentId)) return false;
-        try {
-            WorkerDto worker = workerService.findByProcessId(agentId, user, "process_id", "ping_time");
-            if (worker == null || worker.getPingTime() == null) return false;
-            return !workerService.isAgentTimeout(worker.getPingTime());
-        } catch (Exception e) {
-            log.warn("isAgentAlive lookup failed for agentId={}, treating as dead: {}", agentId, e.getMessage());
+    private boolean isTaskActiveOnAgent(TaskDto taskDto, long heartExpire) {
+        if (Objects.isNull(taskDto) || Objects.isNull(taskDto.getId())) {
             return false;
         }
+        Query query = Query.query(Criteria.where("_id").is(taskDto.getId())
+                .and(TaskDto.PING_TIME_FIELD).gte(System.currentTimeMillis() - heartExpire));
+        return taskService.count(query) > 0;
     }
 
     private final AtomicLong lastSkipWarnAt = new AtomicLong(0L);
@@ -258,6 +261,7 @@ public class TaskRestartSchedule {
 
     public void schedulingTask() {
         long timeout = 30000L;
+        long heartExpire = getHeartExpire();
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING)
             .and("schedulingTime").lt(new Date(System.currentTimeMillis() - timeout));
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
@@ -271,19 +275,19 @@ public class TaskRestartSchedule {
             String agentId = taskDto.getAgentId();
             UserDetail user = userMap.get(taskDto.getUserId());
             if (Objects.isNull(user)
-                || isCloud() && skipCloudEngineOffline(agentId, user)) {
+                || (isCloud() && skipCloudEngineOffline(agentId, user))) {
                 continue;
             }
 
-            // Same guard as engineRestartNeedStartTask: a stuck-in-SCHEDULING task whose
-            // current agent is still alive should not trigger OVERTIME — let the existing
-            // start flow finish.
-            if (!isCloud() && isAgentAlive(agentId, user)) {
-                logSkipReschedule("schedulingTask", taskDto, "stuck_in_scheduling_but_worker_alive");
+            if (!isCloud()) {
+                // Non-cloud: re-dispatch unless the assigned engine is actually executing this task
+                // (fresh task.pingTime). A live worker *process* is NOT proof the task is running
+                // (a stuck task shows no thread on the engine). Shared with the engine-online trigger.
+                reDispatchIfIdle(taskDto, user, heartExpire, "schedulingTask");
                 continue;
             }
 
-            long heartExpire = getHeartExpire();
+            // Cloud: preserve the existing timeout-based behavior.
             if (Objects.nonNull(taskDto.getSchedulingTime()) && (
                 System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
                 asyncTaskWarnLog(taskDto, user, "The engine[{0}] takes over the task with a timeout of {1}ms."
@@ -292,8 +296,109 @@ public class TaskRestartSchedule {
                 stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             } else {
                 transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                taskScheduleService.scheduling(taskDto, user,true);
+                taskScheduleService.scheduling(taskDto, user, true);
             }
+        }
+    }
+
+    /**
+     * Immediately re-dispatch the tasks parked in SCHEDULING that belong to {@code agentId}
+     * (or are unassigned), so a just-restarted engine takes them over without waiting for the
+     * periodic poll. Returns the number of idle parked tasks it (re)dispatched.
+     */
+    public int reDispatchSchedulingTasksOf(String agentId) {
+        if (agentId == null || agentId.trim().isEmpty()) {
+            return 0;
+        }
+        long heartExpire = getHeartExpire();
+        // Parked tasks the restarted engine should reclaim: still SCHEDULING and either assigned to
+        // this agent (manually-pinned tasks keep agentId) or unassigned (automatic tasks get agentId
+        // cleared when the stop-time scheduling() found no live worker — see cloudTaskLimitNum).
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where("status").is(TaskDto.STATUS_SCHEDULING),
+                new Criteria().orOperator(
+                        Criteria.where("agentId").is(agentId),
+                        Criteria.where("agentId").in(null, "")
+                )
+        );
+        List<TaskDto> all = taskService.findAll(Query.query(criteria));
+        if (CollectionUtils.isEmpty(all)) {
+            return 0;
+        }
+        Map<String, UserDetail> userMap = getUserDetailMap(all);
+        int redispatched = 0;
+        for (TaskDto taskDto : all) {
+            UserDetail user = userMap.get(taskDto.getUserId());
+            if (Objects.isNull(user)) {
+                continue;
+            }
+            if (reDispatchIfIdle(taskDto, user, heartExpire, "engineOnline")) {
+                redispatched++;
+            }
+        }
+        return redispatched;
+    }
+
+    /**
+     * Re-dispatch a single SCHEDULING task unless the assigned engine is actually executing it
+     * (fresh task.pingTime). Returns true iff it was (re)dispatched. Shared by schedulingTask()
+     * and the engine-online trigger so the "is the engine running it?" decision lives in one place.
+     */
+    private boolean reDispatchIfIdle(TaskDto taskDto, UserDetail user, long heartExpire, String scheduler) {
+        if (isTaskActiveOnAgent(taskDto, heartExpire)) {
+            logSkipReschedule(scheduler, taskDto, "scheduling_but_agent_running_task");
+            return false;
+        }
+        // scheduling() re-selects an agent and moves SCHEDULING->WAIT_RUN; if none is available it
+        // keeps the task in SCHEDULING for the next round. Guarded so one failure can't abort a scan.
+        FunctionUtils.ignoreAnyError(() -> {
+            transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
+            taskScheduleService.scheduling(taskDto, user, true);
+        });
+        return true;
+    }
+
+    private static final int ENGINE_ONLINE_MAX_ATTEMPTS = 6;
+    private static final long ENGINE_ONLINE_RETRY_DELAY_MS = 2000L;
+    private final ScheduledExecutorService engineOnlineExecutor =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "engine-online-redispatch");
+                t.setDaemon(true);
+                return t;
+            });
+
+    /**
+     * Fired when an engine (re)connects (TM WebSocketServer.afterConnectionEstablished): immediately
+     * re-dispatch its parked SCHEDULING tasks so a just-restarted engine takes them over without
+     * waiting for the 30s poll. Runs off the caller's thread with a few bounded retries, because the
+     * WS reconnect can land before the restarted worker's first heartbeat refreshes ping_time (so
+     * cloudTaskLimitNum can select it). The 30s schedulingTask poll remains the guaranteed backstop.
+     */
+    public void onEngineOnlineAsync(String agentId) {
+        if (agentId == null || agentId.trim().isEmpty() || isCloud()) {
+            return;
+        }
+        scheduleEngineOnlineAttempt(agentId, 0);
+    }
+
+    private void scheduleEngineOnlineAttempt(String agentId, int attempt) {
+        long delay = attempt == 0 ? 0L : ENGINE_ONLINE_RETRY_DELAY_MS;
+        try {
+            engineOnlineExecutor.schedule(() -> {
+                int redispatched = 0;
+                try {
+                    redispatched = reDispatchSchedulingTasksOf(agentId);
+                } catch (Throwable t) {
+                    log.warn("TaskHA event=engine_online_redispatch_failed agentId={} attempt={} err={}", agentId, attempt, t.getMessage());
+                }
+                // Keep retrying while idle parked tasks remain (the worker may not be selectable yet);
+                // stop once none remain or attempts are exhausted (30s poll is the final backstop).
+                if (redispatched > 0 && attempt + 1 < ENGINE_ONLINE_MAX_ATTEMPTS) {
+                    scheduleEngineOnlineAttempt(agentId, attempt + 1);
+                }
+            }, delay, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            log.warn("TaskHA event=engine_online_schedule_failed agentId={} err={}", agentId, e.getMessage());
         }
     }
 

@@ -761,13 +761,15 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "子任务已经成功运行回调接口")
     @PostMapping("running/{id}")
-    public ResponseMessage<TaskOpResp> running(@PathVariable("id") String id) {
-        log.info("subTask running status report by http, id = {}", id);
+    public ResponseMessage<TaskOpResp> running(@PathVariable("id") String id,
+                                               @RequestParam(value = "agentId", required = false) String agentId,
+                                               @RequestParam(value = "taskRecordId", required = false) String taskRecordId) {
+        log.info("subTask running status report by http, id = {}, agentId = {}, taskRecordId = {}", id, agentId, taskRecordId);
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
         Assert.notNull(taskDto, "task is empty");
         UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
 
-        String successId = taskService.running(MongoUtils.toObjectId(id), userDetail);
+        String successId = taskService.running(MongoUtils.toObjectId(id), userDetail, agentId, taskRecordId);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isNotBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -783,13 +785,15 @@ public class TaskController extends BaseController {
     @Operation(summary = "任务运行失败回调接口")
     @PostMapping("runError/{id}")
     public ResponseMessage<TaskOpResp> runError(@PathVariable("id") String id, @RequestParam(value = "errMsg", required = false) String errMsg,
-                                                @RequestParam(value = "errStack", required = false) String errStack) {
-        log.info("subTask error status report by http, id = {}", id);
+                                                @RequestParam(value = "errStack", required = false) String errStack,
+                                                @RequestParam(value = "agentId", required = false) String agentId,
+                                                @RequestParam(value = "taskRecordId", required = false) String taskRecordId) {
+        log.info("subTask error status report by http, id = {}, agentId = {}, taskRecordId = {}", id, agentId, taskRecordId);
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
         Assert.notNull(taskDto, "task is empty");
         UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
 
-        String successId = taskService.runError(MongoUtils.toObjectId(id), userDetail, errMsg, errStack);
+        String successId = taskService.runError(MongoUtils.toObjectId(id), userDetail, errMsg, errStack, agentId, taskRecordId);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isNotBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -805,13 +809,15 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "任务执行完成回调接口")
     @PostMapping("complete/{id}")
-    public ResponseMessage<TaskOpResp> complete(@PathVariable("id") String id) {
-        log.info("subTask complete status report by http, id = {}", id);
+    public ResponseMessage<TaskOpResp> complete(@PathVariable("id") String id,
+                                                @RequestParam(value = "agentId", required = false) String agentId,
+                                                @RequestParam(value = "taskRecordId", required = false) String taskRecordId) {
+        log.info("subTask complete status report by http, id = {}, agentId = {}, taskRecordId = {}", id, agentId, taskRecordId);
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
         Assert.notNull(taskDto, "task is empty");
         UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
 
-        String successId = taskService.complete(MongoUtils.toObjectId(id), userDetail);
+        String successId = taskService.complete(MongoUtils.toObjectId(id), userDetail, agentId, taskRecordId);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isNotBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -827,13 +833,15 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "停止成功回调接口")
     @PostMapping("stopped/{id}")
-    public ResponseMessage<TaskOpResp> stopped(@PathVariable("id") String id) {
-        log.info("subTask stopped status report by http, id = {}", id);
+    public ResponseMessage<TaskOpResp> stopped(@PathVariable("id") String id,
+                                               @RequestParam(value = "agentId", required = false) String agentId,
+                                               @RequestParam(value = "taskRecordId", required = false) String taskRecordId) {
+        log.info("subTask stopped status report by http, id = {}, agentId = {}, taskRecordId = {}", id, agentId, taskRecordId);
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
         Assert.notNull(taskDto, "task is empty");
         UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
 
-        String successId = taskService.stopped(MongoUtils.toObjectId(id), userDetail);
+        String successId = taskService.stopped(MongoUtils.toObjectId(id), userDetail, agentId, taskRecordId);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isNotBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);

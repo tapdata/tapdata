@@ -40,7 +40,17 @@ spring:
     async:
       request-timeout: 30000
   jackson:
+    # Keep Jackson 2 behavior under Spring Boot 4 (stop-gap; full Jackson 3 migration deferred)
+    use-jackson2-defaults: true
     default-property-inclusion: non_null
+  jackson2:
+    default-property-inclusion: non_null
+  http:
+    converters:
+      # springdoc v3 puts Jackson 3 (tools.jackson) on the classpath; without this, Boot 4 picks the
+      # Jackson 3 HTTP converter for @RequestBody/@ResponseBody and changes deserialization behavior.
+      # Force the web layer to Jackson 2 so app DTO (de)serialization matches Spring Boot 3.5.
+      preferred-json-mapper: jackson2
 
   codec:
     max-in-memory-size: 10MB

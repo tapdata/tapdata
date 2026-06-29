@@ -12,7 +12,6 @@ import java.util.Collections;
 import java.util.Optional;
 
 import static com.tapdata.tm.mcp.McpConfig.USER_ID;
-import static com.tapdata.tm.mcp.Utils.getSession;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 /**
@@ -44,7 +43,7 @@ public abstract class Resource {
         this.userService = userService;
     }
     public String getUserId(McpSyncServerExchange exchange) {
-        String sessionId = getSession(exchange).getId();
+        String sessionId = exchange.sessionId();
         return getUserId(sessionId);
     }
     public String getUserId(String sessionId) {

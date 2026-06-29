@@ -14,11 +14,16 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.GenericBeanDefinition;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.util.concurrent.ListenableFuture;
+import java.util.concurrent.CompletableFuture;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import com.tapdata.constant.BeanUtil;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 
 import java.net.URI;
 import java.util.*;
@@ -126,7 +131,7 @@ class ManagementWebsocketHandlerTest {
                 mockedStatic.when(()->WorkerSingletonLock.addTag2WsUrl(anyString())).thenReturn("ws://test:8080/ws/agent?agentId=test&access_token=test");
                 versionMockedStatic.when(Version::get).thenReturn("test");
                 managementWebsocketHandlerTest.connect("http://test:8080/api/");
-                ListenableFuture<WebSocketSession> listenableFuture = (ListenableFuture<WebSocketSession>) ReflectionTestUtils.getField(managementWebsocketHandlerTest,"listenableFuture");
+                CompletableFuture<WebSocketSession> listenableFuture = (CompletableFuture<WebSocketSession>) ReflectionTestUtils.getField(managementWebsocketHandlerTest,"listenableFuture");
                 Assertions.assertNotNull(listenableFuture);
             }
         }
@@ -142,14 +147,14 @@ class ManagementWebsocketHandlerTest {
 
         @Test
         void SessionOptionTest_Interrupt_Exception() throws Exception {
-            ListenableFuture mockListenableFuture = mock(ListenableFuture.class);
+            CompletableFuture mockListenableFuture = mock(CompletableFuture.class);
             ReflectionTestUtils.setField(managementWebsocketHandlerTest, "listenableFuture", mockListenableFuture);
             // After Fix 2 (handshake timeout), production code calls get(long, TimeUnit) — mock both forms
             // so existing semantics are preserved.
             doThrow(new InterruptedException()).when(mockListenableFuture).get();
             doThrow(new InterruptedException()).when(mockListenableFuture).get(anyLong(), any(TimeUnit.class));
             StandardWebSocketClient mockClient = mock(StandardWebSocketClient.class);
-            when(mockClient.doHandshake(any(), any(), any(URI.class))).thenReturn(mockListenableFuture);
+            when(mockClient.execute(any(), any(), any(URI.class))).thenReturn(mockListenableFuture);
             Logger mockLogger = mock(Logger.class);
             ReflectionTestUtils.setField(managementWebsocketHandlerTest, "logger", mockLogger);
 
@@ -395,6 +400,46 @@ class ManagementWebsocketHandlerTest {
             // (just the for-loop overhead).
             Assertions.assertTrue(elapsed < 1500L,
                 "Multi-URL must NOT apply nginx grace sleep; observed " + elapsed + "ms");
+        }
+    }
+
+    /**
+     * Regression test for the ApplicationReadyEvent timing bug: the @EventListener fires INSIDE
+     * SpringApplication.run() — before Application.main assigns BeanUtil.configurableApplicationContext
+     * (which only happens after run() returns). So the listener must resolve TapdataTaskScheduler from
+     * the event's own (already fully-refreshed) context, not from BeanUtil.getBean(...).
+     */
+    @Nested
+    class StartHttpFallbackTest {
+        @Test
+        void resolvesSchedulerFromEventContextAndStartsFallback() {
+            ManagementWebsocketHandler handler = new ManagementWebsocketHandler();
+            ReflectionTestUtils.setField(handler, "logger", mock(Logger.class));
+            TapdataTaskScheduler scheduler = mock(TapdataTaskScheduler.class);
+            ConfigurableApplicationContext ctx = mock(ConfigurableApplicationContext.class);
+            when(ctx.getBean(TapdataTaskScheduler.class)).thenReturn(scheduler);
+            ApplicationReadyEvent event = mock(ApplicationReadyEvent.class);
+            when(event.getApplicationContext()).thenReturn(ctx);
+            // Simulate engine boot state: BeanUtil context not yet assigned (set after run() returns).
+            BeanUtil.configurableApplicationContext = null;
+
+            handler.startHttpFallbackBeforeWsReady(event);
+
+            verify(scheduler).startScheduleTask(TapdataTaskScheduler.SCHEDULE_START_TASK_NAME);
+            verify(scheduler).startScheduleTask(TapdataTaskScheduler.SCHEDULE_STOP_TASK_NAME);
+        }
+
+        @Test
+        void doesNotThrowWhenSchedulerBeanMissing() {
+            ManagementWebsocketHandler handler = new ManagementWebsocketHandler();
+            ReflectionTestUtils.setField(handler, "logger", mock(Logger.class));
+            ConfigurableApplicationContext ctx = mock(ConfigurableApplicationContext.class);
+            when(ctx.getBean(TapdataTaskScheduler.class))
+                .thenThrow(new NoSuchBeanDefinitionException(TapdataTaskScheduler.class));
+            ApplicationReadyEvent event = mock(ApplicationReadyEvent.class);
+            when(event.getApplicationContext()).thenReturn(ctx);
+
+            Assertions.assertDoesNotThrow(() -> handler.startHttpFallbackBeforeWsReady(event));
         }
     }
 

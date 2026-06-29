@@ -14,7 +14,6 @@ import java.util.Optional;
 
 import static com.tapdata.tm.mcp.McpConfig.TOKEN;
 import static com.tapdata.tm.mcp.McpConfig.USER_ID;
-import static com.tapdata.tm.mcp.Utils.getSession;
 import static com.tapdata.tm.mcp.Utils.toJson;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
@@ -45,7 +44,7 @@ public abstract class Tool {
 
     public String getUserId(McpSyncServerExchange exchange) {
 
-        String sessionId = getSession(exchange).getId();
+        String sessionId = exchange.sessionId();
         return getUserId(sessionId);
     }
     public String getUserId(String sessionId) {
@@ -55,7 +54,7 @@ public abstract class Tool {
         return Optional.ofNullable(sessionAttribute.getAttribute(sessionId, USER_ID)).map(Object::toString).orElse(null);
     }
     public String getAccessToken(McpSyncServerExchange exchange) {
-        String sessionId = getSession(exchange).getId();
+        String sessionId = exchange.sessionId();
         return Optional.ofNullable(sessionAttribute.getAttribute(sessionId, TOKEN)).map(Object::toString).orElse(null);
     }
 
@@ -73,8 +72,8 @@ public abstract class Tool {
 
     protected McpSchema.CallToolResult makeCallToolResult(Object data) {
         String result = data instanceof String ? data.toString() : toJson(data);
-        McpSchema.TextContent context = new McpSchema.TextContent(null, null, result);
-        return new McpSchema.CallToolResult(Collections.singletonList(context), false);
+        McpSchema.TextContent context = new McpSchema.TextContent(null, result, null);
+        return new McpSchema.CallToolResult(Collections.singletonList(context), false, null, null);
     }
 
     public abstract McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params);

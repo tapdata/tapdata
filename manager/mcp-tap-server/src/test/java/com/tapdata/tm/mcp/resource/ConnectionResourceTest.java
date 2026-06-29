@@ -11,7 +11,6 @@ import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.user.service.UserService;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpServerSession;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,7 +56,9 @@ class ConnectionResourceTest {
     @Test
     void testCallWithValidConnectionId() {
         // 准备测试数据
+        String sessionId = "test-session-id";
         String connectionId = "507f1f77bcf86cd799439011";
+        String userId = "507f1f77bcf86cd799439013";
         UserDetail mockUserDetail = mock(UserDetail.class);
         DataSourceEntity mockDataSource = new DataSourceEntity();
         mockDataSource.setId(new ObjectId(connectionId));
@@ -65,14 +66,13 @@ class ConnectionResourceTest {
         mockDataSource.setDatabase_type("mongodb");
         mockDataSource.setStatus(DataSourceEntity.STATUS_READY);
 
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             ms.when(() -> Utils.readConnection(any())).thenReturn(createMockConnectionData(connectionId));
             ms.when(() -> Utils.toJson(any())).thenReturn("{}");
 
-            when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
+            when(exchange.sessionId()).thenReturn(sessionId);
+            when(sessionAttribute.getAttribute(sessionId, "userId")).thenReturn(userId);
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             when(dataSourceService.findAll(any(Query.class), eq(mockUserDetail)))
                     .thenReturn(Collections.singletonList(mockDataSource));
@@ -105,13 +105,11 @@ class ConnectionResourceTest {
         mockSchema.setTables(Collections.singletonList(mockTable));
         mockConnection.setSchema(mockSchema);
 
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            when(mockSession.getId()).thenReturn(sessionId);
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             ms.when(() -> Utils.toJson(any())).thenReturn("{}");
 
+            when(exchange.sessionId()).thenReturn(sessionId);
             when(sessionAttribute.getAttribute(sessionId, "userId")).thenReturn(userId);
             when(userService.loadUserById(new ObjectId(userId))).thenReturn(mockUserDetail);
             when(dataSourceService.getById(any(), any(), eq(false), eq(mockUserDetail)))
@@ -132,13 +130,14 @@ class ConnectionResourceTest {
     @Test
     void testCallWithInvalidUri() {
         // 准备测试数据
+        String sessionId = "test-session-id";
+        String userId = "507f1f77bcf86cd799439013";
         UserDetail mockUserDetail = mock(UserDetail.class);
 
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
-            when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
+            when(exchange.sessionId()).thenReturn(sessionId);
+            when(sessionAttribute.getAttribute(sessionId, "userId")).thenReturn(userId);
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
 
             // 执行测试
@@ -156,7 +155,7 @@ class ConnectionResourceTest {
         // 准备测试数据
         String sessionId = "test-session-id";
         String connectionId = "507f1f77bcf86cd799439011";
-        String dataSchemaId = "nonobjectid";
+        String dataSchemaId = "507f1f77bcf86cd799439014";
         String userId = "507f1f77bcf86cd799439013";
         UserDetail mockUserDetail = mock(UserDetail.class);
         
@@ -165,13 +164,13 @@ class ConnectionResourceTest {
         mockSchema.setTables(Collections.emptyList());
         mockConnection.setSchema(mockSchema);
 
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            when(mockSession.getId()).thenReturn(sessionId);
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
+            when(exchange.sessionId()).thenReturn(sessionId);
             when(sessionAttribute.getAttribute(sessionId, "userId")).thenReturn(userId);
             when(userService.loadUserById(new ObjectId(userId))).thenReturn(mockUserDetail);
+            when(dataSourceService.getById(any(), any(), eq(false), eq(mockUserDetail)))
+                    .thenReturn(mockConnection);
 
             // 执行测试
             McpSchema.ReadResourceResult result = connectionResource.call(exchange,
@@ -194,4 +193,4 @@ class ConnectionResourceTest {
         data.put("tags", Arrays.asList("tag1", "tag2"));
         return data;
     }
-} 
+}

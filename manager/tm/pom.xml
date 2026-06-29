@@ -262,23 +262,34 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
+		<!-- Spring Boot 4 split ES auto-config into separate modules. The starter brings
+		     spring-boot-elasticsearch + spring-boot-data-elasticsearch (auto-config) +
+		     spring-data-elasticsearch + the rest5 client, restoring the auto-configured
+		     ElasticsearchTemplate bean (Boot 3 had this in the monolithic autoconfigure jar). -->
 		<dependency>
-			<groupId>org.springframework.data</groupId>
-			<artifactId>spring-data-elasticsearch</artifactId>
-			<version>5.4.2</version>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-elasticsearch</artifactId>
 		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+		<!-- Keep Jackson 2 as the JSON mapper under Spring Boot 4 (stop-gap; full Jackson 3 migration deferred).
+		     App code keeps importing com.fasterxml.jackson.*; paired with spring.jackson.use-jackson2-defaults=true. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-jackson2</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-thymeleaf</artifactId>
 		</dependency>
+		<!-- Spring Boot 4 removed spring-boot-starter-aop; @AspectJ proxy AOP needs aspectjweaver
+		     (spring-aop is already present transitively via spring-context). -->
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-aop</artifactId>
+			<groupId>org.aspectj</groupId>
+			<artifactId>aspectjweaver</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework</groupId>
@@ -339,12 +350,12 @@
 			<version>0.1.55</version>
 		</dependency>
 
-        <!-- Springdoc OpenAPI for Spring Boot 3.x -->
-        <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.7.0</version>
-        </dependency>
+		<!-- Spring Boot 4 compatible springdoc (replaces the v1/javax-era artifacts) -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.0.3</version>
+		</dependency>
 
         <!-- Swagger Parser for OpenAPI Generator -->
         <dependency>
@@ -416,7 +427,7 @@
 		<dependency>
 			<groupId>com.networknt</groupId>
 			<artifactId>json-schema-validator</artifactId>
-			<version>1.0.58</version>
+			<version>3.0.0</version>
 		</dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
@@ -501,7 +512,6 @@
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-oauth2-authorization-server</artifactId>
-			<version>1.4.2</version>
 			<exclusions>
 				<exclusion>
 					<artifactId>nimbus-jose-jwt</artifactId>
@@ -561,16 +571,17 @@
 			</exclusions>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/org.quartz-scheduler/quartz -->
+		<!-- Spring Boot 4 split Quartz auto-config into spring-boot-quartz; use the starter so the
+		     SchedulerFactoryBean is auto-configured (Boot 3 had it in the monolithic autoconfigure jar). -->
 		<dependency>
-			<groupId>org.quartz-scheduler</groupId>
-			<artifactId>quartz</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-quartz</artifactId>
 			<exclusions>
 				<exclusion>
 					<artifactId>slf4j-api</artifactId>
 					<groupId>org.slf4j</groupId>
 				</exclusion>
 			</exclusions>
-			<version>2.5.0</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.oshi</groupId>
