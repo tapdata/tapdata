@@ -221,11 +221,7 @@ public class WideTableDdlGenerator {
      */
     private static List<FieldInfo> parseWithRegex(String querySql) {
         List<FieldInfo> fields = new ArrayList<>();
-        
-        Pattern selectPattern = Pattern.compile(
-            "(?i)\\s*SELECT\\s+(.+?)\\s+FROM\\s+",
-            Pattern.DOTALL
-        );
+        Pattern selectPattern = Pattern.compile("(?is)^\\s*SELECT\\s+(.*?)(?=\\s+FROM\\b)");
         Matcher selectMatcher = selectPattern.matcher(querySql);
         
         if (selectMatcher.find()) {
@@ -281,7 +277,7 @@ public class WideTableDdlGenerator {
         part = part.trim();
         
         // 处理 AS 别名
-        Pattern asPattern = Pattern.compile("(?i)\\s+AS\\s+(\\w+)\\s*$");
+        final Pattern asPattern = Pattern.compile("(?i)\\s+AS\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*$");
         Matcher asMatcher = asPattern.matcher(part);
         if (asMatcher.find()) {
             return asMatcher.group(1).trim();

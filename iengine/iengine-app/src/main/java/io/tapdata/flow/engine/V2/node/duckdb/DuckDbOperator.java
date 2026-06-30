@@ -527,8 +527,8 @@ public interface DuckDbOperator extends AutoCloseable {
      * 支持注释和前导空白
      */
     Pattern SELECT_PATTERN = Pattern.compile(
-        "^\\s*(?:--.*\\s*)*\\s*(?:WITH\\s|EXPLAIN\\s+)?(?:ANALYZE\\s+)?SELECT\\s",
-        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+            "^\\s*(?:--[^\\r\\n]*\\s*)*(?:WITH\\s+|EXPLAIN\\s+)?(?:ANALYZE\\s+)?SELECT\\b",
+            Pattern.CASE_INSENSITIVE
     );
 
     /**
