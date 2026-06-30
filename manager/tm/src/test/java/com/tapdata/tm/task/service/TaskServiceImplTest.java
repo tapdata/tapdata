@@ -82,6 +82,7 @@ import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
+import com.tapdata.tm.statemachine.enums.TaskState;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.*;
@@ -3974,6 +3975,20 @@ class TaskServiceImplTest {
             assertTrue(unset.containsKey("taskIncrementDelayThreshold"));
             verify(taskService,new Times(1)).start(id,user);
             assertEquals(id.toHexString(),actual);
+        }
+
+        @Test
+        @DisplayName("treat stopped report as idempotent success when task is deleting")
+        void stoppedReportShouldNotChangeDeletingTaskState(){
+            when(dto.getStatus()).thenReturn(TaskState.DELETING.getName());
+            when(dto.getAgentId()).thenReturn("fe2");
+            when(dto.getTaskRecordId()).thenReturn("record-1");
+            doCallRealMethod().when(taskService).stopped(id,user, "fe2", "record-1");
+
+            String actual = taskService.stopped(id, user, "fe2", "record-1");
+
+            assertEquals(id.toHexString(), actual);
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), any(DataFlowEvent.class), any(UserDetail.class));
         }
     }
 
