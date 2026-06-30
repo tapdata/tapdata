@@ -145,20 +145,19 @@ public class TestConnectionHandler implements WebSocketHandler {
 					}
 				}
 			} else {
-				Object password = config1.get("password");
-				Object mqPassword = config1.get("mqPassword");
-				if (Objects.isNull(password) && Objects.isNull(mqPassword)) {
-					Object id = data.get("id");
-					if (id instanceof String) {
-						DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(toObjectId(id.toString()));
-						Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
-						if (dataSourceConfig.containsKey("password")) {
-							config1.put("password", dataSourceConfig.get("password"));
-						} else if (dataSourceConfig.containsKey("mqPassword")) {
-							config1.put("mqPassword", dataSourceConfig.get("mqPassword"));
-						}
-						data.put("config", config1);
+				Object id = data.get("id");
+				if (id instanceof String) {
+					DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(toObjectId(id.toString()));
+					dataSourceService.generatePasswordTag(dataSourceConnectionDto, userDetail);
+					Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
+					if (CollectionUtils.isNotEmpty(dataSourceConnectionDto.getPasswordTag())) {
+						dataSourceConnectionDto.getPasswordTag().forEach(tag -> {
+							if (config1.get(tag) == null && dataSourceConfig.containsKey(tag)) {
+								config1.put(tag, dataSourceConfig.get(tag));
+							}
+						});
 					}
+					data.put("config", config1);
 				}
 			}
 		}
