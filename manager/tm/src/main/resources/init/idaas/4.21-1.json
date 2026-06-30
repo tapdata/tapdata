@@ -1,0 +1,152 @@
+[
+  {
+    "update": "Settings_Alarm",
+    "updates": [
+      {
+        "q": { "key": "TASK_STATUS_ERROR" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "TASK_INSPECT_ERROR" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "TASK_FULL_COMPLETE" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "TASK_INCREMENT_START" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "TASK_STATUS_STOP" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "TASK_INCREMENT_DELAY" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "DATANODE_CANNOT_CONNECT" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "DATANODE_AVERAGE_HANDLE_CONSUME" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "TASK_INSPECT_DIFFERENCE" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "TASK_RETRY_WARN" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      },
+      {
+        "q": { "key": "TASK_SOURCE_NO_INCREMENTAL_EVENT" },
+        "u": {
+          "$addToSet": {
+            "variables": {
+              "name": "taskDesc",
+              "label": "public_task_desc",
+              "icon": "IconLucideFileText"
+            }
+          }
+        }
+      }
+
+    ]
+  }
+]
