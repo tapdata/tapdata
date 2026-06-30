@@ -6,10 +6,8 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.mcp.mongodb.MongoOperator;
+import com.tapdata.tm.mcp.tools.McpToolSupport;
 import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpServerSession;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,9 +15,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,13 +42,14 @@ class CountTest {
     protected UserService userService;
 
     @Mock
-    protected McpSyncServerExchange exchange;
+    protected McpSyncRequestContext context;
 
     private Count countTool;
 
     @BeforeEach
     void setUp() {
-        countTool = new Count(sessionAttribute, userService, dataSourceService);
+        McpToolSupport toolSupport = new McpToolSupport(sessionAttribute, userService);
+        countTool = new Count(new MongoOperatorFactory(toolSupport, dataSourceService));
     }
 
     @Test
@@ -61,11 +60,8 @@ class CountTest {
         DataSourceConnectionDto mockConnection = new DataSourceConnectionDto();
         mockConnection.setDatabase_type("mongodb");
         UserDetail mockUserDetail = mock(UserDetail.class);
-
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
@@ -76,15 +72,13 @@ class CountTest {
                 when(mock.count(eq(collectionName), any())).thenReturn(100L);
             })) {
                 // 执行测试
-                Map<String, Object> params = new HashMap<>();
-                params.put("connectionId", connectionId);
-                params.put("collectionName", collectionName);
-                params.put("filter", new Document("age", new Document("$gt", 18)));
-                McpSchema.CallToolResult result = countTool.call(exchange, params);
+                Map<String, Object> result = countTool.count(context, connectionId, collectionName,
+                        new Document("age", new Document("$gt", 18)), null, null, null, null, null, null);
 
                 // 验证结果
                 var mockMongoOperator = mc.constructed().get(0);
                 assertNotNull(result);
+                assertEquals(100L, result.get("count"));
                 verify(mockMongoOperator).connect();
                 verify(mockMongoOperator).count(eq(collectionName), any());
             }
@@ -97,17 +91,13 @@ class CountTest {
         String connectionId = "507f1f77bcf86cd799439011";
         DataSourceConnectionDto mockConnection = new DataSourceConnectionDto();
         mockConnection.setDatabase_type("mongodb");
-
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
 
             // 执行测试
-            Map<String, Object> params = new HashMap<>();
-            params.put("connectionId", connectionId);
-            assertThrows(RuntimeException.class, () -> countTool.call(exchange, params));
+            assertThrows(RuntimeException.class,
+                    () -> countTool.count(context, connectionId, null, null, null, null, null, null, null, null));
         }
     }
 
@@ -119,11 +109,8 @@ class CountTest {
         DataSourceConnectionDto mockConnection = new DataSourceConnectionDto();
         mockConnection.setDatabase_type("mongodb");
         UserDetail mockUserDetail = mock(UserDetail.class);
-
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
@@ -136,10 +123,8 @@ class CountTest {
             })) {
 
                 // 执行测试
-                Map<String, Object> params = new HashMap<>();
-                params.put("connectionId", connectionId);
-                params.put("collectionName", collectionName);
-                assertThrows(RuntimeException.class, () -> countTool.call(exchange, params));
+                assertThrows(RuntimeException.class,
+                        () -> countTool.count(context, connectionId, collectionName, null, null, null, null, null, null, null));
 
                 // 验证结果
                 MongoOperator mockMongoOperator = mc.constructed().get(0);
@@ -157,11 +142,8 @@ class CountTest {
         DataSourceConnectionDto mockConnection = new DataSourceConnectionDto();
         mockConnection.setDatabase_type("mongodb");
         UserDetail mockUserDetail = mock(UserDetail.class);
-
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
@@ -173,17 +155,16 @@ class CountTest {
             })) {
 
                 // 执行测试
-                Map<String, Object> params = new HashMap<>();
-                params.put("connectionId", connectionId);
-                params.put("collectionName", collectionName);
-                McpSchema.CallToolResult result = countTool.call(exchange, params);
+                Map<String, Object> result = countTool.count(context, connectionId, collectionName,
+                        null, null, null, null, null, null, null);
 
                 // 验证结果
                 MongoOperator mockMongoOperator = mc.constructed().get(0);
                 assertNotNull(result);
+                assertEquals(0L, result.get("count"));
                 verify(mockMongoOperator).connect();
                 verify(mockMongoOperator).count(eq(collectionName), any());
             }
         }
     }
-} 
+}
