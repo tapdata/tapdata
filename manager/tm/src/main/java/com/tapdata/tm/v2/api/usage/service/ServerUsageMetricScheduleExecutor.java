@@ -57,7 +57,7 @@ public class ServerUsageMetricScheduleExecutor {
             final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
             final Criteria criteria = new Criteria();
             if (Objects.nonNull(lastUpdateTime)) {
-                criteria.and(ServerUsageField.LAST_UPDATE_TIME.field()).gt(lastUpdateTime);
+                criteria.and(ServerUsageField.LAST_UPDATE_TIME.field()).gte(lastUpdateTime);
             }
             final Document queryObject = Query.query(criteria).getQueryObject();
             final FindIterable<Document> iterable =

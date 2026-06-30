@@ -6,7 +6,6 @@ import com.tapdata.tm.apiCalls.service.ApiCallService;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
 import com.tapdata.tm.apiCalls.vo.ApiPercentile;
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -65,7 +64,6 @@ public class ApiCallController extends BaseController {
         }
         return success(apiCallService.find(filter));
     }
-
 
     /**
      * Patch attributes for a model instance and persist it into the data source

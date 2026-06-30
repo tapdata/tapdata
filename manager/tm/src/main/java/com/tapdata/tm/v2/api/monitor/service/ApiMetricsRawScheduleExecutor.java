@@ -18,14 +18,7 @@ import com.tapdata.tm.v2.api.monitor.main.entity.ApiMetricsRaw;
 import com.tapdata.tm.v2.api.monitor.main.enums.ApiMetricsRawFields;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.BsonBinaryWriter;
-import org.bson.BsonDocumentWriter;
-import org.bson.BsonWriter;
 import org.bson.Document;
-import org.bson.codecs.DocumentCodec;
-import org.bson.codecs.EncoderContext;
-import org.bson.codecs.configuration.CodecRegistry;
-import org.bson.io.BasicOutputBuffer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -35,6 +28,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +45,7 @@ import java.util.function.Function;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ApiMetricsRawScheduleExecutor {
-    static final int BATCH_READ_SIZE = 2000;
+    static final int BATCH_READ_SIZE = 1000;
 
     MongoTemplate mongoTemplate;
 
@@ -75,10 +69,6 @@ public class ApiMetricsRawScheduleExecutor {
                 final MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
                 eachApi(queryTime, collection, acceptor);
             }
-            Criteria updateCriteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
-                    .and(ApiCallField.HAS_METRIC.field()).is(false);
-            Query queried = Query.query(updateCriteria);
-            mongoTemplate.updateMulti(queried, Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
             session.commitTransaction();
         } catch (Exception e) {
             log.error("bulkUpsert ApiMetricsRaw error", e);
@@ -95,8 +85,7 @@ public class ApiMetricsRawScheduleExecutor {
 
     void eachApi(long queryTime, MongoCollection<Document> collection, MetricInstanceFactory acceptor) {
         final Criteria criteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
-                .and(ApiCallField.HAS_METRIC.field()).is(false)
-                .and(ApiCallField.DELETE.field()).ne(true);
+                .and(ApiCallField.HAS_METRIC.field()).is(false);
         final Query query = Query.query(criteria);
         String[] filterFields = CollectionField.fields(
                 BaseEntityFields._ID,
@@ -125,12 +114,35 @@ public class ApiMetricsRawScheduleExecutor {
         try (final MongoCursor<Document> cursor = iterable.iterator()) {
             while (cursor.hasNext()) {
                 final Document entity = cursor.next();
+                Boolean deleted = entity.getBoolean(ApiCallField.DELETE.field());
+                if (null != deleted && deleted) {
+                    continue;
+                }
                 acceptor.accept(entity);
             }
             Criteria updateCriteria = Criteria.where(BaseEntityFields.CREATE_TIME.field()).lt(new Date(queryTime))
                     .and(ApiCallField.HAS_METRIC.field()).is(false);
             Query queried = Query.query(updateCriteria);
-            mongoTemplate.updateMulti(queried, Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
+            queried.fields().include(BaseEntityFields._ID.field());
+            List<Object> ids = new ArrayList<>();
+            final FindIterable<Document> iterableUpdate =
+                    collection.find(queried.getQueryObject(), Document.class)
+                            .batchSize(BATCH_READ_SIZE);
+            try (final MongoCursor<Document> cursorUpdate = iterableUpdate.iterator()) {
+                while (cursorUpdate.hasNext()) {
+                    final Document entity = cursorUpdate.next();
+                    Object oId = entity.get(BaseEntityFields._ID.field());
+                    ids.add(oId);
+                    if (ids.size() >= BATCH_READ_SIZE/2) {
+                        mongoTemplate.updateMulti(Query.query(Criteria.where(BaseEntityFields._ID.field()).in(ids)), Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
+                        ids = new ArrayList<>();
+                    }
+                }
+            } finally {
+                if (!ids.isEmpty()) {
+                    mongoTemplate.updateMulti(Query.query(Criteria.where(BaseEntityFields._ID.field()).in(ids)), Update.update(ApiCallField.HAS_METRIC.field(), true), "ApiCall");
+                }
+            }
         }
     }
 

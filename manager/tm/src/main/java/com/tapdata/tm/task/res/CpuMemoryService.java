@@ -95,7 +95,7 @@ public class CpuMemoryService {
                 Query query = Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId)));
                 Update update = new Update();
                 update.set("metricInfo", usage);
-                bulkOps.upsert(query, update);
+                bulkOps.updateOne(query, update);
             });
             bulkOps.execute();
         } catch (Exception e) {

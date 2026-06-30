@@ -167,6 +167,17 @@ public class CpuMemoryCollector {
         });
     }
 
+    public static void unregisterTaskByNodeId(String nodeId) {
+        if (StringUtils.isBlank(nodeId)) {
+            return;
+        }
+        String taskId = COLLECTOR.taskWithNode.get(nodeId);
+        if (StringUtils.isBlank(taskId)) {
+            return;
+        }
+        unregisterTask(taskId);
+    }
+
     public static void unregisterTask(String taskId) {
         AtomicBoolean cleanTag = COLLECTOR.cleaned.get(taskId);
         if (cleanTag != null) {

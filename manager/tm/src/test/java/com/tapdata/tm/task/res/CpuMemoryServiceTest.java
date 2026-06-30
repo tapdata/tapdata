@@ -243,7 +243,7 @@ class CpuMemoryServiceTest {
         @DisplayName("test main process")
         void test1() {
             BulkOperations op = mock(BulkOperations.class);
-            when(op.upsert(any(Query.class), any(Update.class))).thenReturn(null);
+            when(op.updateOne(any(Query.class), any(Update.class))).thenReturn(null);
             when(op.execute()).thenReturn(null);
             when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class)).thenReturn(op);
             Map<String, Map<String, Number>> usageMap = new HashMap<>();
@@ -258,7 +258,7 @@ class CpuMemoryServiceTest {
         }
         void testException() {
             BulkOperations op = mock(BulkOperations.class);
-            when(op.upsert(any(Query.class), any(Update.class))).thenReturn(null);
+            when(op.updateOne(any(Query.class), any(Update.class))).thenReturn(null);
             when(op.execute()).thenAnswer(w -> {throw new RuntimeException("test");});
             when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class)).thenReturn(op);
             Map<String, Map<String, Number>> usageMap = new HashMap<>();
@@ -275,7 +275,7 @@ class CpuMemoryServiceTest {
         @Test
         void testEmpty() {
             BulkOperations op = mock(BulkOperations.class);
-            when(op.upsert(any(Query.class), any(Update.class))).thenReturn(null);
+            when(op.updateOne(any(Query.class), any(Update.class))).thenReturn(null);
             when(op.execute()).thenReturn(null);
             when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class)).thenReturn(op);
             Map<String, Map<String, Number>> usageMap = new HashMap<>();
@@ -286,7 +286,7 @@ class CpuMemoryServiceTest {
         @Test
         void testEmptyInfo() {
             BulkOperations op = mock(BulkOperations.class);
-            when(op.upsert(any(Query.class), any(Update.class))).thenReturn(null);
+            when(op.updateOne(any(Query.class), any(Update.class))).thenReturn(null);
             when(op.execute()).thenReturn(null);
             when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class)).thenReturn(op);
             Map<String, Map<String, Number>> usageMap = new HashMap<>();
