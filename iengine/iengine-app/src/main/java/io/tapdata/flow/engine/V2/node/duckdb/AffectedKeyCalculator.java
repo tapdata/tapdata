@@ -90,14 +90,7 @@ public class AffectedKeyCalculator {
         if (dataRows == null || dataRows.isEmpty()) {
             return new AffectedKeysResult(new ArrayList<>(), Collections.emptyList(), dataRows);
         }
-        
-        // 获取 querySql
         String querySql = getQuerySqlForTable(tableName);
-        if (querySql == null) {
-            logger.warn("No querySql found for table {}", tableName);
-            return new AffectedKeysResult(new ArrayList<>(), Collections.emptyList(), dataRows);
-        }
-        
         if (withCteSqlGenerator == null) {
             logger.warn("WithCteSqlGenerator not configured for table {}", tableName);
             return new AffectedKeysResult(new ArrayList<>(), Collections.emptyList(), dataRows);

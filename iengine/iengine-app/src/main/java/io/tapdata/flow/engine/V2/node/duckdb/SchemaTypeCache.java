@@ -17,12 +17,7 @@ import java.util.function.Supplier;
 public class SchemaTypeCache {
     
     private static final Logger logger = LoggerFactory.getLogger(SchemaTypeCache.class);
-    
-    /**
-     * 单例实例
-     */
-    private static volatile SchemaTypeCache instance;
-    
+
     /**
      * Arrow 类型缓存：tableId -> fieldName -> ArrowType
      */
@@ -41,25 +36,25 @@ public class SchemaTypeCache {
     /**
      * 上次清理时间
      */
-    private volatile long lastCleanupTime = System.currentTimeMillis();
+    private long lastCleanupTime = System.currentTimeMillis();
     
     /**
      * 清理间隔（毫秒），默认 10 分钟
      */
     private long cleanupInterval = TimeUnit.MINUTES.toMillis(10);
-    
+
+    private static final class InstanceHolder {
+        /**
+         * 单例实例
+         */
+        private static final SchemaTypeCache instance = new SchemaTypeCache();
+    }
+
     /**
      * 获取单例
      */
     public static SchemaTypeCache getInstance() {
-        if (instance == null) {
-            synchronized (SchemaTypeCache.class) {
-                if (instance == null) {
-                    instance = new SchemaTypeCache();
-                }
-            }
-        }
-        return instance;
+        return InstanceHolder.instance;
     }
     
     private SchemaTypeCache() {

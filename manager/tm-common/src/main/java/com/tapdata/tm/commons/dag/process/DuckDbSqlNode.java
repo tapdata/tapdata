@@ -30,6 +30,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @NodeType("duckdb_sql_processor")
 @Getter
@@ -274,14 +275,6 @@ public class DuckDbSqlNode extends ProcessorNode {
         log.info("  resolved mainTableInfo: mainTableName={}, mainTablePrimaryKey={}, wideTableName={}, wideTablePrimaryKey={}",
             mainTableName, mainTablePrimaryKey, wideTableName, wideTablePrimaryKey);
 
-        // 校验主表信息
-        if (StringUtils.isBlank(mainTableName)) {
-            throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: mainTableName is blank after resolution");
-        }
-        if (StringUtils.isBlank(wideTableName)) {
-            throw new IllegalStateException("DuckDbSqlNode.mergeSchema() failed: wideTableName is blank after resolution");
-        }
-
         // ========== 严格执行：解析 SQL 查询 ==========
         log.info("  Parsing SQL query to generate schema...");
         List<Field> fields;
@@ -466,6 +459,27 @@ public class DuckDbSqlNode extends ProcessorNode {
         return schemaConverter.convert(inputSchemas);
     }
 
+    private static Object readEqField(java.lang.reflect.Field declaredField, Object target) {
+        declaredField.setAccessible(true);
+        try { return declaredField.get(target); } catch (IllegalAccessException e) { throw new IllegalStateException("Failed to read @EqField '" + declaredField.getName() + "'", e); }
+    }
+
+    @Override
+    public int hashCode() {
+        int result = 1;
+        Class<?> className = DuckDbSqlNode.class;
+        for (; className != Object.class; className = className.getSuperclass()) {
+            java.lang.reflect.Field[] declaredFields = className.getDeclaredFields();
+            for (java.lang.reflect.Field declaredField : declaredFields) {
+                EqField annotation = declaredField.getAnnotation(EqField.class);
+                if (annotation != null) {
+                    result = 31 * result + Objects.hashCode(readEqField(declaredField, this));
+                }
+            }
+        }
+        return result;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -479,14 +493,11 @@ public class DuckDbSqlNode extends ProcessorNode {
                 for (java.lang.reflect.Field declaredField : declaredFields) {
                     EqField annotation = declaredField.getAnnotation(EqField.class);
                     if (annotation != null) {
-                        try {
-                            Object f2 = declaredField.get(o);
-                            Object f1 = declaredField.get(this);
-                            boolean b = fieldEq(f1, f2);
-                            if (!b) {
-                                return false;
-                            }
-                        } catch (IllegalAccessException e) {
+                        Object f2 = readEqField(declaredField, o);
+                        Object f1 = readEqField(declaredField, this);
+                        boolean b = fieldEq(f1, f2);
+                        if (!b) {
+                            return false;
                         }
                     }
                 }

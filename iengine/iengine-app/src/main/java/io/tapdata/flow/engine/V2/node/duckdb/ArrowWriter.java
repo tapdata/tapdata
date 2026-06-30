@@ -1,23 +1,23 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
-import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapTable;
 import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.*;
-import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.arrow.vector.types.pojo.Schema;
-import org.apache.arrow.vector.VectorSchemaRoot;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import org.apache.arrow.c.ArrowArrayStream;
 import org.apache.arrow.c.Data;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.ValueVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.dictionary.DictionaryProvider;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
-import org.duckdb.DuckDBConnection;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.duckdb.DuckDBAppender;
+import org.duckdb.DuckDBConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +30,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Arrow零拷贝写入模块
@@ -51,7 +52,7 @@ import java.util.Map;
  * 4. COPY 模式降级写入
  */
 public class ArrowWriter implements AutoCloseable {
-
+    private static final String ZERO_COPY_WRITE_SQL = "INSERT INTO %s SELECT * FROM %s";
     private static final Logger logger = LoggerFactory.getLogger(ArrowWriter.class);
 
     private final Connection connection;
@@ -193,59 +194,10 @@ public class ArrowWriter implements AutoCloseable {
      */
     private boolean tryZeroCopyWrite(List<Map<String, Object>> data, String tableName, TapTable tapTable) {
         if (!zeroCopyEnabled) {
-            logger.debug("Arrow zero-copy is disabled, falling back to COPY mode");
             return false;
         }
-
-        long startTime = System.currentTimeMillis();
-
-        try {
-            // 1. 构建 Arrow Schema
-            Schema schema = buildArrowSchema(tapTable);
-
-            // 2. 构建 VectorSchemaRoot
-            try (VectorSchemaRoot root = createVectorSchemaRoot(data, schema);
-                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-                 ArrowStreamWriter writer = new ArrowStreamWriter(root, new DictionaryProvider.MapDictionaryProvider(), outputStream)) {
-                // 3. 将 Arrow 数据写入 Arrow Stream
-                writer.start();
-                writer.writeBatch();
-                writer.end();
-
-                // 4. 将 Arrow Stream 导出为 ArrowArrayStream 并注册到 DuckDB
-                byte[] arrowBytes = outputStream.toByteArray();
-                DuckDBConnection duckDbConnection = connection.unwrap(DuckDBConnection.class);
-                
-                if (duckDbConnection == null) {
-                    logger.debug("Connection is not a DuckDB connection, skipping zero-copy write");
-                    return false;
-                }
-                
-                String streamName;
-                synchronized (ArrowWriter.class) {
-                    streamName = "arrow_stream_" + (++tempTableCounter);
-                }
-
-                try (InputStream inputStream = new ByteArrayInputStream(arrowBytes);
-                     ArrowStreamReader reader = new ArrowStreamReader(inputStream, allocator);
-                     ArrowArrayStream stream = ArrowArrayStream.allocateNew(allocator);
-                     Statement statement = connection.createStatement()) {
-                    Data.exportArrayStream(allocator, reader, stream);
-                    duckDbConnection.registerArrowStream(streamName, stream);
-                    statement.executeUpdate("INSERT INTO " + tableName + " SELECT * FROM " + streamName);
-                }
-
-                long duration = System.currentTimeMillis() - startTime;
-                logger.info("Successfully wrote {} rows using Arrow to table {} in {} ms", 
-                    data.size(), tableName, duration);
-                return true;
-            }
-
-        } catch (Exception e) {
-            logger.warn("Arrow zero-copy write failed, falling back to COPY mode: {}", e.getMessage());
-            logger.debug("Zero-copy failure details:", e);
-            return false;
-        }
+        Schema schema = buildArrowSchema(tapTable);
+        return copy(data, tableName, schema);
     }
 
     /**
@@ -426,27 +378,6 @@ public class ArrowWriter implements AutoCloseable {
     }
 
     /**
-     * 格式化值为CSV格式
-     */
-    private String formatValue(Object value) {
-        if (value == null) {
-            return "";
-        }
-        if (value instanceof String) {
-            String str = (String) value;
-            str = str.replace("\"", "\"\"");
-            if (str.contains(",") || str.contains("\"") || str.contains("\n")) {
-                return "\"" + str + "\"";
-            }
-            return str;
-        }
-        if (value instanceof java.util.Date) {
-            return new java.sql.Timestamp(((java.util.Date) value).getTime()).toString();
-        }
-        return value.toString();
-    }
-
-    /**
      * 格式化值为SQL格式
      * 
      * @deprecated 使用 {@link DuckDbSqlValueFormatter#format(Object)} 替代
@@ -591,59 +522,10 @@ public class ArrowWriter implements AutoCloseable {
      */
     private boolean tryZeroCopyWrite(List<Map<String, Object>> data, String tableName, TapTableDto tapTableDto) {
         if (!zeroCopyEnabled) {
-            logger.debug("Arrow zero-copy is disabled, falling back to COPY mode");
             return false;
         }
-
-        long startTime = System.currentTimeMillis();
-
-        try {
-            // 1. 构建 Arrow Schema（使用预计算类型）
-            Schema schema = buildArrowSchema(tapTableDto);
-
-            // 2. 构建 VectorSchemaRoot
-            try (VectorSchemaRoot root = createVectorSchemaRoot(data, schema);
-                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-                 ArrowStreamWriter writer = new ArrowStreamWriter(root, new DictionaryProvider.MapDictionaryProvider(), outputStream)) {
-                // 3. 将 Arrow 数据写入 Arrow Stream
-                writer.start();
-                writer.writeBatch();
-                writer.end();
-
-                // 4. 将 Arrow Stream 导出为 ArrowArrayStream 并注册到 DuckDB
-                byte[] arrowBytes = outputStream.toByteArray();
-                DuckDBConnection duckDbConnection = connection.unwrap(DuckDBConnection.class);
-                
-                if (duckDbConnection == null) {
-                    logger.debug("Connection is not a DuckDB connection, skipping zero-copy write");
-                    return false;
-                }
-                
-                String streamName;
-                synchronized (ArrowWriter.class) {
-                    streamName = "arrow_stream_" + (++tempTableCounter);
-                }
-
-                try (InputStream inputStream = new ByteArrayInputStream(arrowBytes);
-                     ArrowStreamReader reader = new ArrowStreamReader(inputStream, allocator);
-                     ArrowArrayStream stream = ArrowArrayStream.allocateNew(allocator);
-                     Statement statement = connection.createStatement()) {
-                    Data.exportArrayStream(allocator, reader, stream);
-                    duckDbConnection.registerArrowStream(streamName, stream);
-                    statement.executeUpdate("INSERT INTO " + tableName + " SELECT * FROM " + streamName);
-                }
-
-                long duration = System.currentTimeMillis() - startTime;
-                logger.info("Successfully wrote {} rows using Arrow from TapTableDto to table {} in {} ms", 
-                    data.size(), tableName, duration);
-                return true;
-            }
-
-        } catch (Exception e) {
-            logger.warn("Arrow zero-copy write failed, falling back to COPY mode: {}", e.getMessage());
-            logger.debug("Zero-copy failure details:", e);
-            return false;
-        }
+        Schema schema = buildArrowSchema(tapTableDto);
+        return copy(data, tableName, schema);
     }
 
     /**
@@ -651,59 +533,47 @@ public class ArrowWriter implements AutoCloseable {
      */
     private boolean tryZeroCopyWrite(List<Map<String, Object>> data, NodeSchemaInfo schemaInfo) {
         if (!zeroCopyEnabled) {
-            logger.debug("Arrow zero-copy is disabled, falling back to COPY mode");
             return false;
         }
-
-        long startTime = System.currentTimeMillis();
         String targetTableName = schemaInfo.getTargetTableName();
-
+        Schema schema = schemaInfo.getArrowSchema();
+        return copy(data, targetTableName, schema);
+    }
+    @SuppressWarnings("java:S2077")
+    protected boolean copy(List<Map<String, Object>> data, String tableName, Schema schema) {
         try {
-            // 1. 使用预计算的 Arrow Schema
-            Schema schema = schemaInfo.getArrowSchema();
-
-            // 2. 构建 VectorSchemaRoot
             try (VectorSchemaRoot root = createVectorSchemaRoot(data, schema);
                  ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
                  ArrowStreamWriter writer = new ArrowStreamWriter(root, new DictionaryProvider.MapDictionaryProvider(), outputStream)) {
-                // 3. 将 Arrow 数据写入 Arrow Stream
                 writer.start();
                 writer.writeBatch();
                 writer.end();
-
-                // 4. 将 Arrow Stream 导出为 ArrowArrayStream 并注册到 DuckDB
                 byte[] arrowBytes = outputStream.toByteArray();
                 DuckDBConnection duckDbConnection = connection.unwrap(DuckDBConnection.class);
-                
                 if (duckDbConnection == null) {
                     logger.debug("Connection is not a DuckDB connection, skipping zero-copy write");
                     return false;
                 }
-                
                 String streamName;
                 synchronized (ArrowWriter.class) {
                     streamName = "arrow_stream_" + (++tempTableCounter);
                 }
-
                 try (InputStream inputStream = new ByteArrayInputStream(arrowBytes);
                      ArrowStreamReader reader = new ArrowStreamReader(inputStream, allocator);
                      ArrowArrayStream stream = ArrowArrayStream.allocateNew(allocator);
                      Statement statement = connection.createStatement()) {
                     Data.exportArrayStream(allocator, reader, stream);
                     duckDbConnection.registerArrowStream(streamName, stream);
-                    statement.executeUpdate("INSERT INTO " + targetTableName + " SELECT * FROM " + streamName);
+                    // tableName and streamName are validated SQL identifiers.
+                    // PreparedStatement cannot parameterize table names or Arrow stream names.
+                    String sql = String.format(ZERO_COPY_WRITE_SQL, tableName, streamName);
+                    statement.executeUpdate(sql);
                 }
-
-
-                long duration = System.currentTimeMillis() - startTime;
-                logger.debug("Successfully wrote {} rows using Arrow from NodeSchemaInfo to table {} in {} ms",
-                    data.size(), targetTableName, duration);
                 return true;
             }
 
         } catch (Exception e) {
             logger.warn("Arrow zero-copy write failed, falling back to COPY mode: {}", e.getMessage());
-            logger.debug("Zero-copy failure details:", e);
             return false;
         }
     }
@@ -801,13 +671,6 @@ public class ArrowWriter implements AutoCloseable {
         
         return tapTable;
     }
-    
-    /**
-     * 构建DuckLake表的CREATE TABLE语句
-     */
-    private String buildDuckLakeCreateTableSql(String tableName, TapTable tapTable) {
-        return buildDuckLakeCreateTableSql(tableName, tapTable, false);
-    }
 
     /**
      * 构建DuckLake表的CREATE TABLE语句
@@ -855,13 +718,6 @@ public class ArrowWriter implements AutoCloseable {
         
         sql.append("\n);");
         return sql.toString();
-    }
-    
-    /**
-     * 构建DuckLake表的CREATE TABLE语句（使用TapTableDto）
-     */
-    private String buildDuckLakeCreateTableSql(String tableName, TapTableDto tapTableDto) {
-        return buildDuckLakeCreateTableSql(tableName, tapTableDto, false);
     }
 
     /**

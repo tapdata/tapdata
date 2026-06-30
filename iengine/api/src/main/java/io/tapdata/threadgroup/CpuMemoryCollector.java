@@ -433,7 +433,6 @@ public class CpuMemoryCollector {
                     future.get();
                 } catch (ExecutionException e) {
                     log.error("Collect cpu and memory usage failed ExecutionException, {}", e.getMessage(), e);
-                    e.printStackTrace();
                 } catch (InterruptedException e) {
                     log.error("Collect cpu and memory usage failed InterruptedException, {}", e.getMessage(), e);
                     Thread.currentThread().interrupt();

@@ -411,7 +411,7 @@ public class WideTableIncrementalUpdater {
         // ========== 降级：使用原有的字段列表方式 ==========
         // 从 querySql 解析字段
         List<String> selectFields = WideTableDdlGenerator.extractSelectFields(querySql);
-        if (selectFields.isEmpty()) {
+        if (selectFields.isEmpty() && null != tableSchemaInfoCache) {
             // 如果解析失败，使用预定义的 fields 列表
             logger.warn("Failed to extract fields from querySql, using predefined fields: {}", tableSchemaInfoCache.getFieldNames());
             selectFields = tableSchemaInfoCache.getFieldNames();

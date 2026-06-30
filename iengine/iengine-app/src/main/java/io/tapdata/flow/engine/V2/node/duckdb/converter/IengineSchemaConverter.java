@@ -30,24 +30,19 @@ import java.util.concurrent.ConcurrentHashMap;
 public class IengineSchemaConverter extends AbstractSchemaConverter<List<TapTableDto>, Map<String, NodeSchemaInfo>> {
     
     private static final Logger logger = LoggerFactory.getLogger(IengineSchemaConverter.class);
-    
-    /**
-     * 单例实例
-     */
-    private static volatile IengineSchemaConverter instance;
-    
+
+    private static final class InstanceHolder {
+        /**
+         * 单例实例
+         */
+        private static final IengineSchemaConverter instance = new IengineSchemaConverter();
+    }
+
     /**
      * 获取单例
      */
     public static IengineSchemaConverter getInstance() {
-        if (instance == null) {
-            synchronized (IengineSchemaConverter.class) {
-                if (instance == null) {
-                    instance = new IengineSchemaConverter();
-                }
-            }
-        }
-        return instance;
+        return InstanceHolder.instance;
     }
     
     private IengineSchemaConverter() {

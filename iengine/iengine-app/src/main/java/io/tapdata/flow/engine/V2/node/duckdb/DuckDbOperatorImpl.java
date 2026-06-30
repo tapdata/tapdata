@@ -7,6 +7,9 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapDate;
+import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.slf4j.Logger;
@@ -1143,7 +1146,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         if (tapField == null) return false;
         TapType tapType = tapField.getTapType();
         if (tapType != null) {
-            return tapType.getClass().getSimpleName().equals("TapDate");
+            return tapType instanceof TapDate;
         }
         String dt = tapField.getDataType();
         return dt != null && dt.toUpperCase().contains("DATE") && !dt.toUpperCase().contains("TIMESTAMP");
@@ -1156,7 +1159,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         if (tapField == null) return false;
         TapType tapType = tapField.getTapType();
         if (tapType != null) {
-            return tapType.getClass().getSimpleName().equals("TapDateTime");
+            return tapType instanceof TapDateTime;
         }
         String dt = tapField.getDataType();
         return dt != null && (dt.toUpperCase().contains("TIMESTAMP") || dt.toUpperCase().contains("DATETIME"));
@@ -1214,7 +1217,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         // 优先检查 TapType
         TapType tapType = tapField.getTapType();
         if (tapType != null) {
-            return tapType.getClass().getSimpleName().equals("TapNumber");
+            return tapType instanceof TapNumber;
         }
 
         // 其次检查 dataType 字符串
@@ -1364,6 +1367,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
         return tables;
     }
 
+    @SuppressWarnings("java:S2077")
     @Override
     public long getRowCount(String tableName) throws SQLException {
         checkClosed();
@@ -1600,6 +1604,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
 
     // ==================== Table Lifecycle Management Implementation ====================
 
+    @SuppressWarnings("java:S2077")
     @Override
     public void ensureTableExists(String tableName, List<TapField> fields, 
                                  List<String> primaryKeys, boolean recreate) throws SQLException {

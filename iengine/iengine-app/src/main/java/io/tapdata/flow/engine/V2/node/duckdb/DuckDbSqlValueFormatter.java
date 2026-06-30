@@ -95,11 +95,11 @@ public class DuckDbSqlValueFormatter {
         }
         
         // Tapdata DateTime / TapDateTimeValue 处理
-        if (value.getClass().getName().equals("io.tapdata.entity.schema.value.DateTime")) {
+        if (value instanceof io.tapdata.entity.schema.value.DateTime) {
             return formatTapDateTime(value);
         }
         
-        if (value.getClass().getName().equals("io.tapdata.entity.schema.value.TapDateTimeValue")) {
+        if (value instanceof io.tapdata.entity.schema.value.TapDateTimeValue) {
             return formatTapDateTimeValue(value);
         }
         

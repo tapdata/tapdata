@@ -23,6 +23,7 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.node.duckdb.SchemaTypeCache;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.DlqWriter;
@@ -50,6 +51,8 @@ import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -80,6 +83,7 @@ import java.util.stream.Collectors;
 @Getter
 @Setter
 public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
+    private static final Logger logger = LoggerFactory.getLogger(HazelcastDuckDbSqlNode.class);
     protected static final String DEFAULT_DUCK_DB_PATH = "DEFAULT_DUCK_DB_PATH";
     public static final String INIT_CACHE_TABLE = "INIT_CACHE_TABLE";
     public static final String JOIN_TO_WIDE_TABLE = "JOIN_TO_WIDE_TABLE";
@@ -148,7 +152,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private String mainTableName;
     private List<FromTableConfig> fromTables = new ArrayList<>();
     private Map<String, String> customJoinQueries = new HashMap<>();
-    private volatile AtomicReference<BiConsumer<TapdataEvent, ProcessResult>> currentConsumer = new AtomicReference<>(null);
+    private AtomicReference<BiConsumer<TapdataEvent, ProcessResult>> currentConsumer = new AtomicReference<>(null);
     private String mergerWideTableSql;
     private int preNodeCount = 0;
     private int acceptPreNodeCount = 0;
@@ -1970,7 +1974,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             try {
                 duckDbOperator.close();
             } catch (Exception e) {
-                throw new TapCodeException("Failed to close DuckDbOperator", e);
+                logger.error("Failed to close DuckDbOperator when clean duckdb cache", e);
             }
         }
     }
