@@ -1784,6 +1784,11 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
 
     private DuckDbOperator createContextOperator() {
+        if (dbPath == null || dbPath.isBlank()) {
+            // In-memory DuckDB instances are isolated per JDBC connection, so per-context
+            // operators must reuse the shared connection to see tables created at init time.
+            return duckDbOperator;
+        }
         try {
             // 使用与主 Operator 相同的 dbPath 配置
             return new DuckDbOperatorImpl(dbPath, false, concurrentBatchSize, commitIntervalMs);

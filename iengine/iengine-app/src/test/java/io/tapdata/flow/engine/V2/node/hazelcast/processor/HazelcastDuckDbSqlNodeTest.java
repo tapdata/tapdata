@@ -256,6 +256,50 @@ class HazelcastDuckDbSqlNodeTest {
     }
 
     @Test
+    void testCreateContextOperator_ReusesSharedOperatorInMemoryMode() throws Exception {
+        NodeSchemaInfo schemaInfo = buildMinimalSchema("pre_1", "orders");
+        try (DuckDbOperatorImpl sharedOperator = new DuckDbOperatorImpl("", false, 10, 5000)) {
+            sharedOperator.ensureTableExists(schemaInfo, false);
+            setDuckDbOperator(sharedOperator);
+            setFieldValue(hazelcastDuckDbSqlNode, "dbPath", null);
+
+            DuckDbOperator contextOperator = invokeCreateContextOperator();
+
+            assertSame(sharedOperator, contextOperator);
+
+            contextOperator.insertBatch(schemaInfo, List.of(createInsertEvent("orders", Map.of("id", 1L))));
+            List<Map<String, Object>> results = sharedOperator.executeQuery("SELECT COUNT(*) AS cnt FROM orders");
+
+            assertEquals(1L, ((Number) results.get(0).get("cnt")).longValue());
+        }
+    }
+
+    @Test
+    void testCreateContextOperator_UsesDedicatedOperatorInFileMode() throws Exception {
+        NodeSchemaInfo schemaInfo = buildMinimalSchema("pre_1", "orders");
+        String dbFile = tempDir.resolve("duckdb-node-test.db").toString();
+
+        try (DuckDbOperatorImpl sharedOperator = new DuckDbOperatorImpl(dbFile, false, 10, 5000)) {
+            sharedOperator.ensureTableExists(schemaInfo, false);
+            setDuckDbOperator(sharedOperator);
+            setFieldValue(hazelcastDuckDbSqlNode, "dbPath", dbFile);
+
+            DuckDbOperator contextOperator = invokeCreateContextOperator();
+            assertNotSame(sharedOperator, contextOperator);
+
+            try {
+                contextOperator.insertBatch(schemaInfo, List.of(createInsertEvent("orders", Map.of("id", 2L))));
+                List<Map<String, Object>> results = sharedOperator.executeQuery("SELECT COUNT(*) AS cnt FROM orders");
+                assertEquals(1L, ((Number) results.get(0).get("cnt")).longValue());
+            } finally {
+                if (contextOperator instanceof DuckDbOperatorImpl duckDbOperatorImpl) {
+                    duckDbOperatorImpl.close();
+                }
+            }
+        }
+    }
+
+    @Test
     void testReplaceWithBoundaryDetection_ReplacesWholeIdentifiersOnly() throws Exception {
         String sql = "SELECT a.id FROM a JOIN ab ON a.id = ab.id";
         Map<String, String> aliasMap = new LinkedHashMap<>();
@@ -353,6 +397,15 @@ class HazelcastDuckDbSqlNodeTest {
         Method method = target.getClass().getDeclaredMethod(methodName, parameterTypes);
         method.setAccessible(true);
         return method.invoke(target, args);
+    }
+
+    private DuckDbOperator invokeCreateContextOperator() throws Exception {
+        return (DuckDbOperator) invokePrivateMethod(
+                hazelcastDuckDbSqlNode,
+                "createContextOperator",
+                new Class<?>[]{},
+                new Object[]{}
+        );
     }
 
     private static void setFieldValueInHierarchy(Object target, String fieldName, Object value) throws Exception {
