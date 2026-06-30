@@ -6,9 +6,6 @@ import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpServerSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,8 +13,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,40 +41,33 @@ class UpdateFieldDescriptionTest {
     private UserService userService;
 
     @Mock
-    private McpSyncServerExchange exchange;
+    private McpSyncRequestContext context;
 
     private UpdateFieldDescription updateFieldDescription;
 
     @BeforeEach
     void setUp() {
-        updateFieldDescription = new UpdateFieldDescription(sessionAttribute, metadataInstancesService, userService);
+        updateFieldDescription = new UpdateFieldDescription(new McpToolSupport(sessionAttribute, userService), metadataInstancesService);
     }
 
     @Test
     void testCallSuccessWithFieldId() {
         UserDetail mockUserDetail = mock(UserDetail.class);
-        McpServerSession mockSession = mock(McpServerSession.class);
 
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             doNothing().when(metadataInstancesService).updateTableFieldDesc(any(), any(), any());
 
-            // Build params with fields array
-            Map<String, Object> field1 = new HashMap<>();
-            field1.put("fieldId", "field123");
-            field1.put("businessDesc", "This is a business description");
+            UpdateFieldDescription.FieldDescriptionUpdate field1 = field("field123", null, "This is a business description");
 
-            Map<String, Object> params = new HashMap<>();
-            params.put("metadataId", "507f1f77bcf86cd799439011");
-            params.put("fields", Arrays.asList(field1));
-
-            McpSchema.CallToolResult result = updateFieldDescription.call(exchange, params);
+            Map<String, Object> result = updateFieldDescription.updateFieldDescription(context,
+                    "507f1f77bcf86cd799439011",
+                    Arrays.asList(field1));
 
             assertNotNull(result);
-            assertFalse(result.isError() != null && result.isError());
+            assertEquals(true, result.get("success"));
 
             ArgumentCaptor<DiscoveryFieldDto> fieldDtoCaptor = ArgumentCaptor.forClass(DiscoveryFieldDto.class);
             verify(metadataInstancesService).updateTableFieldDesc(
@@ -92,32 +85,22 @@ class UpdateFieldDescriptionTest {
     @Test
     void testCallBatchWithFieldNames() {
         UserDetail mockUserDetail = mock(UserDetail.class);
-        McpServerSession mockSession = mock(McpServerSession.class);
 
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             doNothing().when(metadataInstancesService).batchUpdateTableFieldDescByName(any(), any(), any());
 
-            // Build params with multiple fields using fieldName
-            Map<String, Object> field1 = new HashMap<>();
-            field1.put("fieldName", "username");
-            field1.put("businessDesc", "User login name");
+            UpdateFieldDescription.FieldDescriptionUpdate field1 = field(null, "username", "User login name");
+            UpdateFieldDescription.FieldDescriptionUpdate field2 = field(null, "email", "User email address");
 
-            Map<String, Object> field2 = new HashMap<>();
-            field2.put("fieldName", "email");
-            field2.put("businessDesc", "User email address");
-
-            Map<String, Object> params = new HashMap<>();
-            params.put("metadataId", "507f1f77bcf86cd799439011");
-            params.put("fields", Arrays.asList(field1, field2));
-
-            McpSchema.CallToolResult result = updateFieldDescription.call(exchange, params);
+            Map<String, Object> result = updateFieldDescription.updateFieldDescription(context,
+                    "507f1f77bcf86cd799439011",
+                    Arrays.asList(field1, field2));
 
             assertNotNull(result);
-            assertFalse(result.isError() != null && result.isError());
+            assertEquals(2, result.get("updatedCount"));
 
             // Verify batch update was called
             @SuppressWarnings("unchecked")
@@ -137,59 +120,49 @@ class UpdateFieldDescriptionTest {
 
     @Test
     void testCallWithoutMetadataId() {
-        McpServerSession mockSession = mock(McpServerSession.class);
         UserDetail mockUserDetail = mock(UserDetail.class);
 
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
 
-            Map<String, Object> field1 = new HashMap<>();
-            field1.put("fieldName", "username");
-            field1.put("businessDesc", "desc");
-
-            Map<String, Object> params = new HashMap<>();
-            params.put("fields", Arrays.asList(field1));
+            UpdateFieldDescription.FieldDescriptionUpdate field1 = field(null, "username", "desc");
 
             RuntimeException exception = assertThrows(RuntimeException.class,
-                    () -> updateFieldDescription.call(exchange, params));
+                    () -> updateFieldDescription.updateFieldDescription(context, null, Arrays.asList(field1)));
             assertTrue(exception.getMessage().contains("metadataId"));
         }
     }
 
     @Test
     void testCallWithEmptyFields() {
-        McpServerSession mockSession = mock(McpServerSession.class);
         UserDetail mockUserDetail = mock(UserDetail.class);
 
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
 
-            Map<String, Object> params = new HashMap<>();
-            params.put("metadataId", "507f1f77bcf86cd799439011");
-            params.put("fields", new ArrayList<>());
-
             RuntimeException exception = assertThrows(RuntimeException.class,
-                    () -> updateFieldDescription.call(exchange, params));
+                    () -> updateFieldDescription.updateFieldDescription(context, "507f1f77bcf86cd799439011", new ArrayList<>()));
             assertTrue(exception.getMessage().contains("fields"));
         }
     }
 
     @Test
     void testCallWithInvalidSession() {
-        Map<String, Object> field1 = new HashMap<>();
-        field1.put("fieldName", "username");
-        field1.put("businessDesc", "desc");
+        UpdateFieldDescription.FieldDescriptionUpdate field1 = field(null, "username", "desc");
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("metadataId", "507f1f77bcf86cd799439011");
-        params.put("fields", Arrays.asList(field1));
+        assertThrows(RuntimeException.class,
+                () -> updateFieldDescription.updateFieldDescription(context, "507f1f77bcf86cd799439011", Arrays.asList(field1)));
+    }
 
-        assertThrows(RuntimeException.class, () -> updateFieldDescription.call(exchange, params));
+    private UpdateFieldDescription.FieldDescriptionUpdate field(String fieldId, String fieldName, String businessDesc) {
+        UpdateFieldDescription.FieldDescriptionUpdate field = new UpdateFieldDescription.FieldDescriptionUpdate();
+        field.fieldId = fieldId;
+        field.fieldName = fieldName;
+        field.businessDesc = businessDesc;
+        return field;
     }
 }

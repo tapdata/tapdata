@@ -89,7 +89,7 @@ public class MeasureAOP {
         Map<String, Boolean> heartbeatEnabledMap = new HashMap<>();
         if(CollectionUtils.isNotEmpty(taskIds)){
             taskIds.forEach(taskId -> {
-                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name", FIELD_SS_VS_CURR_EVENT_TS,"alarmSettings","alarmRules", FIELD_SS_VS_SNAPSHOT_DONE_AT,"status");
+                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name", FIELD_SS_VS_CURR_EVENT_TS,"alarmSettings","alarmRules", FIELD_SS_VS_SNAPSHOT_DONE_AT,"status","desc");
                 taskDtoMap.put(taskId, taskDto);
             });
             taskDtoMap.values().forEach(taskDto -> {
@@ -195,7 +195,7 @@ public class MeasureAOP {
             param.put("taskName", taskDto.getName());
 
             AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.NORMAL).component(AlarmComponentEnum.FE)
-                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId)
+                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId).desc(taskDto.getDesc())
                     .name(taskDto.getName()).summary("TASK_FULL_COMPLETE").metric(AlarmKeyEnum.TASK_FULL_COMPLETE)
                     .param(param)
                     .build();
@@ -222,7 +222,7 @@ public class MeasureAOP {
             param.put("taskName", taskDto.getName());
 
             AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.NORMAL).component(AlarmComponentEnum.FE)
-                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId)
+                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId).desc(taskDto.getDesc())
                     .name(taskDto.getName()).summary("TASK_INCREMENT_START").metric(AlarmKeyEnum.TASK_INCREMENT_START)
                     .param(param)
                     .build();
@@ -335,6 +335,7 @@ public class MeasureAOP {
                 .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
                 .agentId(task.getAgentId())
                 .taskId(taskId)
+                .desc(task.getDesc())
                 .nodeId(nodeId)
                 .name(task.getName())
                 .summary("TASK_SOURCE_NO_INCREMENTAL_EVENT_START")
@@ -361,6 +362,7 @@ public class MeasureAOP {
                 .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
                 .agentId(task.getAgentId())
                 .taskId(taskId)
+                .desc(task.getDesc())
                 .nodeId(nodeId)
                 .name(task.getName())
                 .summary("TASK_SOURCE_NO_INCREMENTAL_EVENT_RECOVER")
@@ -410,7 +412,7 @@ public class MeasureAOP {
         List<AlarmInfo> alarmInfos = alarmService.find(taskId, null, AlarmKeyEnum.TASK_INCREMENT_DELAY);
 
         AlarmInfo alarmInfo = AlarmInfo.builder().component(AlarmComponentEnum.FE)
-                .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(task.getAgentId()).taskId(taskId)
+                .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(task.getAgentId()).taskId(taskId).desc(task.getDesc())
                 .name(task.getName()).metric(AlarmKeyEnum.TASK_INCREMENT_DELAY)
                 .build();
         alarmInfo.setUserId(task.getUserId());
@@ -517,7 +519,7 @@ public class MeasureAOP {
         List<AlarmInfo> alarmInfos = alarmService.find(taskId, nodeId, alarmKeyEnum);
 
         AlarmInfo alarmInfo = AlarmInfo.builder().component(AlarmComponentEnum.FE)
-                .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(task.getAgentId()).taskId(taskId)
+                .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(task.getAgentId()).taskId(taskId).desc(task.getDesc())
                 .name(task.getName()).metric(alarmKeyEnum)
                 .nodeId(nodeId).node(nodeName)
                 .build();

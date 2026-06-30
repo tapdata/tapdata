@@ -6,9 +6,6 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpServerSession;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,12 +13,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -44,13 +41,13 @@ class ListConnectionTest {
     private UserService userService;
 
     @Mock
-    private McpSyncServerExchange exchange;
+    private McpSyncRequestContext context;
 
     private ListConnection listConnection;
 
     @BeforeEach
     void setUp() {
-        listConnection = new ListConnection(sessionAttribute, dataSourceService, userService);
+        listConnection = new ListConnection(new McpToolSupport(sessionAttribute, userService), dataSourceService);
     }
 
     @Test
@@ -59,22 +56,19 @@ class ListConnectionTest {
         UserDetail mockUserDetail = mock(UserDetail.class);
         DataSourceEntity ds1 = createMockDataSource("Connection 1", "mysql");
         DataSourceEntity ds2 = createMockDataSource("Connection 2", "postgres");
-
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             when(dataSourceService.findAll(any(Query.class), eq(mockUserDetail)))
                     .thenReturn(Arrays.asList(ds1, ds2));
 
             // 执行测试
-            Map<String, Object> params = new HashMap<>();
-            McpSchema.CallToolResult result = listConnection.call(exchange, params);
+            List<Map<String, Object>> result = listConnection.listConnection(context, null);
 
             // 验证结果
             assertNotNull(result);
+            assertEquals(2, result.size());
             verify(dataSourceService).findAll(any(Query.class), eq(mockUserDetail));
         }
     }
@@ -88,19 +82,17 @@ class ListConnectionTest {
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
-            ms.when(() -> Utils.getSession(any())).thenReturn(mock(McpServerSession.class));
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
             when(dataSourceService.findAll(any(Query.class), eq(mockUserDetail)))
                     .thenReturn(Arrays.asList(ds1));
 
             // 执行测试
-            Map<String, Object> params = new HashMap<>();
-            params.put("name", "Test");
-            McpSchema.CallToolResult result = listConnection.call(exchange, params);
+            List<Map<String, Object>> result = listConnection.listConnection(context, "Test");
 
             // 验证结果
             assertNotNull(result);
+            assertEquals(1, result.size());
             verify(dataSourceService).findAll(any(Query.class), eq(mockUserDetail));
         }
     }
@@ -108,8 +100,7 @@ class ListConnectionTest {
     @Test
     void testCallWithInvalidSession() {
         // 执行测试并验证异常
-        Map<String, Object> params = new HashMap<>();
-        assertThrows(RuntimeException.class, () -> listConnection.call(exchange, params));
+        assertThrows(RuntimeException.class, () -> listConnection.listConnection(context, null));
     }
 
     private DataSourceEntity createMockDataSource(String name, String type) {
@@ -120,4 +111,4 @@ class ListConnectionTest {
         ds.setStatus(DataSourceEntity.STATUS_READY);
         return ds;
     }
-} 
+}

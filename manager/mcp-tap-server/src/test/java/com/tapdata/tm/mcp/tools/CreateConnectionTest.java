@@ -9,8 +9,6 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,15 +16,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -53,13 +53,13 @@ class CreateConnectionTest {
     private DataSourceDefinitionService dataSourceDefinitionService;
 
     @Mock
-    private McpSyncServerExchange exchange;
+    private McpSyncRequestContext context;
 
     private CreateConnection createConnection;
 
     @BeforeEach
     void setUp() {
-        createConnection = new CreateConnection(sessionAttribute, userService, dataSourceService, dataSourceDefinitionService);
+        createConnection = new CreateConnection(new McpToolSupport(sessionAttribute, userService), dataSourceService, dataSourceDefinitionService);
     }
 
     @Test
@@ -70,21 +70,24 @@ class CreateConnectionTest {
         when(dataSourceDefinitionService.dataSourceTypes(eq(userDetail), any(Filter.class)))
                 .thenReturn(Collections.singletonList(mongoType));
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("dataSourceType", "mongo");
-
-        McpSchema.CallToolResult result = createConnection.call(exchange, params);
+        Map<String, Object> result = createConnection.createConnection(context, "mongo", null, null, null);
 
         assertNotNull(result);
-        assertFalse(Boolean.TRUE.equals(result.isError()));
-        String text = text(result);
-        assertTrue(text.contains("\"resolvedType\""));
-        assertTrue(text.contains("\"type\" : \"mongodb\""));
-        assertTrue(text.contains("\"name\" : \"host\""));
-        assertTrue(text.contains("\"advanced\" : false"));
-        assertTrue(text.contains("\"name\" : \"ssl\""));
-        assertTrue(text.contains("\"advanced\" : true"));
-        assertFalse(text.contains("\"name\" : \"tip\""));
+        Map<?, ?> resolvedType = assertInstanceOf(Map.class, result.get("resolvedType"));
+        assertEquals("mongodb", resolvedType.get("type"));
+        List<?> configFields = assertInstanceOf(List.class, result.get("configFields"));
+        assertTrue(configFields.stream().anyMatch(field -> {
+            Map<?, ?> item = assertInstanceOf(Map.class, field);
+            return "host".equals(item.get("name")) && Boolean.FALSE.equals(item.get("advanced"));
+        }));
+        assertTrue(configFields.stream().anyMatch(field -> {
+            Map<?, ?> item = assertInstanceOf(Map.class, field);
+            return "ssl".equals(item.get("name")) && Boolean.TRUE.equals(item.get("advanced"));
+        }));
+        assertFalse(configFields.stream().anyMatch(field -> {
+            Map<?, ?> item = assertInstanceOf(Map.class, field);
+            return "tip".equals(item.get("name"));
+        }));
         verify(dataSourceService, never()).addConnection(any(DataSourceConnectionDto.class), eq(userDetail));
     }
 
@@ -106,15 +109,10 @@ class CreateConnectionTest {
 
         Map<String, Object> config = new HashMap<>();
         config.put("uri", "mongodb://localhost:27017/test");
-        Map<String, Object> params = new HashMap<>();
-        params.put("dataSourceType", "MongoDB");
-        params.put("connectionName", "Mongo Conn");
-        params.put("config", config);
-
-        McpSchema.CallToolResult result = createConnection.call(exchange, params);
+        Map<String, Object> result = createConnection.createConnection(context, "MongoDB", "Mongo Conn", null, config);
 
         assertNotNull(result);
-        assertTrue(text(result).contains(createdId.toHexString()));
+        assertEquals(createdId.toHexString(), result.get("id"));
         ArgumentCaptor<DataSourceConnectionDto> captor = ArgumentCaptor.forClass(DataSourceConnectionDto.class);
         verify(dataSourceService).addConnection(captor.capture(), eq(userDetail));
 
@@ -131,10 +129,8 @@ class CreateConnectionTest {
     @Test
     void testCallUnsupportedTypeThrows() {
         mockUser();
-        Map<String, Object> params = new HashMap<>();
-        params.put("dataSourceType", "sqlite");
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> createConnection.call(exchange, params));
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> createConnection.createConnection(context, "sqlite", null, null, null));
 
         assertTrue(exception.getMessage().contains("Unsupported or unrecognized data source type"));
         verify(dataSourceDefinitionService, never()).dataSourceTypes(any(UserDetail.class), any(Filter.class));
@@ -143,7 +139,7 @@ class CreateConnectionTest {
 
     private UserDetail mockUser() {
         UserDetail userDetail = mock(UserDetail.class);
-        when(exchange.sessionId()).thenReturn("session-1");
+        when(context.sessionId()).thenReturn("session-1");
         when(sessionAttribute.getAttribute("session-1", "userId")).thenReturn(new ObjectId().toHexString());
         when(userService.loadUserById(any(ObjectId.class))).thenReturn(userDetail);
         return userDetail;
@@ -179,7 +175,4 @@ class CreateConnectionTest {
         return field;
     }
 
-    private String text(McpSchema.CallToolResult result) {
-        return ((McpSchema.TextContent) result.content().get(0)).text();
-    }
 }

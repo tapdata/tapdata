@@ -9,6 +9,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
+import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.HttpHeaders;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpStreamableServerSession;
@@ -17,20 +18,27 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStreamableServerTransportProvider;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.function.HandlerFunction;
+import org.springframework.web.servlet.function.RouterFunction;
+import org.springframework.web.servlet.function.ServerRequest;
+import org.springframework.web.servlet.function.ServerResponse;
 import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
 
 import static com.tapdata.tm.mcp.McpConfig.TOKEN;
 import static com.tapdata.tm.mcp.McpConfig.USER_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -40,7 +48,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class StreamableMcpTransportProviderTest {
+class McpAccessCodeAuthenticationTest {
 
     @Mock
     private AccessTokenService accessTokenService;
@@ -57,16 +65,26 @@ class StreamableMcpTransportProviderTest {
     @Mock
     private McpStreamableServerSession mcpSession;
 
-    private StreamableMcpTransportProvider transportProvider;
+    private McpSessionAttributes sessionAttributes;
+    private RouterFunction<ServerResponse> routerFunction;
 
     @BeforeEach
     void setUp() {
-        transportProvider = new StreamableMcpTransportProvider("/mcp", accessTokenService, userService, userLogService);
+        sessionAttributes = new McpSessionAttributes();
+        WebMvcStreamableServerTransportProvider transportProvider = WebMvcStreamableServerTransportProvider.builder()
+                .jsonMapper(new JacksonMcpJsonMapper(JsonMapper.builder().build()))
+                .mcpEndpoint("/mcp")
+                .contextExtractor(sessionAttributes::extractContext)
+                .build();
         transportProvider.setSessionFactory(sessionFactory);
+
+        McpAccessCodeAuthentication authentication = new McpAccessCodeAuthentication(accessTokenService,
+                userService, userLogService, sessionAttributes);
+        routerFunction = transportProvider.getRouterFunction().filter(authentication::filter);
     }
 
     @Test
-    void serviceShouldAuthenticateInitializeRequestAndStoreSessionAttributes() throws Exception {
+    void routerShouldAuthenticateInitializeRequestAndStoreSessionAttributes() throws Exception {
         AccessTokenDto accessTokenDto = new AccessTokenDto();
         accessTokenDto.setId("token-id");
         accessTokenDto.setUserId("user-id");
@@ -78,32 +96,28 @@ class StreamableMcpTransportProviderTest {
 
         MockHttpServletRequest request = initializeRequest();
         request.addHeader("Authorization", "Bearer access-code");
-        MockHttpServletResponse response = new MockHttpServletResponse();
 
-        transportProvider.service(request, response);
+        ServerResponse response = handle(request);
 
-        assertEquals(HttpStatus.OK.value(), response.getStatus());
-        assertEquals("mcp-session-id", response.getHeader(HttpHeaders.MCP_SESSION_ID));
-        assertEquals("token-id", transportProvider.getAttribute("mcp-session-id", TOKEN));
-        assertEquals("user-id", transportProvider.getAttribute("mcp-session-id", USER_ID));
-        assertEquals("token-id", transportProvider.getAttribute(response.getHeader(HttpHeaders.MCP_SESSION_ID), TOKEN));
+        assertEquals(HttpStatus.OK.value(), response.statusCode().value());
+        assertEquals("mcp-session-id", response.headers().getFirst(HttpHeaders.MCP_SESSION_ID));
+        assertEquals("token-id", sessionAttributes.getAttribute("mcp-session-id", TOKEN));
+        assertEquals("user-id", sessionAttributes.getAttribute("mcp-session-id", USER_ID));
         verify(userLogService).addUserLog(Modular.MCP, Operation.CONNECTED, "user-id", null, null);
         verify(userLogService).addUserLog(eq(Modular.MCP), eq(Operation.READ), eq("user-id"), eq((String) null), any(String.class));
     }
 
     @Test
-    void serviceShouldRejectInitializeRequestWithoutAccessCode() throws Exception {
-        MockHttpServletResponse response = new MockHttpServletResponse();
+    void routerShouldRejectInitializeRequestWithoutAccessCode() throws Exception {
+        ServerResponse response = handle(initializeRequest());
 
-        transportProvider.service(initializeRequest(), response);
-
-        assertEquals(HttpStatus.UNAUTHORIZED.value(), response.getStatus());
+        assertEquals(HttpStatus.UNAUTHORIZED.value(), response.statusCode().value());
         verify(sessionFactory, never()).startSession(any(McpSchema.InitializeRequest.class));
         verifyNoInteractions(userLogService);
     }
 
     @Test
-    void serviceShouldRejectInitializeRequestWithoutMcpRole() throws Exception {
+    void routerShouldRejectInitializeRequestWithoutMcpRole() throws Exception {
         AccessTokenDto accessTokenDto = new AccessTokenDto();
         accessTokenDto.setId("token-id");
         accessTokenDto.setUserId("user-id");
@@ -112,9 +126,7 @@ class StreamableMcpTransportProviderTest {
 
         MockHttpServletRequest request = initializeRequest();
         request.setParameter("accessCode", "access-code");
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        transportProvider.service(request, response);
+        MockHttpServletResponse response = write(handle(request), request);
 
         assertEquals(HttpStatus.UNAUTHORIZED.value(), response.getStatus());
         assertEquals("Not granted the mcp role", response.getContentAsString());
@@ -122,30 +134,52 @@ class StreamableMcpTransportProviderTest {
     }
 
     @Test
-    void setAttributeShouldOnlyUpdateExistingSession() {
-        assertNull(transportProvider.setAttribute("missing-session", "key", "value"));
-        assertNull(transportProvider.getAttribute("missing-session", "key"));
+    void routerShouldAllowFollowUpRequestWithExistingSessionId() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/mcp");
+        request.addHeader(HttpHeaders.MCP_SESSION_ID, "mcp-session-id");
 
-        Map<String, Map<String, Object>> sessionAttributes =
-                (Map<String, Map<String, Object>>) ReflectionTestUtils.getField(transportProvider, "sessionAttributes");
-        Map<String, Object> attrs = new ConcurrentHashMap<>();
-        attrs.put("sessionId", "alias-session-id");
-        sessionAttributes.put("stored-session-id", attrs);
+        ServerResponse response = handle(request);
 
-        assertNull(transportProvider.setAttribute("stored-session-id", "key", "value"));
-        assertEquals("value", transportProvider.getAttribute("stored-session-id", "key"));
-        assertEquals("value", transportProvider.getAttribute("alias-session-id", "key"));
+        assertNotEquals(HttpStatus.UNAUTHORIZED.value(), response.statusCode().value());
+        verifyNoInteractions(accessTokenService, userService, userLogService);
     }
 
     @Test
-    void closeGracefullyShouldClearSessionAttributes() {
-        Map<String, Map<String, Object>> sessionAttributes =
-                (Map<String, Map<String, Object>>) ReflectionTestUtils.getField(transportProvider, "sessionAttributes");
-        sessionAttributes.put("stored-session-id", new ConcurrentHashMap<>(Collections.singletonMap(USER_ID, "user-id")));
+    void setAttributeShouldOnlyUpdateExistingSession() {
+        assertNull(sessionAttributes.setAttribute("missing-session", "key", "value"));
+        assertNull(sessionAttributes.getAttribute("missing-session", "key"));
 
-        StepVerifier.create(transportProvider.closeGracefully()).verifyComplete();
+        sessionAttributes.put("stored-session-id", new java.util.concurrent.ConcurrentHashMap<>());
 
-        assertNull(transportProvider.getAttribute("stored-session-id", USER_ID));
+        assertNull(sessionAttributes.setAttribute("stored-session-id", "key", "value"));
+        assertEquals("value", sessionAttributes.getAttribute("stored-session-id", "key"));
+    }
+
+    @Test
+    void clearShouldRemoveSessionAttributes() {
+        sessionAttributes.put("stored-session-id", new java.util.concurrent.ConcurrentHashMap<>(
+                Collections.singletonMap(USER_ID, "user-id")));
+
+        sessionAttributes.clear();
+
+        assertNull(sessionAttributes.getAttribute("stored-session-id", USER_ID));
+    }
+
+    private ServerResponse handle(MockHttpServletRequest request) throws Exception {
+        ServerRequest serverRequest = ServerRequest.create(request, messageConverters());
+        HandlerFunction<ServerResponse> handler = routerFunction.route(serverRequest).orElseThrow();
+        return handler.handle(serverRequest);
+    }
+
+    private MockHttpServletResponse write(ServerResponse serverResponse, MockHttpServletRequest request) throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        ModelAndView modelAndView = serverResponse.writeTo(request, response, () -> messageConverters());
+        assertNull(modelAndView);
+        return response;
+    }
+
+    private List<HttpMessageConverter<?>> messageConverters() {
+        return Collections.singletonList(new StringHttpMessageConverter());
     }
 
     private MockHttpServletRequest initializeRequest() {
