@@ -287,6 +287,69 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
+	@DisplayName("addDatabaseNodeTable method test")
+	class AddDatabaseNodeTableTest {
+		private DatabaseNode databaseNode;
+		private List<String> tables;
+
+		@BeforeEach
+		void setUp() {
+			databaseNode = mock(DatabaseNode.class);
+			tables = new ArrayList<>();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).addDatabaseNodeTable(any(DatabaseNode.class), anyList());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "processorBaseContext", processorBaseContext);
+		}
+
+		@Test
+		@DisplayName("优先使用 DatabaseNode 显式配置的表名")
+		void testUseDatabaseNodeTableNamesFirst() {
+			when(databaseNode.getTableNames()).thenReturn(Arrays.asList("tableA", "tableB"));
+
+			hazelcastTargetPdkBaseNode.addDatabaseNodeTable(databaseNode, tables);
+
+			assertEquals(Arrays.asList("tableA", "tableB"), tables);
+			verify(processorBaseContext, never()).getTapTableMap();
+		}
+
+		@Test
+		@DisplayName("tapTableMap 为空时不追加表名")
+		void testReturnWhenTapTableMapIsNull() {
+			when(databaseNode.getTableNames()).thenReturn(null);
+			when(processorBaseContext.getTapTableMap()).thenReturn(null);
+
+			hazelcastTargetPdkBaseNode.addDatabaseNodeTable(databaseNode, tables);
+
+			assertTrue(tables.isEmpty());
+		}
+
+		@Test
+		@DisplayName("tapTableMap 没有表时不追加表名")
+		void testReturnWhenTapTableMapHasNoTables() {
+			when(databaseNode.getTableNames()).thenReturn(Collections.emptyList());
+			TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			when(tapTableMap.keySet()).thenReturn(Collections.emptySet());
+
+			hazelcastTargetPdkBaseNode.addDatabaseNodeTable(databaseNode, tables);
+
+			assertTrue(tables.isEmpty());
+		}
+
+		@Test
+		@DisplayName("从 tapTableMap 回填数据库节点表名")
+		void testAddTablesFromTapTableMap() {
+			when(databaseNode.getTableNames()).thenReturn(Collections.emptyList());
+			TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			when(tapTableMap.keySet()).thenReturn(new LinkedHashSet<>(Arrays.asList("tableA", "tableB")));
+
+			hazelcastTargetPdkBaseNode.addDatabaseNodeTable(databaseNode, tables);
+
+			assertEquals(Arrays.asList("tableA", "tableB"), tables);
+		}
+	}
+
+	@Nested
 	class createTableTest {
 
 		DataProcessorContext dataProcessorContext;

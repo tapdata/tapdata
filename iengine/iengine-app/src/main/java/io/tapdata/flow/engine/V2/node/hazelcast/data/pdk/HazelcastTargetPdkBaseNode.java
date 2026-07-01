@@ -263,6 +263,23 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		initSyncPartitionTableEnable();
 	}
 
+	protected void addDatabaseNodeTable(DatabaseNode databaseNode, List<String> tables) {
+		List<String> nodeTableNames = databaseNode.getTableNames();
+		if (null != nodeTableNames && !nodeTableNames.isEmpty()) {
+			tables.addAll(nodeTableNames);
+			return;
+		}
+		TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
+		if (tapTableMap == null) {
+			return;
+		}
+		Set<String> tableNames = tapTableMap.keySet();
+		if (tableNames.isEmpty()) {
+			return;
+		}
+		tables.addAll(tableNames);
+	}
+
 	protected void initShareCdcCollectorIfNeed() {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Boolean shareCache = taskDto.getShareCdcEnable();
@@ -286,7 +303,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (node instanceof TableNode tableNode) {
 			tables.add(tableNode.getTableName());
 		} else if (node instanceof DatabaseNode databaseNode) {
-			tables.addAll(databaseNode.getTableNames());
+			addDatabaseNodeTable(databaseNode, tables);
 		} else {
 			return;
 		}
