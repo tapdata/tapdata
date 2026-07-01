@@ -32,6 +32,8 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.dag.process.DuckDbSqlNode;
+import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import com.tapdata.tm.commons.function.ThrowableConsumer;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.metrics.MetricCons;
@@ -1249,6 +1251,8 @@ public class TaskServiceImpl extends TaskService{
                     ((MergeTableNode) node).setMergeProperties(mergeTableProperties);
                 } else if (node instanceof MigrateFieldRenameProcessorNode) {
 
+                } else if (node instanceof DuckDbSqlNode sqlNode) {
+                    DuckNodeHandler.copy(sqlNode, oldnewNodeIdMap);
                 }
             }
 

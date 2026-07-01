@@ -27,6 +27,7 @@ public enum NodeEnum {
     python_processor("Python节点"),
     standard_js_processor("标准JS节点"),
     merge_table_processor("多表合并节点"),
+    duckdb_sql_processor("SQL处理节点"),
     row_filter_processor("Row Filter节点"),
     table_rename_processor("表编辑节点"),
     migrate_field_rename_processor("字段编辑节点"),

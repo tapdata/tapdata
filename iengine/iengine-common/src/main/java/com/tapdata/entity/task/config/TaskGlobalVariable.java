@@ -37,6 +37,9 @@ public enum TaskGlobalVariable implements MemoryFetcher {
 	public final static String SOURCE_INITIAL_COUNTER_KEY = "SOURCE_INITIAL_COUNTER";
 	public final static String PREVIEW_COMPLETE_KEY = "PREVIEW_COMPLETE";
 	public final static String MERGE_REBUILD_CACHE = "MERGE_REBUILD_CACHE";
+	public final static String SNAPSHOT_CDC_BARRIER_ENABLED = "SNAPSHOT_CDC_BARRIER_ENABLED";
+	public final static String SNAPSHOT_CDC_BARRIER_REMAINING = "SNAPSHOT_CDC_BARRIER_REMAINING";
+	public final static String SNAPSHOT_CDC_BARRIER_DONE_SET = "SNAPSHOT_CDC_BARRIER_DONE_SET";
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
