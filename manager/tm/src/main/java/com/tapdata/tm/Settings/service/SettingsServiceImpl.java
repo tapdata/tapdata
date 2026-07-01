@@ -18,7 +18,6 @@ import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,6 +35,7 @@ import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -272,19 +272,35 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     public void save(List<SettingsDto> settingsDto) {
-        if (CollectionUtils.isNotEmpty(settingsDto)) {
-            for (SettingsDto dto : settingsDto) {
-                // category: "SMTP", key: "smtp.server.password", value: "*****"
-                if (!Objects.isNull(dto.getValue()) &&
-                        (StringUtils.equals(SMTP_SERVER_PASSWORD, dto.getKey())
-                        || StringUtils.equals("ldap.bind.password", dto.getKey())) &&
-                        StringUtils.equals("*****", dto.getValue().toString())) {
-                    continue;
-                }
-
-                mongoTemplate.save(dto, "Settings");
-            }
+        if (CollectionUtils.isEmpty(settingsDto)) {
+            return;
         }
+        List<SettingsDto> validSettings = settingsDto.stream()
+                .filter(Objects::nonNull)
+                .filter(dto -> StringUtils.isNotBlank(dto.getId()))
+                .filter(dto -> !isMaskedPassword(dto))
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(validSettings)) {
+            return;
+        }
+        BulkOperations bulkOperations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, Settings.class);
+        for (SettingsDto dto : validSettings) {
+            bulkOperations.updateOne(Query.query(Criteria.where("category").is(dto.getCategory()).and("key").is(dto.getKey())), buildSettingsUpdate(dto));
+        }
+        bulkOperations.execute();
+    }
+
+    private boolean isMaskedPassword(SettingsDto dto) {
+        return !Objects.isNull(dto.getValue()) &&
+                (StringUtils.equals(SMTP_SERVER_PASSWORD, dto.getKey())
+                        || StringUtils.equals("ldap.bind.password", dto.getKey())) &&
+                StringUtils.equals("*****", dto.getValue().toString());
+    }
+
+    private Update buildSettingsUpdate(SettingsDto dto) {
+        Update update = new Update();
+        update.set("value", dto.getValue());
+        return update;
     }
 
     /**
