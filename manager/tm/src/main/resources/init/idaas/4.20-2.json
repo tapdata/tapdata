@@ -33,14 +33,14 @@
             "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
             "documentation": "global_share_cdc_enable_doc",
             "category_sort": 20,
-            "default_value": "false",
+            "default_value": false,
             "hot_reloading": false,
             "key": "global_share_cdc_enable",
             "key_label": "global_share_cdc_enable",
             "sort": 0,
             "user_visible": true,
-            "value": "false",
-            "enums": ["true", "false"]
+            "value": false,
+            "enums": [true, false]
           }
         },
         "upsert": true
