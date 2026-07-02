@@ -64,7 +64,6 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -139,9 +138,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	// 批量启动任务的并发控制
 	private static final double BATCH_SIZE_RATIO = 0.7; // 使用线程池70%的线程用于批量启动
 	private static final int MIN_BATCH_SIZE = 1; // 最小批次大小
-	private final Semaphore startTaskSemaphore = new Semaphore(calculateBatchSize()); // 控制并发启动任务数量
-	private volatile long lastBatchStartTime = 0L; // 上一批次启动时间
-	private final AtomicInteger currentBatchCount = new AtomicInteger(0); // 当前批次已启动任务数
+	// 并发启动上限：只计算一次并复用，避免"初始许可数与运行期归还阈值不一致"导致的信号量死锁（TAP-12108）
+	private final int maxConcurrentStartTask = calculateBatchSize();
+	// 控制并发启动任务数量；acquire/release 严格成对（见 applyBatchStartTaskRateLimit / releaseStartTaskPermit）
+	private final Semaphore startTaskSemaphore = new Semaphore(maxConcurrentStartTask);
 
 	@Bean(name = "taskControlScheduler")
 	public TaskScheduler taskControlScheduler() {
@@ -271,14 +271,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		};
 	}
 
-	protected void handleTaskOperation(TaskOperation taskOperation) throws InterruptedException, ExecutionException {
-		// 将处理变成单线程处理，避免操作在线程池中积压
+	protected void handleTaskOperation(TaskOperation taskOperation) {
+		// 异步提交后立即返回，继续消费队列；启动并发由 startTaskSemaphore 控制。
+		// 不再对 START 操作 future.get() 串行等待，避免单个任务启动阻塞拖垮整条启动队列（TAP-12108）。
 		Runnable runnable = getHandleTaskOperationRunnable(taskOperation);
-		Future<?> future = taskOperationThreadPool.submit(runnable);
-		if (taskOperation.getOpType() == OpType.START) {
-			// 启动任务有限流，单线程处理
-			future.get();
-		}
+		taskOperationThreadPool.submit(runnable);
 	}
 
 	public void sendStartTask(TaskDto taskDto) {
@@ -506,61 +503,31 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	/**
-	 * Apply batch-based rate limiting for task startup
-	 * Allows concurrent task startup within batch size limit, with 5-second interval between batches
+	 * 启动并发控制：获取一个启动许可，限制同时启动的任务数不超过 {@code maxConcurrentStartTask}。
+	 * 许可用完即还——必须由 {@link #releaseStartTaskPermit()} 成对归还（见 startTask 的 finally）。
+	 *
+	 * <p>历史缺陷（TAP-12028/TAP-12108）：旧实现只在"凑满一整批 batchSize"时才批量 release，
+	 * 且初始许可数与运行期归还阈值可能不一致，导致 release 从不触发、许可只减不还，最终耗尽为 0，
+	 * 所有任务永久阻塞在 acquire。现改为 acquire/release 严格成对，彻底消除该泄漏。
 	 *
 	 * @param taskDto the task to start
 	 */
 	public void applyBatchStartTaskRateLimit(TaskDto taskDto) {
 		try {
-			// Acquire semaphore permit (blocks if batch is full)
+			// 获取一个启动许可（上限 = maxConcurrentStartTask），阻塞直到有空位
 			startTaskSemaphore.acquire();
-
-			synchronized (startTaskLock) {
-				int batchCount = currentBatchCount.incrementAndGet();
-				int batchSize = calculateBatchSize();
-
-				logger.debug("Task {} ({}) acquired startup permit, current batch count: {}/{}",
-					taskDto.getName(), taskDto.getId().toHexString(), batchCount, batchSize);
-
-				// Check if this is the first task in a new batch
-				if (batchCount == 1) {
-					long currentTime = System.currentTimeMillis();
-					long timeSinceLastBatch = currentTime - lastBatchStartTime;
-
-					// If less than 5 seconds since last batch, wait
-					if (lastBatchStartTime > 0 && timeSinceLastBatch < START_TASK_RATE_LIMIT_MILLIS) {
-						long waitTime = START_TASK_RATE_LIMIT_MILLIS - timeSinceLastBatch;
-						logger.info("Rate limiting batch startup, waiting {}ms to maintain 5-second batch interval", waitTime);
-
-						try {
-							startTaskLock.wait(waitTime);
-						} catch (InterruptedException e) {
-							Thread.currentThread().interrupt();
-							logger.warn("Batch rate limit wait interrupted");
-							throw new RuntimeException("Batch rate limit wait interrupted", e);
-						}
-					}
-
-					// Update last batch start time
-					lastBatchStartTime = System.currentTimeMillis();
-					logger.info("Starting new batch of tasks, batch size limit: {}, batch start time: {}",
-						batchSize, lastBatchStartTime);
-				}
-
-				// If batch is full, reset counter and release all permits for next batch
-				if (batchCount >= batchSize) {
-					logger.info("Batch full ({}/{}), resetting for next batch", batchCount, batchSize);
-					currentBatchCount.set(0);
-					startTaskSemaphore.release(batchSize);
-				}
-			}
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			logger.error("Failed to acquire startup permit for task {} ({}): {}",
-				taskDto.getName(), taskDto.getId().toHexString(), e.getMessage());
-			throw new RuntimeException("Failed to acquire startup permit", e);
+			throw new RuntimeException(String.format("Interrupted while acquiring start-task permit for %s (%s)",
+				taskDto.getName(), taskDto.getId().toHexString()), e);
 		}
+	}
+
+	/**
+	 * 归还一个启动许可，与 {@link #applyBatchStartTaskRateLimit(TaskDto)} 成对使用。
+	 */
+	public void releaseStartTaskPermit() {
+		startTaskSemaphore.release();
 	}
 
 	protected void startTask(TaskDto taskDto) {
@@ -577,6 +544,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
+		boolean permitAcquired = false;
 		try {
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
@@ -592,6 +560,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			// Apply rate limiting after claiming: TM already knows the task is running so the
 			// wait_run overtime timer will not fire while we wait here.
 			applyBatchStartTaskRateLimit(taskDto);
+			permitAcquired = true;
 
 			// 使用 computeIfAbsent 防止创建重复的 TaskClient
 			taskClientMap.computeIfAbsent(taskId, id -> hazelcastTaskService.startTask(taskDto));
@@ -614,6 +583,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
 			Optional.of(taskDto).ifPresent(task -> ConnectorConstant.TASK_STATUS_GAUGE.set(1, taskId, task.getName(), task.getSyncType()));
 		} finally {
+			// 与 applyBatchStartTaskRateLimit 成对归还许可；无论启动成功或失败都归还，杜绝许可泄漏（TAP-12108）
+			if (permitAcquired) {
+				releaseStartTaskPermit();
+			}
 			ThreadContext.clearAll();
 		}
 	}
