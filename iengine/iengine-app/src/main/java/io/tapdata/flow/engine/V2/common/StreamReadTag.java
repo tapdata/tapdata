@@ -1,11 +1,11 @@
 package io.tapdata.flow.engine.V2.common;
 
-import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataStartedCdcEvent;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -14,29 +14,30 @@ import java.util.function.Function;
  * @description
  */
 public final class StreamReadTag {
-    public Consumer<List<String>> startStreamRead;
-    public Function<List<String>, List<String>> targetTableName;
+    final int sourceNodeCount;
+    public List<Runnable> startStreamRead;
+    int acceptedCount;
 
-    public StreamReadTag(Function<List<String>, List<String>> targetTableName, Consumer<List<String>> startStreamRead) {
-        this.startStreamRead = startStreamRead;
-        this.targetTableName = targetTableName;
+    public StreamReadTag(int sourceNodeCount, Runnable ... startStreamRead) {
+        this.sourceNodeCount = sourceNodeCount;
+        if (startStreamRead != null) {
+            this.startStreamRead = Arrays.asList(startStreamRead);
+        } else {
+            this.startStreamRead = new ArrayList<>();
+        }
+        this.acceptedCount = 0;
     }
 
     public void accept(TapdataEvent e) {
-        if (startStreamRead == null) {
+        if (this.acceptedCount >= this.sourceNodeCount) {
             return;
         }
-        if (!(e instanceof TapdataCompleteTableSnapshotEvent tableSnapshotEvent)) {
+        if (!(e instanceof TapdataStartedCdcEvent)) {
             return;
         }
-        List<String> tableName = this.targetTableName.apply(List.of(tableSnapshotEvent.getSourceTableName()));
-        this.startStreamRead.accept(tableName);
-    }
-
-    public void accept(List<String> tableNames) {
-        if (startStreamRead == null) {
-            return;
+        this.acceptedCount++;
+        if (this.acceptedCount >= this.sourceNodeCount) {
+            this.startStreamRead.forEach(Runnable::run);
         }
-        this.startStreamRead.accept(tableNames);
     }
 }

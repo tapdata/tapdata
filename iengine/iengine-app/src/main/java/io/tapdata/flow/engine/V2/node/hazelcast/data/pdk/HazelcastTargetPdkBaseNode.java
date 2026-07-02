@@ -243,6 +243,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         syncMetricCollector = ISyncMetricCollector.init(dataProcessorContext);
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInit(context);
+			initShareCdcCollectorIfNeed();
 			initOffsetCallbackEnable();
 			createPdkAndInit(context);
 			everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
@@ -292,23 +293,26 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			obsLogger.info("System configuration enables shared mining global configuration items, and the target node does not need to enable shared mining");
 			return;
 		}
-		if (taskDto.notCdcOpen()) {
-			obsLogger.info("Task not open cdc, and the target node does not need to enable shared mining");
+		Node<?> node = getNode();
+		List<String> tables = new ArrayList<>();
+		if (node instanceof TableNode tableNode) {
+			tables.add(tableNode.getTableName());
+		} else if (node instanceof DatabaseNode) {
+			addDatabaseNodeTable(tables);
+		} else {
 			return;
 		}
-		Node<?> node = getNode();
+		if (tables.isEmpty()) {
+			return;
+		}
 		String connectionId = ((DataParentNode<?>) node).getConnectionId();
-		streamReadTag = new StreamReadTag(this::targetTableName, tableNames -> {
-			if (CollectionUtils.isEmpty(tableNames)) {
-				return;
-			}
+		streamReadTag = new StreamReadTag(this.sourceNodeCount, () -> {
 			long startTime = System.currentTimeMillis();
 			Map<String, Object> body = new HashMap<>();
 			body.put("connectionId", connectionId);
-			body.put("tableNames", tableNames);
+			body.put("tableNames", tables);
 			body.put("nodeConfig", Map.of("enableFillingModifiedData", false, "noCursorTimeout", false, "preImage", true, "writeConcern", "w1"));
 			try {
-				obsLogger.info("Table {} has been fully completed and is ready to be added to the shared mining task", tableNames);
 				this.clientMongoOperator.postOne(body, "logcollector/start-and-wait", Map.class);
 				long endTime = System.currentTimeMillis();
 				obsLogger.info("The system configuration has enabled the shared mining global configuration item, and the task has enabled the shared mining switch. The target table has been added to the mining task, time cost {}ms", endTime - startTime);
@@ -316,37 +320,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				obsLogger.warn("The system configuration has enabled the global configuration item for shared mining, and the task has turned on the shared mining switch. However, the target table has not been properly added to the mining task: {}", e.getMessage());
 			}
 		});
-		if (taskDto.isCDCTask()) {
-			List<String> tables = new ArrayList<>();
-			if (node instanceof TableNode tableNode) {
-				tables.add(tableNode.getTableName());
-			} else if (node instanceof DatabaseNode) {
-				addDatabaseNodeTable(tables);
-			} else {
-				return;
-			}
-			streamReadTag.accept(tables);
-			streamReadTag = null;
-		}
-	}
-
-	List<String> targetTableName(List<String> sourceTableNames) {
-		if (CollectionUtils.isEmpty(sourceTableNames)) {
-			return new ArrayList<>();
-		}
-		Map<String, String> tableNameMapping = new HashMap<>();
-		processorBaseContext.getTapTableMap().forEach((key, value) -> {
-			tableNameMapping.put(value.getAncestorsName(), key);
-		});
-		Set<String> tables = new HashSet<>();
-		for (String sourceTableName : sourceTableNames) {
-			String tableName = tableNameMapping.get(sourceTableName);
-			if (StringUtils.isEmpty(tableName)) {
-				continue;
-			}
-			tables.add(tableName);
-		}
-		return new ArrayList<>(tables);
 	}
 
 	protected void initFlushOffsetConsumer() {

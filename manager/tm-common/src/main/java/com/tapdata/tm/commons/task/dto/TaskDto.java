@@ -321,10 +321,6 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
         return TYPE_INITIAL_SYNC.equals(getType()) || TYPE_INITIAL_SYNC_CDC.equals(getType());
     }
 
-    public boolean notCdcOpen() {
-        return TYPE_INITIAL_SYNC.equals(getType());
-    }
-
     public boolean hasSyncProgress() {
         return null != getAttrs() && getAttrs().containsKey("syncProgress");
     }
