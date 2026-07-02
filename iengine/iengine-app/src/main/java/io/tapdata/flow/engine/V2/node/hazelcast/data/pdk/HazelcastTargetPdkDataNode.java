@@ -123,6 +123,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
 			}
 			initTargetDB();
+			initShareCdcCollectorIfNeed();
 			this.writePolicyService = new PDkNodeInsertRecordPolicyService(dataProcessorContext.getTaskDto(), getNode(), associateId);
 			this.writePolicyService.setStartTransactionMap(startTransactionMap);
 			this.writePolicyService.setTransactionOperator(new TransactionOperator() {
