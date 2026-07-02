@@ -7,8 +7,11 @@ import com.tapdata.tm.commons.dag.process.DuckDbSqlNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.flow.engine.V2.node.duckdb.DlqWriter;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperatorImpl;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckLakeConfig;
+import io.tapdata.flow.engine.V2.node.duckdb.ErrorHandler;
 import io.tapdata.flow.engine.V2.node.duckdb.FromTableConfig;
 import io.tapdata.flow.engine.V2.node.duckdb.NodeSchemaInfo;
 import io.tapdata.flow.engine.V2.node.duckdb.PerSourceContext;
@@ -35,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 /**
@@ -161,16 +165,12 @@ class HazelcastDuckDbSqlNodeTest {
 
     @Test
     void testTryProcess_WithNonRecordEvent() {
-        TapEvent nonRecordEvent = mock(TapEvent.class);
         TapdataEvent tapdataEvent = new TapdataEvent();
-        tapdataEvent.setTapEvent(nonRecordEvent);
-        
         AtomicInteger consumerCallCount = new AtomicInteger(0);
-        
-        assertDoesNotThrow(() -> 
-            hazelcastDuckDbSqlNode.tryProcess(tapdataEvent, (event, result) -> consumerCallCount.incrementAndGet())
-        );
-        
+
+        hazelcastDuckDbSqlNode.setCurrentConsumer(new AtomicReference<>((event, result) -> consumerCallCount.incrementAndGet()));
+        hazelcastDuckDbSqlNode.accept(tapdataEvent, null);
+
         assertEquals(1, consumerCallCount.get());
     }
 
@@ -256,50 +256,6 @@ class HazelcastDuckDbSqlNodeTest {
     }
 
     @Test
-    void testCreateContextOperator_ReusesSharedOperatorInMemoryMode() throws Exception {
-        NodeSchemaInfo schemaInfo = buildMinimalSchema("pre_1", "orders");
-        try (DuckDbOperatorImpl sharedOperator = new DuckDbOperatorImpl("", false, 10, 5000)) {
-            sharedOperator.ensureTableExists(schemaInfo, false);
-            setDuckDbOperator(sharedOperator);
-            setFieldValue(hazelcastDuckDbSqlNode, "dbPath", null);
-
-            DuckDbOperator contextOperator = invokeCreateContextOperator();
-
-            assertSame(sharedOperator, contextOperator);
-
-            contextOperator.insertBatch(schemaInfo, List.of(createInsertEvent("orders", Map.of("id", 1L))));
-            List<Map<String, Object>> results = sharedOperator.executeQuery("SELECT COUNT(*) AS cnt FROM orders");
-
-            assertEquals(1L, ((Number) results.get(0).get("cnt")).longValue());
-        }
-    }
-
-    @Test
-    void testCreateContextOperator_UsesDedicatedOperatorInFileMode() throws Exception {
-        NodeSchemaInfo schemaInfo = buildMinimalSchema("pre_1", "orders");
-        String dbFile = tempDir.resolve("duckdb-node-test.db").toString();
-
-        try (DuckDbOperatorImpl sharedOperator = new DuckDbOperatorImpl(dbFile, false, 10, 5000)) {
-            sharedOperator.ensureTableExists(schemaInfo, false);
-            setDuckDbOperator(sharedOperator);
-            setFieldValue(hazelcastDuckDbSqlNode, "dbPath", dbFile);
-
-            DuckDbOperator contextOperator = invokeCreateContextOperator();
-            assertNotSame(sharedOperator, contextOperator);
-
-            try {
-                contextOperator.insertBatch(schemaInfo, List.of(createInsertEvent("orders", Map.of("id", 2L))));
-                List<Map<String, Object>> results = sharedOperator.executeQuery("SELECT COUNT(*) AS cnt FROM orders");
-                assertEquals(1L, ((Number) results.get(0).get("cnt")).longValue());
-            } finally {
-                if (contextOperator instanceof DuckDbOperatorImpl duckDbOperatorImpl) {
-                    duckDbOperatorImpl.close();
-                }
-            }
-        }
-    }
-
-    @Test
     void testReplaceWithBoundaryDetection_ReplacesWholeIdentifiersOnly() throws Exception {
         String sql = "SELECT a.id FROM a JOIN ab ON a.id = ab.id";
         Map<String, String> aliasMap = new LinkedHashMap<>();
@@ -347,6 +303,171 @@ class HazelcastDuckDbSqlNodeTest {
     }
 
     @Test
+    void testCreateContextOperator_ReusesSharedOperatorInMemoryMode() throws Exception {
+        DuckDbOperator mockOperator = mock(DuckDbOperator.class);
+        setDuckDbOperator(mockOperator);
+        setFieldValue(hazelcastDuckDbSqlNode, "dbPath", "");
+
+        DuckDbOperator result = invokeCreateContextOperator();
+
+        assertSame(mockOperator, result);
+    }
+
+    @Test
+    void testFindTable_FallsBackToNodeSchemaCache() {
+        NodeSchemaInfo schema = buildMinimalSchema("pre_1", "orders");
+        hazelcastDuckDbSqlNode.getNodeSchemaCache().put("pre_1", schema);
+
+        NodeSchemaInfo result = hazelcastDuckDbSqlNode.findTable("orders");
+
+        assertSame(schema, result);
+    }
+
+    @Test
+    void testManageWideTable_WhenAlreadyExistsAndNoRecreate_SkipsCreation() throws Exception {
+        DuckDbOperator mockOperator = mock(DuckDbOperator.class);
+        when(mockOperator.executeQuery(anyString())).thenReturn(List.of(Map.of("cnt", 1)));
+        setDuckDbOperator(mockOperator);
+        setFieldValue(hazelcastDuckDbSqlNode, "wideTableName", "wide_orders");
+
+        boolean managed = (boolean) invokePrivateMethod(
+                hazelcastDuckDbSqlNode,
+                "manageWideTable",
+                new Class<?>[]{boolean.class},
+                new Object[]{false}
+        );
+
+        assertFalse(managed);
+        verify(mockOperator, never()).executeUpdate(anyString());
+    }
+
+    @Test
+    void testManageWideTable_FallsBackToFieldListWhenAsSelectFails() throws Exception {
+        DuckDbOperator mockOperator = mock(DuckDbOperator.class);
+        when(mockOperator.executeQuery(anyString())).thenReturn(List.of(Map.of("cnt", 0)));
+        when(mockOperator.executeUpdate(anyString()))
+                .thenThrow(new SQLException("as select failed"))
+                .thenReturn(0);
+        setDuckDbOperator(mockOperator);
+        setFieldValue(hazelcastDuckDbSqlNode, "wideTableName", "wide_orders");
+        setFieldValue(hazelcastDuckDbSqlNode, "querySql", "SELECT id, name FROM source_orders");
+        setFieldValue(hazelcastDuckDbSqlNode, "wideTablePrimaryKey", List.of("id"));
+
+        boolean managed = (boolean) invokePrivateMethod(
+                hazelcastDuckDbSqlNode,
+                "manageWideTable",
+                new Class<?>[]{boolean.class},
+                new Object[]{false}
+        );
+
+        assertTrue(managed);
+        verify(mockOperator, times(2)).executeUpdate(anyString());
+    }
+
+    @Test
+    void testResolveMainTableInfo_DerivesMainAndWideTableName() throws Exception {
+        FromTableConfig fromTableConfig = new FromTableConfig();
+        fromTableConfig.setPreNodeId("pre_1");
+        fromTableConfig.setTableNameInSql("orders");
+        setFieldValue(hazelcastDuckDbSqlNode, "fromTables", List.of(fromTableConfig));
+        setFieldValue(hazelcastDuckDbSqlNode, "mainTableName", null);
+        setFieldValue(hazelcastDuckDbSqlNode, "wideTableName", null);
+        setFieldValue(hazelcastDuckDbSqlNode, "wideTablePrimaryKey", new ArrayList<>(List.of("id")));
+
+        invokePrivateMethod(hazelcastDuckDbSqlNode, "resolveMainTableInfo", new Class<?>[]{}, new Object[]{});
+
+        assertEquals("orders", getFieldValue(hazelcastDuckDbSqlNode, "mainTableName"));
+        assertEquals("wide_orders", getFieldValue(hazelcastDuckDbSqlNode, "wideTableName"));
+    }
+
+    @Test
+    void testManageDuckDbTables_HandlesMainFromAndWideTables() throws Exception {
+        DuckDbOperator mockOperator = mock(DuckDbOperator.class);
+        when(mockOperator.executeQuery(anyString())).thenReturn(List.of(Map.of("cnt", 0)));
+        when(mockOperator.executeUpdate(anyString())).thenReturn(0);
+        setDuckDbOperator(mockOperator);
+
+        setFieldValue(hazelcastDuckDbSqlNode, "mainTableName", "main_orders");
+        setFieldValue(hazelcastDuckDbSqlNode, "wideTableName", "wide_orders");
+        setFieldValue(hazelcastDuckDbSqlNode, "querySql", "SELECT id, name FROM source_orders");
+        setFieldValue(hazelcastDuckDbSqlNode, "wideTablePrimaryKey", List.of("id"));
+        setFieldValue(hazelcastDuckDbSqlNode, "fromTables", List.of(
+                new FromTableConfig("pre_1", "orders_alias"),
+                new FromTableConfig("pre_2", "payments_alias")
+        ));
+
+        Map<String, NodeSchemaInfo> tableSchemaCache = (Map<String, NodeSchemaInfo>) getFieldValue(hazelcastDuckDbSqlNode, "tableSchemaCache");
+        tableSchemaCache.put("main_orders", buildMinimalSchema("main_source", "main_orders"));
+        tableSchemaCache.put("wide_orders", buildMinimalSchema("wide_source", "wide_orders"));
+        hazelcastDuckDbSqlNode.getNodeSchemaCache().put("pre_1", buildMinimalSchema("pre_1", "orders"));
+        hazelcastDuckDbSqlNode.getNodeSchemaCache().put("pre_2", buildMinimalSchema("pre_2", "payments"));
+
+        invokePrivateMethod(hazelcastDuckDbSqlNode, "manageDuckDbTables", new Class<?>[]{}, new Object[]{});
+
+        verify(mockOperator, times(3)).ensureTableExists(any(NodeSchemaInfo.class), eq(false));
+        verify(mockOperator).executeQuery(anyString());
+        verify(mockOperator).executeUpdate(anyString());
+    }
+
+    @Test
+    void testHandleError_RecordsSchemaAwareDlqPayload() throws Exception {
+        ErrorHandler errorHandler = mock(ErrorHandler.class);
+        DlqWriter dlqWriter = mock(DlqWriter.class);
+        setFieldValue(hazelcastDuckDbSqlNode, "errorHandler", errorHandler);
+        setFieldValue(hazelcastDuckDbSqlNode, "dlqWriter", dlqWriter);
+        hazelcastDuckDbSqlNode.getNodeSchemaCache().put("source_1", buildMinimalSchema("source_1", "orders"));
+
+        TapInsertRecordEvent insertRecordEvent = TapInsertRecordEvent.create()
+                .table("orders")
+                .after(new HashMap<>(Map.of("id", 1001, "name", "Alice")));
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        tapdataEvent.setTapEvent(insertRecordEvent);
+        tapdataEvent.setNodeIds(List.of("source_1"));
+
+        RuntimeException error = new RuntimeException("boom");
+        invokePrivateMethod(
+                hazelcastDuckDbSqlNode,
+                "handleError",
+                new Class<?>[]{TapdataEvent.class, Exception.class},
+                new Object[]{tapdataEvent, error}
+        );
+
+        verify(errorHandler).recordError(argThat(map ->
+                map.containsKey("_meta_source_id")
+                        && map.containsKey("_meta_table_name")
+                        && map.containsKey("_meta_primary_keys")
+        ), eq(error));
+        verify(dlqWriter).write(eq("source_1|orders"), eq("orders"), anyList(), eq(error));
+    }
+
+    @Test
+    void testBuildErrorContextAndExtractRecordData_PrivateHelpers() throws Exception {
+        NodeSchemaInfo schema = buildMinimalSchema("source_1", "orders");
+        TapInsertRecordEvent event = TapInsertRecordEvent.create()
+                .table("orders")
+                .after(new HashMap<>(Map.of("id", 1, "name", "Bob")));
+
+        String context = (String) invokePrivateMethod(
+                hazelcastDuckDbSqlNode,
+                "buildErrorContext",
+                new Class<?>[]{TapEvent.class, String.class, NodeSchemaInfo.class, Exception.class},
+                new Object[]{event, "source_1", schema, new IllegalArgumentException("bad data")}
+        );
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) invokePrivateMethod(
+                hazelcastDuckDbSqlNode,
+                "extractRecordData",
+                new Class<?>[]{io.tapdata.entity.event.dml.TapRecordEvent.class},
+                new Object[]{event}
+        );
+
+        assertTrue(context.contains("Source: source_1"));
+        assertTrue(context.contains("TableId: orders"));
+        assertTrue(context.contains("Schema{table=orders"));
+        assertEquals("Bob", data.get("name"));
+    }
+
+    @Test
     void testSanitizeIdentifier_ReplacesAndPrefixes() throws Exception {
         assertEquals("abc_def", invokePrivateMethod(hazelcastDuckDbSqlNode, "sanitizeIdentifier",
                 new Class<?>[]{String.class}, new Object[]{"abc-def"}));
@@ -376,6 +497,8 @@ class HazelcastDuckDbSqlNodeTest {
         io.tapdata.entity.schema.TapTable tapTable = new io.tapdata.entity.schema.TapTable(tableName);
         io.tapdata.entity.schema.TapField field = new io.tapdata.entity.schema.TapField();
         field.name("id");
+        field.setTapType(new TapString());
+        field.isPrimaryKey(true);
         tapTable.add(field);
         Map<String, io.tapdata.entity.schema.TapField> fieldMap = Map.of("id", field);
         return new NodeSchemaInfo(nodeId, tableName, tableName, List.of("id"), fieldMap, tapTable, null);

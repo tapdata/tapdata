@@ -45,6 +45,9 @@ import java.util.UUID;
 
 @Slf4j
 public class SqlParserUtil {
+    private SqlParserUtil() {
+
+    }
 
     public static List<Field> parseSelectFields(String sql, List<FromTableConfig> fromTables,
                                                   List<Schema> inputSchemas, String mainTableName,

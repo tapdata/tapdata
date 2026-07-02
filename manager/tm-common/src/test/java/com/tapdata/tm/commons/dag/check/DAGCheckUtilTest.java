@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.dag.check;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,6 +150,80 @@ public class DAGCheckUtilTest {
     }
 
     @Test
+    public void testCheckJoinNodeWithMissingSourceNode(){
+        List<Edge> edges = new ArrayList<>();
+        List<Message> messageList = new ArrayList<>();
+        List<Node> preNodes = new ArrayList<>();
+        JoinProcessorNode node = getJoinNode(edges, preNodes);
+        Node leftNode = preNodes.get(0);
+        node.setLeftNodeId(leftNode.getId());
+        node.setRightNodeId("missing-source");
+        edges = new ArrayList<>();
+        edges.add(new Edge(leftNode.getId(), node.getId()));
+        edges.add(new Edge("missing-source", node.getId()));
+
+        DAGCheckUtil.checkJoinNode(node, edges, messageList);
+
+        Assertions.assertEquals(1, messageList.size());
+        Assertions.assertEquals("DAG.JonNode", messageList.get(0).getCode());
+        Assertions.assertTrue(messageList.get(0).getMsg().contains("missing-source"));
+        Assertions.assertTrue(node.disabledNode());
+    }
+
+    @Test
+    public void testCheckJoinNodeWithDisabledSourceNode(){
+        List<Edge> edges = new ArrayList<>();
+        List<Message> messageList = new ArrayList<>();
+        List<Node> preNodes = new ArrayList<>();
+        JoinProcessorNode node = getJoinNode(edges, preNodes);
+        Node leftNode = preNodes.get(0);
+        Node rightNode = preNodes.get(1);
+        node.setLeftNodeId(leftNode.getId());
+        node.setRightNodeId(rightNode.getId());
+        rightNode.setDisabled(true);
+        Map<String, Object> attrs = new HashMap<>();
+        attrs.put("disabled", true);
+        rightNode.setAttrs(attrs);
+
+        DAGCheckUtil.checkJoinNode(node, edges, messageList);
+
+        Assertions.assertEquals(1, messageList.size());
+        Assertions.assertEquals("DAG.JonNode", messageList.get(0).getCode());
+        Assertions.assertTrue(messageList.get(0).getMsg().contains(rightNode.getName()));
+        Assertions.assertTrue(node.disabledNode());
+    }
+
+    @Test
+    public void testGetTargetNodeNullNode() {
+        Assertions.assertNull(DAGCheckUtil.getTargetNode(null));
+    }
+
+    @Test
+    public void testGetTargetNodeNullDag() {
+        JsProcessorNode node = node("n1");
+
+        Assertions.assertNull(DAGCheckUtil.getTargetNode(node));
+    }
+
+    @Test
+    public void testGetTargetNodeEmptyTargets() {
+        JsProcessorNode node = node("n1");
+        DAG dag = new DAG(new Graph<>());
+        node.setDag(dag);
+
+        Assertions.assertNull(DAGCheckUtil.getTargetNode(node));
+    }
+
+    @Test
+    public void testGetTargetNodeNullTargets() {
+        JsProcessorNode node = node("n1");
+        DAG dag = new StubDag(null);
+        node.setDag(dag);
+
+        Assertions.assertNull(DAGCheckUtil.getTargetNode(node));
+    }
+
+    @Test
     public void testGetTargetNodeSingleTarget() {
         Graph<Node, Edge> graph = new Graph<>();
         JsProcessorNode node1 = new JsProcessorNode();
@@ -195,6 +271,107 @@ public class DAGCheckUtilTest {
         Assertions.assertEquals("t", targetNode.getId());
     }
 
+    @Test
+    public void testGetTargetNodeChooseDeepestNonVirtualTarget() {
+        JsProcessorNode source = node("source");
+        JsProcessorNode middle = node("middle");
+        JsProcessorNode shallowTarget = node("target-z");
+        JsProcessorNode deepTarget = node("target-y");
+        Graph<Node, Edge> graph = graphWithNodes(source, middle, shallowTarget, deepTarget);
+        graph.setEdge(source.getId(), shallowTarget.getId(), new Edge(source.getId(), shallowTarget.getId()));
+        graph.setEdge(source.getId(), middle.getId(), new Edge(source.getId(), middle.getId()));
+        graph.setEdge(middle.getId(), deepTarget.getId(), new Edge(middle.getId(), deepTarget.getId()));
+        bindDag(graph, source, middle, shallowTarget, deepTarget);
+
+        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
+
+        Assertions.assertNotNull(targetNode);
+        Assertions.assertEquals(deepTarget.getId(), targetNode.getId());
+    }
+
+    @Test
+    public void testGetTargetNodeChooseLowerIdWhenDepthEqual() {
+        JsProcessorNode source = node("source");
+        JsProcessorNode targetB = node("target-b");
+        JsProcessorNode targetA = node("target-a");
+        Graph<Node, Edge> graph = graphWithNodes(source, targetB, targetA);
+        graph.setEdge(source.getId(), targetB.getId(), new Edge(source.getId(), targetB.getId()));
+        graph.setEdge(source.getId(), targetA.getId(), new Edge(source.getId(), targetA.getId()));
+        bindDag(graph, source, targetB, targetA);
+
+        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
+
+        Assertions.assertNotNull(targetNode);
+        Assertions.assertEquals(targetA.getId(), targetNode.getId());
+    }
+
+    @Test
+    public void testGetTargetNodeFallbackToVirtualAndLogCollectorTargets() {
+        JsProcessorNode source = node("source");
+        JsProcessorNode middle = node("middle");
+        VirtualTargetNode virtualTarget = new VirtualTargetNode();
+        virtualTarget.setId("virtual-target");
+        LogCollectorNode logCollectorNode = new LogCollectorNode();
+        logCollectorNode.setId("log-target");
+        Graph<Node, Edge> graph = graphWithNodes(source, middle, virtualTarget, logCollectorNode);
+        graph.setEdge(source.getId(), virtualTarget.getId(), new Edge(source.getId(), virtualTarget.getId()));
+        graph.setEdge(source.getId(), middle.getId(), new Edge(source.getId(), middle.getId()));
+        graph.setEdge(middle.getId(), logCollectorNode.getId(), new Edge(middle.getId(), logCollectorNode.getId()));
+        bindDag(graph, source, middle, virtualTarget, logCollectorNode);
+
+        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
+
+        Assertions.assertNotNull(targetNode);
+        Assertions.assertEquals(logCollectorNode.getId(), targetNode.getId());
+    }
+
+    @Test
+    public void testGetTargetNodeIgnoreInvalidCandidates() {
+        JsProcessorNode source = node("source");
+        JsProcessorNode noIdTarget = new JsProcessorNode();
+        JsProcessorNode candidate = node("candidate");
+        StubDag dag = new StubDag(Arrays.asList(null, noIdTarget, candidate));
+        source.setDag(dag);
+
+        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
+
+        Assertions.assertSame(candidate, targetNode);
+    }
+
+    @Test
+    public void testGetTargetNodeHandleCycleAndInvalidPredecessor() {
+        JsProcessorNode source = node("source");
+        JsProcessorNode cycleTarget = node("cycle-target");
+        JsProcessorNode flatTarget = node("flat-target");
+        StubDag dag = new StubDag(Arrays.asList(cycleTarget, flatTarget));
+        dag.withPredecessors(cycleTarget.getId(), Arrays.asList(null, cycleTarget));
+        source.setDag(dag);
+
+        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
+
+        Assertions.assertSame(cycleTarget, targetNode);
+    }
+
+    @Test
+    public void testPreNodeCountNullDag() {
+        Assertions.assertEquals(0, DAGCheckUtil.preNodeCount(node("target")));
+    }
+
+    @Test
+    public void testPreNodeCount() {
+        JsProcessorNode source1 = node("source-1");
+        JsProcessorNode source2 = node("source-2");
+        JsProcessorNode target = node("target");
+        JsProcessorNode next = node("next");
+        Graph<Node, Edge> graph = graphWithNodes(source1, source2, target, next);
+        graph.setEdge(source1.getId(), target.getId(), new Edge(source1.getId(), target.getId()));
+        graph.setEdge(source2.getId(), target.getId(), new Edge(source2.getId(), target.getId()));
+        graph.setEdge(target.getId(), next.getId(), new Edge(target.getId(), next.getId()));
+        bindDag(graph, source1, source2, target, next);
+
+        Assertions.assertEquals(2, DAGCheckUtil.preNodeCount(target));
+    }
+
     private JoinProcessorNode getJoinNode(List<Edge> edges, List<Node> preNodes) {
         JoinProcessorNode node = new JoinProcessorNode();
         final String joinId = "67yr4783yr";
@@ -232,5 +409,53 @@ public class DAGCheckUtilTest {
         preNodes.add(nodeLeft);
         preNodes.add(nodeRight);
         return node;
+    }
+
+    private JsProcessorNode node(String id) {
+        JsProcessorNode node = new JsProcessorNode();
+        node.setId(id);
+        return node;
+    }
+
+    private Graph<Node, Edge> graphWithNodes(Node<?>... nodes) {
+        Graph<Node, Edge> graph = new Graph<>();
+        for (Node<?> node : nodes) {
+            graph.setNode(node.getId(), node);
+        }
+        return graph;
+    }
+
+    private DAG bindDag(Graph<Node, Edge> graph, Node<?>... nodes) {
+        DAG dag = new DAG(graph);
+        for (Node<?> node : nodes) {
+            node.setDag(dag);
+            node.setGraph(graph);
+        }
+        return dag;
+    }
+
+    private static class StubDag extends DAG {
+        private final List<Node> targets;
+        private final Map<String, List<Node>> predecessors = new HashMap<>();
+
+        private StubDag(List<Node> targets) {
+            super(new Graph<>());
+            this.targets = targets;
+        }
+
+        private StubDag withPredecessors(String id, List<Node> predecessors) {
+            this.predecessors.put(id, predecessors);
+            return this;
+        }
+
+        @Override
+        public List<Node> getTargets() {
+            return targets;
+        }
+
+        @Override
+        public List<Node> predecessors(String id) {
+            return predecessors.getOrDefault(id, new ArrayList<>());
+        }
     }
 }

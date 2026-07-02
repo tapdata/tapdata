@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
  */
 public class DAGCheckUtil {
 
+    private DAGCheckUtil() {}
     /**
      * @author gavin
      * @date 2023/10/26 下午4:50
