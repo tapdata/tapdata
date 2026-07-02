@@ -399,5 +399,71 @@ class CpuMemoryServiceTest {
             assertEquals(Arrays.asList("cpuUsage", "memoryUsage", "qps"), sample.getFields());
             verify(settingsService, never()).getByKey("cpu_mem_collector");
         }
+
+        @Test
+        @DisplayName("should remove cpu and memory fields when collector is disabled")
+        void samplesIsNull() {
+            Settings settings = new Settings();
+            settings.setValue(false);
+            when(settingsService.getByKey("cpu_mem_collector")).thenReturn(settings);
+            MeasurementQueryParam measurementQueryParam = new MeasurementQueryParam();
+            measurementQueryParam.setSamples(null);
+            Map<String, Object> result = new HashMap<>();
+            cpuMemoryService.ignoreMeasureInfoIfNeed(measurementQueryParam, result);
+            assertNull(result.get("usageOpen"));
+        }
+        @Test
+        @DisplayName("should remove cpu and memory fields when collector is disabled")
+        void testDataInfoNull() {
+            Settings settings = new Settings();
+            settings.setValue(false);
+            when(settingsService.getByKey("cpu_mem_collector")).thenReturn(settings);
+
+            MeasurementQueryParam measurementQueryParam = new MeasurementQueryParam();
+            MeasurementQueryParam.MeasurementQuerySample sample = new MeasurementQueryParam.MeasurementQuerySample();
+            List<String> fields = new ArrayList<>(Arrays.asList("cpuUsage", "memoryUsage", "qps"));
+            sample.setFields(fields);
+            sample.setType(MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS);
+            measurementQueryParam.setSamples(new HashMap<>());
+            Map<String, Object> result = new HashMap<>();
+            cpuMemoryService.ignoreMeasureInfoIfNeed(measurementQueryParam, result);
+
+            assertNull(result.get("usageOpen"));
+        }
+        @Test
+        @DisplayName("should remove cpu and memory fields when collector is disabled")
+        void testFieldsIsNull() {
+            Settings settings = new Settings();
+            settings.setValue(false);
+            when(settingsService.getByKey("cpu_mem_collector")).thenReturn(settings);
+
+            MeasurementQueryParam measurementQueryParam = new MeasurementQueryParam();
+            MeasurementQueryParam.MeasurementQuerySample sample = new MeasurementQueryParam.MeasurementQuerySample();
+            sample.setType(MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS);
+            measurementQueryParam.setSamples(new HashMap<>());
+            Map<String, Object> result = new HashMap<>();
+            measurementQueryParam.setSamples(Collections.singletonMap("data", sample));
+            cpuMemoryService.ignoreMeasureInfoIfNeed(measurementQueryParam, result);
+
+            assertNull(result.get("usageOpen"));
+        }
+        @Test
+        @DisplayName("should remove cpu and memory fields when collector is disabled")
+        void testTypeIsNull() {
+            Settings settings = new Settings();
+            settings.setValue(false);
+            when(settingsService.getByKey("cpu_mem_collector")).thenReturn(settings);
+
+            MeasurementQueryParam measurementQueryParam = new MeasurementQueryParam();
+            MeasurementQueryParam.MeasurementQuerySample sample = new MeasurementQueryParam.MeasurementQuerySample();
+            List<String> fields = new ArrayList<>(Arrays.asList("cpuUsage", "memoryUsage", "qps"));
+            sample.setFields(fields);
+            measurementQueryParam.setSamples(new HashMap<>());
+            Map<String, Object> result = new HashMap<>();
+            measurementQueryParam.setSamples(Collections.singletonMap("data", sample));
+            cpuMemoryService.ignoreMeasureInfoIfNeed(measurementQueryParam, result);
+
+            assertNull(result.get("usageOpen"));
+        }
     }
 }
