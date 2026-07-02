@@ -113,8 +113,17 @@ public class CpuMemoryService {
 
     public void ignoreMeasureInfoIfNeed(MeasurementQueryParam measurementQueryParam,Map<String, Object> result) {
         Map<String, MeasurementQueryParam.MeasurementQuerySample> samples = measurementQueryParam.getSamples();
+        if (samples == null) {
+            return;
+        }
         MeasurementQueryParam.MeasurementQuerySample dataInfo = samples.get("data");
+        if (dataInfo == null || dataInfo.getFields() == null) {
+            return;
+        }
         String type = dataInfo.getType();
+        if (type == null) {
+            return;
+        }
         if (MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS.equals(type)) {
             boolean usageOpen = hasOpenCpuMemory();
             result.put("usageOpen", usageOpen);
