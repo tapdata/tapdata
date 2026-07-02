@@ -25,6 +25,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.cache.Cache;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -319,21 +320,42 @@ public class SettingsServiceTest {
     @Nested
     class saveTest {
         @Test
-        void testForLdapPwd() {
+        void testBatchUpdateExistingAndSkipMaskedPassword() {
+            BulkOperations bulkOperations = mock(BulkOperations.class);
+            when(mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, Settings.class)).thenReturn(bulkOperations);
+
             List<SettingsDto> settingsDto = new ArrayList<>();
             SettingsDto ldapDn = new SettingsDto();
+            ldapDn.setId("ldapDnId");
             ldapDn.setCategory("LDAP");
             ldapDn.setKey("ldap.bind.dn");
             ldapDn.setValue("user@example.com");
+
             SettingsDto ldapPwd = new SettingsDto();
+            ldapPwd.setId("ldapPwdId");
             ldapPwd.setCategory("LDAP");
             ldapPwd.setKey("ldap.bind.password");
             ldapPwd.setValue("*****");
+
+            SettingsDto missingSetting = new SettingsDto();
+            missingSetting.setId("missingId");
+            missingSetting.setCategory("LDAP");
+            missingSetting.setKey("ldap.server.host");
+            missingSetting.setValue("ldap.example.com");
+
             settingsDto.add(ldapDn);
             settingsDto.add(ldapPwd);
+            settingsDto.add(missingSetting);
+
+            Settings existingSetting = new Settings();
+            existingSetting.setId("ldapDnId");
+            when(mongoTemplate.find(any(Query.class), eq(Settings.class))).thenReturn(Collections.singletonList(existingSetting));
+
             settingsService.save(settingsDto);
-            verify(mongoTemplate, times(1)).save(ldapDn, "Settings");
-            verify(mongoTemplate, times(0)).save(ldapPwd, "Settings");
+
+            verify(mongoTemplate, times(1)).bulkOps(BulkOperations.BulkMode.UNORDERED, Settings.class);
+            verify(bulkOperations, times(1)).execute();
+            verify(mongoTemplate, never()).save(any(), anyString());
         }
     }
 }
