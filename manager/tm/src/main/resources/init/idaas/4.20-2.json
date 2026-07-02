@@ -7,47 +7,43 @@
           "key": "max.change.log.query.limit"
         },
         "u": {
-          "$set": {
+          "$setOnInsert": {
+            "_id": "1314459259346f3e3b573520",
+            "documentation": "The maximum query range days for a single change log",
             "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
             "category": "data_trace",
             "default_value": 7,
             "key": "max.change.log.query.limit",
             "scope": "global",
             "user_visible": false,
-            "value": 7,
-            "documentation": "The maximum query range days for a single change log"
-          },
-          "$setOnInsert": {
-            "_id": "1314459259346f3e3b573520"
+            "value": 7
           }
         },
-        "upsert": false
+        "upsert": true
       },
       {
         "q": {
           "key": "global_share_cdc_enable"
         },
         "u": {
-          "$set": {
+          "$setOnInsert": {
+            "_id": "1314460259346f3e3b573520",
             "category": "share_cdc",
             "scope": "global",
             "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
             "documentation": "global_share_cdc_enable_doc",
             "category_sort": 20,
-            "default_value": "false",
+            "default_value": false,
             "hot_reloading": false,
             "key": "global_share_cdc_enable",
             "key_label": "global_share_cdc_enable",
             "sort": 0,
             "user_visible": true,
-            "value": "false",
-            "enums": ["true", "false"]
-          },
-          "$setOnInsert": {
-            "_id": "1314460259346f3e3b573520"
+            "value": false,
+            "enums": [true, false]
           }
         },
-        "upsert": false
+        "upsert": true
       }
     ]
   }

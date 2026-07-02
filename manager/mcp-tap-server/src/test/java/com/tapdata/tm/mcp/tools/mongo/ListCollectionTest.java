@@ -6,10 +6,8 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.mcp.mongodb.MongoOperator;
+import com.tapdata.tm.mcp.tools.McpToolSupport;
 import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
-import io.modelcontextprotocol.spec.McpServerSession;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,12 +15,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,13 +42,14 @@ class ListCollectionTest {
     protected UserService userService;
 
     @Mock
-    protected McpSyncServerExchange exchange;
+    protected McpSyncRequestContext context;
 
     private ListCollection listCollection;
 
     @BeforeEach
     void setUp() {
-        listCollection = new ListCollection(sessionAttribute, userService, dataSourceService);
+        McpToolSupport toolSupport = new McpToolSupport(sessionAttribute, userService);
+        listCollection = new ListCollection(new MongoOperatorFactory(toolSupport, dataSourceService));
     }
 
     @Test
@@ -63,11 +61,8 @@ class ListCollectionTest {
         UserDetail mockUserDetail = mock(UserDetail.class);
 
         List mockCollections = Arrays.asList("collection1", "collection2");
-
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
@@ -78,14 +73,12 @@ class ListCollectionTest {
                 when(mock.listCollections(true)).thenReturn(mockCollections);
             })) {
                 // 执行测试
-                Map<String, Object> params = new HashMap<>();
-                params.put("connectionId", connectionId);
-                params.put("nameOnly", true);
-                McpSchema.CallToolResult result = listCollection.call(exchange, params);
+                List<Object> result = listCollection.listCollection(context, connectionId, true);
 
                 // 验证结果
                 var mockMongoOperator = mc.constructed().get(0);
                 assertNotNull(result);
+                assertEquals(mockCollections, result);
                 verify(mockMongoOperator).connect();
                 verify(mockMongoOperator).listCollections(true);
             }
@@ -104,11 +97,8 @@ class ListCollectionTest {
                 new Document("name", "collection1").append("type", "collection"),
                 new Document("name", "collection2").append("type", "collection")
         );
-
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
@@ -120,13 +110,11 @@ class ListCollectionTest {
             })) {
 
                 // 执行测试
-                Map<String, Object> params = new HashMap<>();
-                params.put("connectionId", connectionId);
-                params.put("nameOnly", false);
-                McpSchema.CallToolResult result = listCollection.call(exchange, params);
+                List<Object> result = listCollection.listCollection(context, connectionId, false);
 
                 // 验证结果
                 assertNotNull(result);
+                assertEquals(mockCollections, result);
                 var mockMongoOperator = mc.constructed().get(0);
                 verify(mockMongoOperator).connect();
                 verify(mockMongoOperator).listCollections(false);
@@ -141,11 +129,8 @@ class ListCollectionTest {
         DataSourceConnectionDto mockConnection = new DataSourceConnectionDto();
         mockConnection.setDatabase_type("mongodb");
         UserDetail mockUserDetail = mock(UserDetail.class);
-
-        McpServerSession mockSession = mock(McpServerSession.class);
         try (MockedStatic<Utils> ms = mockStatic(Utils.class)) {
             // 设置 mock 行为
-            ms.when(() -> Utils.getSession(any())).thenReturn(mockSession);
             ms.when(() -> Utils.getStringValue(any(), any())).thenCallRealMethod();
             when(sessionAttribute.getAttribute(any(), eq("userId"))).thenReturn("123");
             when(userService.loadUserById(any())).thenReturn(mockUserDetail);
@@ -157,9 +142,7 @@ class ListCollectionTest {
             })) {
 
                 // 执行测试
-                Map<String, Object> params = new HashMap<>();
-                params.put("connectionId", connectionId);
-                assertThrows(RuntimeException.class, () -> listCollection.call(exchange, params));
+                assertThrows(RuntimeException.class, () -> listCollection.listCollection(context, connectionId, null));
 
                 // 验证结果
                 var mockMongoOperator = mc.constructed().get(0);
@@ -167,4 +150,4 @@ class ListCollectionTest {
             }
         }
     }
-} 
+}

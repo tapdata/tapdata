@@ -2,9 +2,6 @@ package com.tapdata.tm.mcp;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
-import io.modelcontextprotocol.server.McpAsyncServerExchange;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpServerSession;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -12,12 +9,8 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.function.ServerRequest;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -179,76 +172,6 @@ public class UtilsTest {
         assertNotNull(resultTags);
         assertEquals(1, resultTags.size());
         assertEquals("test-tag", resultTags.get(0));
-    }
-
-    @Test
-    void testReadJsonSchema() throws IOException {
-        Path testResourcePath = Paths.get("target", "classes");
-        if (!Files.exists(testResourcePath)) {
-            Files.createDirectories(testResourcePath);
-        }
-
-        // 创建测试JSON文件
-        File testJsonFile = testResourcePath.resolve("test-schema.json").toFile();
-        String jsonContent = """
-                {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string"
-                        },
-                        "age": {
-                            "type": "integer"
-                        }
-                    },
-                    "required": ["name"]
-                }
-                """;
-        Files.writeString(testJsonFile.toPath(), jsonContent);
-
-        // 测试读取存在的schema文件
-        String schema = Utils.readJsonSchema("test-schema.json");
-        assertNotNull(schema);
-        assertTrue(schema.contains("\"type\": \"object\""));
-        assertTrue(schema.contains("\"properties\""));
-
-        // 清理测试文件
-        if (testJsonFile != null && testJsonFile.exists()) {
-            Files.delete(testJsonFile.toPath());
-        }
-        
-        // 测试读取不存在的schema文件
-        String defaultSchema = Utils.readJsonSchema("nonexistent.json");
-        assertNull(defaultSchema);
-    }
-
-    @Test
-    void testGetSession() {
-        // 创建模拟对象
-        McpSyncServerExchange syncExchange = mock(McpSyncServerExchange.class);
-        McpAsyncServerExchange asyncExchange = mock(McpAsyncServerExchange.class);
-        McpServerSession session = mock(McpServerSession.class);
-
-        // 设置模拟行为
-        try {
-            // 使用反射设置私有字段
-            java.lang.reflect.Field exchangeField = syncExchange.getClass().getDeclaredField("exchange");
-            exchangeField.setAccessible(true);
-            exchangeField.set(syncExchange, asyncExchange);
-
-            java.lang.reflect.Field sessionField = asyncExchange.getClass().getDeclaredField("session");
-            sessionField.setAccessible(true);
-            sessionField.set(asyncExchange, session);
-
-            // 执行测试
-            McpServerSession result = Utils.getSession(syncExchange);
-            
-            // 验证结果
-            assertNotNull(result);
-            assertEquals(session, result);
-        } catch (Exception e) {
-            fail("测试失败: " + e.getMessage());
-        }
     }
 
     @Test

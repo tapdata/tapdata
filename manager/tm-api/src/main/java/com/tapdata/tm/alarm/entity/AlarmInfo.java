@@ -78,4 +78,6 @@ public class AlarmInfo extends BaseEntity {
     public Integer getTally() {
         return tally == null ? 0 : tally;
     }
+
+    private String desc;
 }

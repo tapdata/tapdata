@@ -1,6 +1,5 @@
 package com.tapdata.tm.mcp.mongodb;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.mongodb.ConnectionString;
 import com.mongodb.ExplainVerbosity;
 import com.mongodb.MongoClientSettings;
@@ -27,8 +26,6 @@ import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
-
-import static com.tapdata.tm.mcp.Utils.toJson;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -171,11 +168,18 @@ public class MongoOperator implements Closeable {
         Object tmp = params.get("pipeline");
         List<Document> pipeline = null;
         if (tmp instanceof List) {
-            pipeline = Utils.parseJson(toJson(tmp), new TypeReference<List<Document>>() {
-            });
+            pipeline = new ArrayList<>();
+            for (Object stage : (List<?>) tmp) {
+                if (stage instanceof Document document) {
+                    pipeline.add(document);
+                } else if (stage instanceof Map<?, ?> map) {
+                    pipeline.add(new Document((Map<String, Object>) map));
+                } else {
+                    throw new McpException("Pipeline must contain plain objects");
+                }
+            }
         } else if (tmp instanceof String) {
-            pipeline = Utils.parseJson(tmp.toString(), new TypeReference<List<Document>>() {
-            });
+            pipeline = Document.parse("{\"pipeline\":" + tmp + "}").getList("pipeline", Document.class);
         }
         if (pipeline == null)
             throw new McpException("Pipeline must be an array");

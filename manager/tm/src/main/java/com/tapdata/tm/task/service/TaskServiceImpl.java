@@ -134,6 +134,7 @@ import com.tapdata.tm.report.dto.TasksNumBatch;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
+import com.tapdata.tm.statemachine.enums.TaskState;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.constant.InputNumCache;
@@ -309,6 +310,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String STOP_RETRY_TIMES = "stopRetryTimes";
     public static final String SCHEDULE_DATE = "scheduleDate";
     public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
+    public static final String TASK_RETRY_START_TIME = "taskRetryStartTime";
     public static final String TASK_ID = "taskId";
     public static final String MAPPINGS = "mappings";
     public static final String TASK_RECORD_ID = "taskRecordId";
@@ -3735,7 +3737,7 @@ public class TaskServiceImpl extends TaskService{
            try{
                taskDto.setTaskRecordId(new ObjectId().toHexString());
 
-               if(checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap)){
+               if(ImportModeEnum.GROUP_IMPORT.equals(importMode) && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap)){
                    importResult.put(taskDto.getId().toHexString(),0L);
                    continue;
                }
@@ -4471,8 +4473,7 @@ public class TaskServiceImpl extends TaskService{
         }
         Query query = Query.query(Criteria.where("_id").in(taskIds)
                 .and(STATUS).in(TaskOpStatusEnum.to_start_status.v())
-                .and(AGENT_ID).exists(true).ne(null)
-                .and("accessNodeType").ne(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name()));
+                .and(AGENT_ID).exists(true).ne(null));
         Update update = new Update().unset(AGENT_ID)
                 .set("lastUpdBy", user.getUserId())
                 .set("last_updated", new Date());
@@ -4937,10 +4938,12 @@ public class TaskServiceImpl extends TaskService{
         if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.RUNNING)) {
             return null;
         }
-				// 已经运行中，直接返回
-				if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
-					return id.toHexString();
-				}
+        // 已经运行中，直接返回
+        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+            update(Query.query(Criteria.where("_id").is(id)), Update.update(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE)
+                    .set(TASK_RETRY_START_TIME, 0), user);
+            return id.toHexString();
+        }
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -4954,7 +4957,9 @@ public class TaskServiceImpl extends TaskService{
         });
 
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        Update update = Update.update(SCHEDULE_DATE, null);
+        Update update = Update.update(SCHEDULE_DATE, null)
+                .set(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE)
+                .set(TASK_RETRY_START_TIME, 0);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RUNNING, user);
         if (stateMachineResult.isFail()) {
@@ -5057,6 +5062,12 @@ public class TaskServiceImpl extends TaskService{
         TaskDto taskDto = checkExistById(id, user, "dag", "name", STATUS, "_id", TASK_RECORD_ID, AGENT_ID, STOPED_DATE, RESTART_FLAG);
         if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.STOPPED)) {
             return null;
+        }
+        if (TaskState.DELETING.getName().equals(taskDto.getStatus())
+                || TaskState.DELETE_FAILED.getName().equals(taskDto.getStatus())) {
+            log.info("TaskHA event=ignore_status_report reason=task_deleting_or_failed taskId={} taskName={} status={} event={}",
+                    id.toHexString(), taskDto.getName(), taskDto.getStatus(), DataFlowEvent.STOPPED);
+            return id.toHexString();
         }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);

@@ -3,6 +3,7 @@ package com.tapdata.tm.schedule;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
@@ -10,8 +11,10 @@ import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.constant.SyncStatus;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -203,6 +206,282 @@ public class TaskRestartScheduleTest {
             doReturn("offline").when(workerService).checkUsedAgent(eq(agentId), eq(user));
 
             assertTrue(taskRestartSchedule.skipCloudEngineOffline(agentId, user));
+        }
+    }
+
+    @Nested
+    class SchedulingTaskTest {
+        String userId = "test-user-id";
+        String agentId = "test-agent-id";
+        UserDetail userDetail;
+        TaskService taskService;
+        TaskScheduleService taskScheduleService;
+        StateMachineService stateMachineService;
+
+        private TaskDto schedulingTask() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setUserId(userId);
+            taskDto.setAgentId(agentId);
+            taskDto.setStatus(TaskDto.STATUS_SCHEDULING);
+            taskDto.setSyncStatus(SyncStatus.NORMAL);
+            taskDto.setSchedulingTime(new Date(System.currentTimeMillis() - 40000));
+            return taskDto;
+        }
+
+        // taskActiveCount: result of taskService.count(...) probing task.pingTime freshness.
+        // 0 => engine is NOT executing the task; >0 => engine is actively pinging it.
+        private void wire(TaskDto taskDto, long taskActiveCount) {
+            List<TaskDto> all = new ArrayList<>();
+            all.add(taskDto);
+
+            // settingsService unstubbed: isCloud()->null->DAAS(non-cloud); getHeartExpire->default
+            SettingsService settingsService = mock(SettingsService.class);
+            taskRestartSchedule.setSettingsService(settingsService);
+
+            taskService = mock(TaskService.class);
+            when(taskService.findAll(any(Query.class))).thenReturn(all);
+            when(taskService.count(any(Query.class))).thenReturn(taskActiveCount);
+            taskRestartSchedule.setTaskService(taskService);
+
+            MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
+            taskRestartSchedule.setMonitoringLogsService(monitoringLogsService);
+
+            stateMachineService = mock(StateMachineService.class);
+            when(stateMachineService.executeAboutTask(any(TaskDto.class), any(), any())).thenReturn(StateMachineResult.ok());
+            taskRestartSchedule.setStateMachineService(stateMachineService);
+
+            taskScheduleService = mock(TaskScheduleService.class);
+            taskRestartSchedule.setTaskScheduleService(taskScheduleService);
+
+            TransformSchemaService transformSchema = mock(TransformSchemaService.class);
+            taskRestartSchedule.setTransformSchema(transformSchema);
+
+            UserService userService = mock(UserService.class);
+            userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn(userId);
+            List<UserDetail> userDetails = new ArrayList<>();
+            userDetails.add(userDetail);
+            when(userService.getUserByIdList(anyList())).thenReturn(userDetails);
+            taskRestartSchedule.setUserService(userService);
+
+            // The engine PROCESS is alive (this is the stuck scenario): worker heartbeat is fresh.
+            WorkerService workerService = mock(WorkerService.class);
+            WorkerDto worker = new WorkerDto();
+            worker.setProcessId(agentId);
+            worker.setPingTime(System.currentTimeMillis() - 1000L);
+            when(workerService.findByProcessId(eq(agentId), any(UserDetail.class), any(), any())).thenReturn(worker);
+            when(workerService.isAgentTimeout(anyLong())).thenReturn(false);
+            taskRestartSchedule.setWorkerService(workerService);
+        }
+
+        @Test
+        void testReschedulesWhenAgentAliveButNotRunningTask() {
+            // Engine process alive but NOT executing the task (task.pingTime stale -> count 0):
+            // TM must re-dispatch the task and must NOT mark it schedule_failed.
+            TaskDto taskDto = schedulingTask();
+            wire(taskDto, 0L);
+
+            taskRestartSchedule.schedulingTask();
+
+            verify(taskScheduleService, times(1)).scheduling(taskDto, userDetail, true);
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), eq(DataFlowEvent.SCHEDULE_FAILED), any(UserDetail.class));
+        }
+
+        @Test
+        void testSkipsWhenAgentRunningTask() {
+            // Engine IS executing the task (fresh task.pingTime -> count > 0): do not re-dispatch.
+            TaskDto taskDto = schedulingTask();
+            wire(taskDto, 1L);
+
+            taskRestartSchedule.schedulingTask();
+
+            verify(taskScheduleService, never()).scheduling(any(), any(), any());
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), eq(DataFlowEvent.SCHEDULE_FAILED), any(UserDetail.class));
+        }
+    }
+
+    @Nested
+    class EngineRestartNeedStartTaskTest {
+        String userId = "test-user-id";
+        String agentId = "test-agent-id";
+        UserDetail userDetail;
+        TaskService taskService;
+        TaskScheduleService taskScheduleService;
+        StateMachineService stateMachineService;
+
+        private TaskDto runningTask() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setUserId(userId);
+            taskDto.setAgentId(agentId);
+            taskDto.setStatus(TaskDto.STATUS_RUNNING);
+            taskDto.setSyncStatus(SyncStatus.NORMAL);
+            return taskDto;
+        }
+
+        private void wire(TaskDto taskDto, long taskActiveCount) {
+            List<TaskDto> all = new ArrayList<>();
+            all.add(taskDto);
+
+            SettingsService settingsService = mock(SettingsService.class);
+            taskRestartSchedule.setSettingsService(settingsService);
+
+            taskService = mock(TaskService.class);
+            when(taskService.findAll(any(Query.class))).thenReturn(all);
+            when(taskService.count(any(Query.class))).thenReturn(taskActiveCount);
+            taskRestartSchedule.setTaskService(taskService);
+
+            MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
+            taskRestartSchedule.setMonitoringLogsService(monitoringLogsService);
+
+            stateMachineService = mock(StateMachineService.class);
+            when(stateMachineService.executeAboutTask(any(TaskDto.class), any(), any())).thenReturn(StateMachineResult.ok());
+            taskRestartSchedule.setStateMachineService(stateMachineService);
+
+            taskScheduleService = mock(TaskScheduleService.class);
+            taskRestartSchedule.setTaskScheduleService(taskScheduleService);
+
+            TransformSchemaService transformSchema = mock(TransformSchemaService.class);
+            taskRestartSchedule.setTransformSchema(transformSchema);
+
+            UserService userService = mock(UserService.class);
+            userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn(userId);
+            List<UserDetail> userDetails = new ArrayList<>();
+            userDetails.add(userDetail);
+            when(userService.getUserByIdList(anyList())).thenReturn(userDetails);
+            taskRestartSchedule.setUserService(userService);
+
+            // worker process alive AND available in the system (so a reschedule target exists)
+            WorkerService workerService = mock(WorkerService.class);
+            WorkerDto worker = new WorkerDto();
+            worker.setProcessId(agentId);
+            worker.setPingTime(System.currentTimeMillis() - 1000L);
+            when(workerService.findByProcessId(eq(agentId), any(UserDetail.class), any(), any())).thenReturn(worker);
+            when(workerService.isAgentTimeout(anyLong())).thenReturn(false);
+            Worker availWorker = new Worker();
+            availWorker.setUserId(userId);
+            availWorker.setProcessId(agentId);
+            List<Worker> avail = new ArrayList<>();
+            avail.add(availWorker);
+            when(workerService.findAvailableAgentBySystem(anyList())).thenReturn(avail);
+            taskRestartSchedule.setWorkerService(workerService);
+
+            MetadataDefinitionService metadataDefinitionService = mock(MetadataDefinitionService.class);
+            when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(all);
+            taskRestartSchedule.setMetadataDefinitionService(metadataDefinitionService);
+        }
+
+        @Test
+        void testReschedulesRunningTaskWhenAgentNotPingingTask() {
+            // running task whose pingTime is stale (in the result set) and the engine is NOT
+            // pinging it (count 0) -> must OVERTIME + reschedule even though the worker is alive.
+            TaskDto taskDto = runningTask();
+            wire(taskDto, 0L);
+
+            taskRestartSchedule.engineRestartNeedStartTask();
+
+            verify(stateMachineService, times(1)).executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
+            verify(taskScheduleService, times(1)).scheduling(taskDto, userDetail, true);
+        }
+
+        @Test
+        void testSkipsRunningTaskWhenAgentPingingTask() {
+            // engine IS pinging this task (count > 0) -> genuinely running -> do not demote.
+            TaskDto taskDto = runningTask();
+            wire(taskDto, 1L);
+
+            taskRestartSchedule.engineRestartNeedStartTask();
+
+            verify(stateMachineService, never()).executeAboutTask(any(TaskDto.class), eq(DataFlowEvent.OVERTIME), any(UserDetail.class));
+            verify(taskScheduleService, never()).scheduling(any(), any(), any());
+        }
+    }
+
+    @Nested
+    class ReDispatchSchedulingTasksOfTest {
+        String userId = "test-user-id";
+        String agentId = "test-agent-id";
+        UserDetail userDetail;
+        TaskService taskService;
+        TaskScheduleService taskScheduleService;
+
+        private TaskDto schedulingTask() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setUserId(userId);
+            taskDto.setAgentId(agentId);
+            taskDto.setStatus(TaskDto.STATUS_SCHEDULING);
+            taskDto.setSyncStatus(SyncStatus.NORMAL);
+            taskDto.setSchedulingTime(new Date(System.currentTimeMillis() - 40000));
+            return taskDto;
+        }
+
+        private void wire(TaskDto taskDto, long taskActiveCount) {
+            List<TaskDto> all = new ArrayList<>();
+            all.add(taskDto);
+
+            SettingsService settingsService = mock(SettingsService.class);
+            taskRestartSchedule.setSettingsService(settingsService);
+
+            taskService = mock(TaskService.class);
+            when(taskService.findAll(any(Query.class))).thenReturn(all);
+            when(taskService.count(any(Query.class))).thenReturn(taskActiveCount);
+            taskRestartSchedule.setTaskService(taskService);
+
+            MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
+            taskRestartSchedule.setMonitoringLogsService(monitoringLogsService);
+
+            taskScheduleService = mock(TaskScheduleService.class);
+            taskRestartSchedule.setTaskScheduleService(taskScheduleService);
+
+            TransformSchemaService transformSchema = mock(TransformSchemaService.class);
+            taskRestartSchedule.setTransformSchema(transformSchema);
+
+            UserService userService = mock(UserService.class);
+            userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn(userId);
+            List<UserDetail> userDetails = new ArrayList<>();
+            userDetails.add(userDetail);
+            when(userService.getUserByIdList(anyList())).thenReturn(userDetails);
+            taskRestartSchedule.setUserService(userService);
+        }
+
+        @Test
+        void testReDispatchesIdleParkedTask() {
+            // A task parked in SCHEDULING for this agent that the engine is NOT running (count 0)
+            // must be re-dispatched immediately when the engine comes back online.
+            TaskDto taskDto = schedulingTask();
+            wire(taskDto, 0L);
+
+            int n = taskRestartSchedule.reDispatchSchedulingTasksOf(agentId);
+
+            verify(taskScheduleService, times(1)).scheduling(taskDto, userDetail, true);
+            org.junit.jupiter.api.Assertions.assertEquals(1, n);
+        }
+
+        @Test
+        void testSkipsTaskTheEngineIsRunning() {
+            // engine IS running it (fresh task.pingTime -> count > 0): do not re-dispatch.
+            TaskDto taskDto = schedulingTask();
+            wire(taskDto, 1L);
+
+            int n = taskRestartSchedule.reDispatchSchedulingTasksOf(agentId);
+
+            verify(taskScheduleService, never()).scheduling(any(), any(), any());
+            org.junit.jupiter.api.Assertions.assertEquals(0, n);
+        }
+
+        @Test
+        void testBlankAgentIdReturnsZeroWithoutQuery() {
+            // No agentId -> nothing to do, must not touch services.
+            wire(schedulingTask(), 0L);
+
+            int n = taskRestartSchedule.reDispatchSchedulingTasksOf("  ");
+
+            verify(taskScheduleService, never()).scheduling(any(), any(), any());
+            org.junit.jupiter.api.Assertions.assertEquals(0, n);
         }
     }
 }

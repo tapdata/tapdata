@@ -174,13 +174,16 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 		Date date = new Date();
 		switch (status) {
 			case TaskDto.STATUS_WAIT_RUN:  //  scheduled对应scheduledTime
-				update.set("scheduledTime", date);
+				// Seed pingTime (epoch-millis long, matching the engine's TaskPingTimeMonitor) so a
+				// freshly-dispatched task is not treated as "stale" before the engine's first task
+				// heartbeat lands — otherwise the overtime watchdog can demote it right after start.
+				update.set("scheduledTime", date).set("pingTime", date.getTime());
 				break;
 			case TaskDto.STATUS_STOPPING:  // stopping对应stoppingTime
 				update.set("stoppingTime", date);
 				break;
 			case TaskDto.STATUS_RUNNING:  //  running对应runningTime
-				update.set("runningTime", date).unset("ldpNewTables");
+				update.set("runningTime", date).set("pingTime", date.getTime()).unset("ldpNewTables");
 				break;
 			case TaskDto.STATUS_ERROR:  //  error对应errorTime和finishTime
 				update.set("errorTime", date).set("stopTime", date).set("scheduleDate", null);

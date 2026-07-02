@@ -93,7 +93,7 @@ class LoginUserResolverTest {
 			MockHttpServletRequest request = request("GET", "/api/Connections");
 			request.setQueryString("name=test&access_token=token%2Bvalue");
 			UserDetail userDetail = user("access-token");
-			when(accessTokenService.validate("token+value")).thenReturn(userId);
+			when(accessTokenService.validate("token+value", true)).thenReturn(userId);
 			when(userService.loadUserById(userId)).thenReturn(userDetail);
 
 			UserDetail actual = loginUserResolver.resolve(request);
@@ -145,9 +145,44 @@ class LoginUserResolverTest {
 		void testThrowNotLoginWhenAccessTokenInvalid() {
 			MockHttpServletRequest request = request("GET", "/api/Connections");
 			request.setQueryString("access_token=invalid");
-			when(accessTokenService.validate("invalid")).thenReturn(null);
+			when(accessTokenService.validate("invalid", true)).thenReturn(null);
 
 			assertThrows(BizException.class, () -> loginUserResolver.resolve(request));
+		}
+
+		@Test
+		void testResolveByAccessTokenWithPassiveHeader() {
+			// X-User-Activity: 0 表示被动请求（如前端定时轮询），不应计入用户活跃
+			ObjectId userId = new ObjectId();
+			MockHttpServletRequest request = request("GET", "/api/measurement/batch");
+			request.setQueryString("access_token=t1");
+			request.addHeader(LoginUserResolver.USER_ACTIVITY_HEADER, "0");
+			UserDetail userDetail = user("polling");
+			when(accessTokenService.validate("t1", false)).thenReturn(userId);
+			when(userService.loadUserById(userId)).thenReturn(userDetail);
+
+			UserDetail actual = loginUserResolver.resolve(request);
+
+			assertSame(userDetail, actual);
+			verify(accessTokenService, times(1)).validate("t1", false);
+			verify(accessTokenService, never()).validate("t1", true);
+		}
+
+		@Test
+		void testResolveByAccessTokenWithUnknownActivityHeaderTreatedAsActive() {
+			// 仅当 header 显式为 "0" 时才算被动，其他取值（异常或拼写错误）一律按活跃处理，保持向后兼容
+			ObjectId userId = new ObjectId();
+			MockHttpServletRequest request = request("GET", "/api/Connections");
+			request.setQueryString("access_token=t2");
+			request.addHeader(LoginUserResolver.USER_ACTIVITY_HEADER, "passive");
+			UserDetail userDetail = user("active-fallback");
+			when(accessTokenService.validate("t2", true)).thenReturn(userId);
+			when(userService.loadUserById(userId)).thenReturn(userDetail);
+
+			UserDetail actual = loginUserResolver.resolve(request);
+
+			assertSame(userDetail, actual);
+			verify(accessTokenService, times(1)).validate("t2", true);
 		}
 
 		@Test

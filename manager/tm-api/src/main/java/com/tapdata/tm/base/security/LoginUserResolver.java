@@ -24,6 +24,12 @@ public class LoginUserResolver {
 
 	public static final String LOGIN_USER_ATTRIBUTE = LoginUserResolver.class.getName() + ".LOGIN_USER";
 
+	/**
+	 * 前端在被动请求（定时轮询、看板自动刷新等）上加 {@code X-User-Activity: 0} 显式声明本次请求不算用户活跃，
+	 * 避免无操作期间会话被持续顺延。其它值（包括缺失该 header）一律按"活跃"处理，向后兼容老前端。
+	 */
+	public static final String USER_ACTIVITY_HEADER = "X-User-Activity";
+
 	private static final Set<String> FREE_AUTH_PATTERNS = Set.of(
 			"/api/Javascript_functions/**",
 			"/api/customNode/**",
@@ -93,7 +99,7 @@ public class LoginUserResolver {
 			if (StringUtils.isBlank(accessToken)) {
 				throw new BizException("NotLogin");
 			}
-			ObjectId userId = accessTokenService.validate(accessToken);
+			ObjectId userId = accessTokenService.validate(accessToken, isCountAsActivity(request));
 			if (userId == null) {
 				throw new BizException("NotLogin");
 			}
@@ -164,6 +170,11 @@ public class LoginUserResolver {
 			}
 		}
 		return null;
+	}
+
+	private boolean isCountAsActivity(HttpServletRequest request) {
+		String header = request.getHeader(USER_ACTIVITY_HEADER);
+		return !"0".equals(header);
 	}
 
 	private void judgeFreeAuth(String uri, String method, UserDetail userDetail) {

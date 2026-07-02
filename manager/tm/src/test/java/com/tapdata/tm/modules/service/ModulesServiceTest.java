@@ -26,6 +26,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
@@ -41,6 +42,7 @@ import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
@@ -50,6 +52,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
@@ -256,6 +259,24 @@ class ModulesServiceTest {
 		}
 
 		@Test
+		@DisplayName("test save method when base path and version repeated")
+		void testBasePathAndVersionRepeat() {
+			modulesDto = new ModulesDto();
+			modulesDto.setName("test");
+			modulesDto.setBasePath("path");
+			modulesDto.setApiVersion("v1");
+			modulesDto.setPrefix("prefix");
+
+			doReturn(false).when(modulesService).nameExists(null, "test");
+			doReturn(1L).when(modulesService).count(any(Query.class));
+
+			BizException exception = assertThrows(BizException.class, () -> modulesService.save(modulesDto, userDetail));
+
+			assertEquals("Modules.BasePathAndVersion.Existed", exception.getErrorCode());
+			assertArrayEquals(new Object[]{"v1/prefix/path"}, exception.getArgs());
+		}
+
+		@Test
 		@DisplayName("test save method normal")
 		void test2() {
 			String name = "test";
@@ -265,6 +286,124 @@ class ModulesServiceTest {
 			when(modulesRepository.save(any(), any())).thenReturn(mock(ModulesEntity.class));
 			modulesService.save(modulesDto, userDetail);
 			verify(modulesRepository).save(any(), any());
+		}
+	}
+
+	@Nested
+	class updateModuleByIdTest {
+		private UserDetail userDetail;
+
+		@BeforeEach
+		void beforeEach() {
+			modulesService = spy(modulesService);
+			doCallRealMethod().when(modulesService).checkModule(null);
+			doCallRealMethod().when(modulesService).checkModule(any(ModulesDto.class));
+			userDetail = mock(UserDetail.class);
+		}
+
+		@Test
+		@DisplayName("test updateModuleById when base path and version repeated")
+		void testBasePathAndVersionRepeat() {
+			ObjectId moduleId = new ObjectId();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(moduleId);
+			modulesDto.setName("test");
+			modulesDto.setBasePath("path");
+			modulesDto.setApiVersion("v1");
+			modulesDto.setPrefix("prefix");
+
+			ModulesDto existedDto = new ModulesDto();
+			existedDto.setId(moduleId);
+			existedDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+
+			doReturn(existedDto).when(modulesService).findOne(any(Query.class), eq(userDetail));
+			doReturn(false).when(modulesService).nameExists(moduleId, "test");
+			doReturn(1L).when(modulesService).count(any(Query.class));
+
+			BizException exception = assertThrows(BizException.class, () -> modulesService.updateModuleById(modulesDto, userDetail));
+
+			assertEquals("Modules.BasePathAndVersion.Existed", exception.getErrorCode());
+			assertArrayEquals(new Object[]{"v1/prefix/path"}, exception.getArgs());
+		}
+	}
+
+	@Nested
+	@DisplayName("Method checkModule test")
+	class CheckModuleTest {
+		@Test
+		void testDtoIsNullReturnDirectly() {
+			ModulesService spyService = spy(modulesService);
+
+			spyService.checkModule(null);
+
+			verify(spyService, never()).isBasePathAndVersionRepeat(any(), any(), any(), any());
+			verify(spyService, never()).nameExists(any(), any());
+		}
+
+		@Test
+		void testBasePathAndVersionRepeatThrowBizException() {
+			ModulesService spyService = spy(modulesService);
+			doReturn(true).when(spyService).isBasePathAndVersionRepeat(any(), nullable(String.class), nullable(String.class), nullable(String.class));
+
+			ModulesDto dto = new ModulesDto();
+			dto.setId(new ObjectId());
+			dto.setBasePath("path");
+			dto.setApiVersion("v1");
+			dto.setPrefix("prefix");
+
+			try (MockedStatic<MessageUtil> messageUtilMockedStatic = mockStatic(MessageUtil.class)) {
+				messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
+				messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString(), (Object[]) any())).thenReturn("error");
+
+				BizException exception = assertThrows(BizException.class, () -> spyService.checkModule(dto));
+
+				assertEquals(ModulesService.MODULES_BASE_PATH_AND_VERSION_EXISTED, exception.getErrorCode());
+				assertArrayEquals(new Object[]{"v1/prefix/path"}, exception.getArgs());
+				verify(spyService, never()).nameExists(any(), any());
+			}
+		}
+
+		@Test
+		void testNameExistsThrowBizException() {
+			ModulesService spyService = spy(modulesService);
+			doReturn(false).when(spyService).isBasePathAndVersionRepeat(any(), nullable(String.class), nullable(String.class), nullable(String.class));
+			doReturn(true).when(spyService).nameExists(any(), anyString());
+
+			ModulesDto dto = new ModulesDto();
+			dto.setId(new ObjectId());
+			dto.setName("test");
+
+			try (MockedStatic<MessageUtil> messageUtilMockedStatic = mockStatic(MessageUtil.class)) {
+				messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
+				messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString(), (Object[]) any())).thenReturn("error");
+
+				BizException exception = assertThrows(BizException.class, () -> spyService.checkModule(dto));
+
+				assertEquals("Modules.Name.Existed", exception.getErrorCode());
+			}
+		}
+
+		@Test
+		void testInputParamsValidThenPass() {
+			ModulesService spyService = spy(modulesService);
+			doReturn(false).when(spyService).isBasePathAndVersionRepeat(any(), nullable(String.class), nullable(String.class), nullable(String.class));
+			doReturn(false).when(spyService).nameExists(any(), anyString());
+
+			ModulesDto dto = new ModulesDto();
+			dto.setId(new ObjectId());
+			dto.setName("test");
+			dto.setApiType(ApiTypeEnum.DEFAULT_API.getValue());
+			dto.setDataSource("ds");
+			dto.setTableName("table");
+			dto.setConnectionId("connId");
+			dto.setConnectionType("mongo");
+			dto.setConnectionName("connName");
+			dto.setPaths(null);
+
+			spyService.checkModule(dto);
+
+			verify(spyService).isBasePathAndVersionRepeat(any(), nullable(String.class), nullable(String.class), nullable(String.class));
+			verify(spyService).nameExists(any(), anyString());
 		}
 	}
 
@@ -2797,6 +2936,56 @@ class ModulesServiceTest {
 			assertEquals("Map", availableField.getSimpleTypeName());
 			assertEquals("Boolean", requiredField.getSimpleTypeName());
 			assertEquals("DateTime", rootField.getSimpleTypeName());
+		}
+	}
+
+	@Nested
+	class analyzeApiServerKey {
+		@Test
+		void testPassword() {
+			ModulesService service = mock(ModulesService.class);
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			LinkedHashMap connection = new LinkedHashMap();
+			LinkedHashMap properties = new LinkedHashMap();
+			LinkedHashMap info = new LinkedHashMap();
+			connection.put("properties", properties);
+			properties.put("key", info);
+			info.put("apiServerKey", "abc");
+			info.put("x-component", "Password");
+			String parent = "parent";
+			doCallRealMethod().when(service).analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+			doNothing().when(service).setApiServerKey(any(DataSourceConnectionDto.class), anyString(), anyString());
+			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+		}
+		@Test
+		void testPassword1() {
+			ModulesService service = mock(ModulesService.class);
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			LinkedHashMap connection = new LinkedHashMap();
+			LinkedHashMap properties = new LinkedHashMap();
+			LinkedHashMap info = new LinkedHashMap();
+			connection.put("properties", properties);
+			properties.put("key", info);
+			info.put("apiServerKey", "abc");
+			info.put("x-component", "Password1");
+			String parent = "parent";
+			doCallRealMethod().when(service).analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+			doNothing().when(service).setApiServerKey(any(DataSourceConnectionDto.class), anyString(), anyString());
+			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+		}
+		@Test
+		void testPassword2() {
+			ModulesService service = mock(ModulesService.class);
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			LinkedHashMap connection = new LinkedHashMap();
+			LinkedHashMap properties = new LinkedHashMap();
+			LinkedHashMap info = new LinkedHashMap();
+			properties.put("key", info);
+			connection.put("properties", properties);
+			String parent = "parent";
+			doCallRealMethod().when(service).analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
+			doNothing().when(service).setApiServerKey(any(DataSourceConnectionDto.class), anyString(), anyString());
+			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
 		}
 	}
 }

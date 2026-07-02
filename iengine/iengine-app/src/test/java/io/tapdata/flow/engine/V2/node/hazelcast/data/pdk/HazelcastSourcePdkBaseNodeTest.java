@@ -32,12 +32,14 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.aspect.BatchSizeAspect;
+import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
+import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -94,6 +96,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -3914,6 +3917,108 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			// Should not throw exception even without progress manager
 			assertDoesNotThrow(spyInstance::startSourceConsumer);
 			verify(spyInstance, times(1)).offer(event);
+		}
+	}
+
+	@Nested
+	class doCountSynchronouslyInitTableTese {
+		private TestHazelcastSourcePdkDataNode node;
+		private ConnectorNode connectorNode;
+		private BatchCountFunction batchCountFunction;
+
+		@BeforeEach
+		void setUp() {
+			node = new TestHazelcastSourcePdkDataNode(dataProcessorContext);
+			setBaseProperty(node);
+
+			connectorNode = mock(ConnectorNode.class);
+			batchCountFunction = mock(BatchCountFunction.class);
+			PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create();
+
+			TapTable tapTable = new TapTable(tableNode.getTableName());
+			tapTable.setId(tableNode.getTableName());
+			TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			when(tapTableMap.get(tableNode.getTableName())).thenReturn(tapTable);
+
+			node.connectorNode = connectorNode;
+			node.pdkMethodInvoker = pdkMethodInvoker;
+		}
+
+		@Test
+		@DisplayName("doCountSynchronously should use zero count when displayTableListFirst is true")
+		void testDoCountSynchronouslyWhenDisplayTableListFirst() throws Throwable {
+			AtomicBoolean invocationExecuted = new AtomicBoolean(false);
+			try (MockedStatic<PDKInvocationMonitor> monitor = org.mockito.Mockito.mockStatic(PDKInvocationMonitor.class)) {
+				monitor.when(() -> PDKInvocationMonitor.invoke(
+								any(ConnectorNode.class),
+								eq(PDKMethod.SOURCE_BATCH_COUNT),
+								any(PDKMethodInvoker.class)))
+						.thenAnswer(invocation -> {
+							invocationExecuted.set(true);
+							PDKMethodInvoker pdkMethodInvoker = invocation.getArgument(2, PDKMethodInvoker.class);
+							try {
+								pdkMethodInvoker.getRunnable().run();
+							} catch (Throwable throwable) {
+								throw new RuntimeException(throwable);
+							}
+							return null;
+						});
+
+				node.doCountSynchronously(batchCountFunction, Collections.singletonList(tableNode.getTableName()), true);
+			}
+
+			assertTrue(invocationExecuted.get());
+			assertEquals(tableNode.getTableName(), node.countedTableName.get());
+			assertNotNull(node.countResult.get());
+			assertEquals(0L, node.countResult.get().getCount());
+			assertNull(node.snapshotRowSizeMap);
+			verify(batchCountFunction, never()).count(any(), any());
+		}
+
+		private static class TestHazelcastSourcePdkDataNode extends HazelcastSourcePdkDataNode {
+			private ConnectorNode connectorNode;
+			private PDKMethodInvoker pdkMethodInvoker;
+			private final AtomicReference<String> countedTableName = new AtomicReference<>();
+			private final AtomicReference<CountResult> countResult = new AtomicReference<>();
+
+			TestHazelcastSourcePdkDataNode(com.tapdata.entity.task.context.DataProcessorContext dataProcessorContext) {
+				super(dataProcessorContext);
+			}
+
+			@Override
+			public ConnectorNode getConnectorNode() {
+				return connectorNode;
+			}
+
+			@Override
+			protected boolean isRunning() {
+				return true;
+			}
+
+			@Override
+			public PDKMethodInvoker createPdkMethodInvoker() {
+				return pdkMethodInvoker;
+			}
+
+			@Override
+			public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
+			}
+
+			@Override
+			public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, java.util.concurrent.Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
+				try {
+					TableCountFuncAspect tableCountFuncAspect = new TableCountFuncAspect()
+							.tableCountConsumer((tableName, result) -> {
+								countedTableName.set(tableName);
+								countResult.set(result);
+							});
+					anyErrorConsumer.accept((T) tableCountFuncAspect);
+					return null;
+				} catch (Throwable throwable) {
+					throw new RuntimeException(throwable);
+				}
+			}
 		}
 	}
 }

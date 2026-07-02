@@ -36,6 +36,7 @@ import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -63,7 +64,6 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -118,6 +118,18 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private final ScheduledExecutorService engineStartTaskScheduler = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Engine-Start-Task-Scheduler"));
 	private volatile boolean engineStartTaskSchedulerStarted = false;
 
+	// TAP-12028: 常驻低频对账兜底 + WS(重)连即拉取，确保分配给本引擎(agentId=instanceNo)的
+	// wait_run/stopping 任务最终一定被接管，不再单纯依赖 WS 推送（推送侧 MessageQueueWatch
+	// 存在 offset 永久丢失竞态，整机重启后启动信号可能丢失，导致任务卡在「启动中」）。
+	// 单线程串行，daemon 不阻塞 JVM 退出。
+	private final ScheduledExecutorService taskReconcileScheduler = new ScheduledThreadPoolExecutor(1, r -> {
+		Thread t = new Thread(r, "Engine-Task-Reconcile-Scheduler");
+		t.setDaemon(true);
+		return t;
+	});
+	private static final long RECONCILE_INTERVAL_MS = CommonUtils.getPropertyLong("ENGINE_TASK_RECONCILE_INTERVAL_MS", 30_000L);
+	private static final long RECONCILE_INITIAL_DELAY_MS = CommonUtils.getPropertyLong("ENGINE_TASK_RECONCILE_INITIAL_DELAY_MS", 30_000L);
+
 	// startTask 方法的限流控制
 	private final Object startTaskLock = new Object();
 	private volatile long lastStartTaskTime = 0L;
@@ -126,9 +138,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	// 批量启动任务的并发控制
 	private static final double BATCH_SIZE_RATIO = 0.7; // 使用线程池70%的线程用于批量启动
 	private static final int MIN_BATCH_SIZE = 1; // 最小批次大小
-	private final Semaphore startTaskSemaphore = new Semaphore(calculateBatchSize()); // 控制并发启动任务数量
-	private volatile long lastBatchStartTime = 0L; // 上一批次启动时间
-	private final AtomicInteger currentBatchCount = new AtomicInteger(0); // 当前批次已启动任务数
+	// 并发启动上限：只计算一次并复用，避免"初始许可数与运行期归还阈值不一致"导致的信号量死锁（TAP-12108）
+	private final int maxConcurrentStartTask = calculateBatchSize();
+	// 控制并发启动任务数量；acquire/release 严格成对（见 applyBatchStartTaskRateLimit / releaseStartTaskPermit）
+	private final Semaphore startTaskSemaphore = new Semaphore(maxConcurrentStartTask);
 
 	@Bean(name = "taskControlScheduler")
 	public TaskScheduler taskControlScheduler() {
@@ -169,6 +182,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			}
 		});
 		initScheduleTask();
+		// TAP-12028 (A2): 常驻低频对账兜底，独立于 WS 健康状态。WS 推送仍是低延迟主路径，
+		// 该轮询只保证 wait_run/stopping 任务最终被本引擎接管（默认 30s，可经
+		// ENGINE_TASK_RECONCILE_INTERVAL_MS 调整；云版可调大以降低 DB 压力）。
+		taskReconcileScheduler.scheduleWithFixedDelay(this::reconcileAssignedTasksOnce, RECONCILE_INITIAL_DELAY_MS, RECONCILE_INTERVAL_MS, TimeUnit.MILLISECONDS);
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::resetTaskRetryServiceIfNeed, 1L, 1L, TimeUnit.MINUTES);
 		PDKIntegration.registerMemoryFetcher("taskScheduler", this);
 	}
@@ -254,14 +271,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		};
 	}
 
-	protected void handleTaskOperation(TaskOperation taskOperation) throws InterruptedException, ExecutionException {
-		// 将处理变成单线程处理，避免操作在线程池中积压
+	protected void handleTaskOperation(TaskOperation taskOperation) {
+		// 异步提交后立即返回，继续消费队列；启动并发由 startTaskSemaphore 控制。
+		// 不再对 START 操作 future.get() 串行等待，避免单个任务启动阻塞拖垮整条启动队列（TAP-12108）。
 		Runnable runnable = getHandleTaskOperationRunnable(taskOperation);
-		Future<?> future = taskOperationThreadPool.submit(runnable);
-		if (taskOperation.getOpType() == OpType.START) {
-			// 启动任务有限流，单线程处理
-			future.get();
-		}
+		taskOperationThreadPool.submit(runnable);
 	}
 
 	public void sendStartTask(TaskDto taskDto) {
@@ -336,6 +350,36 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			}
 		} catch (Exception e) {
 			logger.error("Schedule start task failed {}", e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * TAP-12028: 一次性对账——主动认领分配给本引擎(agentId=instanceNo)的 wait_run / stopping 任务。
+	 * <p>触发来源：A1（{@link io.tapdata.websocket.ManagementWebsocketHandler#afterConnectionEstablished}
+	 * 在 WS (重)连成功时立即触发）与 A2（{@link #taskReconcileScheduler} 常驻低频周期触发）。
+	 * <p>安全性：{@link #scheduledTask()} 用 findAndModify 原子认领，{@link #startTask} 经 taskClientMap
+	 * 幂等，与 WS 推送 / WS-down 轮询并存不会重复启动。本方法不抛异常，避免拖垮常驻调度。
+	 */
+	public void reconcileAssignedTasksOnce() {
+		try {
+			scheduledTask();
+			forceStoppingTask();
+		} catch (Throwable t) {
+			logger.warn("Reconcile assigned tasks once failed: {}", t.getMessage(), t);
+		}
+	}
+
+	/**
+	 * 异步触发一次对账，避免阻塞调用线程（如 WS 连接回调线程）。
+	 */
+	public void reconcileAssignedTasksAsync(String reason) {
+		try {
+			taskReconcileScheduler.execute(() -> {
+				logger.info("Reconcile assigned tasks triggered by: {}", reason);
+				reconcileAssignedTasksOnce();
+			});
+		} catch (Exception e) {
+			logger.warn("Submit reconcile assigned tasks failed: {}", e.getMessage(), e);
 		}
 	}
 
@@ -459,61 +503,31 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	/**
-	 * Apply batch-based rate limiting for task startup
-	 * Allows concurrent task startup within batch size limit, with 5-second interval between batches
+	 * 启动并发控制：获取一个启动许可，限制同时启动的任务数不超过 {@code maxConcurrentStartTask}。
+	 * 许可用完即还——必须由 {@link #releaseStartTaskPermit()} 成对归还（见 startTask 的 finally）。
+	 *
+	 * <p>历史缺陷（TAP-12028/TAP-12108）：旧实现只在"凑满一整批 batchSize"时才批量 release，
+	 * 且初始许可数与运行期归还阈值可能不一致，导致 release 从不触发、许可只减不还，最终耗尽为 0，
+	 * 所有任务永久阻塞在 acquire。现改为 acquire/release 严格成对，彻底消除该泄漏。
 	 *
 	 * @param taskDto the task to start
 	 */
 	public void applyBatchStartTaskRateLimit(TaskDto taskDto) {
 		try {
-			// Acquire semaphore permit (blocks if batch is full)
+			// 获取一个启动许可（上限 = maxConcurrentStartTask），阻塞直到有空位
 			startTaskSemaphore.acquire();
-
-			synchronized (startTaskLock) {
-				int batchCount = currentBatchCount.incrementAndGet();
-				int batchSize = calculateBatchSize();
-
-				logger.debug("Task {} ({}) acquired startup permit, current batch count: {}/{}",
-					taskDto.getName(), taskDto.getId().toHexString(), batchCount, batchSize);
-
-				// Check if this is the first task in a new batch
-				if (batchCount == 1) {
-					long currentTime = System.currentTimeMillis();
-					long timeSinceLastBatch = currentTime - lastBatchStartTime;
-
-					// If less than 5 seconds since last batch, wait
-					if (lastBatchStartTime > 0 && timeSinceLastBatch < START_TASK_RATE_LIMIT_MILLIS) {
-						long waitTime = START_TASK_RATE_LIMIT_MILLIS - timeSinceLastBatch;
-						logger.info("Rate limiting batch startup, waiting {}ms to maintain 5-second batch interval", waitTime);
-
-						try {
-							startTaskLock.wait(waitTime);
-						} catch (InterruptedException e) {
-							Thread.currentThread().interrupt();
-							logger.warn("Batch rate limit wait interrupted");
-							throw new RuntimeException("Batch rate limit wait interrupted", e);
-						}
-					}
-
-					// Update last batch start time
-					lastBatchStartTime = System.currentTimeMillis();
-					logger.info("Starting new batch of tasks, batch size limit: {}, batch start time: {}",
-						batchSize, lastBatchStartTime);
-				}
-
-				// If batch is full, reset counter and release all permits for next batch
-				if (batchCount >= batchSize) {
-					logger.info("Batch full ({}/{}), resetting for next batch", batchCount, batchSize);
-					currentBatchCount.set(0);
-					startTaskSemaphore.release(batchSize);
-				}
-			}
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			logger.error("Failed to acquire startup permit for task {} ({}): {}",
-				taskDto.getName(), taskDto.getId().toHexString(), e.getMessage());
-			throw new RuntimeException("Failed to acquire startup permit", e);
+			throw new RuntimeException(String.format("Interrupted while acquiring start-task permit for %s (%s)",
+				taskDto.getName(), taskDto.getId().toHexString()), e);
 		}
+	}
+
+	/**
+	 * 归还一个启动许可，与 {@link #applyBatchStartTaskRateLimit(TaskDto)} 成对使用。
+	 */
+	public void releaseStartTaskPermit() {
+		startTaskSemaphore.release();
 	}
 
 	protected void startTask(TaskDto taskDto) {
@@ -530,6 +544,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
+		boolean permitAcquired = false;
 		try {
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
@@ -545,6 +560,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			// Apply rate limiting after claiming: TM already knows the task is running so the
 			// wait_run overtime timer will not fire while we wait here.
 			applyBatchStartTaskRateLimit(taskDto);
+			permitAcquired = true;
 
 			// 使用 computeIfAbsent 防止创建重复的 TaskClient
 			taskClientMap.computeIfAbsent(taskId, id -> hazelcastTaskService.startTask(taskDto));
@@ -567,6 +583,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
 			Optional.of(taskDto).ifPresent(task -> ConnectorConstant.TASK_STATUS_GAUGE.set(1, taskId, task.getName(), task.getSyncType()));
 		} finally {
+			// 与 applyBatchStartTaskRateLimit 成对归还许可；无论启动成功或失败都归还，杜绝许可泄漏（TAP-12108）
+			if (permitAcquired) {
+				releaseStartTaskPermit();
+			}
 			ThreadContext.clearAll();
 		}
 	}
