@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -35,6 +36,12 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmDatasourceDto;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.alarm.AlarmComponentEnum;
+import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
+import com.tapdata.tm.commons.alarm.AlarmTypeEnum;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
@@ -59,6 +66,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -1456,6 +1464,47 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             }
         } else if (tapEvent instanceof HeartbeatEvent) {
             tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
+        } else if (tapEvent instanceof TapDDLWarningEvent) {
+            TapDDLWarningEvent warningEvent = (TapDDLWarningEvent) tapEvent;
+            obsLogger.warn("Source node received a DDL warning event: {}, warning message: {}",
+                    warningEvent, warningEvent.getWarningMessage());
+
+            // Send alarm notification (email, SMS, in-app notification) via TM alarm system
+            try {
+                Connections connections = dataProcessorContext.getConnections();
+                TaskDto taskDto = dataProcessorContext.getTaskDto();
+                Map<String, Object> param = new HashMap<>();
+                param.put("ddlWarningLog", warningEvent.getWarningMessage());
+                param.put("ddlWarningTime", DateUtil.now());
+                param.put("taskName", taskDto.getName());
+
+                AlarmDatasourceDto alarmDto = AlarmDatasourceDto.builder()
+                        .level(Level.WARNING)
+                        .agentId(CommonUtils.getenv("process_id"))
+                        .component(AlarmComponentEnum.FE)
+                        .status(AlarmStatusEnum.ING)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
+                        .name(connections.getName())
+                        .taskId(taskDto.getId().toHexString())
+                        .nodeId(getNode().getId())
+                        .node(getNode().getName())
+                        .summary(AlarmKeyEnum.TASK_DDL_WARNING.name())
+                        .metric(AlarmKeyEnum.TASK_DDL_WARNING)
+                        .param(param)
+                        .lastNotifyTime(new Date())
+                        .build();
+                if (null != connections.getUser_id()) {
+                    alarmDto.setUserId(connections.getUser_id());
+                }
+                clientMongoOperator.insertOne(alarmDto, "alarm/addDatasourceMsg");
+            } catch (Exception e) {
+                logger.warn("Failed to send DDL warning alarm: {}", e.getMessage(), e);
+            }
+
+            tapdataEvent.setStreamOffset(offsetObj);
+            tapdataEvent.setSourceTime(warningEvent.getReferenceTime());
+            // TapDDLWarningEvent does not alter schema; skip handleSchemaChange.
+            // The event is passed through unconditionally so downstream nodes can also react.
         } else if (tapEvent instanceof TapDDLEvent) {
             obsLogger.trace("Source node received an ddl event: " + tapEvent);
 
