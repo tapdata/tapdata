@@ -4,7 +4,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.6</version>
+        <version>4.0.7</version>
         <relativePath/>
     </parent>
 
@@ -28,7 +28,7 @@
         <version.kafka.scala>2.13</version.kafka.scala>
         <version.curator>2.11.0</version.curator>
         <version.zookeeper>3.8.4</version.zookeeper>
-        <version.jackson>2.21.2</version.jackson>
+        <version.jackson>2.21.4</version.jackson>
         <!--    <version.org.slf4j>1.7.26</version.org.slf4j>-->
         <!-- check new release version at https://github.com/confluentinc/schema-registry/releases -->
         <version.confluent.platform>5.1.2</version.confluent.platform>
@@ -46,7 +46,7 @@
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
         <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
         <!-- Spring Boot 4.0.x manages Spring Framework 7.0.x; keep this aligned with the BOM -->
-        <version.spring>7.0.7</version.spring>
+        <version.spring>7.0.8</version.spring>
 
         <!-- Connectors -->
         <version.com.google.protobuf>4.29.3</version.com.google.protobuf>
@@ -184,6 +184,7 @@
         <httpclient5.version>5.4.4</httpclient5.version>
         <!-- netty.version / tomcat.version intentionally inherited from Spring Boot 4.0.x BOM
              (netty 4.2.x, tomcat 11.0.x for Jakarta EE 11 / Servlet 6.1) -->
+        <tomcat.version>11.0.23</tomcat.version>
     </properties>
 
     <modules>
