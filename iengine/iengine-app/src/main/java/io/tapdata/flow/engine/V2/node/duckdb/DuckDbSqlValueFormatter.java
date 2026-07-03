@@ -144,7 +144,7 @@ public class DuckDbSqlValueFormatter {
     private static String formatNumber(Number number) {
         if (number instanceof BigDecimal) {
             // BigDecimal 需要去掉末尾多余的零
-            return ((BigDecimal) number).stripTrailingZeros().toString();
+            return ((BigDecimal) number).stripTrailingZeros().toPlainString();
         }
         if (number instanceof BigInteger) {
             return number.toString();

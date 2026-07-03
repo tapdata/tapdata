@@ -380,7 +380,7 @@ public interface DuckDbOperator extends AutoCloseable {
      * @throws IllegalArgumentException 如果 pkValues 为空或 schemaInfo 未定义主键
      * @throws SQLException 如果数据库操作失败
      */
-    int deleteByIds(List<Object> pkValues, NodeSchemaInfo schemaInfo) throws SQLException;
+    int deleteByIds(List<Map<String, Object>> pkValues, NodeSchemaInfo schemaInfo) throws SQLException;
 
     /**
      * UPSERT操作（INSERT OR REPLACE）

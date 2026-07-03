@@ -1,6 +1,19 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
 import io.tapdata.flow.engine.V2.node.duckdb.utils.TablePkUtils;
+import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.schema.Column;
+import net.sf.jsqlparser.schema.Table;
+import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.select.AllTableColumns;
+import net.sf.jsqlparser.statement.select.FromItem;
+import net.sf.jsqlparser.statement.select.Join;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectBody;
+import net.sf.jsqlparser.statement.select.SelectExpressionItem;
+import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.select.SetOperationList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -9,9 +22,14 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 /**
@@ -27,11 +45,13 @@ public class AffectedKeyCalculator {
     private static final Logger logger = LogManager.getLogger(AffectedKeyCalculator.class);
 
     private final List<String> wideTablePrimaryKey;
+    private final String wideTableName;
     private final String mainTableName;
     private final DuckDbOperator operator;
     private final WithCteSqlGenerator withCteSqlGenerator;
     private final Map<String, NodeSchemaInfo> nodeSchemaMap;
     private final String resolvedQuerySql;
+    private final Map<String, String> mainTableFieldToWideField;
 
     /**
      * Full constructor with all required dependencies including NodeSchemaInfo and resolved query SQL.
@@ -57,6 +77,19 @@ public class AffectedKeyCalculator {
             Map<String, NodeSchemaInfo> nodeSchemaMap,
             String resolvedQuerySql
     ) {
+        this(wideTablePrimaryKey, null, mainTableName, fromTables, customJoinQueries, operator, nodeSchemaMap, resolvedQuerySql);
+    }
+
+    public AffectedKeyCalculator(
+            List<String> wideTablePrimaryKey,
+            String wideTableName,
+            String mainTableName,
+            List<FromTableConfig> fromTables,
+            Map<String, String> customJoinQueries,
+            DuckDbOperator operator,
+            Map<String, NodeSchemaInfo> nodeSchemaMap,
+            String resolvedQuerySql
+    ) {
         if (CollectionUtils.isEmpty(wideTablePrimaryKey)) {
             throw new IllegalArgumentException("wideTablePrimaryKey must not be null or blank");
         }
@@ -70,11 +103,13 @@ public class AffectedKeyCalculator {
         }
 
         this.wideTablePrimaryKey = wideTablePrimaryKey;
+        this.wideTableName = wideTableName;
         this.mainTableName = mainTableName;
         this.operator = operator;
         this.nodeSchemaMap = nodeSchemaMap;
         this.resolvedQuerySql = resolvedQuerySql;
         this.withCteSqlGenerator = new WithCteSqlGenerator();
+        this.mainTableFieldToWideField = resolveMainTableFieldToWideField(resolvedQuerySql, mainTableName, fromTables, nodeSchemaMap);
     }
 
     /**
@@ -178,7 +213,20 @@ public class AffectedKeyCalculator {
             return null;
         }
 
-        return nodeSchemaMap.get(tableName);
+        NodeSchemaInfo schemaInfo = nodeSchemaMap.get(tableName);
+        if (schemaInfo != null) {
+            return schemaInfo;
+        }
+
+        for (NodeSchemaInfo info : nodeSchemaMap.values()) {
+            if (info == null) {
+                continue;
+            }
+            if (tableName.equalsIgnoreCase(info.getTableName()) || tableName.equalsIgnoreCase(info.getTargetTableName())) {
+                return info;
+            }
+        }
+        return null;
     }
 
     /**
@@ -189,32 +237,29 @@ public class AffectedKeyCalculator {
             return new ArrayList<>();
         }
         List<Map<String, Object>> affectedBeforeKeys = new ArrayList<>();
-        // 主表优化路径：直接使用 MergedRecord.mainTableBeforePks
-        logger.info("Processing main table before merged records from {}", tableName);
-        // 检查是否为主表
-        if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-            logger.info("Main table before PKs for {}: {}", tableName, affectedBeforeKeys);
-            return mergedRecords.stream()
-                    .map(SmartMerger.MergedRecord::getMainTableBeforePks)
-                    .filter(Objects::nonNull)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toList());
-        } else {
-            // 原有路径
-            List<Map<String, Object>> beforeRows = mergedRecords.stream()
-                    .map(SmartMerger.MergedRecord::getBeforeRows)
-                    .filter(Objects::nonNull)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toList());
-            if (beforeRows.isEmpty()) {
-                return affectedBeforeKeys;
-            }
+        //logger.info("Processing main table before merged records from {}", tableName);
 
-            List<String> fields = getTableFields(tableName);
-            AffectedKeysResult result = queryWideTablePksWithCte(tableName, beforeRows, fields);
-            logger.info("Main table before PKs for Sub table {}: {}", tableName, affectedBeforeKeys);
-            return result.getWideTablePks();
+        List<Map<String, Object>> beforeRows = mergedRecords.stream()
+                .map(SmartMerger.MergedRecord::getBeforeRows)
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
+        if (beforeRows.isEmpty()) {
+            return affectedBeforeKeys;
         }
+
+        List<String> fields = getTableFields(tableName);
+        AffectedKeysResult result = queryWideTablePksWithCte(tableName, beforeRows, fields);
+        List<Map<String, Object>> wideTablePks = result.getWideTablePks();
+        if (isMainTable(tableName) && CollectionUtils.isEmpty(wideTablePks)) {
+            List<Map<String, Object>> existingWideTablePks = queryExistingWideTablePksByMainRows(tableName, beforeRows);
+            if (!CollectionUtils.isEmpty(existingWideTablePks)) {
+                //logger.info("Main table before PKs for {} resolved from existing wide table: {}", tableName, existingWideTablePks);
+                return existingWideTablePks;
+            }
+        }
+        logger.info("Wide table before PKs for {}: {}", tableName, wideTablePks);
+        return wideTablePks;
     }
 
     /**
@@ -228,7 +273,6 @@ public class AffectedKeyCalculator {
             return new AffectedKeysResult(new ArrayList<>(), Collections.emptyList(), Collections.emptyList());
         }
         
-        // 主表优化路径：直接使用 MergedRecord.mainTableAfterPks
         logger.info("Processing main table after merged records from {}", tableName);
         
         // 收集 afterRows（主表和子表都需要）
@@ -238,35 +282,292 @@ public class AffectedKeyCalculator {
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
         
-        // 检查是否为主表
-        if (mainTableName != null && mainTableName.equalsIgnoreCase(tableName)) {
-            List<Map<String, Object>> affectedKeys = mergedRecords.stream()
-                    .map(SmartMerger.MergedRecord::getMainTableAfterPks)
-                    .filter(Objects::nonNull)
-                    .flatMap(Collection::stream)
+        if (afterRows.isEmpty()) {
+            return new AffectedKeysResult(new ArrayList<>(), Collections.emptyList(), Collections.emptyList());
+        }
+
+        List<String> fields = getTableFields(tableName);
+        AffectedKeysResult result = queryWideTablePksWithCte(tableName, afterRows, fields);
+        logger.info("Wide table after PKs for {}: {}", tableName, result.getWideTablePks());
+        return result;
+    }
+
+    private boolean isMainTable(String tableName) {
+        if (mainTableName == null || tableName == null) {
+            return false;
+        }
+        if (mainTableName.equalsIgnoreCase(tableName)) {
+            return true;
+        }
+        NodeSchemaInfo tableSchemaInfo = findSchemaInfoByTableName(tableName);
+        if (tableSchemaInfo == null) {
+            return false;
+        }
+        return mainTableName.equalsIgnoreCase(tableSchemaInfo.getTableName())
+                || mainTableName.equalsIgnoreCase(tableSchemaInfo.getTargetTableName());
+    }
+
+    private List<Map<String, Object>> queryExistingWideTablePksByMainRows(String tableName,
+                                                                          List<Map<String, Object>> mainRows) throws SQLException {
+        if (wideTableName == null || wideTableName.isBlank() || CollectionUtils.isEmpty(mainRows)
+                || mainTableFieldToWideField.isEmpty()) {
+            logger.info("Skip existing wide table lookup for {}, wideTableName={}, mainRows={}, fieldMapping={}",
+                    tableName,
+                    wideTableName,
+                    mainRows == null ? 0 : mainRows.size(),
+                    mainTableFieldToWideField);
+            return Collections.emptyList();
+        }
+
+        List<String> sourceFields = selectMainSourceFieldsForFallback(tableName);
+        if (sourceFields.isEmpty()) {
+            logger.info("Skip existing wide table lookup for {}, no source fields selected from mapping {}",
+                    tableName, mainTableFieldToWideField);
+            return Collections.emptyList();
+        }
+
+        String where = buildExistingWideTableWhere(sourceFields, mainRows);
+        if (where.isBlank()) {
+            logger.info("Skip existing wide table lookup for {}, empty where clause, sourceFields={}",
+                    tableName, sourceFields);
+            return Collections.emptyList();
+        }
+
+        String columns = wideTablePrimaryKey.stream()
+                .map(WideTableDdlGenerator::quoteIdentifier)
+                .collect(Collectors.joining(", "));
+        String sql = String.format("SELECT %s FROM %s WHERE %s",
+                columns,
+                WideTableDdlGenerator.quoteIdentifier(wideTableName),
+                where);
+        logger.info("Query existing wide table PKs for main table {}: {}", tableName, sql);
+        List<Map<String, Object>> existingRows = operator.executeQuery(sql);
+        return TablePkUtils.pkValues(existingRows, wideTablePrimaryKey);
+    }
+
+    private List<String> selectMainSourceFieldsForFallback(String tableName) {
+        NodeSchemaInfo schemaInfo = findSchemaInfoByTableName(tableName);
+        if (schemaInfo == null) {
+            schemaInfo = findSchemaInfoByTableName(mainTableName);
+        }
+        if (schemaInfo != null && !CollectionUtils.isEmpty(schemaInfo.getPrimaryKeys())) {
+            List<String> primaryKeys = schemaInfo.getPrimaryKeys().stream()
+                    .filter(mainTableFieldToWideField::containsKey)
                     .collect(Collectors.toList());
-            
-            logger.info("Main table after PKs for {}: {}", tableName, affectedKeys);
-            
-            // 主表：需要通过 WITH CTE 查询获取完整结果
-            if (!afterRows.isEmpty()) {
-                List<String> fields = getTableFields(tableName);
-                AffectedKeysResult result = queryWideTablePksWithCte(tableName, afterRows, fields);
-                // 使用主表PK覆盖（更准确）
-                return new AffectedKeysResult(affectedKeys, result.getWideTableQueryResults(), afterRows);
+            if (!primaryKeys.isEmpty()) {
+                return primaryKeys;
             }
-            return new AffectedKeysResult(affectedKeys, Collections.emptyList(), afterRows);
-        } else {
-            // 子表路径：使用 WITH CTE 查询
-            if (afterRows.isEmpty()) {
-                return new AffectedKeysResult(new ArrayList<>(), Collections.emptyList(), Collections.emptyList());
+        }
+        return new ArrayList<>(mainTableFieldToWideField.keySet());
+    }
+
+    private String buildExistingWideTableWhere(List<String> sourceFields, List<Map<String, Object>> rows) {
+        StringJoiner or = new StringJoiner(" OR ");
+        for (Map<String, Object> row : rows) {
+            StringJoiner and = new StringJoiner(" AND ");
+            for (String sourceField : sourceFields) {
+                if (!containsKeyIgnoreCase(row, sourceField)) {
+                    continue;
+                }
+                String wideField = mainTableFieldToWideField.get(sourceField);
+                if (wideField == null || wideField.isBlank()) {
+                    continue;
+                }
+                Object value = getValueIgnoreCase(row, sourceField);
+                if (value == null) {
+                    and.add(WideTableDdlGenerator.quoteIdentifier(wideField) + " IS NULL");
+                } else {
+                    and.add(WideTableDdlGenerator.quoteIdentifier(wideField) + " = " + DuckDbSqlValueFormatter.format(value));
+                }
+            }
+            String andSql = and.toString();
+            if (!andSql.isBlank()) {
+                or.add("( " + andSql + " )");
+            }
+        }
+        return or.toString();
+    }
+
+    private boolean containsKeyIgnoreCase(Map<String, Object> row, String key) {
+        if (row == null || key == null) {
+            return false;
+        }
+        if (row.containsKey(key)) {
+            return true;
+        }
+        return row.keySet().stream().anyMatch(k -> key.equalsIgnoreCase(k));
+    }
+
+    private Object getValueIgnoreCase(Map<String, Object> row, String key) {
+        if (row.containsKey(key)) {
+            return row.get(key);
+        }
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (key.equalsIgnoreCase(entry.getKey())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private Map<String, String> resolveMainTableFieldToWideField(String querySql,
+                                                                 String mainTableName,
+                                                                 List<FromTableConfig> fromTables,
+                                                                 Map<String, NodeSchemaInfo> nodeSchemaMap) {
+        if (querySql == null || querySql.isBlank()) {
+            return Collections.emptyMap();
+        }
+        try {
+            Statement statement = CCJSqlParserUtil.parse(querySql);
+            if (!(statement instanceof Select select)) {
+                return Collections.emptyMap();
+            }
+            SelectBody selectBody = select.getSelectBody();
+            if (selectBody instanceof SetOperationList setOperationList && !setOperationList.getSelects().isEmpty()) {
+                selectBody = setOperationList.getSelects().get(0);
+            }
+            if (!(selectBody instanceof PlainSelect plainSelect)) {
+                return Collections.emptyMap();
             }
 
-            List<String> fields = getTableFields(tableName);
-            AffectedKeysResult result = queryWideTablePksWithCte(tableName, afterRows, fields);
-            logger.info("Main table after PKs for Sub table {}: {}", tableName, result.getWideTablePks());
-            return result;
+            Set<String> mainTableCandidates = resolveMainTableCandidates(mainTableName, fromTables, nodeSchemaMap);
+            Set<String> mainAliases = resolveMainAliases(plainSelect, mainTableCandidates);
+            if (mainAliases.isEmpty() && mainTableName != null) {
+                mainAliases.add(normalize(mainTableName));
+            }
+
+            Map<String, String> mapping = new LinkedHashMap<>();
+            NodeSchemaInfo mainSchemaInfo = findSchemaInfoByTableName(mainTableName);
+            for (SelectItem selectItem : plainSelect.getSelectItems()) {
+                if (selectItem instanceof AllTableColumns allTableColumns) {
+                    String qualifier = normalize(allTableColumns.getTable().getName());
+                    if (mainAliases.contains(qualifier) && mainSchemaInfo != null) {
+                        for (String field : mainSchemaInfo.getFieldNames()) {
+                            mapping.put(field, field);
+                        }
+                    }
+                    continue;
+                }
+                if (!(selectItem instanceof SelectExpressionItem expressionItem)) {
+                    continue;
+                }
+                String outputField = resolveOutputFieldName(expressionItem);
+                if (outputField == null || outputField.isBlank()) {
+                    continue;
+                }
+                String sourceField = resolveMainSourceField(expressionItem, mainAliases, mainSchemaInfo);
+                if (sourceField != null && !sourceField.isBlank()) {
+                    mapping.put(sourceField, outputField);
+                }
+            }
+            return mapping;
+        } catch (Exception e) {
+            logger.warn("Failed to resolve main table field mapping from querySql: {}", e.getMessage());
+            return Collections.emptyMap();
         }
+    }
+
+    private Set<String> resolveMainTableCandidates(String mainTableName,
+                                                   List<FromTableConfig> fromTables,
+                                                   Map<String, NodeSchemaInfo> nodeSchemaMap) {
+        Set<String> candidates = new LinkedHashSet<>();
+        if (mainTableName != null && !mainTableName.isBlank()) {
+            candidates.add(normalize(mainTableName));
+        }
+        NodeSchemaInfo mainSchemaInfo = findSchemaInfoByTableName(mainTableName);
+        addSchemaCandidates(candidates, mainSchemaInfo);
+        if (fromTables != null) {
+            for (int index = 0; index < fromTables.size(); index++) {
+                FromTableConfig fromTable = fromTables.get(index);
+                if (fromTable == null) {
+                    continue;
+                }
+                NodeSchemaInfo schemaInfo = null;
+                if (nodeSchemaMap != null) {
+                    schemaInfo = nodeSchemaMap.get(fromTable.getPreNodeId());
+                    if (schemaInfo == null) {
+                        schemaInfo = findSchemaInfoByTableName(fromTable.getTableNameInSql());
+                    }
+                }
+                boolean matchedMain = mainTableName != null && (
+                        mainTableName.equalsIgnoreCase(fromTable.getTableNameInSql())
+                                || (schemaInfo != null && (mainTableName.equalsIgnoreCase(schemaInfo.getTableName())
+                                || mainTableName.equalsIgnoreCase(schemaInfo.getTargetTableName()))));
+                if (matchedMain || (mainTableName == null && index == 0)) {
+                    candidates.add(normalize(fromTable.getTableNameInSql()));
+                    addSchemaCandidates(candidates, schemaInfo);
+                }
+            }
+        }
+        return candidates;
+    }
+
+    private void addSchemaCandidates(Set<String> candidates, NodeSchemaInfo schemaInfo) {
+        if (schemaInfo == null) {
+            return;
+        }
+        candidates.add(normalize(schemaInfo.getTableName()));
+        candidates.add(normalize(schemaInfo.getTargetTableName()));
+    }
+
+    private Set<String> resolveMainAliases(PlainSelect plainSelect, Set<String> mainTableCandidates) {
+        Set<String> aliases = new LinkedHashSet<>();
+        registerMainAlias(plainSelect.getFromItem(), mainTableCandidates, aliases);
+        if (plainSelect.getJoins() != null) {
+            for (Join join : plainSelect.getJoins()) {
+                registerMainAlias(join.getRightItem(), mainTableCandidates, aliases);
+            }
+        }
+        return aliases;
+    }
+
+    private void registerMainAlias(FromItem fromItem, Set<String> mainTableCandidates, Set<String> aliases) {
+        if (!(fromItem instanceof Table table)) {
+            return;
+        }
+        String tableName = normalize(table.getName());
+        if (!mainTableCandidates.contains(tableName)) {
+            return;
+        }
+        aliases.add(tableName);
+        if (table.getAlias() != null && table.getAlias().getName() != null) {
+            aliases.add(normalize(table.getAlias().getName()));
+        }
+    }
+
+    private String resolveOutputFieldName(SelectExpressionItem expressionItem) {
+        if (expressionItem.getAlias() != null && expressionItem.getAlias().getName() != null) {
+            return expressionItem.getAlias().getName();
+        }
+        if (expressionItem.getExpression() instanceof Column column) {
+            return column.getColumnName();
+        }
+        return null;
+    }
+
+    private String resolveMainSourceField(SelectExpressionItem expressionItem,
+                                          Set<String> mainAliases,
+                                          NodeSchemaInfo mainSchemaInfo) {
+        if (!(expressionItem.getExpression() instanceof Column column)) {
+            return null;
+        }
+        String columnName = column.getColumnName();
+        if (column.getTable() == null || column.getTable().getName() == null || column.getTable().getName().isBlank()) {
+            if (mainSchemaInfo != null && mainSchemaInfo.getFieldNames().stream().anyMatch(columnName::equalsIgnoreCase)) {
+                return columnName;
+            }
+            return null;
+        }
+        String qualifier = normalize(column.getTable().getName());
+        return mainAliases.contains(qualifier) ? columnName : null;
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return "";
+        }
+        String stripped = WideTableSourceRegistry.stripQuotes(value);
+        return stripped == null ? "" : stripped.toLowerCase(Locale.ROOT);
     }
 
     /**

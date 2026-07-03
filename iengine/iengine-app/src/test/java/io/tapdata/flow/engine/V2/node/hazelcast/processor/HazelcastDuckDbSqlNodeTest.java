@@ -233,7 +233,7 @@ class HazelcastDuckDbSqlNodeTest {
         nodeConfig.setDuckLakeStoragePath("s3://bucket/path");
         nodeConfig.setDuckLakeMetadataDbUrl("jdbc:postgresql://localhost:5432/ducklake");
 
-        try (DuckDbOperatorImpl operator = HazelcastDuckDbSqlNode.initDuckDbOperator(nodeConfig, "", 10)) {
+        try (DuckDbOperatorImpl operator = HazelcastDuckDbSqlNode.initDuckDbOperator(nodeConfig, "", 10, mock(ObsLogger.class))) {
             DuckLakeConfig config = (DuckLakeConfig) getFieldValue(operator, "duckLakeConfig");
             assertNotNull(config);
             assertTrue(config.isEnabled());
@@ -248,7 +248,7 @@ class HazelcastDuckDbSqlNodeTest {
         DuckDbSqlNode nodeConfig = new DuckDbSqlNode();
         nodeConfig.setDuckLakeEnabled(false);
 
-        try (DuckDbOperatorImpl operator = HazelcastDuckDbSqlNode.initDuckDbOperator(nodeConfig, "", 10)) {
+        try (DuckDbOperatorImpl operator = HazelcastDuckDbSqlNode.initDuckDbOperator(nodeConfig, "", 10, mock(ObsLogger.class))) {
             DuckLakeConfig config = (DuckLakeConfig) getFieldValue(operator, "duckLakeConfig");
             assertNotNull(config);
             assertFalse(config.isEnabled());

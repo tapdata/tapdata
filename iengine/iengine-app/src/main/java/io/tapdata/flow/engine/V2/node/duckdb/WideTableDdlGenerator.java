@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -52,6 +53,8 @@ public class WideTableDdlGenerator {
         "join", "inner", "left", "right", "full", "outer", "cross", "on",
         "as", "distinct", "all", "union", "intersect", "except", "with"
     ));
+    private static final Pattern DECIMAL_TYPE_PATTERN =
+            Pattern.compile("^(DECIMAL|NUMERIC)(?:\\s*\\(\\s*(\\d+)\\s*(?:,\\s*(\\d+)\\s*)?\\)|\\b).*");
 
     /**
      * 字段信息封装类
@@ -561,7 +564,29 @@ public class WideTableDdlGenerator {
         if (dataType == null) {
             return "VARCHAR";
         }
-        String upperType = dataType.toUpperCase();
+        String upperType = dataType.trim().toUpperCase(Locale.ROOT);
+        Matcher decimalMatcher = DECIMAL_TYPE_PATTERN.matcher(upperType);
+        if (decimalMatcher.matches()) {
+            String precision = decimalMatcher.group(2);
+            String scale = decimalMatcher.group(3);
+            if (precision != null && scale != null) {
+                return "DECIMAL(" + precision + "," + scale + ")";
+            }
+            if (precision != null) {
+                return "DECIMAL(" + precision + ")";
+            }
+            return "DECIMAL";
+        }
+
+        int paren = upperType.indexOf('(');
+        if (paren > 0) {
+            upperType = upperType.substring(0, paren).trim();
+        }
+        int space = upperType.indexOf(' ');
+        if (space > 0) {
+            upperType = upperType.substring(0, space).trim();
+        }
+
         switch (upperType) {
             case "STRING":
             case "TEXT":
@@ -577,7 +602,6 @@ public class WideTableDdlGenerator {
                 return "BIGINT";
             case "FLOAT":
             case "DOUBLE":
-            case "DECIMAL":
             case "NUMBER":
                 return "DOUBLE";
             case "BOOLEAN":

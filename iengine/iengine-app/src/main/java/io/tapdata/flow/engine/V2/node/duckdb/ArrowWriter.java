@@ -3,7 +3,9 @@ package io.tapdata.flow.engine.V2.node.duckdb;
 import com.tapdata.tm.commons.dag.process.dto.TapFieldDto;
 import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.observable.logging.ObsLogger;
 import org.apache.arrow.c.ArrowArrayStream;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
@@ -53,7 +55,7 @@ import java.util.regex.Pattern;
  */
 public class ArrowWriter implements AutoCloseable {
     private static final String ZERO_COPY_WRITE_SQL = "INSERT INTO %s SELECT * FROM %s";
-    private static final Logger logger = LoggerFactory.getLogger(ArrowWriter.class);
+    ObsLogger logger;
 
     private final Connection connection;
     private final boolean zeroCopyEnabled;
@@ -71,13 +73,17 @@ public class ArrowWriter implements AutoCloseable {
         this(connection, zeroCopyEnabled, DuckLakeConfig.disabled());
     }
 
+    public ArrowWriter log(ObsLogger logger) {
+        this.logger = logger;
+        return this;
+    }
+
     public ArrowWriter(Connection connection, boolean zeroCopyEnabled, DuckLakeConfig duckLakeConfig) {
         this.connection = connection;
         this.zeroCopyEnabled = zeroCopyEnabled;
         this.duckLakeConfig = duckLakeConfig;
         // 创建 RootAllocator，管理 Arrow 内存
         this.allocator = new RootAllocator(Long.MAX_VALUE);
-        logger.info("ArrowWriter initialized with zero-copy: {}, DuckLake: {}", zeroCopyEnabled, duckLakeConfig.isEnabled());
     }
 
     /**
@@ -204,6 +210,10 @@ public class ArrowWriter implements AutoCloseable {
      * 使用DuckDB官方推荐的Appender API插入数据（最高性能）
      */
     private void AppenderInsert(List<Map<String, Object>> data, String tableName, TapTable tapTable) throws SQLException {
+        AppenderInsert(data, tableName, tapTable, primaryKeyColumns(tapTable));
+    }
+
+    private void AppenderInsert(List<Map<String, Object>> data, String tableName, TapTable tapTable, List<String> primaryKeyCols) throws SQLException {
         if (data.isEmpty()) {
             return;
         }
@@ -233,7 +243,7 @@ public class ArrowWriter implements AutoCloseable {
                         }
                     }
                 } else {
-                    fallbackInsert(data, tableName, tapTable);
+                    fallbackInsert(data, tableName, tapTable, primaryKeyCols);
                 }
                 
                 connection.commit();
@@ -241,7 +251,7 @@ public class ArrowWriter implements AutoCloseable {
             } catch (SQLException e) {
                 connection.rollback();
                 logger.warn("Appender insert failed for table {}, falling back to INSERT: {}", tableName, e.getMessage());
-                fallbackInsert(data, tableName, tapTable);
+                fallbackInsert(data, tableName, tapTable, primaryKeyCols);
                 connection.commit();
             }
         } finally {
@@ -273,22 +283,18 @@ public class ArrowWriter implements AutoCloseable {
 
     /**
      * 备用插入方法（当COPY不可用时使用）
-     * 优化：添加 ON CONFLICT DO NOTHING 处理主键冲突，避免批量插入失败
+     * 优化：添加 ON CONFLICT DO UPDATE 处理主键冲突，避免批量插入失败
      */
     private void fallbackInsert(List<Map<String, Object>> data, String tableName, TapTable tapTable) throws SQLException {
+        fallbackInsert(data, tableName, tapTable, primaryKeyColumns(tapTable));
+    }
+
+    private void fallbackInsert(List<Map<String, Object>> data, String tableName, TapTable tapTable, List<String> primaryKeyCols) throws SQLException {
         List<String> fieldNames = new ArrayList<>(tapTable.getNameFieldMap().keySet());
         if (fieldNames.isEmpty() || data.isEmpty()) {
             return;
         }
-        
-        // 检查是否有主键
-        List<String> primaryKeyCols = new ArrayList<>();
-        for (io.tapdata.entity.schema.TapField tapField : tapTable.getNameFieldMap().values()) {
-            if (Boolean.TRUE.equals(tapField.getPrimaryKey())) {
-                primaryKeyCols.add(tapField.getName());
-            }
-        }
-        
+
         String columns = fieldNames.stream()
                 .map(f -> "\"" + f + "\"")
                 .reduce((a, b) -> a + ", " + b)
@@ -322,12 +328,12 @@ public class ArrowWriter implements AutoCloseable {
         
         try (Statement stmt = connection.createStatement()) {
             int insertedRows = stmt.executeUpdate(sqlBuilder.toString());
-            logger.warn("Inserted {} rows into table {} (some rows may be ignored due to primary key conflict)",
+            logger.warn("Inserted or updated {} rows into table {}",
                 insertedRows, tableName);
         } catch (SQLException e) {
             // 如果 ON CONFLICT 语法不支持，降级到逐行插入
             logger.warn("Batch insert failed, falling back to row-by-row insert: {}", e.getMessage());
-            insertRowByRow(data, tableName, tapTable, fieldNames);
+            insertRowByRow(data, tableName, tapTable, fieldNames, primaryKeyCols);
         }
     }
     
@@ -336,6 +342,11 @@ public class ArrowWriter implements AutoCloseable {
      */
     private void insertRowByRow(List<Map<String, Object>> data, String tableName, 
                                 TapTable tapTable, List<String> fieldNames) throws SQLException {
+        insertRowByRow(data, tableName, tapTable, fieldNames, primaryKeyColumns(tapTable));
+    }
+
+    private void insertRowByRow(List<Map<String, Object>> data, String tableName,
+                                TapTable tapTable, List<String> fieldNames, List<String> primaryKeyCols) throws SQLException {
         int successCount = 0;
         int ignoreCount = 0;
         
@@ -356,25 +367,94 @@ public class ArrowWriter implements AutoCloseable {
                 }
                 singleSql.append(String.join(",", values));
                 singleSql.append(")");
+                appendUpsertClause(singleSql, primaryKeyCols, fieldNames);
                 
                 try (Statement stmt = connection.createStatement()) {
-                    stmt.executeUpdate(singleSql.toString());
-                    successCount++;
+                    int affectedRows = stmt.executeUpdate(singleSql.toString());
+                    if (affectedRows > 0) {
+                        successCount++;
+                    } else {
+                        ignoreCount++;
+                    }
                 }
             } catch (SQLException e) {
-                // 忽略主键冲突等约束错误，继续处理其他行
-                if (e.getMessage() != null && e.getMessage().contains("primary key constraint")) {
-                    ignoreCount++;
-                    logger.debug("Ignored duplicate key for row: {}", row);
-                } else {
-                    logger.warn("Failed to insert row: {}", e.getMessage());
-                    throw e;
-                }
+                logger.warn("Failed to insert row: {}", e.getMessage());
+                throw e;
             }
         }
         
-        logger.info("Row-by-row insert completed: {} succeeded, {} ignored (duplicate key)", 
+        logger.info("Row-by-row insert completed: {} inserted or updated, {} ignored", 
             successCount, ignoreCount);
+    }
+
+    private List<String> primaryKeyColumns(TapTable tapTable) {
+        return primaryKeyColumns(tapTable, null);
+    }
+
+    private List<String> primaryKeyColumns(TapTable tapTable, List<String> preferredPrimaryKeyCols) {
+        List<String> primaryKeyCols = new ArrayList<>();
+        if (preferredPrimaryKeyCols != null) {
+            for (String pk : preferredPrimaryKeyCols) {
+                if (pk != null && !pk.isBlank() && !primaryKeyCols.contains(pk)) {
+                    primaryKeyCols.add(pk);
+                }
+            }
+        }
+        if (!primaryKeyCols.isEmpty()) {
+            return primaryKeyCols;
+        }
+        for (io.tapdata.entity.schema.TapField tapField : tapTable.getNameFieldMap().values()) {
+            if (Boolean.TRUE.equals(tapField.getPrimaryKey())) {
+                primaryKeyCols.add(tapField.getName());
+            }
+        }
+        if (primaryKeyCols.isEmpty()) {
+            List<TapIndex> indexList = tapTable.getIndexList();
+            if (indexList == null || indexList.isEmpty()) {
+                return primaryKeyCols;
+            }
+            TapIndex tapIndex = indexList.get(0);
+            if (tapIndex.getIndexFields() != null) {
+                tapIndex.getIndexFields().forEach(f -> primaryKeyCols.add(f.getName()));
+            }
+        }
+        return primaryKeyCols;
+    }
+
+    private void appendUpsertClause(StringBuilder sqlBuilder, List<String> primaryKeyCols, List<String> fieldNames) {
+        List<String> conflictKeyCols = new ArrayList<>();
+        if (primaryKeyCols != null) {
+            for (String pk : primaryKeyCols) {
+                if (fieldNames.contains(pk) && !conflictKeyCols.contains(pk)) {
+                    conflictKeyCols.add(pk);
+                }
+            }
+        }
+        if (conflictKeyCols.isEmpty()) {
+            return;
+        }
+
+        sqlBuilder.append(" ON CONFLICT (");
+        sqlBuilder.append(conflictKeyCols.stream()
+                .map(f -> "\"" + f + "\"")
+                .reduce((a, b) -> a + ", " + b)
+                .orElse(""));
+        sqlBuilder.append(")");
+
+        List<String> updateAssignments = new ArrayList<>();
+        for (String fieldName : fieldNames) {
+            if (!conflictKeyCols.contains(fieldName)) {
+                String quotedField = "\"" + fieldName + "\"";
+                updateAssignments.add(quotedField + " = EXCLUDED." + quotedField);
+            }
+        }
+
+        if (updateAssignments.isEmpty()) {
+            sqlBuilder.append(" DO NOTHING");
+        } else {
+            sqlBuilder.append(" DO UPDATE SET ");
+            sqlBuilder.append(String.join(", ", updateAssignments));
+        }
     }
 
     /**
@@ -410,7 +490,7 @@ public class ArrowWriter implements AutoCloseable {
         if (!tryZeroCopyWrite(data, tableName, tapTableDto)) {
             // 转换为TapTable后使用AppenderInsert
             TapTable tapTable = convertToTapTable(tapTableDto);
-            AppenderInsert(data, tableName, tapTable);
+            AppenderInsert(data, tableName, tapTable, primaryKeyColumns(tapTable, tapTableDto.getPrimaryKeys()));
         }
     }
     
@@ -438,7 +518,7 @@ public class ArrowWriter implements AutoCloseable {
         // 尝试零拷贝写入，如果不可用则使用COPY模式
         if (!tryZeroCopyWrite(data, schemaInfo)) {
             // 使用SchemaInfo中的TapTable
-            AppenderInsert(data, targetTableName, schemaInfo.getTapTable());
+            AppenderInsert(data, targetTableName, schemaInfo.getTapTable(), primaryKeyColumns(schemaInfo.getTapTable(), schemaInfo.getPrimaryKeys()));
         }
     }
 

@@ -12,6 +12,7 @@ import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.observable.logging.ObsLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +45,7 @@ import java.util.stream.Collectors;
  */
 public class DuckDbOperatorImpl implements DuckDbOperator {
 
-    private static final Logger logger = LoggerFactory.getLogger(DuckDbOperatorImpl.class);
+    private ObsLogger logger;
 
     private Connection connection;
     private ArrowWriter arrowWriter;
@@ -75,18 +76,8 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     /**
      * 创建内存数据库实例
      */
-    public DuckDbOperatorImpl() throws SQLException {
-        this("", false, 1000, 5000, DuckLakeConfig.disabled());
-    }
-
-    /**
-     * 创建带批处理配置的实例
-     * @param batchWritingEnabled 是否启用批处理
-     * @param batchWritingSize 批处理大小
-     * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
-     */
-    public DuckDbOperatorImpl(boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs) throws SQLException {
-        this("", batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, DuckLakeConfig.disabled());
+    public DuckDbOperatorImpl(ObsLogger obsLogger) throws SQLException {
+        this("", false, 1000, 5000, DuckLakeConfig.disabled(), obsLogger);
     }
 
     /**
@@ -96,19 +87,8 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
      * @param batchWritingSize 批处理大小
      * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
      */
-    public DuckDbOperatorImpl(String dbPath, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs) throws SQLException {
-        this(dbPath, batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, DuckLakeConfig.disabled());
-    }
-
-    /**
-     * 创建带批处理和DuckLake配置的实例（保留向后兼容）
-     * @param batchWritingEnabled 是否启用批处理
-     * @param batchWritingSize 批处理大小
-     * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
-     * @param duckLakeConfig DuckLake配置
-     */
-    public DuckDbOperatorImpl(boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig) throws SQLException {
-        this("", batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, duckLakeConfig);
+    public DuckDbOperatorImpl(String dbPath, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, ObsLogger obsLogger) throws SQLException {
+        this(dbPath, batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, DuckLakeConfig.disabled(), obsLogger);
     }
 
     /**
@@ -119,41 +99,30 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
      * @param batchWritingTimeoutMs 批处理超时时间（毫秒）
      * @param duckLakeConfig DuckLake配置
      */
-    public DuckDbOperatorImpl(String dbPath, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig) throws SQLException {
+    public DuckDbOperatorImpl(String dbPath, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig, ObsLogger obsLogger) throws SQLException {
         this.dbPath = dbPath;
         this.batchWritingEnabled = batchWritingEnabled;
         this.batchWritingSize = batchWritingSize;
         this.batchWritingTimeoutMs = batchWritingTimeoutMs;
         this.duckLakeConfig = duckLakeConfig;
+        this.logger = obsLogger;
         initConnection();
-        this.arrowWriter = new ArrowWriter(connection, true, duckLakeConfig);
+        this.arrowWriter = new ArrowWriter(connection, true, duckLakeConfig).log(logger);
     }
 
-    /**
-     * 使用现有连接创建实例
-     */
-    public DuckDbOperatorImpl(Connection connection) {
-        this(connection, true, 1000, 5000, DuckLakeConfig.disabled());
-    }
-
-    /**
-     * 使用现有连接创建带批处理配置的实例
-     */
-    public DuckDbOperatorImpl(Connection connection, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs) {
-        this(connection, batchWritingEnabled, batchWritingSize, batchWritingTimeoutMs, DuckLakeConfig.disabled());
-    }
     
     /**
      * 使用现有连接创建带批处理和DuckLake配置的实例
      */
-    public DuckDbOperatorImpl(Connection connection, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig) {
+    public DuckDbOperatorImpl(Connection connection, boolean batchWritingEnabled, int batchWritingSize, long batchWritingTimeoutMs, DuckLakeConfig duckLakeConfig, ObsLogger obsLogger) {
         this.connection = connection;
         this.dbPath = null; // 使用外部连接时，dbPath无意义
         this.batchWritingEnabled = batchWritingEnabled;
         this.batchWritingSize = batchWritingSize;
         this.batchWritingTimeoutMs = batchWritingTimeoutMs;
         this.duckLakeConfig = duckLakeConfig;
-        this.arrowWriter = new ArrowWriter(connection, true, duckLakeConfig);
+        this.logger = obsLogger;
+        this.arrowWriter = new ArrowWriter(connection, true, duckLakeConfig).log(obsLogger);
     }
 
     /**
@@ -942,7 +911,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
     // ==================== deleteByIds 实现 ====================
 
     @Override
-    public int deleteByIds(List<Object> pkValues, NodeSchemaInfo schemaInfo) throws SQLException {
+    public int deleteByIds(List<Map<String, Object>> pkValues, NodeSchemaInfo schemaInfo) throws SQLException {
         checkClosed();
         Objects.requireNonNull(pkValues, "pkValues must not be null");
         if (schemaInfo == null) {
@@ -973,7 +942,7 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
 
         for (int offset = 0; offset < pkValues.size(); offset += BATCH_SIZE) {
             int end = Math.min(offset + BATCH_SIZE, pkValues.size());
-            List<Object> batch = pkValues.subList(offset, end);
+            List<Map<String, Object>> batch = pkValues.subList(offset, end);
             totalDeleted += executeDeleteBatch(safeTableName, safePkColumns, primaryKeys, batch, schemaInfo);
         }
 
@@ -988,20 +957,26 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
             String safeTableName,
             List<String> safePkColumns,
             List<String> primaryKeys,
-            List<Object> batch,
+            List<Map<String, Object>> batch,
             NodeSchemaInfo schemaInfo) throws SQLException {
 
         StringBuilder sql = new StringBuilder();
         sql.append("DELETE FROM ").append(safeTableName).append(" WHERE ");
 
         if (primaryKeys.size() == 1) {
+            String pkName = primaryKeys.get(0);
             // 单主键：DELETE FROM tbl WHERE pk IN (SELECT pk FROM (VALUES (v1),(v2)) AS t(pk))
             String pkCol = safePkColumns.get(0);
-            sql.append(pkCol).append(" IN (SELECT pk FROM (VALUES ");
+            sql.append(pkCol).append(" IN (");
             String valuesClause = batch.stream()
-                    .map(pk -> "(" + formatPkValueForColumn(pk, primaryKeys.get(0), schemaInfo) + ")")
+                    .map(map -> map.get(pkName))
+                    .filter(Objects::nonNull)
+                    .map(pk -> formatPkValueForColumn(pk, pkName, schemaInfo))
                     .collect(Collectors.joining(", "));
-            sql.append(valuesClause).append(") AS t(pk))");
+            if (valuesClause.isEmpty()) {
+                return 0;
+            }
+            sql.append(valuesClause).append(")");
         } else {
             // 复合主键：DELETE FROM tbl WHERE (pk1,pk2) IN (VALUES (v1,v2),(v3,v4))
             String pkTuple = "(" + String.join(", ", safePkColumns) + ")";
@@ -1752,8 +1727,9 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
             case "TapBytes":
                 return "VARCHAR";
             case "TapNumber":
-                return "BIGINT";
+                return mapTapNumberToDuckDbType((TapNumber) tapType);
             case "TapDate":
+                return "DATE";
             case "TapDateTime":
                 return "TIMESTAMP";
             case "TapTime":
@@ -1761,9 +1737,48 @@ public class DuckDbOperatorImpl implements DuckDbOperator {
             case "TapBoolean":
                 return "BOOLEAN";
             case "TapBinary":
+            case "TapRaw":
                 return "BLOB";
+            case "TapJson":
+                return "JSON";
             default:
                 return "VARCHAR";
         }
+    }
+
+    private static String mapTapNumberToDuckDbType(TapNumber tapNumber) {
+        Integer precision = tapNumber.getPrecision();
+        Integer scale = tapNumber.getScale();
+        if (precision != null && precision > 0) {
+            if (scale != null && scale >= 0) {
+                return "DECIMAL(" + precision + "," + scale + ")";
+            }
+            return "DECIMAL(" + precision + ")";
+        }
+
+        if (Boolean.TRUE.equals(tapNumber.getFixed())) {
+            return "DECIMAL";
+        }
+
+        Integer bit = tapNumber.getBit();
+        if (Boolean.FALSE.equals(tapNumber.getFixed())) {
+            if (bit != null && bit <= 32) {
+                return "FLOAT";
+            }
+            return "DOUBLE";
+        }
+
+        if (bit != null) {
+            if (bit <= 8) {
+                return "TINYINT";
+            }
+            if (bit <= 16) {
+                return "SMALLINT";
+            }
+            if (bit <= 32) {
+                return "INTEGER";
+            }
+        }
+        return "BIGINT";
     }
 }

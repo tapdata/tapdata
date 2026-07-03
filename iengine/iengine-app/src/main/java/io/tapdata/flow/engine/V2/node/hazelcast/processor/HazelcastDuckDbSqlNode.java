@@ -23,7 +23,6 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.node.duckdb.SchemaTypeCache;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.node.duckdb.AffectedKeyCalculator;
 import io.tapdata.flow.engine.V2.node.duckdb.DlqWriter;
@@ -45,7 +44,9 @@ import io.tapdata.flow.engine.V2.node.duckdb.converter.IengineSchemaConverter;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import com.tapdata.constant.HazelcastUtil;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.services.DuckDbSqlNodeTestRunService;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
@@ -317,7 +318,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         persistProcessIfPossible();
     }
 
-    static DuckDbOperatorImpl initDuckDbOperator(DuckDbSqlNode node, String dbPath, int batchSize) {
+    static DuckDbOperatorImpl initDuckDbOperator(DuckDbSqlNode node, String dbPath, int batchSize, ObsLogger logger) {
         // 读取 DuckLake 配置（支持三级优先级：节点 > 全局 > 默认值）
         DuckLakeConfig duckLakeConfig = DuckLakeConfig.disabled();
         Boolean nodeDuckLakeEnabled = node.getDuckLakeEnabled();
@@ -335,7 +336,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             );
         }
         try {
-            return new DuckDbOperatorImpl(dbPath, false, batchSize, 5000, duckLakeConfig);
+            return new DuckDbOperatorImpl(dbPath, false, batchSize, 5000, duckLakeConfig, logger);
         } catch (Exception e) {
             throw new TapCodeException("Failed to initialize DuckDbOperator", e);
         }
@@ -393,7 +394,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         DuckDbSqlNode nodeConfig = (DuckDbSqlNode) getNode();
         this.dbPath = initDBPath(nodeConfig);
         obsLogger.info("Database path: {}", dbPath);
-        this.duckDbOperator = initDuckDbOperator(nodeConfig, dbPath, OUTPUT_BATCH_SIZE);
+        this.duckDbOperator = initDuckDbOperator(nodeConfig, dbPath, OUTPUT_BATCH_SIZE, obsLogger);
         initDBSettingsIfNeed(nodeConfig);
         initPreNodeCount();
         // 读取节点配置
@@ -478,8 +479,12 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // ========== 新增: 初始化实时增量物化视图组件 ==========
             if (wideTablePrimaryKey != null && !wideTablePrimaryKey.isEmpty()) {
+                // ========== 核心功能：SQL 表别名解析与替换 ==========
+                resolveSqlTableAliases();
+
                 affectedKeyCalculator = new AffectedKeyCalculator(
                         wideTablePrimaryKey,
+                        wideTableName,
                         mainTableName,
                         fromTables,
                         customJoinQueries,
@@ -491,9 +496,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 obsLogger.info("AffectedKeyCalculator initialized with {} schema(s), querySql length={}",
                         nodeSchemaCache.size(),
                         this.querySql.length());
-
-                // ========== 核心功能：SQL 表别名解析与替换 ==========
-                resolveSqlTableAliases();
 
                 // 获取宽表的 NodeSchemaInfo
                 NodeSchemaInfo wideTableSchemaInfo = findTable(wideTableName);
@@ -509,7 +511,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                         duckDbOperator,
                         true, // 是否写宽表
                         wideTableSchemaInfo
-                ).log(obsLogger).withDeleteSemantics(io.tapdata.flow.engine.V2.node.duckdb.WideTableSourceRegistry.from(mainTableName, fromTables, nodeSchemaCache));
+                ).log(obsLogger)
+                        .tableSchemaCache(tableSchemaCache)
+                        .withDeleteSemantics(io.tapdata.flow.engine.V2.node.duckdb.WideTableSourceRegistry.from(mainTableName, fromTables, nodeSchemaCache));
 
                 obsLogger.info("Materialized view components initialized: affectedKeyCalculator={}, wideTableUpdater={}",
                         affectedKeyCalculator != null, wideTableUpdater != null);
@@ -823,10 +827,14 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     schemaInfo
             );
             synchronized (context.getCommitLock()) {
+                boolean isInitialSync = syncStageTracker != null && syncStageTracker.isTableInInitialSync(context.getTargetTableName());
                 context.addEvent(tapdataEvent);
+                if (!isInitialSync) {
+                    flushContext(context, true);
+                    return;
+                }
                 if (context.needAccept()) {
-                    boolean isInitialSync = syncStageTracker != null && syncStageTracker.isTableInInitialSync(context.getTargetTableName());
-                    flushContext(context, !isInitialSync);
+                    flushContext(context, false);
                 }
             }
         } catch (Exception e) {
@@ -1030,7 +1038,9 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                     context.resetBuffer();
                 } else {
                     // ========== 增量阶段 ==========
-                    processCdcStage(context, eventsToFlush);
+                    for (TapdataEvent toFlush : eventsToFlush) {
+                        processCdcStage(context, List.of(toFlush));
+                    }
                     //flushAllContextsSafely();
                 }
 
@@ -1115,10 +1125,6 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             beforeKeys = null;
         }
 
-        // 步骤4-6: DuckDB 事务开启，写入数据
-//        operator.
-//                executeInTransaction(() -> {
-        // 步骤5: Before 的所有数据全部执行 delete 操作
         deleteBeforeData(operator, context.getTargetTableName(), mergedRecords, context.getSchema());
 
         // 步骤6: After 的数据执行 Arrow 批量写入
@@ -1196,7 +1202,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 .filter(Objects::nonNull)
                 .flatMap(Collection::stream)
                 .toList();
-        List<Object> beforePks = new ArrayList<>(list);
+        List<Map<String, Object>> beforePks = new ArrayList<>(list);
         if (!beforePks.isEmpty()) {
             obsLogger.debug("Deleting {} before rows from table '{}'", beforePks.size(), tableName);
             operator.deleteByIds(beforePks, schema);
@@ -1791,7 +1797,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
         try {
             // 使用与主 Operator 相同的 dbPath 配置
-            return new DuckDbOperatorImpl(dbPath, false, concurrentBatchSize, commitIntervalMs);
+            return new DuckDbOperatorImpl(dbPath, false, concurrentBatchSize, commitIntervalMs, obsLogger);
         } catch (SQLException e) {
             obsLogger.warn("Failed to create dedicated DuckDB operator, fallback to shared operator: {}", e.getMessage());
             return duckDbOperator;
@@ -1966,7 +1972,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                 .map(TapTableDto::getName)
                 .collect(Collectors.toSet());
         try {
-            duckDbOperator = initDuckDbOperator(node, dbPath, 100);
+            duckDbOperator = initDuckDbOperator(node, dbPath, 100, DuckDbSqlNodeTestRunService.log(HazelcastProcessorBaseNode.class));
         } catch (Exception e) {
             throw new TapCodeException("Failed to initialize DuckDbOperator", e);
         }

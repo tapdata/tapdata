@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.dag.process.dto.TapTableDto;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.observable.logging.ObsLogger;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -28,7 +29,6 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -46,8 +46,8 @@ class ArrowWriterTest {
 
     @Test
     void constructorsBuildSchemaAndCreateVectorSchemaRoot() throws Exception {
-        try (ArrowWriter defaultWriter = new ArrowWriter(mock(Connection.class));
-             ArrowWriter twoArgWriter = new ArrowWriter(mock(Connection.class), false);
+        try (ArrowWriter defaultWriter = new ArrowWriter(mock(Connection.class)).log(mock(ObsLogger.class));
+             ArrowWriter twoArgWriter = new ArrowWriter(mock(Connection.class), false).log(mock(ObsLogger.class));
              ArrowWriter writer = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled())) {
             TapTable emptyTapTable = new TapTable();
             assertTrue(writer.buildArrowSchema(emptyTapTable).getFields().isEmpty());
@@ -254,6 +254,36 @@ class ArrowWriterTest {
     }
 
     @Test
+    void writeWithArrow_schemaInfoFallbackUsesSchemaPrimaryKeysForUpsert() throws Exception {
+        TapTable tapTable = tapTable(
+                tapField("amount", "DECIMAL(10,2)", true, false, null, 1),
+                tapField("user_id", "BIGINT", false, true, 1, 2),
+                tapField("name", "VARCHAR", true, false, null, 3),
+                tapField("order_id", "BIGINT", false, false, null, 4)
+        );
+        NodeSchemaInfo schemaInfo = nodeSchemaInfo("wide_target", tapTable, List.of("order_id"));
+        LinkedHashMap<String, Object> row = new LinkedHashMap<>();
+        row.put("amount", 20);
+        row.put("user_id", 2L);
+        row.put("name", "Bob");
+        row.put("order_id", 102L);
+
+        Connection connection = mock(Connection.class);
+        Statement statement = mock(Statement.class);
+        when(connection.unwrap(DuckDBConnection.class)).thenReturn(null);
+        when(connection.createStatement()).thenReturn(statement);
+        when(connection.getAutoCommit()).thenReturn(false);
+        when(statement.executeUpdate(anyString())).thenReturn(1);
+
+        try (ArrowWriter writer = new ArrowWriter(connection, false, DuckLakeConfig.disabled()).log(mock(ObsLogger.class))) {
+            writer.writeWithArrow(List.of(row), schemaInfo);
+        }
+
+        verify(statement).executeUpdate(contains("ON CONFLICT (\"order_id\") DO UPDATE SET"));
+        verify(statement).executeUpdate(contains("\"user_id\" = EXCLUDED.\"user_id\""));
+    }
+
+    @Test
     void privateInsertHelpersCoverFallbackRollbackAndIgnoredDuplicates() throws Throwable {
         TapTable tapTableWithPk = tapTable(
                 tapField("id", "BIGINT", false, true, 1, 1),
@@ -346,19 +376,18 @@ class ArrowWriterTest {
         Connection rowByRowConnection = mock(Connection.class);
         Statement batchStatement = mock(Statement.class);
         Statement firstRowStatement = mock(Statement.class);
-        Statement duplicateRowStatement = mock(Statement.class);
-        when(rowByRowConnection.createStatement()).thenReturn(batchStatement, firstRowStatement, duplicateRowStatement);
+        Statement upsertRowStatement = mock(Statement.class);
+        when(rowByRowConnection.createStatement()).thenReturn(batchStatement, firstRowStatement, upsertRowStatement);
         when(batchStatement.executeUpdate(anyString())).thenThrow(new SQLException("batch failed"));
         when(firstRowStatement.executeUpdate(anyString())).thenReturn(1);
-        when(duplicateRowStatement.executeUpdate(anyString()))
-                .thenThrow(new SQLException("primary key constraint violation"));
+        when(upsertRowStatement.executeUpdate(anyString())).thenReturn(1);
         try (ArrowWriter writer = new ArrowWriter(rowByRowConnection, false, DuckLakeConfig.disabled())) {
             invoke(writer, "fallbackInsert",
                     new Class[]{List.class, String.class, TapTable.class},
                     data, "row_by_row_target", tapTableWithPk);
             verify(batchStatement).executeUpdate(contains("ON CONFLICT"));
-            verify(firstRowStatement).executeUpdate(contains("INSERT INTO row_by_row_target"));
-            verify(duplicateRowStatement).executeUpdate(contains("INSERT INTO row_by_row_target"));
+            verify(firstRowStatement).executeUpdate(contains("ON CONFLICT (\"id\") DO UPDATE SET \"name\" = EXCLUDED.\"name\""));
+            verify(upsertRowStatement).executeUpdate(contains("ON CONFLICT (\"id\") DO UPDATE SET \"name\" = EXCLUDED.\"name\""));
         }
 
         Connection noPkConnection = mock(Connection.class);
@@ -406,6 +435,26 @@ class ArrowWriterTest {
                     List.of("id", "name")
             ));
             assertEquals("other failure", exception.getMessage());
+        }
+
+        Connection pkOnlyConnection = mock(Connection.class);
+        Statement pkOnlyStatement = mock(Statement.class);
+        when(pkOnlyConnection.createStatement()).thenReturn(pkOnlyStatement);
+        when(pkOnlyStatement.executeUpdate(anyString())).thenReturn(0);
+        try (ArrowWriter writer = new ArrowWriter(pkOnlyConnection, false, DuckLakeConfig.disabled())) {
+            TapTable pkOnlyTable = tapTable(tapField("id", "BIGINT", false, true, 1, 1));
+            LinkedHashMap<String, Object> pkOnlyRow = new LinkedHashMap<>();
+            pkOnlyRow.put("id", 5L);
+            invoke(
+                    writer,
+                    "insertRowByRow",
+                    new Class[]{List.class, String.class, TapTable.class, List.class},
+                    List.of(pkOnlyRow),
+                    "pk_only_target",
+                    pkOnlyTable,
+                    List.of("id")
+            );
+            verify(pkOnlyStatement).executeUpdate(contains("ON CONFLICT (\"id\") DO NOTHING"));
         }
 
         Connection nullMessageConnection = mock(Connection.class);

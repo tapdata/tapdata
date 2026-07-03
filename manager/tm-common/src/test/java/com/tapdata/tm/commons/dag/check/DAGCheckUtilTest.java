@@ -3,9 +3,7 @@ package com.tapdata.tm.commons.dag.check;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.task.dto.Message;
@@ -211,7 +209,7 @@ public class DAGCheckUtilTest {
         DAG dag = new DAG(new Graph<>());
         node.setDag(dag);
 
-        Assertions.assertNull(DAGCheckUtil.getTargetNode(node));
+        Assertions.assertThrows(IllegalStateException.class, () -> DAGCheckUtil.getTargetNode(node));
     }
 
     @Test
@@ -220,7 +218,7 @@ public class DAGCheckUtilTest {
         DAG dag = new StubDag(null);
         node.setDag(dag);
 
-        Assertions.assertNull(DAGCheckUtil.getTargetNode(node));
+        Assertions.assertThrows(IllegalStateException.class, () -> DAGCheckUtil.getTargetNode(node));
     }
 
     @Test
@@ -245,11 +243,11 @@ public class DAGCheckUtilTest {
     }
 
     @Test
-    public void testGetTargetNodePreferDataNode() {
+    public void testGetTargetNodeThrowWhenMultipleTargets() {
         Graph<Node, Edge> graph = new Graph<>();
         JsProcessorNode source = new JsProcessorNode();
         source.setId("s");
-        DatabaseNode target = new DatabaseNode();
+        JsProcessorNode target = new JsProcessorNode();
         target.setId("t");
         VirtualTargetNode virtualTarget = new VirtualTargetNode();
         virtualTarget.setId("v");
@@ -266,13 +264,16 @@ public class DAGCheckUtilTest {
         target.setGraph(graph);
         virtualTarget.setGraph(graph);
 
-        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
-        Assertions.assertNotNull(targetNode);
-        Assertions.assertEquals("t", targetNode.getId());
+        IllegalStateException exception = Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> DAGCheckUtil.getTargetNode(source));
+        Assertions.assertTrue(exception.getMessage().contains("2 target nodes"));
+        Assertions.assertTrue(exception.getMessage().contains("t"));
+        Assertions.assertTrue(exception.getMessage().contains("v"));
     }
 
     @Test
-    public void testGetTargetNodeChooseDeepestNonVirtualTarget() {
+    public void testGetTargetNodeThrowWhenMultipleTargetsWithDifferentDepth() {
         JsProcessorNode source = node("source");
         JsProcessorNode middle = node("middle");
         JsProcessorNode shallowTarget = node("target-z");
@@ -283,54 +284,14 @@ public class DAGCheckUtilTest {
         graph.setEdge(middle.getId(), deepTarget.getId(), new Edge(middle.getId(), deepTarget.getId()));
         bindDag(graph, source, middle, shallowTarget, deepTarget);
 
-        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
-
-        Assertions.assertNotNull(targetNode);
-        Assertions.assertEquals(deepTarget.getId(), targetNode.getId());
+        Assertions.assertThrows(IllegalStateException.class, () -> DAGCheckUtil.getTargetNode(source));
     }
 
     @Test
-    public void testGetTargetNodeChooseLowerIdWhenDepthEqual() {
+    public void testGetTargetNodeIgnoreNullTargets() {
         JsProcessorNode source = node("source");
-        JsProcessorNode targetB = node("target-b");
-        JsProcessorNode targetA = node("target-a");
-        Graph<Node, Edge> graph = graphWithNodes(source, targetB, targetA);
-        graph.setEdge(source.getId(), targetB.getId(), new Edge(source.getId(), targetB.getId()));
-        graph.setEdge(source.getId(), targetA.getId(), new Edge(source.getId(), targetA.getId()));
-        bindDag(graph, source, targetB, targetA);
-
-        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
-
-        Assertions.assertNotNull(targetNode);
-        Assertions.assertEquals(targetA.getId(), targetNode.getId());
-    }
-
-    @Test
-    public void testGetTargetNodeFallbackToVirtualAndLogCollectorTargets() {
-        JsProcessorNode source = node("source");
-        JsProcessorNode middle = node("middle");
-        VirtualTargetNode virtualTarget = new VirtualTargetNode();
-        virtualTarget.setId("virtual-target");
-        LogCollectorNode logCollectorNode = new LogCollectorNode();
-        logCollectorNode.setId("log-target");
-        Graph<Node, Edge> graph = graphWithNodes(source, middle, virtualTarget, logCollectorNode);
-        graph.setEdge(source.getId(), virtualTarget.getId(), new Edge(source.getId(), virtualTarget.getId()));
-        graph.setEdge(source.getId(), middle.getId(), new Edge(source.getId(), middle.getId()));
-        graph.setEdge(middle.getId(), logCollectorNode.getId(), new Edge(middle.getId(), logCollectorNode.getId()));
-        bindDag(graph, source, middle, virtualTarget, logCollectorNode);
-
-        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
-
-        Assertions.assertNotNull(targetNode);
-        Assertions.assertEquals(logCollectorNode.getId(), targetNode.getId());
-    }
-
-    @Test
-    public void testGetTargetNodeIgnoreInvalidCandidates() {
-        JsProcessorNode source = node("source");
-        JsProcessorNode noIdTarget = new JsProcessorNode();
         JsProcessorNode candidate = node("candidate");
-        StubDag dag = new StubDag(Arrays.asList(null, noIdTarget, candidate));
+        StubDag dag = new StubDag(Arrays.asList(null, candidate));
         source.setDag(dag);
 
         Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
@@ -339,17 +300,14 @@ public class DAGCheckUtilTest {
     }
 
     @Test
-    public void testGetTargetNodeHandleCycleAndInvalidPredecessor() {
+    public void testGetTargetNodeThrowWhenMultipleStubTargets() {
         JsProcessorNode source = node("source");
-        JsProcessorNode cycleTarget = node("cycle-target");
-        JsProcessorNode flatTarget = node("flat-target");
-        StubDag dag = new StubDag(Arrays.asList(cycleTarget, flatTarget));
-        dag.withPredecessors(cycleTarget.getId(), Arrays.asList(null, cycleTarget));
+        JsProcessorNode targetA = node("target-a");
+        JsProcessorNode targetB = node("target-b");
+        StubDag dag = new StubDag(Arrays.asList(targetA, targetB));
         source.setDag(dag);
 
-        Node<?> targetNode = DAGCheckUtil.getTargetNode(source);
-
-        Assertions.assertSame(cycleTarget, targetNode);
+        Assertions.assertThrows(IllegalStateException.class, () -> DAGCheckUtil.getTargetNode(source));
     }
 
     @Test

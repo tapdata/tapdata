@@ -99,44 +99,6 @@ class WideTableIncrementalUpdaterTest {
     }
 
     @Test
-    void incrementalViewUpdater_updateWideTable_executesDiffsAndEmitsChangelog() throws Exception {
-        DuckDbOperator operator = mock(DuckDbOperator.class);
-        doAnswer(invocation -> {
-            DuckDbOperator.ThrowingConsumer action = invocation.getArgument(0);
-            action.accept();
-            return null;
-        }).when(operator).executeInTransaction(any());
-
-        when(operator.queryForMap(anyString(), anyString())).thenAnswer(invocation -> {
-            String sql = invocation.getArgument(0);
-            if (sql.contains("FROM wide_table")) {
-                return Map.of(
-                        1L, Map.of("id", 1L, "v", "old")
-                );
-            }
-            return Map.of(
-                    1L, Map.of("id", 1L, "v", "new"),
-                    2L, Map.of("id", 2L, "v", "ins")
-            );
-        });
-
-        IncrementalViewUpdater updater = new IncrementalViewUpdater(
-                "wide_table",
-                "id",
-                "SELECT id, v FROM source",
-                true,
-                operator
-        );
-
-        List<Map<String, Object>> changelog = new ArrayList<>();
-        updater.addChangelogListener(changelog::add);
-
-        int updated = updater.updateWideTable(Set.of(1L, 2L));
-        assertEquals(2, updated);
-        assertFalse(changelog.isEmpty());
-    }
-
-    @Test
     void updateWideTableAsTapDataEvents_whenWriteEnabled_usesSchemaAwareDeleteAndInsert() throws Exception {
         DuckDbOperator operator = mock(DuckDbOperator.class);
         WithCteSqlGenerator generator = mock(WithCteSqlGenerator.class);

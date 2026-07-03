@@ -9,7 +9,9 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperator;
 import io.tapdata.flow.engine.V2.node.duckdb.DuckDbOperatorImpl;
+import io.tapdata.flow.engine.V2.node.duckdb.DuckLakeConfig;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.observable.logging.ObsLogger;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class HazelcastDuckDbSqlNodeIntegrationTest {
@@ -38,7 +41,7 @@ public class HazelcastDuckDbSqlNodeIntegrationTest {
     static void beforeAll() throws SQLException {
         logger.info("Setting up DuckDB connection...");
         java.sql.Connection connection = DriverManager.getConnection(JDBC_URL);
-        duckDbOperator = new DuckDbOperatorImpl(connection);
+        duckDbOperator = new DuckDbOperatorImpl(connection, true, 1000, 5000, DuckLakeConfig.disabled(), mock(ObsLogger.class));
         logger.info("DuckDB connection established successfully.");
     }
 

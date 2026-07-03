@@ -40,6 +40,7 @@ public class WideTableIncrementalUpdater {
     
     /** 宽表的完整 NodeSchemaInfo 缓存（包含预计算的字段列表和类型信息） */
     private final NodeSchemaInfo tableSchemaInfoCache;
+    Map<String, NodeSchemaInfo> tableSchemaCache;
     private WideTableSourceRegistry sourceRegistry;
     private WideTableFieldOwnershipResolver fieldOwnershipResolver;
     private final WideTableDeleteAdjustmentService deleteAdjustmentService;
@@ -53,16 +54,6 @@ public class WideTableIncrementalUpdater {
     @FunctionalInterface
     public interface ChangelogListener {
         void onEvent(TapdataEvent event);
-    }
-
-    /**
-     * 构造函数（完整）
-     * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
-     */
-    public WideTableIncrementalUpdater(String wideTableName, List<String> wideTablePrimaryKey, String querySql,
-                                       WithCteSqlGenerator withCteSqlGenerator,
-                                       DuckDbOperator duckDbOperator, boolean enableWriteWideTable) {
-        this(wideTableName, wideTableName, wideTablePrimaryKey, querySql, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, null);
     }
 
     /**
@@ -81,15 +72,9 @@ public class WideTableIncrementalUpdater {
         return this;
     }
 
-    /**
-     * 构造函数（完整版，包含宽表名）
-     * @param enableWriteWideTable 是否启用事务模式（true=真实更新宽表，false=仅生成事件）
-     */
-    public WideTableIncrementalUpdater(String tableId, String wideTableName, List<String> wideTablePrimaryKey,
-                                       String querySql,
-                                       WithCteSqlGenerator withCteSqlGenerator,
-                                       DuckDbOperator duckDbOperator, boolean enableWriteWideTable) {
-        this(tableId, wideTableName, wideTablePrimaryKey, querySql, withCteSqlGenerator, duckDbOperator, enableWriteWideTable, null);
+    public WideTableIncrementalUpdater tableSchemaCache(Map<String, NodeSchemaInfo> tableSchemaCache) {
+        this.tableSchemaCache = tableSchemaCache;
+        return this;
     }
 
     /**
@@ -152,34 +137,31 @@ public class WideTableIncrementalUpdater {
         return executeAndUpdate(affectedBeforeKeys, wideTableQueryResults, afterRows, tableName, currentConsumer);
     }
 
-    /**
-     * 执行查询 + 四态判断 + 可选宽表更新
-     * 
-     * <p>优化说明：</p>
-     * <ul>
-     *   <li>使用预计算的查询结果，避免重复执行 WITH CTE 查询</li>
-     *   <li>宽表更新直接使用 {@link #applyWideTableChanges(List, List)}，避免 TapdataEvent 解析</li>
-     *   <li>四态判断仅用于生成 Changelog 事件，不用于宽表更新</li>
-     *   <li>事务模式：在 executeInTransaction 中执行宽表更新</li>
-     * </ul>
-     */
-    private List<TapdataEvent> executeAndUpdate(List<Map<String, Object>>  affectedBeforeKeys,
-                                                 List<Map<String, Object>> wideTableQueryResults,
-                                                 List<Map<String, Object>> afterRows,
-                                                 String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
+
+    public List<Map<String, Object>> beforeData(List<Map<String, Object>> wideTableQueryResults, List<Map<String, Object>> afterRows, String tableName) throws SQLException {
         // 1. 使用预计算的查询结果，如果为空则尝试使用 afterRows 执行查询
         List<Map<String, Object>> results = wideTableQueryResults;
         if (results == null || results.isEmpty()) {
             // 预计算结果不可用，需要使用 afterRows 重新执行查询
             if (afterRows != null && !afterRows.isEmpty()) {
-                logger.info("Pre-computed query results not available, executing WITH CTE query");
-                List<String> fields = tableSchemaInfoCache != null ? tableSchemaInfoCache.getFieldNames() : Collections.emptyList();
+                logger.debug("Pre-computed query results not available, executing WITH CTE query");
+                NodeSchemaInfo schemaInfo = this.tableSchemaCache.get(tableName);
+                List<String> fields = schemaInfo != null ? schemaInfo.getFieldNames() : Collections.emptyList();
                 String afterSql = withCteSqlGenerator.generateBatch(querySql, tableName, afterRows, fields);
                 results = duckDbOperator.executeQuery(afterSql);
             } else {
                 results = new ArrayList<>();
             }
         }
+        return results;
+    }
+
+    private List<TapdataEvent> executeAndUpdate(List<Map<String, Object>>  affectedBeforeKeys,
+                                                 List<Map<String, Object>> wideTableQueryResults,
+                                                 List<Map<String, Object>> afterRows,
+                                                 String tableName, AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> currentConsumer) throws SQLException, IOException {
+        // 1. 使用预计算的查询结果，如果为空则尝试使用 afterRows 执行查询
+        List<Map<String, Object>> results = beforeData(wideTableQueryResults, afterRows, tableName);
 
         List<SmartMerger.MergedRecord> mapInfo = new ArrayList<>();
         if (afterRows == null || afterRows.isEmpty()) {
@@ -270,7 +252,7 @@ public class WideTableIncrementalUpdater {
             
             // 批量删除旧数据（使用 deleteByIds，类型安全、支持复合主键）
             if (tableSchemaInfoCache != null) {
-                List<Object> pkList = new ArrayList<>(affectedBeforeKeys);
+                List<Map<String, Object>> pkList = new ArrayList<>(affectedBeforeKeys);
                 logger.debug("Batch delete by ids, count: {}", pkList.size());
                 duckDbOperator.deleteByIds(pkList, tableSchemaInfoCache);
             } else {

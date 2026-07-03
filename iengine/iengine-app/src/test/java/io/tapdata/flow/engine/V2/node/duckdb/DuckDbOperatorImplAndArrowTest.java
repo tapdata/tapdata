@@ -7,9 +7,11 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapBinary;
 import io.tapdata.entity.schema.type.TapBoolean;
+import io.tapdata.entity.schema.type.TapDate;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.observable.logging.ObsLogger;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -53,7 +55,7 @@ class DuckDbOperatorImplAndArrowTest {
 
     @Test
     void duckDbOperatorImpl_executeQueryAndUpdate_inMemory() throws Exception {
-        try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl()) {
+        try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl(mock(ObsLogger.class))) {
             operator.executeUpdate("CREATE TABLE t(id BIGINT, name VARCHAR)");
             operator.executeUpdate("INSERT INTO t VALUES (1, 'a'), (2, 'b')");
 
@@ -144,7 +146,7 @@ class DuckDbOperatorImplAndArrowTest {
             );
 
             List<Map<String, Object>> rows;
-            try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl(connection, false, 1000, 5000, DuckLakeConfig.disabled())) {
+            try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl(connection, false, 1000, 5000, DuckLakeConfig.disabled(), mock(ObsLogger.class))) {
                 rows = operator.executeQuery("SELECT count(*) AS c FROM t");
             }
             assertEquals(1, rows.size());
@@ -154,7 +156,7 @@ class DuckDbOperatorImplAndArrowTest {
 
     @Test
     void executeInTransaction_queryForMap_andBatchInsert_coverSuccessAndRollback() throws Exception {
-        try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl()) {
+        try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl(mock(ObsLogger.class))) {
             operator.executeUpdate("CREATE TABLE txn_t(id BIGINT PRIMARY KEY, name VARCHAR, updated_at TIMESTAMP)");
 
             operator.executeInTransaction(() -> operator.insert("txn_t", Map.of(
@@ -185,7 +187,7 @@ class DuckDbOperatorImplAndArrowTest {
 
     @Test
     void ensureTableExists_andDeleteByIds_coverSingleAndCompositePrimaryKeys() throws Exception {
-        try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl()) {
+        try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl(mock(ObsLogger.class))) {
             TapField singleIdField = field("id", new TapNumber(), null);
             TapField singleNameField = field("name", new TapString(), null);
             NodeSchemaInfo singlePkSchema = schema(
@@ -245,6 +247,10 @@ class DuckDbOperatorImplAndArrowTest {
         fields.add(field("event_time", new TapDateTime(), null));
         fields.add(field("payload", new TapBinary(), null));
         fields.add(field("enabled", new TapBoolean(), null));
+        fields.add(field("amount", new TapNumber().fixed(true).precision(12).scale(2), null));
+        fields.add(field("score", new TapNumber().bit(32).fixed(false), null));
+        fields.add(field("age", new TapNumber().bit(32), null));
+        fields.add(field("birth_date", new TapDate(), null));
         fields.add(field("remark", null, null));
         fields.add(new TapField());
 
@@ -259,6 +265,10 @@ class DuckDbOperatorImplAndArrowTest {
         assertTrue(createSql.contains("event_time TIMESTAMP"));
         assertTrue(createSql.contains("payload BLOB"));
         assertTrue(createSql.contains("enabled BOOLEAN"));
+        assertTrue(createSql.contains("amount DECIMAL(12,2)"));
+        assertTrue(createSql.contains("score FLOAT"));
+        assertTrue(createSql.contains("age INTEGER"));
+        assertTrue(createSql.contains("birth_date DATE"));
         assertTrue(createSql.contains("remark VARCHAR NOT NULL"));
         assertTrue(createSql.contains("PRIMARY KEY (pk_id, remark)"));
 
@@ -270,7 +280,7 @@ class DuckDbOperatorImplAndArrowTest {
 
     @Test
     void coversBatchQueryDdlDmlMetadataAndFormattingHelpers() throws Exception {
-        try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl()) {
+        try (DuckDbOperatorImpl operator = new DuckDbOperatorImpl(mock(ObsLogger.class))) {
             TapTable tapTable = new TapTable("crud_table");
             TapField idField = field("id", new TapNumber(), "BIGINT");
             idField.setPrimaryKey(true);

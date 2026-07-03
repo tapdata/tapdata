@@ -8,6 +8,18 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapArray;
+import io.tapdata.entity.schema.type.TapBinary;
+import io.tapdata.entity.schema.type.TapBoolean;
+import io.tapdata.entity.schema.type.TapDate;
+import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapJson;
+import io.tapdata.entity.schema.type.TapMap;
+import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.type.TapRaw;
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.type.TapTime;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.flow.engine.V2.node.duckdb.NodeSchemaInfo;
 import io.tapdata.flow.engine.V2.node.duckdb.TypeConverter;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -20,8 +32,11 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * iengine 端 Schema 转换器
@@ -30,6 +45,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class IengineSchemaConverter extends AbstractSchemaConverter<List<TapTableDto>, Map<String, NodeSchemaInfo>> {
     
     private static final Logger logger = LoggerFactory.getLogger(IengineSchemaConverter.class);
+    private static final Pattern TYPE_PARAMS_PATTERN = Pattern.compile(
+            "^\\s*[A-Z0-9_ ]+\\s*\\(\\s*(\\d+)\\s*(?:,\\s*(\\d+)\\s*)?\\).*");
 
     private static final class InstanceHolder {
         /**
@@ -223,6 +240,7 @@ public class IengineSchemaConverter extends AbstractSchemaConverter<List<TapTabl
         tapField.setName(dto.getName());
         tapField.setOriginalFieldName(dto.getOriginalFieldName());
         tapField.setDataType(dto.getDataType());
+        tapField.setTapType(resolveTapType(dto));
         tapField.setPrimaryKey(dto.getIsPrimaryKey() != null && dto.getIsPrimaryKey());
         
         if (dto.getPrimaryKeyPos() != null && dto.getPrimaryKeyPos() > 0) {
@@ -235,13 +253,315 @@ public class IengineSchemaConverter extends AbstractSchemaConverter<List<TapTabl
             tapField.setNullable(true);
         }
         
-         if (dto.getPos() != null && dto.getPos() > 0) {
-             tapField.setPos(dto.getPos());
-         }
+        if (dto.getPos() != null && dto.getPos() > 0) {
+            tapField.setPos(dto.getPos());
+        }
 
-        // 注意：TapType 的完整信息不恢复，只保留类名方式
-        // 在 NodeSchemaInfo 中通过 dataType 或 tapTypeName 进行类型转换
-        
         return tapField;
+    }
+
+    private TapType resolveTapType(TapFieldDto dto) {
+        TapType tapType = createTapTypeByName(dto.getTapTypeName());
+        if (tapType == null) {
+            tapType = createTapTypeByDataType(dto.getDataType());
+        } else {
+            enrichTapTypeFromDataType(tapType, dto.getDataType());
+        }
+        if (tapType == null) {
+            tapType = new TapString();
+        }
+        applyTapTypeParams(tapType, dto.getTapTypeParams());
+        return tapType;
+    }
+
+    private TapType createTapTypeByName(String tapTypeName) {
+        if (StringUtils.isBlank(tapTypeName)) {
+            return null;
+        }
+        String normalized = tapTypeName.trim();
+        int packageIndex = normalized.lastIndexOf('.');
+        if (packageIndex >= 0) {
+            normalized = normalized.substring(packageIndex + 1);
+        }
+        switch (normalized) {
+            case "TapNumber":
+                return new TapNumber();
+            case "TapBoolean":
+                return new TapBoolean();
+            case "TapString":
+                return new TapString();
+            case "TapBinary":
+                return new TapBinary();
+            case "TapDate":
+                return new TapDate();
+            case "TapDateTime":
+                return new TapDateTime();
+            case "TapTime":
+                return new TapTime();
+            case "TapRaw":
+                return new TapRaw();
+            case "TapArray":
+                return new TapArray();
+            case "TapMap":
+                return new TapMap();
+            case "TapJson":
+                return new TapJson();
+            default:
+                logger.debug("Unknown tapTypeName '{}', falling back to dataType inference", tapTypeName);
+                return null;
+        }
+    }
+
+    private TapType createTapTypeByDataType(String dataType) {
+        if (StringUtils.isBlank(dataType)) {
+            return null;
+        }
+
+        String upperType = dataType.trim().toUpperCase(Locale.ROOT);
+        int[] params = parseTypeParams(upperType);
+
+        if (upperType.contains("TIMESTAMPTZ") || upperType.contains("TIMESTAMP WITH TIME ZONE")) {
+            return new TapDateTime().withTimeZone(true);
+        }
+        if (upperType.contains("TIMESTAMP") || upperType.contains("DATETIME")) {
+            return new TapDateTime();
+        }
+        if (upperType.contains("TIME")) {
+            return new TapTime().withTimeZone(upperType.contains("TIMETZ") || upperType.contains("WITH TIME ZONE"));
+        }
+        if (upperType.contains("DATE")) {
+            return new TapDate();
+        }
+        if (upperType.contains("BOOL")) {
+            return new TapBoolean();
+        }
+        if (upperType.contains("BLOB") || upperType.contains("BINARY") || upperType.contains("BYTEA")) {
+            TapBinary binary = new TapBinary();
+            if (params[0] > 0) {
+                binary.bytes((long) params[0]);
+            }
+            return binary;
+        }
+        if (upperType.contains("JSON")) {
+            return new TapJson();
+        }
+        if (upperType.contains("CHAR") || upperType.contains("TEXT") || upperType.contains("STRING") || upperType.contains("UUID")) {
+            TapString string = new TapString();
+            if (params[0] > 0) {
+                string.bytes((long) params[0]);
+            }
+            if (upperType.contains("CHAR") && !upperType.contains("VARCHAR")) {
+                string.fixed(true);
+            }
+            return string;
+        }
+        if (upperType.contains("DECIMAL") || upperType.contains("NUMERIC") || upperType.contains("NUMBER")) {
+            TapNumber number = new TapNumber().fixed(true);
+            if (params[0] > 0) {
+                number.precision(params[0]);
+            }
+            if (params[1] >= 0) {
+                number.scale(params[1]);
+            }
+            return number;
+        }
+        if (upperType.contains("FLOAT") || upperType.contains("REAL")) {
+            return new TapNumber().bit(32).fixed(false);
+        }
+        if (upperType.contains("DOUBLE")) {
+            return new TapNumber().bit(64).fixed(false);
+        }
+        if (upperType.contains("TINYINT")) {
+            return new TapNumber().bit(8);
+        }
+        if (upperType.contains("SMALLINT")) {
+            return new TapNumber().bit(16);
+        }
+        if (upperType.contains("BIGINT")) {
+            return new TapNumber().bit(64);
+        }
+        if (upperType.contains("INT")) {
+            return new TapNumber().bit(32);
+        }
+
+        return new TapString();
+    }
+
+    private void enrichTapTypeFromDataType(TapType tapType, String dataType) {
+        if (tapType == null || StringUtils.isBlank(dataType)) {
+            return;
+        }
+
+        String upperType = dataType.trim().toUpperCase(Locale.ROOT);
+        int[] params = parseTypeParams(upperType);
+
+        if (tapType instanceof TapNumber number) {
+            if (upperType.contains("DECIMAL") || upperType.contains("NUMERIC") || upperType.contains("NUMBER")) {
+                if (number.getFixed() == null) {
+                    number.fixed(true);
+                }
+                if (number.getPrecision() == null && params[0] > 0) {
+                    number.precision(params[0]);
+                }
+                if (number.getScale() == null && params[1] >= 0) {
+                    number.scale(params[1]);
+                }
+            } else if (upperType.contains("FLOAT") || upperType.contains("REAL")) {
+                if (number.getBit() == null) {
+                    number.bit(32);
+                }
+                if (number.getFixed() == null) {
+                    number.fixed(false);
+                }
+            } else if (upperType.contains("DOUBLE")) {
+                if (number.getBit() == null) {
+                    number.bit(64);
+                }
+                if (number.getFixed() == null) {
+                    number.fixed(false);
+                }
+            } else if (number.getBit() == null) {
+                if (upperType.contains("TINYINT")) {
+                    number.bit(8);
+                } else if (upperType.contains("SMALLINT")) {
+                    number.bit(16);
+                } else if (upperType.contains("BIGINT")) {
+                    number.bit(64);
+                } else if (upperType.contains("INT")) {
+                    number.bit(32);
+                }
+            }
+            return;
+        }
+
+        if (tapType instanceof TapString string) {
+            if (string.getBytes() == null && params[0] > 0) {
+                string.bytes((long) params[0]);
+            }
+            if (string.getFixed() == null && upperType.contains("CHAR") && !upperType.contains("VARCHAR")) {
+                string.fixed(true);
+            }
+            return;
+        }
+
+        if (tapType instanceof TapBinary binary) {
+            if (binary.getBytes() == null && params[0] > 0) {
+                binary.bytes((long) params[0]);
+            }
+            return;
+        }
+
+        if (tapType instanceof TapDateTime dateTime) {
+            if (dateTime.getWithTimeZone() == null
+                    && (upperType.contains("TIMESTAMPTZ") || upperType.contains("WITH TIME ZONE"))) {
+                dateTime.withTimeZone(true);
+            }
+            return;
+        }
+
+        if (tapType instanceof TapTime time && time.getWithTimeZone() == null
+                && (upperType.contains("TIMETZ") || upperType.contains("WITH TIME ZONE"))) {
+            time.withTimeZone(true);
+        }
+    }
+
+    private int[] parseTypeParams(String dataType) {
+        int[] params = new int[]{-1, -1};
+        Matcher matcher = TYPE_PARAMS_PATTERN.matcher(dataType);
+        if (!matcher.matches()) {
+            return params;
+        }
+        params[0] = parseInt(matcher.group(1), -1);
+        params[1] = parseInt(matcher.group(2), -1);
+        return params;
+    }
+
+    private void applyTapTypeParams(TapType tapType, Map<String, Object> params) {
+        if (tapType == null || params == null || params.isEmpty()) {
+            return;
+        }
+        if (tapType instanceof TapNumber number) {
+            number.bit(getInteger(params, "bit", number.getBit()));
+            number.precision(getInteger(params, "precision", number.getPrecision()));
+            number.scale(getInteger(params, "scale", number.getScale()));
+            number.fixed(getBoolean(params, "fixed", number.getFixed()));
+            number.unsigned(getBoolean(params, "unsigned", number.getUnsigned()));
+            number.zerofill(getBoolean(params, "zerofill", number.getZerofill()));
+            return;
+        }
+        if (tapType instanceof TapString string) {
+            string.bytes(getLong(params, "bytes", string.getBytes()));
+            string.fixed(getBoolean(params, "fixed", string.getFixed()));
+            string.byteRatio(getInteger(params, "byteRatio", string.getByteRatio()));
+            return;
+        }
+        if (tapType instanceof TapBinary binary) {
+            binary.bytes(getLong(params, "bytes", binary.getBytes()));
+            binary.fixed(getBoolean(params, "fixed", binary.getFixed()));
+            binary.byteRatio(getInteger(params, "byteRatio", binary.getByteRatio()));
+            return;
+        }
+        if (tapType instanceof TapDateTime dateTime) {
+            dateTime.withTimeZone(getBoolean(params, "withTimeZone", dateTime.getWithTimeZone()));
+            dateTime.fraction(getInteger(params, "fraction", dateTime.getFraction()));
+            dateTime.defaultFraction(getInteger(params, "defaultFraction", dateTime.getDefaultFraction()));
+            return;
+        }
+        if (tapType instanceof TapTime time) {
+            time.withTimeZone(getBoolean(params, "withTimeZone", time.getWithTimeZone()));
+            time.fraction(getInteger(params, "fraction", time.getFraction()));
+            return;
+        }
+        if (tapType instanceof TapDate date) {
+            date.withTimeZone(getBoolean(params, "withTimeZone", date.getWithTimeZone()));
+        }
+    }
+
+    private Integer getInteger(Map<String, Object> params, String key, Integer defaultValue) {
+        Object value = params.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String string) {
+            return parseInt(string, defaultValue);
+        }
+        return defaultValue;
+    }
+
+    private Long getLong(Map<String, Object> params, String key, Long defaultValue) {
+        Object value = params.get(key);
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String string) {
+            try {
+                return Long.parseLong(string);
+            } catch (NumberFormatException ignored) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
+
+    private Boolean getBoolean(Map<String, Object> params, String key, Boolean defaultValue) {
+        Object value = params.get(key);
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof String string && !string.isBlank()) {
+            return Boolean.parseBoolean(string);
+        }
+        return defaultValue;
+    }
+
+    private int parseInt(String value, int defaultValue) {
+        if (StringUtils.isBlank(value)) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
     }
 }

@@ -109,6 +109,26 @@ class DuckDbUtilsTest {
     }
 
     @Test
+    void wideTableDdlGenerator_generateCreateTableDdl_preservesDecimalTypeFromSchema() {
+        LinkedHashMap<String, String> fields = new LinkedHashMap<>();
+        fields.put("id", "BIGINT");
+        fields.put("amount", "DECIMAL(10,2)");
+        fields.put("plain_decimal", "DECIMAL");
+        fields.put("numeric_amount", "numeric(18, 4)");
+        fields.put("name", "VARCHAR(32)");
+
+        String ddl = WideTableDdlGenerator.generateCreateTableDdl(buildNodeSchema("n_decimal", "wide_decimal", List.of("id"), fields));
+
+        assertTrue(ddl.contains("id BIGINT"));
+        assertTrue(ddl.contains("amount DECIMAL(10,2)"));
+        assertTrue(ddl.contains("plain_decimal DECIMAL"));
+        assertTrue(ddl.contains("numeric_amount DECIMAL(18,4)"));
+        assertTrue(ddl.contains("name VARCHAR"));
+        assertFalse(ddl.contains("amount VARCHAR"));
+        assertFalse(ddl.contains("amount DOUBLE"));
+    }
+
+    @Test
     void duckDbSqlValueFormatter_format_and_formatForCsv() {
         assertEquals("NULL", DuckDbSqlValueFormatter.format(null));
         assertEquals("'a''b'", DuckDbSqlValueFormatter.format("a'b"));
@@ -116,6 +136,7 @@ class DuckDbUtilsTest {
         assertEquals("FALSE", DuckDbSqlValueFormatter.format(false));
         assertEquals("1", DuckDbSqlValueFormatter.format(1));
         assertEquals("1", DuckDbSqlValueFormatter.format(new BigDecimal("1.0000")));
+        assertEquals("20", DuckDbSqlValueFormatter.format(new BigDecimal("2E+1")));
         assertEquals("'2026-01-02'", DuckDbSqlValueFormatter.format(LocalDate.of(2026, 1, 2)));
         assertEquals("'2026-01-02 03:04:05.006'", DuckDbSqlValueFormatter.format(LocalDateTime.of(2026, 1, 2, 3, 4, 5, 6_000_000)));
         assertEquals("'2026-01-02 03:04:05.006'", DuckDbSqlValueFormatter.format(Timestamp.valueOf(LocalDateTime.of(2026, 1, 2, 3, 4, 5, 6_000_000))));
@@ -191,5 +212,33 @@ class DuckDbUtilsTest {
         fieldMap.put("b", b);
 
         return new NodeSchemaInfo(nodeId, tableName, tableName, pks, fieldMap, new io.tapdata.entity.schema.TapTable(), null);
+    }
+
+    private static NodeSchemaInfo buildNodeSchema(String nodeId, String tableName, List<String> pks, LinkedHashMap<String, String> fields) {
+        Map<String, io.tapdata.entity.schema.TapField> fieldMap = new LinkedHashMap<>();
+        List<org.apache.arrow.vector.types.pojo.Field> arrowFields = new ArrayList<>();
+        int pos = 1;
+        for (Map.Entry<String, String> entry : fields.entrySet()) {
+            io.tapdata.entity.schema.TapField tapField = new io.tapdata.entity.schema.TapField();
+            tapField.setName(entry.getKey());
+            tapField.setOriginalFieldName(entry.getKey());
+            tapField.setDataType(entry.getValue());
+            tapField.setPos(pos++);
+            tapField.setPrimaryKey(pks != null && pks.contains(entry.getKey()));
+            fieldMap.put(entry.getKey(), tapField);
+            arrowFields.add(new org.apache.arrow.vector.types.pojo.Field(
+                    entry.getKey(),
+                    org.apache.arrow.vector.types.pojo.FieldType.nullable(new org.apache.arrow.vector.types.pojo.ArrowType.Utf8()),
+                    null));
+        }
+
+        return new NodeSchemaInfo(
+                nodeId,
+                tableName,
+                tableName,
+                pks,
+                fieldMap,
+                new io.tapdata.entity.schema.TapTable(),
+                new org.apache.arrow.vector.types.pojo.Schema(arrowFields));
     }
 }

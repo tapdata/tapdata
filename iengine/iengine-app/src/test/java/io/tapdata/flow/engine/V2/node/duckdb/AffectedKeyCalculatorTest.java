@@ -55,39 +55,80 @@ class AffectedKeyCalculatorTest {
     }
 
     @Test
-    void calculateAffectedBeforeKeys_mainTable_fastPath() throws SQLException {
+    void calculateAffectedBeforeKeys_mainTable_usesCteWideTablePks() throws SQLException {
         DuckDbOperator operator = mock(DuckDbOperator.class);
+        when(operator.executeQuery(anyString())).thenReturn(List.of(
+                Map.of("wide_id", 1L, "name", "A")
+        ));
+
         AffectedKeyCalculator calculator = new AffectedKeyCalculator(
-                List.of("id"),
+                List.of("wide_id"),
+                "wide_users",
                 "users",
                 List.of(),
                 Map.of(),
                 operator,
                 Map.of("users", schema("node1", "users")),
-                "SELECT id FROM users"
+                "SELECT id AS wide_id, name FROM users"
         );
 
         SmartMerger.MergedRecord r = new SmartMerger.MergedRecord();
         r.getMainTableBeforePks().add(Map.of("id", 1L));
+        r.getBeforeRows().add(Map.of("id", 1L, "name", "A"));
         List<Map<String, Object>> beforeKeys = calculator.calculateAffectedBeforeKeys(List.of(r), "users");
-        assertEquals(List.of(Map.of("id", 1L)), beforeKeys);
+        assertEquals(List.of(Map.of("wide_id", 1L)), beforeKeys);
+    }
+
+    @Test
+    void calculateAffectedBeforeKeys_mainTableFallsBackToExistingWideRowsWhenJoinNoLongerMatches() throws SQLException {
+        DuckDbOperator operator = mock(DuckDbOperator.class);
+        AtomicInteger queries = new AtomicInteger();
+        doAnswer(invocation -> {
+            int current = queries.incrementAndGet();
+            if (current == 1) {
+                return List.of();
+            }
+            return List.of(
+                    Map.of("wide_id", 1L),
+                    Map.of("wide_id", 2L)
+            );
+        }).when(operator).executeQuery(anyString());
+
+        AffectedKeyCalculator calculator = new AffectedKeyCalculator(
+                List.of("wide_id"),
+                "wide_users",
+                "users",
+                List.of(),
+                Map.of(),
+                operator,
+                Map.of("users", schema("node1", "users")),
+                "SELECT u.id AS wide_id, u.name FROM users u JOIN orders o ON u.id = o.user_id"
+        );
+
+        SmartMerger.MergedRecord r = new SmartMerger.MergedRecord();
+        r.getBeforeRows().add(Map.of("id", 1L, "name", "A"));
+
+        List<Map<String, Object>> beforeKeys = calculator.calculateAffectedBeforeKeys(List.of(r), "users");
+        assertEquals(2, queries.get());
+        assertEquals(List.of(Map.of("wide_id", 1L), Map.of("wide_id", 2L)), beforeKeys);
     }
 
     @Test
     void calculateAffectedAfterKeys_mainTable_returnsPkListAndQueryResults() throws SQLException {
         DuckDbOperator operator = mock(DuckDbOperator.class);
         when(operator.executeQuery(anyString())).thenReturn(List.of(
-                Map.of("id", 1L, "name", "A")
+                Map.of("wide_id", 1L, "name", "A")
         ));
 
         AffectedKeyCalculator calculator = new AffectedKeyCalculator(
-                List.of("id"),
+                List.of("wide_id"),
+                "wide_users",
                 "users",
                 List.of(),
                 Map.of(),
                 operator,
                 Map.of("users", schema("node1", "users")),
-                "SELECT id, name FROM users"
+                "SELECT id AS wide_id, name FROM users"
         );
 
         SmartMerger.MergedRecord r = new SmartMerger.MergedRecord();
@@ -96,7 +137,7 @@ class AffectedKeyCalculatorTest {
 
         AffectedKeyCalculator.AffectedKeysResult result = calculator.calculateAffectedAfterKeys(List.of(r), "users");
         assertFalse(result.isEmpty());
-        assertEquals(List.of(Map.of("id", 1L)), result.getWideTablePks());
+        assertEquals(List.of(Map.of("wide_id", 1L)), result.getWideTablePks());
         assertEquals(1, result.getWideTableQueryResults().size());
         assertEquals(1, result.getAfterRows().size());
     }
@@ -150,4 +191,3 @@ class AffectedKeyCalculatorTest {
         return new NodeSchemaInfo(nodeId, tableName, tableName, List.of("id"), fields, tapTable, null);
     }
 }
-

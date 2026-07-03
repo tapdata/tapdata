@@ -56,4 +56,8 @@ public class SyncStageTracker {
     public void reset() {
         tableStageMap.clear();
     }
+
+    public boolean cdcIng() {
+        return initCdc;
+    }
 }
