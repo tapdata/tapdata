@@ -5,6 +5,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Proxy;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,15 +14,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class AffectedKeyCalculatorTest {
     @Test
     void constructor_validatesRequiredArguments() {
-        DuckDbOperator operator = mock(DuckDbOperator.class);
+        DuckDbOperator operator = queryStub().operator;
 
         assertThrows(IllegalArgumentException.class, () -> new AffectedKeyCalculator(
                 List.of(),
@@ -56,10 +53,10 @@ class AffectedKeyCalculatorTest {
 
     @Test
     void calculateAffectedBeforeKeys_mainTable_usesCteWideTablePks() throws SQLException {
-        DuckDbOperator operator = mock(DuckDbOperator.class);
-        when(operator.executeQuery(anyString())).thenReturn(List.of(
+        QueryStub stub = queryStub(List.of(
                 Map.of("wide_id", 1L, "name", "A")
         ));
+        DuckDbOperator operator = stub.operator;
 
         AffectedKeyCalculator calculator = new AffectedKeyCalculator(
                 List.of("wide_id"),
@@ -81,18 +78,14 @@ class AffectedKeyCalculatorTest {
 
     @Test
     void calculateAffectedBeforeKeys_mainTableFallsBackToExistingWideRowsWhenJoinNoLongerMatches() throws SQLException {
-        DuckDbOperator operator = mock(DuckDbOperator.class);
-        AtomicInteger queries = new AtomicInteger();
-        doAnswer(invocation -> {
-            int current = queries.incrementAndGet();
-            if (current == 1) {
-                return List.of();
-            }
-            return List.of(
+        QueryStub stub = queryStub(
+                List.of(),
+                List.of(
                     Map.of("wide_id", 1L),
                     Map.of("wide_id", 2L)
-            );
-        }).when(operator).executeQuery(anyString());
+                )
+        );
+        DuckDbOperator operator = stub.operator;
 
         AffectedKeyCalculator calculator = new AffectedKeyCalculator(
                 List.of("wide_id"),
@@ -109,16 +102,48 @@ class AffectedKeyCalculatorTest {
         r.getBeforeRows().add(Map.of("id", 1L, "name", "A"));
 
         List<Map<String, Object>> beforeKeys = calculator.calculateAffectedBeforeKeys(List.of(r), "users");
-        assertEquals(2, queries.get());
+        assertEquals(2, stub.queries.get());
+        assertEquals(List.of(Map.of("wide_id", 1L), Map.of("wide_id", 2L)), beforeKeys);
+    }
+
+    @Test
+    void calculateAffectedBeforeKeys_mainTableMergesExistingWideRowsWhenCtePartiallyMatches() throws SQLException {
+        QueryStub stub = queryStub(
+                List.of(
+                        Map.of("wide_id", 1L)
+                ),
+                List.of(
+                    Map.of("wide_id", 1L),
+                    Map.of("wide_id", 2L)
+                )
+        );
+        DuckDbOperator operator = stub.operator;
+
+        AffectedKeyCalculator calculator = new AffectedKeyCalculator(
+                List.of("wide_id"),
+                "wide_users",
+                "users",
+                List.of(),
+                Map.of(),
+                operator,
+                Map.of("users", schema("node1", "users")),
+                "SELECT u.id AS wide_id, u.name FROM users u JOIN orders o ON u.id = o.user_id"
+        );
+
+        SmartMerger.MergedRecord r = new SmartMerger.MergedRecord();
+        r.getBeforeRows().add(Map.of("id", 1L, "name", "A"));
+
+        List<Map<String, Object>> beforeKeys = calculator.calculateAffectedBeforeKeys(List.of(r), "users");
+        assertEquals(2, stub.queries.get());
         assertEquals(List.of(Map.of("wide_id", 1L), Map.of("wide_id", 2L)), beforeKeys);
     }
 
     @Test
     void calculateAffectedAfterKeys_mainTable_returnsPkListAndQueryResults() throws SQLException {
-        DuckDbOperator operator = mock(DuckDbOperator.class);
-        when(operator.executeQuery(anyString())).thenReturn(List.of(
+        QueryStub stub = queryStub(List.of(
                 Map.of("wide_id", 1L, "name", "A")
         ));
+        DuckDbOperator operator = stub.operator;
 
         AffectedKeyCalculator calculator = new AffectedKeyCalculator(
                 List.of("wide_id"),
@@ -144,15 +169,11 @@ class AffectedKeyCalculatorTest {
 
     @Test
     void calculateAffectedAfterKeys_subTable_usesCteAndReturnsPks() throws SQLException {
-        DuckDbOperator operator = mock(DuckDbOperator.class);
-        AtomicInteger queries = new AtomicInteger();
-        doAnswer(invocation -> {
-            queries.incrementAndGet();
-            return List.of(
-                    Map.of("id", 1L, "v", "x"),
-                    Map.of("id", 2L, "v", "y")
-            );
-        }).when(operator).executeQuery(anyString());
+        QueryStub stub = queryStub(List.of(
+                Map.of("id", 1L, "v", "x"),
+                Map.of("id", 2L, "v", "y")
+        ));
+        DuckDbOperator operator = stub.operator;
 
         AffectedKeyCalculator calculator = new AffectedKeyCalculator(
                 List.of("id"),
@@ -168,9 +189,45 @@ class AffectedKeyCalculatorTest {
         r.setAfterRow("id=1", Map.of("id", 1L, "v", "x"));
 
         AffectedKeyCalculator.AffectedKeysResult result = calculator.calculateAffectedAfterKeys(List.of(r), "orders");
-        assertEquals(1, queries.get());
+        assertEquals(1, stub.queries.get());
         assertEquals(2, result.getWideTablePks().size());
         assertEquals(2, result.getWideTableQueryResults().size());
+    }
+
+    @SafeVarargs
+    private static QueryStub queryStub(List<Map<String, Object>>... responses) {
+        AtomicInteger queries = new AtomicInteger();
+        DuckDbOperator operator = (DuckDbOperator) Proxy.newProxyInstance(
+                DuckDbOperator.class.getClassLoader(),
+                new Class<?>[]{DuckDbOperator.class},
+                (proxy, method, args) -> {
+                    if ("executeQuery".equals(method.getName())) {
+                        int index = queries.getAndIncrement();
+                        if (responses.length == 0) {
+                            return List.of();
+                        }
+                        return responses[Math.min(index, responses.length - 1)];
+                    }
+                    if ("close".equals(method.getName())) {
+                        return null;
+                    }
+                    if ("toString".equals(method.getName())) {
+                        return "QueryStubDuckDbOperator";
+                    }
+                    throw new UnsupportedOperationException(method.getName());
+                }
+        );
+        return new QueryStub(operator, queries);
+    }
+
+    private static class QueryStub {
+        private final DuckDbOperator operator;
+        private final AtomicInteger queries;
+
+        private QueryStub(DuckDbOperator operator, AtomicInteger queries) {
+            this.operator = operator;
+            this.queries = queries;
+        }
     }
 
     private static NodeSchemaInfo schema(String nodeId, String tableName) {

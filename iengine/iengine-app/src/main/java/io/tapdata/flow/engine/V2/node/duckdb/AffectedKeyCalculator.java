@@ -250,16 +250,49 @@ public class AffectedKeyCalculator {
 
         List<String> fields = getTableFields(tableName);
         AffectedKeysResult result = queryWideTablePksWithCte(tableName, beforeRows, fields);
-        List<Map<String, Object>> wideTablePks = result.getWideTablePks();
-        if (isMainTable(tableName) && CollectionUtils.isEmpty(wideTablePks)) {
+        List<Map<String, Object>> wideTablePks = new ArrayList<>(result.getWideTablePks());
+        if (isMainTable(tableName)) {
             List<Map<String, Object>> existingWideTablePks = queryExistingWideTablePksByMainRows(tableName, beforeRows);
             if (!CollectionUtils.isEmpty(existingWideTablePks)) {
-                //logger.info("Main table before PKs for {} resolved from existing wide table: {}", tableName, existingWideTablePks);
-                return existingWideTablePks;
+                wideTablePks = mergeWideTablePks(wideTablePks, existingWideTablePks);
             }
         }
         logger.info("Wide table before PKs for {}: {}", tableName, wideTablePks);
         return wideTablePks;
+    }
+
+    private List<Map<String, Object>> mergeWideTablePks(List<Map<String, Object>> ctePks,
+                                                        List<Map<String, Object>> existingPks) {
+        List<Map<String, Object>> merged = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        if (!CollectionUtils.isEmpty(ctePks)) {
+            for (Map<String, Object> pk : ctePks) {
+                addUniquePk(merged, seen, pk);
+            }
+        }
+        if (!CollectionUtils.isEmpty(existingPks)) {
+            for (Map<String, Object> pk : existingPks) {
+                addUniquePk(merged, seen, pk);
+            }
+        }
+        return merged;
+    }
+
+    private void addUniquePk(List<Map<String, Object>> merged, Set<String> seen, Map<String, Object> pk) {
+        if (pk == null || pk.isEmpty()) {
+            return;
+        }
+        if (seen.add(wideTablePkKey(pk))) {
+            merged.add(pk);
+        }
+    }
+
+    private String wideTablePkKey(Map<String, Object> pk) {
+        StringBuilder builder = new StringBuilder();
+        for (String key : wideTablePrimaryKey) {
+            builder.append(key).append('=').append(String.valueOf(pk.get(key))).append('\u0001');
+        }
+        return builder.toString();
     }
 
     /**

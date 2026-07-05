@@ -10,7 +10,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import javax.sql.rowset.serial.SerialBlob;
+import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -278,6 +285,72 @@ class DuckDbCoreModelsTest {
         assertEquals(456L, normalized.get(1).get("id"));
     }
 
+    @Test
+    void wideTableRowTypeNormalizer_normalizesSupportedScalarTypes() throws Exception {
+        NodeSchemaInfo schema = buildNodeSchema("n1", "t", List.of("id"),
+                field("amount", "DECIMAL(18,4)"),
+                field("score", "DOUBLE"),
+                field("flag", "BOOLEAN"),
+                field("text_col", "TEXT"),
+                field("blob_col", "BLOB"),
+                field("date_col", "DATE"),
+                field("time_col", "TIME"),
+                field("timestamp_col", "TIMESTAMP"),
+                field("timestamptz_col", "TIMESTAMPTZ"),
+                field("json_col", "JSON"),
+                field("uuid_col", "UUID"),
+                field("bit_col", "BIT"),
+                field("interval_col", "INTERVAL"),
+                field("unsupported_struct", "STRUCT")
+        );
+        OffsetDateTime offsetDateTime = OffsetDateTime.parse("2025-02-03T12:00:00+00:00");
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", "1");
+        row.put("amount", "98765.4321");
+        row.put("score", new BigDecimal("2.5"));
+        row.put("flag", "true");
+        row.put("text_col", 123);
+        row.put("blob_col", new SerialBlob(new byte[]{0x0A, 0x0B, 0x0C}));
+        row.put("date_col", LocalDate.of(2025, 1, 31));
+        row.put("time_col", LocalTime.of(23, 59, 58));
+        row.put("timestamp_col", LocalDateTime.of(2025, 1, 31, 23, 59, 58));
+        row.put("timestamptz_col", offsetDateTime);
+        row.put("json_col", new Object() {
+            @Override
+            public String toString() {
+                return "{\"ok\":true}";
+            }
+        });
+        row.put("uuid_col", java.util.UUID.fromString("22222222-2222-2222-2222-222222222222"));
+        row.put("bit_col", "10101010");
+        row.put("interval_col", java.time.Duration.ofDays(5));
+        row.put("unsupported_struct", new Object() {
+            @Override
+            public String toString() {
+                return "{not-supported}";
+            }
+        });
+
+        List<Map<String, Object>> normalized = WideTableRowTypeNormalizer.normalizeRows(List.of(row), schema);
+        Map<String, Object> actual = normalized.get(0);
+
+        assertEquals(1L, actual.get("id"));
+        assertEquals(new BigDecimal("98765.4321"), actual.get("amount"));
+        assertEquals(2.5d, (Double) actual.get("score"), 0.00001d);
+        assertEquals(Boolean.TRUE, actual.get("flag"));
+        assertEquals("123", actual.get("text_col"));
+        assertArrayEquals(new byte[]{0x0A, 0x0B, 0x0C}, (byte[]) actual.get("blob_col"));
+        assertEquals(java.sql.Date.valueOf("2025-01-31"), actual.get("date_col"));
+        assertEquals("23:59:58", actual.get("time_col"));
+        assertEquals(Timestamp.valueOf("2025-01-31 23:59:58"), actual.get("timestamp_col"));
+        assertEquals(Timestamp.from(offsetDateTime.toInstant()), actual.get("timestamptz_col"));
+        assertEquals("{\"ok\":true}", actual.get("json_col"));
+        assertEquals("22222222-2222-2222-2222-222222222222", actual.get("uuid_col"));
+        assertEquals("10101010", actual.get("bit_col"));
+        assertEquals("5 days", actual.get("interval_col"));
+        assertEquals("{not-supported}", actual.get("unsupported_struct"));
+    }
+
     private static boolean envBool(String key, boolean defaultValue) {
         String value = System.getenv(key);
         if (value == null) {
@@ -287,6 +360,10 @@ class DuckDbCoreModelsTest {
     }
 
     private static NodeSchemaInfo buildNodeSchema(String nodeId, String tableName, List<String> pks) {
+        return buildNodeSchema(nodeId, tableName, pks, new TapField[0]);
+    }
+
+    private static NodeSchemaInfo buildNodeSchema(String nodeId, String tableName, List<String> pks, TapField... extraFields) {
         TapTable tapTable = new TapTable();
         LinkedHashMap<String, TapField> fieldMap = new LinkedHashMap<>();
 
@@ -304,8 +381,19 @@ class DuckDbCoreModelsTest {
         name.setDataType("VARCHAR");
         fieldMap.put("name", name);
 
+        for (TapField extraField : extraFields) {
+            fieldMap.put(extraField.getName(), extraField);
+        }
+
         tapTable.setNameFieldMap(fieldMap);
         return new NodeSchemaInfo(nodeId, tableName, tableName, pks, fieldMap, tapTable, null);
     }
-}
 
+    private static TapField field(String name, String dataType) {
+        TapField tapField = new TapField();
+        tapField.setName(name);
+        tapField.setOriginalFieldName(name);
+        tapField.setDataType(dataType);
+        return tapField;
+    }
+}

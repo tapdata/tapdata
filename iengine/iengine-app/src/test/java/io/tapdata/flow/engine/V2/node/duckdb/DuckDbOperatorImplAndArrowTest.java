@@ -203,7 +203,7 @@ class DuckDbOperatorImplAndArrowTest {
             operator.ensureTableExists("single_pk_table", List.of(singleIdField, singleNameField), List.of("id"), false);
             assertEquals(1L, operator.getRowCount("single_pk_table"));
 
-            int deleted = operator.deleteByIds(List.of("1"), singlePkSchema);
+            int deleted = operator.deleteByIds(List.of(Map.of("id", "1")), singlePkSchema);
             assertEquals(1, deleted);
             assertEquals(0L, operator.getRowCount("single_pk_table"));
 
