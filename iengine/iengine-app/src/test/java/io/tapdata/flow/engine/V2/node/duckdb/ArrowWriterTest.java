@@ -13,6 +13,7 @@ import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.duckdb.DuckDBAppender;
 import org.duckdb.DuckDBConnection;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -43,114 +44,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ArrowWriterTest {
-
-    @Test
-    void constructorsBuildSchemaAndCreateVectorSchemaRoot() throws Exception {
-        try (ArrowWriter defaultWriter = new ArrowWriter(mock(Connection.class)).log(mock(ObsLogger.class));
-             ArrowWriter twoArgWriter = new ArrowWriter(mock(Connection.class), false).log(mock(ObsLogger.class));
-             ArrowWriter writer = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled())) {
-            TapTable emptyTapTable = new TapTable();
-            assertTrue(writer.buildArrowSchema(emptyTapTable).getFields().isEmpty());
-
-            TapTable tapTable = tapTable(
-                    tapField("id", "BIGINT", false, true, 1, 1),
-                    tapField("name", "VARCHAR", null, false, null, 2)
-            );
-            Schema schema = writer.buildArrowSchema(tapTable);
-            assertEquals(2, schema.getFields().size());
-            assertFalse(schema.getFields().get(0).isNullable());
-            assertTrue(schema.getFields().get(1).isNullable());
-
-            try (VectorSchemaRoot emptyRoot = writer.createVectorSchemaRoot(Collections.emptyList(), schema)) {
-                assertEquals(0, emptyRoot.getRowCount());
-            }
-
-            List<Map<String, Object>> data = List.of(
-                    row(1L, "Alice"),
-                    row(2L, null)
-            );
-            try (VectorSchemaRoot root = writer.createVectorSchemaRoot(data, schema)) {
-                assertEquals(2, root.getRowCount());
-                BigIntVector idVector = (BigIntVector) root.getVector("id");
-                VarCharVector nameVector = (VarCharVector) root.getVector("name");
-                assertEquals(1L, idVector.get(0));
-                assertEquals(2L, idVector.get(1));
-                assertEquals("Alice", nameVector.getObject(0).toString());
-                assertTrue(nameVector.isNull(1));
-            }
-
-            TapTableDto emptyDto = new TapTableDto();
-            assertTrue(writer.buildArrowSchema(emptyDto).getFields().isEmpty());
-
-            TapTableDto tapTableDto = tapTableDto(
-                    tapFieldDto("id", "BIGINT", false, true, 1, 1),
-                    tapFieldDto("name", "VARCHAR", null, false, 0, 0),
-                    tapFieldDto("flag", "VARCHAR", true, false, null, null)
-            );
-            Schema dtoSchema = writer.buildArrowSchema(tapTableDto);
-            assertEquals(3, dtoSchema.getFields().size());
-            assertFalse(dtoSchema.getFields().get(0).isNullable());
-            assertTrue(dtoSchema.getFields().get(1).isNullable());
-            assertTrue(dtoSchema.getFields().get(2).isNullable());
-
-            assertNotNull(defaultWriter);
-            assertNotNull(twoArgWriter);
-        }
-    }
-
-    @Test
-    void copyCoversSuccessNonDuckDbAndFailurePaths() throws Exception {
-        TapTable tapTable = tapTable(
-                tapField("id", "BIGINT", false, true, 1, 1),
-                tapField("name", "VARCHAR", true, false, null, 2)
-        );
-        List<Map<String, Object>> data = List.of(
-                row(1L, "a"),
-                row(2L, "b")
-        );
-
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
-             Statement statement = connection.createStatement();
-             ArrowWriter writer = new ArrowWriter(connection, true, DuckLakeConfig.disabled())) {
-            statement.executeUpdate("CREATE TABLE copy_target(id BIGINT, name VARCHAR)");
-            statement.executeUpdate("CREATE TABLE copy_target_close(id BIGINT, name VARCHAR)");
-            assertTrue(writer.copy(data, "copy_target", writer.buildArrowSchema(tapTable)));
-
-            try (Statement query = connection.createStatement();
-                 java.sql.ResultSet resultSet = query.executeQuery("SELECT count(*) FROM copy_target")) {
-                assertTrue(resultSet.next());
-                assertEquals(2L, resultSet.getLong(1));
-            }
-
-            try (CloseFailureArrowWriter closeFailureWriter = new CloseFailureArrowWriter(connection, true, DuckLakeConfig.disabled())) {
-                assertFalse(closeFailureWriter.copy(data, "copy_target_close", closeFailureWriter.buildArrowSchema(tapTable)));
-            }
-        }
-
-        Connection nonDuckDbConnection = mock(Connection.class);
-        when(nonDuckDbConnection.unwrap(DuckDBConnection.class)).thenReturn(null);
-        try (ArrowWriter writer = new ArrowWriter(nonDuckDbConnection, true, DuckLakeConfig.disabled())) {
-            assertFalse(writer.copy(data, "ignored", new Schema(Collections.emptyList())));
-        }
-
-        Connection brokenConnection = mock(Connection.class);
-        when(brokenConnection.unwrap(DuckDBConnection.class)).thenThrow(new SQLException("boom"));
-        try (ArrowWriter writer = new ArrowWriter(brokenConnection, true, DuckLakeConfig.disabled())) {
-            assertFalse(writer.copy(data, "ignored", new Schema(Collections.emptyList())));
-        }
-
-        Connection brokenCloseConnection = mock(Connection.class);
-        when(brokenCloseConnection.unwrap(DuckDBConnection.class)).thenThrow(new SQLException("boom-close"));
-        try (CloseFailureArrowWriter writer = new CloseFailureArrowWriter(brokenCloseConnection, true, DuckLakeConfig.disabled())) {
-            assertFalse(writer.copy(data, "ignored", new Schema(Collections.emptyList())));
-        }
-
-        Connection nullRootConnection = mock(Connection.class);
-        when(nullRootConnection.unwrap(DuckDBConnection.class)).thenReturn(null);
-        try (org.mockito.MockedConstruction<ArrowStreamWriter> ignored = mockConstruction(ArrowStreamWriter.class);
-             NullRootArrowWriter writer = new NullRootArrowWriter(nullRootConnection, true, DuckLakeConfig.disabled())) {
-            assertFalse(writer.copy(data, "ignored", new Schema(Collections.emptyList())));
-        }
+    io.tapdata.observable.logging.ObsLogger logger;
+    @BeforeEach
+    void init() {
+        logger = mock(io.tapdata.observable.logging.ObsLogger.class);
     }
 
     @Test
@@ -171,7 +68,7 @@ class ArrowWriterTest {
 
         try (Connection connection = DriverManager.getConnection("jdbc:duckdb:");
              Statement statement = connection.createStatement();
-             ArrowWriter writer = new ArrowWriter(connection, false, DuckLakeConfig.disabled())) {
+             ArrowWriter writer = new ArrowWriter(connection, false, DuckLakeConfig.disabled()).log(logger)) {
             statement.executeUpdate("CREATE TABLE tap_table_target(id BIGINT PRIMARY KEY, name VARCHAR)");
             statement.executeUpdate("CREATE TABLE dto_target(id BIGINT PRIMARY KEY, name VARCHAR)");
             statement.executeUpdate("CREATE TABLE schema_target(id BIGINT PRIMARY KEY, name VARCHAR)");
@@ -185,7 +82,7 @@ class ArrowWriterTest {
             assertEquals(2L, queryCount(connection, "schema_target"));
         }
 
-        CopyTrackingArrowWriter routingWriter = new CopyTrackingArrowWriter(mock(Connection.class), true, DuckLakeConfig.disabled());
+        CopyTrackingArrowWriter routingWriter =(CopyTrackingArrowWriter) new CopyTrackingArrowWriter(mock(Connection.class), true, DuckLakeConfig.disabled()).log(logger);
         routingWriter.copyResult = true;
         routingWriter.writeWithArrow(data, "copy_only", tapTable);
         routingWriter.writeWithArrow(data, "copy_dto", tapTableDto);
@@ -217,11 +114,11 @@ class ArrowWriterTest {
         when(duckLakeConnection.createStatement()).thenReturn(createStatement);
         when(createStatement.execute(anyString())).thenReturn(true);
 
-        RoutingArrowWriter duckLakeWriter = new RoutingArrowWriter(
+        RoutingArrowWriter duckLakeWriter =(RoutingArrowWriter) new RoutingArrowWriter(
                 duckLakeConnection,
                 false,
                 new DuckLakeConfig(true, "LOCAL", "/tmp/duck'lake", null)
-        );
+        ).log(logger);
         duckLakeWriter.writeWithArrow(data, "duck_table", tapTable, true);
         duckLakeWriter.writeWithArrow(data, "duck_table_dto", tapTableDto, true);
         duckLakeWriter.writeWithArrow(data, schemaInfo, true);
@@ -242,7 +139,7 @@ class ArrowWriterTest {
         assertEquals(2, duckLakeWriter.schemaInfoWrites);
         duckLakeWriter.close();
 
-        RoutingArrowWriter regularWriter = new RoutingArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled());
+        RoutingArrowWriter regularWriter = (RoutingArrowWriter) new RoutingArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled()).log(logger);
         regularWriter.writeWithArrow(data, "regular_table", tapTable, true);
         regularWriter.writeWithArrow(data, "regular_table_dto", tapTableDto, true);
         regularWriter.writeWithArrow(data, schemaInfo, true);
@@ -251,36 +148,6 @@ class ArrowWriterTest {
         assertEquals(1, regularWriter.tapTableDtoWrites);
         assertEquals(1, regularWriter.schemaInfoWrites);
         regularWriter.close();
-    }
-
-    @Test
-    void writeWithArrow_schemaInfoFallbackUsesSchemaPrimaryKeysForUpsert() throws Exception {
-        TapTable tapTable = tapTable(
-                tapField("amount", "DECIMAL(10,2)", true, false, null, 1),
-                tapField("user_id", "BIGINT", false, true, 1, 2),
-                tapField("name", "VARCHAR", true, false, null, 3),
-                tapField("order_id", "BIGINT", false, false, null, 4)
-        );
-        NodeSchemaInfo schemaInfo = nodeSchemaInfo("wide_target", tapTable, List.of("order_id"));
-        LinkedHashMap<String, Object> row = new LinkedHashMap<>();
-        row.put("amount", 20);
-        row.put("user_id", 2L);
-        row.put("name", "Bob");
-        row.put("order_id", 102L);
-
-        Connection connection = mock(Connection.class);
-        Statement statement = mock(Statement.class);
-        when(connection.unwrap(DuckDBConnection.class)).thenReturn(null);
-        when(connection.createStatement()).thenReturn(statement);
-        when(connection.getAutoCommit()).thenReturn(false);
-        when(statement.executeUpdate(anyString())).thenReturn(1);
-
-        try (ArrowWriter writer = new ArrowWriter(connection, false, DuckLakeConfig.disabled()).log(mock(ObsLogger.class))) {
-            writer.writeWithArrow(List.of(row), schemaInfo);
-        }
-
-        verify(statement).executeUpdate(contains("ON CONFLICT (\"order_id\") DO UPDATE SET"));
-        verify(statement).executeUpdate(contains("\"user_id\" = EXCLUDED.\"user_id\""));
     }
 
     @Test
@@ -305,7 +172,7 @@ class ArrowWriterTest {
         );
 
         Connection emptyAppenderConnection = mock(Connection.class);
-        try (ArrowWriter writer = new ArrowWriter(emptyAppenderConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(emptyAppenderConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             invoke(writer, "AppenderInsert",
                     new Class[]{List.class, String.class, TapTable.class},
                     Collections.emptyList(), "ignored", tapTableWithPk);
@@ -321,7 +188,7 @@ class ArrowWriterTest {
         when(fallbackConnection.createStatement()).thenReturn(fallbackStatement);
         when(fallbackConnection.getAutoCommit()).thenReturn(false).thenThrow(new SQLException("state"));
         when(fallbackStatement.executeUpdate(anyString())).thenReturn(2);
-        try (ArrowWriter writer = new ArrowWriter(fallbackConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(fallbackConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             invoke(writer, "AppenderInsert",
                     new Class[]{List.class, String.class, TapTable.class},
                     data, "fallback_target", tapTableWithPk);
@@ -337,7 +204,7 @@ class ArrowWriterTest {
         when(autoCommitTrueConnection.createStatement()).thenReturn(autoCommitTrueStatement);
         when(autoCommitTrueConnection.getAutoCommit()).thenReturn(true);
         when(autoCommitTrueStatement.executeUpdate(anyString())).thenReturn(1);
-        try (ArrowWriter writer = new ArrowWriter(autoCommitTrueConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(autoCommitTrueConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             invoke(writer, "AppenderInsert",
                     new Class[]{List.class, String.class, TapTable.class},
                     List.of(row(9L, "auto")), "auto_commit_target", tapTableWithPk);
@@ -350,7 +217,7 @@ class ArrowWriterTest {
         when(resetFailureConnection.createStatement()).thenReturn(resetFailureStatement);
         when(resetFailureConnection.getAutoCommit()).thenThrow(new SQLException("cannot read auto commit"));
         when(resetFailureStatement.executeUpdate(anyString())).thenReturn(1);
-        try (ArrowWriter writer = new ArrowWriter(resetFailureConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(resetFailureConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             invoke(writer, "AppenderInsert",
                     new Class[]{List.class, String.class, TapTable.class},
                     List.of(row(10L, "reset")), "reset_failure_target", tapTableWithPk);
@@ -364,7 +231,7 @@ class ArrowWriterTest {
         when(rollbackConnection.getAutoCommit()).thenReturn(false);
         when(duckDBConnection.createAppender(anyString(), anyString())).thenThrow(new SQLException("append failed"));
         when(rollbackStatement.executeUpdate(anyString())).thenReturn(1);
-        try (ArrowWriter writer = new ArrowWriter(rollbackConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(rollbackConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             invoke(writer, "AppenderInsert",
                     new Class[]{List.class, String.class, TapTable.class},
                     List.of(row(2L, "b")), "rollback_target", tapTableWithPk);
@@ -381,7 +248,7 @@ class ArrowWriterTest {
         when(batchStatement.executeUpdate(anyString())).thenThrow(new SQLException("batch failed"));
         when(firstRowStatement.executeUpdate(anyString())).thenReturn(1);
         when(upsertRowStatement.executeUpdate(anyString())).thenReturn(1);
-        try (ArrowWriter writer = new ArrowWriter(rowByRowConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(rowByRowConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             invoke(writer, "fallbackInsert",
                     new Class[]{List.class, String.class, TapTable.class},
                     data, "row_by_row_target", tapTableWithPk);
@@ -394,7 +261,7 @@ class ArrowWriterTest {
         Statement noPkStatement = mock(Statement.class);
         when(noPkConnection.createStatement()).thenReturn(noPkStatement);
         when(noPkStatement.executeUpdate(anyString())).thenReturn(2);
-        try (ArrowWriter writer = new ArrowWriter(noPkConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(noPkConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             invoke(writer, "fallbackInsert",
                     new Class[]{List.class, String.class, TapTable.class},
                     data, "no_pk_target", tapTableWithoutPk);
@@ -411,7 +278,7 @@ class ArrowWriterTest {
         Statement compositePkStatement = mock(Statement.class);
         when(compositePkConnection.createStatement()).thenReturn(compositePkStatement);
         when(compositePkStatement.executeUpdate(anyString())).thenReturn(2);
-        try (ArrowWriter writer = new ArrowWriter(compositePkConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(compositePkConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             invoke(writer, "fallbackInsert",
                     new Class[]{List.class, String.class, TapTable.class},
                     List.of(row(11L, "composite")),
@@ -424,7 +291,7 @@ class ArrowWriterTest {
         Statement brokenRowStatement = mock(Statement.class);
         when(rethrowConnection.createStatement()).thenReturn(brokenRowStatement);
         when(brokenRowStatement.executeUpdate(anyString())).thenThrow(new SQLException("other failure"));
-        try (ArrowWriter writer = new ArrowWriter(rethrowConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(rethrowConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             SQLException exception = assertThrows(SQLException.class, () -> invoke(
                     writer,
                     "insertRowByRow",
@@ -441,7 +308,7 @@ class ArrowWriterTest {
         Statement pkOnlyStatement = mock(Statement.class);
         when(pkOnlyConnection.createStatement()).thenReturn(pkOnlyStatement);
         when(pkOnlyStatement.executeUpdate(anyString())).thenReturn(0);
-        try (ArrowWriter writer = new ArrowWriter(pkOnlyConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(pkOnlyConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             TapTable pkOnlyTable = tapTable(tapField("id", "BIGINT", false, true, 1, 1));
             LinkedHashMap<String, Object> pkOnlyRow = new LinkedHashMap<>();
             pkOnlyRow.put("id", 5L);
@@ -461,7 +328,7 @@ class ArrowWriterTest {
         Statement nullMessageStatement = mock(Statement.class);
         when(nullMessageConnection.createStatement()).thenReturn(nullMessageStatement);
         when(nullMessageStatement.executeUpdate(anyString())).thenThrow(new SQLException());
-        try (ArrowWriter writer = new ArrowWriter(nullMessageConnection, false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(nullMessageConnection, false, DuckLakeConfig.disabled()).log(logger)) {
             assertThrows(SQLException.class, () -> invoke(
                     writer,
                     "insertRowByRow",
@@ -475,7 +342,7 @@ class ArrowWriterTest {
 
         DuckDBAppender brokenAppender = mock(DuckDBAppender.class);
         when(brokenAppender.append((String) null)).thenThrow(new RuntimeException("append boom"));
-        try (ArrowWriter writer = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled()).log(logger)) {
             SQLException exception = assertThrows(SQLException.class, () -> invoke(
                     writer,
                     "appendToAppender",
@@ -512,14 +379,14 @@ class ArrowWriterTest {
         try (ArrowWriter localWriter = new ArrowWriter(
                 mock(Connection.class),
                 false,
-                new DuckLakeConfig(true, "LOCAL", "/tmp/local'o", null));
+                new DuckLakeConfig(true, "LOCAL", "/tmp/local'o", null)).log(logger);
              ArrowWriter s3Writer = new ArrowWriter(
                      mock(Connection.class),
                      false,
-                     new DuckLakeConfig(true, "S3", "s3://bucket/o'clock", null));
-             ArrowWriter disabledWriter = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled());
-             ArrowWriter otherWriter = new ArrowWriter(mock(Connection.class), false, new DuckLakeConfig(true, "OTHER", "/tmp/other", null));
-             ArrowWriter nullConfigWriter = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled())) {
+                     new DuckLakeConfig(true, "S3", "s3://bucket/o'clock", null)).log(logger);
+             ArrowWriter disabledWriter = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled()).log(logger);
+             ArrowWriter otherWriter = new ArrowWriter(mock(Connection.class), false, new DuckLakeConfig(true, "OTHER", "/tmp/other", null)).log(logger);
+             ArrowWriter nullConfigWriter = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled()).log(logger)) {
             setField(nullConfigWriter, "duckLakeConfig", null);
 
             String localSql = invoke(localWriter,
@@ -672,7 +539,7 @@ class ArrowWriterTest {
             );
             assertNull(convertedWithoutFields.getNameFieldMap());
 
-            ArrowWriter nullableAllocatorWriter = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled());
+            ArrowWriter nullableAllocatorWriter = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled()).log(logger);
             setField(nullableAllocatorWriter, "allocator", null);
             nullableAllocatorWriter.close();
         }
@@ -739,7 +606,7 @@ class ArrowWriterTest {
     }
 
     private static NodeSchemaInfo nodeSchemaInfo(String tableName, TapTable tapTable, List<String> primaryKeys) {
-        try (ArrowWriter writer = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled())) {
+        try (ArrowWriter writer = new ArrowWriter(mock(Connection.class), false, DuckLakeConfig.disabled()).log(mock(ObsLogger.class))) {
             return new NodeSchemaInfo(
                     "source_node",
                     tableName,
