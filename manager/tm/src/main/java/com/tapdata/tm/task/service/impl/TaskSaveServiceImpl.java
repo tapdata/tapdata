@@ -201,7 +201,6 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_DIFFERENCE));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_RETRY_WARN));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_SOURCE_NO_INCREMENTAL_EVENT));
-            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_DDL_WARNING));
             taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
         }
         // 补充历史任务缺失的任务告警 key 时也请追加到末尾，避免破坏前端依赖的原有顺序。
