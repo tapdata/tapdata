@@ -107,13 +107,35 @@ class TableSampleHandlerTest {
         void testSnapshotSyncRate_isSnapshotDone() {
             when(mockCollector.getCounterSampler(eq("snapshotInsertRowTotal"), anyLong()))
                     .thenReturn(mockSnapshotInsertRowCounter);
-            when(mockSnapshotInsertRowCounter.value()).thenReturn(1000L);
             BigDecimal expectedSyncRate = new BigDecimal("1");
             tableSampleHandler.setSnapshotDone();
             testResult(expectedSyncRate);
             tableSampleHandler.doInit(retrievedTableValues);
         }
 
+        @Test
+        @DisplayName("empty table should stay at 0 until pipeline complete event, then jump to 1")
+        void testSnapshotSyncRate_emptyTableWaitsForPipeline() {
+            BigDecimal initialRate = new BigDecimal("0.00");
+            TableSampleHandler emptyHandler = new TableSampleHandler(taskDto, "empty_table",
+                    new CountResult(0L, false), retrievedTableValues, initialRate);
+            ReflectionTestUtils.setField(emptyHandler, "collector", mockCollector);
+            when(mockCollector.getCounterSampler(eq("snapshotInsertRowTotal"), anyLong()))
+                    .thenReturn(mockSnapshotInsertRowCounter);
+
+            doAnswer(invocation -> {
+                String name = invocation.getArgument(0);
+                Sampler sampler = invocation.getArgument(1);
+                if ("snapshotSyncRate".equals(name)) {
+                    assertEquals(initialRate, sampler.value());
+                    emptyHandler.setSnapshotDone();
+                    assertEquals(BigDecimal.ONE, sampler.value());
+                }
+                return null;
+            }).when(mockCollector).addSampler(anyString(), any(io.tapdata.common.sample.SamplerPrometheus.class));
+
+            emptyHandler.doInit(retrievedTableValues);
+        }
 
     }
 
@@ -144,7 +166,7 @@ class TableSampleHandlerTest {
         }
 
         @Test
-        @DisplayName("test constructor when count is zero")
+        @DisplayName("test constructor when count is zero and done is false (empty table should wait for pipeline complete event)")
         void testConstructorWhenCountIsZero() {
 
             String tableName = "empty_table";
@@ -159,8 +181,8 @@ class TableSampleHandlerTest {
 
             assertEquals(tableName, ReflectionTestUtils.getField(handler, "table"));
             assertEquals(count, ReflectionTestUtils.getField(handler, "snapshotRowTotal"));
-            assertEquals(BigDecimal.ONE, ReflectionTestUtils.getField(handler, "snapshotSyncRate"));
-            assertTrue((Boolean) ReflectionTestUtils.getField(handler, "isSnapshotDone"));
+            assertEquals(inputSyncRate, ReflectionTestUtils.getField(handler, "snapshotSyncRate"));
+            assertFalse((Boolean) ReflectionTestUtils.getField(handler, "isSnapshotDone"));
         }
 
         @Test
