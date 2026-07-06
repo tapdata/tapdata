@@ -20,7 +20,7 @@
             "user_visible": true,
             "min": 1
           },
-          "$setOnInsert": { "value": 60 }
+          "$setOnInsert": { "value": 20160 }
         },
         "upsert": true
       }
