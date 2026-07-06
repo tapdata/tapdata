@@ -8,15 +8,25 @@ public class WideTableSourceDescriptor {
     private final String sqlAlias;
     private final boolean mainTable;
     private final NodeSchemaInfo schemaInfo;
+    private final boolean deleteRetainAllowed;
 
     public WideTableSourceDescriptor(String sourceTableName,
                                      String sqlAlias,
                                      boolean mainTable,
                                      NodeSchemaInfo schemaInfo) {
+        this(sourceTableName, sqlAlias, mainTable, schemaInfo, !mainTable);
+    }
+
+    public WideTableSourceDescriptor(String sourceTableName,
+                                     String sqlAlias,
+                                     boolean mainTable,
+                                     NodeSchemaInfo schemaInfo,
+                                     boolean deleteRetainAllowed) {
         this.sourceTableName = sourceTableName;
         this.sqlAlias = sqlAlias;
         this.mainTable = mainTable;
         this.schemaInfo = schemaInfo;
+        this.deleteRetainAllowed = deleteRetainAllowed;
     }
 
     public String getSourceTableName() {
@@ -29,6 +39,10 @@ public class WideTableSourceDescriptor {
 
     public boolean isMainTable() {
         return mainTable;
+    }
+
+    public boolean isDeleteRetainAllowed() {
+        return deleteRetainAllowed;
     }
 
     public NodeSchemaInfo getSchemaInfo() {

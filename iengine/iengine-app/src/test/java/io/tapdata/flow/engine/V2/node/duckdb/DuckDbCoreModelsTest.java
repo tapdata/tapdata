@@ -137,12 +137,43 @@ class DuckDbCoreModelsTest {
     }
 
     @Test
+    void wideTableSourceRegistry_resolvesDeleteRetainByJoinType() {
+        NodeSchemaInfo main = buildNodeSchema("n_main", "main_table", List.of("id"));
+        NodeSchemaInfo child = buildNodeSchema("n_child", "child_table", List.of("id"));
+        Map<String, NodeSchemaInfo> nodeSchemaCache = Map.of(
+                "pre1", main,
+                "pre2", child
+        );
+        List<FromTableConfig> fromTables = List.of(
+                new FromTableConfig("pre1", "main_table"),
+                new FromTableConfig("pre2", "child_table")
+        );
+
+        WideTableSourceRegistry innerJoinRegistry = WideTableSourceRegistry.from(
+                "main_table",
+                fromTables,
+                nodeSchemaCache,
+                "SELECT m.id, c.name FROM main_table m INNER JOIN child_table c ON m.id=c.id"
+        );
+        assertFalse(innerJoinRegistry.getDescriptor("child_table").isDeleteRetainAllowed());
+
+        WideTableSourceRegistry leftJoinRegistry = WideTableSourceRegistry.from(
+                "main_table",
+                fromTables,
+                nodeSchemaCache,
+                "SELECT m.id, c.name FROM main_table m LEFT JOIN child_table c ON m.id=c.id"
+        );
+        assertTrue(leftJoinRegistry.getDescriptor("child_table").isDeleteRetainAllowed());
+    }
+
+    @Test
     void wideTableSourceDescriptor_getters() {
         NodeSchemaInfo users = buildNodeSchema("n_users", "users", List.of("id"));
         WideTableSourceDescriptor d = new WideTableSourceDescriptor("users", "u", true, users);
         assertEquals("users", d.getSourceTableName());
         assertEquals("u", d.getSqlAlias());
         assertTrue(d.isMainTable());
+        assertFalse(d.isDeleteRetainAllowed());
         assertSame(users, d.getSchemaInfo());
     }
 
