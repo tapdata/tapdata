@@ -472,7 +472,7 @@ class MilestoneAspectTaskTest {
 					bu.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
 					milestoneAspectTask.onStart(startAspect);
 				}
-				verify(task, times(3)).getId();
+				verify(task, times(4)).getId();
 				verify(id, times(3)).toHexString();
 				verify(task, times(1)).getName();
 				verify(log).trace(anyString(), anyString(), anyString());
@@ -480,7 +480,7 @@ class MilestoneAspectTaskTest {
 				verify(task).getSyncType();
 				verify(milestoneAspectTask, times(KPI_TABLE_INITTimes)).taskMilestone(MilestoneAspectTask.KPI_TABLE_INIT, null);
 				verify(milestoneAspectTask).taskMilestone(MilestoneAspectTask.KPI_DATA_NODE_INIT, null);
-				verify(milestoneAspectTask).hasSnapshot();
+				verify(milestoneAspectTask, times(2)).hasSnapshot();
 				verify(milestoneAspectTask, times(KPI_SNAPSHOT)).taskMilestone(MilestoneAspectTask.KPI_SNAPSHOT, null);
 				verify(milestoneAspectTask).hasCdc();
 				verify(milestoneAspectTask, times(KPI_CDC)).taskMilestone(MilestoneAspectTask.KPI_CDC, null);
@@ -2109,4 +2109,199 @@ class MilestoneAspectTaskTest {
 		}
 	}
 
+	@Nested
+	class SetRunningAndFinishTest {
+		private MilestoneAspectTask taskInstance;
+
+		@BeforeEach
+		void setUp() {
+			taskInstance = new MilestoneAspectTask();
+			ReflectionTestUtils.setField(taskInstance, "log", mock(Log.class));
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId("507f1f77bcf86cd7994390aa"));
+			taskDto.setName("test-task");
+			taskInstance.setTask(taskDto);
+			ReflectionTestUtils.setField(taskInstance, "milestoneOrder", new ConcurrentHashMap<>());
+		}
+
+		@Test
+		void testSetRunningWithSkipStatus() {
+			MilestoneEntity milestone = new MilestoneEntity();
+			milestone.setCode("SNAPSHOT");
+			milestone.setStatus(MilestoneStatus.SKIP);
+			milestone.setBegin(100L);
+			milestone.setEnd(200L);
+
+			taskInstance.setRunning(milestone);
+
+			Assertions.assertEquals(MilestoneStatus.SKIP, milestone.getStatus());
+			Assertions.assertEquals(100L, milestone.getBegin());
+			Assertions.assertEquals(200L, milestone.getEnd());
+		}
+
+		@Test
+		void testSetFinishWithSkipStatus() {
+			MilestoneEntity milestone = new MilestoneEntity();
+			milestone.setCode("SNAPSHOT");
+			milestone.setStatus(MilestoneStatus.SKIP);
+			milestone.setBegin(100L);
+			milestone.setEnd(200L);
+
+			taskInstance.setFinish(milestone);
+
+			Assertions.assertEquals(MilestoneStatus.SKIP, milestone.getStatus());
+			Assertions.assertEquals(100L, milestone.getBegin());
+			Assertions.assertEquals(200L, milestone.getEnd());
+		}
+
+		@Test
+		void testSetRunningNormal() {
+			MilestoneEntity milestone = new MilestoneEntity();
+			milestone.setCode("SNAPSHOT");
+			milestone.setStatus(MilestoneStatus.WAITING);
+
+			taskInstance.setRunning(milestone);
+
+			Assertions.assertEquals(MilestoneStatus.RUNNING, milestone.getStatus());
+			Assertions.assertNotNull(milestone.getBegin());
+			Assertions.assertNull(milestone.getEnd());
+		}
+
+		@Test
+		void testSetFinishNormal() {
+			MilestoneEntity milestone = new MilestoneEntity();
+			milestone.setCode("SNAPSHOT");
+			milestone.setStatus(MilestoneStatus.RUNNING);
+			milestone.setBegin(100L);
+
+			taskInstance.setFinish(milestone);
+
+			Assertions.assertEquals(MilestoneStatus.FINISH, milestone.getStatus());
+			Assertions.assertEquals(100L, milestone.getBegin());
+			Assertions.assertNotNull(milestone.getEnd());
+		}
+	}
+
+	@Nested
+	class OnStartSkipSnapshotTest {
+		private MilestoneAspectTask taskInstance;
+		private TaskDto taskDto;
+		private ClientMongoOperator mongoOperator;
+		private ScheduledExecutorService executorService;
+
+		@BeforeEach
+		void setUp() {
+			taskInstance = new MilestoneAspectTask();
+			ReflectionTestUtils.setField(taskInstance, "log", mock(Log.class));
+			
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId("507f1f77bcf86cd7994390aa"));
+			taskDto.setName("test-task");
+			taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+			taskDto.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			DAG dag = mock(DAG.class);
+			when(dag.getNodes()).thenReturn(new ArrayList<>());
+			taskDto.setDag(dag);
+
+			taskInstance.setTask(taskDto);
+
+			Map<String, MilestoneEntity> milestones = new ConcurrentHashMap<>();
+			Map<String, Map<String, MilestoneEntity>> nodeMilestones = new ConcurrentHashMap<>();
+			Map<String, MilestoneStatus> dataNodeInitMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(taskInstance, "milestones", milestones);
+			ReflectionTestUtils.setField(taskInstance, "nodeMilestones", nodeMilestones);
+			ReflectionTestUtils.setField(taskInstance, "dataNodeInitMap", dataNodeInitMap);
+			ReflectionTestUtils.setField(taskInstance, "milestoneOrder", new ConcurrentHashMap<>());
+
+			mongoOperator = mock(ClientMongoOperator.class);
+			ReflectionTestUtils.setField(taskInstance, "clientMongoOperator", mongoOperator);
+
+			executorService = mock(ScheduledExecutorService.class);
+			ReflectionTestUtils.setField(taskInstance, "executorService", executorService);
+			when(executorService.scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(mock());
+		}
+
+		@Test
+		void testOnStartWithSkipSnapshotTrue() {
+			try (MockedStatic<BeanUtil> bu = mockStatic(BeanUtil.class)) {
+				bu.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(mongoOperator);
+
+				// 1. 设置有同步进度
+				Map<String, Object> attrs = new HashMap<>();
+				attrs.put("syncProgress", "some-progress");
+				
+				// 2. 模拟从数据库拉出来的历史 milestone 包含已完成的 SNAPSHOT
+				Map<String, Object> milestoneDb = new HashMap<>();
+				Map<String, Object> snapshotEntityMap = new HashMap<>();
+				snapshotEntityMap.put("status", "FINISH");
+				snapshotEntityMap.put("begin", 1000L);
+				snapshotEntityMap.put("end", 2000L);
+				milestoneDb.put("SNAPSHOT", snapshotEntityMap);
+				attrs.put("milestone", milestoneDb);
+
+				// 3. 模拟节点里程碑
+				Map<String, Object> nodeMilestonesDb = new HashMap<>();
+				Map<String, Object> subMap = new HashMap<>();
+				Map<String, Object> readSnapshotEntityMap = new HashMap<>();
+				readSnapshotEntityMap.put("status", "FINISH");
+				readSnapshotEntityMap.put("begin", 1000L);
+				readSnapshotEntityMap.put("end", 1500L);
+				subMap.put("SNAPSHOT_READ", readSnapshotEntityMap);
+				nodeMilestonesDb.put("node-1", subMap);
+				attrs.put("nodeMilestones", nodeMilestonesDb);
+
+				TaskDto dbTaskDto = new TaskDto();
+				dbTaskDto.setAttrs(attrs);
+
+				when(mongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(dbTaskDto);
+
+				taskDto.setAttrs(attrs);
+
+				taskInstance.onStart(mock(TaskStartAspect.class));
+
+				// 验证 isSkipSnapshot 为 true 后的状态变化
+				Map<String, MilestoneEntity> milestones = (Map<String, MilestoneEntity>) ReflectionTestUtils.getField(taskInstance, "milestones");
+				Map<String, Map<String, MilestoneEntity>> nodeMilestones = (Map<String, Map<String, MilestoneEntity>>) ReflectionTestUtils.getField(taskInstance, "nodeMilestones");
+
+				Assertions.assertNotNull(milestones.get("SNAPSHOT"));
+				Assertions.assertEquals("SKIP", milestones.get("SNAPSHOT").getStatus().name());
+				
+				Assertions.assertNotNull(nodeMilestones.get("node-1"));
+				Assertions.assertEquals("SKIP", nodeMilestones.get("node-1").get("SNAPSHOT_READ").getStatus().name());
+			}
+		}
+
+		@Test
+		void testOnStartWithSkipSnapshotFalseDueToNoSnapshotFinished() {
+			try (MockedStatic<BeanUtil> bu = mockStatic(BeanUtil.class)) {
+				bu.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(mongoOperator);
+
+				// 1. 设置有同步进度
+				Map<String, Object> attrs = new HashMap<>();
+				attrs.put("syncProgress", "some-progress");
+				
+				// 2. 模拟从数据库拉出来的历史里程碑未完成 (RUNNING)
+				Map<String, Object> milestoneDb = new HashMap<>();
+				Map<String, Object> snapshotEntityMap = new HashMap<>();
+				snapshotEntityMap.put("status", "RUNNING");
+				snapshotEntityMap.put("begin", 1000L);
+				milestoneDb.put("SNAPSHOT", snapshotEntityMap);
+				attrs.put("milestone", milestoneDb);
+
+				TaskDto dbTaskDto = new TaskDto();
+				dbTaskDto.setAttrs(attrs);
+
+				when(mongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(dbTaskDto);
+
+				taskDto.setAttrs(attrs);
+
+				taskInstance.onStart(mock(TaskStartAspect.class));
+
+				// 验证 isSkipSnapshot 为 false 时的状态变化（KPI_SNAPSHOT 会被清空，重新创建为 WAITING）
+				Map<String, MilestoneEntity> milestones = (Map<String, MilestoneEntity>) ReflectionTestUtils.getField(taskInstance, "milestones");
+				Assertions.assertNotNull(milestones.get("SNAPSHOT"));
+				Assertions.assertNotEquals("SKIP", milestones.get("SNAPSHOT").getStatus().name());
+			}
+		}
+	}
 }
