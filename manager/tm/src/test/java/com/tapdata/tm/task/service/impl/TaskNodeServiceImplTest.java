@@ -854,10 +854,17 @@ class TaskNodeServiceImplTest {
             when(connDto.getCapabilities()).thenReturn(caps);
             when(dataSourceService.findOne(any())).thenReturn(connDto);
 
+            // Use the varargs constructor so errorCode is preserved verbatim. The single-arg
+            // BizException(String) constructor downgrades errorCode to "SystemError" whenever the
+            // message key can't be resolved (which is the case in unit tests, where the resolved
+            // resource bundle falls back to the base messages.properties that has no MockData keys).
+            BizException bizException = new BizException("MockData.SampleDataError", "boom");
             when(taskService.callEngineRpc(anyString(), any(), anyString(), anyString(), anyString(), anyString(), any()))
-                    .thenThrow(new BizException("MockData.SampleDataError"));
+                    .thenThrow(bizException);
 
             BizException ex = Assertions.assertThrows(BizException.class, () -> taskNodeService.mockDateRPC(dto, userDetail));
+            // A BizException from the RPC must be rethrown as-is (same object), not wrapped.
+            Assertions.assertSame(bizException, ex);
             Assertions.assertEquals("MockData.SampleDataError", ex.getErrorCode());
         }
 
