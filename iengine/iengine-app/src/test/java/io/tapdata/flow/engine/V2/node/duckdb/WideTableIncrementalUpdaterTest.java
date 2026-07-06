@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.duckdb;
 
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapBoolean;
@@ -97,6 +98,74 @@ class WideTableIncrementalUpdaterTest {
         assertEquals(events.size(), consumed.size());
         assertFalse(events.isEmpty());
         verify(generator, never()).generateBatch(anyString(), anyString(), any(), any());
+        verify(operator, never()).executeQuery(anyString());
+    }
+
+    @Test
+    void updateWideTableAsTapDataEvents_innerJoinChildDeleteEmitsDeleteWithoutRetain() throws Exception {
+        DuckDbOperator operator = mock(DuckDbOperator.class);
+        WithCteSqlGenerator generator = mock(WithCteSqlGenerator.class);
+        ObsLogger logger = mock(ObsLogger.class);
+        List<String> widePk = List.of("warehouse_id", "district_id", "order_id", "item_id", "line_number");
+        NodeSchemaInfo wideSchema = schema("wide", "wide_orders", widePk,
+                List.of("warehouse_id", "district_id", "order_id", "item_id", "line_number", "quantity"));
+
+        WideTableIncrementalUpdater updater = new WideTableIncrementalUpdater(
+                "wide_orders",
+                widePk,
+                "SELECT o.o_w_id AS warehouse_id, o.o_d_id AS district_id, o.o_id AS order_id, "
+                        + "l.ol_i_id AS item_id, l.ol_number AS line_number, l.ol_quantity AS quantity "
+                        + "FROM orders o INNER JOIN order_line l ON o.o_id=l.ol_o_id",
+                generator,
+                operator,
+                false,
+                wideSchema
+        ).log(logger).withDeleteSemantics(WideTableSourceRegistry.from(
+                "orders",
+                List.of(
+                        new FromTableConfig("pre_orders", "orders"),
+                        new FromTableConfig("pre_order_line", "order_line")
+                ),
+                Map.of(
+                        "pre_orders", schema("pre_orders", "orders", List.of("o_id"), List.of("o_id", "o_w_id", "o_d_id")),
+                        "pre_order_line", schema("pre_order_line", "order_line", List.of("ol_o_id", "ol_number"),
+                                List.of("ol_o_id", "ol_number", "ol_i_id", "ol_quantity"))
+                ),
+                "SELECT o.o_w_id AS warehouse_id, o.o_d_id AS district_id, o.o_id AS order_id, "
+                        + "l.ol_i_id AS item_id, l.ol_number AS line_number, l.ol_quantity AS quantity "
+                        + "FROM orders o INNER JOIN order_line l ON o.o_id=l.ol_o_id"
+        ));
+        when(operator.executeQuery(anyString())).thenReturn(List.of(Map.of(
+                "warehouse_id", 1,
+                "district_id", 1,
+                "order_id", 2,
+                "item_id", 1,
+                "line_number", 1,
+                "quantity", 2
+        )));
+
+        List<TapdataEvent> consumed = new ArrayList<>();
+        AtomicReference<BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult>> consumerRef =
+                new AtomicReference<>((event, result) -> consumed.add(event));
+        List<Map<String, Object>> beforeKeys = List.of(Map.of(
+                "warehouse_id", 1,
+                "district_id", 1,
+                "order_id", 2,
+                "item_id", 1,
+                "line_number", 1
+        ));
+
+        List<TapdataEvent> events = updater.updateWideTableAsTapDataEvents(
+                beforeKeys,
+                List.of(),
+                List.of(),
+                "order_line",
+                consumerRef
+        );
+
+        assertEquals(1, events.size());
+        assertEquals(events, consumed);
+        assertInstanceOf(TapDeleteRecordEvent.class, events.get(0).getTapEvent());
         verify(operator, never()).executeQuery(anyString());
     }
 

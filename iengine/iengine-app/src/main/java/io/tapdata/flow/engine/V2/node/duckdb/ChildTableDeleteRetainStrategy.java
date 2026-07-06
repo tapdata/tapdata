@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 
 /**
- * 子表纯删除时，保留一条宽表记录并将该子表字段置空。
+ * 外连接可空侧子表纯删除时，保留一条宽表记录并将该子表字段置空。
  */
 public class ChildTableDeleteRetainStrategy implements WideTableDeleteAdjustmentStrategy {
     private static final Logger logger = LoggerFactory.getLogger(ChildTableDeleteRetainStrategy.class);
@@ -25,6 +25,9 @@ public class ChildTableDeleteRetainStrategy implements WideTableDeleteAdjustment
         }
         WideTableSourceDescriptor descriptor = context.getSourceRegistry().getDescriptor(context.getSourceTableName());
         if (descriptor == null || descriptor.isMainTable()) {
+            return false;
+        }
+        if (!descriptor.isDeleteRetainAllowed()) {
             return false;
         }
         if (context.getBeforeKeys() == null || context.getBeforeKeys().isEmpty()) {

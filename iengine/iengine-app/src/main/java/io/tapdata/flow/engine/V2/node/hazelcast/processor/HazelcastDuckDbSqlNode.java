@@ -513,7 +513,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
                         wideTableSchemaInfo
                 ).log(obsLogger)
                         .tableSchemaCache(tableSchemaCache)
-                        .withDeleteSemantics(io.tapdata.flow.engine.V2.node.duckdb.WideTableSourceRegistry.from(mainTableName, fromTables, nodeSchemaCache));
+                        .withDeleteSemantics(io.tapdata.flow.engine.V2.node.duckdb.WideTableSourceRegistry.from(mainTableName, fromTables, nodeSchemaCache, querySql));
 
                 obsLogger.info("Materialized view components initialized: affectedKeyCalculator={}, wideTableUpdater={}",
                         affectedKeyCalculator != null, wideTableUpdater != null);
