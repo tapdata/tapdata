@@ -234,6 +234,7 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     private Integer resetTimes;
 
     private Long currentEventTimestamp;
+    private Map<String, Long> nodeCurrentEventTimestamp;
     private Long snapshotDoneAt;
 
     private boolean needCreateRecord;
