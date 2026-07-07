@@ -31,6 +31,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.TimeUtil;
+import java.util.Set;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -387,6 +388,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
         }
 
+        fillNodeCurrentEventTimestampIfNeed(data, measurementQueryParam);
+
         ret.put("samples", data);
         if (hasTimeline && null != timeline) {
             ret.put("time", timeline);
@@ -396,6 +399,156 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         return ret;
     }
 
+    private void fillNodeCurrentEventTimestampIfNeed(Map<String, List<Map<String, Object>>> data, MeasurementQueryParam measurementQueryParam) {
+        if (data == null || data.isEmpty() || CollectionUtils.isNotEmpty(data.get("data")) || measurementQueryParam == null || measurementQueryParam.getSamples() == null) {
+            return;
+        }
+
+        Map<String, TaskDto> taskNodeTsCache = new HashMap<>();
+        for (String unique : measurementQueryParam.getSamples().keySet()) {
+            MeasurementQueryParam.MeasurementQuerySample querySample = measurementQueryParam.getSamples().get(unique);
+            if (querySample == null || querySample.getTags() == null) {
+                continue;
+            }
+
+            String sampleTagsType = querySample.getTags().get(FIELD_TAGS_TYPE);
+            boolean isNode = "node".equals(sampleTagsType);
+            boolean isTask = "task".equals(sampleTagsType);
+
+            if ((!isNode && !isTask) 
+                    || !MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
+                continue;
+            }
+
+            String taskId = querySample.getTags().get(FIELD_TAGS_TASK_ID);
+            if (StringUtils.isBlank(taskId)) {
+                continue;
+            }
+
+            TaskDto taskDto = getCachedTaskDto(taskNodeTsCache, taskId);
+            if (taskDto == null) {
+                continue;
+            }
+
+            List<Map<String, Object>> uniqueData = data.get(unique);
+            if (uniqueData == null) {
+                uniqueData = new ArrayList<>();
+                data.put(unique, uniqueData);
+            }
+
+            Long taskSnapshotDoneAt = taskDto.getSnapshotDoneAt();
+            String syncType = taskDto.getSyncType();
+
+            if (isTask) {
+                Long taskTs = taskDto.getCurrentEventTimestamp();
+                Map<String, Object> foundSample = null;
+                if (!uniqueData.isEmpty()) {
+                    foundSample = uniqueData.get(0);
+                }
+
+                if (foundSample != null) {
+                    Object currTsObj = foundSample.get(FIELD_SS_VS_CURR_EVENT_TS);
+                    if (taskTs != null && (currTsObj == null || (currTsObj instanceof Number && ((Number) currTsObj).longValue() <= 0))) {
+                        foundSample.put(FIELD_SS_VS_CURR_EVENT_TS, taskTs);
+                    }
+
+                    Object snapDoneObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT);
+                    if (taskSnapshotDoneAt != null && (snapDoneObj == null || (snapDoneObj instanceof Number && ((Number) snapDoneObj).longValue() <= 0))) {
+                        foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
+                    }
+                } else {
+                    Map<String, Object> newSample = new HashMap<>();
+                    Map<String, String> newTags = new HashMap<>(querySample.getTags());
+                    newSample.put(MetricCons.F_TAGS, newTags);
+                    if (taskTs != null) {
+                        newSample.put(FIELD_SS_VS_CURR_EVENT_TS, taskTs);
+                    }
+                    if (taskSnapshotDoneAt != null) {
+                        newSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
+                    }
+                    uniqueData.add(newSample);
+                }
+            } else {
+                if (taskDto.getNodeCurrentEventTimestamp() == null || taskDto.getNodeCurrentEventTimestamp().isEmpty()) {
+                    continue;
+                }
+
+                Map<String, Long> nodeTsMap = taskDto.getNodeCurrentEventTimestamp();
+                String reqNodeId = querySample.getTags().get(MetricCons.Tags.F_NODE_ID);
+                Set<String> targetNodeIds;
+                if (StringUtils.isNotBlank(reqNodeId)) {
+                    targetNodeIds = Collections.singleton(reqNodeId);
+                } else {
+                    targetNodeIds = nodeTsMap.keySet();
+                }
+
+                for (String nodeId : targetNodeIds) {
+                    Long taskTs = nodeTsMap.get(nodeId);
+                    if (taskTs == null || taskTs <= 0) {
+                        continue;
+                    }
+
+                    Map<String, Object> foundSample = null;
+                    for (Map<String, Object> sampleMap : uniqueData) {
+                        Map<String, String> tags = (Map<String, String>) sampleMap.get(MetricCons.F_TAGS);
+                        if (tags != null && nodeId.equals(tags.get(MetricCons.Tags.F_NODE_ID))) {
+                            foundSample = sampleMap;
+                            break;
+                        }
+                    }
+
+                    if (foundSample != null) {
+                        Object currTsObj = foundSample.get(FIELD_SS_VS_CURR_EVENT_TS);
+                        if (currTsObj == null || (currTsObj instanceof Number && ((Number) currTsObj).longValue() <= 0)) {
+                            foundSample.put(FIELD_SS_VS_CURR_EVENT_TS, taskTs);
+                        }
+
+                        Object snapDoneObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT);
+                        if (taskSnapshotDoneAt != null && (snapDoneObj == null || (snapDoneObj instanceof Number && ((Number) snapDoneObj).longValue() <= 0))) {
+                            foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
+                        }
+                    } else {
+                        Map<String, Object> newSample = new HashMap<>();
+                        Map<String, String> newTags = new HashMap<>(querySample.getTags());
+                        newTags.put(MetricCons.Tags.F_NODE_ID, nodeId);
+
+                        if (TaskDto.SYNC_TYPE_MIGRATE.equals(syncType)) {
+                            newTags.put("nodeType", "database");
+                        } else if (TaskDto.SYNC_TYPE_SYNC.equals(syncType)) {
+                            newTags.put("nodeType", "table");
+                        }
+
+                        newSample.put(MetricCons.F_TAGS, newTags);
+                        newSample.put(FIELD_SS_VS_CURR_EVENT_TS, taskTs);
+                        if (taskSnapshotDoneAt != null) {
+                            newSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
+                        }
+
+                        uniqueData.add(newSample);
+                    }
+                }
+            }
+        }
+    }
+
+    private TaskDto getCachedTaskDto(Map<String, TaskDto> cache, String taskId) {
+        if (cache.containsKey(taskId)) {
+            return cache.get(taskId);
+        }
+
+        try {
+            TaskDto taskDto = taskService.findByTaskId(new org.bson.types.ObjectId(taskId), "nodeCurrentEventTimestamp", "syncType", "snapshotDoneAt", "currentEventTimestamp");
+            if (taskDto != null) {
+                cache.put(taskId, taskDto);
+                return taskDto;
+            }
+        } catch (Exception e) {
+            log.warn("Query task nodeCurrentEventTimestamp, syncType, snapshotDoneAt and currentEventTimestamp failed, taskId: {}, error: {}", taskId, e.getMessage());
+        }
+
+        cache.put(taskId, null);
+        return null;
+    }
 
     /**
      *  padding is a value to tolerance the data loss.
