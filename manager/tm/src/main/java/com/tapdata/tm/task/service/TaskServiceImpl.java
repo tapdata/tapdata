@@ -132,6 +132,7 @@ import com.tapdata.tm.report.dto.TasksNumBatch;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
+import com.tapdata.tm.statemachine.enums.TaskState;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.constant.InputNumCache;
@@ -5057,6 +5058,12 @@ public class TaskServiceImpl extends TaskService{
         TaskDto taskDto = checkExistById(id, user, "dag", "name", STATUS, "_id", TASK_RECORD_ID, AGENT_ID, STOPED_DATE, RESTART_FLAG);
         if (!isValidTaskStatusReporter(taskDto, reportAgentId, reportTaskRecordId, DataFlowEvent.STOPPED)) {
             return null;
+        }
+        if (TaskState.DELETING.getName().equals(taskDto.getStatus())
+                || TaskState.DELETE_FAILED.getName().equals(taskDto.getStatus())) {
+            log.info("TaskHA event=ignore_status_report reason=task_deleting_or_failed taskId={} taskName={} status={} event={}",
+                    id.toHexString(), taskDto.getName(), taskDto.getStatus(), DataFlowEvent.STOPPED);
+            return id.toHexString();
         }
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);

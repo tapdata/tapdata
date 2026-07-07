@@ -14,6 +14,21 @@ spring:
       enabled: true
   application:
     name: TCMApplication
+  ai:
+    mcp:
+      server:
+        enabled: true
+        name: mcp-tap-server
+        version: 1.0.0
+        type: SYNC
+        protocol: STREAMABLE
+        capabilities:
+          tool: true
+          resource: true
+          prompt: false
+          completion: false
+        streamable-http:
+          mcp-endpoint: /mcp
 
   thymeleaf:
     cache: false

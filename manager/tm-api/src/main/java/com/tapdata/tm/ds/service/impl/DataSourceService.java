@@ -48,6 +48,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
     //返回oldName, 表示更换名称
     public abstract String updateCheck(UserDetail user, DataSourceConnectionDto updateDto);
 
+    public abstract void generatePasswordTag(DataSourceConnectionDto updateDto, UserDetail user);
+
     public abstract void checkAccessNodeAvailable(String accessNodeType, List<String> accessNodeProcessIdList, UserDetail userDetail);
 
     public abstract void buildPdkRealName(List<DataSourceConnectionDto> connectionDto, UserDetail user);

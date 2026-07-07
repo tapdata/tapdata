@@ -2,22 +2,19 @@ package com.tapdata.tm.mcp.tools;
 
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
-import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.tapdata.tm.mcp.Utils.*;
 
 /**
  * MCP tool for updating field business description in table model.
@@ -28,23 +25,22 @@ import static com.tapdata.tm.mcp.Utils.*;
  */
 @Slf4j
 @Component
-public class UpdateFieldDescription extends Tool {
+public class UpdateFieldDescription {
 
+    private final McpToolSupport toolSupport;
     private final MetadataInstancesService metadataInstancesService;
 
-    public UpdateFieldDescription(SessionAttribute sessionAttribute, MetadataInstancesService metadataInstancesService, UserService userService) {
-        super("updateFieldDescription", "Update business description for fields in table model. Supports batch update.",
-                readJsonSchema("UpdateFieldDescription.json"), sessionAttribute, userService);
+    public UpdateFieldDescription(McpToolSupport toolSupport, MetadataInstancesService metadataInstancesService) {
+        this.toolSupport = toolSupport;
         this.metadataInstancesService = metadataInstancesService;
     }
 
-    @Override
-    @SuppressWarnings("unchecked")
-    public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
-
-        UserDetail userDetail = getUserDetail(exchange);
-        String metadataId = getStringValue(params, "metadataId");
-        List<Map<String, Object>> fields = (List<Map<String, Object>>) params.get("fields");
+    @McpTool(name = "updateFieldDescription", description = "Update business descriptions for fields in a table model. Supports batch update.")
+    public Map<String, Object> updateFieldDescription(
+            McpSyncRequestContext context,
+            @McpToolParam(description = "Metadata instance id of the table model.") String metadataId,
+            @McpToolParam(description = "Field description updates. Use either fieldId or fieldName to identify each field.") List<FieldDescriptionUpdate> fields) {
+        UserDetail userDetail = toolSupport.getUserDetail(context);
 
         if (StringUtils.isBlank(metadataId)) {
             throw new RuntimeException("Parameter metadataId is required.");
@@ -54,13 +50,16 @@ public class UpdateFieldDescription extends Tool {
         }
 
         // Separate fields by update method: by fieldId or by fieldName
-        List<Map<String, Object>> updatedByFieldId = new ArrayList<>();
+        List<FieldDescriptionUpdate> updatedByFieldId = new ArrayList<>();
         Map<String, String> fieldNameDescMap = new HashMap<>();
 
-        for (Map<String, Object> field : fields) {
-            String fieldId = getStringValue(field, "fieldId");
-            String fieldName = getStringValue(field, "fieldName");
-            String businessDesc = getStringValue(field, "businessDesc");
+        for (FieldDescriptionUpdate field : fields) {
+            if (field == null) {
+                continue;
+            }
+            String fieldId = field.fieldId;
+            String fieldName = field.fieldName;
+            String businessDesc = field.businessDesc;
 
             if (StringUtils.isBlank(businessDesc)) {
                 continue; // skip fields without businessDesc
@@ -90,6 +89,17 @@ public class UpdateFieldDescription extends Tool {
         result.put("updatedCount", updatedByFieldId.size() + fieldNameDescMap.size());
         result.put("message", "Field descriptions updated successfully");
 
-        return makeCallToolResult(result);
+        return result;
+    }
+
+    public static class FieldDescriptionUpdate {
+        @McpToolParam(required = false, description = "Field id. Preferred when available.")
+        public String fieldId;
+
+        @McpToolParam(required = false, description = "Field name. Used when fieldId is not available.")
+        public String fieldName;
+
+        @McpToolParam(description = "Business description to set on the field.")
+        public String businessDesc;
     }
 }

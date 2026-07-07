@@ -6,20 +6,19 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -45,13 +44,13 @@ class StartTaskTest {
     private TaskService taskService;
 
     @Mock
-    private McpSyncServerExchange exchange;
+    private McpSyncRequestContext context;
 
     private StartTask startTask;
 
     @BeforeEach
     void setUp() {
-        startTask = new StartTask(sessionAttribute, userService, taskService);
+        startTask = new StartTask(new McpToolSupport(sessionAttribute, userService), taskService);
     }
 
     @Test
@@ -68,12 +67,10 @@ class StartTaskTest {
         when(taskService.batchStart(eq(Collections.singletonList(taskId)), eq(userDetail), isNull(), isNull()))
                 .thenReturn(Collections.singletonList(responseMessage));
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("taskId", taskId.toHexString());
-
-        McpSchema.CallToolResult result = startTask.call(exchange, params);
+        Map<String, Object> result = startTask.startTask(context, taskId.toHexString(), null);
 
         assertNotNull(result);
+        assertEquals(List.of(taskId.toHexString()), result.get("taskIds"));
         verify(taskService).confirmById(taskDto, userDetail, true);
         verify(taskService).clearAgentAffinityForManualStart(Collections.singletonList(taskId), userDetail);
         verify(taskService).batchStart(Collections.singletonList(taskId), userDetail, null, null);
@@ -91,10 +88,7 @@ class StartTaskTest {
         when(taskService.batchStart(eq(Collections.singletonList(taskId)), eq(userDetail), isNull(), isNull()))
                 .thenReturn(Collections.singletonList(responseMessage));
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("taskId", taskId.toHexString());
-
-        McpSchema.CallToolResult result = startTask.call(exchange, params);
+        Map<String, Object> result = startTask.startTask(context, taskId.toHexString(), null);
 
         assertNotNull(result);
         verify(taskService, never()).confirmById(any(TaskDto.class), eq(userDetail), eq(true));
@@ -116,10 +110,7 @@ class StartTaskTest {
         when(taskService.batchStart(eq(taskObjectIds), eq(userDetail), isNull(), isNull()))
                 .thenReturn(Collections.emptyList());
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("taskIds", List.of(firstTaskId.toHexString(), secondTaskId.toHexString()));
-
-        McpSchema.CallToolResult result = startTask.call(exchange, params);
+        Map<String, Object> result = startTask.startTask(context, null, List.of(firstTaskId.toHexString(), secondTaskId.toHexString()));
 
         assertNotNull(result);
         verify(taskService).clearAgentAffinityForManualStart(taskObjectIds, userDetail);
@@ -140,11 +131,8 @@ class StartTaskTest {
         when(taskService.batchStart(eq(taskObjectIds), eq(userDetail), isNull(), isNull()))
                 .thenReturn(Collections.emptyList());
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("taskId", firstTaskId.toHexString());
-        params.put("taskIds", List.of(firstTaskId.toHexString(), secondTaskId.toHexString(), firstTaskId.toHexString()));
-
-        McpSchema.CallToolResult result = startTask.call(exchange, params);
+        Map<String, Object> result = startTask.startTask(context, firstTaskId.toHexString(),
+                List.of(firstTaskId.toHexString(), secondTaskId.toHexString(), firstTaskId.toHexString()));
 
         assertNotNull(result);
         verify(taskService).checkExistById(firstTaskId, userDetail);
@@ -160,10 +148,8 @@ class StartTaskTest {
 
         when(taskService.checkExistById(taskId, userDetail)).thenReturn(null);
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("taskId", taskId.toHexString());
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> startTask.call(exchange, params));
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> startTask.startTask(context, taskId.toHexString(), null));
 
         assertTrue(exception.getMessage().contains("Task not found"));
         verify(taskService, never()).clearAgentAffinityForManualStart(anyList(), eq(userDetail));
@@ -173,12 +159,12 @@ class StartTaskTest {
     @Test
     void testCallWithoutTaskId() {
         mockUser();
-        assertThrows(RuntimeException.class, () -> startTask.call(exchange, new HashMap<>()));
+        assertThrows(RuntimeException.class, () -> startTask.startTask(context, null, null));
     }
 
     private UserDetail mockUser() {
         UserDetail userDetail = mock(UserDetail.class);
-        when(exchange.sessionId()).thenReturn("session-1");
+        when(context.sessionId()).thenReturn("session-1");
         when(sessionAttribute.getAttribute("session-1", "userId")).thenReturn(new ObjectId().toHexString());
         when(userService.loadUserById(any(ObjectId.class))).thenReturn(userDetail);
         return userDetail;

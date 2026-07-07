@@ -56,6 +56,11 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         Date now = new Date();
         update.set("taskSnapshot.last_updated", now);
         update.push("statusStack", new TaskRecord.TaskStatusUpdate(taskStatus, now));
+        if (dto.getTaskDto() != null) {
+            if (dto.getTaskDto().getAttrs() != null && dto.getTaskDto().getAttrs().containsKey("milestone")) {
+                update.set("taskSnapshot.attrs.milestone", dto.getTaskDto().getAttrs().get("milestone"));
+            }
+        }
         mongoTemplate.updateFirst(query, update, TaskRecord.class);
     }
 

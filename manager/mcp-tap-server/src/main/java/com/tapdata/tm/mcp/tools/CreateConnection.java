@@ -9,13 +9,11 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.DataSourceTypeDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.mcp.SessionAttribute;
-import com.tapdata.tm.mcp.Utils;
-import com.tapdata.tm.user.service.UserService;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.ai.mcp.annotation.context.McpSyncRequestContext;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -32,8 +30,9 @@ import static com.tapdata.tm.mcp.Utils.getStringValue;
  */
 @Slf4j
 @Component
-public class CreateConnection extends Tool {
+public class CreateConnection {
 
+    private final McpToolSupport toolSupport;
     private final DataSourceService dataSourceService;
     private final DataSourceDefinitionService dataSourceDefinitionService;
 
@@ -48,28 +47,23 @@ public class CreateConnection extends Tool {
         SUPPORTED.put("PostgreSQL", Arrays.asList("postgresql", "postgres", "pg", "pgsql"));
     }
 
-    public CreateConnection(SessionAttribute sessionAttribute, UserService userService,
+    public CreateConnection(McpToolSupport toolSupport,
                             DataSourceService dataSourceService,
                             DataSourceDefinitionService dataSourceDefinitionService) {
-        super("createConnection",
-                "Create a database connection in TapData. Currently supports MongoDB, MySQL, Oracle, SQL Server and PostgreSQL. " +
-                        "It resolves the data source type from a fuzzy user description, then creates the connection with the given configuration. " +
-                        "If 'config' is omitted, it returns the resolved data source type and its connection configuration schema " +
-                        "(the list of fields you need to fill) without creating anything; call again with 'config' filled to actually create the connection.",
-                Utils.readJsonSchema("CreateConnection.json"), sessionAttribute, userService);
+        this.toolSupport = toolSupport;
         this.dataSourceService = dataSourceService;
         this.dataSourceDefinitionService = dataSourceDefinitionService;
     }
 
-    @Override
-    @SuppressWarnings("unchecked")
-    public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
-        UserDetail userDetail = getUserDetail(exchange);
-
-        String dataSourceType = getStringValue(params, "dataSourceType");
-        String connectionName = getStringValue(params, "connectionName");
-        String connectionType = getStringValue(params, "connectionType", "source_and_target");
-        Map<String, Object> config = params.get("config") instanceof Map ? (Map<String, Object>) params.get("config") : null;
+    @McpTool(name = "createConnection", description = "Create a database connection in TapData. If config is omitted, return the resolved data source type and its connection configuration fields first.")
+    public Map<String, Object> createConnection(
+            McpSyncRequestContext context,
+            @McpToolParam(description = "Database type keyword, such as MongoDB, MySQL, Oracle, SQL Server, PostgreSQL, mongo, pg, or mssql.") String dataSourceType,
+            @McpToolParam(required = false, description = "Connection name. Required when config is provided and the connection should be created.") String connectionName,
+            @McpToolParam(required = false, description = "TapData connection type. Defaults to source_and_target.") String connectionType,
+            @McpToolParam(required = false, description = "Connection configuration object. Omit it to discover the required configuration fields first.") Map<String, Object> config) {
+        UserDetail userDetail = toolSupport.getUserDetail(context);
+        String resolvedConnectionType = StringUtils.defaultIfBlank(connectionType, "source_and_target");
 
         if (StringUtils.isBlank(dataSourceType)) {
             throw new RuntimeException("Parameter dataSourceType is required.");
@@ -88,7 +82,7 @@ public class CreateConnection extends Tool {
             result.put("configFields", extractConfigFields(typeDto));
             result.put("message", "No 'config' provided. Above is the resolved data source type and its connection configuration fields. " +
                     "Fill the 'config' object with the appropriate field values and call createConnection again to create the connection.");
-            return makeCallToolResult(result);
+            return result;
         }
 
         if (StringUtils.isBlank(connectionName)) {
@@ -105,7 +99,7 @@ public class CreateConnection extends Tool {
         DataSourceConnectionDto connection = new DataSourceConnectionDto();
         connection.setId(null);
         connection.setName(connectionName);
-        connection.setConnection_type(connectionType);
+        connection.setConnection_type(resolvedConnectionType);
         connection.setDatabase_type(typeDto.getType());
         connection.setConfig(config);
         connection.setCreateType(CreateTypeEnum.User);
@@ -122,7 +116,7 @@ public class CreateConnection extends Tool {
         result.put("status", created.getStatus());
         result.put("message", "Connection created successfully. TapData is testing the connection and loading the schema in the background. " +
                 "Use listConnection to check its status.");
-        return makeCallToolResult(result);
+        return result;
     }
 
     private Map<String, Object> buildTypeInfo(DataSourceTypeDto typeDto) {

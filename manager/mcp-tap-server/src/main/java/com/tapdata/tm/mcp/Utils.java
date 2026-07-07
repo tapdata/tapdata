@@ -12,12 +12,7 @@ import com.fasterxml.jackson.databind.module.SimpleSerializers;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
-import io.modelcontextprotocol.server.McpAsyncServerExchange;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.spec.McpServerSession;
-import io.tapdata.entity.utils.ReflectionUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOUtils;
 import org.bson.types.ObjectId;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -95,18 +90,6 @@ public class Utils {
             String[] tmp = authorization.get(0).split(" ");
             return tmp.length > 1 ? tmp[1] : tmp[0];
         }
-    }
-
-    public static String readJsonSchema(String filename) {
-        try (InputStream input = Utils.class.getClassLoader().getResourceAsStream(filename);){
-            if (input != null)
-                return IOUtils.toString(input, StandardCharsets.UTF_8);
-            else
-                log.error("Not found json schema file {}", filename);
-        } catch (Exception e) {
-            log.error("Read json schema failed {}", filename);
-        }
-        return null;
     }
 
     public static String toJson(Object data) {
@@ -192,14 +175,4 @@ public class Utils {
         return data;
     }
 
-    public static McpServerSession getSession(McpSyncServerExchange exchange) {
-        try {
-            McpAsyncServerExchange asyncExchange = (McpAsyncServerExchange)
-                    ReflectionUtil.getFieldValue(exchange, "exchange");
-            return (McpServerSession)
-                    ReflectionUtil.getFieldValue(asyncExchange, "session");
-        } catch (Exception e) {
-            throw new RuntimeException("Get session from exchange failed", e);
-        }
-    }
 }
