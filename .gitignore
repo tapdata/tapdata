@@ -8,6 +8,7 @@
 .DS_Store
 .vscode
 *.log
+.worktrees/
 *.iso
 *.log
 *.lock
@@ -139,3 +140,7 @@ sybase-poc-temp/
 run-resources
 data/
 ll
+
+**/.proxy-instance-id
+.superpowers/**
+**/docs/superpowers/**

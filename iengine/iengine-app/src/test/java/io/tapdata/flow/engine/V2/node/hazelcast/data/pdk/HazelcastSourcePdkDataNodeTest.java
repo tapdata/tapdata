@@ -618,7 +618,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 verify(dataProcessorContext, times(v.getTapTableMap())).getTapTableMap();
                 verify(tapTableMap, times(v.getTable())).get(tableId);
                 verify(tapTable, times(v.tableGetId())).getId();
-                verify(obsLogger, times(v.obsLoggerInfo1())).trace("Skip table [{}] in batch read, reason: last task, this table has been completed batch read", "id");
+                verify(obsLogger, times(v.obsLoggerInfo1())).info("Skip table [{}] in batch read, reason: last task, this table has been completed batch read", "id");
                 verify(instance, times(v.snapshotReadTableBeginAspect())).executeAspect(any(SnapshotReadTableBeginAspect.class));
                 verify(instance, times(v.lockBySourceRunnerLock())).lockBySourceRunnerLock();
                 verify(removeTables, times(v.removeTablesContains())).contains(tableId);
@@ -1360,6 +1360,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .stateCOMPLETED(1)
                         .newTablesIsEmpty(1).newTablesToArray(1)
                         .tapdataCompleteSnapshotEvent(1)
+                        .tapDataCompleteTableSnapshotEvent(1)
                         .snapshotReadEndAspect(1);
                 when(instance.isRunning()).thenReturn(true, false, true);
                 doCallRealMethod().when(instance).doSnapshot(tableList);

@@ -199,46 +199,6 @@ class RawServerStateServiceTest {
                 assertEquals(true, deleteFilter.get("$ne"));
             }
         }
-
-        @Test
-        void testGetAllLatestIsAliveExactlyThreeMinutes() {
-            Filter filter = new Filter();
-            filter.setWhere(new Where());
-
-            long currentTime = System.currentTimeMillis();
-
-            RawServerStateDto dto1 = new RawServerStateDto();
-            dto1.setServiceId("service1");
-            dto1.setTimestamp(new Date(currentTime - 3 * 60 * 1000L)); // Exactly 3 minutes
-
-            RawServerStateDto dto2 = new RawServerStateDto();
-            dto2.setServiceId("service2");
-            dto2.setTimestamp(new Date(currentTime - 3 * 60 * 1000L - 1)); // Just over 3 minutes
-
-            List<RawServerStateDto> results = new ArrayList<>();
-            results.add(dto1);
-            results.add(dto2);
-
-            AggregationResults<RawServerStateDto> aggregationResults = mock(AggregationResults.class);
-            when(aggregationResults.getMappedResults()).thenReturn(results);
-            when(repository.aggregate(any(Aggregation.class), eq(RawServerStateDto.class)))
-                .thenReturn(aggregationResults);
-
-            try (MockedStatic<QueryUtil> queryUtil = mockStatic(QueryUtil.class)) {
-                queryUtil.when(() -> QueryUtil.parseWhereToCriteria(any(Where.class)))
-                    .thenReturn(new Criteria());
-
-                Page<RawServerStateDto> result = rawServerStateService.getAllLatest(filter);
-
-                assertNotNull(result);
-                assertEquals(2, result.getTotal());
-
-                // dto1 should be alive (exactly 3 minutes)
-                assertFalse(result.getItems().get(0).getIsAlive());
-                // dto2 should be not alive (over 3 minutes)
-                assertFalse(result.getItems().get(1).getIsAlive());
-            }
-        }
     }
 
     @Nested

@@ -36,6 +36,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -130,6 +131,7 @@ class MilestoneAspectTaskTest {
 		Map<String, MilestoneStatus> dataNodeInitMap;
 		AtomicLong snapshotTableCounts;
 		AtomicLong snapshotTableProgress;
+		AtomicBoolean snapshotTotalsInitialized;
 
 
 		MilestoneEntity m;
@@ -153,6 +155,7 @@ class MilestoneAspectTaskTest {
 			dataNodeInitMap = new HashMap<>();
 			snapshotTableCounts = new AtomicLong();
 			snapshotTableProgress = new AtomicLong();
+			snapshotTotalsInitialized = new AtomicBoolean(false);
 
 
 			ReflectionTestUtils.setField(milestoneAspectTask, "observerHandlers", observerHandlers);
@@ -167,6 +170,7 @@ class MilestoneAspectTaskTest {
 			ReflectionTestUtils.setField(milestoneAspectTask, "dataNodeInitMap", dataNodeInitMap);
 			ReflectionTestUtils.setField(milestoneAspectTask, "snapshotTableCounts", snapshotTableCounts);
 			ReflectionTestUtils.setField(milestoneAspectTask, "snapshotTableProgress", snapshotTableProgress);
+			ReflectionTestUtils.setField(milestoneAspectTask, "snapshotTotalsInitialized", snapshotTotalsInitialized);
 
 			when(observerHandlers.register(any(Class.class), any(Function.class))).thenReturn(observerHandlers);
 			doNothing().when(milestoneAspectTask).setRunning(m);
@@ -649,6 +653,190 @@ class MilestoneAspectTaskTest {
 				verify(predecessors).isEmpty();
 				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
 				verify(tm, times(0)).setTotals(anyLong());
+			}
+		}
+
+		@Nested
+		class EnsureSnapshotTotalsInitializedTest {
+			DAG dag;
+
+			@BeforeEach
+			void init() {
+				dag = mock(DAG.class);
+				when(task.getDag()).thenReturn(dag);
+				when(milestoneAspectTask.hasSnapshot()).thenCallRealMethod();
+				when(task.getType()).thenReturn(TaskDto.TYPE_INITIAL_SYNC);
+				doCallRealMethod().when(milestoneAspectTask).ensureSnapshotTotalsInitialized();
+			}
+
+			@Test
+			void shouldReturnWhenTaskHasNoSnapshot() {
+				when(task.getType()).thenReturn(TaskDto.TYPE_CDC);
+
+				milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+				Assertions.assertFalse(snapshotTotalsInitialized.get());
+				Assertions.assertEquals(0L, snapshotTableCounts.get());
+				verify(task, never()).getDag();
+				}
+
+				@Test
+				void shouldResetInitializedWhenDagNodesAreEmpty() {
+					when(dag.getNodes()).thenReturn(Collections.emptyList());
+
+					milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+					Assertions.assertFalse(snapshotTotalsInitialized.get());
+					Assertions.assertEquals(0L, snapshotTableCounts.get());
+				}
+
+				@Test
+				void shouldResetInitializedWhenTaskIsNull() {
+					when(milestoneAspectTask.hasSnapshot()).thenReturn(true);
+					ReflectionTestUtils.setField(milestoneAspectTask, "task", null);
+
+					milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+					Assertions.assertFalse(snapshotTotalsInitialized.get());
+					Assertions.assertEquals(0L, snapshotTableCounts.get());
+				}
+
+				@Test
+				void shouldResetInitializedWhenDagIsNull() {
+					when(task.getDag()).thenReturn(null);
+
+					milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+					Assertions.assertFalse(snapshotTotalsInitialized.get());
+					Assertions.assertEquals(0L, snapshotTableCounts.get());
+				}
+
+				@Test
+				void shouldResetInitializedWhenDagNodesAreNull() {
+					when(dag.getNodes()).thenReturn(null);
+
+					milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+					Assertions.assertFalse(snapshotTotalsInitialized.get());
+					Assertions.assertEquals(0L, snapshotTableCounts.get());
+				}
+
+			@Test
+			void shouldResetInitializedWhenTotalsAreZero() {
+				Node<?> processor = mock(Node.class);
+				when(processor.isDataNode()).thenReturn(false);
+				when(dag.getNodes()).thenReturn(Collections.singletonList(processor));
+
+				milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+				Assertions.assertFalse(snapshotTotalsInitialized.get());
+				Assertions.assertEquals(0L, snapshotTableCounts.get());
+			}
+
+			@Test
+			void shouldInitializeTotalsFromSourceDataNodes() {
+				TableNode tableNode = mock(TableNode.class);
+				DatabaseNode databaseNode = mock(DatabaseNode.class);
+				Node<?> disabledTable = mock(TableNode.class);
+				Node<?> downstreamTable = mock(TableNode.class);
+				Node<?> noSuccessorTable = mock(TableNode.class);
+				Node<?> successor = mock(Node.class);
+				List successorNodes = Collections.singletonList(successor);
+				when(tableNode.isDataNode()).thenReturn(true);
+				when(tableNode.disabledNode()).thenReturn(false);
+				when(tableNode.predecessors()).thenReturn(Collections.emptyList());
+				when(tableNode.successors()).thenReturn(successorNodes);
+				when(databaseNode.isDataNode()).thenReturn(true);
+				when(databaseNode.disabledNode()).thenReturn(false);
+				when(databaseNode.predecessors()).thenReturn(Collections.emptyList());
+				when(databaseNode.successors()).thenReturn(successorNodes);
+				when(databaseNode.tableSize()).thenReturn(3);
+				when(disabledTable.isDataNode()).thenReturn(true);
+				when(disabledTable.disabledNode()).thenReturn(true);
+				when(downstreamTable.isDataNode()).thenReturn(true);
+				when(downstreamTable.disabledNode()).thenReturn(false);
+				when(downstreamTable.predecessors()).thenReturn(successorNodes);
+				when(noSuccessorTable.isDataNode()).thenReturn(true);
+				when(noSuccessorTable.disabledNode()).thenReturn(false);
+				when(noSuccessorTable.predecessors()).thenReturn(Collections.emptyList());
+				when(noSuccessorTable.successors()).thenReturn(Collections.emptyList());
+				snapshotTableProgress.set(2L);
+				when(dag.getNodes()).thenReturn(Arrays.asList(null, tableNode, databaseNode, disabledTable, downstreamTable, noSuccessorTable));
+
+				milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+					Assertions.assertTrue(snapshotTotalsInitialized.get());
+					Assertions.assertEquals(4L, snapshotTableCounts.get());
+					verify(tm).setTotals(4L);
+					verify(tm).setProgress(2L);
+				}
+
+				@Test
+				void shouldInitializeTableWhenPredecessorsAreNull() {
+					TableNode tableNode = mock(TableNode.class);
+					Node<?> successor = mock(Node.class);
+					List successorNodes = Collections.singletonList(successor);
+					when(tableNode.isDataNode()).thenReturn(true);
+					when(tableNode.disabledNode()).thenReturn(false);
+					when(tableNode.predecessors()).thenReturn(null);
+					when(tableNode.successors()).thenReturn(successorNodes);
+					when(dag.getNodes()).thenReturn(Collections.singletonList(tableNode));
+
+					milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+					Assertions.assertTrue(snapshotTotalsInitialized.get());
+					Assertions.assertEquals(1L, snapshotTableCounts.get());
+					verify(tm).setTotals(1L);
+				}
+
+				@Test
+				void shouldSkipDataNodeWhenSuccessorsAreNull() {
+					TableNode tableNode = mock(TableNode.class);
+					when(tableNode.isDataNode()).thenReturn(true);
+					when(tableNode.disabledNode()).thenReturn(false);
+					when(tableNode.predecessors()).thenReturn(Collections.emptyList());
+					when(tableNode.successors()).thenReturn(null);
+					when(dag.getNodes()).thenReturn(Collections.singletonList(tableNode));
+
+					milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+					Assertions.assertFalse(snapshotTotalsInitialized.get());
+					Assertions.assertEquals(0L, snapshotTableCounts.get());
+				}
+
+				@Test
+				void shouldSkipSourceDataNodeWhenTypeIsNotTableOrDatabase() {
+					Node<?> customDataNode = mock(Node.class);
+					Node<?> successor = mock(Node.class);
+					List successorNodes = Collections.singletonList(successor);
+					when(customDataNode.isDataNode()).thenReturn(true);
+					when(customDataNode.disabledNode()).thenReturn(false);
+					when(customDataNode.predecessors()).thenReturn(Collections.emptyList());
+					when(customDataNode.successors()).thenReturn(successorNodes);
+					when(dag.getNodes()).thenReturn(Collections.singletonList(customDataNode));
+
+					milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+					Assertions.assertFalse(snapshotTotalsInitialized.get());
+					Assertions.assertEquals(0L, snapshotTableCounts.get());
+				}
+
+				@Test
+				void shouldReturnWhenAlreadyInitialized() {
+				snapshotTotalsInitialized.set(true);
+
+				milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+				verify(task, never()).getDag();
+			}
+
+			@Test
+			void shouldResetInitializedWhenExceptionOccurs() {
+				when(task.getDag()).thenThrow(new RuntimeException("boom"));
+
+				milestoneAspectTask.ensureSnapshotTotalsInitialized();
+
+				Assertions.assertFalse(snapshotTotalsInitialized.get());
 			}
 		}
 

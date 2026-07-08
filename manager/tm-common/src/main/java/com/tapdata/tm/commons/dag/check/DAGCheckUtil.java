@@ -1,13 +1,16 @@
 package com.tapdata.tm.commons.dag.check;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.task.dto.Message;
 
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -18,6 +21,7 @@ import java.util.stream.Collectors;
  */
 public class DAGCheckUtil {
 
+    private DAGCheckUtil() {}
     /**
      * @author gavin
      * @date 2023/10/26 下午4:50
@@ -78,5 +82,62 @@ public class DAGCheckUtil {
                 DAGCheckUtil.setNodeToDisabled(joinNode);
             }
         }
+    }
+
+    /**
+     * Return the only target node in the entire DAG graph.
+     * A task DAG must have exactly one target node.
+     */
+    public static Node<?> getTargetNode(Node<?> node) {
+        if (null == node) {
+            return null;
+        }
+        DAG dag = node.getDag();
+        if (null == dag) {
+            return null;
+        }
+        List<Node> targets = dag.getTargets();
+        if (null == targets || targets.isEmpty()) {
+            throw new IllegalStateException("DAG target node must exist, but found none");
+        }
+        List<Node> actualTargets = targets.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (actualTargets.isEmpty()) {
+            throw new IllegalStateException("DAG target node must exist, but found none");
+        }
+        if (actualTargets.size() > 1) {
+            String targetIds = actualTargets.stream()
+                    .map(DAGCheckUtil::describeNode)
+                    .collect(Collectors.joining(", "));
+            throw new IllegalStateException(String.format(
+                    "DAG target node must be unique, but found %d target nodes: %s",
+                    actualTargets.size(), targetIds));
+        }
+        return (Node<?>) actualTargets.get(0);
+    }
+
+    private static String describeNode(Node<?> node) {
+        if (node == null) {
+            return "null";
+        }
+        return String.format("%s(%s)", node.getId(), node.getType());
+    }
+
+    public static int preNodeCount(Node<?> node) {
+        DAG dag = node.getDag();
+        if (null == dag) {
+            return 0;
+        }
+        String id = node.getId();
+        LinkedList<Edge> edges = dag.getEdges();
+        int count = 0;
+        for (Edge edge : edges) {
+            String target = edge.getTarget();
+            if (target.equals(id)) {
+                count++;
+            }
+        }
+        return count;
     }
 }
