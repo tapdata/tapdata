@@ -14,6 +14,7 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
@@ -47,6 +48,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
@@ -1529,9 +1531,13 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	@DisplayName("Method wrapSingleTapdataEvent test")
 	class wrapSingleTapdataEventTest {
+
+		protected ClientMongoOperator clientMongoOperator;
+
 		@BeforeEach
 		void setUp() {
 			instance = spy(instance);
+			clientMongoOperator = mock(ClientMongoOperator.class);
 			ReflectionTestUtils.setField(instance, "obsLogger", mockObsLogger);
 		}
 
@@ -1547,6 +1553,23 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TapdataEvent tapdataEvent = instance.wrapSingleTapdataEvent(tapDDLUnknownEvent, SyncStage.CDC, null, true);
 			assertNull(tapdataEvent);
 			verify(mockObsLogger, atLeastOnce()).warn(any());
+		}
+
+		@Test
+		@DisplayName("test source mode=NORMAL, TapEvent is a TapDDLWarningEvent, expect send msg")
+		void test2() {
+			HazelcastSourcePdkBaseNode.SourceMode sourceMode = HazelcastSourcePdkBaseNode.SourceMode.NORMAL;
+			ReflectionTestUtils.setField(instance, "sourceMode", sourceMode);
+			Connections connections = mock(Connections.class);
+			when(dataProcessorContext.getConnections()).thenReturn(connections);
+			ReflectionTestUtils.setField(instance, "clientMongoOperator", clientMongoOperator);
+			TapDDLWarningEvent tapDDLWarningEvent = new TapDDLWarningEvent();
+			tapDDLWarningEvent.setReferenceTime(System.currentTimeMillis());
+			tapDDLWarningEvent.setTime(System.currentTimeMillis());
+			tapDDLWarningEvent.setOriginDDL("alter table AA_0518 add supplemental log DATA (PRIMARY KEY) COLUMNS");
+			instance.wrapSingleTapdataEvent(tapDDLWarningEvent, SyncStage.CDC, null, true);
+			verify(mockObsLogger, atLeastOnce()).warn(anyString(), any(), any());
+			verify(clientMongoOperator, atLeastOnce()).insertOne(any(), any());
 		}
 	}
 
