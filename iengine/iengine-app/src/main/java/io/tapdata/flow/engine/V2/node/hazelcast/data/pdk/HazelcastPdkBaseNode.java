@@ -227,7 +227,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			Criteria functionRetryStatusNone = Criteria.where(FUNCTION_RETRY_STATUS).is(TaskDto.RETRY_STATUS_NONE);
 			Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId))
 					.orOperator(functionRetryStatusExists, functionRetryStatusNone));
-			clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
+			tmServerOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 			ConnectorConstant.TASK_STATUS_GAUGE.set(2, taskId, processorBaseContext.getTaskDto().getName(), processorBaseContext.getTaskDto().getSyncType());
 		}, "Failed to sign function retry status");
 	}
@@ -237,7 +237,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			Update update = new Update();
 			update.set(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE);
 			update.set("taskRetryStartTime", 0);
-			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+			tmServerOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
 			ConnectorConstant.TASK_STATUS_GAUGE.set(0, taskId, processorBaseContext.getTaskDto().getName(), processorBaseContext.getTaskDto().getSyncType());
 			ConnectorConstant.TASK_ACTIVE_DB_GAUGE.set(
 					0,
@@ -287,7 +287,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Map<String, Object>> tableNodeConfig = generateTableNodeConfig(node);
 		ConnectorNode connectorNode = PdkUtil.createNode(taskDto.getId().toHexString(),
 				databaseType,
-				clientMongoOperator,
+                tmServerOperator,
 				generateNodePdkAssociateId(dataProcessorContext),
 				connectionConfig,
 				nodeConfig,

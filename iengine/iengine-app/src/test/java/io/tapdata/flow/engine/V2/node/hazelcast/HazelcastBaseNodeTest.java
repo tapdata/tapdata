@@ -179,7 +179,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(AtomicBoolean.class, runningObj.getClass());
 			assertTrue(((AtomicBoolean) runningObj).get());
 			assertEquals(mockObsLogger, mockHazelcastBaseNode.obsLogger);
-			assertEquals(mockClientMongoOperator, mockHazelcastBaseNode.clientMongoOperator);
+			assertEquals(mockClientMongoOperator, mockHazelcastBaseNode.tmServerOperator);
 			assertEquals(mockSettingService, mockHazelcastBaseNode.settingService);
 			assertEquals(externalStorageDto, mockHazelcastBaseNode.externalStorageDto);
 			assertNotNull(mockHazelcastBaseNode.codecsFilterManager);

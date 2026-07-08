@@ -7,14 +7,11 @@ import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.OperationType;
-import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
-import com.tapdata.processor.context.ProcessContext;
-import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.processor.standard.ScriptStandardizationUtil;
 import com.tapdata.tm.commons.dag.Node;
@@ -130,14 +127,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 			List<JavaScriptFunctions> javaScriptFunctions = standard ?
 					null
-					: clientMongoOperator.find( new Query(where("type")
+					: tmServerOperator.find( new Query(where("type")
 							.ne("system"))
 							.with(Sort.by(Sort.Order.asc("last_update"))),
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION,
 					JavaScriptFunctions.class
 			);
 
-			ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
+			ScriptCacheService scriptCacheService = new ScriptCacheService(tmServerOperator, (DataProcessorContext) processorBaseContext);
 			Invocable engine;
 			ObsScriptLogger obsScriptLogger;
 			if(getProcessorBaseContext().getTaskDto().isNormalTask()){
@@ -151,7 +148,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 								JSEngineEnum.GRAALVM_JS.getEngineName(),
 								script,
 								javaScriptFunctions,
-								clientMongoOperator,
+                                tmServerOperator,
 								scriptCacheService,
 								obsScriptLogger,
 								this.standard)
@@ -159,7 +156,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 						JSEngineEnum.GRAALVM_JS.getEngineName(),
 						script,
 						javaScriptFunctions,
-						clientMongoOperator,
+                        tmServerOperator,
 						null,
 						null,
 						scriptCacheService,
@@ -170,7 +167,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 						.dynamicDescriptionParameters(e.getMessage());
 			}
 			if (!this.standard) {
-				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
+				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), tmServerOperator, jetContext.hazelcastInstance(),
 						node.getTaskId(), node.getId(),
 						!processorBaseContext.getTaskDto().isNormalTask()
 				);
@@ -197,13 +194,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			Node<?> node = nodes.get(0);
 			if (node instanceof DataParentNode) {
 				String connectionId = ((DataParentNode<?>) node).getConnectionId();
-				Connections connections = clientMongoOperator.findOne(new Query(where("_id").is(connectionId)),
+				Connections connections = tmServerOperator.findOne(new Query(where("_id").is(connectionId)),
 						ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 				if (connections != null) {
 					if (nodes.size() > 1) {
 						obsLogger.warn("Use the first node as the default script executor, please use it with caution.");
 					}
-					return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(getScriptObsLogger()));
+					return this.scriptExecutorsManager.create(connections, tmServerOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(getScriptObsLogger()));
 				}
 			}
 		}

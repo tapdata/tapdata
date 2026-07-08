@@ -407,7 +407,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				queryMap.put("taskId",dataProcessorContext.getTaskDto().getId().toHexString());
 				Map<String, Object> updateMap = new HashMap<>();
 				updateMap.put("sqlList",sqlList);
-				clientMongoOperator.upsert(queryMap, updateMap, ConnectorConstant.FOREIGN_KEY_CONSTRAINT);
+				tmServerOperator.upsert(queryMap, updateMap, ConnectorConstant.FOREIGN_KEY_CONSTRAINT);
 			}
 		}catch (Throwable e){
 			obsLogger.warn("Failed to get foreign key sql ,taskId: {}, error: {}",dataProcessorContext.getTaskDto().getId().toHexString(), e);

@@ -151,7 +151,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			readPartitionOptions = new ReadPartitionOptions();
 
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
-		snapshotProgressManager = new SnapshotProgressManager(dataProcessorContext.getTaskDto(), clientMongoOperator,
+		snapshotProgressManager = new SnapshotProgressManager(dataProcessorContext.getTaskDto(), tmServerOperator,
 				getConnectorNode(), dataProcessorContext.getTapTableMap());
 
 

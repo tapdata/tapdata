@@ -10,14 +10,10 @@ import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
-import com.tapdata.processor.context.ProcessContext;
-import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -85,15 +81,15 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		if (NodeTypeEnum.get(node.getType()).equals(NodeTypeEnum.CUSTOM_PROCESSOR)) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
 			Query query = new Query(Criteria.where("_id").is(customNodeId));
-			this.customNodeTempDto = clientMongoOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
+			this.customNodeTempDto = tmServerOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
 					n -> !running.get());
 			if (null == customNodeTempDto) {
 				throw new TapCodeException(TaskProcessorExCode_11.CUSTOM_NODE_NOT_FOUND, "Cannot find custom node template by id: " + customNodeId);
 			}
-			this.javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
+			this.javaScriptFunctions = tmServerOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class, n -> !running.get());
 			this.stateMap = getStateMap(context.hazelcastInstance(), node.getId());
-			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
+			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), tmServerOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
 					!processorBaseContext.getTaskDto().isNormalTask()
 			);
@@ -104,12 +100,12 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		long threadId = Thread.currentThread().getId();
 		return engineMap.computeIfAbsent(threadId, tid -> {
 			try {
-				ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
+				ScriptCacheService scriptCacheService = new ScriptCacheService(tmServerOperator, (DataProcessorContext) processorBaseContext);
 				Invocable newEngine = ScriptUtil.getScriptEngine(
 						JSEngineEnum.GRAALVM_JS.getEngineName(),
 						customNodeTempDto.getTemplate(),
 						javaScriptFunctions,
-						clientMongoOperator,
+                        tmServerOperator,
 						null,
 						null,
 						scriptCacheService,

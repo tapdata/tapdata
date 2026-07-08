@@ -149,6 +149,7 @@ public abstract class TaskCleaner {
 		long startTs = System.currentTimeMillis();
 		try {
 			HazelcastDuckDbSqlNode.cleanCache(node);
+			HazelcastDuckDbSqlNode.cleanBackupFiles(node, taskCleanerContext.getClientMongoOperator());
 			succeed(node, NodeResetDesc.task_reset_duck_db_node, (System.currentTimeMillis() - startTs));
 		} catch (Exception e) {
 			String msg = String.format("Clean Duck DB node state data occur an error: %s, Task: %s(%s), node: %s(%s)", e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId());

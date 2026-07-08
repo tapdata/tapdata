@@ -532,7 +532,7 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 		try {
-			clientMongoOperator.insertOne(this.syncProgressMap, collection);
+			tmServerOperator.insertOne(this.syncProgressMap, collection);
 		} catch (Exception e) {
 			logger.error("Save to snapshot failed, collection: " + collection + ", object: " + this.syncProgressMap + "Errors: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			return false;

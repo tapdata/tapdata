@@ -44,8 +44,8 @@ public class HazelcastSourcePdkShareCDCNode extends HazelcastSourcePdkDataNode {
 		String connectionId = iterator.next();
 		Query connectionQuery = new Query(where("_id").is(connectionId));
 		connectionQuery.fields().include("config").include("pdkHash");
-		Connections srcConnection = clientMongoOperator.findOne(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-		DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, srcConnection.getPdkHash());
+		Connections srcConnection = tmServerOperator.findOne(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+		DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(tmServerOperator, srcConnection.getPdkHash());
 		dataProcessorContext = DataProcessorContext.newBuilder()
 				.withTaskDto(dataProcessorContext.getTaskDto())
 				.withNode(dataProcessorContext.getNode())

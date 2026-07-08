@@ -91,13 +91,13 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		job.setJobErrorNotifier(this::errorHandle);
 		job.setUser_id(subTaskDto.getUserId());
 		job.setStopOnError(true);
-		List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))), ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
+		List<JavaScriptFunctions> javaScriptFunctions = tmServerOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))), ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
 
 		ProcessorContext processorContext = new ProcessorContext(
 				null,
 				null,
 				job,
-				clientMongoOperator,
+                tmServerOperator,
 				javaScriptFunctions,
 				null,
 				((DataProcessorContext) processorBaseContext).getCacheService()

@@ -296,7 +296,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
 					processorBaseContext.getNode(),
 					processorBaseContext.getEdges(),
-					clientMongoOperator,
+					tmServerOperator,
 					processorBaseContext.getNodes());
 		initRuntimeParameters();
 
@@ -1043,7 +1043,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			String connectionId = getConnectionId(sourceNode);
 			Query query = new Query(Criteria.where("_id").is(connectionId));
 			query.fields().exclude("schema");
-			Connections connections = clientMongoOperator.findOne(query, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+			Connections connections = tmServerOperator.findOne(query, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 			this.sourceConnectionMap.put(mergeProperty.getId(), connections);
 			initSourceConnectionMap(mergeProperty.getChildren());
 		}

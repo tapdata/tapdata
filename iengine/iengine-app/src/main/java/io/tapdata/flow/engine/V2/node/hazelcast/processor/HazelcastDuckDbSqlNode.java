@@ -1,11 +1,13 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.map.IMap;
+import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataBeginTableSnapshotEvent;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -40,6 +42,13 @@ import io.tapdata.flow.engine.V2.node.duckdb.SyncStageTracker;
 import io.tapdata.flow.engine.V2.node.duckdb.WideTableDdlGenerator;
 import io.tapdata.flow.engine.V2.node.duckdb.WideTableIncrementalUpdater;
 import io.tapdata.flow.engine.V2.node.duckdb.WithCteSqlGenerator;
+import io.tapdata.flow.engine.V2.node.duckdb.backup.DuckDbBackupConstants;
+import io.tapdata.flow.engine.V2.node.duckdb.backup.DuckDbBackupFileUtil;
+import io.tapdata.flow.engine.V2.node.duckdb.backup.DuckDbBackupManager;
+import io.tapdata.flow.engine.V2.node.duckdb.backup.DuckDbBackupOffsetTracker;
+import io.tapdata.flow.engine.V2.node.duckdb.backup.DuckDbBackupRepository;
+import io.tapdata.flow.engine.V2.node.duckdb.backup.DuckDbBackupSnapshot;
+import io.tapdata.flow.engine.V2.node.duckdb.backup.DuckDbRestoreManager;
 import io.tapdata.flow.engine.V2.node.duckdb.converter.IengineSchemaConverter;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -49,6 +58,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.services.DuckDbSqlNodeTestRunService;
 import lombok.Getter;
 import lombok.Setter;
+import org.bson.Document;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -75,6 +85,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * DuckDB SQL 处理器节点
@@ -162,6 +173,11 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     private static final String PROCESS_STORE_KEY = "process";
     private static final String ACCEPT_PRE_NODE_COUNT_STORE_KEY = "acceptPreNodeCount";
     private static final String PROCESS_STORE_NAME_PREFIX = "DuckDbSqlNodeProcess";
+    private final ReentrantReadWriteLock duckDbBackupConsistencyLock = new ReentrantReadWriteLock(true);
+    private DuckDbBackupOffsetTracker duckDbBackupOffsetTracker;
+    private DuckDbBackupManager duckDbBackupManager;
+    private DuckDbRestoreManager.RestoreResult duckDbRestoreResult;
+    private boolean duckDbHaBackupEnabled;
 
     public HazelcastDuckDbSqlNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -342,6 +358,210 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
     }
 
+    private void initDuckDbHaBackupIfNeed(DuckDbSqlNode nodeConfig) {
+        duckDbHaBackupEnabled = Boolean.TRUE.equals(nodeConfig.getHaBackupEnabled())
+                && processorBaseContext != null
+                && processorBaseContext.getTaskDto() != null
+                && !processorBaseContext.getTaskDto().isPreviewTask();
+        if (!duckDbHaBackupEnabled) {
+            return;
+        }
+        if (StringUtils.isBlank(dbPath)) {
+            throw new TapCodeException("DuckDB HA backup requires file persistent dbPath");
+        }
+        String storageType = StringUtils.defaultIfBlank(nodeConfig.getHaBackupStorageType(), DuckDbBackupConstants.STORAGE_TYPE_GRIDFS);
+        if (!DuckDbBackupConstants.STORAGE_TYPE_GRIDFS.equalsIgnoreCase(storageType)) {
+            throw new TapCodeException("DuckDB HA backup file mode only supports GRIDFS storage in the first phase");
+        }
+        String restorePolicy = StringUtils.defaultIfBlank(nodeConfig.getHaBackupRestorePolicy(), "LATEST_COMMITTED");
+        if (!"LATEST_COMMITTED".equalsIgnoreCase(restorePolicy)) {
+            throw new TapCodeException("DuckDB HA backup file mode only supports LATEST_COMMITTED restore policy in the first phase");
+        }
+        Boolean nodeDuckLakeEnabled = nodeConfig.getDuckLakeEnabled();
+        if (Boolean.TRUE.equals(nodeDuckLakeEnabled) || (nodeDuckLakeEnabled == null && DuckDbSqlConfig.isDuckLakeEnabled())) {
+            throw new TapCodeException("DuckDB HA backup file mode does not support DuckLake in the first phase");
+        }
+        duckDbBackupOffsetTracker = new DuckDbBackupOffsetTracker();
+    }
+
+    private void restoreDuckDbBackupBeforeOpen(DuckDbSqlNode nodeConfig) {
+        if (!duckDbHaBackupEnabled) {
+            return;
+        }
+        DuckDbBackupRepository repository = new DuckDbBackupRepository(tmServerOperator);
+        DuckDbRestoreManager restoreManager = new DuckDbRestoreManager(repository, obsLogger);
+        duckDbRestoreResult = restoreManager.restoreIfNeeded(currentTaskId(), nodeConfig.getId(), dbPath,
+                nodeConfig.getHaBackupOnCorruption());
+        if (duckDbRestoreResult != null && duckDbRestoreResult.isFailed()) {
+            throw new TapCodeException("Failed to restore DuckDB HA backup before opening DuckDB", duckDbRestoreResult.getError());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applyRestoredProcessStateIfNeed() {
+        if (duckDbRestoreResult == null || !duckDbRestoreResult.isRestored() || duckDbRestoreResult.getMeta() == null) {
+            return;
+        }
+        Object processStateObj = duckDbRestoreResult.getMeta().get("processState");
+        if (!(processStateObj instanceof Map<?, ?> processState)) {
+            return;
+        }
+        Object processObj = processState.get("process");
+        if (processObj instanceof Map<?, ?> processMap) {
+            this.process = new HashMap<>();
+            processMap.forEach((key, value) -> this.process.put(String.valueOf(key), Boolean.TRUE.equals(value)));
+            persistProcessIfPossible();
+        }
+        Object acceptObj = processState.get("acceptPreNodeCount");
+        if (acceptObj instanceof Number number) {
+            this.acceptPreNodeCount = number.intValue();
+            persistAcceptPreNodeCountIfPossible();
+        }
+        Object appliedOffsetObj = duckDbRestoreResult.getMeta().get("appliedOffset");
+        if (duckDbBackupOffsetTracker != null && appliedOffsetObj instanceof Map<?, ?> appliedOffsetMap) {
+            Map<String, Object> restoredOffset = new LinkedHashMap<>();
+            appliedOffsetMap.forEach((key, value) -> {
+                if (key != null) {
+                    restoredOffset.put(String.valueOf(key), value);
+                }
+            });
+            duckDbBackupOffsetTracker.restore(restoredOffset);
+        }
+        obsLogger.info("Applied restored DuckDB process state from HA backup, taskId={}, nodeId={}",
+                currentTaskId(), getNode().getId());
+    }
+
+    private void startDuckDbBackupManagerIfNeed(DuckDbSqlNode nodeConfig) {
+        if (!duckDbHaBackupEnabled || duckDbBackupManager != null) {
+            return;
+        }
+        DuckDbBackupRepository repository = new DuckDbBackupRepository(tmServerOperator);
+        duckDbBackupManager = new DuckDbBackupManager(
+                nodeConfig,
+                currentTaskId(),
+                nodeConfig.getId(),
+                nodeConfig.getName(),
+                dbPath,
+                repository,
+                new DuckDbBackupManager.DuckDbBackupSnapshotCallback() {
+                    @Override
+                    public DuckDbBackupSnapshot createSnapshot(String reason, String generationId, Document baseMeta) throws Exception {
+                        return createDuckDbBackupSnapshot(reason, generationId, baseMeta);
+                    }
+
+                    @Override
+                    public long currentEventSerialNo() {
+                        Object serial = currentAppliedOffset().get("eventSerialNo");
+                        return serial instanceof Number number ? number.longValue() : 0L;
+                    }
+                },
+                obsLogger
+        );
+        duckDbBackupManager.start();
+    }
+
+    private String currentTaskId() {
+        return processorBaseContext.getTaskDto().getId().toHexString();
+    }
+
+    private DuckDbBackupSnapshot createDuckDbBackupSnapshot(String reason, String generationId, Document baseMeta) throws Exception {
+        duckDbBackupConsistencyLock.writeLock().lock();
+        try {
+            flushAllContextsWithoutBackupLock(syncStage == SyncStage.CDC);
+            persistProcessIfPossible();
+            persistAcceptPreNodeCountIfPossible();
+            try {
+                duckDbOperator.execute("FORCE CHECKPOINT");
+            } catch (Exception e) {
+                obsLogger.warn("DuckDB FORCE CHECKPOINT failed before HA backup, will continue copying file set, msg={}", e.getMessage());
+            }
+
+            Map<String, Object> appliedOffset = currentAppliedOffset();
+            baseMeta.put("backupReason", reason);
+            Map<String, Object> nodeConfigSnapshot = new LinkedHashMap<>();
+            nodeConfigSnapshot.put("querySql", querySql);
+            nodeConfigSnapshot.put("wideTableName", wideTableName);
+            nodeConfigSnapshot.put("mainTableName", mainTableName);
+            nodeConfigSnapshot.put("fromTables", fromTables);
+            nodeConfigSnapshot.put("wideTablePrimaryKey", wideTablePrimaryKey);
+            baseMeta.put("nodeConfigHash", hashObject(nodeConfigSnapshot));
+            baseMeta.put("querySqlHash", DuckDbBackupOffsetTracker.sha256(querySql));
+            baseMeta.put("schemaHash", hashObject(tableSchemaCache.keySet()));
+            baseMeta.put("appliedOffset", appliedOffset);
+            baseMeta.put("processState", currentProcessState());
+            baseMeta.put("tables", currentDuckDbTablesSnapshot());
+
+            DuckDbBackupFileUtil.SnapshotFiles snapshotFiles = DuckDbBackupFileUtil.copyDuckDbFiles(
+                    dbPath,
+                    Path.of(dbPath).getFileName().toString(),
+                    baseMeta
+            );
+            return new DuckDbBackupSnapshot(snapshotFiles.snapshotDir(), snapshotFiles.files(), appliedOffset);
+        } finally {
+            duckDbBackupConsistencyLock.writeLock().unlock();
+        }
+    }
+
+    private Map<String, Object> currentAppliedOffset() {
+        if (duckDbBackupOffsetTracker == null) {
+            return new LinkedHashMap<>();
+        }
+        return duckDbBackupOffsetTracker.snapshot();
+    }
+
+    private Map<String, Object> currentProcessState() {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("process", process == null ? new HashMap<>() : new HashMap<>(process));
+        state.put("acceptPreNodeCount", acceptPreNodeCount);
+        state.put("preNodeCount", preNodeCount);
+        return state;
+    }
+
+    private List<Map<String, Object>> currentDuckDbTablesSnapshot() {
+        List<Map<String, Object>> tables = new ArrayList<>();
+        tableSchemaCache.forEach((tableName, schemaInfo) -> {
+            Map<String, Object> table = new LinkedHashMap<>();
+            table.put("sourceNodeId", schemaInfo.getNodeId());
+            table.put("sourceTableName", schemaInfo.getTableName());
+            table.put("duckTableName", schemaInfo.getTargetTableName());
+            table.put("role", Objects.equals(tableName, wideTableName) ? "WIDE" : "SOURCE");
+            table.put("rowCount", queryTableRowCount(schemaInfo.getTargetTableName()));
+            tables.add(table);
+        });
+        if (StringUtils.isNotBlank(wideTableName) && tables.stream().noneMatch(t -> Objects.equals(t.get("duckTableName"), wideTableName))) {
+            Map<String, Object> wide = new LinkedHashMap<>();
+            wide.put("duckTableName", wideTableName);
+            wide.put("role", "WIDE");
+            wide.put("rowCount", queryTableRowCount(wideTableName));
+            tables.add(wide);
+        }
+        return tables;
+    }
+
+    private long queryTableRowCount(String tableName) {
+        if (StringUtils.isBlank(tableName) || duckDbOperator == null) {
+            return -1L;
+        }
+        try {
+            List<Map<String, Object>> rows = duckDbOperator.executeQuery("SELECT COUNT(*) AS cnt FROM " + WideTableDdlGenerator.quoteIdentifier(tableName));
+            if (rows == null || rows.isEmpty()) {
+                return -1L;
+            }
+            Object value = rows.get(0).values().iterator().next();
+            return value instanceof Number number ? number.longValue() : -1L;
+        } catch (Exception e) {
+            return -1L;
+        }
+    }
+
+    private String hashObject(Object value) {
+        try {
+            return DuckDbBackupOffsetTracker.sha256(JSONUtil.obj2Json(value));
+        } catch (Exception e) {
+            return DuckDbBackupOffsetTracker.sha256(String.valueOf(value));
+        }
+    }
+
     protected void initIndex(DuckDbSqlNode node) {
         this.wideTablePrimaryKey = new ArrayList<>();
         TapTable tapTable = processorBaseContext.getTapTableMap().get(node.getId());
@@ -388,15 +608,18 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
         super.doInit(context);
-        if (null == clientMongoOperator) {
-            clientMongoOperator = initClientMongoOperator();
+        if (null == tmServerOperator) {
+            tmServerOperator = initClientMongoOperator();
         }
         DuckDbSqlNode nodeConfig = (DuckDbSqlNode) getNode();
         this.dbPath = initDBPath(nodeConfig);
         obsLogger.info("Database path: {}", dbPath);
+        initDuckDbHaBackupIfNeed(nodeConfig);
+        restoreDuckDbBackupBeforeOpen(nodeConfig);
         this.duckDbOperator = initDuckDbOperator(nodeConfig, dbPath, OUTPUT_BATCH_SIZE, obsLogger);
         initDBSettingsIfNeed(nodeConfig);
         initPreNodeCount();
+        applyRestoredProcessStateIfNeed();
         // 读取节点配置
         try {
             // 读取 SQL 查询
@@ -468,7 +691,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         initMergerWideTableSql();
         // 初始化 DuckDB 操作器（支持内存/文件持久化模式）
         try {
-            dlqWriter = new DlqWriter(clientMongoOperator, DLQ_COLLECTION);
+            dlqWriter = new DlqWriter(tmServerOperator, DLQ_COLLECTION);
 
             // 初始化全量/CDC集成辅助组件
             syncStageTracker = new SyncStageTracker();
@@ -524,6 +747,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
             // ========== 核心功能：DuckDB 表生命周期管理： ==========
             manageDuckDbTables();
+            startDuckDbBackupManagerIfNeed(nodeConfig);
 
             obsLogger.info("DuckDbSqlNode initialized with batchSize={}, output batch size={}, error threshold={}% (count: {}), schemaCache={}",
                     concurrentBatchSize, OUTPUT_BATCH_SIZE, ERROR_THRESHOLD_RATE * 100, ERROR_THRESHOLD_COUNT,
@@ -548,6 +772,10 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             Boolean statusOfTable2DownstreamAfter = process.get(TABLE_TO_DOWNSTREAM);
             if ((statusOfTable2Downstream == null || !statusOfTable2Downstream) && statusOfTable2DownstreamAfter != null && statusOfTable2DownstreamAfter) {
                 createWideTableIndex();
+                DuckDbSqlNode nodeConfig = (DuckDbSqlNode) getNode();
+                if (duckDbBackupManager != null && Boolean.TRUE.equals(nodeConfig.getHaBackupOnFullComplete())) {
+                    duckDbBackupManager.backupNow(DuckDbBackupConstants.REASON_FULL_COMPLETE);
+                }
             }
         } catch (Exception e) {
             throw new TapCodeException("Error handling all tables CDC transition: " + e.getMessage(), e);
@@ -671,11 +899,16 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * 当所有表都从全量同步切换到增量同步时触发
      */
     private void handleAllTablesCdcTransition(boolean isCdc) {
-        obsLogger.info("All tables have been switched to the CDC stage, executing queries and submitting results");
-        flushAllContexts(isCdc);
-        loadTableIndex();
-        joinToWideTable();
-        table2Downstream();
+        duckDbBackupConsistencyLock.readLock().lock();
+        try {
+            obsLogger.info("All tables have been switched to the CDC stage, executing queries and submitting results");
+            flushAllContexts(isCdc);
+            loadTableIndex();
+            joinToWideTable();
+            table2Downstream();
+        } finally {
+            duckDbBackupConsistencyLock.readLock().unlock();
+        }
     }
 
     @Override
@@ -1019,6 +1252,15 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
      * @param context 要刷写的上下文
      */
     private void flushContext(PerSourceContext context, boolean isCdc) throws SQLException {
+        duckDbBackupConsistencyLock.readLock().lock();
+        try {
+            flushContextWithoutBackupLock(context, isCdc);
+        } finally {
+            duckDbBackupConsistencyLock.readLock().unlock();
+        }
+    }
+
+    private void flushContextWithoutBackupLock(PerSourceContext context, boolean isCdc) throws SQLException {
         if (context == null) {
             return;
         }
@@ -1071,11 +1313,13 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         if (eventsToFlush == null || eventsToFlush.isEmpty()) {
             return;
         }
+        List<TapdataEvent> appliedEvents = new ArrayList<>(eventsToFlush);
         DuckDbOperator operator = getOperatorForContext(context);
         operator.executeInTransaction(() -> {
             operator.insertBatch(context.getSchema(), eventsToFlush);
             eventsToFlush.clear();
         });
+        recordDuckDbBackupAppliedOffset(context, appliedEvents);
     }
 
     /**
@@ -1091,6 +1335,14 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             throw new SQLException("DuckDbOperator not initialized");
         }
         return operator;
+    }
+
+    private void recordDuckDbBackupAppliedOffset(PerSourceContext context, List<TapdataEvent> events) {
+        if (duckDbBackupOffsetTracker == null || context == null || CollectionUtils.isEmpty(events)) {
+            return;
+        }
+        String tableKey = context.getSourceId() + "." + context.getTableId();
+        duckDbBackupOffsetTracker.recordApplied(tableKey, events);
     }
 
     /**
@@ -1142,6 +1394,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         updateWideTable(context.getTargetTableName(), beforeKeys, afterKeysResult, mergedRecords);
 
 //        });
+        recordDuckDbBackupAppliedOffset(context, eventsToFlush);
 
         obsLogger.debug("During the incremental phase, write {} records to the DuckDB table: {} (original {} records)",
                 mergedRecords.size(), context.getTargetTableName(), eventsToFlush.size());
@@ -1541,10 +1794,15 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
     }
 
     void createWideTableIndex() throws SQLException {
-        NodeSchemaInfo wideTableSchemaInfo = findTable(wideTableName);
-        String createIndexDdl = WideTableDdlGenerator.generateIndex(wideTableSchemaInfo, wideTablePrimaryKey);
-        duckDbOperator.executeUpdate(createIndexDdl);
-        obsLogger.info("Successfully created wide table index for '{}'", wideTableName);
+        duckDbBackupConsistencyLock.readLock().lock();
+        try {
+            NodeSchemaInfo wideTableSchemaInfo = findTable(wideTableName);
+            String createIndexDdl = WideTableDdlGenerator.generateIndex(wideTableSchemaInfo, wideTablePrimaryKey);
+            duckDbOperator.executeUpdate(createIndexDdl);
+            obsLogger.info("Successfully created wide table index for '{}'", wideTableName);
+        } finally {
+            duckDbBackupConsistencyLock.readLock().unlock();
+        }
     }
 
     /**
@@ -1816,6 +2074,19 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
         }
     }
 
+    private void flushAllContextsWithoutBackupLock(boolean isCdc) {
+        for (PerSourceContext context : new ArrayList<>(sourceContexts.values())) {
+            synchronized (context.getCommitLock()) {
+                try {
+                    flushContextWithoutBackupLock(context, isCdc);
+                } catch (Exception e) {
+                    obsLogger.warn("Failed to flush context {} during DuckDB HA backup: {}", context.getKey(), e.getMessage(), e);
+                    throw new TapCodeException("Failed to flush DuckDB context before HA backup", e);
+                }
+            }
+        }
+    }
+
     private void evictIfNecessary() {
         while (sourceContexts.size() >= maxActiveSources && !sourceAccessOrder.isEmpty()) {
             Iterator<Map.Entry<String, Boolean>> iterator = sourceAccessOrder.entrySet().iterator();
@@ -1862,6 +2133,7 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
 
     @Override
     protected void doClose() {
+        DuckDbBackupManager backupManagerToClose = duckDbBackupManager;
         super.doClose();
         persistProcessIfPossible();
         persistAcceptPreNodeCountIfPossible();
@@ -1869,6 +2141,19 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             contextFlusher.shutdownNow();
         }
         flushAllContexts(syncStage == SyncStage.CDC);
+        if (backupManagerToClose != null) {
+            try {
+                DuckDbSqlNode nodeConfig = (DuckDbSqlNode) getNode();
+                if (Boolean.TRUE.equals(nodeConfig.getHaBackupOnStop())) {
+                    backupManagerToClose.backupNow(DuckDbBackupConstants.REASON_ENGINE_STOP);
+                }
+            } catch (Exception e) {
+                obsLogger.warn("Failed to create final DuckDB HA backup on close: {}", e.getMessage(), e);
+            } finally {
+                backupManagerToClose.close();
+                duckDbBackupManager = null;
+            }
+        }
         for (PerSourceContext context : new ArrayList<>(sourceContexts.values())) {
             closeContextOperator(context);
         }
@@ -1987,6 +2272,18 @@ public class HazelcastDuckDbSqlNode extends HazelcastProcessorBaseNode {
             } catch (Exception e) {
                 logger.error("Failed to close DuckDbOperator when clean duckdb cache", e);
             }
+        }
+    }
+
+    public static void cleanBackupFiles(DuckDbSqlNode node, ClientMongoOperator tmServerOperator) {
+        if (node == null || node.taskId() == null || StringUtils.isBlank(node.getId()) || tmServerOperator == null) {
+            return;
+        }
+        try {
+            DuckDbBackupRepository repository = new DuckDbBackupRepository(tmServerOperator);
+            repository.deleteBackups(node.taskId().toHexString(), node.getId());
+        } catch (Exception e) {
+            throw new TapCodeException("Failed to clear DuckDB HA backup files", e);
         }
     }
 

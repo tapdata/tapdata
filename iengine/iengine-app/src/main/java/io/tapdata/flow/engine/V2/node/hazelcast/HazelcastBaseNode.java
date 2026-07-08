@@ -41,6 +41,7 @@ import io.tapdata.aspect.DataNodeInitAspect;
 import io.tapdata.aspect.DataNodeInitErrorAspect;
 import io.tapdata.aspect.ProcessorNodeCloseAspect;
 import io.tapdata.aspect.ProcessorNodeInitAspect;
+import io.tapdata.aspect.ProcessorNodeInitErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
@@ -150,7 +151,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	private static final Integer ERROR_EVENT_LIMIT = 10;
 
-	protected ClientMongoOperator clientMongoOperator;
+	protected ClientMongoOperator tmServerOperator;
 	protected Context jetContext;
 	protected SettingService settingService;
 
@@ -246,7 +247,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			this.running.compareAndSet(false, true);
 			this.obsLogger = initObsLogger();
 			if (null != processorBaseContext.getConfigurationCenter()) {
-				this.clientMongoOperator = initClientMongoOperator();
+				this.tmServerOperator = initClientMongoOperator();
 				this.settingService = initSettingService();
 			}
 			if (null != processorBaseContext.getNode() && null == processorBaseContext.getNode().getGraph()) {
@@ -284,7 +285,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				doInitWithDisableNode(context);
 			}
 		} catch (Exception e) {
-			AspectUtils.executeAspect(DataNodeInitErrorAspect.class, () -> new DataNodeInitErrorAspect().dataProcessorContext((DataProcessorContext) processorBaseContext).error(e));
+			if (processorBaseContext instanceof DataProcessorContext dataProcessorContext) {
+				AspectUtils.executeAspect(DataNodeInitErrorAspect.class, () -> new DataNodeInitErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
+			} else {
+				AspectUtils.executeAspect(ProcessorNodeInitErrorAspect.class, () -> new ProcessorNodeInitErrorAspect().processorContext(processorBaseContext).error(e));
+			}
 			errorHandle(e);
 		}
 	}
@@ -351,17 +356,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return ExternalStorageUtil.getExternalStorage(
 				processorBaseContext.getTaskConfig().getExternalStorageDtoMap(),
 				processorBaseContext.getNode(),
-				clientMongoOperator,
+				tmServerOperator,
 				processorBaseContext.getNodes(),
 				(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
 		);
 	}
 
 	protected SettingService initSettingService() {
-		if (null == clientMongoOperator) {
+		if (null == tmServerOperator) {
 			throw new TapCodeException(TaskProcessorExCode_11.INIT_SETTING_SERVICE_FAILED_CLIENT_MONGO_OPERATOR_IS_NULL);
 		}
-		return new SettingService(clientMongoOperator);
+		return new SettingService(tmServerOperator);
 	}
 
 	protected ClientMongoOperator initClientMongoOperator() {
@@ -729,8 +734,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	public synchronized TapCodeException errorHandle(Throwable throwable, String errorMessage) {
-		if (null == clientMongoOperator) {
-			clientMongoOperator = initClientMongoOperator();
+		if (null == tmServerOperator) {
+			tmServerOperator = initClientMongoOperator();
 		}
 		TapCodeException currentEx = wrapTapCodeException(throwable);
 		TaskDto taskDto = processorBaseContext.getTaskDto();
@@ -762,7 +767,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (isSkip.get()) {
 			List<ErrorEvent> errorEvents = taskDto.getErrorEvents();
 			errorEvents.remove(errorEvent.get());
-			TaskDtoUtil.updateErrorEvent(clientMongoOperator, taskDto.getErrorEvents(), taskDto.getId(), obsLogger, "Update task'error events failed: {}");
+			TaskDtoUtil.updateErrorEvent(tmServerOperator, taskDto.getErrorEvents(), taskDto.getId(), obsLogger, "Update task'error events failed: {}");
 			return null;
 		}
 		try {
@@ -1127,7 +1132,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (errorEvents.size() > ERROR_EVENT_LIMIT) {
 			return;
 		}
-		TaskDtoUtil.updateErrorEvent(clientMongoOperator, errorEvents, taskId, obsLogger, "Save error event failed: {}");
+		TaskDtoUtil.updateErrorEvent(tmServerOperator, errorEvents, taskId, obsLogger, "Save error event failed: {}");
 	}
 
 	public static class TapValueTransform {

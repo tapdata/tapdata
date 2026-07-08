@@ -98,6 +98,54 @@ public class DuckDbSqlNode extends ProcessorNode {
     @JsonAlias({"databasePath"})  // 兼容旧版 API 字段名
     private String dbPath = null;
 
+    /** 是否启用 DuckDB HA 备份文件方案 */
+    @EqField
+    private Boolean haBackupEnabled = true;
+
+    /** HA 备份存储类型，第一阶段固定使用 GRIDFS */
+    @EqField
+    private String haBackupStorageType = "GRIDFS";
+
+    /** 周期备份间隔，单位毫秒 */
+    @EqField
+    private Long haBackupIntervalMs = 30000L;
+
+    /** 距上次备份至少处理多少事件才触发周期备份 */
+    @EqField
+    private Long haBackupMinEvents = 1000L;
+
+    /** 全量转 CDC 后是否立即备份 */
+    @EqField
+    private Boolean haBackupOnFullComplete = true;
+
+    /** 正常停止时是否尽力备份 */
+    @EqField
+    private Boolean haBackupOnStop = true;
+
+    /** 每个任务节点保留最近几个成功备份 */
+    @EqField
+    private Integer haBackupRetentionCount = 3;
+
+    /** 备份最大保留时间，单位小时 */
+    @EqField
+    private Long haBackupRetentionHours = 7*24L;
+
+    /** 是否压缩备份包 */
+    @EqField
+    private Boolean haBackupCompressEnabled = true;
+
+    /** 备份上传并发，第一阶段建议固定 1 */
+    @EqField
+    private Integer haBackupMaxUploadConcurrency = 1;
+
+    /** 恢复策略，第一阶段使用 LATEST_COMMITTED */
+    @EqField
+    private String haBackupRestorePolicy = "LATEST_COMMITTED";
+
+    /** 当前备份损坏时的处理策略 */
+    @EqField
+    private String haBackupOnCorruption = "FALLBACK_PREVIOUS";
+
     // ========== 新增: 实时增量物化视图配置 ==========
 
     /** 宽表主键字段名（必填） */

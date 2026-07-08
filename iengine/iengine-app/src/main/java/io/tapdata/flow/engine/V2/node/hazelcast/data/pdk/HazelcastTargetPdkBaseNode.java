@@ -313,7 +313,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			body.put("tableNames", tables);
 			body.put("nodeConfig", Map.of("enableFillingModifiedData", false, "noCursorTimeout", false, "preImage", true, "writeConcern", "w1"));
 			try {
-				this.clientMongoOperator.postOne(body, "logcollector/start-and-wait", Map.class);
+				this.tmServerOperator.postOne(body, "logcollector/start-and-wait", Map.class);
 				long endTime = System.currentTimeMillis();
 				obsLogger.info("The system configuration has enabled the shared mining global configuration item, and the task has enabled the shared mining switch. The target table has been added to the mining task, time cost {}ms", endTime - startTime);
 			} catch (Exception e) {
@@ -663,10 +663,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		masterTableId(tapCreateTableEvent.get(), tapTable);
 		runnable.run();
 		if(succeed.get()) {
-			clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
+			tmServerOperator.insertOne(Collections.singletonList(finalTapTable),
 					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 		}else{
-			clientMongoOperator.insertOne(Collections.singletonList(finalTapTable.getName()),
+			tmServerOperator.insertOne(Collections.singletonList(finalTapTable.getName()),
 					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tablesByName/" + dataProcessorContext.getTargetConn().getId());
 		}
 	}
@@ -798,7 +798,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						.setInit(init)
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
-				clientMongoOperator.insertOne(Collections.singletonList(tapTable),
+				tmServerOperator.insertOne(Collections.singletonList(tapTable),
 						ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 			}
         } catch (Throwable throwable) {
@@ -1622,12 +1622,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
                     shareCdcTableMetricsDtoList.add(shareCdcTableMetricsDto);
                     if (shareCdcTableMetricsDtoList.size() == 10) {
-                        clientMongoOperator.insertMany(shareCdcTableMetricsDtoList, ConnectorConstant.SHARE_CDC_TABLE_METRICS_COLLECTION + "/saveOrUpdateDaily");
+                        tmServerOperator.insertMany(shareCdcTableMetricsDtoList, ConnectorConstant.SHARE_CDC_TABLE_METRICS_COLLECTION + "/saveOrUpdateDaily");
                         shareCdcTableMetricsDtoList.clear();
                     }
                 }
                 if (CollectionUtils.isNotEmpty(shareCdcTableMetricsDtoList)) {
-                    clientMongoOperator.insertMany(shareCdcTableMetricsDtoList, ConnectorConstant.SHARE_CDC_TABLE_METRICS_COLLECTION + "/saveOrUpdateDaily");
+                    tmServerOperator.insertMany(shareCdcTableMetricsDtoList, ConnectorConstant.SHARE_CDC_TABLE_METRICS_COLLECTION + "/saveOrUpdateDaily");
                     shareCdcTableMetricsDtoList.clear();
                 }
             }
@@ -1667,7 +1667,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
         syncMetricCollector.snapshotCompleted();
 		if(dataProcessorContext.getTaskDto().getDag().isMergeTableDag()){
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/saveMergeTableCacheInfo", dataProcessorContext.getTaskDto().getId().toHexString(), TaskDto.class);
+			tmServerOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/saveMergeTableCacheInfo", dataProcessorContext.getTaskDto().getId().toHexString(), TaskDto.class);
 		}
     }
 
@@ -1676,7 +1676,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
 	protected void handleTapdataMergeTableCacheRebuildCompleteEvent(TapdataMergeTableCacheRebuildCompleteEvent tapdataEvent) {
-		clientMongoOperator.update(Query.query(Criteria.where("taskId").is(dataProcessorContext.getTaskDto().getId().toHexString())
+		tmServerOperator.update(Query.query(Criteria.where("taskId").is(dataProcessorContext.getTaskDto().getId().toHexString())
 				.and("nodeId").is(tapdataEvent.getNodeId())
 				.and("mergeTablePropertiesId").is(tapdataEvent.getMergeTablePropertiesId())), new Update().set("status", CacheRebuildStatus.DONE.name()),ConnectorConstant.TASK_COLLECTION + "/mergeTablePropertiesRebuildStatus");
 		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
@@ -2042,7 +2042,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 			try {
 				if (needSave.get()){
-					clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+					tmServerOperator.insertOne(syncProgressJsonMap, collection);
 				}
 			} catch (Exception e) {
 				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
@@ -2076,7 +2076,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         String dataString = new String(encode, StandardCharsets.UTF_8);
 
                         // 返回结果调用接口返回
-                        clientMongoOperator.insertOne(dataString, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistoryV2");
+                        tmServerOperator.insertOne(dataString, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistoryV2");
                         insertMetadata.clear();
                         updateMetadata.clear();
                         removeMetadata.clear();
@@ -2307,8 +2307,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			} else {
 				return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Exactly once write is not supported, source connector(%s) is not a database/table node", sourceNode.getName()));
 			}
-			Connections sourceConn = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(connectionId)), ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-			DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConn.getPdkHash());
+			Connections sourceConn = tmServerOperator.findOne(Query.query(Criteria.where("_id").is(connectionId)), ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+			DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(tmServerOperator, sourceConn.getPdkHash());
 			List<Capability> capabilities = databaseType.getCapabilities();
 			if (null == capabilities
 					|| null == capabilities.stream().map(Capability::getId).filter(capabilityId -> capabilityId.equals(ConnectionOptions.CAPABILITY_SOURCE_SUPPORT_EXACTLY_ONCE)).findFirst().orElse(null)) {

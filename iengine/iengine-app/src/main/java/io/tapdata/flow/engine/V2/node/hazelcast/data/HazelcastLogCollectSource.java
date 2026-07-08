@@ -54,7 +54,7 @@ public class HazelcastLogCollectSource extends HazelcastTaskSource {
 					.withNode(dataProcessorContext.getNode())
 					.withNodes(dataProcessorContext.getNodes())
 					.withEdges(dataProcessorContext.getEdges())
-					.withSourceConn(MongodbUtil.getConnections(new Query(where("_id").is(connectionId)), clientMongoOperator, true))
+					.withSourceConn(MongodbUtil.getConnections(new Query(where("_id").is(connectionId)), tmServerOperator, true))
 					.withConfigurationCenter(dataProcessorContext.getConfigurationCenter())
 					.build();
 			List<String> tableNames = ((LogCollectorNode) node).getTableNames();

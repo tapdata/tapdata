@@ -456,12 +456,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     private void initSourceRunnerOnce() {
         this.endSnapshotLoop = new AtomicBoolean(false);
-        this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+        this.transformerWsMessageDto = tmServerOperator.findOne(new Query(),
                 ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
                 TransformerWsMessageDto.class);
         this.sourceRunnerFirstTime = new AtomicBoolean(true);
         this.sourceRunnerRestarting = new AtomicBoolean(false);
-        this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
+        this.databaseType = ConnectionUtil.getDatabaseType(tmServerOperator, dataProcessorContext.getConnections().getPdkHash());
     }
 
     protected void initAndStartSourceRunner() {
@@ -1396,7 +1396,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     List<Connections> connectionList = ShareCdcUtil.getConnectionIds(getNode(), ids -> {
                         Query connectionQuery = new Query(where("_id").in(ids));
                         connectionQuery.fields().include("config").include("pdkHash");
-                        List<Connections> connectionsList = clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+                        List<Connections> connectionsList = tmServerOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
                         for (Connections conn : connectionsList) {
                             connectionMap.put(conn.getId(), conn);
                         }
@@ -1579,7 +1579,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             Map<String, MetadataInstancesDto> updateMetadata = new ConcurrentHashMap<>();
             List<String> removeMetadata = new CopyOnWriteArrayList<>();
             if (null == transformerWsMessageDto) {
-                transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+                transformerWsMessageDto = tmServerOperator.findOne(new Query(),
                         ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
                         TransformerWsMessageDto.class);
             }

@@ -91,7 +91,6 @@ import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.consumer.StreamReadOneByOneConsumer;
 import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
@@ -112,8 +111,6 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionO
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadOneByOneFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.apis.spec.AutoAccumulateBatchInfo;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -304,7 +301,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 					if(checkBatchCount(tableId,tapTable)){
 						createTargetIndex(cacheNode.getNeedCreateIndex(),succeed.get(),tableId,tapTable);
 						Update update = new Update().set("dag.nodes.$.needCreateIndex",new ArrayList<>());
-						clientMongoOperator.update(Query.query(Criteria.where("_id").is(taskDto.getId()).and("dag.nodes.id").is(cacheNode.getId())), update, ConnectorConstant.TASK_COLLECTION);
+						tmServerOperator.update(Query.query(Criteria.where("_id").is(taskDto.getId()).and("dag.nodes.id").is(cacheNode.getId())), update, ConnectorConstant.TASK_COLLECTION);
 					}else{
 						obsLogger.warn("The amount of data is too large and the index cannot be automatically created.");
 					}
@@ -845,7 +842,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 						.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
 						PDKMethod.TARGET_CREATE_INDEX,
 						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG, buildErrorConsumer(tableId)));
-				LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(dataProcessorContext.getConnections(), clientMongoOperator, 1);
+				LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(dataProcessorContext.getConnections(), tmServerOperator, 1);
 				loadSchemaRunner.run();
 			}
 		} catch (Throwable throwable) {
@@ -1062,7 +1059,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		List<ConnectionConfigWithTables> connectionConfigWithTables = ShareCdcUtil.connectionConfigWithTables(getNode(), ids -> {
 			Query connectionQuery = new Query(where("_id").in(ids));
 			connectionQuery.fields().include("config").include("pdkHash");
-			return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+			return tmServerOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 		});
 		List<String> tables = new ArrayList<>();
 		CommonUtils.AnyError anyError = null;
@@ -1345,7 +1342,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			List<Connections> connections = ShareCdcUtil.getConnectionIds(getNode(), ids -> {
 				Query connectionQuery = new Query(where("_id").in(ids));
 				connectionQuery.fields().include("config").include("pdkHash");
-				return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+				return tmServerOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 			});
 			if (CollectionUtils.isNotEmpty(connections)) {
 				connections.forEach(connection -> {
@@ -1858,7 +1855,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		if(getNode() instanceof TableNode tableNode) {
 			if(isReFullRunTableNode()) {
 				if (first){
-					clientMongoOperator.update(Query.query(Criteria.where("taskId").is(dataProcessorContext.getTaskDto().getId().toHexString())
+					tmServerOperator.update(Query.query(Criteria.where("taskId").is(dataProcessorContext.getTaskDto().getId().toHexString())
 							.and("nodeId").is(tableNode.getMergeNodeId())
 							.and("mergeTablePropertiesId").is(tableNode.getMergeTablePropertiesId())), new Update().set("status", CacheRebuildStatus.RUNNING.name()), ConnectorConstant.TASK_COLLECTION + "/mergeTablePropertiesRebuildStatus");
 					obsLogger.info("Rebuild merge table cache, table name: {}", tableNode.getTableName());
