@@ -1442,5 +1442,104 @@ class MeasurementServiceV2ImplTest {
         }
     }
 
+    @Nested
+    class FillNodeCurrentEventTimestampIfNeedTest {
+        private TaskService taskService;
+
+        @BeforeEach
+        void setup() {
+            taskService = mock(TaskService.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "taskService", taskService);
+        }
+
+        @Test
+        @DisplayName("test fillNodeCurrentEventTimestampIfNeed - isNode, migrate task")
+        void testIsNodeMigrateTask() {
+            Map<String, List<Map<String, Object>>> data = new HashMap<>();
+            List<Map<String, Object>> uniqueData = new ArrayList<>();
+            Map<String, Object> sample1 = new HashMap<>();
+            Map<String, String> tags1 = new HashMap<>();
+            tags1.put("type", "node");
+            tags1.put("taskId", "6a46322e5b75c32ed96ac543");
+            tags1.put("nodeId", "node1");
+            sample1.put("tags", tags1);
+            sample1.put("currentEventTimestamp", null);
+            sample1.put("snapshotDoneAt", 0L);
+            uniqueData.add(sample1);
+            data.put("uniqueKey", uniqueData);
+
+            MeasurementQueryParam param = new MeasurementQueryParam();
+            Map<String, MeasurementQueryParam.MeasurementQuerySample> samples = new HashMap<>();
+            MeasurementQueryParam.MeasurementQuerySample querySample = new MeasurementQueryParam.MeasurementQuerySample();
+            Map<String, String> qtags = new HashMap<>();
+            qtags.put("type", "node");
+            qtags.put("taskId", "6a46322e5b75c32ed96ac543");
+            querySample.setTags(qtags);
+            querySample.setType("instant");
+            samples.put("uniqueKey", querySample);
+            param.setSamples(samples);
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("migrate");
+            taskDto.setSnapshotDoneAt(123456789L);
+            Map<String, Long> nodeTs = new HashMap<>();
+            nodeTs.put("node1", 987654321L);
+            nodeTs.put("node2", 888888888L);
+            taskDto.setNodeCurrentEventTimestamp(nodeTs);
+
+            when(taskService.findByTaskId(any(ObjectId.class), any(String[].class))).thenReturn(taskDto);
+
+            ReflectionTestUtils.invokeMethod(measurementServiceV2, "fillNodeCurrentEventTimestampIfNeed", data, param);
+
+            assertEquals(987654321L, sample1.get("currentEventTimestamp"));
+            assertEquals(123456789L, sample1.get("snapshotDoneAt"));
+
+            List<Map<String, Object>> resultList = data.get("uniqueKey");
+            assertEquals(2, resultList.size());
+            Map<String, Object> paddedSample = resultList.stream()
+                    .filter(s -> "node2".equals(((Map<String, String>) s.get("tags")).get("nodeId")))
+                    .findFirst()
+                    .orElse(null);
+            assertNotNull(paddedSample);
+            assertEquals(888888888L, paddedSample.get("currentEventTimestamp"));
+            assertEquals(123456789L, paddedSample.get("snapshotDoneAt"));
+            assertEquals("database", ((Map<String, String>) paddedSample.get("tags")).get("nodeType"));
+        }
+
+        @Test
+        @DisplayName("test fillNodeCurrentEventTimestampIfNeed - isTask, sync task")
+        void testIsTaskSyncTask() {
+            Map<String, List<Map<String, Object>>> data = new HashMap<>();
+            List<Map<String, Object>> uniqueData = new ArrayList<>();
+            data.put("uniqueKey", uniqueData);
+
+            MeasurementQueryParam param = new MeasurementQueryParam();
+            Map<String, MeasurementQueryParam.MeasurementQuerySample> samples = new HashMap<>();
+            MeasurementQueryParam.MeasurementQuerySample querySample = new MeasurementQueryParam.MeasurementQuerySample();
+            Map<String, String> qtags = new HashMap<>();
+            qtags.put("type", "task");
+            qtags.put("taskId", "69feb7076daae8c9545dad1c");
+            querySample.setTags(qtags);
+            querySample.setType("instant");
+            samples.put("uniqueKey", querySample);
+            param.setSamples(samples);
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("sync");
+            taskDto.setSnapshotDoneAt(555555L);
+            taskDto.setCurrentEventTimestamp(999999L);
+
+            when(taskService.findByTaskId(any(ObjectId.class), any(String[].class))).thenReturn(taskDto);
+
+            ReflectionTestUtils.invokeMethod(measurementServiceV2, "fillNodeCurrentEventTimestampIfNeed", data, param);
+
+            List<Map<String, Object>> resultList = data.get("uniqueKey");
+            assertEquals(1, resultList.size());
+            Map<String, Object> padded = resultList.get(0);
+            assertEquals(999999L, padded.get("currentEventTimestamp"));
+            assertEquals(555555L, padded.get("snapshotDoneAt"));
+            assertEquals("task", ((Map<String, String>) padded.get("tags")).get("type"));
+        }
+    }
 
 }

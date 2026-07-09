@@ -89,7 +89,7 @@ public class MeasureAOP {
         Map<String, Boolean> heartbeatEnabledMap = new HashMap<>();
         if(CollectionUtils.isNotEmpty(taskIds)){
             taskIds.forEach(taskId -> {
-                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name", FIELD_SS_VS_CURR_EVENT_TS,"alarmSettings","alarmRules", FIELD_SS_VS_SNAPSHOT_DONE_AT,"status","desc");
+                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name", FIELD_SS_VS_CURR_EVENT_TS,"alarmSettings","alarmRules", FIELD_SS_VS_SNAPSHOT_DONE_AT,"status","desc", "nodeCurrentEventTimestamp");
                 taskDtoMap.put(taskId, taskDto);
             });
             taskDtoMap.values().forEach(taskDto -> {
@@ -150,6 +150,22 @@ public class MeasureAOP {
                     if (sourceNode.isPresent()) {
                         sourceNoIncrementalEventAlarm(taskDto, taskId, nodeId, nodeName, vs, sourceNode.get(),
                                 heartbeatEnabledMap, alarmSettingMap.get(userDetail.getUserId()));
+
+                        Number currentEventTimestamp = vs.get(FIELD_SS_VS_CURR_EVENT_TS);
+                        if (Objects.nonNull(currentEventTimestamp) && currentEventTimestamp.longValue() > 0) {
+                            Map<String, Long> nodeCurrentEventTimestampMap = taskDto.getNodeCurrentEventTimestamp();
+                            if (nodeCurrentEventTimestampMap == null || !currentEventTimestamp.equals(nodeCurrentEventTimestampMap.get(nodeId))) {
+                                Update update = new Update();
+                                update.set("nodeCurrentEventTimestamp." + nodeId, currentEventTimestamp.longValue());
+                                taskService.update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId))), update);
+
+                                if (nodeCurrentEventTimestampMap == null) {
+                                    nodeCurrentEventTimestampMap = new HashMap<>();
+                                    taskDto.setNodeCurrentEventTimestamp(nodeCurrentEventTimestampMap);
+                                }
+                                nodeCurrentEventTimestampMap.put(nodeId, currentEventTimestamp.longValue());
+                            }
+                        }
                     }
                     if (null != ruleMap && !ruleMap.isEmpty()) {
                         Optional.ofNullable(ruleMap.get(nodeId)).ifPresent(rules -> {
