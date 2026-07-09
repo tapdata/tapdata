@@ -79,4 +79,11 @@ public class AutoRecovery implements AutoCloseable {
             return ins;
         });
     }
+
+    public static void remove(String taskId) {
+        if (null != taskId) {
+            instances.remove(taskId);
+            logger.info("Safety removed auto-recovery instance '{}' due to task failure or lifecycle action", taskId);
+        }
+    }
 }

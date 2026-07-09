@@ -85,6 +85,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
+import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -261,6 +262,11 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
+			try {
+				AutoRecovery.remove(taskDto.getId().toHexString());
+			} catch (Throwable t) {
+				logger.warn("Failed to safety remove AutoRecovery instance, error: {}", t.getMessage());
+			}
 			throw throwable;
 		}
 	}
