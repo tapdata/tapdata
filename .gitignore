@@ -139,3 +139,5 @@ sybase-poc-temp/
 run-resources
 data/
 ll
+
+manager/tm/.proxy-instance-id
