@@ -740,7 +740,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
     public List<MetadataInstancesDto> tableConnection(String name, UserDetail user) {
         Criteria criteria = Criteria.where(ORIGINAL_NAME).regex(name, "i")
-                .and(META_TYPE).in(MetaType.table.name(), MetaType.collection.name(), MetaType.view.name())
+                .and(META_TYPE).in(MetaType.table.name(), MetaType.collection.name(), MetaType.view.name(), MetaType.mongo_view.name())
                 .and(IS_DELETED).is(false);
 
 
@@ -806,7 +806,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
     public MetadataInstancesDto findBySourceIdAndTableName(String sourceId, String tableName, String taskId, UserDetail userDetail) {
         Criteria criteria = Criteria
-                .where(META_TYPE).in(TABLE, COLLECTION, "view")
+                .where(META_TYPE).in(TABLE, COLLECTION, "view", MetaType.mongo_view.name())
                 .and(ORIGINAL_NAME).is(tableName)
                 .and(IS_DELETED).ne(true)
                 .and(SOURCE_ID).is(sourceId)
@@ -817,7 +817,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
     public List<MetadataInstancesDto> findSourceSchemaBySourceId(String sourceId, List<String> tableNames, UserDetail userDetail, String... fields) {
         Criteria criteria = Criteria
-                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view"))
+                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view", MetaType.mongo_view.name()))
                 .and(IS_DELETED).ne(true)
                 .and(SOURCE_ID).is(sourceId)
                 .and(SOURCE_TYPE).is(SourceTypeEnum.SOURCE.name())
@@ -836,7 +836,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
     @Override
     public List<MetadataInstancesDto> findSourceSchemaBySourceIdIgnoreCase(String sourceId, List<String> tableNames, UserDetail userDetail, String... fields) {
         Criteria criteria = Criteria
-                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view"))
+                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view", MetaType.mongo_view.name()))
                 .and(IS_DELETED).ne(true)
                 .and(SOURCE_ID).is(sourceId)
                 .and(SOURCE_TYPE).is(SourceTypeEnum.SOURCE.name())
@@ -856,7 +856,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
     public List<MetadataInstancesDto> findBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
         Criteria criteria = Criteria
-                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view"))
+                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view", MetaType.mongo_view.name()))
                 .and(IS_DELETED).ne(true)
                 .and(SOURCE_ID).is(sourceId)
                 .and(TASK_ID).is(taskId);
@@ -870,7 +870,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
     public List<MetadataInstancesDto> findBySourceIdAndTableNameListNeTaskId(String sourceId, List<String> tableNames, UserDetail userDetail) {
         Criteria criteria = Criteria
-                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view"))
+                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view", MetaType.mongo_view.name()))
                 .and(IS_DELETED).ne(true)
                 .and(SOURCE_ID).is(sourceId)
                 .and(TASK_ID).exists(false);
@@ -884,7 +884,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
     public List<MetadataInstancesEntity> findEntityBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
         Criteria criteria = Criteria
-                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view"))
+                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view", MetaType.mongo_view.name()))
                 .and(IS_DELETED).ne(true)
                 .and(SOURCE_ID).is(sourceId)
                 .and(TASK_ID).is(taskId);
@@ -1301,7 +1301,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                 .and(SOURCE_TYPE).is(sourceType)
                 .and(IS_DELETED).ne(true)
                 .and(TASK_ID).exists(false)
-                .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name());
+                .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name(), MetaType.view.name(), MetaType.mongo_view.name());
         Query query = new Query(criteria);
         query.fields().include(ORIGINAL_NAME);
         List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
@@ -1314,7 +1314,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                 .and(SOURCE_TYPE).is(sourceType)
                 .and(IS_DELETED).ne(true)
                 .and(TASK_ID).exists(false)
-                .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name());
+                .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name(), MetaType.view.name(), MetaType.mongo_view.name());
         Query query = new Query(criteria);
         query.fields().include(ORIGINAL_NAME,COMMENT);
         List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
@@ -1346,7 +1346,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 				.and(SOURCE_TYPE).is(sourceType)
 				.and(IS_DELETED).ne(true)
 				.and(TASK_ID).exists(false)
-				.and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name());
+				.and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name(), MetaType.view.name(), MetaType.mongo_view.name());
 
 			if (null != regex) {
 				regex = "^" + regex + "$";
@@ -1362,6 +1362,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                             .and(AggregationExpression.from(MongoExpression.create("{ \"$toString\": \"$_id\" }"))).as("_id")
                             .and(ORIGINAL_NAME).as(TABLE_NAME)
                             .and(COMMENT).as(TABLE_COMMENT)
+                            .and(META_TYPE).as(META_TYPE)
                             .and(ConditionalOperators
                                     .when(ComparisonOperators.Eq.valueOf("fields.primaryKey").equalToValue(true))
                                     .then(1)
@@ -1375,11 +1376,12 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                     Aggregation.group("_id")
                             .first(TABLE_NAME).as(TABLE_NAME)
                             .first(TABLE_COMMENT).as(TABLE_COMMENT)
+                            .first(META_TYPE).as(META_TYPE)
                             .sum("primaryKey").as("primaryKeyCounts")
                             .sum("uniqueIndex").as("uniqueIndexCounts"),
                     Aggregation.project()
                             .and("_id").as(TABLE_ID)
-                            .andInclude(TABLE_NAME, TABLE_COMMENT, "primaryKeyCounts", "uniqueIndexCounts")
+                            .andInclude(TABLE_NAME, TABLE_COMMENT, "primaryKeyCounts", "uniqueIndexCounts", META_TYPE)
                             .andExclude("_id"),
                     Aggregation.sort(Sort.by(TABLE_ID))
             );
@@ -1415,7 +1417,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         Criteria criteria = Criteria.where(SOURCE_ID).is(connectId)
                 .and(IS_DELETED).is(false)
                 .and(ORIGINAL_NAME).is(tableName)
-                .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name());
+                .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name(), MetaType.view.name(), MetaType.mongo_view.name());
         Query query = new Query(criteria);
         query.fields().include(FIELDS);
         MetadataInstancesDto metadataInstancesDtos = findOne(query);
@@ -1431,7 +1433,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         Criteria criteria = Criteria.where(SOURCE_ID).is(tablesSupportInspectParam.getConnectionId())
                 .and(IS_DELETED).is(false)
                 .and(ORIGINAL_NAME).in(tablesSupportInspectParam.getTableNames())
-                .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name());
+                .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name(), MetaType.view.name(), MetaType.mongo_view.name());
         Query query = new Query(criteria);
         query.fields().include(FIELDS, ORIGINAL_NAME);
         List<MetadataInstancesDto> metadataInstancesDtos = findAll(query);
@@ -1842,7 +1844,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         if (taskDto.getDag() != null) {
             Node node = dag.getNode(nodeId);
             if (node != null) {
-                Criteria criteriaTable = Criteria.where(META_TYPE).in(TABLE, COLLECTION, "view");
+                Criteria criteriaTable = Criteria.where(META_TYPE).in(TABLE, COLLECTION, MetaType.view.name(), MetaType.mongo_view.name());
                 Criteria criteriaNode = Criteria.where(META_TYPE).is(MetaType.processor_node.name());
                 Query queryMetadata = new Query();
                 if (pageSize > 0) {
@@ -1987,7 +1989,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
 
     public List<Map<String, Object>> search(String type, String keyword, String lastId, Integer pageSize, UserDetail user) {
-        List<String> metaTypes = Lists.newArrayList(TABLE, COLLECTION);
+        List<String> metaTypes = Lists.newArrayList(TABLE, COLLECTION, MetaType.view.name(), MetaType.mongo_view.name());
         Criteria criteria;
         if (TABLE.equals(type)) {
             criteria = Criteria.where(META_TYPE).in(metaTypes)
@@ -2057,7 +2059,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         Criteria criteria =
                 Criteria.where(SOURCE_ID).is(connectionId)
                         .and(IS_DELETED).ne(true)
-                        .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name())
+                        .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name(), MetaType.view.name(), MetaType.mongo_view.name())
                         .orOperator(Criteria.where(ORIGINAL_NAME).regex(keyword), Criteria.where("name").regex(keyword)
                                 , Criteria.where(COMMENT).regex(keyword));
 
@@ -2089,7 +2091,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
     }
 
     public MetaTableCheckVo checkTableNames(String connectionId, List<String> names, UserDetail user) {
-        List<String> metaTypes = Lists.newArrayList(MetaType.table.name());
+        List<String> metaTypes = Lists.newArrayList(MetaType.table.name(), MetaType.view.name(), MetaType.mongo_view.name());
         Criteria criteria = Criteria.where(SOURCE_ID).is(connectionId)
                 .and(IS_DELETED).is(false)
                 .and(META_TYPE).in(metaTypes)
@@ -2241,7 +2243,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         Filter filter = new Filter();
         filter.setWhere(new Where()
                 .and(SOURCE_ID_WITHOUT_UNDERLINE, node.getConnectionId())
-                .and(META_TYPE, MetaType.table)
+                .and(META_TYPE, Map.of("$in", List.of(MetaType.collection.name(), MetaType.table.name(), MetaType.view.name(), MetaType.mongo_view.name())))
                 .and(SOURCE_TYPE, SourceTypeEnum.SOURCE)
         );
 

@@ -93,12 +93,21 @@ import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadFunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionFunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionOneByOneFunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadOneByOneFunctionProxy;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryService;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionOneByOneFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadOneByOneFunction;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -258,8 +267,22 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         return false;
     }
 
+    protected void initFunctionProxy() {
+        ConnectorNode connectorNode = getConnectorNode();
+        ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+        StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
+        StreamReadOneByOneFunction streamReadOneByOneFunction = connectorFunctions.getStreamReadOneByOneFunction();
+        StreamReadMultiConnectionFunction streamReadMultiConnectionFunction = connectorFunctions.getStreamReadMultiConnectionFunction();
+        StreamReadMultiConnectionOneByOneFunction streamReadMultiConnectionOneByOneFunction = connectorFunctions.getStreamReadMultiConnectionOneByOneFunction();
+        connectorFunctions.supportOneByOneStreamRead(new StreamReadOneByOneFunctionProxy(streamReadOneByOneFunction).proxy());
+        connectorFunctions.supportStreamRead(new StreamReadFunctionProxy(streamReadFunction).proxy());
+        connectorFunctions.supportStreamReadMultiConnectionFunction(new StreamReadMultiConnectionFunctionProxy(streamReadMultiConnectionFunction).proxy());
+        connectorFunctions.supportStreamReadMultiConnectionOneByOneFunction(new StreamReadMultiConnectionOneByOneFunctionProxy(streamReadMultiConnectionOneByOneFunction).proxy());
+    }
+
     @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
+        initFunctionProxy();
         noPrimaryKeyVirtualField.init(getNode().getGraph());
         AutoRecovery.setEnqueueConsumer(getNode().getTaskId(), this::enqueue);
         ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = taskResourceSupervisorManager.getTaskNodeInfos();
