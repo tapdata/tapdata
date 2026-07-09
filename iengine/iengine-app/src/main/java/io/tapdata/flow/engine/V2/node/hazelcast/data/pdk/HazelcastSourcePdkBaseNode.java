@@ -274,15 +274,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         StreamReadOneByOneFunction streamReadOneByOneFunction = connectorFunctions.getStreamReadOneByOneFunction();
         StreamReadMultiConnectionFunction streamReadMultiConnectionFunction = connectorFunctions.getStreamReadMultiConnectionFunction();
         StreamReadMultiConnectionOneByOneFunction streamReadMultiConnectionOneByOneFunction = connectorFunctions.getStreamReadMultiConnectionOneByOneFunction();
-        connectorFunctions.supportOneByOneStreamRead(new StreamReadOneByOneFunctionProxy(streamReadOneByOneFunction).proxy());
-        connectorFunctions.supportStreamRead(new StreamReadFunctionProxy(streamReadFunction).proxy());
-        connectorFunctions.supportStreamReadMultiConnectionFunction(new StreamReadMultiConnectionFunctionProxy(streamReadMultiConnectionFunction).proxy());
-        connectorFunctions.supportStreamReadMultiConnectionOneByOneFunction(new StreamReadMultiConnectionOneByOneFunctionProxy(streamReadMultiConnectionOneByOneFunction).proxy());
+        connectorFunctions.supportOneByOneStreamRead(StreamReadOneByOneFunctionProxy.instance(streamReadOneByOneFunction));
+        connectorFunctions.supportStreamRead(StreamReadFunctionProxy.instance(streamReadFunction));
+        connectorFunctions.supportStreamReadMultiConnectionFunction(StreamReadMultiConnectionFunctionProxy.instance(streamReadMultiConnectionFunction));
+        connectorFunctions.supportStreamReadMultiConnectionOneByOneFunction(StreamReadMultiConnectionOneByOneFunctionProxy.instance(streamReadMultiConnectionOneByOneFunction));
     }
 
     @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
-        initFunctionProxy();
         noPrimaryKeyVirtualField.init(getNode().getGraph());
         AutoRecovery.setEnqueueConsumer(getNode().getTaskId(), this::enqueue);
         ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = taskResourceSupervisorManager.getTaskNodeInfos();
@@ -308,6 +307,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 obsLogger.error("Source connector(" + getNode().getName() + ") initialization error: " + e.getMessage(), e);
                 throw new NodeException(e).context(getProcessorBaseContext());
             }
+            initFunctionProxy();
             dataProcessorContext.getTapTableMap().forEach((id, table) -> noPrimaryKeyVirtualField.add(table));
             initSourceReadBatchSize();
             initSourceEventQueue();

@@ -155,6 +155,13 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
     public static final String PARTITION_MASTER_TABLE_ID = "partitionMasterTableId";
     public static final int UPSERT_BATCH_SIZE = 100;
     private static final String NO_PDK_HASH = "_no_pk_hash";
+    private static final List<String> SOURCE_MODEL_META_TYPES = Arrays.stream(MetaType.values())
+            .map(MetaType::name)
+            .filter(metaType -> {
+                MetaDataBuilderUtils.MetaTypeProperty property = MetaDataBuilderUtils.metaTypePropertyMap.get(metaType);
+                return property != null && property.isModel() && !MetaType.processor_node.name().equals(metaType);
+            })
+            .collect(Collectors.toList());
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -1688,12 +1695,10 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
             dataSource.setDefinitionPdkId(definitionDto.getPdkId());
             dataSource.setDefinitionScope(definitionDto.getScope());
             dataSource.setDefinitionVersion(definitionDto.getVersion());
-            String metaType = TABLE;
-            if (MONGODB.equals(dataSource.getDatabase_type())) {
-                metaType = COLLECTION;
-            }
 
             String tableName = ((TableNode) node).transformTableName(((TableNode) node).getTableName());
+            String defaultMetaType = getDefaultSourceModelMetaType(dataSource);
+            String metaType = shouldUseSourceModelMetaType(node) ? getSourceModelMetaType(dataSource, tableName, defaultMetaType, user) : defaultMetaType;
             return MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, taskId);
         } else if (node instanceof ProcessorNode) {
             return MetaDataBuilderUtils.generateQualifiedName(com.tapdata.tm.commons.util.MetaType.processor_node.name(), node.getId(), null, taskId);
@@ -1718,7 +1723,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
             if (node != null) {
 
                 if (dataSource == null) {
-                    dataSource = dataSourceService.findById(MongoUtils.toObjectId(((TableNode) node).getConnectionId()));
+                    dataSource = dataSourceService.findById(MongoUtils.toObjectId(((DataParentNode<?>) node).getConnectionId()));
                 }
 
                 if (definitionDto == null) {
@@ -1729,10 +1734,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                 dataSource.setDefinitionPdkId(definitionDto.getPdkId());
                 dataSource.setDefinitionScope(definitionDto.getScope());
                 dataSource.setDefinitionVersion(definitionDto.getVersion());
-                String metaType = TABLE;
-                if (MONGODB.equals(dataSource.getDatabase_type())) {
-                    metaType = COLLECTION;
-                }
+                String defaultMetaType = getDefaultSourceModelMetaType(dataSource);
 
                 List<String> tableNames;
                 if (CollectionUtils.isNotEmpty(includes)) {
@@ -1750,7 +1752,11 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                 }
 
                 if(CollectionUtils.isNotEmpty(tableNames)) {
+                    Map<String, String> metaTypeByTableName = shouldUseSourceModelMetaType(node)
+                            ? getSourceModelMetaTypes(dataSource, tableNames, defaultMetaType, user)
+                            : Collections.emptyMap();
                     for (String tableName : tableNames) {
+                        String metaType = metaTypeByTableName.getOrDefault(tableName, defaultMetaType);
                         String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, taskId);
                         qualifiedNames.add(qualifiedName);
                     }
@@ -1760,6 +1766,75 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         }
 
         return qualifiedNames;
+    }
+
+    private boolean shouldUseSourceModelMetaType(Node node) {
+        try {
+            return Node.SourceType.source.equals(node.sourceType());
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    private String getDefaultSourceModelMetaType(DataSourceConnectionDto dataSource) {
+        if (dataSource != null && DataSourceEnum.isMetaTypeCollection(dataSource.getDatabase_type())) {
+            return COLLECTION;
+        } else if (dataSource != null && "vika".equals(dataSource.getDatabase_type())) {
+            return MetaType.VikaDatasheet.name();
+        } else if (dataSource != null && "qingflow".equals(dataSource.getDatabase_type())) {
+            return MetaType.qingFlowApp.name();
+        }
+        return TABLE;
+    }
+
+    private String getSourceModelMetaType(DataSourceConnectionDto dataSource, String tableName, String defaultMetaType, UserDetail user) {
+        return getSourceModelMetaTypes(dataSource, Collections.singletonList(tableName), defaultMetaType, user).getOrDefault(tableName, defaultMetaType);
+    }
+
+    private Map<String, String> getSourceModelMetaTypes(DataSourceConnectionDto dataSource, List<String> tableNames,
+                                                        String defaultMetaType, UserDetail user) {
+        Map<String, String> metaTypeByTableName = new HashMap<>();
+        if (dataSource == null || dataSource.getId() == null || CollectionUtils.isEmpty(tableNames)) {
+            return metaTypeByTableName;
+        }
+
+        Criteria criteria = Criteria.where(META_TYPE).in(SOURCE_MODEL_META_TYPES)
+                .and(IS_DELETED).ne(true)
+                .and(SOURCE_ID).is(dataSource.getId().toHexString())
+                .and(SOURCE_TYPE).is(SourceTypeEnum.SOURCE.name())
+                .and(TASK_ID).exists(false)
+                .and(ORIGINAL_NAME).in(tableNames);
+        Query query = new Query(criteria);
+        query.fields().include(ORIGINAL_NAME, META_TYPE);
+        List<MetadataInstancesDto> sourceModels = findAllDto(query, user);
+        if (CollectionUtils.isEmpty(sourceModels)) {
+            return metaTypeByTableName;
+        }
+
+        Map<String, MetadataInstancesDto> sourceModelByTableName = new HashMap<>();
+        for (MetadataInstancesDto sourceModel : sourceModels) {
+            if (sourceModel == null || StringUtils.isBlank(sourceModel.getOriginalName()) || StringUtils.isBlank(sourceModel.getMetaType())) {
+                continue;
+            }
+            MetadataInstancesDto exists = sourceModelByTableName.get(sourceModel.getOriginalName());
+            if (exists == null || compareMetaTypePriority(sourceModel.getMetaType(), exists.getMetaType(), defaultMetaType) < 0) {
+                sourceModelByTableName.put(sourceModel.getOriginalName(), sourceModel);
+            }
+        }
+        sourceModelByTableName.forEach((tableName, metadataInstancesDto) -> metaTypeByTableName.put(tableName, metadataInstancesDto.getMetaType()));
+        return metaTypeByTableName;
+    }
+
+    private int compareMetaTypePriority(String metaType, String existsMetaType, String defaultMetaType) {
+        return Integer.compare(metaTypePriority(metaType, defaultMetaType), metaTypePriority(existsMetaType, defaultMetaType));
+    }
+
+    private int metaTypePriority(String metaType, String defaultMetaType) {
+        if (Objects.equals(metaType, defaultMetaType)) {
+            return 0;
+        }
+        int index = SOURCE_MODEL_META_TYPES.indexOf(metaType);
+        return index < 0 ? Integer.MAX_VALUE : index + 1;
     }
 
     public List<MetadataInstancesDto> findByNodeId(String nodeId, UserDetail userDetail) {

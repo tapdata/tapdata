@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.entity.schema.type.TapArray;
 import io.tapdata.entity.schema.type.TapMap;
@@ -42,6 +43,15 @@ public class SchemaUtils {
     private static final String _ID = "_id";
 
     public static final String OBJECT_ID = "OBJECT_ID";
+    private static final Set<String> INHERITABLE_MODEL_META_TYPES = new HashSet<>(Arrays.asList(
+            MetaType.collection.name(),
+            MetaType.view.name(),
+            MetaType.table.name(),
+            MetaType.mongo_view.name(),
+            MetaType.file.name(),
+            MetaType.VikaDatasheet.name(),
+            MetaType.qingFlowApp.name()
+    ));
 
     private enum PriorityEnum {
         manual(3),
@@ -75,6 +85,10 @@ public class SchemaUtils {
      */
     public static Schema mergeSchema(List<Schema> inputSchemas, Schema schema, boolean logicInput) {
         List<Schema> _inputSchemas = inputSchemas.stream().filter(Objects::nonNull).collect(Collectors.toList());
+        List<String> inputMetaTypes = _inputSchemas.stream().map(Schema::getMetaType).collect(Collectors.toList());
+        if (schema != null) {
+            inputMetaTypes.add(schema.getMetaType());
+        }
         Schema targetSchema = cloneSchema(schema);
 
         if (targetSchema == null) {
@@ -142,12 +156,45 @@ public class SchemaUtils {
                 }));
 
         targetSchema.setFields(new ArrayList<>(fields.values()));
+        targetSchema.setMetaType(inferModelMetaType(targetSchema.getMetaType(), inputMetaTypes));
         List<String> sourceNodeDatabaseTypes = _inputSchemas.stream().map(Schema::getSourceNodeDatabaseType).distinct().collect(Collectors.toList());
         if (sourceNodeDatabaseTypes.size() > 0){
             targetSchema.setSourceNodeDatabaseType(sourceNodeDatabaseTypes.get(0));
         }
 
         return targetSchema;
+    }
+
+    public static String inferModelMetaType(String defaultMetaType, String... metaTypes) {
+        if (metaTypes == null) {
+            return defaultMetaType;
+        }
+        return inferModelMetaType(defaultMetaType, Arrays.asList(metaTypes));
+    }
+
+    public static String inferModelMetaType(String defaultMetaType, Collection<String> metaTypes) {
+        if (CollectionUtils.isEmpty(metaTypes)) {
+            return defaultMetaType;
+        }
+        String selectedMetaType = null;
+        for (String metaType : metaTypes) {
+            if (!isInheritableModelMetaType(metaType)) {
+                continue;
+            }
+            if (StringUtils.isBlank(selectedMetaType)
+                    || modelMetaTypePriority(metaType) < modelMetaTypePriority(selectedMetaType)) {
+                selectedMetaType = metaType;
+            }
+        }
+        return StringUtils.isNotBlank(selectedMetaType) ? selectedMetaType : defaultMetaType;
+    }
+
+    private static boolean isInheritableModelMetaType(String metaType) {
+        return StringUtils.isNotBlank(metaType) && INHERITABLE_MODEL_META_TYPES.contains(metaType);
+    }
+
+    private static int modelMetaTypePriority(String metaType) {
+        return MetaType.isView(metaType) ? 1 : 0;
     }
 
     protected static void cloneSchemaInfo(Schema inputSchema, Schema targetSchema) {

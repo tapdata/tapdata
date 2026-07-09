@@ -68,6 +68,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustStage;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.BatchAcceptor;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.FunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadBaseProxy;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustResult;
@@ -112,8 +114,6 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionO
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadOneByOneFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.apis.spec.AutoAccumulateBatchInfo;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -351,8 +351,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			if (need2CDC()) {
 				waitAllSnapshotCompleteIfNeed();
 				try {
+					TapTableMap<String, TapTable> tableMap = processorBaseContext.getTapTableMap();
+					StreamReadBaseProxy.judgeTable(tableMap, obsLogger);
 					executeAspect(new CDCReadBeginAspect().dataProcessorContext(dataProcessorContext));
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_START));
+					if (tableMap.isEmpty()) {
+						obsLogger.info("The table list is empty, skip the CDC stage");
+						executeAspect(new CDCReadEndAspect().dataProcessorContext(dataProcessorContext));
+						return;
+					}
 					doCdc();
 					executeAspect(new CDCReadEndAspect().dataProcessorContext(dataProcessorContext));
 				} catch (Throwable e) {
@@ -1061,7 +1068,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		CommonUtils.AnyError anyError = null;
 		if (null != streamReadMultiConnectionFunction) {
 			doBeforeReadMulti(connectionConfigWithTables, tables);
-			streamReadFunctionName.set(streamReadMultiConnectionFunction.getClass().getSuperclass().getSimpleName());
+			streamReadFunctionName.set(FunctionProxy.functionName(streamReadMultiConnectionFunction));
 			anyError = () -> {
 				streamReadMultiConnectionFunction.streamRead(connectorNode.getConnectorContext(), connectionConfigWithTables,
 						syncProgress.getStreamOffsetObj(), getIncreaseReadSize(), consumer);
@@ -1070,7 +1077,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			anyError = doRowDataCallbackIfNeed(connectorNode, tables, tapTableMap, streamReadFunctionName, consumer);
 			StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
 			if (null == anyError && null != streamReadFunction) {
-				streamReadFunctionName.set(streamReadFunction.getClass().getSuperclass().getSimpleName());
+				streamReadFunctionName.set(FunctionProxy.functionName(streamReadFunction));
 				tables.addAll(tapTableMap.keySet());
 				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
@@ -1136,7 +1143,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		CommonUtils.AnyError anyError = null;
 		if (null != streamReadMultiConnectionFunction) {
 			doBeforeReadMulti(connectionConfigWithTables, tables);
-			streamReadFunctionName.set(streamReadMultiConnectionFunction.getClass().getSuperclass().getSimpleName());
+			streamReadFunctionName.set(FunctionProxy.functionName(streamReadMultiConnectionFunction));
 			anyError = () -> {
 				streamReadMultiConnectionFunction.streamRead(connectorNode.getConnectorContext(), connectionConfigWithTables,
 						syncProgress.getStreamOffsetObj(), consumer);
@@ -1145,7 +1152,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 			anyError = doRowDataCallbackIfNeed(connectorNode, tables, tapTableMap, streamReadFunctionName, consumer);
 			StreamReadOneByOneFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadOneByOneFunction();
 			if (null == anyError && null != streamReadFunction) {
-				streamReadFunctionName.set(streamReadFunction.getClass().getSuperclass().getSimpleName());
+				streamReadFunctionName.set(FunctionProxy.functionName(streamReadFunction));
 				tables.addAll(tapTableMap.keySet());
 				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));

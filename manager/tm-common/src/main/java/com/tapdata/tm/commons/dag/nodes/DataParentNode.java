@@ -208,6 +208,7 @@ public abstract class DataParentNode<S> extends Node<S> {
     protected void  transformResults(List<Field> targetFields, DataSourceConnectionDto dataSource, String _metaType, List<SchemaTransformerResult> schemaTransformerResults, String currentDbName, Schema s) {
         String originTableName = s.getOriginalName();
         String originQualifiedName = s.getQualifiedName();
+        String sinkMetaType = SchemaUtils.inferModelMetaType(_metaType, s.getMetaType());
 
         SchemaTransformerResult str = new SchemaTransformerResult();
         LinkedList<FieldInfo> fieldInfos = null;
@@ -217,11 +218,11 @@ public abstract class DataParentNode<S> extends Node<S> {
         }
 
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(syncType)) {
-            str.setSinkQulifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, originTableName, getTaskId()));
+            str.setSinkQulifiedName(MetaDataBuilderUtils.generateQualifiedName(sinkMetaType, dataSource, originTableName, getTaskId()));
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(syncType)) {
             String tableName = transformTableName(this instanceof TableNode ? ((TableNode) this).getTableName() : originTableName);
             s.setOriginalName(tableName);
-            s.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, tableName, getTaskId()));
+            s.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(sinkMetaType, dataSource, tableName, getTaskId()));
             str.setSinkQulifiedName(s.getQualifiedName());
             str.setSinkObjectName(tableName);
         }

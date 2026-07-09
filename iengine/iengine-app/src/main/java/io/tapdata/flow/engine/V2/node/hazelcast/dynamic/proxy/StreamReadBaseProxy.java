@@ -7,8 +7,10 @@ import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.FunctionProxy;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
+import io.tapdata.schema.TapTableMap;
 
 import java.util.HashSet;
 import java.util.List;
@@ -61,6 +63,24 @@ public abstract class StreamReadBaseProxy<T extends TapFunction, V> extends Func
             return false;
         }
         return hasNext;
+    }
+
+    public static void judgeTable(TapTableMap<String, TapTable> tableMap, ObsLogger log) {
+        Iterator<Entry<TapTable>> iterator = tableMap.iterator();
+        Set<String> view = new HashSet<>();
+        while (iterator.hasNext()) {
+            Entry<TapTable> entry = iterator.next();
+            String tableName = entry.getKey();
+            TapTable tapTable = entry.getValue();
+            String type = tapTable.getType();
+            if (MetaType.isView(type)) {
+                tableMap.remove(tableName);
+                view.add(tableName);
+            }
+        }
+        if (!view.isEmpty()) {
+            log.warn("The view does not support CDC mode. The following views will skip the CDC phase: {}", view.stream().sorted().collect(Collectors.joining(", ")));
+        }
     }
 
     protected abstract void remove(List<V> tables, String tableName);
