@@ -352,13 +352,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				waitAllSnapshotCompleteIfNeed();
 				try {
 					TapTableMap<String, TapTable> tableMap = processorBaseContext.getTapTableMap();
-					StreamReadBaseProxy.judgeTable(tableMap, obsLogger);
 					executeAspect(new CDCReadBeginAspect().dataProcessorContext(dataProcessorContext));
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_START));
-					if (tableMap.isEmpty()) {
-						obsLogger.info("The table list is empty, skip the CDC stage");
-						executeAspect(new CDCReadEndAspect().dataProcessorContext(dataProcessorContext));
-						return;
+					if (!isPollingCDC(getNode())) {
+						StreamReadBaseProxy.judgeTable(tableMap, obsLogger);
+						if (tableMap.isEmpty()) {
+							obsLogger.info("The table list is empty, skip the CDC stage");
+							executeAspect(new CDCReadEndAspect().dataProcessorContext(dataProcessorContext));
+							return;
+						}
 					}
 					doCdc();
 					executeAspect(new CDCReadEndAspect().dataProcessorContext(dataProcessorContext));

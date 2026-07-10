@@ -308,7 +308,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 obsLogger.error("Source connector(" + getNode().getName() + ") initialization error: " + e.getMessage(), e);
                 throw new NodeException(e).context(getProcessorBaseContext());
             }
-            initFunctionProxy();
+            if (!isPollingCDC(getNode())) {
+                initFunctionProxy();
+            }
             dataProcessorContext.getTapTableMap().forEach((id, table) -> noPrimaryKeyVirtualField.add(table));
             initSourceReadBatchSize();
             initSourceEventQueue();
