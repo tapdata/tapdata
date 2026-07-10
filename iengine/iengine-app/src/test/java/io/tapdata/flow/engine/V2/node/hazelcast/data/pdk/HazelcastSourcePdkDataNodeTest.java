@@ -24,6 +24,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.MetaType;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
@@ -108,6 +109,7 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.SneakyThrows;
@@ -3934,6 +3936,13 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         void testNormalFlowWithInitialSyncAndCDC() throws Throwable {
             // Setup
             Set<String> tables = new HashSet<>(Arrays.asList("table1", "table2"));
+            TapTableMap<String, TapTable> tableMap = mock(TapTableMap.class);
+            when(tableMap.remove(anyString())).thenReturn(null);
+            when(tableMap.isEmpty()).thenReturn(false);
+            when(dataProcessorContext.getTapTableMap()).thenReturn(tableMap);
+            Iterator<Entry<TapTable>> iterator = mock(Iterator.class);
+            when(tableMap.iterator()).thenReturn(iterator);
+            when(iterator.hasNext()).thenReturn(false);
             doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
             doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
             doReturn(true).when(sourceNode).need2InitialSync(syncProgress);
@@ -4009,6 +4018,18 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
         void testNormalFlowWithCDCOnly() throws Throwable {
             // Setup
             Set<String> tables = new HashSet<>(Arrays.asList("table1"));
+            TapTable table1 = new TapTable("table1");
+            table1.setType(MetaType.table.name());
+            TapTableMap<String, TapTable> tableMap = mock(TapTableMap.class);
+            when(tableMap.remove(anyString())).thenReturn(null);
+            when(tableMap.isEmpty()).thenReturn(false);
+            when(dataProcessorContext.getTapTableMap()).thenReturn(tableMap);
+            Iterator<Entry<TapTable>> iterator = mock(Iterator.class);
+            when(tableMap.iterator()).thenReturn(iterator);
+            when(iterator.hasNext()).thenReturn(true, false);
+            Map<String, TapTable> map = new HashMap<>();
+            Entry<TapTable> entry = new TapTableEntry("table1", table1);
+            when(iterator.next()).thenReturn(entry);
             doNothing().when(sourceNode).reportBatchSize(anyInt(), anyInt());
             doReturn(tables).when(sourceNode).filterSubTableIfMasterExists();
             doReturn(false).when(sourceNode).need2InitialSync(syncProgress);
@@ -4036,6 +4057,26 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 verify(sourceNode, times(1)).executeAspect(any(CDCReadBeginAspect.class));
                 verify(sourceNode, times(1)).executeAspect(any(CDCReadEndAspect.class));
                 verify(snapshotProgressManager, times(1)).close();
+            }
+        }
+
+        class TapTableEntry implements Entry<TapTable> {
+            private final String tableName;
+            private TapTable tapTable = null;
+
+            public TapTableEntry(String tableName, TapTable table) {
+                this.tableName = tableName;
+                this.tapTable = table;
+            }
+
+            @Override
+            public String getKey() {
+                return tableName;
+            }
+
+            @Override
+            public synchronized TapTable getValue() {
+                return tapTable;
             }
         }
 
