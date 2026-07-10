@@ -43,6 +43,7 @@ import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
 import com.tapdata.tm.commons.alarm.AlarmTypeEnum;
 import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import com.tapdata.tm.skiperrortable.SkipErrorTableStatusEnum;
@@ -1096,6 +1097,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                                 return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || !Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
                             case OnlyUniqueIndex:
                                 return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
+                            case View:
+                                return (Function<TapTable, Boolean>) tapTable -> {
+                                    String metaType = tapTable.getType();
+                                    return MetaType.isView(metaType);
+                                };
                             default:
                                 break;
                         }
