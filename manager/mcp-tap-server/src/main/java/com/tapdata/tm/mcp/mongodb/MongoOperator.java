@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -201,11 +203,83 @@ public class MongoOperator implements Closeable {
     }
 
     private void processPipeline(List<Document> pipeline) {
-        for (Document document : pipeline) {
+        for (int i = 0; i < pipeline.size(); i++) {
+            Document document = normalizePipelineDocument(pipeline.get(i));
+            pipeline.set(i, document);
             if (document.containsKey("$group") && document.get("$group") instanceof Map) {
                 Map doc = (Map) document.get("$group");
                 doc.computeIfAbsent("_id", k -> new HashMap<>());
             }
+        }
+    }
+
+    private Document normalizePipelineDocument(Document document) {
+        Document normalized = new Document();
+        for (Map.Entry<String, Object> entry : document.entrySet()) {
+            normalized.put(entry.getKey(), normalizePipelineValue(entry.getValue()));
+        }
+        return normalized;
+    }
+
+    private Object normalizePipelineValue(Object value) {
+        if (value instanceof Document document) {
+            return normalizeSpecialDocument(document);
+        }
+        if (value instanceof Map<?, ?> map) {
+            return normalizeSpecialMap(map);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> normalized = new ArrayList<>(list.size());
+            for (Object item : list) {
+                normalized.add(normalizePipelineValue(item));
+            }
+            return normalized;
+        }
+        return value;
+    }
+
+    private Object normalizeSpecialDocument(Document document) {
+        return normalizeSpecialMap(document);
+    }
+
+    private Object normalizeSpecialMap(Map<?, ?> map) {
+        if (map.size() == 1 && map.containsKey("$date")) {
+            return normalizeDateValue(map.get("$date"));
+        }
+        if (map.size() == 1 && map.containsKey("$oid")) {
+            return new ObjectId(String.valueOf(map.get("$oid")));
+        }
+
+        Document normalized = new Document();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            normalized.put(String.valueOf(entry.getKey()), normalizePipelineValue(entry.getValue()));
+        }
+        return normalized;
+    }
+
+    private Object normalizeDateValue(Object value) {
+        if (value instanceof Date || value == null) {
+            return value;
+        }
+        if (value instanceof Number number) {
+            return new Date(number.longValue());
+        }
+        if (value instanceof Map<?, ?> map && map.containsKey("$numberLong")) {
+            return new Date(Long.parseLong(String.valueOf(map.get("$numberLong"))));
+        }
+
+        String text = String.valueOf(value).trim();
+        if (text.startsWith("$")) {
+            return new Document("$toDate", text);
+        }
+        if (text.matches("-?\\d+")) {
+            return new Date(Long.parseLong(text));
+        }
+
+        try {
+            return Date.from(Instant.parse(text));
+        } catch (DateTimeParseException e) {
+            throw new McpException("Invalid $date value in MongoDB aggregation pipeline. Use an ISO-8601 date literal, or use $toDate to convert a field.");
         }
     }
 

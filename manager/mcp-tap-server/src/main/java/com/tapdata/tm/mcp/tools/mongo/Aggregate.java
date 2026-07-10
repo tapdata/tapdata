@@ -24,12 +24,12 @@ public class Aggregate {
         this.mongoOperatorFactory = mongoOperatorFactory;
     }
 
-    @McpTool(name = "aggregate", description = "Execute a MongoDB aggregation pipeline through a TapData MongoDB connection.")
+    @McpTool(name = "aggregate", description = "Execute a MongoDB aggregation pipeline through a TapData MongoDB connection. In aggregation expressions, do not use Extended JSON wrappers like {$date: '$field'}; use {$toDate: '$field'} for field conversion and ISO-8601 strings only for date literals.")
     public List<Document> aggregate(
             McpSyncRequestContext context,
             @McpToolParam(description = "TapData MongoDB connection id.") String connectionId,
             @McpToolParam(description = "MongoDB collection name.") String collectionName,
-            @McpToolParam(description = "MongoDB aggregation pipeline stages.") List<Map<String, Object>> pipeline,
+            @McpToolParam(description = "MongoDB aggregation pipeline stages. Use normal MongoDB aggregation operators, for example {$toDate: '$created_at'} instead of {$date: '$created_at'}.") List<Map<String, Object>> pipeline,
             @McpToolParam(required = false, description = "Explain verbosity, such as queryPlanner, executionStats, or allPlansExecution.") String explain) {
         if (StringUtils.isBlank(collectionName)) {
             throw new RuntimeException("Parameter collectionName is required");
