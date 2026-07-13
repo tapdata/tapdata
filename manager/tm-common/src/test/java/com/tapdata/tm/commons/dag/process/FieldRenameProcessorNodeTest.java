@@ -2,6 +2,8 @@ package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.TableIndexColumn;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.schema.TapField;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -83,5 +86,102 @@ public class FieldRenameProcessorNodeTest {
             node.mergeSchema(schemas, null, null);
         });
 
+    }
+
+    @Test
+    public void testMergeSchemaTransformIndexColumnToUpperCase() {
+        FieldRenameProcessorNode node = new FieldRenameProcessorNode();
+        node.setFieldsNameTransform("toUpperCase");
+
+        Field field = new Field();
+        field.setFieldName("EndDate");
+
+        TableIndexColumn column = new TableIndexColumn();
+        column.setColumnName("EndDate");
+        column.setColumnPosition(0);
+        column.setColumnIsAsc(false);
+
+        TableIndex index = new TableIndex();
+        index.setIndexName("IX_MF_NetValue_Date");
+        index.setColumns(new ArrayList<>(Arrays.asList(column)));
+
+        Schema schema = new Schema();
+        schema.setName("MF_NETVALUE");
+        schema.setOriginalName("MF_NETVALUE");
+        schema.setFields(new ArrayList<>(Arrays.asList(field)));
+        schema.setIndices(new ArrayList<>(Arrays.asList(index)));
+
+        List<Schema> inputSchemas = new ArrayList<>();
+        inputSchemas.add(schema);
+
+        Schema outputSchema = node.mergeSchema(inputSchemas, null, null);
+
+        Assertions.assertNotNull(outputSchema);
+        Assertions.assertEquals("ENDDATE",
+                outputSchema.getFields().get(0).getFieldName());
+        Assertions.assertNotNull(outputSchema.getIndices());
+        Assertions.assertEquals("ENDDATE",
+                outputSchema.getIndices().get(0).getColumns().get(0).getColumnName());
+    }
+
+    @Test
+    public void testMergeSchemaTransformIndexColumnToLowerCase() {
+        FieldRenameProcessorNode node = new FieldRenameProcessorNode();
+        node.setFieldsNameTransform("toLowerCase");
+
+        Field field = new Field();
+        field.setFieldName("EndDate");
+
+        TableIndexColumn column = new TableIndexColumn();
+        column.setColumnName("EndDate");
+
+        TableIndex index = new TableIndex();
+        index.setIndexName("IX_MF_NetValue_Date");
+        index.setColumns(new ArrayList<>(Arrays.asList(column)));
+
+        Schema schema = new Schema();
+        schema.setName("MF_NETVALUE");
+        schema.setOriginalName("MF_NETVALUE");
+        schema.setFields(new ArrayList<>(Arrays.asList(field)));
+        schema.setIndices(new ArrayList<>(Arrays.asList(index)));
+
+        List<Schema> inputSchemas = new ArrayList<>();
+        inputSchemas.add(schema);
+
+        Schema outputSchema = node.mergeSchema(inputSchemas, null, null);
+
+        Assertions.assertEquals("enddate",
+                outputSchema.getFields().get(0).getFieldName());
+        Assertions.assertEquals("enddate",
+                outputSchema.getIndices().get(0).getColumns().get(0).getColumnName());
+    }
+
+    @Test
+    public void testMergeSchemaNoTransformKeepsIndexColumn() {
+        FieldRenameProcessorNode node = new FieldRenameProcessorNode();
+
+        Field field = new Field();
+        field.setFieldName("EndDate");
+
+        TableIndexColumn column = new TableIndexColumn();
+        column.setColumnName("EndDate");
+
+        TableIndex index = new TableIndex();
+        index.setIndexName("IX_MF_NetValue_Date");
+        index.setColumns(new ArrayList<>(Arrays.asList(column)));
+
+        Schema schema = new Schema();
+        schema.setName("MF_NETVALUE");
+        schema.setOriginalName("MF_NETVALUE");
+        schema.setFields(new ArrayList<>(Arrays.asList(field)));
+        schema.setIndices(new ArrayList<>(Arrays.asList(index)));
+
+        List<Schema> inputSchemas = new ArrayList<>();
+        inputSchemas.add(schema);
+
+        Schema outputSchema = node.mergeSchema(inputSchemas, null, null);
+
+        Assertions.assertEquals("EndDate",
+                outputSchema.getIndices().get(0).getColumns().get(0).getColumnName());
     }
 }
