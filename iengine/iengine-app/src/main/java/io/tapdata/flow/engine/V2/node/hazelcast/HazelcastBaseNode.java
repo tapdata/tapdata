@@ -44,6 +44,7 @@ import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.*;
@@ -902,7 +903,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (null == tapdataEvent) {
 			return;
 		}
-		if (!tapdataEvent.isDDL() || getNode() instanceof MigrateUnionProcessorNode) {
+		if (!tapdataEvent.isDDL() || getNode() instanceof MigrateUnionProcessorNode || tapdataEvent.getTapEvent() instanceof TapDDLWarningEvent) {
 			return;
 		}
 		try {
