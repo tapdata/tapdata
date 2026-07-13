@@ -1319,7 +1319,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		String sourceNodeAssociateId = tapdataEvent.getSourceNodeAssociateId();
 		if (null != sourceNodeId && null != sourceNodeAssociateId && null != ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId)) {
 			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId);
-			sourceConnectorNodeMap.putIfAbsent(sourceNodeId, connectorNode);
+			// A source runner restart when handle new tables rebuilds the ConnectorNode under a new
+			ConnectorNode previous = sourceConnectorNodeMap.put(sourceNodeId, connectorNode);
+			if (null != previous && previous != connectorNode) {
+				obsLogger.info("Source connector node of {} refreshed to associateId {} after restart, offset flush will target the active CDC engine", sourceNodeId, sourceNodeAssociateId);
+			}
 		}
 	}
 
