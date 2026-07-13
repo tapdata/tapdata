@@ -1323,7 +1323,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                 .and(TASK_ID).exists(false)
                 .and(META_TYPE).in(MetaType.collection.name(), MetaType.table.name(), MetaType.view.name(), MetaType.mongo_view.name());
         Query query = new Query(criteria);
-        query.fields().include(ORIGINAL_NAME,COMMENT);
+        query.fields().include(ORIGINAL_NAME,COMMENT,META_TYPE);
         List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
         List<Map<String, String>> values = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(list)) {
@@ -1332,6 +1332,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                 value.put(TABLE_NAME, entity.getOriginalName());
                 value.put(TABLE_ID, entity.getId().toHexString());
                 value.put(TABLE_COMMENT,StringUtils.isNotBlank(entity.getComment()) ? entity.getComment():"");
+                value.put(META_TYPE, entity.getMetaType());
                 values.add(value);
             }
         }
