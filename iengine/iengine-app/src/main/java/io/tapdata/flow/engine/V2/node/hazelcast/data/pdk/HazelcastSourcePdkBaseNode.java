@@ -1171,7 +1171,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 }
             });
             if (CollectionUtils.isNotEmpty(missingTableNames)) {
-                obsLogger.warn("It is expected to load {} new table models, and {} table models no longer exist and will be ignored. The table name(s) that does not exist: {}",
+                obsLogger.info("It is expected to load {} new table models, and {} table models no longer exist and will be ignored. The table which does not need as new table add to task: {}",
                         addList.size(), missingTableNames.size(), missingTableNames);
             }
             if (CollectionUtils.isEmpty(loadedTableNames)) {
