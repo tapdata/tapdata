@@ -28,8 +28,7 @@ public final class MongoUriUtil {
             sb.append(user).append(":")
                     .append(password).append("@");
         }
-        sb.append(config.get("host")).append(":")
-                .append(Optional.ofNullable(config.get("port")).orElse(27017))
+        sb.append(config.get("host"))
                 .append("/").append(config.get("database"));
         if (config.get("additionalString") != null) {
             sb.append("?").append(config.get("additionalString"));
