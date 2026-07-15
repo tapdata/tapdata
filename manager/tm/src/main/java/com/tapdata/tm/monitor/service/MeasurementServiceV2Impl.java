@@ -79,6 +79,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -1491,24 +1492,26 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK)
                 .and(MetricCons.F_GRANULARITY).is(rangeProfile.queryGranularity);
         Query query = new Query(criteria);
-        query.fields().include(MetricCons.F_TAGS, MetricCons.F_DATE, MetricCons.F_GRANULARITY, MetricCons.F_DIGEST,
+        query.fields().include(MetricCons.F_TAGS, MetricCons.F_DATE, MetricCons.F_GRANULARITY,
                 PATH_SS_DATE,
                 MetricCons.SS.VS.path(MetricCons.SS.VS.F_OUTPUT_QPS),
                 MetricCons.SS.VS.path(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS));
         query.with(Sort.by(MetricCons.F_DATE).ascending());
 
-        List<MeasurementEntity> entities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
         // taskId -> bucket -> list of sample values (outputQps, outputSizeQps)
         Map<String, Map<Long, List<double[]>>> taskBucketSamples = new HashMap<>();
-        for (MeasurementEntity entity : entities) {
-            if (entity == null || entity.getTags() == null) {
-                continue;
-            }
-            String taskId = entity.getTags().get(FIELD_TAGS_TASK_ID);
-            if (StringUtils.isBlank(taskId)) {
-                continue;
-            }
-            collectTaskMetricsEntity(entity, rangeProfile, startAt, endAt, interval, taskId, taskBucketSamples);
+        // stream the result set so entities are consumed and discarded one by one instead of
+        try (Stream<MeasurementEntity> stream = mongoOperations.stream(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME)) {
+            stream.forEach(entity -> {
+                if (entity == null || entity.getTags() == null) {
+                    return;
+                }
+                String taskId = entity.getTags().get(FIELD_TAGS_TASK_ID);
+                if (StringUtils.isBlank(taskId)) {
+                    return;
+                }
+                collectTaskMetricsEntity(entity, rangeProfile, startAt, endAt, interval, taskId, taskBucketSamples);
+            });
         }
 
         // 每个 taskId 在每个 bucket 内取平均值，再跨 taskId 求和
