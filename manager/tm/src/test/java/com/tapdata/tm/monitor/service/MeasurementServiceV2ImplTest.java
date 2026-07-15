@@ -282,12 +282,12 @@ class MeasurementServiceV2ImplTest {
             entity.setGranularity(Granularity.GRANULARITY_MINUTE);
             entity.setTags(Map.of("taskId", "task-1"));
             entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 120D, 12D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenAnswer(invocation -> {
                         Query query = invocation.getArgument(0);
-                        return query.getQueryObject().toJson().contains("\"grnty\": \"minute\"")
+                        return closeableIterator(query.getQueryObject().toJson().contains("\"grnty\": \"minute\"")
                                 ? List.of(entity)
-                                : new ArrayList<>();
+                                : new ArrayList<>());
                     });
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
@@ -305,12 +305,12 @@ class MeasurementServiceV2ImplTest {
             entity.setGranularity(Granularity.GRANULARITY_HOUR);
             entity.setTags(Map.of("taskId", "task-1"));
             entity.setSamples(List.of(sample(new Date(endAt - 60L * 60L * 1000L), 300D, 30D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenAnswer(invocation -> {
                         Query query = invocation.getArgument(0);
-                        return query.getQueryObject().toJson().contains("\"grnty\": \"hour\"")
+                        return closeableIterator(query.getQueryObject().toJson().contains("\"grnty\": \"hour\"")
                                 ? List.of(entity)
-                                : new ArrayList<>();
+                                : new ArrayList<>());
                     });
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
@@ -332,12 +332,12 @@ class MeasurementServiceV2ImplTest {
             stale.setGranularity(Granularity.GRANULARITY_MINUTE);
             stale.setTags(Map.of("taskId", "task-1", "taskRecordId", "record-old"));
             stale.setSamples(List.of(sample(new Date(endAt - 60_000L), 900D, 90D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
                     .thenAnswer(invocation -> {
                         Query query = invocation.getArgument(0);
                         String json = query.getQueryObject().toJson();
                         assertTrue(json.contains("\"grnty\": \"minute\""));
-                        return List.of(matched);
+                        return closeableIterator(List.of(matched));
                     });
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task1"), startAt, endAt);
@@ -380,8 +380,8 @@ class MeasurementServiceV2ImplTest {
             long startAt = endAt - 60L * 60L * 1000L;
             List<MeasurementEntity> entities = new ArrayList<>();
             entities.add(null);
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(entities);
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(entities));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
             assertFalse(result.getTs().isEmpty());
@@ -396,8 +396,8 @@ class MeasurementServiceV2ImplTest {
             MeasurementEntity entity = new MeasurementEntity();
             entity.setTags(null);
             entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 100D, 10D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(List.of(entity));
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(List.of(entity)));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
             assertTrue(result.getOutputQps().stream().allMatch(v -> v == 0D));
@@ -411,8 +411,8 @@ class MeasurementServiceV2ImplTest {
             MeasurementEntity entity = new MeasurementEntity();
             entity.setTags(Map.of("taskId", ""));
             entity.setSamples(List.of(sample(new Date(endAt - 60_000L), 100D, 10D)));
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(List.of(entity));
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(List.of(entity)));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
             assertTrue(result.getOutputQps().stream().allMatch(v -> v == 0D));
@@ -423,8 +423,8 @@ class MeasurementServiceV2ImplTest {
         void testNoEntitiesAllZero() {
             long endAt = 1_710_000_000_000L;
             long startAt = endAt - 60L * 60L * 1000L;
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(new ArrayList<>());
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(new ArrayList<>()));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1"), startAt, endAt);
             assertFalse(result.getTs().isEmpty());
@@ -447,8 +447,8 @@ class MeasurementServiceV2ImplTest {
             entity2.setTags(Map.of("taskId", "task-2"));
             entity2.setSamples(List.of(sample(new Date(sampleTs), 200D, 20D)));
 
-            when(mongoOperations.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
-                    .thenReturn(List.of(entity1, entity2));
+            when(mongoOperations.stream(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(closeableIterator(List.of(entity1, entity2)));
 
             TaskMetricsTrendVo result = measurementServiceV2.aggregateTaskMetricsByTaskIds(List.of("task-1", "task-2"), startAt, endAt);
             // 最后一个bucket应该是两个task的和: 100+200=300, 10+20=30
@@ -466,6 +466,10 @@ class MeasurementServiceV2ImplTest {
             vs.put("outputSizeQps", outputSizeQps);
             sample.setVs(vs);
             return sample;
+        }
+
+        private Stream<MeasurementEntity> closeableIterator(List<MeasurementEntity> entities) {
+            return entities.stream();
         }
     }
 
