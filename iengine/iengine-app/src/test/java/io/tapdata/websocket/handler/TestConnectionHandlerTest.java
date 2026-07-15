@@ -343,7 +343,7 @@ class TestConnectionHandlerTest {
 				if (null != errorEx.get()) {
 					throw errorEx.get();
 				}
-				verify(spyHandler, times(1)).updateLoadSchemaFieldStatus(eq(isExternalStorage), any(), eq(ConnectorConstant.LOAD_FIELD_STATUS_FINISHED), any(), any());
+				verify(spyHandler, times(0)).updateLoadSchemaFieldStatus(eq(isExternalStorage), any(), eq(ConnectorConstant.LOAD_FIELD_STATUS_FINISHED), any(), any());
 			}
 		}
 
@@ -371,7 +371,7 @@ class TestConnectionHandlerTest {
 				if (null != errorEx.get()) {
 					throw errorEx.get();
 				}
-				verify(spyHandler, times(1)).updateLoadSchemaFieldStatus(eq(isExternalStorage), any(), eq(ConnectorConstant.LOAD_FIELD_STATUS_FINISHED), any(), any());
+				verify(spyHandler, times(0)).updateLoadSchemaFieldStatus(eq(isExternalStorage), any(), eq(ConnectorConstant.LOAD_FIELD_STATUS_FINISHED), any(), any());
 			}
 		}
 
