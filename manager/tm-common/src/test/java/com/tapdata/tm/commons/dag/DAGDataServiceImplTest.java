@@ -32,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.bson.types.ObjectId;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
@@ -125,6 +126,74 @@ class DAGDataServiceImplTest {
             }
         }
     }
+
+    @Nested
+    class CreateOrUpdateSchemaMetaTypeTest {
+        @Test
+        void createOrUpdateSchemaShouldInheritViewMetaTypeForOneToOneCopy() {
+            ObjectId connectionId = new ObjectId();
+            DataSourceConnectionDto dataSource = new DataSourceConnectionDto();
+            dataSource.setId(connectionId);
+            dataSource.setDatabase_type("mysql");
+            dataSource.setDatabase_name("test_db");
+            dataSource.setLoadSchemaField(true);
+
+            MetadataInstancesDto databaseMeta = new MetadataInstancesDto();
+            databaseMeta.setId(new ObjectId());
+            databaseMeta.setMetaType(MetaType.database.name());
+            databaseMeta.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), dataSource, null));
+
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            definitionDto.setExpression("{}");
+
+            Map<String, DataSourceConnectionDto> dataSourceMap = new HashMap<>();
+            dataSourceMap.put(connectionId.toHexString(), dataSource);
+            Map<String, DataSourceDefinitionDto> definitionDtoMap = new HashMap<>();
+            definitionDtoMap.put(dataSource.getDatabase_type(), definitionDto);
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(
+                    Arrays.asList(databaseMeta), dataSourceMap, definitionDtoMap, "userId", "userName", taskDto, new HashMap<>()) {
+                @Override
+                protected MetadataInstancesDto modelDeduction(MetadataInstancesDto metadataInstancesDto, Schema schema,
+                                                              DataSourceConnectionDto dataSource, boolean needPossibleDataTypes,
+                                                              DAG.Options options) {
+                    return metadataInstancesDto;
+                }
+            };
+
+            DatabaseNode targetNode = new DatabaseNode() {
+                @Override
+                public SourceType sourceType() {
+                    return SourceType.target;
+                }
+            };
+            targetNode.setConnectionId(connectionId.toHexString());
+
+            Schema viewSchema = new Schema();
+            viewSchema.setOriginalName("view_orders");
+            viewSchema.setName("view_orders");
+            viewSchema.setMetaType(MetaType.view.name());
+            viewSchema.setFields(Arrays.asList(field("id")));
+
+            List<Schema> result = dagDataService.createOrUpdateSchema(
+                    "ownerId", connectionId, Arrays.asList(viewSchema), new DAG.Options(), targetNode);
+
+            Assertions.assertEquals(MetaType.view.name(), result.get(0).getMetaType());
+            Assertions.assertEquals(MetaType.view.name(), dagDataService.getBatchInsertMetaDataList().get(0).getMetaType());
+        }
+
+        private Field field(String fieldName) {
+            Field field = new Field();
+            field.setFieldName(fieldName);
+            field.setOriginalFieldName(fieldName);
+            field.setDataType("varchar");
+            field.setJavaType("String");
+            return field;
+        }
+    }
+
     @Nested
     class clearTransformerTest{
         DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(mock(TransformerWsMessageDto.class));

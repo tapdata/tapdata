@@ -192,6 +192,7 @@ public class PdkSchemaConvert {
         tapTable.setComment(schema.getComment());
         tapTable.setPartitionInfo(schema.getPartitionInfo());
         tapTable.setPartitionMasterTableId(schema.getPartitionMasterTableId());
+        tapTable.setType(schema.getMetaType());
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
             List<TapIndex> tapIndexList = schema.getIndices().stream().map(in -> {
                 TapIndex tapIndex = new TapIndex();

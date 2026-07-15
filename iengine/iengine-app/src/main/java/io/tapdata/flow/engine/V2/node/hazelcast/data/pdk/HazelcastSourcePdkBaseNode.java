@@ -43,6 +43,7 @@ import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
 import com.tapdata.tm.commons.alarm.AlarmTypeEnum;
 import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import com.tapdata.tm.skiperrortable.SkipErrorTableStatusEnum;
@@ -93,12 +94,21 @@ import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadFunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionFunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionOneByOneFunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadOneByOneFunctionProxy;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryService;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionOneByOneFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadOneByOneFunction;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -258,6 +268,19 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         return false;
     }
 
+    protected void initFunctionProxy() {
+        ConnectorNode connectorNode = getConnectorNode();
+        ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+        StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
+        StreamReadOneByOneFunction streamReadOneByOneFunction = connectorFunctions.getStreamReadOneByOneFunction();
+        StreamReadMultiConnectionFunction streamReadMultiConnectionFunction = connectorFunctions.getStreamReadMultiConnectionFunction();
+        StreamReadMultiConnectionOneByOneFunction streamReadMultiConnectionOneByOneFunction = connectorFunctions.getStreamReadMultiConnectionOneByOneFunction();
+        connectorFunctions.supportOneByOneStreamRead(StreamReadOneByOneFunctionProxy.instance(streamReadOneByOneFunction));
+        connectorFunctions.supportStreamRead(StreamReadFunctionProxy.instance(streamReadFunction));
+        connectorFunctions.supportStreamReadMultiConnectionFunction(StreamReadMultiConnectionFunctionProxy.instance(streamReadMultiConnectionFunction));
+        connectorFunctions.supportStreamReadMultiConnectionOneByOneFunction(StreamReadMultiConnectionOneByOneFunctionProxy.instance(streamReadMultiConnectionOneByOneFunction));
+    }
+
     @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
         noPrimaryKeyVirtualField.init(getNode().getGraph());
@@ -284,6 +307,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             } catch (Throwable e) {
                 obsLogger.error("Source connector(" + getNode().getName() + ") initialization error: " + e.getMessage(), e);
                 throw new NodeException(e).context(getProcessorBaseContext());
+            }
+            if (!isPollingCDC(getNode())) {
+                initFunctionProxy();
             }
             dataProcessorContext.getTapTableMap().forEach((id, table) -> noPrimaryKeyVirtualField.add(table));
             initSourceReadBatchSize();
@@ -1073,6 +1099,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                                 return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || !Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
                             case OnlyUniqueIndex:
                                 return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
+                            case View:
+                                return (Function<TapTable, Boolean>) tapTable -> {
+                                    String metaType = tapTable.getType();
+                                    return MetaType.isView(metaType);
+                                };
                             default:
                                 break;
                         }
