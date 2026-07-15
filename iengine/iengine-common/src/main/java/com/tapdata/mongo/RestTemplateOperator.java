@@ -7,6 +7,7 @@ import com.tapdata.entity.BaseEntity;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.TapLog;
 import com.tapdata.interceptor.LoggingInterceptor;
+import com.tapdata.tm.commons.util.ErrorUtil;
 import com.tapdata.tm.sdk.available.CloudRestTemplate;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
@@ -751,8 +752,12 @@ public class RestTemplateOperator {
 				return result;
 			} catch (RestDoNotRetryException e) {
 				throw e;
-			} catch (HttpMessageConversionException | InterruptedException | CancellationException ignored  ) {
-				ignored.printStackTrace();
+			} catch (HttpMessageConversionException | InterruptedException | CancellationException ex) {
+				retryInfo.lastError = ex;
+				logger.error(ErrorUtil.getStackString(ex), ex);
+				if (ex instanceof InterruptedException) {
+					Thread.currentThread().interrupt();
+				}
 				break;
 			} catch (Exception e) {
 				boolean changeURL = true;
@@ -790,17 +795,18 @@ public class RestTemplateOperator {
 					}
 				}
 
-				try {
-					Thread.sleep(retryInterval);
-				} catch (InterruptedException ignored) {
-					break;
-				}
-
 				// Record retry information
 				retryInfo.retries++;
 				if (changeURL) {
 					retryInfo.lastError = e;
 					retryInfo.baseURL = changeBaseURLToNext(retryInfo.baseURL);
+				}
+
+				try {
+					Thread.sleep(retryInterval);
+				} catch (InterruptedException ignored) {
+					Thread.currentThread().interrupt();
+					break;
 				}
 			}
 		} while (
