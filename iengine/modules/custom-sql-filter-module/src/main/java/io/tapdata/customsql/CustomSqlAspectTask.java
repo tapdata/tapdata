@@ -66,23 +66,30 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
                             boolean result = checkAndFilter(events.get(index), tapTableMap, tableNode, tapCodecsFilterManager);
                             TapEvent tapRecordEvent = events.get(index).getTapEvent();
                             if(tapRecordEvent instanceof TapUpdateRecordEvent){
-                                if(!result) {
-                                    Map<String, Object> before = ((TapUpdateRecordEvent) tapRecordEvent).getBefore();
-                                    if (MapUtils.isEmpty(before)) {
-                                        before = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+                                TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) tapRecordEvent;
+                                TapdataEvent currentEvent = events.get(index);
+                                boolean afterMatch = result;
+                                Map<String, Object> before = updateRecordEvent.getBefore();
+                                if (MapUtils.isEmpty(before)) {
+                                    if (afterMatch) {
+                                        toInsertEvent(currentEvent, updateRecordEvent);
+                                    } else {
+                                        toDeleteEvent(currentEvent, updateRecordEvent, updateRecordEvent.getAfter());
                                     }
-                                    TapDeleteRecordEvent tapDeleteRecordEvent = TapDeleteRecordEvent.create();
-                                    tapRecordEvent.clone(tapDeleteRecordEvent);
-                                    tapDeleteRecordEvent.setBefore(before);
-                                    events.get(index).setTapEvent(tapDeleteRecordEvent);
-                                }else {
-                                    Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
-                                    TapInsertRecordEvent insertRecordEvent =
-                                            TapSimplify.insertRecordEvent(after, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
-                                    tapRecordEvent.clone(insertRecordEvent);
-                                    events.get(index).setTapEvent(insertRecordEvent);
+                                    result = true;
+                                } else {
+                                    Map<String, TapField> nameFieldMap = tapTableMap.get(updateRecordEvent.getTableId()).getNameFieldMap();
+                                    boolean beforeMatch = compareValue(before, nameFieldMap, tableNode, tapCodecsFilterManager);
+                                    if (beforeMatch == afterMatch) {
+                                        result = beforeMatch;
+                                    } else if (afterMatch) {
+                                        toInsertEvent(currentEvent, updateRecordEvent);
+                                        result = true;
+                                    } else {
+                                        toDeleteEvent(currentEvent, updateRecordEvent, before);
+                                        result = true;
+                                    }
                                 }
-                                result =true;
                             }
                             if (index == events.size() - 1 && !result ) {
                                 heartbeat = true;
@@ -108,6 +115,20 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
 
         }
         return null;
+    }
+
+    private void toInsertEvent(TapdataEvent tapdataEvent, TapUpdateRecordEvent updateRecordEvent) {
+        TapInsertRecordEvent insertRecordEvent =
+                TapSimplify.insertRecordEvent(updateRecordEvent.getAfter(), updateRecordEvent.getTableId());
+        updateRecordEvent.clone(insertRecordEvent);
+        tapdataEvent.setTapEvent(insertRecordEvent);
+    }
+
+    private void toDeleteEvent(TapdataEvent tapdataEvent, TapUpdateRecordEvent updateRecordEvent, Map<String, Object> before) {
+        TapDeleteRecordEvent tapDeleteRecordEvent = TapDeleteRecordEvent.create();
+        updateRecordEvent.clone(tapDeleteRecordEvent);
+        tapDeleteRecordEvent.setBefore(before);
+        tapdataEvent.setTapEvent(tapDeleteRecordEvent);
     }
 
     public boolean checkAndFilter(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap,
