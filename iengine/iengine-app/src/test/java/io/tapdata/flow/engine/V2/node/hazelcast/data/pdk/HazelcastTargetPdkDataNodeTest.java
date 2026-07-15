@@ -34,6 +34,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkRetryableEx;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.metric.collector.ISyncMetricCollector;
@@ -47,6 +48,7 @@ import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
@@ -73,6 +75,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -1830,6 +1833,57 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			});
 			verify(syncMetricCollector, times(1)).log(anyList());
 
+		}
+
+		@Test
+		void testWriteRecordWhenClosedShouldNotAccessConnector() {
+			List<TapEvent> events = Stream.generate(() -> {
+				TapInsertRecordEvent e = new TapInsertRecordEvent();
+				e.setTableId("test");
+				return e;
+			}).limit(1).collect(Collectors.toList());
+
+			TapTable table = new TapTable();
+			table.setId("test");
+			table.setName("test");
+			tableMap.putNew("test", table, "node_id_test");
+
+			HazelcastTargetPdkDataNode spyTargetDataNode = spy(targetDataNode);
+			AtomicBoolean closed = (AtomicBoolean) ReflectionTestUtils.getField(spyTargetDataNode, "closed");
+			closed.set(true);
+			doThrow(new AssertionError("connector should not be accessed when target node is closed"))
+					.when(spyTargetDataNode).getConnectorNode();
+
+			assertDoesNotThrow(() -> spyTargetDataNode.writeRecord(events, true));
+			verify(spyTargetDataNode, never()).getConnectorNode();
+			verify(syncMetricCollector, never()).log(anyList());
+		}
+
+		@Test
+		void testDoCloseShouldWaitTargetConsumersBeforeReleaseConnector() throws Exception {
+			HazelcastTargetPdkDataNode spyTargetDataNode = spy(targetDataNode);
+			PartitionConcurrentProcessor initialPartitionConcurrentProcessor = mock(PartitionConcurrentProcessor.class);
+			PartitionConcurrentProcessor cdcPartitionConcurrentProcessor = mock(PartitionConcurrentProcessor.class);
+			ThreadPoolExecutorEx queueConsumerThreadPool = mock(ThreadPoolExecutorEx.class);
+			when(queueConsumerThreadPool.awaitTermination(60L, TimeUnit.SECONDS)).thenReturn(true);
+			doReturn(null).when(spyTargetDataNode).getConnectorNode();
+			ReflectionTestUtils.setField(spyTargetDataNode, "obsLogger", mock(ObsLogger.class));
+
+			ReflectionTestUtils.setField(spyTargetDataNode, "initialPartitionConcurrentProcessor", initialPartitionConcurrentProcessor);
+			ReflectionTestUtils.setField(spyTargetDataNode, "cdcPartitionConcurrentProcessor", cdcPartitionConcurrentProcessor);
+			ReflectionTestUtils.setField(spyTargetDataNode, "queueConsumerThreadPool", queueConsumerThreadPool);
+
+			assertDoesNotThrow(spyTargetDataNode::doClose);
+
+			verify(initialPartitionConcurrentProcessor).stopAndAwaitRunningTasks(60L, TimeUnit.SECONDS);
+			verify(initialPartitionConcurrentProcessor, never()).stop();
+			verify(initialPartitionConcurrentProcessor, never()).forceStop();
+			verify(cdcPartitionConcurrentProcessor).stopAndAwaitRunningTasks(60L, TimeUnit.SECONDS);
+			verify(cdcPartitionConcurrentProcessor, never()).stop();
+			verify(cdcPartitionConcurrentProcessor, never()).forceStop();
+			verify(queueConsumerThreadPool).shutdown();
+			verify(queueConsumerThreadPool).awaitTermination(60L, TimeUnit.SECONDS);
+			verify(queueConsumerThreadPool, never()).shutdownNow();
 		}
 	}
 }

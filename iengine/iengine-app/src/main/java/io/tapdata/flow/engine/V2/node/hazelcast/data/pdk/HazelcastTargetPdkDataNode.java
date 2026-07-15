@@ -97,6 +97,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
     @Getter
     private boolean writeGroupByTableEnable = true;
 	private ConcurrentHashMap<String, PDKMethodInvoker> exactlyOncePdkMethodInvokerMap = new ConcurrentHashMap<>();
+	private final AtomicBoolean closed = new AtomicBoolean(false);
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -104,6 +105,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
+		closed.set(false);
 		this.partitionTapTables = new ConcurrentHashMap<>();
 		try {
 			super.doInit(context);
@@ -152,6 +154,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		initDDLHandler();
 	}
 
+	private boolean isClosed() {
+		return null != closed && closed.get();
+	}
 
 	private void initDDLHandler() {
 		ddlEventHandlers = new ClassHandlers();
@@ -1061,6 +1066,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	protected void writeRecord(List<TapEvent> events, boolean isRetry) {
+		if (isClosed()) {
+			return;
+		}
 		CpuMemoryCollector.listening(getNode().getId(), events);
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
@@ -1080,10 +1088,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		tapRecordEvents.forEach(t -> {
 			removeNotSupportFields(t, tapTable.getId());
 		});
-		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
+		ConnectorNode connectorNode = getConnectorNode();
+		if (null == connectorNode) {
+			if (isClosed()) {
+				return;
+			}
+			throw new NodeException("Node is stopped, need to exit write_record").context(getDataProcessorContext());
+		}
+		WriteRecordFunction writeRecordFunction = connectorNode.getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = isRetry ? createPdkMethodInvoker() : null;
 		if (writeRecordFunction != null) {
-			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
+			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(connectorNode));
 			try {
 				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> {
 
@@ -1106,14 +1121,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					return new WriteRecordFuncAspect()
 							.recordEvents(tapRecordEvents)
 							.table(tapTableForObs)
-							.connectorContext(getConnectorNode().getConnectorContext())
+							.connectorContext(connectorNode.getConnectorContext())
 							.dataProcessorContext(dataProcessorContext)
 							.start();
 				}, writeRecordFuncAspect -> {
 						CommonUtils.AnyError writeRunnable = () -> {
-											ConnectorNode connectorNode = getConnectorNode();
-											if (null == connectorNode) {
-												throw new NodeException("Node is stopped, need to exit write_record").context(getDataProcessorContext());
+											if (isClosed()) {
+												return;
 											}
 
 											Consumer<WriteListResult<TapRecordEvent>> resultConsumer = (writeListResult) -> {
@@ -1131,7 +1145,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 												if (writeRecordFuncAspect != null)
 													AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
 												if (logger.isDebugEnabled()) {
-													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
+													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(connectorNode));
 												}
 											};
 
@@ -1197,10 +1211,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 											}
 										};
 						if (isRetry) {
-							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
+							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
 									pdkMethodInvoker.runnable(writeRunnable));
 						} else {
-							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
+							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
 									writeRunnable, TAG);
 						}
 				});
@@ -1211,7 +1225,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				}
 			}
 		} else {
-			throw new TapCodeException(TaskTargetProcessorExCode_15.WRITE_RECORD_PDK_NONSUPPORT, String.format("PDK connector id: %s", getConnectorNode().getConnectorContext().getSpecification().getId()));
+			throw new TapCodeException(TaskTargetProcessorExCode_15.WRITE_RECORD_PDK_NONSUPPORT, String.format("PDK connector id: %s", connectorNode.getConnectorContext().getSpecification().getId()));
 		}
 	}
 
@@ -1355,17 +1369,23 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	public void doClose() throws TapCodeException {
-		super.doClose();
-		CommonUtils.ignoreAnyError(() -> {
-			if (MapUtils.isNotEmpty(exactlyOncePdkMethodInvokerMap)) {
-				for (PDKMethodInvoker pdkMethodInvoker : exactlyOncePdkMethodInvokerMap.values()) {
-					if (null == pdkMethodInvoker) continue;
-					pdkMethodInvoker.cancelRetry();
+		if (null != closed) {
+			closed.set(true);
+		}
+		try {
+			super.doClose();
+		} finally {
+			CommonUtils.ignoreAnyError(() -> {
+				if (MapUtils.isNotEmpty(exactlyOncePdkMethodInvokerMap)) {
+					for (PDKMethodInvoker pdkMethodInvoker : exactlyOncePdkMethodInvokerMap.values()) {
+						if (null == pdkMethodInvoker) continue;
+						pdkMethodInvoker.cancelRetry();
+					}
+					exactlyOncePdkMethodInvokerMap.clear();
+					exactlyOncePdkMethodInvokerMap = null;
 				}
-				exactlyOncePdkMethodInvokerMap.clear();
-				exactlyOncePdkMethodInvokerMap = null;
-			}
-		}, TAG);
+			}, TAG);
+		}
 	}
 
 	@Override
