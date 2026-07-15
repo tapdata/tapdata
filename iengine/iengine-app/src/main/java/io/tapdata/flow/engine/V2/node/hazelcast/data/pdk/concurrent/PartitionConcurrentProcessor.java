@@ -504,6 +504,10 @@ public class PartitionConcurrentProcessor {
 		}
 	}
 
+	public void stopAndAwaitRunningTasks(long await, TimeUnit timeUnit) {
+		currentRunning.compareAndSet(true, false);
+		ExecutorUtil.shutdown(this.executorService, await, timeUnit);
+	}
 
 	public void forceStop() {
 		currentRunning.compareAndSet(true, false);
