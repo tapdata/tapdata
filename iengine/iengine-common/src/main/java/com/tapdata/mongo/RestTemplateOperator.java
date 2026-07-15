@@ -755,6 +755,9 @@ public class RestTemplateOperator {
 			} catch (HttpMessageConversionException | InterruptedException | CancellationException ex) {
 				retryInfo.lastError = ex;
 				logger.error(ErrorUtil.getStackString(ex), ex);
+				if (ex instanceof InterruptedException) {
+					Thread.currentThread().interrupt();
+				}
 				break;
 			} catch (Exception e) {
 				boolean changeURL = true;
@@ -802,6 +805,7 @@ public class RestTemplateOperator {
 				try {
 					Thread.sleep(retryInterval);
 				} catch (InterruptedException ignored) {
+					Thread.currentThread().interrupt();
 					break;
 				}
 			}
