@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.exception.NoPrimaryKeyException;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.error.NoPrimaryKeyVirtualFieldExCode_42;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -23,6 +24,7 @@ import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.exception.TapCodeException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -294,7 +296,7 @@ public class NoPrimaryKeyVirtualField {
                     baos.write('[');
                     for (String key : keys) {
                         if (isStrictMode && !data.containsKey(key)) {
-                            throw NoPrimaryKeyException.incompleteFields(key);
+                            throw new TapCodeException(NoPrimaryKeyVirtualFieldExCode_42.HASH_KEYS_INCOMPLETE).dynamicDescriptionParameters(key);
                         }
                         if (isFirst) {
                             isFirst = false;
@@ -315,19 +317,9 @@ public class NoPrimaryKeyVirtualField {
                     }
                     return hashHex.toString(); // 返回 128 位（32 个字符）的哈希值
                 }
-            } catch (NoPrimaryKeyException e) {
-                updateRecordEventPredicate = event -> false;
-                deleteRecordEventPredicate = event -> false;
-                throw e;
             } catch (NoSuchAlgorithmException e) {
-                updateRecordEventPredicate = event -> false;
-                deleteRecordEventPredicate = event -> false;
-                insertRecordEventPredicate = event -> false;
-                throw NoPrimaryKeyException.notfoundHashAlgorithm(HASH_ALGORITHM, e);
+                throw new TapCodeException(NoPrimaryKeyVirtualFieldExCode_42.MD5_ALGORITHM_NOT_FOUND, e);
             } catch (Exception e) {
-                updateRecordEventPredicate = event -> false;
-                deleteRecordEventPredicate = event -> false;
-                insertRecordEventPredicate = event -> false;
                 throw NoPrimaryKeyException.otherFailed(e);
             }
         }
