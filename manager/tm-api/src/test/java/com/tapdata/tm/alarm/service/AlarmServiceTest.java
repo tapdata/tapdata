@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
+import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import org.junit.jupiter.api.Assertions;
@@ -107,6 +108,11 @@ class AlarmServiceTest {
 
         @Override
         public void taskRetryAlarm(String taskId, Map<String, Object> params) {
+
+        }
+
+        @Override
+        public void batchUpdate(BatchUpdateAlarmParam alarm) {
 
         }
     };
