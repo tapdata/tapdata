@@ -2160,9 +2160,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 }, TAG);
             }
 			CommonUtils.ignoreAnyError(() -> exactlyOnceCache.close(), TAG);
-            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
-            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
-            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.queueConsumerThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
+            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(processor -> processor.stopAndAwaitRunningTasks(60L, TimeUnit.SECONDS)), TAG);
+            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(processor -> processor.stopAndAwaitRunningTasks(60L, TimeUnit.SECONDS)), TAG);
+            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.queueConsumerThreadPool).ifPresent(executorService -> ExecutorUtil.shutdown(executorService, 60L, TimeUnit.SECONDS)), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.dynamicAdjustQueueLock).ifPresent(l -> {
                 synchronized (l) {
                     l.notifyAll();
@@ -2442,4 +2442,3 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 }
-

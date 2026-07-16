@@ -94,9 +94,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
-		super.doInit(context);
 		this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
 		this.globalTaskContent = new ConcurrentHashMap<>();
+		super.doInit(context);
 	}
 
 	protected Invocable getOrInitEngine() {
@@ -375,7 +375,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	@Override
 	protected void doClose() throws TapCodeException {
 		try {
+			super.doClose();
 			// Close and clear source executors
+		} finally {
 			CommonUtils.ignoreAnyError(() -> {
 				if (this.sourceMap != null) {
 					this.sourceMap.values().forEach(executor -> {
@@ -448,10 +450,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			if (logger.isDebugEnabled()) {
 				logger.debug("JavaScript processor node resources cleaned up successfully");
 			}
-
-		} finally {
-			super.doClose();
 		}
+
 	}
 
 	@Override
