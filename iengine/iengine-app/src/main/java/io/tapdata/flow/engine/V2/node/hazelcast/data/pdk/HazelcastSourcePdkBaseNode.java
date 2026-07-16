@@ -38,6 +38,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
+import com.tapdata.tm.error.NoPrimaryKeyVirtualFieldExCode_42;
 import com.tapdata.tm.skiperrortable.SkipErrorTableStatusEnum;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.*;
@@ -1446,13 +1447,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             try {
                 if (!noPrimaryKeyVirtualField.addHashValue(recordEvent)) return null;
             } catch (NoPrimaryKeyException e) {
-                if (NoPrimaryKeyException.CODE_INCOMPLETE_FIELDS == e.getCode()) {
-                    obsLogger.warn("Table '{}' user lacks complete before information, and subsequent update and delete events will be ignored: {}", recordEvent.getTableId(), e.getMessage());
-                    logger.warn("Table '{}' user lacks complete before information, and subsequent update and delete events will be ignored", recordEvent.getTableId(), e);
-                } else {
-                    obsLogger.warn("Table '{}' add hash filed failed, and subsequent update and delete events will be ignored: {}", recordEvent.getTableId(), e.getMessage());
-                    logger.error("Table '{}' add hash filed failed, and subsequent update and delete events will be ignored", recordEvent.getTableId(), e);
-                }
+                throw new TapCodeException(NoPrimaryKeyVirtualFieldExCode_42.GENERATE_HASH_KEY_FAILED, e).dynamicDescriptionParameters(recordEvent);
             }
         } else if (tapEvent instanceof HeartbeatEvent) {
             tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
