@@ -57,7 +57,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -87,6 +92,13 @@ public class ScriptUtil {
 			.allowArrayAccess(true)
 			.allowIterableAccess(true)
 			.allowIteratorAccess(true)
+			.allowImplementations(Consumer.class)
+			.allowImplementations(BiConsumer.class)
+			.allowImplementations(Function.class)
+			.allowImplementations(BiFunction.class)
+			.allowImplementations(Predicate.class)
+			.allowImplementations(UnaryOperator.class)
+			.allowImplementations(Comparator.class)
 			.denyAccess(Class.class)
 			.denyAccess(ClassLoader.class, true)
 			.denyAccess(File.class, true)

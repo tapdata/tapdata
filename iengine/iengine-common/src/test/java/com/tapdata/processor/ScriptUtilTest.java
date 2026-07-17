@@ -9,6 +9,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -26,6 +27,7 @@ import javax.script.ScriptException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -123,6 +125,59 @@ public class ScriptUtilTest {
             Object value = engine.eval("Java.type('com.tapdata.processor.ScriptUtilTest$ExternalJarHelper').value()");
 
             assertEquals("jar-ok", value);
+        }
+    }
+
+    @Test
+    public void getScriptEngineShouldSupportCommonJavaCollectionCallbacks() throws Exception {
+        ScriptEngine engine = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName());
+        try {
+            List<Integer> numbers = new ArrayList<>(List.of(3, 1, 2));
+            Map<String, Integer> values = new HashMap<>();
+            values.put("first", 1);
+            engine.put("numbers", numbers);
+            engine.put("values", values);
+
+            Object sum = engine.eval("var sum = 0;"
+                    + "numbers.forEach(function(value) { sum += value; });"
+                    + "numbers.removeIf(function(value) { return value % 2 === 0; });"
+                    + "numbers.replaceAll(function(value) { return value * 2; });"
+                    + "numbers.sort(function(left, right) { return left - right; });"
+                    + "sum;");
+            Object mapSum = engine.eval("var mapSum = 0;"
+                    + "values.forEach(function(key, value) { mapSum += value; });"
+                    + "values.computeIfAbsent('second', function(key) { return 2; });"
+                    + "values.compute('first', function(key, value) { return value + 3; });"
+                    + "mapSum;");
+
+            assertEquals(6, ((Number) sum).intValue());
+            assertEquals(List.of(2, 6), numbers);
+            assertEquals(1, ((Number) mapSum).intValue());
+            assertEquals(4, values.get("first"));
+            assertEquals(2, values.get("second"));
+        } finally {
+            ((GraalJSScriptEngine) engine).close();
+        }
+    }
+
+    @Test
+    public void getScriptEngineShouldStringifyFilterContainingDateTime() throws Exception {
+        ScriptEngine engine = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName());
+        try {
+            engine.put("valDate", new DateTime(Instant.parse("2024-05-08T16:30:45.123Z")));
+
+            Object json = engine.eval("var filter = {"
+                    + "employeeNumber: 'E001',"
+                    + "salesDateTime: { '$dateTime': valDate },"
+                    + "departmentCode: 'D001'"
+                    + "}; JSON.stringify(filter);");
+
+            String expected = "{\"employeeNumber\":\"E001\","
+                    + "\"salesDateTime\":{\"$dateTime\":\"2024-05-08T16:30:45.123Z\"},"
+                    + "\"departmentCode\":\"D001\"}";
+            assertEquals(expected, json);
+        } finally {
+            ((GraalJSScriptEngine) engine).close();
         }
     }
 

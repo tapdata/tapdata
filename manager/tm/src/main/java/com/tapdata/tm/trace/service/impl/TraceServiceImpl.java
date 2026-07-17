@@ -50,7 +50,8 @@ public class TraceServiceImpl implements TraceService {
     private void validateFilters(WideTableTraceRequest request) {
         if (request.getFilters() == null
                 || ((CollectionUtils.isEmpty(request.getFilters().getCustom()) || request.getFilters().getCustom().contains(null))
-                && StringUtils.isBlank(request.getFilters().getSql()))) {
+                && StringUtils.isBlank(request.getFilters().getSql())
+                && CollectionUtils.isEmpty(request.getFilters().getConditions()))) {
             throw new BizException("Trace.Filters.NotNull");
         }
     }
