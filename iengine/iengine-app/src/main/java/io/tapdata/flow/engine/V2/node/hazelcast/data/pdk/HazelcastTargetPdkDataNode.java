@@ -1117,7 +1117,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							.start();
 				}, writeRecordFuncAspect -> {
 						CommonUtils.AnyError writeRunnable = () -> {
-											assertConnectorNodeActive(connectorNode, pdkMethodInvoker);
+											if (!assertConnectorNodeActive(connectorNode, pdkMethodInvoker)) return;
 											Consumer<WriteListResult<TapRecordEvent>> resultConsumer = (writeListResult) -> {
 												if (obsLogger.isDebugEnabled()) {
 													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
@@ -1228,7 +1228,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			List<TapRecordEvent> tapRecordEvents,
 			ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writePolicyRunner
 	) throws Throwable {
-		assertConnectorNodeActive(connectorNode, null);
+		if (!assertConnectorNodeActive(connectorNode, null)) return;
 		if (policyService instanceof PDkNodeInsertRecordPolicyService) {
 			((PDkNodeInsertRecordPolicyService) policyService).writeRecordWithPolicyControl(connectorNode, tableId, tapRecordEvents, writePolicyRunner);
 		} else {
@@ -1236,13 +1236,14 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void assertConnectorNodeActive(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
+	private boolean assertConnectorNodeActive(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
 		if (null == connectorNode || connectorNode != getConnectorNode()) {
 			if (null != pdkMethodInvoker) {
 				pdkMethodInvoker.cancelRetry();
 			}
-			throw new NodeException("Node is stopped, need to exit write_record").context(getDataProcessorContext());
+			return false;
 		}
+		return true;
 	}
 
 	private void addPropertyForMergeEvent(TapEvent tapEvent) {
