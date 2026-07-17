@@ -166,10 +166,16 @@ public class TrackFieldFilter {
 
         if (targetNodeId.equals(nodeId)) {
             Map<String, String> mapping = new HashMap<>();
+            Map<String, String> nodeFieldToOrigin = fieldNameMappingByNodeId.getOrDefault(nodeId, new HashMap<>());
             for (String targetField : targetFields) {
-                mapping.put(targetField, targetField);
+                String originName = nodeFieldToOrigin.get(targetField);
+                if (StringUtils.isNotBlank(originName)) {
+                    mapping.put(targetField, originName);
+                }
             }
-            result.put(nodeId, mapping);
+            if (MapUtils.isNotEmpty(mapping)) {
+                result.put(nodeId, mapping);
+            }
             return;
         }
 
@@ -197,7 +203,7 @@ public class TrackFieldFilter {
         }
         String best = eachNodeFieldToOriginToFindBestName(originName, nodeFieldToOrigin, targetField);
         if (StringUtils.isNotBlank(best)) {
-            mapping.put(targetField, best);
+            mapping.put(best, originName);
         }
     }
 

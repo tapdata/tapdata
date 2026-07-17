@@ -760,7 +760,7 @@ public class TraceDataService {
                 continue;
             }
             TraceFieldMapping mapping = new TraceFieldMapping();
-            mapping.setOriginName(trackedField);
+            mapping.setOriginName(originName);
             mapping.setCurrentName(currentName);
             tracedFields.add(mapping);
         }
