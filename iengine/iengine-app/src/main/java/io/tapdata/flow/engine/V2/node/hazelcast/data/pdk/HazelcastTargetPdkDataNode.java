@@ -8,6 +8,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.function.ThrowableFunction;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -97,7 +98,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
     @Getter
     private boolean writeGroupByTableEnable = true;
 	private ConcurrentHashMap<String, PDKMethodInvoker> exactlyOncePdkMethodInvokerMap = new ConcurrentHashMap<>();
-	private final AtomicBoolean closed = new AtomicBoolean(false);
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -105,7 +105,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
-		closed.set(false);
 		this.partitionTapTables = new ConcurrentHashMap<>();
 		try {
 			super.doInit(context);
@@ -154,9 +153,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		initDDLHandler();
 	}
 
-	private boolean isClosed() {
-		return null != closed && closed.get();
-	}
 
 	private void initDDLHandler() {
 		ddlEventHandlers = new ClassHandlers();
@@ -1066,9 +1062,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	protected void writeRecord(List<TapEvent> events, boolean isRetry) {
-		if (isClosed()) {
-			return;
-		}
 		CpuMemoryCollector.listening(getNode().getId(), events);
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
@@ -1090,11 +1083,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 		ConnectorNode connectorNode = getConnectorNode();
 		if (null == connectorNode) {
-			if (isClosed()) {
-				return;
-			}
 			throw new NodeException("Node is stopped, need to exit write_record").context(getDataProcessorContext());
 		}
+		WritePolicyService currentWritePolicyService = writePolicyService;
 		WriteRecordFunction writeRecordFunction = connectorNode.getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = isRetry ? createPdkMethodInvoker() : null;
 		if (writeRecordFunction != null) {
@@ -1126,10 +1117,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							.start();
 				}, writeRecordFuncAspect -> {
 						CommonUtils.AnyError writeRunnable = () -> {
-											if (isClosed()) {
-												return;
-											}
-
+											if (!assertConnectorNodeActive(connectorNode, pdkMethodInvoker)) return;
 											Consumer<WriteListResult<TapRecordEvent>> resultConsumer = (writeListResult) -> {
 												if (obsLogger.isDebugEnabled()) {
 													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
@@ -1155,7 +1143,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													.tapRecordEvents(tapRecordEvents)
 													.pdkMethodInvoker(pdkMethodInvoker)
 													.writeOneFunction((subTapRecordEvents) -> {
-														writePolicyService.writeRecordWithPolicyControl(
+														writeRecordWithPolicyControl(
+																currentWritePolicyService,
+																connectorNode,
 																tapTable.getId(),
 																subTapRecordEvents,
 																writeRecords -> {
@@ -1167,7 +1157,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													}));
 											if (pdkMethodInvoker == null || !pdkMethodInvoker.isEnableSkipErrorEvent()) {
 												try {
-													writePolicyService.writeRecordWithPolicyControl(
+													writeRecordWithPolicyControl(
+															currentWritePolicyService,
+															connectorNode,
 															tapTable.getId(),
 															tapRecordEvents,
 															writeRecords -> {
@@ -1227,6 +1219,31 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		} else {
 			throw new TapCodeException(TaskTargetProcessorExCode_15.WRITE_RECORD_PDK_NONSUPPORT, String.format("PDK connector id: %s", connectorNode.getConnectorContext().getSpecification().getId()));
 		}
+	}
+
+	private void writeRecordWithPolicyControl(
+			WritePolicyService policyService,
+			ConnectorNode connectorNode,
+			String tableId,
+			List<TapRecordEvent> tapRecordEvents,
+			ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writePolicyRunner
+	) throws Throwable {
+		if (!assertConnectorNodeActive(connectorNode, null)) return;
+		if (policyService instanceof PDkNodeInsertRecordPolicyService) {
+			((PDkNodeInsertRecordPolicyService) policyService).writeRecordWithPolicyControl(connectorNode, tableId, tapRecordEvents, writePolicyRunner);
+		} else {
+			policyService.writeRecordWithPolicyControl(tableId, tapRecordEvents, writePolicyRunner);
+		}
+	}
+
+	private boolean assertConnectorNodeActive(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
+		if (null == connectorNode || connectorNode != getConnectorNode()) {
+			if (null != pdkMethodInvoker) {
+				pdkMethodInvoker.cancelRetry();
+			}
+			return false;
+		}
+		return true;
 	}
 
 	private void addPropertyForMergeEvent(TapEvent tapEvent) {
@@ -1303,73 +1320,77 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		// 收集所有 insert 形式的 cache 事件，按 after.TABLE_NAME 分组，将每组的 EXACTLY_ONCE_ID
-		// 用制表符拼接后压缩，合并为单条 cache 事件，从而显著减少 cache 表写入条数
-		List<TapInsertRecordEvent> rawCacheEvents = tapdataEvents.parallelStream()
-				.map(TapdataEvent::getExactlyOnceWriteCache)
-				.filter(Objects::nonNull)
-				.filter(e -> MapUtils.isNotEmpty(e.getAfter()))
-				.toList();
-		Map<String, List<TapInsertRecordEvent>> groupedByTable = rawCacheEvents.stream()
-				.collect(Collectors.groupingBy(
-						e -> String.valueOf(e.getAfter().get(ExactlyOnceUtil.TABLE_NAME_COL_NAME)),
-						LinkedHashMap::new,
-						Collectors.toList()));
-		List<TapRecordEvent> tapRecordEvents = new ArrayList<>(groupedByTable.size());
-		String nodeId = getNode().getId().replace("-", "");
-		String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + (isSQLMode ? "" : "_" + nodeId);
-		for (Map.Entry<String, List<TapInsertRecordEvent>> entry : groupedByTable.entrySet()) {
-			String tableName = entry.getKey();
-			List<TapInsertRecordEvent> group = entry.getValue();
-			String joinedIds = group.stream()
-					.map(e -> String.valueOf(e.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)))
-					.collect(Collectors.joining("\t"));
-			String compressedIds;
-			try {
-				compressedIds = StringCompression.compressV2(joinedIds);
-			} catch (IOException ioe) {
-				throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED,
-						"Compress exactly-once IDs failed for table: " + tableName, ioe);
+		try {
+			// 收集所有 insert 形式的 cache 事件，按 after.TABLE_NAME 分组，将每组的 EXACTLY_ONCE_ID
+			// 用制表符拼接后压缩，合并为单条 cache 事件，从而显著减少 cache 表写入条数
+			List<TapInsertRecordEvent> rawCacheEvents = tapdataEvents.parallelStream()
+					.map(TapdataEvent::getExactlyOnceWriteCache)
+					.filter(Objects::nonNull)
+					.filter(e -> MapUtils.isNotEmpty(e.getAfter()))
+					.toList();
+			Map<String, List<TapInsertRecordEvent>> groupedByTable = rawCacheEvents.stream()
+					.collect(Collectors.groupingBy(
+							e -> String.valueOf(e.getAfter().get(ExactlyOnceUtil.TABLE_NAME_COL_NAME)),
+							LinkedHashMap::new,
+							Collectors.toList()));
+			List<TapRecordEvent> tapRecordEvents = new ArrayList<>(groupedByTable.size());
+			String nodeId = getNode().getId().replace("-", "");
+			String exactlyOnceTableName = ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME + (isSQLMode ? "" : "_" + nodeId);
+			for (Map.Entry<String, List<TapInsertRecordEvent>> entry : groupedByTable.entrySet()) {
+				String tableName = entry.getKey();
+				List<TapInsertRecordEvent> group = entry.getValue();
+				String joinedIds = group.stream()
+						.map(e -> String.valueOf(e.getAfter().get(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME)))
+						.collect(Collectors.joining("\t"));
+				String compressedIds;
+				try {
+					compressedIds = StringCompression.compressV2(joinedIds);
+				} catch (IOException ioe) {
+					throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED,
+							"Compress exactly-once IDs failed for table: " + tableName, ioe);
+				}
+				Map<String, Object> firstAfter = group.get(0).getAfter();
+				long maxTs = group.stream()
+						.mapToLong(e -> {
+							Object ts = e.getAfter().get(ExactlyOnceUtil.TIMESTAMP_COL_NAME);
+							return ts instanceof Number ? ((Number) ts).longValue() : 0L;
+						})
+						.max().orElse(System.currentTimeMillis());
+				Map<String, Object> after = new HashMap<>();
+				after.put(ExactlyOnceUtil.UUID_ID, UUID.randomUUID().toString().replace("-", ""));
+				after.put(ExactlyOnceUtil.NODE_ID_COL_NAME, firstAfter.get(ExactlyOnceUtil.NODE_ID_COL_NAME));
+				after.put(ExactlyOnceUtil.TABLE_NAME_COL_NAME, tableName);
+				after.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, compressedIds);
+				after.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, maxTs);
+				tapRecordEvents.add(insertRecordEvent(after, exactlyOnceTableName));
 			}
-			Map<String, Object> firstAfter = group.get(0).getAfter();
-			long maxTs = group.stream()
-					.mapToLong(e -> {
-						Object ts = e.getAfter().get(ExactlyOnceUtil.TIMESTAMP_COL_NAME);
-						return ts instanceof Number ? ((Number) ts).longValue() : 0L;
-					})
-					.max().orElse(System.currentTimeMillis());
-			Map<String, Object> after = new HashMap<>();
-			after.put(ExactlyOnceUtil.UUID_ID, UUID.randomUUID().toString().replace("-", ""));
-			after.put(ExactlyOnceUtil.NODE_ID_COL_NAME, firstAfter.get(ExactlyOnceUtil.NODE_ID_COL_NAME));
-			after.put(ExactlyOnceUtil.TABLE_NAME_COL_NAME, tableName);
-			after.put(ExactlyOnceUtil.EXACTLY_ONCE_ID_COL_NAME, compressedIds);
-			after.put(ExactlyOnceUtil.TIMESTAMP_COL_NAME, maxTs);
-			tapRecordEvents.add(insertRecordEvent(after, exactlyOnceTableName));
-		}
-		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
-				pdkMethodInvoker.runnable(() -> {
-							try {
-								transactionBegin();
-								processEvents(tapEvents,false);
-								writeRecordFunction.writeRecord(
-										connectorNode.getConnectorContext(),
-										tapRecordEvents,
-										dataProcessorContext.getTapTableMap().get(exactlyOnceTableName),
-										result -> {
-											Map<TapRecordEvent, Throwable> errorMap = result.getErrorMap();
-											if (MapUtils.isNotEmpty(errorMap)) {
-												Iterator<Map.Entry<TapRecordEvent, Throwable>> iterator = errorMap.entrySet().iterator();
-												Map.Entry<TapRecordEvent, Throwable> next = iterator.next();
-												throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
-											}
-										});
-								transactionCommit();
-							} catch (Exception e) {
-								transactionRollback();
-								throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, e));
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
+					pdkMethodInvoker.runnable(() -> {
+								try {
+									transactionBegin();
+									processEvents(tapEvents,false);
+									writeRecordFunction.writeRecord(
+											connectorNode.getConnectorContext(),
+											tapRecordEvents,
+											dataProcessorContext.getTapTableMap().get(exactlyOnceTableName),
+											result -> {
+												Map<TapRecordEvent, Throwable> errorMap = result.getErrorMap();
+												if (MapUtils.isNotEmpty(errorMap)) {
+													Iterator<Map.Entry<TapRecordEvent, Throwable>> iterator = errorMap.entrySet().iterator();
+													Map.Entry<TapRecordEvent, Throwable> next = iterator.next();
+													throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
+												}
+											});
+									transactionCommit();
+								} catch (Exception e) {
+									transactionRollback();
+									throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, e));
+								}
 							}
-						}
-				));
+					));
+		} finally {
+			removePdkMethodInvoker(pdkMethodInvoker);
+		}
 	}
 
 	@Override
@@ -1381,23 +1402,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	public void doClose() throws TapCodeException {
-		if (null != closed) {
-			closed.set(true);
-		}
-		try {
-			super.doClose();
-		} finally {
-			CommonUtils.ignoreAnyError(() -> {
-				if (MapUtils.isNotEmpty(exactlyOncePdkMethodInvokerMap)) {
-					for (PDKMethodInvoker pdkMethodInvoker : exactlyOncePdkMethodInvokerMap.values()) {
-						if (null == pdkMethodInvoker) continue;
-						pdkMethodInvoker.cancelRetry();
-					}
-					exactlyOncePdkMethodInvokerMap.clear();
-					exactlyOncePdkMethodInvokerMap = null;
+		super.doClose();
+		CommonUtils.ignoreAnyError(() -> {
+			if (MapUtils.isNotEmpty(exactlyOncePdkMethodInvokerMap)) {
+				for (PDKMethodInvoker pdkMethodInvoker : exactlyOncePdkMethodInvokerMap.values()) {
+					if (null == pdkMethodInvoker) continue;
+					pdkMethodInvoker.cancelRetry();
 				}
-			}, TAG);
-		}
+				exactlyOncePdkMethodInvokerMap.clear();
+				exactlyOncePdkMethodInvokerMap = null;
+			}
+		}, TAG);
 	}
 
 	@Override
