@@ -74,6 +74,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -106,13 +107,13 @@ public class TaskController extends BaseController {
     private CpuMemoryService cpuMemoryService;
     private GroupInfoService groupInfoService;
 
-		private <T> T dataPermissionUnAuth() {
-			throw new RuntimeException("Un auth");
+		private <T> T dataPermissionUnAuth(DataPermissionActionEnums actionEnums) {
+			throw new BizException("insufficient.permissions", "", String.format("task.%s", actionEnums.name().toLowerCase()));
 		}
 
 		private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, String syncType, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
 			DataPermissionMenuEnums menuEnums = DataPermissionMenuEnums.ofTaskSyncType(syncType);
-			return DataPermissionHelper.check(userDetail, menuEnums, actionEnums, DataPermissionDataTypeEnums.Task, null, supplier, this::dataPermissionUnAuth);
+			return DataPermissionHelper.check(userDetail, menuEnums, actionEnums, DataPermissionDataTypeEnums.Task, null, supplier, () -> dataPermissionUnAuth(actionEnums));
 		}
 
 		private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, ObjectId id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
@@ -124,8 +125,28 @@ public class TaskController extends BaseController {
 				taskService.dataPermissionFindById(id, new Field()),
 				(dto) -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
 				supplier,
-				this::dataPermissionUnAuth
+				() -> dataPermissionUnAuth(actionEnums)
 			);
+		}
+
+		private List<MutiResponseMessage> dataPermissionCheckOfIds(
+			HttpServletRequest request,
+			UserDetail userDetail,
+			List<ObjectId> ids,
+			DataPermissionActionEnums actionEnums,
+			Function<List<ObjectId>, List<MutiResponseMessage>> supplier
+		) {
+			List<MutiResponseMessage> responseMessages = new ArrayList<>();
+			for (ObjectId id : ids) {
+				responseMessages.addAll(dataPermissionCheckOfId(
+					request,
+					userDetail,
+					id,
+					actionEnums,
+					() -> supplier.apply(Collections.singletonList(id))
+				));
+			}
+			return responseMessages;
 		}
 
 	@GetMapping("/{currentId}/parent-task-sign")
@@ -483,10 +504,14 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
-    public ResponseMessage<Void> delete(@PathVariable("id") String id) {
+    public ResponseMessage<Void> delete(HttpServletRequest request, @PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
-        taskService.remove(MongoUtils.toObjectId(id), userDetail);
-        groupInfoService.removeResourceReferences(Collections.singletonList(id), userDetail);
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Delete, () -> {
+            taskService.remove(objectId, userDetail);
+            groupInfoService.removeResourceReferences(Collections.singletonList(id), userDetail);
+            return null;
+        });
         return success();
     }
 
@@ -708,7 +733,7 @@ public class TaskController extends BaseController {
 		) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
-			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Stop, () -> {
 				taskService.pause(objectId, userDetail, force);
 				return null;
 			});
@@ -720,7 +745,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> renew(HttpServletRequest request, @PathVariable("id") String id) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
-			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Reset, () -> {
 				taskService.renew(objectId, userDetail);
 				return null;
 			});
@@ -736,7 +761,7 @@ public class TaskController extends BaseController {
 		) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
-			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Stop, () -> {
 				taskService.pause(objectId, userDetail, force);
 				return null;
 			});
@@ -752,7 +777,7 @@ public class TaskController extends BaseController {
     ) {
         UserDetail userDetail = getLoginUser();
         ObjectId objectId = MongoUtils.toObjectId(id);
-        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Stop, () -> {
             taskService.pause(objectId, userDetail, force);
             return null;
         });
@@ -864,7 +889,7 @@ public class TaskController extends BaseController {
 		) {
 			UserDetail userDetail = getLoginUser();
 			ObjectId objectId = MongoUtils.toObjectId(id);
-			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Reset, () -> {
 				taskService.renew(objectId, userDetail);
 				return null;
 			});
@@ -937,9 +962,8 @@ public class TaskController extends BaseController {
                                                                 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-            syncType = resolveSyncType(syncType, taskObjectIds);
-			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Stop,
-				() -> taskService.batchStop(taskObjectIds, userDetail, request, response)
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfIds(request, userDetail, taskObjectIds, DataPermissionActionEnums.Stop,
+				ids -> taskService.batchStop(ids, userDetail, request, response)
 			);
 
 			//add message
@@ -967,9 +991,8 @@ public class TaskController extends BaseController {
 																																	HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-            syncType = resolveSyncType(syncType, taskObjectIds);
-			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Delete,
-				() -> taskService.batchDelete(taskObjectIds, userDetail, request, response)
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfIds(request, userDetail, taskObjectIds, DataPermissionActionEnums.Delete,
+				ids -> taskService.batchDelete(ids, userDetail, request, response)
 			);
 			List<String> removedTaskIds = taskIds;
 			if (CollectionUtils.isNotEmpty(responseMessages)) {
@@ -994,9 +1017,8 @@ public class TaskController extends BaseController {
 																																 HttpServletResponse response) {
 			UserDetail userDetail = getLoginUser();
 			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-            syncType = resolveSyncType(syncType, taskObjectIds);
-			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Reset,
-					() -> taskService.batchRenew(taskObjectIds, userDetail, request, response)
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfIds(request, userDetail, taskObjectIds, DataPermissionActionEnums.Reset,
+					ids -> taskService.batchRenew(ids, userDetail, request, response)
 				);
 
 			return success(responseMessages);

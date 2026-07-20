@@ -1,7 +1,6 @@
 package com.tapdata.tm.inspect.controller;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.collection.CollUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.base.controller.BaseController;
@@ -16,9 +15,10 @@ import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.param.SaveInspectResultParam;
 import com.tapdata.tm.inspect.param.UpdateInspectResultParam;
 import com.tapdata.tm.inspect.service.InspectResultService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
-import com.tapdata.tm.permissions.service.DataPermissionService;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -61,7 +61,6 @@ import java.util.StringJoiner;
 @Setter(onMethod_ = {@Autowired})
 public class InspectResultController extends BaseController {
     private InspectResultService inspectResultService;
-    private DataPermissionService dataPermissionService;
     /**
      *  engine 通过这个接口 保存校验结果，，这时候会把inspect的内容整个传过来，保存到数据库中。
      *  因为校验历史，需要看到每一次校验的内容，所以InspectReuslt 里面还得保存Inspect的具体数据，不能去掉
@@ -93,14 +92,18 @@ public class InspectResultController extends BaseController {
     }
 
     protected void checkInspect(String inspectId, DataPermissionActionEnums... enums) {
-        Set<String> dataActions = dataPermissionService.findDataActions(getLoginUser(), DataPermissionDataTypeEnums.INSPECT, MongoUtils.toObjectId(inspectId));
-        if (CollUtil.isEmpty(dataActions)) {
-            throw new BizException("insufficient.permissions", "", needAction(DataPermissionDataTypeEnums.INSPECT, enums));
-        }
-        for (DataPermissionActionEnums dataAction : enums) {
-            if (!dataActions.contains(dataAction.name())) {
-                throw new BizException("insufficient.permissions", needAction(DataPermissionDataTypeEnums.INSPECT, dataAction), needAction(DataPermissionDataTypeEnums.INSPECT, enums));
-            }
+        for (DataPermissionActionEnums action : enums) {
+            DataPermissionHelper.check(
+                    getLoginUser(),
+                    DataPermissionMenuEnums.INSPECT_TACK,
+                    action,
+                    DataPermissionDataTypeEnums.INSPECT,
+                    inspectId,
+                    () -> null,
+                    () -> {
+                        throw new BizException("insufficient.permissions", "", needAction(DataPermissionDataTypeEnums.INSPECT, enums));
+                    }
+            );
         }
     }
     protected String needAction(DataPermissionDataTypeEnums dataTypeEnums, DataPermissionActionEnums... need) {

@@ -21,11 +21,11 @@ public enum DataPermissionMenuEnums {
 	ApiServers(DataPermissionDataTypeEnums.ApiServer, initAllDataPermissionName(DataPermissionDataTypeEnums.ApiServer,"v2_api-servers_all_data")),
 	MigrateTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_data_replication_all_data")),
 	SyncTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_data_flow_all_data")),
-	LogCollectorTack(DataPermissionDataTypeEnums.Task, null),
+	LogCollectorTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_log_collector_all_data")),
 	ConnHeartbeatTack(DataPermissionDataTypeEnums.Task, null),
-	MemCacheTack(DataPermissionDataTypeEnums.Task, null),
+	MemCacheTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_shared_cache_all_data")),
 	TaskRebalance(DataPermissionDataTypeEnums.Task, initTaskRebalancePermissionName()),
-	INSPECT_TACK(DataPermissionDataTypeEnums.INSPECT, null),
+	INSPECT_TACK(DataPermissionDataTypeEnums.INSPECT, initAllDataPermissionName(DataPermissionDataTypeEnums.INSPECT,"v2_data_check_all_data")),
 	Modules(DataPermissionDataTypeEnums.Modules, initAllDataPermissionName(DataPermissionDataTypeEnums.Modules,"v2_data-server-list_all_data")),
 	;
 

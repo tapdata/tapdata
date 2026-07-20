@@ -51,6 +51,28 @@ class DataPermissionMenuEnumsTest {
     }
 
     @Test
+    void testLogCollectorTask() {
+        Assertions.assertEquals("v2_log_collector_all_data", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Edit", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Delete", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Delete.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Reset", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Reset.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Start", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Start.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Stop", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Stop.name()));
+        Assertions.assertEquals(DataPermissionDataTypeEnums.Task, DataPermissionMenuEnums.LogCollectorTack.getDataType());
+    }
+
+    @Test
+    void testMemCacheTask() {
+        Assertions.assertEquals("v2_shared_cache_all_data", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Edit", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Delete", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Delete.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Reset", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Reset.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Start", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Start.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Stop", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Stop.name()));
+        Assertions.assertEquals(DataPermissionDataTypeEnums.Task, DataPermissionMenuEnums.MemCacheTack.getDataType());
+    }
+
+    @Test
     void testTaskRebalance() {
         Assertions.assertEquals("v2_task_rebalance", DataPermissionMenuEnums.TaskRebalance.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
         Assertions.assertEquals("v2_task_rebalance_Edit", DataPermissionMenuEnums.TaskRebalance.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
@@ -71,7 +93,12 @@ class DataPermissionMenuEnumsTest {
 
     @Test
     void testInspect() {
-        Assertions.assertNull(DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_data_check_all_data", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_data_check_all_data_Edit", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertEquals("v2_data_check_all_data_Delete", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Delete.name()));
+        Assertions.assertEquals("v2_data_check_all_data_Start", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Start.name()));
+        Assertions.assertEquals("v2_data_check_all_data_Stop", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Stop.name()));
+        Assertions.assertNull(DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Reset.name()));
         Assertions.assertEquals(DataPermissionDataTypeEnums.INSPECT, DataPermissionMenuEnums.INSPECT_TACK.getDataType());
     }
 }
