@@ -776,7 +776,21 @@
                 <artifactId>tm-sdk</artifactId>
                 <version>${tm-sdk.version}</version>
             </dependency>
-
+            <dependency>
+                <groupId>com.tapdata</groupId>
+                <artifactId>common</artifactId>
+                <version>2.2.2</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>ch.qos.logback</groupId>
+                        <artifactId>logback-core</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>ch.qos.logback</groupId>
+                        <artifactId>logback-classic</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
             <dependency>
                 <groupId>com.tapdata</groupId>
                 <artifactId>tm-common</artifactId>
