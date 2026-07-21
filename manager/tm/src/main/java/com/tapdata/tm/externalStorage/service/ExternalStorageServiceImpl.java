@@ -242,12 +242,20 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 
 	@Override
 	public ExternalStorageDto findById(ObjectId objectId, Field field, UserDetail userDetail) {
-		return maskPasswordIfNeed(super.findById(objectId, field, userDetail));
+		if (!settingsService.isCloud()) {
+			return maskPasswordIfNeed(super.findById(objectId, field));
+		} else {
+			return maskPasswordIfNeed(super.findById(objectId, field, userDetail));
+		}
 	}
 
 	@Override
 	public ExternalStorageDto findById(ObjectId objectId, UserDetail userDetail) {
-		return maskPasswordIfNeed(super.findById(objectId, userDetail));
+		if (!settingsService.isCloud()) {
+			return maskPasswordIfNeed(super.findById(objectId));
+		} else {
+			return maskPasswordIfNeed(super.findById(objectId,userDetail));
+		}
 	}
 
 	@Override
@@ -257,7 +265,11 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 
 	@Override
 	public ExternalStorageDto findOne(Query query, UserDetail userDetail) {
-		return maskPasswordIfNeed(super.findOne(query, userDetail));
+		if (!settingsService.isCloud()) {
+			return maskPasswordIfNeed(super.findOne(query));
+		} else {
+			return maskPasswordIfNeed(super.findOne(query, userDetail));
+		}
 	}
 
 	@Override
