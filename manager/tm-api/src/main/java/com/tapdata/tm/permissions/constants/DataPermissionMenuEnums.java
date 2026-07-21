@@ -22,11 +22,14 @@ public enum DataPermissionMenuEnums {
 	MigrateTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_data_replication_all_data")),
 	SyncTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_data_flow_all_data")),
 	LogCollectorTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_log_collector_all_data")),
-	ConnHeartbeatTack(DataPermissionDataTypeEnums.Task, null),
+	ConnHeartbeatTack(DataPermissionDataTypeEnums.Task, initConnectionHeartbeatPermissionName()),
 	MemCacheTack(DataPermissionDataTypeEnums.Task, initAllDataPermissionName(DataPermissionDataTypeEnums.Task,"v2_shared_cache_all_data")),
 	TaskRebalance(DataPermissionDataTypeEnums.Task, initTaskRebalancePermissionName()),
 	INSPECT_TACK(DataPermissionDataTypeEnums.INSPECT, initAllDataPermissionName(DataPermissionDataTypeEnums.INSPECT,"v2_data_check_all_data")),
 	Modules(DataPermissionDataTypeEnums.Modules, initAllDataPermissionName(DataPermissionDataTypeEnums.Modules,"v2_data-server-list_all_data")),
+	ProjectManagement(DataPermissionDataTypeEnums.GroupInfo, initAllDataPermissionName(DataPermissionDataTypeEnums.GroupInfo, "v2_project_management_all_data")),
+	ProjectImportAndExport(DataPermissionDataTypeEnums.GroupInfo, initViewPermissionName("v2_project_import_and_export_all_data")),
+	UserManagement(DataPermissionDataTypeEnums.User, initAllDataPermissionName(DataPermissionDataTypeEnums.User, "v2_user_management_menu_all_data")),
 	;
 
 	private final DataPermissionDataTypeEnums dataType;
@@ -91,6 +94,22 @@ public enum DataPermissionMenuEnums {
 		Map<String, String> allDataPermissionName = new HashMap<>();
 		allDataPermissionName.put(DataPermissionActionEnums.View.name(), "v2_task_rebalance");
 		allDataPermissionName.put(DataPermissionActionEnums.Edit.name(), "v2_task_rebalance_Edit");
+		return allDataPermissionName;
+	}
+
+	private static Map<String, String> initConnectionHeartbeatPermissionName() {
+		Map<String, String> allDataPermissionName = new HashMap<>();
+		allDataPermissionName.put(DataPermissionActionEnums.View.name(), "v2_conn_heartbeat_all_data");
+		allDataPermissionName.put(DataPermissionActionEnums.Delete.name(), "v2_conn_heartbeat_all_data_Delete");
+		allDataPermissionName.put(DataPermissionActionEnums.Reset.name(), "v2_conn_heartbeat_all_data_Reset");
+		allDataPermissionName.put(DataPermissionActionEnums.Start.name(), "v2_conn_heartbeat_all_data_Start");
+		allDataPermissionName.put(DataPermissionActionEnums.Stop.name(), "v2_conn_heartbeat_all_data_Stop");
+		return allDataPermissionName;
+	}
+
+	private static Map<String, String> initViewPermissionName(String permissionName) {
+		Map<String, String> allDataPermissionName = new HashMap<>();
+		allDataPermissionName.put(DataPermissionActionEnums.View.name(), permissionName);
 		return allDataPermissionName;
 	}
 }

@@ -107,13 +107,16 @@ public class TaskController extends BaseController {
     private CpuMemoryService cpuMemoryService;
     private GroupInfoService groupInfoService;
 
-		private <T> T dataPermissionUnAuth(DataPermissionActionEnums actionEnums) {
-			throw new BizException("insufficient.permissions", "", String.format("task.%s", actionEnums.name().toLowerCase()));
+		private <T> T dataPermissionUnAuth(DataPermissionActionEnums actionEnums, List<DataPermissionActionEnums> need) {
+			throw new BizException("insufficient.permissions",
+				needAction(DataPermissionDataTypeEnums.Task, Collections.singletonList(actionEnums)),
+				needAction(DataPermissionDataTypeEnums.Task, need));
 		}
 
 		private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, String syncType, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
 			DataPermissionMenuEnums menuEnums = DataPermissionMenuEnums.ofTaskSyncType(syncType);
-			return DataPermissionHelper.check(userDetail, menuEnums, actionEnums, DataPermissionDataTypeEnums.Task, null, supplier, () -> dataPermissionUnAuth(actionEnums));
+			return DataPermissionHelper.check(userDetail, menuEnums, actionEnums, DataPermissionDataTypeEnums.Task, null, supplier,
+				() -> dataPermissionUnAuth(actionEnums, Collections.singletonList(actionEnums)));
 		}
 
 		private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, ObjectId id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
@@ -125,7 +128,7 @@ public class TaskController extends BaseController {
 				taskService.dataPermissionFindById(id, new Field()),
 				(dto) -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
 				supplier,
-				() -> dataPermissionUnAuth(actionEnums)
+				() -> dataPermissionUnAuth(actionEnums, Collections.singletonList(actionEnums))
 			);
 		}
 

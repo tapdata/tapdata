@@ -108,17 +108,8 @@ public class CacheTaskController extends BaseController {
     @PatchMapping("{id}")
     public ResponseMessage<TaskDto> updateById(@PathVariable("id") String id, @RequestBody SaveShareCacheParam saveShareCacheParam) {
         UserDetail userDetail = getLoginUser();
-        return success(DataPermissionHelper.check(
-                userDetail,
-                DataPermissionMenuEnums.MemCacheTack,
-                DataPermissionActionEnums.Edit,
-                DataPermissionDataTypeEnums.Task,
-                id,
-                () -> taskService.updateShareCacheTask(id, saveShareCacheParam, userDetail),
-                () -> {
-                    throw new BizException("insufficient.permissions", "", "task.edit");
-                }
-        ));
+        return success(dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
+                () -> taskService.updateShareCacheTask(id, saveShareCacheParam, userDetail)));
     }
 
 
@@ -133,7 +124,7 @@ public class CacheTaskController extends BaseController {
     public ResponseMessage<ShareCacheDetailVo> findById(@PathVariable("id") String id,
                                                         @RequestParam(value = "fields", required = false) String fieldsJson) {
         UserDetail userDetail = getLoginUser();
-        return success(checkDataPermission(
+        return success(dataPermissionCheckOfId(
                 userDetail,
                 id,
                 DataPermissionActionEnums.View,
@@ -152,7 +143,7 @@ public class CacheTaskController extends BaseController {
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
-        checkDataPermission(userDetail, id, DataPermissionActionEnums.Delete, () -> {
+        dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Delete, () -> {
             taskService.remove(MongoUtils.toObjectId(id), userDetail);
             return null;
         });
@@ -249,7 +240,7 @@ public class CacheTaskController extends BaseController {
     @PutMapping("renew/{id}")
     public ResponseMessage<Void> renew(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
-        checkDataPermission(userDetail, id, DataPermissionActionEnums.Reset, () -> {
+        dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Reset, () -> {
             taskService.renew(MongoUtils.toObjectId(id), userDetail);
             return null;
         });
@@ -261,7 +252,7 @@ public class CacheTaskController extends BaseController {
     public ResponseMessage<TaskDto> stop(@PathVariable("id") String id
             , @RequestParam(value = "force", defaultValue = "false") Boolean force) {
         UserDetail userDetail = getLoginUser();
-        checkDataPermission(userDetail, id, DataPermissionActionEnums.Stop, () -> {
+        dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Stop, () -> {
             taskService.pause(MongoUtils.toObjectId(id), userDetail, force);
             return null;
         });
@@ -310,15 +301,15 @@ public class CacheTaskController extends BaseController {
         return success(responseMessages);
     }
 
-    private <T> T checkDataPermission(UserDetail userDetail, String id, DataPermissionActionEnums action, Supplier<T> supplier) {
-        return DataPermissionHelper.check(
+    private <T> T dataPermissionCheckOfId(UserDetail userDetail, String id, DataPermissionActionEnums action, Supplier<T> supplier) {
+        return DataPermissionHelper.checkOfQuery(
                 userDetail,
-                DataPermissionMenuEnums.MemCacheTack,
-                action,
                 DataPermissionDataTypeEnums.Task,
-                id,
+                action,
+                taskService.dataPermissionFindById(MongoUtils.toObjectId(id), new Field()),
+                dto -> DataPermissionMenuEnums.MemCacheTack,
                 supplier,
-                () -> dataPermissionUnAuth(action)
+                () -> dataPermissionUnAuth(action, Lists.newArrayList(action))
         );
     }
 
@@ -330,7 +321,7 @@ public class CacheTaskController extends BaseController {
     ) {
         List<MutiResponseMessage> responseMessages = new java.util.ArrayList<>();
         for (ObjectId id : ids) {
-            responseMessages.addAll(checkDataPermission(
+            responseMessages.addAll(dataPermissionCheckOfId(
                     userDetail,
                     id.toHexString(),
                     action,
@@ -340,8 +331,10 @@ public class CacheTaskController extends BaseController {
         return responseMessages;
     }
 
-    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action) {
-        throw new BizException("insufficient.permissions", "", String.format("task.%s", action.name().toLowerCase()));
+    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
+        throw new BizException("insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.Task, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.Task, need));
     }
 
 

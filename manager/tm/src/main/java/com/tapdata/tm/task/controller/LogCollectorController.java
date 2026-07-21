@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -16,8 +17,10 @@ import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.task.service.LogCollectorExtendService;
 import com.tapdata.tm.task.service.LogCollectorService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.vo.LogCollectorRelateTaskVo;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * @Author: Zed
@@ -44,6 +48,7 @@ import java.util.Map;
 public class LogCollectorController extends BaseController {
     private LogCollectorService logCollectorService;
     private LogCollectorExtendService logCollectorExtendService;
+    private TaskService taskService;
 
     /**
      *  查询挖掘任务列表
@@ -108,20 +113,11 @@ public class LogCollectorController extends BaseController {
     public ResponseMessage<Void> update(@PathVariable("id") String id, @RequestBody LogCollectorEditVo logCollectorEditVo) {
         logCollectorEditVo.setId(id);
         UserDetail userDetail = getLoginUser();
-        DataPermissionHelper.check(
-                userDetail,
-                DataPermissionMenuEnums.LogCollectorTack,
-                DataPermissionActionEnums.Edit,
-                DataPermissionDataTypeEnums.Task,
-                id,
+        dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
                 () -> {
                     logCollectorService.update(logCollectorEditVo, userDetail);
                     return null;
-                },
-                () -> {
-                    throw new BizException("insufficient.permissions", "", "task.edit");
-                }
-        );
+                });
         return success();
     }
 
@@ -134,17 +130,8 @@ public class LogCollectorController extends BaseController {
     @Operation(summary = "查询挖掘任务详情")
     public ResponseMessage<LogCollectorDetailVo> findDetail(@PathVariable("id") String logCollectorId) {
         UserDetail userDetail = getLoginUser();
-        return success(DataPermissionHelper.check(
-                userDetail,
-                DataPermissionMenuEnums.LogCollectorTack,
-                DataPermissionActionEnums.View,
-                DataPermissionDataTypeEnums.Task,
-                logCollectorId,
-                () -> logCollectorService.findDetail(logCollectorId, userDetail),
-                () -> {
-                    throw new BizException("insufficient.permissions", "", "task.view");
-                }
-        ));
+        return success(dataPermissionCheckOfId(userDetail, logCollectorId, DataPermissionActionEnums.View,
+                () -> logCollectorService.findDetail(logCollectorId, userDetail)));
     }
 
     /**
@@ -272,5 +259,24 @@ public class LogCollectorController extends BaseController {
     @Operation(summary = "手动创建共享挖掘任务，若数据源已存在挖掘任务则合并")
     public ResponseMessage<Map<String, String>> createShareCdcTaskAndWait(@RequestBody TableLogCollectorParam param) {
         return success(logCollectorService.createShareCdcTaskAndWait(param, getLoginUser()));
+    }
+
+    private <T> T dataPermissionCheckOfId(UserDetail userDetail, String id, DataPermissionActionEnums action,
+                                          Supplier<T> supplier) {
+        return DataPermissionHelper.checkOfQuery(
+                userDetail,
+                DataPermissionDataTypeEnums.Task,
+                action,
+                taskService.dataPermissionFindById(MongoUtils.toObjectId(id), new Field()),
+                dto -> DataPermissionMenuEnums.LogCollectorTack,
+                supplier,
+                () -> dataPermissionUnAuth(action, Lists.newArrayList(action))
+        );
+    }
+
+    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
+        throw new BizException("insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.Task, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.Task, need));
     }
 }

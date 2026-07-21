@@ -33,9 +33,9 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 class SharedTaskControllerDataPermissionTest {
     private UserDetail userDetail;
@@ -85,7 +85,9 @@ class SharedTaskControllerDataPermissionTest {
     void logCollectorEditUsesLogCollectorAllDataPermission() {
         LogCollectorController controller = spy(new LogCollectorController());
         LogCollectorService service = mock(LogCollectorService.class);
+        TaskService taskService = mock(TaskService.class);
         controller.setLogCollectorService(service);
+        controller.setTaskService(taskService);
         doReturn(userDetail).when(controller).getLoginUser();
         String id = new ObjectId().toHexString();
         LogCollectorEditVo editVo = new LogCollectorEditVo();
@@ -103,7 +105,9 @@ class SharedTaskControllerDataPermissionTest {
     void logCollectorDetailUsesLogCollectorAllDataPermission() {
         LogCollectorController controller = spy(new LogCollectorController());
         LogCollectorService service = mock(LogCollectorService.class);
+        TaskService taskService = mock(TaskService.class);
         controller.setLogCollectorService(service);
+        controller.setTaskService(taskService);
         doReturn(userDetail).when(controller).getLoginUser();
         String id = new ObjectId().toHexString();
         LogCollectorDetailVo detail = new LogCollectorDetailVo();
@@ -217,19 +221,19 @@ class SharedTaskControllerDataPermissionTest {
         SaveShareCacheParam param = mock(SaveShareCacheParam.class);
 
         try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
-            helper.when(() -> DataPermissionHelper.check(
+            helper.when(() -> DataPermissionHelper.checkOfQuery(
                     same(userDetail),
-                    eq(DataPermissionMenuEnums.MemCacheTack),
-                    eq(DataPermissionActionEnums.Edit),
                     eq(DataPermissionDataTypeEnums.Task),
-                    eq(id),
+                    eq(DataPermissionActionEnums.Edit),
+                    any(),
+                    any(),
                     any(),
                     any()
             )).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get());
 
             Assertions.assertThrows(BizException.class, () -> controller.updateById(id, param));
 
-            verifyNoInteractions(service);
+            verify(service, never()).updateShareCacheTask(id, param, userDetail);
         }
     }
 
@@ -242,12 +246,12 @@ class SharedTaskControllerDataPermissionTest {
         String id = new ObjectId().toHexString();
 
         try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
-            helper.when(() -> DataPermissionHelper.check(
+            helper.when(() -> DataPermissionHelper.checkOfQuery(
                     same(userDetail),
-                    eq(DataPermissionMenuEnums.MemCacheTack),
-                    eq(DataPermissionActionEnums.Delete),
                     eq(DataPermissionDataTypeEnums.Task),
-                    eq(id),
+                    eq(DataPermissionActionEnums.Delete),
+                    any(),
+                    any(),
                     any(),
                     any()
             )).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get());
@@ -255,7 +259,8 @@ class SharedTaskControllerDataPermissionTest {
             BizException exception = Assertions.assertThrows(BizException.class, () -> controller.delete(id));
 
             Assertions.assertEquals("insufficient.permissions", exception.getErrorCode());
-            verifyNoInteractions(service);
+            Assertions.assertArrayEquals(new Object[]{"task.delete", "task.delete"}, exception.getArgs());
+            verify(service, never()).remove(any(ObjectId.class), same(userDetail));
         }
     }
 
@@ -268,12 +273,12 @@ class SharedTaskControllerDataPermissionTest {
         String id = new ObjectId().toHexString();
 
         try (MockedStatic<DataPermissionHelper> helper = mockStatic(DataPermissionHelper.class)) {
-            helper.when(() -> DataPermissionHelper.check(
+            helper.when(() -> DataPermissionHelper.checkOfQuery(
                     same(userDetail),
-                    eq(DataPermissionMenuEnums.MemCacheTack),
-                    eq(DataPermissionActionEnums.Delete),
                     eq(DataPermissionDataTypeEnums.Task),
-                    eq(id),
+                    eq(DataPermissionActionEnums.Delete),
+                    any(),
+                    any(),
                     any(),
                     any()
             )).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get());
@@ -284,7 +289,7 @@ class SharedTaskControllerDataPermissionTest {
                     mock(jakarta.servlet.http.HttpServletResponse.class)
             ));
 
-            verifyNoInteractions(service);
+            verify(service, never()).batchDelete(any(), same(userDetail), any(), any());
         }
     }
 
@@ -325,12 +330,12 @@ class SharedTaskControllerDataPermissionTest {
             DataPermissionActionEnums action,
             String id
     ) {
-        helper.when(() -> DataPermissionHelper.check(
+        helper.when(() -> DataPermissionHelper.checkOfQuery(
                 same(userDetail),
-                eq(menuEnums),
-                eq(action),
                 eq(DataPermissionDataTypeEnums.Task),
-                eq(id),
+                eq(action),
+                any(),
+                any(),
                 any(),
                 any()
         )).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
@@ -349,24 +354,24 @@ class SharedTaskControllerDataPermissionTest {
     }
 
     private void allowEditPermissionCheck(MockedStatic<DataPermissionHelper> helper, DataPermissionMenuEnums menuEnums, String id) {
-        helper.when(() -> DataPermissionHelper.check(
+        helper.when(() -> DataPermissionHelper.checkOfQuery(
                 same(userDetail),
-                eq(menuEnums),
-                eq(DataPermissionActionEnums.Edit),
                 eq(DataPermissionDataTypeEnums.Task),
-                eq(id),
+                eq(DataPermissionActionEnums.Edit),
+                any(),
+                any(),
                 any(),
                 any()
         )).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());
     }
 
     private void allowViewPermissionCheck(MockedStatic<DataPermissionHelper> helper, DataPermissionMenuEnums menuEnums, String id) {
-        helper.when(() -> DataPermissionHelper.check(
+        helper.when(() -> DataPermissionHelper.checkOfQuery(
                 same(userDetail),
-                eq(menuEnums),
-                eq(DataPermissionActionEnums.View),
                 eq(DataPermissionDataTypeEnums.Task),
-                eq(id),
+                eq(DataPermissionActionEnums.View),
+                any(),
+                any(),
                 any(),
                 any()
         )).thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(5)).get());

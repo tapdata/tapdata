@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.Permission.dto.PermissionDto;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.user.entity.GuideData;
 import com.tapdata.tm.user.entity.Notification;
@@ -21,7 +22,7 @@ import java.util.List;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class UserDto extends BaseDto {
+public class UserDto extends BaseDto implements IDataPermissionDto {
 
     private String accessCode;
     private String username;

@@ -5,6 +5,7 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.group.dto.GroupInfoDto;
 import com.tapdata.tm.group.dto.GroupInfoRecordDto;
 import com.tapdata.tm.group.service.GroupInfoService;
@@ -16,7 +17,12 @@ import com.tapdata.tm.group.vo.GroupPreviewResult;
 import com.tapdata.tm.group.vo.ModuleWithGroupVo;
 import com.tapdata.tm.group.vo.ResourceDiff;
 import com.tapdata.tm.group.vo.TaskWithGroupVo;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
 import org.bson.types.ObjectId;
@@ -31,6 +37,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 @RestController
 @RequestMapping("/api/groupInfo")
@@ -40,17 +47,50 @@ public class GroupInfoController extends BaseController {
     @Autowired
     private GroupInfoRecordService groupInfoRecordService;
 
+    private <T> T dataPermissionUnAuth() {
+        throw new RuntimeException("Un auth");
+    }
+
+    private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, DataPermissionMenuEnums menu,
+                                             DataPermissionActionEnums action, Supplier<T> supplier) {
+        return DataPermissionHelper.check(userDetail, menu, action, menu.getDataType(), null, supplier,
+                () -> dataPermissionUnAuth(menu.getDataType(), action, Lists.newArrayList(action)));
+    }
+
+    private <T> T dataPermissionCheckOfId(UserDetail userDetail, String id, DataPermissionActionEnums action, Supplier<T> supplier) {
+        return DataPermissionHelper.checkOfQuery(userDetail, DataPermissionDataTypeEnums.GroupInfo, action,
+                groupInfoService.dataPermissionFindById(MongoUtils.toObjectId(id), new com.tapdata.tm.base.dto.Field()),
+                dto -> DataPermissionMenuEnums.ProjectManagement, supplier,
+                () -> dataPermissionUnAuth(DataPermissionDataTypeEnums.GroupInfo, action, Lists.newArrayList(action)));
+    }
+
+    private <T> T dataPermissionUnAuth(DataPermissionDataTypeEnums dataType, DataPermissionActionEnums action,
+                                        List<DataPermissionActionEnums> need) {
+        throw new BizException("insufficient.permissions",
+                needAction(dataType, Lists.newArrayList(action)),
+                needAction(dataType, need));
+    }
+
+
     @Operation(summary = "group导出")
     @PostMapping("/batch/load")
     public void batchLoadTasks(@RequestBody ExportGroupRequest exportRequest,
             HttpServletResponse response) {
-		groupInfoService.exportGroupInfos(response, exportRequest, getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        dataPermissionCheckOfMenu(userDetail, DataPermissionMenuEnums.ProjectImportAndExport, DataPermissionActionEnums.View, () -> {
+			groupInfoService.exportGroupInfos(response, exportRequest, userDetail);
+            return null;
+        });
     }
 
 	@Operation(summary = "group导出")
 	@PostMapping("/batch/load/git")
 	public ResponseMessage<Map<String, String>> batchLoadTasksGit(@RequestBody ExportGroupRequest exportRequest) {
-		groupInfoService.exportGroupInfos(null, exportRequest, getLoginUser());
+		dataPermissionCheckOfMenu(getLoginUser(), DataPermissionMenuEnums.ProjectImportAndExport, DataPermissionActionEnums.View,
+                () -> {
+                    groupInfoService.exportGroupInfos(null, exportRequest, getLoginUser());
+                    return null;
+                });
 		return success();
 	}
 
@@ -71,7 +111,9 @@ public class GroupInfoController extends BaseController {
     public ResponseMessage<Page<GroupInfoRecordDto>> recordList(
             @RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        return success(groupInfoRecordService.find(filter, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfMenu(userDetail, DataPermissionMenuEnums.ProjectImportAndExport,
+                DataPermissionActionEnums.View, () -> groupInfoRecordService.find(filter, userDetail)));
     }
 
     @Operation(summary = "group列表")
@@ -79,7 +121,9 @@ public class GroupInfoController extends BaseController {
     public ResponseMessage<Page<GroupInfoDto>> groupList(
             @RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        return success(groupInfoService.groupList(filter, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfMenu(userDetail, DataPermissionMenuEnums.ProjectManagement,
+                DataPermissionActionEnums.View, () -> groupInfoService.groupList(filter, userDetail)));
     }
 
     @Operation(summary = "新增group")
@@ -97,8 +141,9 @@ public class GroupInfoController extends BaseController {
     @Operation(summary = "修改 发布  group")
     @PatchMapping()
     public ResponseMessage update(@RequestBody GroupInfoDto groupInfoDto) {
-        return success(
-                groupInfoService.update(Query.query(Criteria.where("_id").is(groupInfoDto.getId())), groupInfoDto));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(userDetail, groupInfoDto.getId().toHexString(), DataPermissionActionEnums.Edit,
+                () -> groupInfoService.update(Query.query(Criteria.where("_id").is(groupInfoDto.getId())), groupInfoDto)));
     }
 
     /**
@@ -110,12 +155,16 @@ public class GroupInfoController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        groupInfoService.deleteLogicsById(id);
+        dataPermissionCheckOfId(getLoginUser(), id, DataPermissionActionEnums.Delete, () -> {
+            groupInfoService.deleteLogicsById(id);
+            return null;
+        });
         return success();
     }
     @GetMapping("/getGroupImportStatus/{id}")
     public ResponseMessage<GroupInfoRecordDto> getGroupImportStatusByRecordId(@PathVariable("id") String id) {
-        GroupInfoRecordDto groupInfoRecordDto = groupInfoRecordService.findById(MongoUtils.toObjectId(id), getLoginUser());
+        GroupInfoRecordDto groupInfoRecordDto = dataPermissionCheckOfMenu(getLoginUser(), DataPermissionMenuEnums.ProjectImportAndExport,
+                DataPermissionActionEnums.View, () -> groupInfoRecordService.findById(MongoUtils.toObjectId(id), getLoginUser()));
         if(groupInfoRecordDto == null){
             throw new BizException("GroupInfo.Not.Found");
         }
@@ -251,8 +300,18 @@ public class GroupInfoController extends BaseController {
     public ResponseMessage<Page<TaskWithGroupVo>> tasks(
             @RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        if (filter == null) filter = new Filter();
-        return success(groupInfoService.getTasksWithGroupInfo(filter, getLoginUser()));
+        Filter finalFilter = filter;
+        DataPermissionMenuEnums dataPermissionMenuEnums = null;
+        if(finalFilter != null) {
+            if(finalFilter.getWhere().get("syncType").equals("sync")){
+                dataPermissionMenuEnums = DataPermissionMenuEnums.SyncTack;
+            }else{
+                dataPermissionMenuEnums = DataPermissionMenuEnums.MigrateTack;
+            }
+        }
+        return success(DataPermissionHelper.check(getLoginUser(), dataPermissionMenuEnums,DataPermissionActionEnums.View, DataPermissionDataTypeEnums.Task, null,
+                ()->groupInfoService.getTasksWithGroupInfo(finalFilter, getLoginUser()),
+                this::dataPermissionUnAuth));
     }
 
     @Operation(summary = "获取包含分组信息的API列表")
@@ -261,6 +320,9 @@ public class GroupInfoController extends BaseController {
             @RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
         if (filter == null) filter = new Filter();
-        return success(groupInfoService.getApisWithGroupInfo(filter, getLoginUser()));
+        Filter finalFilter = filter;
+        return success(DataPermissionHelper.check(getLoginUser(), DataPermissionMenuEnums.Modules, DataPermissionActionEnums.View, DataPermissionDataTypeEnums.Modules, null,
+                ()->groupInfoService.getApisWithGroupInfo(finalFilter, getLoginUser()),
+                this::dataPermissionUnAuth));
     }
 }

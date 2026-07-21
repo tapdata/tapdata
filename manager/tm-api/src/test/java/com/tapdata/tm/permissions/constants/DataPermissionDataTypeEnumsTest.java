@@ -53,5 +53,17 @@ class DataPermissionDataTypeEnumsTest {
         Assertions.assertNotNull(DataPermissionDataTypeEnums.parse("Task"));
         Assertions.assertNotNull(DataPermissionDataTypeEnums.parse("Inspect"));
         Assertions.assertNotNull(DataPermissionDataTypeEnums.parse("Modules"));
+        Assertions.assertNotNull(DataPermissionDataTypeEnums.parse("GroupInfo"));
+        Assertions.assertNotNull(DataPermissionDataTypeEnums.parse("User"));
+    }
+
+    @Test
+    void testNewPermissionDataTypes() {
+        Assertions.assertEquals("GroupInfo", DataPermissionDataTypeEnums.GroupInfo.getCollection());
+        Assertions.assertEquals("User", DataPermissionDataTypeEnums.User.getCollection());
+        Assertions.assertEquals(3, DataPermissionDataTypeEnums.User.allActions().size());
+        Assertions.assertTrue(DataPermissionDataTypeEnums.User.allActions().contains(DataPermissionActionEnums.View.name()));
+        Assertions.assertTrue(DataPermissionDataTypeEnums.User.allActions().contains(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertTrue(DataPermissionDataTypeEnums.User.allActions().contains(DataPermissionActionEnums.Delete.name()));
     }
 }

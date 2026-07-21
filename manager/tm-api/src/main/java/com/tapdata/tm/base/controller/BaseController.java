@@ -8,6 +8,8 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.security.LoginUserResolver;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.utils.MessageUtil;
 import io.tapdata.entity.simplify.TapSimplify;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,9 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
+
+import java.util.List;
+import java.util.StringJoiner;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -164,6 +169,14 @@ public class BaseController {
 		res.setMessage(e != null ? e.getMessage() : null);
 		res.setStack(TapSimplify.getStackTrace(e));
 		return res;
+	}
+
+	public String needAction(DataPermissionDataTypeEnums dataTypeEnums, List<DataPermissionActionEnums> need) {
+		StringJoiner joiner = new StringJoiner(", ");
+		need.forEach(a ->
+				joiner.add(String.format("%s.%s", dataTypeEnums.getCollection().toLowerCase(), a.name().toLowerCase()))
+		);
+		return joiner.toString();
 	}
 
 }
