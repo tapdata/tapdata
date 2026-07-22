@@ -13,6 +13,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 /**
  * @Author: Zed
@@ -42,4 +43,5 @@ public class LogCollectorVo {
     /** 增量时间点*/
     @EqField
     private List<TaskDto.SyncPoint> syncPoints;
+    private Set<String> permissionActions;
 }

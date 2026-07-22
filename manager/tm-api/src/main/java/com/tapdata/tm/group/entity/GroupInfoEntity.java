@@ -1,6 +1,7 @@
 package com.tapdata.tm.group.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.group.dto.GroupGitInfoDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -13,7 +14,7 @@ import java.util.List;
 @Document("GroupInfo")
 @Data
 @EqualsAndHashCode(callSuper=false)
-public class GroupInfoEntity extends BaseEntity {
+public class GroupInfoEntity extends BaseEntity implements IDataPermissionEntity {
     private String name;
     private String description;
     private List<ResourceItem> resourceItemList = new ArrayList<>();

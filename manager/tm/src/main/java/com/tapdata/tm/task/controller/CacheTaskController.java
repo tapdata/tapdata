@@ -2,8 +2,13 @@ package com.tapdata.tm.task.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
@@ -24,6 +29,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 
@@ -82,7 +89,13 @@ public class CacheTaskController extends BaseController {
             statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
             where.put("status", statusCondition);
         }
-        return success(taskService.findShareCache(filter, getLoginUser()));
+        Filter taskFilter = filter;
+        UserDetail userDetail = getLoginUser();
+        return success(DataPermissionMenuEnums.MemCacheTack.checkAndSetFilter(
+                userDetail,
+                DataPermissionActionEnums.View,
+                () -> taskService.findShareCache(taskFilter, userDetail)
+        ));
     }
 
     /**
@@ -94,7 +107,9 @@ public class CacheTaskController extends BaseController {
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
     public ResponseMessage<TaskDto> updateById(@PathVariable("id") String id, @RequestBody SaveShareCacheParam saveShareCacheParam) {
-        return success(taskService.updateShareCacheTask(id,saveShareCacheParam, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
+                () -> taskService.updateShareCacheTask(id, saveShareCacheParam, userDetail)));
     }
 
 
@@ -108,7 +123,13 @@ public class CacheTaskController extends BaseController {
     @GetMapping("{id}")
     public ResponseMessage<ShareCacheDetailVo> findById(@PathVariable("id") String id,
                                                         @RequestParam(value = "fields", required = false) String fieldsJson) {
-        return success(taskService.findShareCacheById(id));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(
+                userDetail,
+                id,
+                DataPermissionActionEnums.View,
+                () -> taskService.findShareCacheById(id)
+        ));
     }
 
 
@@ -121,7 +142,11 @@ public class CacheTaskController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        taskService.remove(MongoUtils.toObjectId(id), getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Delete, () -> {
+            taskService.remove(MongoUtils.toObjectId(id), userDetail);
+            return null;
+        });
         return success();
     }
 
@@ -147,7 +172,13 @@ public class CacheTaskController extends BaseController {
         if (deleted == null) {
             where.put("is_deleted", false);
         }
-        return success(taskService.findOne(filter, getLoginUser()));
+        Filter taskFilter = filter;
+        UserDetail userDetail = getLoginUser();
+        return success(DataPermissionMenuEnums.MemCacheTack.checkAndSetFilter(
+                userDetail,
+                DataPermissionActionEnums.View,
+                () -> taskService.findOne(taskFilter, userDetail)
+        ));
     }
 
     /**
@@ -208,7 +239,11 @@ public class CacheTaskController extends BaseController {
     @Operation(summary = "重置同步任务")
     @PutMapping("renew/{id}")
     public ResponseMessage<Void> renew(@PathVariable("id") String id) {
-        taskService.renew(MongoUtils.toObjectId(id), getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Reset, () -> {
+            taskService.renew(MongoUtils.toObjectId(id), userDetail);
+            return null;
+        });
         return success();
     }
 
@@ -216,7 +251,11 @@ public class CacheTaskController extends BaseController {
     @PutMapping("stop/{id}")
     public ResponseMessage<TaskDto> stop(@PathVariable("id") String id
             , @RequestParam(value = "force", defaultValue = "false") Boolean force) {
-        taskService.pause(MongoUtils.toObjectId(id), getLoginUser(), force);
+        UserDetail userDetail = getLoginUser();
+        dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Stop, () -> {
+            taskService.pause(MongoUtils.toObjectId(id), userDetail, force);
+            return null;
+        });
         return success();
     }
 
@@ -237,7 +276,13 @@ public class CacheTaskController extends BaseController {
                                                                 HttpServletRequest request,
                                                                 HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchStop(taskObjectIds, getLoginUser(), request, response);
+        UserDetail userDetail = getLoginUser();
+        List<MutiResponseMessage> responseMessages = checkDataPermissions(
+                userDetail,
+                taskObjectIds,
+                DataPermissionActionEnums.Stop,
+                ids -> taskService.batchStop(ids, userDetail, request, response)
+        );
         return success(responseMessages);
     }
 
@@ -246,8 +291,50 @@ public class CacheTaskController extends BaseController {
                                                                   HttpServletRequest request,
                                                                   HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request, response);
+        UserDetail userDetail = getLoginUser();
+        List<MutiResponseMessage> responseMessages = checkDataPermissions(
+                userDetail,
+                taskObjectIds,
+                DataPermissionActionEnums.Delete,
+                ids -> taskService.batchDelete(ids, userDetail, request, response)
+        );
         return success(responseMessages);
+    }
+
+    private <T> T dataPermissionCheckOfId(UserDetail userDetail, String id, DataPermissionActionEnums action, Supplier<T> supplier) {
+        return DataPermissionHelper.checkOfQuery(
+                userDetail,
+                DataPermissionDataTypeEnums.Task,
+                action,
+                taskService.dataPermissionFindById(MongoUtils.toObjectId(id), new Field()),
+                dto -> DataPermissionMenuEnums.MemCacheTack,
+                supplier,
+                () -> dataPermissionUnAuth(action, Lists.newArrayList(action))
+        );
+    }
+
+    private List<MutiResponseMessage> checkDataPermissions(
+            UserDetail userDetail,
+            List<ObjectId> ids,
+            DataPermissionActionEnums action,
+            Function<List<ObjectId>, List<MutiResponseMessage>> supplier
+    ) {
+        List<MutiResponseMessage> responseMessages = new java.util.ArrayList<>();
+        for (ObjectId id : ids) {
+            responseMessages.addAll(dataPermissionCheckOfId(
+                    userDetail,
+                    id.toHexString(),
+                    action,
+                    () -> supplier.apply(java.util.Collections.singletonList(id))
+            ));
+        }
+        return responseMessages;
+    }
+
+    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
+        throw new BizException("insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.Task, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.Task, need));
     }
 
 

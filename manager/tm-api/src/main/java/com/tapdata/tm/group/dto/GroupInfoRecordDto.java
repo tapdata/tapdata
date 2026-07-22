@@ -1,6 +1,7 @@
 package com.tapdata.tm.group.dto;
 
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -9,7 +10,7 @@ import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class GroupInfoRecordDto extends BaseDto {
+public class GroupInfoRecordDto extends BaseDto implements IDataPermissionDto {
     public static final String TYPE_EXPORT = "export";
     public static final String TYPE_IMPORT = "import";
     public static final String STATUS_EXPORTING = "exporting";

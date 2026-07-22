@@ -954,6 +954,7 @@ class TaskServiceImplTest {
             TaskDto actual = taskService.updateShareCacheTask(id, saveShareCacheParam, user);
             verify(taskService,new Times(1)).parseCacheToTaskDto(saveShareCacheParam,dto);
             verify(taskService,new Times(1)).updateById(any(TaskDto.class),any(UserDetail.class));
+            verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
         }
     }
 
@@ -2891,6 +2892,7 @@ class TaskServiceImplTest {
         private TaskRepository repository;
         private DataSourceServiceImpl dataSourceService;
         private ExternalStorageService externalStorageService;
+        private IDataPermissionHelper dataPermissionHelper;
         @BeforeEach
         void beforeEach(){
             repository = mock(TaskRepository.class);
@@ -2899,7 +2901,8 @@ class TaskServiceImplTest {
             filter = new Filter();
             dataSourceService = mock(DataSourceServiceImpl.class);
             ReflectionTestUtils.setField(taskService,"dataSourceService",dataSourceService);
-            new DataPermissionHelper(mock(IDataPermissionHelper.class));
+            dataPermissionHelper = mock(IDataPermissionHelper.class);
+            new DataPermissionHelper(dataPermissionHelper);
             externalStorageService = mock(ExternalStorageService.class);
             ReflectionTestUtils.setField(taskService,"externalStorageService",externalStorageService);
         }
@@ -2926,9 +2929,15 @@ class TaskServiceImplTest {
             String externalStorageId = id.toHexString();
             when(cacheNode.getExternalStorageId()).thenReturn(externalStorageId);
             when(externalStorageService.findById(any())).thenReturn(mock(ExternalStorageDto.class));
+            Set<String> permissionActions = Set.of("View", "Edit", "Delete", "Start", "Stop", "Reset");
+            doAnswer(invocation -> {
+                ((TaskDto) invocation.getArgument(1)).setPermissionActions(permissionActions);
+                return null;
+            }).when(dataPermissionHelper).convert(any(), any());
             doCallRealMethod().when(taskService).findShareCache(filter,user);
             Page<ShareCacheVo> actual = taskService.findShareCache(filter, user);
             assertEquals("test",actual.getItems().get(0).getName());
+            assertEquals(permissionActions, actual.getItems().get(0).getPermissionActions());
         }
     }
     @Nested
@@ -2966,9 +2975,12 @@ class TaskServiceImplTest {
             when(connectionDto.getId()).thenReturn(objectId);
             when(dataNode.getAttrs()).thenReturn(new HashMap<>());
             when(dto.getCurrentEventTimestamp()).thenReturn(1713846744L);
+            Set<String> permissionActions = Set.of("View", "Edit");
+            when(dto.getPermissionActions()).thenReturn(permissionActions);
             doCallRealMethod().when(taskService).findShareCacheById(id);
             ShareCacheDetailVo actual = taskService.findShareCacheById(id);
             assertEquals(objectId.toString(),actual.getConnectionId());
+            assertEquals(permissionActions, actual.getPermissionActions());
         }
     }
     @Nested
