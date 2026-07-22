@@ -67,11 +67,33 @@ class TrackFieldFilterTest {
 
         Map<String, Map<String, String>> result = filter.removeUselessFields(dag, List.of("tField"), fieldNameMapping);
 
-        assertEquals(Map.of("target", Map.of("tField", "tField"), "up", Map.of("id", "id")), result);
+        assertEquals(Map.of("target", Map.of("tField", "id"), "up", Map.of("id", "id")), result);
         assertEquals(2, dag.getNodes().size());
         assertEquals(1, dag.getEdges().size());
         assertNull(metaTarget.getFields());
         assertNull(metaUp.getFields());
+    }
+
+    @Test
+    void removeUselessFields_shouldReturnCurrentFieldToSourceField_whenTargetFieldRenamed() {
+        LineageTableNode source = new LineageTableNode("A", "connA", "connNameA", "pdkA", new LineageMetadataInstance());
+        source.setId("nodeA");
+        LineageTableNode target = new LineageTableNode("B", "connB", "connNameB", "pdkB", new LineageMetadataInstance());
+        target.setId("nodeB");
+
+        Dag dag = new Dag();
+        dag.setNodes(new ArrayList<>(List.of(source, target)));
+        dag.setEdges(new ArrayList<>(List.of(new Edge("nodeA", "nodeB"))));
+
+        when(fieldOriginalNameMapping.findFinalTargetLineageTableNode(eq(dag))).thenReturn(target);
+
+        Map<String, Map<String, String>> fieldNameMapping = new HashMap<>();
+        fieldNameMapping.put("nodeA", Map.of("c", "c"));
+        fieldNameMapping.put("nodeB", Map.of("f", "c"));
+
+        Map<String, Map<String, String>> result = filter.removeUselessFields(dag, List.of("f"), fieldNameMapping);
+
+        assertEquals(Map.of("nodeA", Map.of("c", "c"), "nodeB", Map.of("f", "c")), result);
     }
 
     @Test
@@ -149,8 +171,9 @@ class TrackFieldFilterTest {
 
         LineageTableNode target = new LineageTableNode("t", "c", "cn", "pdk", new LineageMetadataInstance());
         target.setId("target");
+        fieldNameMappingByNodeId.put("target", Map.of("tField", "id"));
         filter.eachAllNodes(target, "target", Set.of("tField"), kept, fieldNameMappingByNodeId, result, Map.of());
-        assertEquals(Map.of("target", Map.of("tField", "tField")), result);
+        assertEquals(Map.of("target", Map.of("tField", "id")), result);
 
         LineageTableNode up = new LineageTableNode("t", "c", "cn", "pdk", new LineageMetadataInstance());
         up.setId("up");
@@ -179,9 +202,8 @@ class TrackFieldFilterTest {
 
         mapping.clear();
         filter.eachTargetFieldToOriginName(Map.entry("z", "id"), nodeFieldToOrigin, mapping);
-        assertEquals("a", mapping.get("z"));
+        assertEquals("id", mapping.get("a"));
 
         assertNull(filter.eachNodeFieldToOriginToFindBestName("nope", nodeFieldToOrigin, "z"));
     }
 }
-

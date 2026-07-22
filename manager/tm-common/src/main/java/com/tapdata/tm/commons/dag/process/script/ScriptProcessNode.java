@@ -16,7 +16,9 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.utils.JsFieldMapper;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,6 +27,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -182,8 +185,34 @@ public class ScriptProcessNode extends ProcessorNode {
                 }
             }
         }
-
+        analyseFields(schema, tapTable);
         return schema;
+    }
+
+    protected void analyseFields(Schema schema, TapTable sourceTable) {
+        LinkedHashMap<String, TapField> sourceFieldMap = sourceTable.getNameFieldMap();
+        Map<String, String> fieldNameMapping = JsFieldMapper.parseMapping(script);
+        schema.getFields().stream()
+                .filter(f -> fieldNameMapping.containsKey(f.getFieldName()))
+                .forEach(field -> {
+                    String fieldOriginName = fieldNameMapping.get(field.getFieldName());
+                    TapField sourceField = sourceFieldMap.get(fieldOriginName);
+                    while (null == sourceField && fieldNameMapping.containsKey(fieldOriginName)) {
+                        fieldOriginName = fieldNameMapping.get(fieldOriginName);
+                        sourceField = sourceFieldMap.get(fieldOriginName);
+                    }
+                    if (sourceField == null) {
+                        field.setOriginalFieldName(fieldOriginName);
+                        field.setOriginalDataType(field.getDataType());
+                        field.setOriginalScale(field.getScale());
+                        field.setOriginalPrecision(field.getPrecision());
+                        field.setOriginalJavaType(field.getJavaType());
+                        field.setOriginalDefaultValue(field.getDefaultValue());
+
+                        field.setPreviousFieldName(fieldOriginName);
+                        field.setPreviousDataType(field.getDataType());
+                    }
+                });
     }
 
     /**
