@@ -98,7 +98,6 @@
 			<artifactId>common</artifactId>
 			<version>2.2.2</version>
 		</dependency>
-
 		<dependency>
 			<groupId>com.tapdata</groupId>
 			<artifactId>tm-common</artifactId>

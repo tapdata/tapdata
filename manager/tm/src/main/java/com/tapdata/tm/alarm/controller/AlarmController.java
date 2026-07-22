@@ -13,7 +13,6 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmDatasourceDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
-import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -104,12 +103,6 @@ public class AlarmController extends BaseController {
     @PostMapping("/updateTaskAlarm")
     public ResponseMessage<Void> updateTaskAlarm(@RequestBody AlarmVO alarm){
         alarmService.updateTaskAlarm(alarm);
-        return success();
-    }
-
-    @PostMapping("/batch-update")
-    public ResponseMessage<Void> batchUpdateTaskAlarm(@RequestBody BatchUpdateAlarmParam alarm){
-        alarmService.batchUpdate(alarm);
         return success();
     }
 

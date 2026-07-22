@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.function.ThrowableFunction;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapPdkViolateUniqueEx;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.ObsLogger;
@@ -14,10 +15,8 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,6 +49,10 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 
 	@Override
 	public void writeRecordWithPolicyControl(String tableId, List<TapRecordEvent> tapRecordEvents, ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writePolicyRunner) throws Throwable {
+		writeRecordWithPolicyControl(ConnectorNodeService.getInstance().getConnectorNode(associateId), tableId, tapRecordEvents, writePolicyRunner);
+	}
+
+	public void writeRecordWithPolicyControl(ConnectorNode connectorNode, String tableId, List<TapRecordEvent> tapRecordEvents, ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writePolicyRunner) throws Throwable {
 		if (CollectionUtils.isEmpty(tapRecordEvents)
 				|| null == settingInsertPolicy
 				|| !settingInsertPolicy.equals(DmlPolicyEnum.update_on_exists)
@@ -58,7 +61,9 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 			return;
 		}
 		WriteRecordTableResult writeRecordTableResult = writeRecordTableResultMap.computeIfAbsent(tableId, k -> new WriteRecordTableResult());
-		ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
+		if (null == connectorNode) {
+			throw new NodeException("PDK connector node is stopped, associateId: " + associateId);
+		}
 		DmlPolicyEnum currentInsertPolicy = DmlPolicyEnum.just_insert;
 		if (writeRecordTableResult.getContinuousDuplicateKeyErrorOverLimit().get() ||
 				writeRecordTableResult.getDuplicateKeyErrorCounter() > writeDuplicateKeyErrorThreshold) {
