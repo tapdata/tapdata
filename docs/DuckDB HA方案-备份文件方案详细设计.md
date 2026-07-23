@@ -162,7 +162,49 @@ flowchart LR
 
 ## 6. 元数据与文件模型
 
-### 6.1 GridFS 文件命名
+### 6.1 Mongo 中的呈现形式总览
+
+备份文件在 Mongo 中分为两层呈现：
+
+1. 业务元数据集合：`DuckDbBackupFile`
+2. 二进制文件存储：GridFS 默认集合 `fs.files` / `fs.chunks`
+
+`DuckDbBackupFile` 是恢复查询、状态流转、保留策略和任务清理的主索引；GridFS 是备份包的二进制载体。恢复流程必须先查询 `DuckDbBackupFile`，选出一个可恢复的 `COMMITTED` generation，再通过 `gridFsId` 下载 GridFS 文件。不能直接扫描 `fs.files` 来决定恢复版本，因为 `fs.files` 只知道文件存在，不知道该文件是否已经完成业务提交、是否和当前任务节点配置兼容、是否过期、是否被标记删除。
+
+物理呈现如下：
+
+```text
+DuckDbBackupFile
+  一条文档 = 一个 DuckDB 节点的一代备份版本
+  保存 taskId/nodeId/generationId/status/offset/processState/files/archive/gridFsId 等恢复索引
+
+fs.files
+  一条文档 = 一个 GridFS 文件，即一个备份 archive
+  _id 与 DuckDbBackupFile.gridFsId 对应
+  filename 与 DuckDbBackupFile.gridFsFilename 对应
+  metadata 中冗余 taskId/nodeId/generationId/offsetHash/status/archiveSha256
+
+fs.chunks
+  多条文档 = 一个 GridFS 文件的分块内容
+  files_id 指向 fs.files._id
+  n 为 chunk 序号
+  data 为二进制内容
+```
+
+因此，从 Mongo shell 或管理端看到的形态不是“一个集合里直接存完整文件”，而是：
+
+- `DuckDbBackupFile`：可读的 JSON/BSON 备份记录。
+- `fs.files`：GridFS 文件头和文件级 metadata。
+- `fs.chunks`：GridFS 二进制块，业务逻辑不直接读写。
+
+`DuckDbBackupFile` 不天然等价于 Tapdata Manager 的 REST Model。若 Engine 当前使用 `HttpClientMongoOperator` 通过 Manager REST 访问中间库，而 Manager 侧没有注册 `/api/DuckDbBackupFile` 资源，直接调用该 collection 会得到 404。落地实现需要二选一：
+
+- 在 Manager 侧显式注册 DuckDB 备份元数据服务和清理接口，让 Engine 通过受控 API 查询、删除元数据并管理 GridFS 文件。
+- 在 Engine 侧使用可直连 Mongo/GridFS 的 `ClientMongoOperator` 通道，备份模块不走 Manager 泛化 REST collection API。
+
+建议第一阶段采用“Manager 受控 API + GridFS 文件服务”或“Engine 直连 Mongo/GridFS”其中一种明确路径，避免把 `DuckDbBackupFile` 当作未声明的普通 REST 资源使用。
+
+### 6.2 GridFS 文件命名
 
 GridFS 使用默认 `fs.files` / `fs.chunks` 即可，备份包以逻辑路径作为 filename：
 
@@ -178,7 +220,7 @@ duckdb-ha/tasks/<taskId>/nodes/<nodeId>/tables/<tableGroup>/offsets/<offsetHash>
 - `offsetHash`：对 `appliedOffset` 序列化结果计算 hash，避免文件名过长。
 - `generationId`：单调版本号，建议格式 `<eventSerialNo>-<yyyyMMddHHmmssSSS>-<shortUuid>`。
 
-### 6.2 Mongo 元数据集合
+### 6.3 Mongo 元数据集合
 
 新增集合：
 
@@ -202,6 +244,10 @@ DuckDbBackupFile
   "gridFsId": "668c...",
   "gridFsFilename": "duckdb-ha/tasks/.../00000128.tar.gz",
   "engineId": "engine-a",
+  "taskRunId": "run-20260708153040000-engine-a",
+  "backupVersion": 128,
+  "parentGenerationId": null,
+  "baseGenerationId": null,
   "dbPathFileName": "duck_node_1",
   "createdAt": 1783505445123,
   "completedAt": 1783505447341,
@@ -280,7 +326,14 @@ DuckDbBackupFile
 }
 ```
 
-### 6.3 状态机
+字段补充：
+
+- `backupVersion`：用于恢复排序的版本号，第一阶段可直接使用 `appliedOffset.eventSerialNo` 或备份生成时的节点级事件序号。
+- `taskRunId`：任务本次运行实例 ID，用于区分同一任务在不同 Engine 或不同调度 epoch 下产生的备份。
+- `parentGenerationId`：上一代备份 ID。第一阶段全量文件备份中仅用于审计和版本链展示，不作为恢复依赖。
+- `baseGenerationId`：增量备份的基础版本。第一阶段固定为空，表示每代备份都是自包含 full snapshot。
+
+### 6.4 状态机
 
 备份元数据状态：
 
@@ -292,7 +345,7 @@ DuckDbBackupFile
 
 恢复只能使用 `COMMITTED` 状态的备份。
 
-### 6.4 索引
+### 6.5 索引
 
 建议创建索引：
 
@@ -304,6 +357,96 @@ DuckDbBackupFile
 ```
 
 GridFS 文件 metadata 也写入 `taskId`、`nodeId`、`generationId`、`status`、`offsetHash`，便于排查和清理。
+
+### 6.6 GridFS 文件与备份版本的关系
+
+第一阶段建议建立“版本索引关系”，但不建立“增量依赖关系”：
+
+- 每个 `generationId` 对应一个 `DuckDbBackupFile` 元数据文档。
+- 每个 `generationId` 对应一个 GridFS archive 文件。
+- `DuckDbBackupFile.gridFsId` 指向 `fs.files._id`。
+- `fs.files.metadata.generationId` 冗余保存 generation，便于从 GridFS 反查。
+- `parentGenerationId` 可以记录上一代 `COMMITTED` 备份，用于审计、展示和后续增量方案演进。
+- 恢复时不需要先恢复 parent，再恢复当前 generation；当前 generation 的 archive 必须自包含完整 DuckDB 文件集合。
+
+举例：
+
+```text
+generation 5
+  DuckDbBackupFile(generationId=5, gridFsId=A, parentGenerationId=4)
+  fs.files(_id=A, filename=.../5.tar.gz)
+
+generation 10
+  DuckDbBackupFile(generationId=10, gridFsId=B, parentGenerationId=9)
+  fs.files(_id=B, filename=.../10.tar.gz)
+```
+
+如果某个 Engine 本地已有 generation 5，而 Mongo/GridFS 最新 `COMMITTED` 是 generation 10，第一阶段不做“从 5 增量恢复到 10”。恢复策略是：
+
+1. 如果本地 generation 5 仍是当前任务调度允许使用的安全本地版本，且远端没有更新 generation，则直接使用本地文件。
+2. 如果远端 generation 10 更新，下载 generation 10 的完整 archive，校验后替换本地 DuckDB 文件。
+3. 不对 generation 6 到 10 做逐代 patch，也不把旧 WAL 叠加到新主文件上。
+
+原因是 DuckDB 主文件和 WAL 必须作为同一个一致性快照处理。没有 DuckDB 官方可依赖的块级变更链或可跨 checkpoint 安全叠加的 WAL 链时，直接从旧主文件 patch 到新主文件风险较高。第一阶段优先保证恢复确定性和不丢数据。
+
+为了避免重复恢复或重复应用文件，恢复端应维护一个本地恢复标记文件，例如：
+
+```text
+<dbPath>.tap-duckdb-ha-restore.json
+```
+
+记录：
+
+```json
+{
+  "taskId": "64f0...",
+  "nodeId": "duck_node_1",
+  "generationId": "00000128-20260708153045123-a1b2c3",
+  "backupVersion": 128,
+  "archiveSha256": "sha256...",
+  "restoredAt": 1783505449000,
+  "cleanLocalState": true
+}
+```
+
+恢复幂等规则：
+
+- 如果本地标记的 `generationId` 与选中的远端 generation 一致，并且 DuckDB 文件校验通过，可以跳过下载和覆盖。
+- 如果本地标记版本小于远端版本，恢复远端完整 archive。
+- 如果本地标记版本大于远端版本，但该版本没有对应的 `COMMITTED` 元数据，说明本地文件可能来自崩溃前未提交状态，应隔离本地文件并恢复最近远端 `COMMITTED` 版本。
+- 如果恢复过程中失败，临时目录和半恢复文件不能更新本地标记；下次启动仍按上一次成功标记或远端元数据重新选择。
+
+### 6.7 关于断点恢复和后续增量能力
+
+需要区分两种“断点”：
+
+1. 传输断点：备份包上传或下载到一半失败后，下次从已传输 chunk 继续。
+2. 状态断点：本地 DuckDB 已是 generation 5，只把 5 到 10 的差异应用到本地，使其变成 generation 10。
+
+第一阶段不要求支持状态断点恢复。也就是说，不支持仅通过 GridFS 版本链把本地 DuckDB 从 generation 5 patch 到 generation 10。第一阶段的恢复单位始终是完整 generation archive。
+
+传输断点可以作为独立优化，但不改变恢复语义：
+
+- GridFS 天然按 chunk 存储，但默认 GridFS API 更偏向完整文件上传/下载。
+- 如需断点传输，需要在业务侧额外记录 archive 分片 manifest、chunk sha256、已上传 chunk 列表和最终合并校验。
+- 断点传输只减少网络和重试成本，不表示支持 DuckDB 文件状态增量恢复。
+
+若后续要实现真正的状态断点恢复，需要新增以下模型：
+
+- `backupMode`: `FULL` / `INCREMENTAL`
+- `baseGenerationId`: 增量链基础版本
+- `parentGenerationId`: 直接父版本
+- `versionStart` / `versionEnd`
+- 每个分片或变更集的 checksum
+- 增量链完整性校验和保留策略，不能删除仍被后续版本依赖的 base generation
+
+可选技术路线：
+
+- 逻辑重放：从 generation 5 的 `appliedOffset` 读取源端事件，重放到 generation 10 的 `appliedOffset`。这更像“恢复后追赶”，不依赖 GridFS 差异文件；需要多源 offset 可比较和输出 fencing。
+- 块级去重：把完整 DuckDB 快照切块存为内容寻址对象，只下载 generation 10 相对本地缺失的块，然后重建完整文件。该方案能节省传输，但仍必须重建并校验 generation 10 完整文件后再打开 DuckDB。
+- DuckDB 原生增量能力：如果后续 DuckDB 提供稳定可用的 backup/checkpoint/WAL 增量机制，再考虑用官方能力维护版本链。
+
+结论：当前备份文件方案应先实现 full snapshot 版本链和恢复幂等，暂不承诺从版本 5 直接增量恢复到版本 10。
 
 ## 7. 备份一致性设计
 
@@ -535,14 +678,46 @@ nodeConfigHash/schemaHash 与当前节点兼容
 
 选择最新可用 generation。若校验失败，按 `haBackupOnCorruption=FALLBACK_PREVIOUS` 尝试上一代。
 
-### 10.2 本地恢复步骤
+### 10.2 恢复源选择
+
+恢复入口必须在打开 DuckDB JDBC 连接前完成，并且先决定使用本地文件还是远端 GridFS 备份。
+
+恢复源选择规则：
+
+| 场景 | 本地 DuckDB 文件 | 本地恢复标记 | 远端最新 `COMMITTED` | 处理策略 |
+| --- | --- | --- | --- | --- |
+| 新 Engine 首次接管 | 不存在 | 不存在 | 存在 | 下载远端最新 generation 并恢复 |
+| 同 Engine 干净重启 | 存在 | generation 与远端一致 | 存在 | 本地校验通过则直接使用本地文件 |
+| 同 Engine 本地版本落后 | 存在 | generation 小于远端 | 存在 | 下载远端最新 full archive 替换本地文件 |
+| 同 Engine 本地版本领先但未提交 | 存在 | generation 大于远端或无远端记录 | 存在或不存在 | 隔离本地文件，恢复远端最新 `COMMITTED`；无远端则按任务策略决定失败或重新全量 |
+| 本地文件存在但无标记 | 存在 | 不存在 | 存在 | 默认视为不可证明一致，隔离本地文件并恢复远端 |
+| 本地文件存在但校验失败 | 存在 | 任意 | 存在 | 隔离本地文件，恢复远端；远端也失败则 fallback 上一代 |
+| 无本地且无远端 | 不存在 | 不存在 | 不存在 | 作为首次运行初始化空 DuckDB；如果任务进度不是初始态则启动失败 |
+
+本地文件可以直接使用的条件应较严格：
+
+- 本地恢复标记存在。
+- 标记中的 `taskId/nodeId` 与当前任务节点一致。
+- 标记中的 `generationId/archiveSha256` 能在 Mongo 元数据中找到对应 `COMMITTED` 记录，或该文件来自本次干净停止且最终备份已提交。
+- DuckDB 能正常打开并通过基础校验。
+- 当前调度 epoch 仍允许该 Engine 作为 Active Engine。
+
+这条规则避免“引擎离线后又恢复”时误用崩溃前未提交的本地 DuckDB 文件。宁可回滚到最近远端 `COMMITTED` 备份并重放，也不要使用无法证明与 offset/processState 一致的本地文件。
+
+### 10.3 本地恢复步骤
 
 ```text
 restoreIfNeeded(taskId, nodeId, dbPath):
-  if local dbPath exists and restore policy says prefer local:
-    return LOCAL
+  local = inspectLocalDuckDb(dbPath, marker)
+  remote = findCommittedBackups(taskId, nodeId)
 
-  meta = findLatestCommittedBackup(taskId, nodeId)
+  decision = chooseRestoreSource(local, remote, taskRunId, schedulerEpoch)
+  if decision == USE_LOCAL:
+    verify local DuckDB file
+    restore processStore from local marker or matched remote meta
+    return LOCAL(meta.appliedOffset)
+
+  meta = decision.selectedRemoteBackup
   if meta is null:
     return NO_BACKUP
 
@@ -560,7 +735,7 @@ restoreIfNeeded(taskId, nodeId, dbPath):
 
 恢复完成后再创建 `DuckDbOperatorImpl` 打开本地文件。
 
-### 10.3 恢复后校验
+### 10.4 恢复后校验
 
 打开 DuckDB 后执行轻量校验：
 
@@ -578,49 +753,98 @@ restoreIfNeeded(taskId, nodeId, dbPath):
 3. 尝试上一代备份。
 4. 全部失败时任务启动失败，并给出可操作错误信息。
 
-## 11. 三类场景处理
+## 11. 服务恢复和任务调度场景
 
-### 11.1 任务上线运行
+DuckDB HA 备份文件方案需要覆盖计划内迁移、手动停止重启、故障漂移和原 Engine 快速恢复四类场景。四类场景的共同前提是：调度层必须为任务运行分配单调递增的运行实例或调度 epoch，备份元数据必须记录 `engineId + taskRunId + schedulerEpoch`，恢复端只允许当前 Active epoch 写入和提交新的备份。
 
-无历史备份：
+### 11.1 任务被调度到其他 Engine
 
-1. 节点正常初始化本地 DuckDB。
-2. 启动备份管理器。
-3. 全量阶段按批写 DuckDB 源缓存表。
-4. 周期备份可以执行，但全量完成前的备份只用于回滚重放，不代表宽表已可用。
-5. 全量转 CDC 完成后触发 `FULL_COMPLETE` 备份。
+这是计划内迁移或用户指定 Engine 调度场景，旧 Engine 理论上能收到停止信号。
 
-有历史备份：
+处理流程：
 
-1. 判断是否为任务重置或重新启动。
-2. 如果是普通恢复，优先恢复最新 `COMMITTED` 备份。
-3. 使用备份 offset 作为上游恢复起点。
-4. 继续运行并产生新备份。
+1. 调度层先冻结旧 Engine 对该任务的事件接收，确保不会继续推进 DuckDB 写入。
+2. 旧 Engine 执行 `flushAllContexts`，把内存 buffer 写入 DuckDB。
+3. 旧 Engine 执行 checkpoint，并生成 `ENGINE_STOP` 或 `SCHEDULE_TRANSFER` 备份。
+4. 备份上传成功后，元数据进入 `COMMITTED`。
+5. 调度层把任务分配给新 Engine，并生成新的 `taskRunId/schedulerEpoch`。
+6. 新 Engine 在打开 DuckDB 前查询最新 `COMMITTED` 备份。
+7. 新 Engine 下载并恢复该备份，将上游恢复起点回滚到 `appliedOffset`。
+8. 新 Engine 继续处理并产生新 generation。
 
-### 11.2 引擎离线任务重新调度
+如果旧 Engine 最终备份失败，新 Engine 不等待失败版本，也不读取 `CREATING/UPLOADING` 版本，而是恢复最近一个已存在的 `COMMITTED` 版本。
 
-旧 Engine 可感知下线时：
+该场景推荐恢复源：
 
-1. 节点停止接收新事件。
-2. 刷新所有 DuckDB 上下文。
-3. 执行 `ENGINE_STOP` 最终备份。
-4. 备份成功后关闭 DuckDB。
-5. 新 Engine 启动时恢复该最终备份。
+- 新 Engine 本地通常没有 DuckDB 文件，使用远端最新 `COMMITTED`。
+- 如果新 Engine 上残留同一任务节点旧文件，只有本地标记与远端选中 generation 一致且校验通过时才可复用，否则隔离后恢复远端。
 
-如果最终备份失败：
+### 11.2 任务手动停止后再次重启，并调度回同一个 Engine
 
-- 新 Engine 使用最近一个 `COMMITTED` 备份。
-- 从该备份 offset 回滚重放。
+这是最容易复用本地文件的场景，因为停止过程通常是干净的。
 
-### 11.3 引擎未离线手动任务调度
+处理流程：
 
-该场景存在旧 Engine 仍运行或停止不彻底的风险。处理原则：
+1. 用户停止任务。
+2. 当前 Engine 停止接收新事件。
+3. DuckDB 节点 flush 内存 buffer。
+4. 如果 `haBackupOnStop=true`，执行 `ENGINE_STOP` 最终备份。
+5. 备份成功后写入本地恢复标记，记录 `generationId`、`backupVersion`、`archiveSha256`、`cleanLocalState=true`。
+6. 任务再次启动且被调度回同一 Engine。
+7. 恢复入口先检查本地 DuckDB 文件和本地恢复标记。
+8. 如果本地 generation 与 Mongo 最新 `COMMITTED` generation 一致，并且 DuckDB 文件校验通过，直接使用本地文件。
+9. 如果本地文件损坏、标记缺失、版本落后或版本不可证明，则从 GridFS 恢复最新 `COMMITTED`。
 
-1. 依赖任务调度层保证同一任务同一时刻只有一个 Active Engine 处理事件。
-2. 备份元数据记录 `engineId` 和任务运行实例标识。
-3. 新 Engine 恢复时只读取 `COMMITTED` 备份，不读取旧 Engine 正在 `CREATING` 或 `UPLOADING` 的备份。
-4. 如果发现同一任务节点存在另一个 Engine 正在创建备份，新 Engine 不等待该备份完成，直接选择最近 `COMMITTED` 版本。
-5. 旧 Engine 后续上传完成时，若任务运行实例已变化，该备份标记为 `STALE` 或不纳入恢复候选。
+该场景的目标是避免无意义下载，但不能牺牲一致性。即使回到同一个 Engine，也不能只因为 `<dbPath>` 文件存在就跳过恢复判断。
+
+### 11.3 当前 Engine 离线，任务被系统调度到其他 Engine
+
+这是非计划故障转移场景，旧 Engine 可能没有机会做最终备份。
+
+处理流程：
+
+1. 调度层发现旧 Engine 心跳超时，关闭旧 Engine 的任务租约。
+2. 调度层创建新的 `taskRunId/schedulerEpoch`，把任务分配给新 Engine。
+3. 新 Engine 查询 `DuckDbBackupFile` 中最新 `COMMITTED` generation。
+4. 新 Engine 下载 GridFS archive，校验 archive 和内部文件 checksum。
+5. 恢复 DuckDB 本地文件和 `processState`。
+6. 将上游恢复点回滚到备份的 `appliedOffset`。
+7. 从 `appliedOffset` 之后重放数据，补齐旧 Engine 离线前未进入备份的增量。
+
+该场景不能依赖旧 Engine 本地文件，也不能使用旧 Engine 未提交的 `CREATING/UPLOADING` 备份。RPO 由最近一次 `COMMITTED` 备份决定；为了降低重复输出窗口，需要缩短备份间隔或在第二阶段实现静默追赶。
+
+### 11.4 当前 Engine 离线后恢复，任务又立刻回到当前 Engine
+
+这是最容易出现竞态的场景，需要以调度 epoch 和远端 `COMMITTED` 版本为准，而不是以本地文件新旧为准。
+
+可能发生两种子场景：
+
+1. Engine A 短暂离线，任务还没有被其他 Engine 接管，A 恢复后继续拥有当前 Active epoch。
+2. Engine A 离线后任务已被 Engine B 接管，随后调度层又把任务重新分配回 Engine A。
+
+处理规则：
+
+- 如果 A 仍拥有同一个 Active epoch，并且本地 DuckDB 文件有干净停止或已提交 generation 标记，可以按“同 Engine 干净重启”规则校验后使用本地文件。
+- 如果任务曾经被 B 接管，A 旧进程或旧本地文件必须视为过期运行态；A 再次拿到任务时是新的 `taskRunId/schedulerEpoch`，必须重新走恢复源选择。
+- 如果 A 本地标记为 generation 5，而 GridFS 最新 `COMMITTED` 是 generation 10，A 必须恢复到 generation 10，不能继续使用 generation 5。
+- 如果 A 本地文件看起来比远端更新，但没有对应 `COMMITTED` 元数据，说明这部分状态没有进入 HA 备份闭环；默认隔离本地文件，恢复远端最近 `COMMITTED`。
+- 如果 B 已经输出过 generation 10 之后的数据，A 恢复 generation 10 后应从 generation 10 的 `appliedOffset` 继续，不从旧本地 generation 5 继续。
+
+该场景的关键原则：
+
+- 任务归属以调度层最新 epoch 为准。
+- 恢复基线以 Mongo 最新可用 `COMMITTED` generation 为准。
+- 本地文件只是一种可复用缓存，不能覆盖远端已提交版本。
+- 任何旧 epoch 产生但未提交的备份都不能被新 epoch 自动采用。
+
+### 11.5 四类场景决策表
+
+| 场景 | 是否有机会最终备份 | 默认恢复源 | offset 处理 | 重复输出风险 |
+| --- | --- | --- | --- | --- |
+| 任务计划调度到其他 Engine | 有 | 旧 Engine 最终 `COMMITTED` 备份 | 回滚到最终备份 `appliedOffset` | 低 |
+| 手动停止后回到同一 Engine | 有 | 本地已校验文件；失败则远端备份 | 本地/远端 generation 对应 `appliedOffset` | 低 |
+| 当前 Engine 离线后调度到其他 Engine | 无或不可靠 | 远端最近 `COMMITTED` 备份 | 回滚到最近备份 `appliedOffset` | 中，取决于备份间隔 |
+| 当前 Engine 恢复后任务又回到当前 Engine | 视是否换过 epoch | 先比较 epoch 和 generation；通常以远端最新为准 | 以选中 generation 的 `appliedOffset` 为准 | 中，取决于是否发生过接管 |
 
 ## 12. 与当前 Tapdata 生态的集成点
 
@@ -629,6 +853,13 @@ restoreIfNeeded(taskId, nodeId, dbPath):
 Engine 侧已有 `clientMongoOperator.getGridFSBucket()` 能拿到 `GridFSBucket`。备份方案可直接在 Engine 内上传和下载文件，不需要绕到 TM HTTP 文件接口。
 
 TM 侧已有 `FileService` 使用 `GridFsTemplate` 管理 GridFS 文件，可作为后续管理端下载、查看、清理的参考。
+
+需要注意 Engine 到 Mongo 的访问形态：
+
+- 如果 Engine 使用直连 Mongo 的 `ClientMongoOperator`，备份模块可以直接读写 `DuckDbBackupFile` 集合和 GridFS。
+- 如果 Engine 使用 `HttpClientMongoOperator`，读写集合会被转换成 Manager REST API 请求。此时只有 Manager 已注册的资源才能访问，不能假设 `/api/DuckDbBackupFile` 天然存在。
+- 因此，云版或 HTTP 代理部署形态下，应在 Manager 侧提供 DuckDB 备份专用 API，例如查询最新备份、提交元数据、上传文件、下载文件、删除任务节点备份等，而不是让 Engine 直接拼通用 collection URL。
+- 任务 reset 清理也应走同一套受控 API，保证同时删除 `DuckDbBackupFile` 元数据和 GridFS 文件。
 
 ### 12.2 外部状态存储
 
