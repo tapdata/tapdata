@@ -57,7 +57,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.function.Consumer;
+import java.util.function.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -87,6 +87,15 @@ public class ScriptUtil {
 			.allowArrayAccess(true)
 			.allowIterableAccess(true)
 			.allowIteratorAccess(true)
+			.allowImplementations(Consumer.class)
+			.allowImplementations(BiConsumer.class)
+			.allowImplementations(Function.class)
+			.allowImplementations(BiFunction.class)
+			.allowImplementations(Predicate.class)
+			.allowImplementations(UnaryOperator.class)
+			.allowImplementations(Comparator.class)
+			.allowImplementations(BinaryOperator.class)
+			.allowImplementations(Supplier.class)
 			.denyAccess(Class.class)
 			.denyAccess(ClassLoader.class, true)
 			.denyAccess(File.class, true)
