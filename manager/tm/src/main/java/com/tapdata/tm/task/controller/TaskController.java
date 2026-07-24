@@ -4,8 +4,10 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
 import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
 import org.springframework.core.io.InputStreamResource;
@@ -105,6 +107,7 @@ public class TaskController extends BaseController {
     private TaskErrorEventService taskErrorEventService;
     private CpuMemoryService cpuMemoryService;
     private GroupInfoService groupInfoService;
+    private AlarmService alarmService;
 
 		private <T> T dataPermissionUnAuth() {
 			throw new RuntimeException("Un auth");
@@ -1579,6 +1582,54 @@ public class TaskController extends BaseController {
             throw new BizException("Task.NotFound");
         }
         return success(taskService.checkTaskMemoryHeap(taskDto,true,getLoginUser()));
+    }
+
+    @Operation(summary = "Batch modify task alarm information")
+    @PostMapping("/alarm/batch-update")
+    public ResponseMessage<List<MutiResponseMessage>> batchUpdateTaskAlarm(@RequestBody BatchUpdateAlarmParam alarm){
+        UserDetail userDetail = getLoginUser();
+        List<String> taskIds = alarm.getTaskIds();
+        List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+        return success(batchUpdateTaskAlarmWithDataPermission(alarm, taskObjectIds, userDetail));
+    }
+
+    private List<MutiResponseMessage> batchUpdateTaskAlarmWithDataPermission(BatchUpdateAlarmParam alarm, List<ObjectId> taskObjectIds, UserDetail userDetail) {
+        List<String> taskIds = alarm.getTaskIds();
+        List<String> authorizedTaskIds = new ArrayList<>();
+        List<MutiResponseMessage> noAuthMessages = new ArrayList<>();
+        for (int i = 0; i < taskIds.size(); i++) {
+            String taskId = taskIds.get(i);
+            ObjectId taskObjectId = taskObjectIds.get(i);
+            Boolean hasEditPermission = DataPermissionHelper.checkOfQuery(
+                    userDetail,
+                    DataPermissionDataTypeEnums.Task,
+                    DataPermissionActionEnums.Edit,
+                    taskService.dataPermissionFindById(taskObjectId, new Field()),
+                    task -> DataPermissionMenuEnums.ofTaskSyncType(task.getSyncType()),
+                    () -> true,
+                    () -> false
+            );
+            if (Boolean.TRUE.equals(hasEditPermission)) {
+                authorizedTaskIds.add(taskId);
+            } else {
+                MutiResponseMessage responseMessage = new MutiResponseMessage();
+                responseMessage.setId(taskId);
+                responseMessage.setCode("insufficient.permissions");
+                String msg = String.format("%s.%s", DataPermissionDataTypeEnums.Task, DataPermissionActionEnums.Edit);
+                responseMessage.setMessage(MessageUtil.getMessage("insufficient.permissions", msg, msg));
+                noAuthMessages.add(responseMessage);
+            }
+        }
+
+        if (CollectionUtils.isNotEmpty(authorizedTaskIds)) {
+            BatchUpdateAlarmParam target = new BatchUpdateAlarmParam();
+            target.setTaskIds(authorizedTaskIds);
+            target.setAlarmSettings(alarm.getAlarmSettings());
+            target.setAlarmRules(alarm.getAlarmRules());
+            target.setEmailReceivers(alarm.getEmailReceivers());
+            alarmService.batchUpdate(target);
+        }
+        return noAuthMessages;
     }
 
     private String resolveSyncType(String syncType, List<ObjectId> taskObjectIds) {
