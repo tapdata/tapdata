@@ -3,6 +3,7 @@ package io.tapdata.websocket.handler;
 import com.tapdata.entity.Connections;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
+import io.tapdata.flow.engine.V2.index.TwoDbRedlineViolationException;
 import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -68,6 +70,18 @@ class QueryIndexesHandlerTest {
 		i.setName(name);
 		i.setIndexFields(new ArrayList<>(Collections.singletonList(f)));
 		return i;
+	}
+
+	@Test
+	@DisplayName("红线：目标解析到平台自有库 → queryIndexes 建节点前响亮失败（ADR-0002）")
+	void queryIndexes_targetResolvesToPlatformDb_throwsRedline() throws Throwable {
+		String platform = "mongodb://mongo:27017/tapdata";
+		doReturn(platform).when(handler).platformMongoUri();
+		Connections conn = new Connections();
+		conn.setId("c1");
+		conn.setName("evil");
+		conn.setDatabase_uri(platform); // 指向平台自有库
+		assertThrows(TwoDbRedlineViolationException.class, () -> handler.queryIndexes(conn, "orders"));
 	}
 
 	@Test

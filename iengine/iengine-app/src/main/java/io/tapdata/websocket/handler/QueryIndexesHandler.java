@@ -12,12 +12,14 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.index.PdkIndexService;
+import io.tapdata.flow.engine.V2.index.TwoDbRedline;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableUtil;
 import io.tapdata.websocket.EventHandlerAnnotation;
@@ -86,6 +88,8 @@ public class QueryIndexesHandler extends BaseEventHandler {
 	 * 该封口触达 Hazelcast / PDK 包下载，故属集成范畴，单测以 spy 隔离（编排在 {@code QueryIndexesHandlerTest}）。
 	 */
 	protected List<TapIndex> queryIndexes(Connections connections, String tableName) throws Throwable {
+		// P1-3 两库红线（ADR-0002）：目标解析到平台自有库 → 响亮失败，绝不在平台库上读/建服务型索引。
+		TwoDbRedline.assertTargetIsUserDb(connections.getDatabase_uri(), platformMongoUri());
 		DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
 		String associateId = connections.getName() + "_" + System.currentTimeMillis();
 		try {
@@ -115,6 +119,11 @@ public class QueryIndexesHandler extends BaseEventHandler {
 		} finally {
 			PDKIntegration.releaseAssociateId(associateId);
 		}
+	}
+
+	/** 平台自有库 uri（{@code TAPDATA_MONGO_URI}）；抽为 seam 便于两库红线用例注入。见 ADR-0002。 */
+	protected String platformMongoUri() {
+		return CommonUtils.getenv("TAPDATA_MONGO_URI");
 	}
 
 	/**
