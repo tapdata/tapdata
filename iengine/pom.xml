@@ -163,23 +163,23 @@
         <!-- lombok -->
         <lombok.version>1.18.36</lombok.version>
 
-        <error-code-core.version>2.8-SNAPSHOT</error-code-core.version>
-        <pdk-error-code.version>2.8-SNAPSHOT</pdk-error-code.version>
-        <error-code-scanner.version>2.8-SNAPSHOT</error-code-scanner.version>
+        <error-code-core.version>2.9-SNAPSHOT</error-code-core.version>
+        <pdk-error-code.version>2.9-SNAPSHOT</pdk-error-code.version>
+        <error-code-scanner.version>2.9-SNAPSHOT</error-code-scanner.version>
         <lucene-core.version>9.12.1</lucene-core.version>
         <junit-jupiter.version>5.8.1</junit-jupiter.version>
         <mockito.version>4.11.0</mockito.version>
         <iengine.impl.artifactId>iengine-oss</iengine.impl.artifactId>
         <iengine.oss.module>iengine-oss</iengine.oss.module>
-        <tapdata-api.version>2.0.8-SNAPSHOT</tapdata-api.version>
-        <modules-api.version>2.8-SNAPSHOT</modules-api.version>
-        <websocket-client-module.version>2.8-SNAPSHOT</websocket-client-module.version>
-        <service-skeleton-module.version>2.8-SNAPSHOT</service-skeleton-module.version>
-        <tapdata-storage-module.version>2.8-SNAPSHOT</tapdata-storage-module.version>
-        <tapdata-pdk-runner.version>2.8-SNAPSHOT</tapdata-pdk-runner.version>
-        <tapdata-common.version>2.8-SNAPSHOT</tapdata-common.version>
-        <async-tools-module.version>2.8-SNAPSHOT</async-tools-module.version>
-        <script-engine-module.version>2.8-SNAPSHOT</script-engine-module.version>
+        <tapdata-api.version>2.0.9-SNAPSHOT</tapdata-api.version>
+        <modules-api.version>2.9-SNAPSHOT</modules-api.version>
+        <websocket-client-module.version>2.9-SNAPSHOT</websocket-client-module.version>
+        <service-skeleton-module.version>2.9-SNAPSHOT</service-skeleton-module.version>
+        <tapdata-storage-module.version>2.9-SNAPSHOT</tapdata-storage-module.version>
+        <tapdata-pdk-runner.version>2.9-SNAPSHOT</tapdata-pdk-runner.version>
+        <tapdata-common.version>2.9-SNAPSHOT</tapdata-common.version>
+        <async-tools-module.version>2.9-SNAPSHOT</async-tools-module.version>
+        <script-engine-module.version>2.9-SNAPSHOT</script-engine-module.version>
         <gson.version>2.12.1</gson.version>
         <httpclient5.version>5.4.4</httpclient5.version>
         <!-- netty.version / tomcat.version intentionally inherited from Spring Boot 4.0.x BOM
@@ -632,7 +632,7 @@
             </dependency>
 
             <dependency>
-                <groupId>org.samba.jcifs</groupId>
+                <groupId>jcifs</groupId>
                 <artifactId>jcifs</artifactId>
                 <version>${jcifs.version}</version>
             </dependency>
@@ -776,7 +776,6 @@
                 <artifactId>tm-sdk</artifactId>
                 <version>${tm-sdk.version}</version>
             </dependency>
-
             <dependency>
                 <groupId>com.tapdata</groupId>
                 <artifactId>common</artifactId>
@@ -941,7 +940,7 @@
         <repository>
             <id>nexus-releases</id>
             <name>nexus-maven-release</name>
-            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+            <url>https://nexus.tapdata.net/repository/maven-public/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -955,28 +954,6 @@
             <url>https://nexus.tapdata.net/repository/maven-snapshots/</url>
             <releases>
                 <enabled>false</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>tapdata-wendangshujuku-mongo</id>
-            <name>mongo</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
-            <releases>
-                <enabled>true</enabled>
             </releases>
             <snapshots>
                 <enabled>true</enabled>
@@ -1134,7 +1111,7 @@
                 <repository>
                     <id>nexus-releases</id>
                     <name>nexus-maven-release</name>
-                    <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+                    <url>https://nexus.tapdata.net/repository/maven-public/</url>
                     <releases>
                         <enabled>true</enabled>
                     </releases>
@@ -1148,17 +1125,6 @@
                     <url>https://nexus.tapdata.net/repository/maven-snapshots/</url>
                     <releases>
                         <enabled>false</enabled>
-                    </releases>
-                    <snapshots>
-                        <enabled>true</enabled>
-                    </snapshots>
-                </repository>
-                <repository>
-                    <id>tapdata-tapdata-maven</id>
-                    <name>maven</name>
-                    <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-                    <releases>
-                        <enabled>true</enabled>
                     </releases>
                     <snapshots>
                         <enabled>true</enabled>
@@ -1185,7 +1151,7 @@
         <repository>
             <id>nexus-tapdata-net</id>
             <name>Nexus Release Repository</name>
-            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+            <url>https://nexus.tapdata.net/repository/maven-public/</url>
         </repository>
         <snapshotRepository>
             <id>nexus-tapdata-net</id>

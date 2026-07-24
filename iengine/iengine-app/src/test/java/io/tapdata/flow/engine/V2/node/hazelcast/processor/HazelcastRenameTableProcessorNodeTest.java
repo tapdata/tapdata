@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.StopEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -99,6 +100,23 @@ class HazelcastRenameTableProcessorNodeTest extends BaseHazelcastNodeTest {
             // second stop table test tableName not in cache
             currentTableName = instance.getTgtTableNameFromTapEvent(dropTable);
             Assertions.assertEquals(expected, currentTableName);
+        }
+
+        @Test
+        void testTableIdIsNull() {
+            // TapDDLWarningEvent (e.g. Oracle "ADD SUPPLEMENTAL LOG DATA") carries no tableId,
+            // expect no NullPointerException and return null.
+            TapDDLWarningEvent warningEvent = new TapDDLWarningEvent();
+            warningEvent.setOriginDDL("alter table I6_11956_DDL_FILTER add supplemental log data (all) columns");
+            Assertions.assertNull(warningEvent.getTableId());
+
+            String currentTableName = Assertions.assertDoesNotThrow(() -> instance.getTgtTableNameFromTapEvent(warningEvent));
+            Assertions.assertNull(currentTableName);
+
+            TapdataEvent tapdataEvent = new TapdataEvent();
+            tapdataEvent.setTapEvent(warningEvent);
+            Assertions.assertDoesNotThrow(() -> instance.tryProcess(tapdataEvent, (event, processResult) -> {
+            }));
         }
     }
 

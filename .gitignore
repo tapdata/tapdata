@@ -140,4 +140,4 @@ run-resources
 data/
 ll
 
-manager/tm/.proxy-instance-id
+**/.proxy-instance-id

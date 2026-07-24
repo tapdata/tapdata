@@ -38,6 +38,7 @@ import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -1788,6 +1789,24 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			hazelcastBaseNode.lastTableName = "lastTableName";
 			String actual = hazelcastBaseNode.getTgtTableNameFromTapEvent(tapEvent);
 			assertEquals("lastTableName", actual);
+		}
+	}
+
+	@Nested
+	@DisplayName("UpdateMemoryFromDDLInfoMap method test")
+	class UpdateMemoryFromDDLInfoMapTest {
+		@Test
+		@DisplayName("When tap event is TapDDLWarningEvent, expect skip and not throw NPE")
+		void testSkipTapDDLWarningEvent() {
+			HazelcastBaseNode spyNode = spy(hazelcastBaseNode);
+			TapDDLWarningEvent warningEvent = new TapDDLWarningEvent();
+			warningEvent.setOriginDDL("alter table I6_11956_DDL_FILTER add supplemental log data (all) columns");
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(warningEvent);
+
+			assertTrue(tapdataEvent.isDDL());
+			assertDoesNotThrow(() -> spyNode.updateMemoryFromDDLInfoMap(tapdataEvent));
+			verify(spyNode, never()).getTgtTableNameFromTapEvent(any(TapEvent.class));
 		}
 	}
 

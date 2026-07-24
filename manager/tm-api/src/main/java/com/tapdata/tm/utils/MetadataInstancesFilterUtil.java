@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import io.tapdata.entity.schema.TapIndex;
 
@@ -106,6 +107,11 @@ public class MetadataInstancesFilterUtil {
                                     }
                                 }
                                 return true;
+                            };
+                        case View:
+                            return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+                                String metaType = metadataInstancesDto.getMetaType();
+                                return MetaType.isView(metaType);
                             };
                         default:
                     }
