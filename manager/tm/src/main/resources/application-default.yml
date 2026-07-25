@@ -164,6 +164,9 @@ openapi:
     where-max-deep: ${openapi.setting.whereMaxDeep:10}
 
 management:
+  health:
+    elasticsearch:
+      enabled: false
   prometheus:
     metrics:
       export:
