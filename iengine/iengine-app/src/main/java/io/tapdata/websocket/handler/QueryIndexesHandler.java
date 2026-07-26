@@ -33,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * P1-1 · 「查询索引」连接运维动作 handler（TAP-12057）。
@@ -53,6 +54,7 @@ public class QueryIndexesHandler extends BaseEventHandler {
 
 	static final String TABLE_NAME = "tableName";
 	static final String CONNECTIONS = "connections";
+	static final String REQ_ID = "reqId";
 
 	PdkIndexService pdkIndexService = new PdkIndexService();
 
@@ -65,6 +67,8 @@ public class QueryIndexesHandler extends BaseEventHandler {
 		if (StringUtils.isBlank(tableName) || "null".equals(tableName)) {
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.QUERY_INDEXES_RESULT, "tableName cannot be empty");
 		}
+		// reqId：前端生成、经 pipe 事件透传，在结果里回显作为关联键（本 pipe 通道无内建请求-应答关联）。见 ADR-0009。
+		String reqId = Objects.toString(event.get(REQ_ID), null);
 		Object connObj = event.get(CONNECTIONS);
 		if (!(connObj instanceof Map)) {
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.QUERY_INDEXES_RESULT, "connections cannot be empty");
@@ -73,8 +77,9 @@ public class QueryIndexesHandler extends BaseEventHandler {
 		try {
 			List<TapIndex> indexes = queryIndexes(connections, tableName);
 			logger.info("Query indexes done, connection: {}, table: {}, size: {}", connections.getName(), tableName, indexes.size());
-			return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.QUERY_INDEXES_RESULT,
-					new QueryIndexesResult(connections.getId(), tableName, indexes));
+			QueryIndexesResult payload = new QueryIndexesResult(connections.getId(), tableName, indexes);
+			payload.setReqId(reqId);
+			return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.QUERY_INDEXES_RESULT, payload);
 		} catch (Throwable t) {
 			String msg = String.format("Query indexes failed, table: %s, message: %s", tableName, t.getMessage());
 			logger.error(msg, t);
@@ -127,13 +132,16 @@ public class QueryIndexesHandler extends BaseEventHandler {
 	}
 
 	/**
-	 * 回发载荷：自描述（回带 connectionId + tableName），便于前端/TM 按 payload 关联响应
-	 * （本 pipe 通道为 fire-and-forget、无 reqId 关联）。
+	 * 回发载荷：自描述（回带 connectionId + tableName + reqId），便于前端/TM 按 payload 关联响应。
+	 *
+	 * <p>本 pipe 通道 fire-and-forget、无内建请求-应答关联；{@code reqId}（前端生成、经事件透传、在此回显）
+	 * 是唯一的关联键——两个在飞的同 (连接, 表) 查询仅凭 connectionId+tableName 无法区分。见 ADR-0009。</p>
 	 */
 	public static class QueryIndexesResult implements Serializable {
 		private static final long serialVersionUID = 1L;
 		private String connectionId;
 		private String tableName;
+		private String reqId;
 		private List<TapIndex> indexes;
 
 		public QueryIndexesResult() {
@@ -159,6 +167,14 @@ public class QueryIndexesHandler extends BaseEventHandler {
 
 		public void setTableName(String tableName) {
 			this.tableName = tableName;
+		}
+
+		public String getReqId() {
+			return reqId;
+		}
+
+		public void setReqId(String reqId) {
+			this.reqId = reqId;
 		}
 
 		public List<TapIndex> getIndexes() {

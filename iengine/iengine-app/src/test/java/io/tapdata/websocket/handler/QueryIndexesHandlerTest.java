@@ -100,6 +100,23 @@ class QueryIndexesHandlerTest {
 	}
 
 	@Test
+	@DisplayName("handle 回显 reqId：成功结果 payload 带上事件里的 reqId（ADR-0009 关联键）")
+	void handle_echoesReqIdIntoSuccessPayload() throws Throwable {
+		doReturn(Collections.singletonList(index("idx_a", "a", true)))
+				.when(handler).queryIndexes(any(Connections.class), eq("orders"));
+		Map<String, Object> ev = event("orders", "c1");
+		ev.put("reqId", "r-123");
+
+		WebSocketEventResult result = (WebSocketEventResult) handler.handle(ev, sendMessage);
+
+		assertEquals(WebSocketEventResult.EVENT_HANDLE_RESULT_SUCCESS, result.getStatus());
+		QueryIndexesHandler.QueryIndexesResult payload = (QueryIndexesHandler.QueryIndexesResult) result.getResult();
+		assertEquals("r-123", payload.getReqId());
+		assertEquals("c1", payload.getConnectionId());
+		assertEquals("orders", payload.getTableName());
+	}
+
+	@Test
 	@DisplayName("handle 缺 tableName：返回失败结果，且不触达连接器")
 	void handle_blankTableName_returnsFailureWithoutQuerying() throws Throwable {
 		WebSocketEventResult result = (WebSocketEventResult) handler.handle(event(null, "c1"), sendMessage);
