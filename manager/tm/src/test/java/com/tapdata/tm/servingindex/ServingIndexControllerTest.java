@@ -1,26 +1,39 @@
 package com.tapdata.tm.servingindex;
 
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.module.dto.LoadedIndexAttribution;
+import com.tapdata.tm.module.dto.LoadedServingIndex;
 import com.tapdata.tm.user.service.UserService;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * P1-2 · 索引读回触发端点（{@link ServingIndexController}）。
- * 只锚定编排契约：按 connectionId 解析连接与发起用户 → 委派 {@link ServingIndexService} 发射触发消息。
+ * P1-2 / P2-2 · 服务型索引端点（{@link ServingIndexController}）。
+ * <ul>
+ *   <li>P1-2 {@code query}：按 connectionId 解析连接与发起用户 → 委派 {@link ServingIndexService} 发射触发消息。</li>
+ *   <li>P2-2 {@code load}：把前端回传的读回索引 + moduleId 委派 {@link ServingIndexLoadService} 规划归因/默认勾选。</li>
+ * </ul>
  */
 class ServingIndexControllerTest {
 
 	private ServingIndexService servingIndexService;
+	private ServingIndexLoadService servingIndexLoadService;
 	private DataSourceService dataSourceService;
 	private UserService userService;
 	private ServingIndexController controller;
@@ -28,13 +41,15 @@ class ServingIndexControllerTest {
 	@BeforeEach
 	void setUp() {
 		servingIndexService = mock(ServingIndexService.class);
+		servingIndexLoadService = mock(ServingIndexLoadService.class);
 		dataSourceService = mock(DataSourceService.class);
 		userService = mock(UserService.class);
-		controller = new ServingIndexController(servingIndexService, dataSourceService, userService);
+		controller = new ServingIndexController(servingIndexService, servingIndexLoadService,
+				dataSourceService, userService);
 	}
 
 	@Test
-	@DisplayName("按 connectionId 解析连接与用户，委派 ServingIndexService 发射触发（连 sender=clientId、reqId 透传）")
+	@DisplayName("query：按 connectionId 解析连接与用户，委派 ServingIndexService 发射触发（连 sender=clientId、reqId 透传）")
 	void queryIndexes_resolvesConnectionAndUser_thenDelegates() {
 		ObjectId connId = new ObjectId();
 		DataSourceConnectionDto conn = mock(DataSourceConnectionDto.class);
@@ -51,5 +66,26 @@ class ServingIndexControllerTest {
 		controller.queryIndexes(connId.toHexString(), req);
 
 		verify(servingIndexService).sendQueryIndexes(conn, "orders", "r-1", "fe-session-9", user);
+	}
+
+	@Test
+	@DisplayName("load：委派 ServingIndexLoadService.load(moduleId, indexes) 并原样包装结果")
+	void loadIndexes_delegatesToLoadServiceAndWrapsResult() {
+		String moduleId = new ObjectId().toHexString();
+		List<TapIndex> indexes = Collections.singletonList(
+				new TapIndex().name("ix_cust").indexField(new TapIndexField().name("custId").fieldAsc(true)));
+		List<LoadedServingIndex> planned = Collections.singletonList(
+				LoadedServingIndex.builder()
+						.attribution(LoadedIndexAttribution.MATCHES_API)
+						.checkable(true).defaultChecked(true).build());
+		when(servingIndexLoadService.load(moduleId, indexes)).thenReturn(planned);
+
+		LoadServingIndexesRequest req = new LoadServingIndexesRequest();
+		req.setIndexes(indexes);
+
+		ResponseMessage<List<LoadedServingIndex>> resp = controller.loadIndexes(moduleId, req);
+
+		verify(servingIndexLoadService).load(moduleId, indexes);
+		assertSame(planned, resp.getData(), "端点原样回传规划结果");
 	}
 }

@@ -36,7 +36,7 @@ public final class ServingIndexNormalizer {
 		for (ServingIndex idx : indexes) {
 			copy.add(canonical(idx));
 		}
-		copy.sort(Comparator.comparing(ServingIndexNormalizer::signature));
+		copy.sort(Comparator.comparing(ServingIndexSignature::of));
 		return copy;
 	}
 
@@ -54,20 +54,5 @@ public final class ServingIndexNormalizer {
 			}
 		}
 		return new ServingIndex(idx.getName(), idx.getUnique(), fields);
-	}
-
-	/** 「有序字段 + 方向」签名，如 {@code a:1,b:-1}；仅用于确定性定序（不含 name/unique）。 */
-	private static String signature(ServingIndex idx) {
-		if (idx == null || idx.getFields() == null) {
-			return "";
-		}
-		StringBuilder sb = new StringBuilder();
-		for (ServingIndexField f : idx.getFields()) {
-			if (sb.length() > 0) {
-				sb.append(',');
-			}
-			sb.append(f.getField()).append(':').append(Boolean.FALSE.equals(f.getAsc()) ? -1 : 1);
-		}
-		return sb.toString();
 	}
 }

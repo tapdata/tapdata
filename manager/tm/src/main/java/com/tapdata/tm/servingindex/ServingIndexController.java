@@ -4,6 +4,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.module.dto.LoadedServingIndex;
 import com.tapdata.tm.user.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * P1-2 · 「服务型索引」读回触发端点（TAP-12057 / ADR-0009）。
@@ -30,12 +33,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class ServingIndexController {
 
 	private final ServingIndexService servingIndexService;
+	private final ServingIndexLoadService servingIndexLoadService;
 	private final DataSourceService dataSourceService;
 	private final UserService userService;
 
-	public ServingIndexController(ServingIndexService servingIndexService, DataSourceService dataSourceService,
-								  UserService userService) {
+	public ServingIndexController(ServingIndexService servingIndexService,
+								  ServingIndexLoadService servingIndexLoadService,
+								  DataSourceService dataSourceService, UserService userService) {
 		this.servingIndexService = servingIndexService;
+		this.servingIndexLoadService = servingIndexLoadService;
 		this.dataSourceService = dataSourceService;
 		this.userService = userService;
 	}
@@ -52,5 +58,17 @@ public class ServingIndexController {
 		servingIndexService.sendQueryIndexes(connectionDto, request.getTableName(), request.getReqId(),
 				request.getClientId(), userDetail);
 		return new ResponseMessage<>();
+	}
+
+	/**
+	 * 「加载规划」：前端把 P1-2 读回的索引连同 {@code moduleId} 回传，本端点做归因 + 默认勾选规划，
+	 * 同步返回全表结果（全表可见、不预过滤，§3.8.1）。契约 provisional（P2-6 联调点）。
+	 */
+	@PostMapping("load/{moduleId}")
+	public ResponseMessage<List<LoadedServingIndex>> loadIndexes(@PathVariable("moduleId") String moduleId,
+																 @RequestBody LoadServingIndexesRequest request) {
+		ResponseMessage<List<LoadedServingIndex>> response = new ResponseMessage<>();
+		response.setData(servingIndexLoadService.load(moduleId, request.getIndexes()));
+		return response;
 	}
 }
