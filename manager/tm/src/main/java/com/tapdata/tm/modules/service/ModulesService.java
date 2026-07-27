@@ -51,6 +51,7 @@ import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.module.dto.ServingIndexNormalizer;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.module.enums.ApiType;
 import com.tapdata.tm.module.enums.ParamTypeEnum;
@@ -313,6 +314,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (StringUtils.isBlank(modulesDto.getStatus())) {
 			modulesDto.setStatus(ModuleStatusEnum.GENERATING.getValue());
 		}
+		// TAP-12057 · P2-1：写入前确定性归一化 servingIndexes（排序 + 方向规范），避免 Module 全量 diff 抖动（ADR-0001）。
+		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
 		return super.save(modulesDto, userDetail);
 
 	}
@@ -367,6 +370,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			checkItem = modulesDto;
 		}
 		checkModule(checkItem);
+		// TAP-12057 · P2-1：更新链路同样归一化 servingIndexes（ADR-0001）。
+		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
 		return super.upsertByWhere(where, modulesDto, userDetail);
 	}
 

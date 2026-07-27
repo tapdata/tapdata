@@ -29,6 +29,8 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ServingIndex;
+import com.tapdata.tm.module.dto.ServingIndexField;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.module.dto.PathSetting;
@@ -287,6 +289,29 @@ class ModulesServiceTest {
 			modulesService.save(modulesDto, userDetail);
 			verify(modulesRepository).save(any(), any());
 		}
+
+		@Test
+		@DisplayName("save 归一化 servingIndexes：乱序入参保存后确定性有序 + 方向显式（P2-1，防索引静默丢失/漂移）")
+		void test_save_normalizesServingIndexes() {
+			modulesDto = new ModulesDto();
+			modulesDto.setName("api-with-index");
+			modulesDto.setServingIndexes(new ArrayList<>(Arrays.asList(
+					new ServingIndex("ix_b", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("b", null)))),
+					new ServingIndex("ix_a", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("a", false)))))));
+
+			doReturn(false).when(modulesService).nameExists(null, "api-with-index");
+			when(modulesRepository.save(any(), any())).thenReturn(mock(ModulesEntity.class));
+
+			modulesService.save(modulesDto, userDetail);
+
+			List<ServingIndex> out = modulesDto.getServingIndexes();
+			assertEquals(2, out.size());
+			// 签名 "a:-1" < "b:1" → ix_a 在前；方向规范：a(降序)→FALSE，b(null 升序)→显式 TRUE
+			assertEquals("a", out.get(0).getFields().get(0).getField());
+			assertEquals(Boolean.FALSE, out.get(0).getFields().get(0).getAsc());
+			assertEquals("b", out.get(1).getFields().get(0).getField());
+			assertEquals(Boolean.TRUE, out.get(1).getFields().get(0).getAsc());
+		}
 	}
 
 	@Nested
@@ -324,6 +349,46 @@ class ModulesServiceTest {
 
 			assertEquals("Modules.BasePathAndVersion.Existed", exception.getErrorCode());
 			assertArrayEquals(new Object[]{"v1/prefix/path"}, exception.getArgs());
+		}
+
+		@Test
+		@DisplayName("updateModuleById 归一化 servingIndexes：编辑保存路径同样确定性有序 + 方向显式（P2-1，防编辑保存索引静默丢失）")
+		void test_updateModuleById_normalizesServingIndexes() {
+			ObjectId moduleId = new ObjectId();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(moduleId);
+			modulesDto.setName("api-edit");
+			// checkoutInputParamIsValid 要求的非空字段（paths 留空以跳过参数校验循环）
+			modulesDto.setDataSource("ds1");
+			modulesDto.setTableName("orders");
+			modulesDto.setApiType("defaultApi");
+			modulesDto.setConnectionId("conn1");
+			modulesDto.setConnectionType("source");
+			modulesDto.setConnectionName("mongo-a");
+			modulesDto.setServingIndexes(new ArrayList<>(Arrays.asList(
+					new ServingIndex("ix_b", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("b", null)))),
+					new ServingIndex("ix_a", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("a", false)))))));
+
+			ModulesDto existedDto = new ModulesDto();
+			existedDto.setId(moduleId);
+			existedDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+
+			doReturn(existedDto).when(modulesService).findOne(any(Query.class), eq(userDetail));
+			doReturn(false).when(modulesService).nameExists(any(), any());
+			doReturn(0L).when(modulesService).count(any(Query.class));
+			when(modulesRepository.filterToQuery(any())).thenReturn(new Query());
+			when(modulesRepository.findOne(any(com.tapdata.tm.base.dto.Where.class), eq(userDetail)))
+					.thenReturn(Optional.of(mock(ModulesEntity.class)));
+
+			modulesService.updateModuleById(modulesDto, userDetail);
+
+			List<ServingIndex> out = modulesDto.getServingIndexes();
+			assertEquals(2, out.size());
+			// 签名 "a:-1" < "b:1" → ix_a 在前；方向规范：a(降序)→FALSE，b(null 升序)→显式 TRUE
+			assertEquals("a", out.get(0).getFields().get(0).getField());
+			assertEquals(Boolean.FALSE, out.get(0).getFields().get(0).getAsc());
+			assertEquals("b", out.get(1).getFields().get(0).getField());
+			assertEquals(Boolean.TRUE, out.get(1).getFields().get(0).getAsc());
 		}
 	}
 

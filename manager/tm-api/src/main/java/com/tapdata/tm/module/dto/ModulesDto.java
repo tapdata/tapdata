@@ -1,6 +1,7 @@
 package com.tapdata.tm.module.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.schema.Field;
@@ -118,6 +119,14 @@ public class ModulesDto extends BaseDto implements IDataPermissionDto {
     ApiAlarmConfig apiAlarmConfig;
 
     private String publishStatus;
+
+    /**
+     * 平台收录的服务型索引声明（TAP-12057 · P2-1，见 ADR-0001）。作为人工编写的产物随 Module 走，
+     * 进导出包 {@code API/{id}_Module.json} 与 CICD diff。写入前经 {@link ServingIndexNormalizer}
+     * 确定性排序 + 方向规范。{@code NON_EMPTY}：无索引的 Module 不落该字段，避免既有 Module 全量 diff 抖动。
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<ServingIndex> servingIndexes;
 
     public void withPathSettingIfNeed() {
         if (null == pathSetting) {
