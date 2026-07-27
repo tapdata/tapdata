@@ -632,6 +632,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 								.map(Object::toString)
 								.ifPresent(connectionVo::setDatabase_name);
 					}
+					if (null == connectionVo.getDatabase_password()) {
+						Optional.ofNullable(connectionConfig)
+								.map(m -> m.get("password"))
+								.map(String::valueOf)
+								.ifPresent(connectionVo::setDatabase_password);
+					}
 				}
 				connectionVos.add(connectionVo);
 			} catch (Exception e) {
