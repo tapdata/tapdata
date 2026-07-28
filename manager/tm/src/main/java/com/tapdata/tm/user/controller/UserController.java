@@ -63,8 +63,9 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
@@ -550,7 +551,7 @@ public class UserController extends BaseController {
     @DeleteMapping("{id}")
     public ResponseMessage<Long> delete(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
-        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit, () -> {
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Delete, () -> {
             userService.delete(id, userDetail);
             return success();
         });
@@ -583,12 +584,10 @@ public class UserController extends BaseController {
     public ResponseMessage<String> batchUpdateListTags( @RequestBody BatchUpdateParam batchUpdateParam) {
         UserDetail userDetail = getLoginUser();
         List<String> idList = batchUpdateParam.getId();
-        for (String id : idList) {
-            dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit, () -> null);
-        }
         List<com.tapdata.tm.commons.schema.Tag> listTags = batchUpdateParam.getListtags();
         Update update = new Update().set("listtags", listTags);
-        userService.update(new Query(Criteria.where("id").in(idList)), update, userDetail);
+        dataPermissionCheckOfIds(userDetail, idList, DataPermissionActionEnums.Edit,
+                id -> userService.update(Query.query(Criteria.where("id").is(toObjectId(id))), update, userDetail));
         return success();
     }
 
@@ -603,6 +602,22 @@ public class UserController extends BaseController {
                 userService.dataPermissionFindById(toObjectId(id), new Field()),
                 dto -> DataPermissionMenuEnums.UserManagement, supplier,
                 () -> dataPermissionUnAuth(action,Lists.newArrayList(action)));
+    }
+
+    private <T> List<T> dataPermissionCheckOfIds(
+            UserDetail userDetail,
+            List<String> ids,
+            DataPermissionActionEnums action,
+            Function<String, T> supplier
+    ) {
+        for (String id : ids) {
+            dataPermissionCheckOfId(userDetail, id, action, () -> null);
+        }
+        List<T> results = new ArrayList<>();
+        for (String id : ids) {
+            results.add(dataPermissionCheckOfId(userDetail, id, action, () -> supplier.apply(id)));
+        }
+        return results;
     }
 
     private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {

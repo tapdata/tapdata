@@ -108,7 +108,14 @@ public class TaskController extends BaseController {
     private GroupInfoService groupInfoService;
 
 		private <T> T dataPermissionUnAuth(DataPermissionActionEnums actionEnums, List<DataPermissionActionEnums> need) {
-			throw new BizException("insufficient.permissions",
+			throw dataPermissionException(actionEnums, need);
+		}
+
+		private BizException dataPermissionException(
+			DataPermissionActionEnums actionEnums,
+			List<DataPermissionActionEnums> need
+		) {
+			return new BizException("insufficient.permissions",
 				needAction(DataPermissionDataTypeEnums.Task, Collections.singletonList(actionEnums)),
 				needAction(DataPermissionDataTypeEnums.Task, need));
 		}
@@ -120,6 +127,24 @@ public class TaskController extends BaseController {
 		}
 
 		private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, ObjectId id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+			return dataPermissionCheckOfId(
+				request,
+				userDetail,
+				id,
+				actionEnums,
+				supplier,
+				() -> dataPermissionUnAuth(actionEnums, Collections.singletonList(actionEnums))
+			);
+		}
+
+		private <T> T dataPermissionCheckOfId(
+			HttpServletRequest request,
+			UserDetail userDetail,
+			ObjectId id,
+			DataPermissionActionEnums actionEnums,
+			Supplier<T> supplier,
+			Supplier<T> unAuthSupplier
+		) {
 			id = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString())).map(MongoUtils::toObjectId).orElse(id);
 			return DataPermissionHelper.checkOfQuery(
 				userDetail,
@@ -128,7 +153,7 @@ public class TaskController extends BaseController {
 				taskService.dataPermissionFindById(id, new Field()),
 				(dto) -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
 				supplier,
-				() -> dataPermissionUnAuth(actionEnums, Collections.singletonList(actionEnums))
+				unAuthSupplier
 			);
 		}
 
@@ -146,10 +171,22 @@ public class TaskController extends BaseController {
 					userDetail,
 					id,
 					actionEnums,
-					() -> supplier.apply(Collections.singletonList(id))
+					() -> supplier.apply(Collections.singletonList(id)),
+					() -> Collections.singletonList(batchError(
+						id,
+						dataPermissionException(actionEnums, Collections.singletonList(actionEnums))
+					))
 				));
 			}
 			return responseMessages;
+		}
+
+		private MutiResponseMessage batchError(ObjectId id, BizException e) {
+			MutiResponseMessage responseMessage = new MutiResponseMessage();
+			responseMessage.setId(id.toHexString());
+			responseMessage.setCode(e.getErrorCode());
+			responseMessage.setMessage(MessageUtil.getMessage(e.getErrorCode(), e.getArgs()));
+			return responseMessage;
 		}
 
 	@GetMapping("/{currentId}/parent-task-sign")
@@ -970,7 +1007,13 @@ public class TaskController extends BaseController {
 			);
 
 			//add message
-			List<TaskEntity> taskEntityList = taskService.findByIds(taskObjectIds);
+			List<ObjectId> stoppedTaskIds = responseMessages.stream()
+				.filter(message -> ResponseMessage.OK.equals(message.getCode()))
+				.map(MutiResponseMessage::getId)
+				.filter(StringUtils::isNotBlank)
+				.map(MongoUtils::toObjectId)
+				.collect(Collectors.toList());
+			List<TaskEntity> taskEntityList = taskService.findByIds(stoppedTaskIds);
 			try {
 				if (CollectionUtils.isNotEmpty(taskEntityList)) {
 					for (TaskEntity task : taskEntityList) {
@@ -997,18 +1040,14 @@ public class TaskController extends BaseController {
 			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfIds(request, userDetail, taskObjectIds, DataPermissionActionEnums.Delete,
 				ids -> taskService.batchDelete(ids, userDetail, request, response)
 			);
-			List<String> removedTaskIds = taskIds;
-			if (CollectionUtils.isNotEmpty(responseMessages)) {
-				List<String> okIds = responseMessages.stream()
-					.filter(message -> ResponseMessage.OK.equals(message.getCode()))
-					.map(MutiResponseMessage::getId)
-					.filter(StringUtils::isNotBlank)
-					.collect(Collectors.toList());
-				if (CollectionUtils.isNotEmpty(okIds)) {
-					removedTaskIds = okIds;
-				}
+			List<String> removedTaskIds = responseMessages.stream()
+				.filter(message -> ResponseMessage.OK.equals(message.getCode()))
+				.map(MutiResponseMessage::getId)
+				.filter(StringUtils::isNotBlank)
+				.collect(Collectors.toList());
+			if (CollectionUtils.isNotEmpty(removedTaskIds)) {
+				groupInfoService.removeResourceReferences(removedTaskIds, userDetail);
 			}
-			groupInfoService.removeResourceReferences(removedTaskIds, userDetail);
 			return success(responseMessages);
 		}
 

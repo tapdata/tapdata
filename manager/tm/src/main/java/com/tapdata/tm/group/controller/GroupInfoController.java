@@ -47,10 +47,6 @@ public class GroupInfoController extends BaseController {
     @Autowired
     private GroupInfoRecordService groupInfoRecordService;
 
-    private <T> T dataPermissionUnAuth() {
-        throw new RuntimeException("Un auth");
-    }
-
     private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, DataPermissionMenuEnums menu,
                                              DataPermissionActionEnums action, Supplier<T> supplier) {
         return DataPermissionHelper.check(userDetail, menu, action, menu.getDataType(), null, supplier,
@@ -300,18 +296,15 @@ public class GroupInfoController extends BaseController {
     public ResponseMessage<Page<TaskWithGroupVo>> tasks(
             @RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        Filter finalFilter = filter;
-        DataPermissionMenuEnums dataPermissionMenuEnums = null;
-        if(finalFilter != null) {
-            if(finalFilter.getWhere().get("syncType").equals("sync")){
-                dataPermissionMenuEnums = DataPermissionMenuEnums.SyncTack;
-            }else{
-                dataPermissionMenuEnums = DataPermissionMenuEnums.MigrateTack;
-            }
-        }
-        return success(DataPermissionHelper.check(getLoginUser(), dataPermissionMenuEnums,DataPermissionActionEnums.View, DataPermissionDataTypeEnums.Task, null,
-                ()->groupInfoService.getTasksWithGroupInfo(finalFilter, getLoginUser()),
-                this::dataPermissionUnAuth));
+        Map<String, Object> where = filter.getWhere();
+        DataPermissionMenuEnums menu = "sync".equals(where == null ? null : where.get("syncType"))
+                ? DataPermissionMenuEnums.SyncTack
+                : DataPermissionMenuEnums.MigrateTack;
+        return success(DataPermissionHelper.check(getLoginUser(), menu, DataPermissionActionEnums.View,
+                DataPermissionDataTypeEnums.Task, null,
+                () -> groupInfoService.getTasksWithGroupInfo(filter, getLoginUser()),
+                () -> dataPermissionUnAuth(DataPermissionDataTypeEnums.Task, DataPermissionActionEnums.View,
+                        Lists.newArrayList(DataPermissionActionEnums.View))));
     }
 
     @Operation(summary = "获取包含分组信息的API列表")
@@ -323,6 +316,7 @@ public class GroupInfoController extends BaseController {
         Filter finalFilter = filter;
         return success(DataPermissionHelper.check(getLoginUser(), DataPermissionMenuEnums.Modules, DataPermissionActionEnums.View, DataPermissionDataTypeEnums.Modules, null,
                 ()->groupInfoService.getApisWithGroupInfo(finalFilter, getLoginUser()),
-                this::dataPermissionUnAuth));
+                () -> dataPermissionUnAuth(DataPermissionDataTypeEnums.Modules, DataPermissionActionEnums.View,
+                        Lists.newArrayList(DataPermissionActionEnums.View))));
     }
 }

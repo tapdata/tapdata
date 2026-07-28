@@ -14,6 +14,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -108,8 +109,15 @@ public class CacheTaskController extends BaseController {
     @PatchMapping("{id}")
     public ResponseMessage<TaskDto> updateById(@PathVariable("id") String id, @RequestBody SaveShareCacheParam saveShareCacheParam) {
         UserDetail userDetail = getLoginUser();
+        boolean canStart = Boolean.TRUE.equals(dataPermissionCheckOfId(
+                userDetail,
+                id,
+                DataPermissionActionEnums.Start,
+                () -> true,
+                () -> false
+        ));
         return success(dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
-                () -> taskService.updateShareCacheTask(id, saveShareCacheParam, userDetail)));
+                () -> taskService.updateShareCacheTask(id, saveShareCacheParam, userDetail, canStart)));
     }
 
 
@@ -223,8 +231,11 @@ public class CacheTaskController extends BaseController {
     public ResponseMessage<Void> start(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
         ObjectId objectId = MongoUtils.toObjectId(id);
-        taskService.clearAgentAffinityForManualStart(objectId, userDetail);
-        taskService.start(objectId, userDetail);
+        dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Start, () -> {
+            taskService.clearAgentAffinityForManualStart(objectId, userDetail);
+            taskService.start(objectId, userDetail);
+            return null;
+        });
         return success();
     }
 
@@ -266,8 +277,15 @@ public class CacheTaskController extends BaseController {
                                                                  HttpServletResponse response) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
         UserDetail userDetail = getLoginUser();
-        taskService.clearAgentAffinityForManualStart(taskObjectIds, userDetail);
-        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, userDetail, request, response);
+        List<MutiResponseMessage> responseMessages = checkDataPermissions(
+                userDetail,
+                taskObjectIds,
+                DataPermissionActionEnums.Start,
+                ids -> {
+                    taskService.clearAgentAffinityForManualStart(ids, userDetail);
+                    return taskService.batchStart(ids, userDetail, request, response);
+                }
+        );
         return success(responseMessages);
     }
 
@@ -302,6 +320,22 @@ public class CacheTaskController extends BaseController {
     }
 
     private <T> T dataPermissionCheckOfId(UserDetail userDetail, String id, DataPermissionActionEnums action, Supplier<T> supplier) {
+        return dataPermissionCheckOfId(
+                userDetail,
+                id,
+                action,
+                supplier,
+                () -> dataPermissionUnAuth(action, Lists.newArrayList(action))
+        );
+    }
+
+    private <T> T dataPermissionCheckOfId(
+            UserDetail userDetail,
+            String id,
+            DataPermissionActionEnums action,
+            Supplier<T> supplier,
+            Supplier<T> unAuthSupplier
+    ) {
         return DataPermissionHelper.checkOfQuery(
                 userDetail,
                 DataPermissionDataTypeEnums.Task,
@@ -309,7 +343,7 @@ public class CacheTaskController extends BaseController {
                 taskService.dataPermissionFindById(MongoUtils.toObjectId(id), new Field()),
                 dto -> DataPermissionMenuEnums.MemCacheTack,
                 supplier,
-                () -> dataPermissionUnAuth(action, Lists.newArrayList(action))
+                unAuthSupplier
         );
     }
 
@@ -325,14 +359,33 @@ public class CacheTaskController extends BaseController {
                     userDetail,
                     id.toHexString(),
                     action,
-                    () -> supplier.apply(java.util.Collections.singletonList(id))
+                    () -> supplier.apply(java.util.Collections.singletonList(id)),
+                    () -> java.util.Collections.singletonList(batchError(
+                            id,
+                            dataPermissionException(action, Lists.newArrayList(action))
+                    ))
             ));
         }
         return responseMessages;
     }
 
+    private MutiResponseMessage batchError(ObjectId id, BizException e) {
+        MutiResponseMessage responseMessage = new MutiResponseMessage();
+        responseMessage.setId(id.toHexString());
+        responseMessage.setCode(e.getErrorCode());
+        responseMessage.setMessage(MessageUtil.getMessage(e.getErrorCode(), e.getArgs()));
+        return responseMessage;
+    }
+
     private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
-        throw new BizException("insufficient.permissions",
+        throw dataPermissionException(action, need);
+    }
+
+    private BizException dataPermissionException(
+            DataPermissionActionEnums action,
+            List<DataPermissionActionEnums> need
+    ) {
+        return new BizException("insufficient.permissions",
                 needAction(DataPermissionDataTypeEnums.Task, Lists.newArrayList(action)),
                 needAction(DataPermissionDataTypeEnums.Task, need));
     }

@@ -817,11 +817,19 @@ public class TaskServiceImpl extends TaskService{
     }
 
 
-    public TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user) {
+    public TaskDto updateShareCacheTask(
+            String id,
+            SaveShareCacheParam saveShareCacheParam,
+            UserDetail user,
+            boolean canStart
+    ) {
         TaskDto taskDto = findById(MongoUtils.toObjectId(id));
         parseCacheToTaskDto(saveShareCacheParam, taskDto);
 
         updateById(taskDto, user);
+        if (canStart) {
+            start(taskDto.getId(), user);
+        }
         return taskDto;
 
     }

@@ -946,14 +946,44 @@ class TaskServiceImplTest {
             saveShareCacheParam = mock(SaveShareCacheParam.class);
         }
         @Test
-        void testUpdateShareCacheTask(){
+        void doesNotStartWhenStartPermissionIsMissing(){
             TaskDto dto = new TaskDto();
             when(taskService.findById(MongoUtils.toObjectId(id))).thenReturn(dto);
             when(saveShareCacheParam.getName()).thenReturn("cache_name");
-            doCallRealMethod().when(taskService).updateShareCacheTask(id,saveShareCacheParam,user);
-            TaskDto actual = taskService.updateShareCacheTask(id, saveShareCacheParam, user);
+            doCallRealMethod().when(taskService).updateShareCacheTask(id,saveShareCacheParam,user, false);
+            taskService.updateShareCacheTask(id, saveShareCacheParam, user, false);
             verify(taskService,new Times(1)).parseCacheToTaskDto(saveShareCacheParam,dto);
             verify(taskService,new Times(1)).updateById(any(TaskDto.class),any(UserDetail.class));
+            verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
+        }
+
+        @Test
+        void restartsRunningTaskWhenStartPermissionIsGranted(){
+            ObjectId taskId = MongoUtils.toObjectId(id);
+            TaskDto dto = new TaskDto();
+            dto.setId(taskId);
+            dto.setStatus(TaskDto.STATUS_RUNNING);
+            when(taskService.findById(taskId)).thenReturn(dto);
+            when(saveShareCacheParam.getName()).thenReturn("cache_name");
+            doCallRealMethod().when(taskService).updateShareCacheTask(id,saveShareCacheParam,user, true);
+
+            taskService.updateShareCacheTask(id, saveShareCacheParam, user, true);
+
+            verify(taskService).start(taskId, user);
+        }
+
+        @Test
+        void doesNotStartStoppedTaskWhenStartPermissionIsGranted(){
+            ObjectId taskId = MongoUtils.toObjectId(id);
+            TaskDto dto = new TaskDto();
+            dto.setId(taskId);
+            dto.setStatus(TaskDto.STATUS_STOP);
+            when(taskService.findById(taskId)).thenReturn(dto);
+            when(saveShareCacheParam.getName()).thenReturn("cache_name");
+            doCallRealMethod().when(taskService).updateShareCacheTask(id,saveShareCacheParam,user, true);
+
+            taskService.updateShareCacheTask(id, saveShareCacheParam, user, true);
+
             verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
         }
     }
