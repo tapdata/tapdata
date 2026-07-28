@@ -161,7 +161,8 @@ public class TaskController extends BaseController {
 			UserDetail user = getLoginUser();
 			TaskDto resultTask = dataPermissionCheckOfId(request, user, task.getId(), DataPermissionActionEnums.Edit, () -> {
 				taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
-				taskSaveService.supplementAlarm(task, user);
+                // patch 仅修改 DAG，无需再次补全 Alarm
+				// taskSaveService.supplementAlarm(task, user);
 				task.setStatus(null);
 
 				return taskService.updateById(task, user);
