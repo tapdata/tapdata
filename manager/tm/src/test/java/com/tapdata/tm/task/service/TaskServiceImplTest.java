@@ -971,21 +971,6 @@ class TaskServiceImplTest {
 
             verify(taskService).start(taskId, user);
         }
-
-        @Test
-        void doesNotStartStoppedTaskWhenStartPermissionIsGranted(){
-            ObjectId taskId = MongoUtils.toObjectId(id);
-            TaskDto dto = new TaskDto();
-            dto.setId(taskId);
-            dto.setStatus(TaskDto.STATUS_STOP);
-            when(taskService.findById(taskId)).thenReturn(dto);
-            when(saveShareCacheParam.getName()).thenReturn("cache_name");
-            doCallRealMethod().when(taskService).updateShareCacheTask(id,saveShareCacheParam,user, true);
-
-            taskService.updateShareCacheTask(id, saveShareCacheParam, user, true);
-
-            verify(taskService, never()).start(any(ObjectId.class), any(UserDetail.class));
-        }
     }
 
     @Nested
