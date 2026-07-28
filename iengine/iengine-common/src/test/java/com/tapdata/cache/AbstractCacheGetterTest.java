@@ -104,7 +104,7 @@ public class AbstractCacheGetterTest {
 			Set<String> keys = cached.get(0).keySet();
 			assertTrue(keys.contains("CUSTOMER_ID"));
 			assertTrue(keys.contains("CAR_MODEL"));
-			assertTrue(keys.contains("POLICY_ID"));
+			assertFalse(keys.contains("POLICY_ID"));
 			assertFalse(keys.contains("CREATE_TIME"));
 			assertFalse(keys.contains("REMARK"));
 
@@ -157,7 +157,7 @@ public class AbstractCacheGetterTest {
 				Set<String> keys = row.keySet();
 				assertTrue(keys.contains("CUSTOMER_ID"));
 				assertTrue(keys.contains("CAR_MODEL"));
-				assertTrue(keys.contains("POLICY_ID"));
+				assertFalse(keys.contains("POLICY_ID"));
 				assertFalse(keys.contains("CREATE_TIME"));
 				assertFalse(keys.contains("REMARK"));
 			}

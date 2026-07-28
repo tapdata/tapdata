@@ -103,9 +103,6 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 			return rows;
 		}
 		Set<String> projectFields = new HashSet<>(fields);
-		if (cacheConfig.getPrimaryKeys() != null) {
-			projectFields.addAll(cacheConfig.getPrimaryKeys());
-		}
 		List<Map<String, Object>> projected = new ArrayList<>(rows.size());
 		for (Map<String, Object> row : rows) {
 			projected.add(CacheUtil.cacheFieldRow(row, projectFields));
