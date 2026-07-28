@@ -13,18 +13,6 @@
     ]
   },
   {
-    "createIndexes": "ApiCall",
-    "indexes": [
-      {
-        "name": "createTime_1",
-        "key": {
-          "createTime": 1
-        },
-        "background": true
-      }
-    ]
-  },
-  {
     "createIndexes": "ApiCallStats",
     "indexes": [
       {
