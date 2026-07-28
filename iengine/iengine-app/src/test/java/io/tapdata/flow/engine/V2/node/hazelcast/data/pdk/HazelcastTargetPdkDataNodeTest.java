@@ -1735,6 +1735,25 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		verify(ddlEventHandlers,times(5)).handle(any());
 	}
 
+	@Test
+	@DisplayName("Skip physical table creation when create table event only updates models")
+	void testSkipCreateTableForModelUpdate() {
+		TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+		createTableEvent.setTableId("dynamic_table");
+		createTableEvent.addInfo("SKIP_TARGET_CREATE_TABLE", true);
+		ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "obsLogger", mockObsLogger);
+
+		Boolean result = ReflectionTestUtils.invokeMethod(
+				hazelcastTargetPdkDataNode,
+				"executeCreateTableFunction",
+				createTableEvent
+		);
+
+		assertTrue(result);
+		verify(hazelcastTargetPdkDataNode, never()).getTgtTableNameFromTapEvent(any(TapEvent.class));
+		verify(hazelcastTargetPdkDataNode, never()).createTable(any(), any(AtomicBoolean.class), anyBoolean());
+	}
+
 	@Nested
 	class testWriteRecord {
 
