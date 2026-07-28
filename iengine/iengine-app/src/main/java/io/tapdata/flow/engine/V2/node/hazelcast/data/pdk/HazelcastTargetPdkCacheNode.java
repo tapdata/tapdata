@@ -17,6 +17,7 @@ import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.error.ShareCacheExCode_20;
 import io.tapdata.error.TapEventException;
@@ -80,7 +81,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 				String afterCacheKey = getCacheKey(after);
 				String afterPk = CacheUtil.getPk(dataFlowCacheConfig.getPrimaryKeys(), after);
 				Map<String, Object> cacheFieldRow = CacheUtil.cacheFieldRow(after, dataFlowCacheConfig.getFields());
-				if (tapEvent instanceof TapUpdateRecordEvent) {
+				if (tapEvent instanceof TapUpdateRecordEvent || tapEvent instanceof TapInsertRecordEvent) {
 					CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
 					Map<String, Map<String, Object>> recordMap;
 					if (dataMap.exists(afterCacheKey)) {
