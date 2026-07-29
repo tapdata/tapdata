@@ -1828,6 +1828,20 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	@DisplayName("Method processTargetEvents test")
 	class processTargetEventsTest {
+		private long countUpdateMemoryInvocations(TapdataEvent tapdataEvent) {
+			return countUpdateMemoryInvocations(tapdataEvent, true)
+					+ countUpdateMemoryInvocations(tapdataEvent, false);
+		}
+
+		private long countUpdateMemoryInvocations(TapdataEvent tapdataEvent, boolean updateTapTable) {
+			return mockingDetails(hazelcastTargetPdkBaseNode).getInvocations().stream()
+					.filter(invocation -> "updateMemoryFromDDLInfoMap".equals(invocation.getMethod().getName()))
+					.filter(invocation -> invocation.getMethod().getParameterCount() == 2)
+					.filter(invocation -> tapdataEvent.equals(invocation.getArgument(0)))
+					.filter(invocation -> Boolean.valueOf(updateTapTable).equals(invocation.getArgument(1)))
+					.count();
+		}
+
 		@BeforeEach
 		void setUp() {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).processTargetEvents(any(List.class));
@@ -1923,7 +1937,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			})).start();
 			hazelcastTargetPdkBaseNode.processTargetEvents(tapdataEvents);
 			verify(hazelcastTargetPdkBaseNode, never()).fromTapValueMergeInfo(any(TapdataEvent.class));
-			verify(hazelcastTargetPdkBaseNode).updateMemoryFromDDLInfoMap(tapdataEvent);
+			assertEquals(1L, countUpdateMemoryInvocations(tapdataEvent, true));
 		}
 
 		@Test
@@ -1940,7 +1954,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			thread.start();
 			assertDoesNotThrow(() -> TimeUnit.MILLISECONDS.sleep(300L));
 			thread.interrupt();
-			verify(hazelcastTargetPdkBaseNode, never()).updateMemoryFromDDLInfoMap(tapdataEvent);
+			assertEquals(0L, countUpdateMemoryInvocations(tapdataEvent));
 		}
 	}
 
