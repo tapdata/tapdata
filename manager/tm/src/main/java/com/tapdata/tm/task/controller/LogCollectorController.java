@@ -1,17 +1,26 @@
 package com.tapdata.tm.task.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.task.service.LogCollectorExtendService;
 import com.tapdata.tm.task.service.LogCollectorService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.vo.LogCollectorRelateTaskVo;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -25,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * @Author: Zed
@@ -38,6 +48,7 @@ import java.util.Map;
 public class LogCollectorController extends BaseController {
     private LogCollectorService logCollectorService;
     private LogCollectorExtendService logCollectorExtendService;
+    private TaskService taskService;
 
     /**
      *  查询挖掘任务列表
@@ -77,23 +88,36 @@ public class LogCollectorController extends BaseController {
         }
         where.put("syncType", "logCollector");
 
-        if (StringUtils.isBlank(connectionName)) {
-            if (StringUtils.isNotBlank(taskName)) {
-                where.remove("taskName");
-                where.put("name", taskName);
-
-            }
-            return success(logCollectorService.find(filter, getLoginUser()));
-        } else {
-            return success(logCollectorService.findByConnectionName(taskName, connectionName, getLoginUser(), filter.getSkip(), filter.getLimit(), filter.getSort()));
-        }
+        Filter taskFilter = filter;
+        Where taskWhere = where;
+        UserDetail userDetail = getLoginUser();
+        Page<LogCollectorVo> page = DataPermissionMenuEnums.LogCollectorTack.checkAndSetFilter(
+                userDetail,
+                DataPermissionActionEnums.View,
+                () -> {
+                    if (StringUtils.isBlank(connectionName)) {
+                        if (StringUtils.isNotBlank(taskName)) {
+                            taskWhere.remove("taskName");
+                            taskWhere.put("name", taskName);
+                        }
+                        return logCollectorService.find(taskFilter, userDetail);
+                    }
+                    return logCollectorService.findByConnectionName(taskName, connectionName, userDetail, taskFilter.getSkip(), taskFilter.getLimit(), taskFilter.getSort());
+                }
+        );
+        return success(page);
     }
 
     @PatchMapping("{id}")
     @Operation(summary = "更新挖掘任务")
     public ResponseMessage<Void> update(@PathVariable("id") String id, @RequestBody LogCollectorEditVo logCollectorEditVo) {
         logCollectorEditVo.setId(id);
-        logCollectorService.update(logCollectorEditVo, getLoginUser());
+        UserDetail userDetail = getLoginUser();
+        dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
+                () -> {
+                    logCollectorService.update(logCollectorEditVo, userDetail);
+                    return null;
+                });
         return success();
     }
 
@@ -105,7 +129,9 @@ public class LogCollectorController extends BaseController {
     @GetMapping("/detail/{id}")
     @Operation(summary = "查询挖掘任务详情")
     public ResponseMessage<LogCollectorDetailVo> findDetail(@PathVariable("id") String logCollectorId) {
-        return success(logCollectorService.findDetail(logCollectorId, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return success(dataPermissionCheckOfId(userDetail, logCollectorId, DataPermissionActionEnums.View,
+                () -> logCollectorService.findDetail(logCollectorId, userDetail)));
     }
 
     /**
@@ -116,7 +142,12 @@ public class LogCollectorController extends BaseController {
     @GetMapping("/byTaskId/{taskId}")
     @Operation(summary = "通过同步任务查询被用到的挖掘任务列表")
     public ResponseMessage<List<LogCollectorVo>> findByTaskId(@PathVariable("taskId")String taskId) {
-        return success(logCollectorService.findByTaskId(taskId, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return success(DataPermissionMenuEnums.LogCollectorTack.checkAndSetFilter(
+                userDetail,
+                DataPermissionActionEnums.View,
+                () -> logCollectorService.findByTaskId(taskId, userDetail)
+        ));
     }
 
     @GetMapping("/system/config")
@@ -228,5 +259,24 @@ public class LogCollectorController extends BaseController {
     @Operation(summary = "手动创建共享挖掘任务，若数据源已存在挖掘任务则合并")
     public ResponseMessage<Map<String, String>> createShareCdcTaskAndWait(@RequestBody TableLogCollectorParam param) {
         return success(logCollectorService.createShareCdcTaskAndWait(param, getLoginUser()));
+    }
+
+    private <T> T dataPermissionCheckOfId(UserDetail userDetail, String id, DataPermissionActionEnums action,
+                                          Supplier<T> supplier) {
+        return DataPermissionHelper.checkOfQuery(
+                userDetail,
+                DataPermissionDataTypeEnums.Task,
+                action,
+                taskService.dataPermissionFindById(MongoUtils.toObjectId(id), new Field()),
+                dto -> DataPermissionMenuEnums.LogCollectorTack,
+                supplier,
+                () -> dataPermissionUnAuth(action, Lists.newArrayList(action))
+        );
+    }
+
+    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
+        throw new BizException("insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.Task, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.Task, need));
     }
 }

@@ -3,6 +3,7 @@ package com.tapdata.tm.group.service;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
@@ -23,6 +24,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.group.dto.*;
@@ -82,6 +84,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.springframework.data.mongodb.core.query.Update;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
@@ -154,9 +157,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             "id", "customId", "createTime", "last_updated", "lastUpdBy", "createUser", "permissionActions"
     ));
 
-    public GroupInfoService(@NotNull GroupInfoRepository repository) {
-        super(repository, GroupInfoDto.class, GroupInfoEntity.class);
-    }
+	public GroupInfoService(@NotNull GroupInfoRepository repository) {
+		super(repository, GroupInfoDto.class, GroupInfoEntity.class);
+	}
+
+	public Supplier<GroupInfoDto> dataPermissionFindById(ObjectId groupId, Field fields) {
+		return () -> {
+			fields.put(BaseDto.FIELD_USER_ID, true);
+			fields.put(DataPermissionHelper.FIELD_NAME, true);
+			return findById(groupId, fields);
+		};
+	}
 
     private TaskService taskService;
     private ModulesService modulesService;

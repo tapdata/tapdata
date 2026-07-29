@@ -86,14 +86,6 @@ public class InspectController extends BaseController {
                 );
     }
 
-    protected String needAction(DataPermissionDataTypeEnums dataTypeEnums, List<DataPermissionActionEnums> need) {
-        StringJoiner joiner = new StringJoiner(", ");
-        need.forEach(a ->
-            joiner.add(String.format("%s.%s", dataTypeEnums.getCollection().toLowerCase(), a.name().toLowerCase()))
-        );
-        return joiner.toString();
-    }
-
     private <T> T dataPermissionCheckOfMenu(UserDetail userDetail,
                                             DataPermissionActionEnums actionEnums,
                                             List<DataPermissionActionEnums> need,
