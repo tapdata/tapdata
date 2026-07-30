@@ -213,7 +213,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.TRACE.toString());
 		builder.message(formatMessage(message, params));
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	public void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
@@ -225,7 +225,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.DEBUG.toString());
 		builder.message(formatMessage(message, params));
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	public void info(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
@@ -237,7 +237,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.INFO.toString());
 		builder.message(formatMessage(message, params));
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	public void warn(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
@@ -249,7 +249,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.WARN.toString());
 		builder.message(formatMessage(message, params));
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	public void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
@@ -266,7 +266,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.ERROR.toString());
 		buildErrorMessage(throwable, parameterizedMessage, builder);
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	@Nullable
@@ -291,7 +291,15 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.FATAL.toString());
 		buildErrorMessage(throwable, parameterizedMessage, builder);
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
+	}
+
+	private void appendLog(MonitoringLogsDto logsDto) {
+		if (testTask) {
+			logAppendFactory.appendLogWithoutCache(logsDto);
+			return;
+		}
+		logAppendFactory.appendLog(logsDto);
 	}
 
 	@Override
@@ -354,6 +362,7 @@ public class TaskLogger extends ObsLogger {
 				tapObsAppender.start();
 			}
 		}
+		resumeCache();
 	}
 
 	public void close() throws Exception {
@@ -380,6 +389,18 @@ public class TaskLogger extends ObsLogger {
 				manager.setRolloverStrategy(strategy);
 				manager.setTriggeringPolicy(compositeTriggeringPolicy);
 			}
+		}
+	}
+
+	void pauseCache() {
+		if (logAppendFactory != null && !testTask) {
+			logAppendFactory.deactivateTask(taskId);
+		}
+	}
+
+	void resumeCache() {
+		if (logAppendFactory != null && !testTask) {
+			logAppendFactory.activateTask(taskId, taskName);
 		}
 	}
 

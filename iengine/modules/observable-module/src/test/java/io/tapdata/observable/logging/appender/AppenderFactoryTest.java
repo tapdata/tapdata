@@ -4,6 +4,7 @@ package io.tapdata.observable.logging.appender;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import io.tapdata.observable.logging.cache.MonitoringLogCodec;
 import lombok.SneakyThrows;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
@@ -40,9 +41,9 @@ public class AppenderFactoryTest {
         assertDoesNotThrow(()->{
             AppenderFactory instance=AppenderFactory.getInstance();
             Object cacheLogsQueue = ReflectionTestUtils.getField(instance, "cacheLogsQueue");
-            Object cycle = ReflectionTestUtils.getField(instance, "cycle");
-            assertNotNull(cacheLogsQueue);
-            assertNotNull(cycle);
+            Object taskCacheManager = ReflectionTestUtils.getField(instance, "taskCacheManager");
+            assertNull(cacheLogsQueue);
+            assertNotNull(taskCacheManager);
         });
     }
     @Nested
@@ -82,7 +83,9 @@ public class AppenderFactoryTest {
                 AppenderFactory instance = mock(AppenderFactory.class);
                 ExcerptTailer tailer = mock(ExcerptTailer.class);
                 doCallRealMethod().when(instance).readMessageFromCacheQueue(tailer,"fileAppender");
-                doNothing().when(instance).appenderAppendLog(any(),anyString());
+                doNothing().when(instance).appenderAppendLog(
+                        any(MonitoringLogsDto.MonitoringLogsDtoBuilder.class),
+                        anyString());
                 when(tailer.readDocument(any())).thenReturn(true);
                 instance.readMessageFromCacheQueue(tailer,"fileAppender");
                 verify(instance,times(1)).appenderAppendLog(builder,"fileAppender");
@@ -203,6 +206,26 @@ public class AppenderFactoryTest {
                 return null;
             }).when(appender).append(any());
         }
+
+        @Test
+        @DisplayName("test appender dispatch uses exact task keys")
+        void testExactTaskKeys() {
+            FileAppender taskAppender = mock(FileAppender.class);
+            FileAppender debugAppender = mock(FileAppender.class);
+            FileAppender prefixTaskAppender = mock(FileAppender.class);
+            appenderMap.put("123", Collections.singletonList(taskAppender));
+            appenderMap.put("123_debug", Collections.singletonList(debugAppender));
+            appenderMap.put("1234", Collections.singletonList(prefixTaskAppender));
+            ReflectionTestUtils.setField(appenderFactory, "appenderMap", appenderMap);
+            doCallRealMethod().when(appenderFactory)
+                    .appenderAppendLog(any(MonitoringLogsDto.class), eq(FILE_APPENDER_TAILER_ID));
+
+            appenderFactory.appenderAppendLog(builder.build(), FILE_APPENDER_TAILER_ID);
+
+            verify(taskAppender).append(any(MonitoringLogsDto.class));
+            verify(debugAppender).append(any(MonitoringLogsDto.class));
+            verify(prefixTaskAppender, never()).append(any(MonitoringLogsDto.class));
+        }
     }
     @Nested
     class AppendLogTest{
@@ -215,6 +238,7 @@ public class AppenderFactoryTest {
             chronicleQueue = ChronicleQueue.singleBuilder(PATH_NAME).build();
             appenderFactory = mock(AppenderFactory.class);
             ReflectionTestUtils.setField(appenderFactory, "cacheLogsQueue", chronicleQueue);
+            ReflectionTestUtils.setField(appenderFactory, "codec", new MonitoringLogCodec());
             doCallRealMethod().when(appenderFactory).appendLog(any(MonitoringLogsDto.class));
             Semaphore emptyWaiting = new Semaphore(1);
             ReflectionTestUtils.setField(appenderFactory, "emptyWaiting", emptyWaiting);
@@ -225,6 +249,7 @@ public class AppenderFactoryTest {
         @SneakyThrows
 		@AfterEach
         void tearDown() {
+            chronicleQueue.close();
             FileUtils.deleteDirectory(new File(PATH_NAME));
         }
 
@@ -410,6 +435,7 @@ public class AppenderFactoryTest {
             chronicleQueue = ChronicleQueue.singleBuilder(PATH_NAME).build();
             appenderFactory = mock(AppenderFactory.class);
             ReflectionTestUtils.setField(appenderFactory, "cacheLogsQueue", chronicleQueue);
+            ReflectionTestUtils.setField(appenderFactory, "codec", new MonitoringLogCodec());
             doCallRealMethod().when(appenderFactory).appendLog(any(MonitoringLogsDto.class));
             Semaphore emptyWaiting = new Semaphore(1);
             ReflectionTestUtils.setField(appenderFactory, "emptyWaiting", emptyWaiting);
@@ -421,6 +447,7 @@ public class AppenderFactoryTest {
         @SneakyThrows
         @AfterEach
         void tearDown() {
+            chronicleQueue.close();
             FileUtils.deleteDirectory(new File(PATH_NAME));
         }
 
@@ -477,6 +504,8 @@ public class AppenderFactoryTest {
         Constructor<AppenderFactory> constructor = AppenderFactory.class.getDeclaredConstructor();
         constructor.setAccessible(true);
         AppenderFactory appenderFactory = constructor.newInstance();
+        SingleChronicleQueue queue = ChronicleQueue.singleBuilder(PATH_NAME + "-append").build();
+        ReflectionTestUtils.setField(appenderFactory, "cacheLogsQueue", queue);
 
         Map<String, Object> data = new HashMap<>();
         data.put("id", "test serialize data");
@@ -508,13 +537,28 @@ public class AppenderFactoryTest {
 
         appenderFactory.appendLog(spyDto);
 
-        SingleChronicleQueue cacheLogsQueue = (SingleChronicleQueue) ReflectionTestUtils.getField(appenderFactory, "cacheLogsQueue");
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-        ExcerptTailer tailer = cacheLogsQueue.createTailer(FILE_APPENDER_TAILER_ID);
+        ExcerptTailer tailer = queue.createTailer(FILE_APPENDER_TAILER_ID);
         tailer.readDocument(r -> appenderFactory.decodeFromWireIn(r.getValueIn(), builder));
         MonitoringLogsDto resultDto = builder.build();
         Assertions.assertNotNull(resultDto);
         Assertions.assertNotNull(resultDto.getData());
         Assertions.assertEquals(0, resultDto.getData().size());
+        tailer.close();
+        appenderFactory.closeAll();
+        FileUtils.deleteQuietly(new File(PATH_NAME + "-append"));
+    }
+
+    @Test
+    void testAppendLogWithoutCacheDispatchesToBothSinks() {
+        AppenderFactory appenderFactory = mock(AppenderFactory.class);
+        MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder().taskId("test-task-id").build();
+        doCallRealMethod().when(appenderFactory).appendLogWithoutCache(monitoringLogsDto);
+        doNothing().when(appenderFactory).appenderAppendLog(any(MonitoringLogsDto.class), anyString());
+
+        appenderFactory.appendLogWithoutCache(monitoringLogsDto);
+
+        verify(appenderFactory).appenderAppendLog(monitoringLogsDto, FILE_APPENDER_TAILER_ID);
+        verify(appenderFactory).appenderAppendLog(monitoringLogsDto, AppenderFactory.TM_APPENDER_TAILER_ID);
     }
 }
