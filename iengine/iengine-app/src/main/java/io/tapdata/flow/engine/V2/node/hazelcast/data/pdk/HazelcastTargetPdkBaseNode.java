@@ -1037,8 +1037,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         return;
                     }
                 }
-                updateMemoryFromDDLInfoMap(consumeEvent);
-                obsLogger.trace("The target node refreshes the memory model according to the ddl event({})", consumeEvent.getTapEvent());
+				boolean skipTargetTableUpdate = consumeEvent.getTapEvent() instanceof TapCreateTableEvent
+						&& Boolean.TRUE.equals(consumeEvent.getTapEvent().getInfo(SKIP_TARGET_CREATE_TABLE_INFO_KEY));
+				updateMemoryFromDDLInfoMap(consumeEvent, !skipTargetTableUpdate);
+				obsLogger.trace("The target node refreshes the memory model according to the ddl event({}), skip target table model: {}",
+						consumeEvent.getTapEvent(), skipTargetTableUpdate);
             }
             enqueue(this.tapEventProcessQueue, consumeEvent);
         }
@@ -2519,4 +2522,3 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 }
-

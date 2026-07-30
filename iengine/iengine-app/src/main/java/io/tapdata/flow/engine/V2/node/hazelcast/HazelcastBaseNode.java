@@ -126,6 +126,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected static final String INSERT_METADATA_INFO_KEY = "INSERT_METADATA";
 	protected static final String REMOVE_METADATA_INFO_KEY = "REMOVE_METADATA";
 	protected static final String QUALIFIED_NAME_ID_MAP_INFO_KEY = "QUALIFIED_NAME_ID_MAP";
+	protected static final String SKIP_TARGET_CREATE_TABLE_INFO_KEY = "SKIP_TARGET_CREATE_TABLE";
 	private static final String TAG = HazelcastBaseNode.class.getSimpleName();
 
 	private static final Integer ERROR_EVENT_LIMIT = 10;
@@ -900,6 +901,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 
 	public void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
+		updateMemoryFromDDLInfoMap(tapdataEvent, true);
+	}
+
+	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent, boolean updateTapTable) {
 		if (null == tapdataEvent) {
 			return;
 		}
@@ -915,6 +920,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			updateNode(tapdataEvent);
 		} catch (Exception e) {
 			throw new TapCodeException(TaskProcessorExCode_11.UPDATE_MEMORY_NODE_CONFIG_FAILED, e);
+		}
+		if (!updateTapTable) {
+			return;
 		}
 		try {
 			if (getNode() instanceof MergeTableNode) {
