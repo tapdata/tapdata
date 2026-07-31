@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.task.dto.Milestone;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
@@ -440,6 +441,20 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             Long taskSnapshotDoneAt = taskDto.getSnapshotDoneAt();
             String syncType = taskDto.getSyncType();
 
+            Long taskSnapshotProgress = null;
+            Object milestoneObj = taskDto.getAttrs().get("milestone");
+            if (milestoneObj instanceof Map) {
+                Map<String, Object> milestoneMap = (Map<String, Object>) milestoneObj;
+                Object snapshotObj = milestoneMap.get("SNAPSHOT");
+                if (snapshotObj instanceof Map) {
+                    Map<String, Object> snapshotMap = (Map<String, Object>) snapshotObj;
+                    Object progress = snapshotMap.get("progress");
+                    if (progress instanceof Number) {
+                        taskSnapshotProgress = ((Number)progress).longValue();
+                    }
+                }
+            }
+
             if (isTask) {
                 Long taskTs = taskDto.getCurrentEventTimestamp();
                 Map<String, Object> foundSample = null;
@@ -457,6 +472,11 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     if (taskSnapshotDoneAt != null && (snapDoneObj == null || (snapDoneObj instanceof Number && ((Number) snapDoneObj).longValue() <= 0))) {
                         foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
                     }
+
+                    Object snapTableTotalObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL);
+                    if (snapTableTotalObj != null && (snapTableTotalObj == null || (snapTableTotalObj instanceof Number && ((Number) snapTableTotalObj).longValue() <= 0))) {
+                        foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL, foundSample.get(MetricCons.SS.VS.F_TABLE_TOTAL));
+                    }
                 } else {
                     Map<String, Object> newSample = new HashMap<>();
                     Map<String, String> newTags = new HashMap<>(querySample.getTags());
@@ -466,6 +486,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     }
                     if (taskSnapshotDoneAt != null) {
                         newSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
+                    }
+                    if (taskSnapshotProgress != null) {
+                        newSample.put(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL, taskSnapshotProgress);
                     }
                     uniqueData.add(newSample);
                 }
@@ -508,6 +531,11 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                         if (taskSnapshotDoneAt != null && (snapDoneObj == null || (snapDoneObj instanceof Number && ((Number) snapDoneObj).longValue() <= 0))) {
                             foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
                         }
+
+                        Object snapTableTotalObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL);
+                        if (snapTableTotalObj != null && (snapTableTotalObj == null || (snapTableTotalObj instanceof Number && ((Number) snapTableTotalObj).longValue() <= 0))) {
+                            foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL, foundSample.get(MetricCons.SS.VS.F_TABLE_TOTAL));
+                        }
                     } else {
                         Map<String, Object> newSample = new HashMap<>();
                         Map<String, String> newTags = new HashMap<>(querySample.getTags());
@@ -524,6 +552,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                         if (taskSnapshotDoneAt != null) {
                             newSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
                         }
+                        if (taskSnapshotProgress != null) {
+                            newSample.put(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL, taskSnapshotProgress);
+                        }
 
                         uniqueData.add(newSample);
                     }
@@ -538,7 +569,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
         try {
-            TaskDto taskDto = taskService.findByTaskId(new org.bson.types.ObjectId(taskId), "nodeCurrentEventTimestamp", "syncType", "snapshotDoneAt", "currentEventTimestamp");
+            TaskDto taskDto = taskService.findByTaskId(new org.bson.types.ObjectId(taskId), "nodeCurrentEventTimestamp", "syncType", "snapshotDoneAt", "currentEventTimestamp", "attrs.milestone");
             if (taskDto != null) {
                 cache.put(taskId, taskDto);
                 return taskDto;
