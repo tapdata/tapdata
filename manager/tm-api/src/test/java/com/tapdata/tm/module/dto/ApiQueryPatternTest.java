@@ -89,6 +89,28 @@ class ApiQueryPatternTest {
 	}
 
 	@Test
+	@DisplayName("平台真实算子：抽屉存的等值是 \"==\"（不是 mongo 风格 eq）——index[a] 必须匹配")
+	void platformEqualsOperatorIsEquality() {
+		// 抽屉「过滤条件」下拉的真实词表：['>', '==', '<', '>=', '<=', '!=', 'like', 'in']
+		// （tapdata-web shared.ts#operatorOptions），落库即 {"fieldName":"POLICY_ID","operator":"=="}。
+		Path path = new Path();
+		path.setWhere(Collections.singletonList(where("a", "==")));
+		ApiQueryPattern p = ApiQueryPattern.from(Collections.singletonList(path));
+		assertTrue(p.matches(idx("a")), "\"==\" 是平台等值算子，否则「匹配本 API」永不命中");
+	}
+
+	@Test
+	@DisplayName("平台真实算子：\"!=\" / \">=\" / \"like\" 不算等值（保守）")
+	void platformNonEqualityOperators() {
+		Path path = new Path();
+		path.setWhere(Arrays.asList(where("a", "!="), where("b", ">="), where("c", "like")));
+		ApiQueryPattern p = ApiQueryPattern.from(Collections.singletonList(path));
+		assertFalse(p.matches(idx("a")));
+		assertFalse(p.matches(idx("b")));
+		assertFalse(p.matches(idx("c")));
+	}
+
+	@Test
 	@DisplayName("operator 归一：$eq / EQ 均识别为等值")
 	void operatorNormalised() {
 		Path path = new Path();

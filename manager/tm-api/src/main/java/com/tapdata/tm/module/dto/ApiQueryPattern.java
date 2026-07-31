@@ -25,7 +25,14 @@ import java.util.Set;
 public final class ApiQueryPattern {
 
 	/** 索引服务端能以「首字段等值」命中的运算符（去 {@code $} 前缀、小写后比对）。 */
-	private static final Set<String> EQUALITY_OPS = Set.of("eq", "in");
+	/**
+	 * 等值算子。<b>平台真实词表</b>是抽屉「过滤条件」下拉的那套
+	 * （{@code ['>', '==', '<', '>=', '<=', '!=', 'like', 'in']}，见 tapdata-web {@code shared.ts#operatorOptions}），
+	 * 落库形如 {@code {"fieldName":"POLICY_ID","operator":"=="}}——<b>等值是 {@code "=="}</b>，不是 mongo 风格的
+	 * {@code eq}。曾只收 {@code eq}/{@code in}，导致「匹配本 API」在真实数据上永不命中（2026-07-30 实机验证所见）。
+	 * {@code eq}/{@code $eq} 一并容忍，兼容非抽屉来源（导入包 / CICD 直写）。
+	 */
+	private static final Set<String> EQUALITY_OPS = Set.of("==", "eq", "in");
 
 	private final Set<String> equalityFields;
 
