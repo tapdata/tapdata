@@ -894,18 +894,18 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 		String taskId = taskClient.getTask().getId().toHexString();
-		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask());
 		try {
 			removeTask(taskId);
-			obsLogger.trace(String.format("Remove memory task client succeed, task: %s[%s]",
-					taskClient.getTask().getName(), taskClient.getTask().getId()));
+			logger.trace("Remove memory task client succeed, task: {}[{}]",
+					taskClient.getTask().getName(), taskClient.getTask().getId());
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Remove memory task client failed, task: %s[%s]",
-					taskClient.getTask().getName(), taskClient.getTask().getId()), e);
+				taskClient.getTask().getName(), taskClient.getTask().getId()), e);
 		}
 		try {
 			destroyCache(taskClient);
-			obsLogger.trace(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()));
+			logger.trace("Destroy memory task client cache succeed, task: {}[{}]",
+					taskClient.getTask().getName(), taskClient.getTask().getId());
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()), e);
 		}

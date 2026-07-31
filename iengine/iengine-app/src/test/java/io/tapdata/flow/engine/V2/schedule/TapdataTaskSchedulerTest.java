@@ -63,6 +63,27 @@ public class TapdataTaskSchedulerTest {
 		ReflectionTestUtils.setField(tapdataTaskScheduler, "taskClientMap", taskClientMap);
 	}
 
+	@Test
+	void clearTaskCacheAfterStoppedShouldNotResumeCache() {
+		TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+		TaskDto task = mock(TaskDto.class);
+		ObjectId taskId = new ObjectId();
+		when(taskClient.getTask()).thenReturn(task);
+		when(task.getId()).thenReturn(taskId);
+		when(task.getName()).thenReturn("task");
+
+		try (MockedStatic<ObsLoggerFactory> factory = mockStatic(ObsLoggerFactory.class);
+				 MockedStatic<TmStatusService> tmStatusService = mockStatic(TmStatusService.class)) {
+
+			ReflectionTestUtils.invokeMethod(
+					tapdataTaskScheduler,
+					"clearTaskCacheAfterStopped",
+					taskClient);
+
+			factory.verifyNoInteractions();
+		}
+	}
+
 	@Nested
 	class ResetTaskRetryServiceIfNeedTest {
 		@DisplayName("test reset task retry service if need normal")

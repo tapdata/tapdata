@@ -1,6 +1,9 @@
 package io.tapdata.observable.logging.cache;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import net.openhft.chronicle.queue.ChronicleQueue;
+import net.openhft.chronicle.queue.ExcerptAppender;
+import net.openhft.chronicle.queue.ExcerptTailer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -8,11 +11,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -25,6 +30,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 class TaskCacheManagerIntegrationTest {
@@ -113,20 +119,25 @@ class TaskCacheManagerIntegrationTest {
     }
 
     @Test
-    void shouldNotReportDataLossAfterBothSinksConsumeGeneration() {
+    void shouldNotReportDataLossAfterBothSinksConsumeGeneration() throws IOException {
         CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
+        Path segments = tempDir.resolve("task-a").resolve("segments");
         try (TaskCacheManager manager = new TaskCacheManager(
                 tempDir,
-                new CacheObserveLogConfig(1L, 1),
+                new CacheObserveLogConfig(1L, 5),
                 (log, sink) -> {
                 },
                 audit,
                 false)) {
             assertTrue(manager.activateTask("task-a", "Task A"));
             assertTrue(manager.append(log("task-a", "Task A", "one")));
+            assertEquals(2L, generationCount(segments));
+
             assertTrue(manager.pollOnce(CacheLogSink.FILE));
+            assertEquals(2L, generationCount(segments));
+
             assertTrue(manager.pollOnce(CacheLogSink.TM));
-            assertTrue(manager.append(log("task-a", "Task A", "two")));
+            assertEquals(1L, generationCount(segments));
         }
 
         verify(audit).evict(
@@ -140,29 +151,61 @@ class TaskCacheManagerIntegrationTest {
     }
 
     @Test
-    void shouldRestoreConsumedStateWhenGenerationIsReopened() {
+    void shouldNeverReclaimActiveGeneration() throws IOException {
+        CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
+        Path segments = tempDir.resolve("task-a").resolve("segments");
         try (TaskCacheManager manager = new TaskCacheManager(
                 tempDir,
-                new CacheObserveLogConfig(1L, 1),
+                new CacheObserveLogConfig(1024L * 1024L, 5),
+                (log, sink) -> {
+                },
+                audit,
+                false)) {
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            assertTrue(manager.append(log("task-a", "Task A", "one")));
+            assertTrue(manager.pollOnce(CacheLogSink.FILE));
+            assertTrue(manager.pollOnce(CacheLogSink.TM));
+            assertEquals(1L, generationCount(segments));
+        }
+
+        verify(audit, never()).evict(
+                anyString(),
+                anyString(),
+                anyLong(),
+                eq(false),
+                anyString(),
+                anyLong(),
+                anyLong());
+    }
+
+    @Test
+    void shouldReclaimConsumedGenerationWhenTaskIsReopened() throws IOException {
+        CacheObserveLogConfig config = new CacheObserveLogConfig(1L, 5);
+        Path segments = tempDir.resolve("task-a").resolve("segments");
+        Path sealedGeneration;
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                config,
                 (log, sink) -> {
                 },
                 mock(CacheObserveLogAudit.class),
                 false)) {
             assertTrue(manager.activateTask("task-a", "Task A"));
             assertTrue(manager.append(log("task-a", "Task A", "one")));
-            assertTrue(manager.pollOnce(CacheLogSink.FILE));
-            assertTrue(manager.pollOnce(CacheLogSink.TM));
+            sealedGeneration = generationPaths(segments).get(0);
         }
+        consumeGeneration(sealedGeneration);
 
         CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
         try (TaskCacheManager manager = new TaskCacheManager(
                 tempDir,
-                new CacheObserveLogConfig(1L, 0),
+                config,
                 (log, sink) -> {
                 },
                 audit,
                 false)) {
             assertTrue(manager.activateTask("task-a", "Task A"));
+            assertEquals(1L, generationCount(segments));
         }
 
         verify(audit).evict(
@@ -170,6 +213,106 @@ class TaskCacheManagerIntegrationTest {
                 eq("Task A"),
                 anyLong(),
                 eq(false),
+                anyString(),
+                anyLong(),
+                anyLong());
+    }
+
+    @Test
+    void shouldNotReclaimWhileAnotherSinkDispatchIsInFlight() throws Exception {
+        CountDownLatch fileDispatcherEntered = new CountDownLatch(1);
+        CountDownLatch releaseFileDispatcher = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Path segments = tempDir.resolve("task-a").resolve("segments");
+        CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                new CacheObserveLogConfig(1L, 5),
+                (log, sink) -> {
+                    if (sink == CacheLogSink.FILE) {
+                        fileDispatcherEntered.countDown();
+                        try {
+                            releaseFileDispatcher.await(5L, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                },
+                audit,
+                false)) {
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            assertTrue(manager.append(log("task-a", "Task A", "one")));
+
+            Future<Boolean> filePoll = executor.submit(() -> manager.pollOnce(CacheLogSink.FILE));
+            assertTrue(fileDispatcherEntered.await(5L, TimeUnit.SECONDS));
+            assertTrue(manager.pollOnce(CacheLogSink.TM));
+            assertEquals(2L, generationCount(segments));
+
+            releaseFileDispatcher.countDown();
+            assertTrue(filePoll.get(5L, TimeUnit.SECONDS));
+            assertEquals(1L, generationCount(segments));
+        } finally {
+            releaseFileDispatcher.countDown();
+            executor.shutdownNow();
+        }
+
+        verify(audit).evict(
+                eq("task-a"),
+                eq("Task A"),
+                anyLong(),
+                eq(false),
+                anyString(),
+                anyLong(),
+                anyLong());
+    }
+
+    @Test
+    void shouldKeepFailedDispatchGenerationUntilForcedEviction() throws IOException {
+        Path segments = tempDir.resolve("task-a").resolve("segments");
+        CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                new CacheObserveLogConfig(1L, 1),
+                (log, sink) -> {
+                    if (sink == CacheLogSink.FILE) {
+                        throw new IllegalStateException("file dispatch failed");
+                    }
+                },
+                audit,
+                false)) {
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            assertTrue(manager.append(log("task-a", "Task A", "one")));
+
+            assertFalse(manager.pollOnce(CacheLogSink.FILE));
+            assertTrue(manager.pollOnce(CacheLogSink.TM));
+            assertEquals(2L, generationCount(segments));
+            verify(audit, never()).evict(
+                    anyString(),
+                    anyString(),
+                    anyLong(),
+                    eq(false),
+                    anyString(),
+                    anyLong(),
+                    anyLong());
+        }
+
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                new CacheObserveLogConfig(1L, 1),
+                (log, sink) -> {
+                },
+                audit,
+                false)) {
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            assertEquals(2L, generationCount(segments));
+            assertTrue(manager.append(log("task-a", "Task A", "two")));
+        }
+
+        verify(audit).evict(
+                eq("task-a"),
+                eq("Task A"),
+                anyLong(),
+                eq(true),
                 anyString(),
                 anyLong(),
                 anyLong());
@@ -250,8 +393,69 @@ class TaskCacheManagerIntegrationTest {
     }
 
     @Test
-    void shouldStopResumeAndDeleteWithoutLateRecreation() {
+    void shouldContinueLastGenerationAfterManagerRestart() throws IOException {
+        CacheObserveLogConfig config = new CacheObserveLogConfig(1024L * 1024L, 2);
+        Path segments = tempDir.resolve("task-a").resolve("segments");
+        Path activeGeneration;
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                config,
+                (log, sink) -> {
+                },
+                mock(CacheObserveLogAudit.class),
+                false)) {
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            assertTrue(manager.append(log("task-a", "Task A", "before restart")));
+            activeGeneration = onlyGeneration(segments);
+            assertTrue(Files.isRegularFile(activeGeneration.resolve(CacheGeneration.PAYLOAD_BYTES_FILE)));
+        }
+
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                config,
+                (log, sink) -> {
+                },
+                mock(CacheObserveLogAudit.class),
+                false)) {
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            assertTrue(manager.append(log("task-a", "Task A", "after restart")));
+            assertEquals(activeGeneration, onlyGeneration(segments));
+        }
+    }
+
+    @Test
+    void shouldRecoverLegacyPayloadBytesBeforeContinuingLastGeneration() throws IOException {
+        CacheObserveLogConfig config = new CacheObserveLogConfig(1024L * 1024L, 2);
+        Path segments = tempDir.resolve("task-a").resolve("segments");
+        Path activeGeneration = segments.resolve("00000000000000000000");
+        Files.createDirectories(activeGeneration);
+        MonitoringLogCodec codec = new MonitoringLogCodec();
+        try (ChronicleQueue queue = ChronicleQueue.singleBuilder(activeGeneration).build();
+             ExcerptAppender appender = queue.acquireAppender()) {
+            appender.writeDocument(wire ->
+                    codec.write(wire.getValueOut(), log("task-a", "Task A", "legacy record")));
+        }
+
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                config,
+                (log, sink) -> {
+                },
+                mock(CacheObserveLogAudit.class),
+                false)) {
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            assertTrue(manager.append(log("task-a", "Task A", "after migration")));
+            assertEquals(activeGeneration, onlyGeneration(segments));
+            assertEquals(
+                    Long.BYTES,
+                    Files.size(activeGeneration.resolve(CacheGeneration.PAYLOAD_BYTES_FILE)));
+        }
+    }
+
+    @Test
+    void shouldStopResumeAndDeleteWithoutLateRecreation() throws IOException {
         CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
+        Path segments = tempDir.resolve("task-a").resolve("segments");
         try (TaskCacheManager manager = new TaskCacheManager(
                 tempDir,
                 new CacheObserveLogConfig(1024L * 1024L, 2),
@@ -261,12 +465,14 @@ class TaskCacheManagerIntegrationTest {
                 false)) {
             assertTrue(manager.activateTask("task-a", "Task A"));
             assertTrue(manager.append(log("task-a", "Task A", "before stop")));
+            Path activeGeneration = onlyGeneration(segments);
 
             manager.deactivateTask("task-a");
             assertFalse(manager.append(log("task-a", "Task A", "late")));
 
             assertTrue(manager.activateTask("task-a", "Task A"));
             assertTrue(manager.append(log("task-a", "Task A", "after resume")));
+            assertEquals(activeGeneration, onlyGeneration(segments));
 
             manager.deleteTaskCache("task-a");
             assertFalse(Files.exists(tempDir.resolve("task-a")));
@@ -385,5 +591,40 @@ class TaskCacheManagerIntegrationTest {
                 .taskName(taskName)
                 .message(message)
                 .build();
+    }
+
+    private Path onlyGeneration(Path segments) throws IOException {
+        List<Path> generations = generationPaths(segments);
+        assertEquals(1, generations.size());
+        return generations.get(0);
+    }
+
+    private long generationCount(Path segments) throws IOException {
+        return generationPaths(segments).size();
+    }
+
+    private List<Path> generationPaths(Path segments) throws IOException {
+        try (Stream<Path> paths = Files.list(segments)) {
+            return paths.filter(Files::isDirectory)
+                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                    .collect(java.util.stream.Collectors.toList());
+        }
+    }
+
+    private void consumeGeneration(Path generation) {
+        try (ChronicleQueue queue = ChronicleQueue.singleBuilder(generation).build();
+             ExcerptTailer fileTailer = queue.createTailer(CacheGeneration.FILE_TAILER_ID);
+             ExcerptTailer tmTailer = queue.createTailer(CacheGeneration.TM_TAILER_ID)) {
+            consume(fileTailer);
+            consume(tmTailer);
+        }
+    }
+
+    private void consume(ExcerptTailer tailer) {
+        while (tailer.readDocument(wire -> {
+            // Advancing the named Tailer persists its next-read position.
+        })) {
+            // Consume the complete generation.
+        }
     }
 }

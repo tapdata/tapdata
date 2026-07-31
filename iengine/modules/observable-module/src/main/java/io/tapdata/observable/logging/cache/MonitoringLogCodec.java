@@ -54,6 +54,23 @@ public class MonitoringLogCodec {
         valueOut.writeString(logTags);
         valueOut.writeString(data);
 
+        return measure(log, date, dynamicDescriptionParameters, logTags, data);
+    }
+
+    long measure(MonitoringLogsDto log) {
+        String date = new SimpleDateFormat(DATE_PATTERN).format(log.getDate());
+        String dynamicDescriptionParameters = dynamicDescriptionParameters(log);
+        String logTags = String.join(",",
+                CollectionUtils.isNotEmpty(log.getLogTags()) ? log.getLogTags() : new ArrayList<>(0));
+        String data = data(log);
+        return measure(log, date, dynamicDescriptionParameters, logTags, data);
+    }
+
+    private long measure(MonitoringLogsDto log,
+                         String date,
+                         String dynamicDescriptionParameters,
+                         String logTags,
+                         String data) {
         return Long.BYTES
                 + utf8Bytes(date)
                 + utf8Bytes(log.getLevel())

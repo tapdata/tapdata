@@ -8,7 +8,7 @@ public class CacheObserveLogConfig {
     static final String MAX_FILE_SIZE_MB_KEY = "observe.log.cache.maxFileSizeMB";
     static final String MAX_BACKUP_INDEX_KEY = "observe.log.cache.maxBackupIndex";
     static final int DEFAULT_MAX_FILE_SIZE_MB = 100;
-    static final int DEFAULT_MAX_BACKUP_INDEX = 2;
+    static final int DEFAULT_MAX_BACKUP_INDEX = 5;
     private static final long BYTES_PER_MB = 1024L * 1024L;
     private static final Logger LOGGER = LogManager.getLogger(CacheObserveLogConfig.class);
 

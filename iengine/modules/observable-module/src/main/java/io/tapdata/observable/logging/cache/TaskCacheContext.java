@@ -70,6 +70,7 @@ class TaskCacheContext {
             config = currentConfig;
             taskName = name;
             openInventory();
+            reclaimFullyConsumed();
             enforceRetention();
             persistTaskName();
             state = State.ACTIVE;
@@ -138,6 +139,7 @@ class TaskCacheContext {
 
     boolean poll(CacheLogSink sink) {
         MonitoringLogsDto log = null;
+        CacheGeneration dispatchedGeneration = null;
         lock.lock();
         try {
             if (state != State.ACTIVE) {
@@ -146,6 +148,7 @@ class TaskCacheContext {
             for (CacheGeneration generation : generations.values()) {
                 log = generation.poll(sink);
                 if (log != null) {
+                    dispatchedGeneration = generation;
                     break;
                 }
             }
@@ -155,7 +158,13 @@ class TaskCacheContext {
         if (log == null) {
             return false;
         }
-        dispatcher.dispatch(log, sink);
+        boolean succeeded = false;
+        try {
+            dispatcher.dispatch(log, sink);
+            succeeded = true;
+        } finally {
+            completeDispatch(dispatchedGeneration, succeeded);
+        }
         return true;
     }
 
@@ -204,7 +213,9 @@ class TaskCacheContext {
         }
         if (generations.isEmpty()) {
             createGeneration(0L);
+            return;
         }
+        generations.lastEntry().getValue().initializePayloadBytes();
     }
 
     private Map.Entry<Long, CacheGeneration> generationEntry(Path path) {
@@ -228,6 +239,7 @@ class TaskCacheContext {
     private CacheGeneration createGeneration(long id) throws IOException {
         Path path = taskPath.resolve(SEGMENTS_DIR).resolve(String.format("%020d", id));
         CacheGeneration generation = new CacheGeneration(id, path, codec);
+        generation.initializePayloadBytes();
         generations.put(id, generation);
         return generation;
     }
@@ -236,11 +248,38 @@ class TaskCacheContext {
         while (generations.size() > config.getMaxBackupIndex()) {
             evictOldest();
         }
+        if (!generations.isEmpty()) {
+            generations.lastEntry().getValue().seal();
+        }
         createGeneration(nextGenerationId);
     }
 
     private void enforceRetention() throws IOException {
         while (generations.size() - 1 > config.getMaxBackupIndex()) {
+            evictOldest();
+        }
+    }
+
+    private void completeDispatch(CacheGeneration generation, boolean succeeded) {
+        lock.lock();
+        try {
+            generation.completeDispatch(succeeded);
+            if (succeeded && state == State.ACTIVE) {
+                reclaimFullyConsumed();
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Reclaim consumed task cache failed: " + taskId, e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void reclaimFullyConsumed() throws IOException {
+        while (generations.size() > 1) {
+            CacheGeneration oldest = generations.firstEntry().getValue();
+            if (!oldest.isFullyConsumed()) {
+                return;
+            }
             evictOldest();
         }
     }
