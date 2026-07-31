@@ -3,7 +3,11 @@ package com.tapdata.tm.module.dto;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.tm.commons.base.IDataPermissionDto;
+import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
+import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.module.entity.ApiAlarmConfig;
@@ -72,6 +76,16 @@ public class ModulesDto extends BaseDto implements IDataPermissionDto {
 
     private String connectionId;
 
+    /**
+     * API 所属连接的 _id。
+     *
+     * <p>TAP-12425：必须显式声明 ObjectId 的序列化器。{@code JsonUtil} 的 ObjectMapper 没有注册全局
+     * ObjectId 处理器，缺省会把 ObjectId 当普通 bean 序列化成 {@code {"timestamp":..,"date":..}}，
+     * 回读时只能落到 ObjectId 的无参/单参构造上，得到一个全新的随机 ObjectId。项目导出/导入
+     * （group_import）走的正是 {@code JsonUtil}，导致导入后的 API 指向一个根本不存在的连接。</p>
+     */
+    @JsonSerialize(using = ObjectIdSerialize.class)
+    @JsonDeserialize(using = ObjectIdDeserialize.class)
     private ObjectId connection;
     private String access_token;
     private String user;
