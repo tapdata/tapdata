@@ -14,13 +14,13 @@ class MongoUriUtilTest {
         @Test
         void testNormal() {
             String string = MongoUriUtil.uriByParam(new HashMap<>());
-            Assertions.assertEquals("mongodb://null:27017/null", string);
+            Assertions.assertEquals("mongodb://null/null", string);
         }
         @Test
         void testNormal1() {
             Map<String, Object> config = new HashMap<>();
-            config.put("host", "localhost");
-            config.put("port", 80);
+            // TAP-12220: MongoDB 标准模式的连接配置没有独立的 port 字段，host 自带端口
+            config.put("host", "localhost:80");
             config.put("additionalString", "id=i");
             String string = MongoUriUtil.uriByParam(config);
             Assertions.assertEquals("mongodb://localhost:80/null?id=i", string);
@@ -28,8 +28,7 @@ class MongoUriUtilTest {
         @Test
         void testNormal2() {
             Map<String, Object> config = new HashMap<>();
-            config.put("host", "localhost");
-            config.put("port", 80);
+            config.put("host", "localhost:80");
             config.put("additionalString", "id=i");
             config.put("user", "test");
             config.put("password", "password");
