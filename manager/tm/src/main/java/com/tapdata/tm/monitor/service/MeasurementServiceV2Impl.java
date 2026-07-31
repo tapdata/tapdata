@@ -10,7 +10,6 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.task.dto.Milestone;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
