@@ -52,6 +52,14 @@ public class ModulesListVo extends BaseVo implements IDataPermissionDto {
     @JsonProperty("listtags")
     private List<Tag> listtags;
 
+    /**
+     * TAP-12057 · 服务型索引（ADR-0001）。列表接口是 API 编辑抽屉的数据源，少这个属性会让
+     * {@code BeanUtil.deepCloneList(items, ModulesListVo.class)} 按属性名拷贝时静默丢弃，
+     * 现象是「保存成功、重开抽屉索引不见了」（2026-07-31 实机验证所见）。
+     * 载体齐全性由 {@code ServingIndexesCarrierTest} 钉住。
+     */
+    private List<com.tapdata.tm.module.dto.ServingIndex> servingIndexes;
+
     private String project;
     private String createType;
 

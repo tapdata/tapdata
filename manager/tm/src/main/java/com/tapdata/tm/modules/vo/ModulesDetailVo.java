@@ -51,6 +51,12 @@ public class ModulesDetailVo extends BaseVo {
     @JsonProperty("listtags")
     private List listTags;
 
+    /**
+     * TAP-12057 · 服务型索引（ADR-0001）。详情接口同样按属性名拷贝（{@code BeanUtil.copyProperties}），
+     * 少这个属性即静默丢弃。载体齐全性由 {@code ServingIndexesCarrierTest} 钉住。
+     */
+    private List<com.tapdata.tm.module.dto.ServingIndex> servingIndexes;
+
     private String project;
     private String createType;
 

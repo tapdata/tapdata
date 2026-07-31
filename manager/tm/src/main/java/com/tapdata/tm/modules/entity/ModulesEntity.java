@@ -58,6 +58,16 @@ public class ModulesEntity extends BaseEntity implements IDataPermissionEntity {
 
     private List<Tag> listtags;
 
+    /**
+     * TAP-12057 · 服务型索引（ADR-0001：存 Modules，不存 MetadataInstances.indices）。
+     *
+     * <p>必须与 {@code ModulesDto.servingIndexes} <b>同名同型</b>：{@code BaseService.convertToEntity} 走
+     * {@code BeanUtils.copyProperties(dto, entity)} 按属性名拷贝，实体上缺这个属性即被静默丢弃——
+     * 现象是「保存成功但索引没了」（2026-07-31 实机验证所见）。入库前已由 {@code ServingIndexNormalizer}
+     * 归一化（按有序字段集确定性排序 + 方向显式）。</p>
+     */
+    private List<com.tapdata.tm.module.dto.ServingIndex> servingIndexes;
+
     private String createType;
 
     @Field("is_deleted")

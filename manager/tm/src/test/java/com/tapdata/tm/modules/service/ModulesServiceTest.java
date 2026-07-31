@@ -54,6 +54,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -291,6 +292,27 @@ class ModulesServiceTest {
 		}
 
 		@Test
+		@DisplayName("servingIndexes 必须落到持久化实体：DTO→Entity 属性拷贝不得丢字段（P2-1 存储链路）")
+		void test_servingIndexes_survivesDtoToEntityCopy() throws Exception {
+			// BaseService.convertToEntity 用 BeanUtils.copyProperties(dto, entity) 按属性名拷贝：
+			// ModulesEntity 少一个同名属性 → 静默丢弃，现象是「保存成功但索引没了」（2026-07-31 实机验证所见）。
+			java.beans.PropertyDescriptor pd =
+					org.springframework.beans.BeanUtils.getPropertyDescriptor(ModulesEntity.class, "servingIndexes");
+			assertNotNull(pd, "ModulesEntity 缺 servingIndexes 属性，DTO 上的索引不会被持久化");
+
+			ModulesDto dto = new ModulesDto();
+			dto.setServingIndexes(new ArrayList<>(Collections.singletonList(
+					new ServingIndex("ix_a", true,
+							new ArrayList<>(Collections.singletonList(new ServingIndexField("a", true)))))));
+			ModulesEntity entity = new ModulesEntity();
+			org.springframework.beans.BeanUtils.copyProperties(dto, entity);
+
+			Object copied = pd.getReadMethod().invoke(entity);
+			assertNotNull(copied, "拷贝后实体上的 servingIndexes 不应为 null");
+			assertEquals(1, ((List<?>) copied).size());
+		}
+
+		@Test
 		@DisplayName("save 归一化 servingIndexes：乱序入参保存后确定性有序 + 方向显式（P2-1，防索引静默丢失/漂移）")
 		void test_save_normalizesServingIndexes() {
 			modulesDto = new ModulesDto();
@@ -304,7 +326,13 @@ class ModulesServiceTest {
 
 			modulesService.save(modulesDto, userDetail);
 
-			List<ServingIndex> out = modulesDto.getServingIndexes();
+			// 断言落在**持久化边界**（交给 repository 的实体），而不是入参 DTO：BaseService.save 在
+			// repository.save 之后会 BeanUtils.copyProperties(entity, dto) 回拷，本用例的 repository 是
+			// 全 null 的 mock 实体，回拷会把 DTO 上的值抹掉。要的是「存进去的那份是归一化的」。
+			ArgumentCaptor<ModulesEntity> saved = ArgumentCaptor.forClass(ModulesEntity.class);
+			verify(modulesRepository).save(saved.capture(), any());
+			List<ServingIndex> out = saved.getValue().getServingIndexes();
+			assertNotNull(out, "servingIndexes 必须随实体落库（ModulesEntity 需有同名属性）");
 			assertEquals(2, out.size());
 			// 签名 "a:-1" < "b:1" → ix_a 在前；方向规范：a(降序)→FALSE，b(null 升序)→显式 TRUE
 			assertEquals("a", out.get(0).getFields().get(0).getField());
