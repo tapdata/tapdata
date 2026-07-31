@@ -44,7 +44,9 @@ public enum MessageType {
 
 	PIPE_CLUSTER("pipeCluster"),
 	TEST_EXTERNAL_STORAGE("testExternalStorage"),
-	DROP_TABLE("dropTable");
+	DROP_TABLE("dropTable"),
+	/** 服务型索引读回（TAP-12057 / ADR-0009）：浏览器经 ws 发起，sender 由 TM 填真实会话键 */
+	QUERY_INDEXES("queryIndexes");
 
 	private String type;
 
