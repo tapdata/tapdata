@@ -9,10 +9,11 @@ import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.ValueOut;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -22,12 +23,22 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class MonitoringLogCodec {
-    private static final Logger LOGGER = LoggerFactory.getLogger(MonitoringLogCodec.class);
+    private static final Logger LOGGER = LogManager.getLogger(MonitoringLogCodec.class);
     private static final String DATE_PATTERN = "yyyy-MM-dd HH:mm:ss.SSS";
     private static final String EMPTY_JSON_ARRAY = "[]";
 
     public void write(ValueOut valueOut, MonitoringLogsDto log) {
-        valueOut.writeString(new SimpleDateFormat(DATE_PATTERN).format(log.getDate()));
+        writeAndMeasure(valueOut, log);
+    }
+
+    long writeAndMeasure(ValueOut valueOut, MonitoringLogsDto log) {
+        String date = new SimpleDateFormat(DATE_PATTERN).format(log.getDate());
+        String dynamicDescriptionParameters = dynamicDescriptionParameters(log);
+        String logTags = String.join(",",
+                CollectionUtils.isNotEmpty(log.getLogTags()) ? log.getLogTags() : new ArrayList<>(0));
+        String data = data(log);
+
+        valueOut.writeString(date);
         valueOut.writeString(log.getLevel());
         valueOut.writeString(log.getErrorStack());
         valueOut.writeString(log.getMessage());
@@ -39,10 +50,25 @@ public class MonitoringLogCodec {
         valueOut.writeString(log.getNodeName());
         valueOut.writeString(log.getErrorCode());
         valueOut.writeString(log.getFullErrorCode());
-        valueOut.writeString(dynamicDescriptionParameters(log));
-        valueOut.writeString(String.join(",",
-                CollectionUtils.isNotEmpty(log.getLogTags()) ? log.getLogTags() : new ArrayList<>(0)));
-        valueOut.writeString(data(log));
+        valueOut.writeString(dynamicDescriptionParameters);
+        valueOut.writeString(logTags);
+        valueOut.writeString(data);
+
+        return Long.BYTES
+                + utf8Bytes(date)
+                + utf8Bytes(log.getLevel())
+                + utf8Bytes(log.getErrorStack())
+                + utf8Bytes(log.getMessage())
+                + utf8Bytes(log.getTaskId())
+                + utf8Bytes(log.getTaskRecordId())
+                + utf8Bytes(log.getTaskName())
+                + utf8Bytes(log.getNodeId())
+                + utf8Bytes(log.getNodeName())
+                + utf8Bytes(log.getErrorCode())
+                + utf8Bytes(log.getFullErrorCode())
+                + utf8Bytes(dynamicDescriptionParameters)
+                + utf8Bytes(logTags)
+                + utf8Bytes(data);
     }
 
     public MonitoringLogsDto read(ValueIn valueIn) {
@@ -125,5 +151,9 @@ public class MonitoringLogCodec {
         } catch (ParseException e) {
             throw new IllegalArgumentException("Invalid monitoring log date: " + value, e);
         }
+    }
+
+    private long utf8Bytes(String value) {
+        return value == null ? 0L : value.getBytes(StandardCharsets.UTF_8).length;
     }
 }

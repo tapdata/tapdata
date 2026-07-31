@@ -1,7 +1,7 @@
 package io.tapdata.observable.logging.cache;
 
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
+import org.apache.logging.log4j.Logger;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -50,5 +50,23 @@ class CacheObserveLogAuditTest {
                 eq(100L),
                 eq(200L));
         verify(logger, never()).warn(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void shouldWarnWhenIngressQueueRejectsLog() {
+        Logger logger = mock(Logger.class);
+        CacheObserveLogAudit audit = new CacheObserveLogAudit(logger);
+
+        audit.writeRejected("task-id", "task-name", "WARN", 3L, 100, 100);
+
+        verify(logger).warn(
+                eq("CACHE_OBSERVE_LOG_WRITE_REJECTED taskId={} taskName={} level={} "
+                        + "reason=ingress_queue_full dropped={} queueSize={} queueCapacity={}"),
+                eq("task-id"),
+                eq("task-name"),
+                eq("WARN"),
+                eq(3L),
+                eq(100),
+                eq(100));
     }
 }

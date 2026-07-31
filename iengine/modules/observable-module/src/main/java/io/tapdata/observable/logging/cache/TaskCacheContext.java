@@ -10,6 +10,9 @@ import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
@@ -26,41 +29,45 @@ class TaskCacheContext {
 
     private final String taskId;
     private final Path taskPath;
-    private final CacheObserveLogConfig config;
     private final MonitoringLogCodec codec;
     private final CacheObserveLogAudit audit;
     private final LongSupplier totalCacheBytes;
     private final CacheLogDispatcher dispatcher;
     private final ReentrantLock lock = new ReentrantLock();
     private final NavigableMap<Long, CacheGeneration> generations = new TreeMap<>();
+    private final ArrayBlockingQueue<MonitoringLogsDto> ingressQueue;
+    private final AtomicBoolean writeScheduled = new AtomicBoolean();
+    private final AtomicLong rejectedWrites = new AtomicLong();
 
+    private CacheObserveLogConfig config;
     private String taskName;
-    private State state = State.STOPPED;
+    private volatile State state = State.STOPPED;
 
     TaskCacheContext(String taskId,
                      String taskName,
                      Path taskPath,
-                     CacheObserveLogConfig config,
                      MonitoringLogCodec codec,
                      CacheObserveLogAudit audit,
                      LongSupplier totalCacheBytes,
-                     CacheLogDispatcher dispatcher) {
+                     CacheLogDispatcher dispatcher,
+                     int ingressCapacity) {
         this.taskId = taskId;
         this.taskName = taskName;
         this.taskPath = taskPath;
-        this.config = config;
         this.codec = codec;
         this.audit = audit;
         this.totalCacheBytes = totalCacheBytes;
         this.dispatcher = dispatcher;
+        this.ingressQueue = new ArrayBlockingQueue<>(ingressCapacity);
     }
 
-    boolean activate(String name) {
+    boolean activate(String name, CacheObserveLogConfig currentConfig) {
         lock.lock();
         try {
             if (state == State.DELETED) {
                 return false;
             }
+            config = currentConfig;
             taskName = name;
             openInventory();
             enforceRetention();
@@ -93,21 +100,63 @@ class TaskCacheContext {
         }
     }
 
+    boolean enqueue(MonitoringLogsDto log) {
+        if (state != State.ACTIVE) {
+            return false;
+        }
+        if (ingressQueue.offer(log)) {
+            return true;
+        }
+        long dropped = rejectedWrites.incrementAndGet();
+        if (dropped == 1L || dropped % 1000L == 0L) {
+            audit.writeRejected(
+                    taskId,
+                    taskName,
+                    log.getLevel(),
+                    dropped,
+                    ingressQueue.size(),
+                    ingressQueue.size() + ingressQueue.remainingCapacity());
+        }
+        return false;
+    }
+
+    MonitoringLogsDto pollPendingWrite() {
+        return ingressQueue.poll();
+    }
+
+    boolean hasPendingWrites() {
+        return !ingressQueue.isEmpty();
+    }
+
+    boolean markWriteScheduled() {
+        return writeScheduled.compareAndSet(false, true);
+    }
+
+    void clearWriteScheduled() {
+        writeScheduled.set(false);
+    }
+
     boolean poll(CacheLogSink sink) {
+        MonitoringLogsDto log = null;
         lock.lock();
         try {
             if (state != State.ACTIVE) {
                 return false;
             }
             for (CacheGeneration generation : generations.values()) {
-                if (generation.poll(sink, dispatcher)) {
-                    return true;
+                log = generation.poll(sink);
+                if (log != null) {
+                    break;
                 }
             }
-            return false;
         } finally {
             lock.unlock();
         }
+        if (log == null) {
+            return false;
+        }
+        dispatcher.dispatch(log, sink);
+        return true;
     }
 
     void stop() {
@@ -117,6 +166,7 @@ class TaskCacheContext {
                 return;
             }
             state = State.STOPPED;
+            ingressQueue.clear();
             closeGenerations();
         } finally {
             lock.unlock();
@@ -127,6 +177,7 @@ class TaskCacheContext {
         lock.lock();
         try {
             state = State.DELETED;
+            ingressQueue.clear();
             closeGenerations();
             try {
                 CacheGeneration.deleteRecursively(taskPath);

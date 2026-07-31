@@ -1,7 +1,7 @@
 package io.tapdata.observable.logging.cache;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Path;
 
@@ -13,7 +13,7 @@ class CacheObserveLogAudit {
     private final Logger logger;
 
     CacheObserveLogAudit() {
-        this(LoggerFactory.getLogger(CacheObserveLogAudit.class));
+        this(LogManager.getLogger(CacheObserveLogAudit.class));
     }
 
     CacheObserveLogAudit(Logger logger) {
@@ -58,5 +58,22 @@ class CacheObserveLogAudit {
                 file,
                 exception.getMessage(),
                 exception);
+    }
+
+    void writeRejected(String taskId,
+                       String taskName,
+                       String level,
+                       long dropped,
+                       int queueSize,
+                       int queueCapacity) {
+        logger.warn(
+                "CACHE_OBSERVE_LOG_WRITE_REJECTED taskId={} taskName={} level={} "
+                        + "reason=ingress_queue_full dropped={} queueSize={} queueCapacity={}",
+                taskId,
+                taskName,
+                level,
+                dropped,
+                queueSize,
+                queueCapacity);
     }
 }

@@ -4,8 +4,8 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import io.tapdata.common.SettingService;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,20 +18,24 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 public class TaskCacheManager implements AutoCloseable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(TaskCacheManager.class);
+    private static final Logger LOGGER = LogManager.getLogger(TaskCacheManager.class);
     private static final Pattern SAFE_TASK_ID = Pattern.compile("[A-Za-z0-9._-]{1,256}");
     private static final String CACHE_DIRECTORY = "CacheObserveLogs";
+    private static final int DEFAULT_INGRESS_CAPACITY = 10000;
+    private static final int WRITE_DRAIN_BATCH_SIZE = 256;
 
     private final Path rootPath;
-    private final CacheObserveLogConfig config;
+    private final Supplier<CacheObserveLogConfig> configSupplier;
     private final CacheLogDispatcher dispatcher;
     private final CacheObserveLogAudit audit;
     private final MonitoringLogCodec codec = new MonitoringLogCodec();
@@ -42,16 +46,63 @@ public class TaskCacheManager implements AutoCloseable {
     private final AtomicInteger filePollCursor = new AtomicInteger();
     private final AtomicInteger tmPollCursor = new AtomicInteger();
     private final ExecutorService pollers;
+    private final ExecutorService cacheWriters;
+    private final int ingressCapacity;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     TaskCacheManager(Path rootPath,
                      CacheObserveLogConfig config,
                      CacheLogDispatcher dispatcher,
                      CacheObserveLogAudit audit,
                      boolean startPolling) {
+        this(rootPath, () -> config, dispatcher, audit, startPolling);
+    }
+
+    TaskCacheManager(Path rootPath,
+                     Supplier<CacheObserveLogConfig> configSupplier,
+                     CacheLogDispatcher dispatcher,
+                     CacheObserveLogAudit audit,
+                     boolean startPolling) {
+        this(
+                rootPath,
+                configSupplier,
+                dispatcher,
+                audit,
+                startPolling,
+                startPolling ? Executors.newFixedThreadPool(2, writerThreadFactory()) : null,
+                DEFAULT_INGRESS_CAPACITY);
+    }
+
+    TaskCacheManager(Path rootPath,
+                     CacheObserveLogConfig config,
+                     CacheLogDispatcher dispatcher,
+                     CacheObserveLogAudit audit,
+                     boolean startPolling,
+                     ExecutorService cacheWriters,
+                     int ingressCapacity) {
+        this(
+                rootPath,
+                () -> config,
+                dispatcher,
+                audit,
+                startPolling,
+                cacheWriters,
+                ingressCapacity);
+    }
+
+    private TaskCacheManager(Path rootPath,
+                             Supplier<CacheObserveLogConfig> configSupplier,
+                             CacheLogDispatcher dispatcher,
+                             CacheObserveLogAudit audit,
+                             boolean startPolling,
+                             ExecutorService cacheWriters,
+                             int ingressCapacity) {
         this.rootPath = rootPath.toAbsolutePath().normalize();
-        this.config = config;
+        this.configSupplier = configSupplier;
         this.dispatcher = dispatcher;
         this.audit = audit;
+        this.cacheWriters = cacheWriters;
+        this.ingressCapacity = ingressCapacity;
         this.pollers = startPolling
                 ? Executors.newFixedThreadPool(2, pollerThreadFactory())
                 : null;
@@ -63,10 +114,9 @@ public class TaskCacheManager implements AutoCloseable {
     }
 
     public static TaskCacheManager createDefault(CacheLogDispatcher dispatcher) {
-        SettingService settingService = BeanUtil.getBean(SettingService.class);
         return new TaskCacheManager(
                 defaultRootPath(),
-                CacheObserveLogConfig.from(settingService),
+                () -> CacheObserveLogConfig.from(BeanUtil.getBean(SettingService.class)),
                 dispatcher,
                 new CacheObserveLogAudit(),
                 true);
@@ -77,20 +127,24 @@ public class TaskCacheManager implements AutoCloseable {
         if (taskPath == null || deletedTasks.contains(taskId)) {
             return false;
         }
+        CacheObserveLogConfig config = configSupplier.get();
         TaskCacheContext context = contexts.computeIfAbsent(taskId, id -> new TaskCacheContext(
                 id,
                 taskName,
                 taskPath,
-                config,
                 codec,
                 audit,
                 this::totalCacheBytes,
-                dispatcher));
-        return context.activate(taskName);
+                dispatcher,
+                ingressCapacity));
+        return context.activate(taskName, config);
     }
 
     public boolean append(MonitoringLogsDto log) {
-        if (log == null || StringUtils.isBlank(log.getTaskId()) || deletedTasks.contains(log.getTaskId())) {
+        if (closed.get()
+                || log == null
+                || StringUtils.isBlank(log.getTaskId())
+                || deletedTasks.contains(log.getTaskId())) {
             return false;
         }
         TaskCacheContext context = contexts.get(log.getTaskId());
@@ -98,11 +152,18 @@ public class TaskCacheManager implements AutoCloseable {
             return false;
         }
         try {
-            boolean appended = context.append(log);
-            if (appended) {
-                available.release();
+            if (cacheWriters == null) {
+                boolean appended = context.append(log);
+                if (appended) {
+                    available.release();
+                }
+                return appended;
             }
-            return appended;
+            boolean accepted = context.enqueue(log);
+            if (accepted) {
+                scheduleWrite(context);
+            }
+            return accepted;
         } catch (RuntimeException e) {
             LOGGER.warn("Append log to task CacheObserveLogs failed, taskId={}", log.getTaskId(), e);
             return false;
@@ -126,11 +187,11 @@ public class TaskCacheManager implements AutoCloseable {
                 id,
                 null,
                 taskPath,
-                config,
                 codec,
                 audit,
                 this::totalCacheBytes,
-                dispatcher));
+                dispatcher,
+                ingressCapacity));
         context.delete();
         contexts.remove(taskId, context);
     }
@@ -157,6 +218,9 @@ public class TaskCacheManager implements AutoCloseable {
 
     @Override
     public void close() {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
         if (pollers != null && running.compareAndSet(true, false)) {
             available.release(2);
             pollers.shutdownNow();
@@ -170,6 +234,53 @@ public class TaskCacheManager implements AutoCloseable {
         }
         for (TaskCacheContext context : contexts.values()) {
             context.stop();
+        }
+        if (cacheWriters != null) {
+            cacheWriters.shutdownNow();
+            try {
+                if (!cacheWriters.awaitTermination(5, TimeUnit.SECONDS)) {
+                    LOGGER.warn("CacheObserveLogs writers did not stop within timeout");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private void scheduleWrite(TaskCacheContext context) {
+        if (closed.get() || !context.markWriteScheduled()) {
+            return;
+        }
+        try {
+            cacheWriters.execute(() -> drainWrites(context));
+        } catch (RejectedExecutionException e) {
+            context.clearWriteScheduled();
+            if (!closed.get()) {
+                LOGGER.warn("Schedule CacheObserveLogs writer failed", e);
+            }
+        }
+    }
+
+    private void drainWrites(TaskCacheContext context) {
+        try {
+            int drained = 0;
+            MonitoringLogsDto log;
+            while (drained < WRITE_DRAIN_BATCH_SIZE
+                    && (log = context.pollPendingWrite()) != null) {
+                try {
+                    if (context.append(log)) {
+                        available.release();
+                    }
+                } catch (RuntimeException e) {
+                    LOGGER.warn("Append log to task CacheObserveLogs failed, taskId={}", log.getTaskId(), e);
+                }
+                drained++;
+            }
+        } finally {
+            context.clearWriteScheduled();
+            if (!closed.get() && context.hasPendingWrites()) {
+                scheduleWrite(context);
+            }
         }
     }
 
@@ -224,6 +335,19 @@ public class TaskCacheManager implements AutoCloseable {
             @Override
             public synchronized Thread newThread(Runnable runnable) {
                 Thread thread = new Thread(runnable, "CacheObserveLogs-Poller-" + index++);
+                thread.setDaemon(true);
+                return thread;
+            }
+        };
+    }
+
+    private static ThreadFactory writerThreadFactory() {
+        return new ThreadFactory() {
+            private int index;
+
+            @Override
+            public synchronized Thread newThread(Runnable runnable) {
+                Thread thread = new Thread(runnable, "CacheObserveLogs-Writer-" + index++);
                 thread.setDaemon(true);
                 return thread;
             }

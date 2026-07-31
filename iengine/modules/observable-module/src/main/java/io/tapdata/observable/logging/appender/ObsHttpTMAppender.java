@@ -69,8 +69,13 @@ public class ObsHttpTMAppender extends BaseTaskAppender<MonitoringLogsDto> {
 		if (!obsHttpTMLog4jAppender.isStarted()) {
 			return;
 		}
-		if (log.getLevel() != null && LogLevel.getLogLevel(log.getLevel()).getValue() >= LogLevel.INFO.getValue())
-			this.logger.info(logJson);
+		if (log.getLevel() != null && LogLevel.getLogLevel(log.getLevel()).getValue() >= LogLevel.INFO.getValue()) {
+			this.logger.log(toLog4jLevel(log.getLevel()), logJson);
+		}
+	}
+
+	static Level toLog4jLevel(String level) {
+		return Level.toLevel(level, Level.INFO);
 	}
 
 	@Override

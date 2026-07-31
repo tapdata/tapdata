@@ -24,6 +24,7 @@ class CacheGeneration implements AutoCloseable {
     private ChronicleQueue queue;
     private ExcerptTailer fileTailer;
     private ExcerptTailer tmTailer;
+    private long sizeBytes;
     private boolean open;
 
     CacheGeneration(long id, Path path, MonitoringLogCodec codec) throws IOException {
@@ -43,22 +44,22 @@ class CacheGeneration implements AutoCloseable {
 
     void append(MonitoringLogsDto log) {
         ensureOpen();
+        long[] appendedBytes = new long[1];
         try (ExcerptAppender appender = queue.acquireAppender()) {
-            appender.writeDocument(wire -> codec.write(wire.getValueOut(), log));
+            appender.writeDocument(wire ->
+                    appendedBytes[0] = codec.writeAndMeasure(wire.getValueOut(), log));
         }
+        sizeBytes += appendedBytes[0];
     }
 
-    boolean poll(CacheLogSink sink, CacheLogDispatcher dispatcher) {
+    MonitoringLogsDto poll(CacheLogSink sink) {
         if (!open) {
-            return false;
+            return null;
         }
         ExcerptTailer tailer = sink == CacheLogSink.FILE ? fileTailer : tmTailer;
         AtomicReference<MonitoringLogsDto> record = new AtomicReference<>();
         boolean read = tailer.readDocument(wire -> record.set(codec.read(wire.getValueIn())));
-        if (read) {
-            dispatcher.dispatch(record.get(), sink);
-        }
-        return read;
+        return read ? record.get() : null;
     }
 
     boolean isFullyConsumed() {
@@ -67,11 +68,12 @@ class CacheGeneration implements AutoCloseable {
         }
         long lastIndex = queue.lastIndex();
         return lastIndex == Long.MIN_VALUE
-                || (fileTailer.lastReadIndex() >= lastIndex && tmTailer.lastReadIndex() >= lastIndex);
+                || (hasConsumedThrough(fileTailer, lastIndex)
+                && hasConsumedThrough(tmTailer, lastIndex));
     }
 
-    long sizeBytes() throws IOException {
-        return directorySize(path);
+    long sizeBytes() {
+        return sizeBytes;
     }
 
     void deleteClosed() throws IOException {
@@ -131,6 +133,7 @@ class CacheGeneration implements AutoCloseable {
         queue = ChronicleQueue.singleBuilder(path).build();
         fileTailer = queue.createTailer(FILE_TAILER_ID).disableThreadSafetyCheck(true);
         tmTailer = queue.createTailer(TM_TAILER_ID).disableThreadSafetyCheck(true);
+        sizeBytes = directorySize(path);
         open = true;
     }
 
@@ -138,6 +141,12 @@ class CacheGeneration implements AutoCloseable {
         if (!open) {
             throw new IllegalStateException("Cache generation is closed: " + path);
         }
+    }
+
+    private boolean hasConsumedThrough(ExcerptTailer tailer, long lastIndex) {
+        // A named tailer's index is its persisted next-read position. lastReadIndex is
+        // process-local and resets to zero when the tailer is reopened.
+        return tailer.index() > lastIndex;
     }
 
     private static long fileSize(Path file) {
