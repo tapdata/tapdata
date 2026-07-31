@@ -21,7 +21,7 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
-import io.tapdata.schema.TapTableUtil;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventResult;
@@ -31,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,17 +62,18 @@ public class QueryIndexesHandler extends BaseEventHandler {
 	@Override
 	public Object handle(Map event, SendMessage sendMessage) {
 		if (MapUtils.isEmpty(event)) {
-			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.QUERY_INDEXES_RESULT, "Event data cannot be empty");
-		}
-		String tableName = String.valueOf(event.getOrDefault(TABLE_NAME, ""));
-		if (StringUtils.isBlank(tableName) || "null".equals(tableName)) {
-			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.QUERY_INDEXES_RESULT, "tableName cannot be empty");
+			return failed("Event data cannot be empty", null, null, null, null);
 		}
 		// reqId：前端生成、经 pipe 事件透传，在结果里回显作为关联键（本 pipe 通道无内建请求-应答关联）。见 ADR-0009。
+		// 先解析：**任何**失败路径都要带上它回发，否则前端匹配不上、只能干等超时。
 		String reqId = Objects.toString(event.get(REQ_ID), null);
+		String tableName = String.valueOf(event.getOrDefault(TABLE_NAME, ""));
+		if (StringUtils.isBlank(tableName) || "null".equals(tableName)) {
+			return failed("tableName cannot be empty", null, null, reqId, null);
+		}
 		Object connObj = event.get(CONNECTIONS);
 		if (!(connObj instanceof Map)) {
-			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.QUERY_INDEXES_RESULT, "connections cannot be empty");
+			return failed("connections cannot be empty", null, tableName, reqId, null);
 		}
 		Connections connections = JSONUtil.map2POJO((Map) connObj, Connections.class);
 		try {
@@ -83,9 +85,26 @@ public class QueryIndexesHandler extends BaseEventHandler {
 		} catch (Throwable t) {
 			String msg = String.format("Query indexes failed, table: %s, message: %s", tableName, t.getMessage());
 			logger.error(msg, t);
-			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.QUERY_INDEXES_RESULT, msg,
+			return failed(msg, connections.getId(), tableName, reqId,
 					t instanceof Exception ? (Exception) t : new RuntimeException(t));
 		}
+	}
+
+	/**
+	 * 失败结果同样挂 {@link QueryIndexesResult} 载荷（关联键 + 空索引列表）。
+	 *
+	 * <p>{@code WebSocketEventResult.handleFailed} 只填 {@code error}/{@code status}、{@code result} 为 null；
+	 * 而前端按 {@code reqId}（连同 connectionId + tableName）关联在飞请求——不带载荷的失败包会被前端直接忽略，
+	 * 表现为「点了加载没反应、60s 后超时」而不是即时报错（2026-07-30 实机验证所见）。</p>
+	 */
+	private WebSocketEventResult failed(String error, String connectionId, String tableName, String reqId, Exception e) {
+		WebSocketEventResult result = null == e
+				? WebSocketEventResult.handleFailed(WebSocketEventResult.Type.QUERY_INDEXES_RESULT, error)
+				: WebSocketEventResult.handleFailed(WebSocketEventResult.Type.QUERY_INDEXES_RESULT, error, e);
+		QueryIndexesResult payload = new QueryIndexesResult(connectionId, tableName, Collections.emptyList());
+		payload.setReqId(reqId);
+		result.setResult(payload);
+		return result;
 	}
 
 	/**
@@ -106,7 +125,7 @@ public class QueryIndexesHandler extends BaseEventHandler {
 					clientMongoOperator,
 					associateId,
 					connections.getConfig(),
-					new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, connections.getId(), System.currentTimeMillis())),
+					new PdkTableMap(connectionScopedTableMap(connections)),
 					new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, connections.getId()), HazelcastUtil.getInstance()),
 					PdkStateMap.globalStateMap(HazelcastUtil.getInstance()),
 					InstanceFactory.instance(LogFactory.class).getLog()
@@ -124,6 +143,19 @@ public class QueryIndexesHandler extends BaseEventHandler {
 		} finally {
 			PDKIntegration.releaseAssociateId(associateId);
 		}
+	}
+
+	/**
+	 * 建节点用的表映射（seam）。本动作是<b>连接级</b>的、没有任务上下文，故用<b>空表映射</b>
+	 * （同 {@code ScriptExecutorsManager}）：目标表由 {@link #queryIndexes} 以 {@code new TapTable(tableName)}
+	 * 显式传给 PDK，节点本身不需要预热的表结构。
+	 *
+	 * <p><b>切勿</b>改回 {@code TapTableUtil.getTapTableMapByNodeId(…, connections.getId(), …)}：那条路径查 TM 的
+	 * {@code /MetadataInstances/node/tableMap}，只认<b>任务 DAG 节点 id</b>；传连接 id 会让 TM 在
+	 * {@code taskDto} 为 null 上抛 SystemError，整个读回以 ERROR 收场（2026-07-30 实机验证所见）。</p>
+	 */
+	protected TapTableMap<String, TapTable> connectionScopedTableMap(Connections connections) {
+		return TapTableMap.create(AutoInspectConstants.MODULE_NAME, connections.getId());
 	}
 
 	/** 平台自有库 uri（{@code TAPDATA_MONGO_URI}）；抽为 seam 便于两库红线用例注入。见 ADR-0002。 */
