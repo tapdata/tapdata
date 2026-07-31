@@ -4,6 +4,7 @@ import com.tapdata.tm.module.dto.ApiQueryPattern;
 import com.tapdata.tm.module.dto.LoadedServingIndex;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.ServingIndex;
+import com.tapdata.tm.module.dto.ServingIndexes;
 import com.tapdata.tm.module.dto.ServingIndexLoadPlanner;
 import com.tapdata.tm.module.dto.ServingIndexSignature;
 import com.tapdata.tm.modules.service.ModulesService;
@@ -60,13 +61,16 @@ public class ServingIndexLoadService {
 		return ServingIndexLoadPlanner.plan(indexes, pattern, thisApiSignatures, otherApiSignatures);
 	}
 
-	/** 一个 Module 的已收录索引 → 身份签名集（{@link ServingIndexSignature}）。 */
+	/**
+	 * 一个 Module 的<b>已声明</b>索引 → 身份签名集（{@link ServingIndexSignature}）。
+	 *
+	 * <p>只取 {@code collected=true}：Module 的 servingIndexes 里还存着「读回后未勾选、仅留在列表里」的，
+	 * 那些不是收录，不能让归因把它们报成「已被本/他 API 收录」。</p>
+	 */
 	private Set<String> signaturesOf(List<ServingIndex> servingIndexes) {
 		Set<String> out = new HashSet<>();
-		if (servingIndexes != null) {
-			for (ServingIndex si : servingIndexes) {
-				out.add(ServingIndexSignature.of(si));
-			}
+		for (ServingIndex si : ServingIndexes.collectedOnly(servingIndexes)) {
+			out.add(ServingIndexSignature.of(si));
 		}
 		return out;
 	}
@@ -89,7 +93,7 @@ public class ServingIndexLoadService {
 			if (sibling.getServingIndexes() == null) {
 				continue;
 			}
-			for (ServingIndex si : sibling.getServingIndexes()) {
+			for (ServingIndex si : ServingIndexes.collectedOnly(sibling.getServingIndexes())) {
 				out.putIfAbsent(ServingIndexSignature.of(si), sibling.getName());
 			}
 		}

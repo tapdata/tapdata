@@ -53,6 +53,12 @@ public final class ServingIndexNormalizer {
 				fields.add(new ServingIndexField(f.getField(), asc));
 			}
 		}
-		return new ServingIndex(idx.getName(), idx.getUnique(), fields);
+		// 身份之外的随附信息必须随拷贝带走，且用 setter 而非全参构造——后者会随字段增减改变元数，
+		// 每加一个字段就得改这里、漏了就静默丢（collected 丢了等于把未勾选项当成声明）。
+		ServingIndex copy = new ServingIndex(idx.getName(), idx.getUnique(), fields);
+		copy.setCollected(idx.getCollected());
+		copy.setAttribution(idx.getAttribution());
+		copy.setAttributionApi(idx.getAttributionApi());
+		return copy;
 	}
 }
