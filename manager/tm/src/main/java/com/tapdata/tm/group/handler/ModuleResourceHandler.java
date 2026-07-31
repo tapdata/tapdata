@@ -142,7 +142,12 @@ public class ModuleResourceHandler implements ResourceHandler {
         List<ModulesDto> modules = (List<ModulesDto>) resources;
 
         for (ModulesDto modulesDto : modules) {
-            String connectionId = modulesDto.getConnectionId();
+            // TAP-12425：datasource / connectionId 优先，connection 只作兜底——
+            // 历史导入可能把 connection 写成了一个不存在的 ObjectId，用它会导出错误的连接元数据。
+            String connectionId = modulesDto.getDataSource();
+            if (StringUtils.isBlank(connectionId)) {
+                connectionId = modulesDto.getConnectionId();
+            }
             if (StringUtils.isBlank(connectionId) && modulesDto.getConnection() != null) {
                 connectionId = modulesDto.getConnection().toHexString();
             }
