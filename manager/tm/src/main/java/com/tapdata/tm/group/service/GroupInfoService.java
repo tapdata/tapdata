@@ -50,6 +50,7 @@ import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.servingindex.ServingIndexLandingService;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
 import com.tapdata.tm.utils.BeanUtil;
@@ -174,6 +175,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     private com.tapdata.tm.user.service.UserService userService;
     private UserRepository userRepository;
     private com.tapdata.tm.role.service.RoleService roleService;
+    /** TAP-12057 · P3-1：API 导入落地服务型索引（Module 的 servingIndexes → 目标库建索引）。 */
+    private ServingIndexLandingService servingIndexLandingService;
 
     @Override
     protected void beforeSave(GroupInfoDto dto, UserDetail userDetail) {
@@ -1028,6 +1031,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, conMap, null, null);
+                // TAP-12057 · P3-1：声明已落库、conMap 已建立，此刻才谈得上把索引建到目标库（ADR-0002）
+                servingIndexLandingService.landAfterImport(toImport, conMap, user);
             }
 
             log.info("Async import apis completed, recordId={}, imported={}", recordId, toImport.size());
