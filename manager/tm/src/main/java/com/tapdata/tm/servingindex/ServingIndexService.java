@@ -9,6 +9,8 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.module.dto.ServingIndex;
+import com.tapdata.tm.module.dto.ServingIndexField;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +44,8 @@ public class ServingIndexService {
 
 	/** 引擎侧 {@code QueryIndexesHandler} 的 {@code @EventHandlerAnnotation(type=...)} 派发键。 */
 	static final String ACTION_TYPE = "queryIndexes";
+	/** 引擎侧 {@code CreateIndexHandler} 的派发键（P3-3 落地腿）。 */
+	static final String CREATE_ACTION_TYPE = "createIndex";
 	/** 面向连接的运维动作外层信封类型（与 testConnection 一致）。 */
 	static final String PIPE = "pipe";
 
@@ -66,7 +71,26 @@ public class ServingIndexService {
 	 */
 	public void sendQueryIndexes(DataSourceConnectionDto connectionDto, String tableName, String reqId,
 								 String sender, UserDetail user) {
-		// access-node 解析：与 testConnection（DataSourceServiceImpl#sendTestConnection）同款，避免打到连不上用户库的引擎。
+		String processId = resolveProcessId(connectionDto, tableName, user);
+		if (processId == null) {
+			return;
+		}
+
+		MessageQueueDto queueDto = new MessageQueueDto();
+		queueDto.setSender(sender);
+		queueDto.setReceiver(processId);
+		queueDto.setType(PIPE);
+		queueDto.setData(buildData(connectionDto, tableName, reqId));
+
+		log.info("build send query indexes pipe, processId = {}, table = {}, reqId = {}", processId, tableName, reqId);
+		messageQueueService.sendMessage(queueDto);
+	}
+
+	/**
+	 * 解析目标引擎的 {@code processId}：与 {@code testConnection}（{@code DataSourceServiceImpl#sendTestConnection}）
+	 * 同款的 access-node 解析，避免打到连不上用户库的引擎。找不到可用引擎返回 {@code null}（调用方不发消息）。
+	 */
+	private String resolveProcessId(DataSourceConnectionDto connectionDto, String tableName, UserDetail user) {
 		List<Worker> availableAgent;
 		if (StringUtils.isNotEmpty(connectionDto.getAccessNodeType())
 				&& AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())) {
@@ -83,20 +107,73 @@ public class ServingIndexService {
 			availableAgent = workerService.findAvailableAgent(user);
 		}
 		if (CollectionUtils.isEmpty(availableAgent)) {
-			log.info("send query indexes, agent not found, connection = {}, table = {}",
+			log.info("serving index action, agent not found, connection = {}, table = {}",
 					connectionDto.getName(), tableName);
+			return null;
+		}
+		return availableAgent.get(0).getProcessId();
+	}
+
+	/**
+	 * 触发「按连接 + 表建索引」（P3-3 落地腿）：解析目标引擎、非阻塞发射 {@code createIndex} pipe。
+	 *
+	 * <p>入参 {@code indexes} 必须是<b>已比对出的「将创建」那一桶</b>（{@code ServingIndexLandingPlanner}
+	 * 的产出）——引擎侧不做身份比对，收到什么就建什么。空桶不该走到这里（引擎会响亮失败）。</p>
+	 *
+	 * @param indexes 将创建的索引；按 {@code CreateIndexHandler} 契约拍平为
+	 *                {@code {name, unique, fields:[{field, asc}]}}
+	 * @param sender  引擎回推 {@code createIndexResult} 的地址；落地腿传
+	 *                {@link ServingIndexRendezvous#newToken()}（ADR-0012 D1）
+	 */
+	public void sendCreateIndexes(DataSourceConnectionDto connectionDto, String tableName, List<ServingIndex> indexes,
+								  String reqId, String sender, UserDetail user) {
+		String processId = resolveProcessId(connectionDto, tableName, user);
+		if (processId == null) {
 			return;
 		}
-		String processId = availableAgent.get(0).getProcessId();
+		Map<String, Object> data = buildData(connectionDto, tableName, reqId);
+		data.put("type", CREATE_ACTION_TYPE);
+		data.put("indexes", toWireIndexes(indexes));
 
 		MessageQueueDto queueDto = new MessageQueueDto();
 		queueDto.setSender(sender);
 		queueDto.setReceiver(processId);
 		queueDto.setType(PIPE);
-		queueDto.setData(buildData(connectionDto, tableName, reqId));
+		queueDto.setData(data);
 
-		log.info("build send query indexes pipe, processId = {}, table = {}, reqId = {}", processId, tableName, reqId);
+		log.info("build send create index pipe, processId = {}, table = {}, reqId = {}, indexes = {}",
+				processId, tableName, reqId, indexes == null ? 0 : indexes.size());
 		messageQueueService.sendMessage(queueDto);
+	}
+
+	/**
+	 * 按 {@code CreateIndexHandler} 契约拍平：{@code {name, unique, fields:[{field, asc}]}}。
+	 *
+	 * <p>刻意<b>不</b>直接塞 {@code ServingIndex} 让 Jackson 序列化——它还带 {@code collected}/
+	 * {@code attribution} 等纯展示字段（ADR-0011），那些不该出现在下发给引擎的动作载荷里。</p>
+	 */
+	private List<Map<String, Object>> toWireIndexes(List<ServingIndex> indexes) {
+		List<Map<String, Object>> wire = new ArrayList<>();
+		if (indexes == null) {
+			return wire;
+		}
+		for (ServingIndex index : indexes) {
+			List<Map<String, Object>> fields = new ArrayList<>();
+			if (index.getFields() != null) {
+				for (ServingIndexField field : index.getFields()) {
+					Map<String, Object> f = new HashMap<>();
+					f.put("field", field.getField());
+					f.put("asc", field.getAsc());
+					fields.add(f);
+				}
+			}
+			Map<String, Object> one = new HashMap<>();
+			one.put("name", index.getName());
+			one.put("unique", index.getUnique());
+			one.put("fields", fields);
+			wire.add(one);
+		}
+		return wire;
 	}
 
 	/**

@@ -19,6 +19,9 @@ public class ServingIndexLandingWorkList {
 
 	private List<UnresolvedServingIndexTarget> unresolved = new ArrayList<>();
 
+	/** 逐 target 的落地结果（P3-3 执行后填；只聚合不执行时为空）。 */
+	private List<ServingIndexTargetOutcome> outcomes = new ArrayList<>();
+
 	/** 本次导入是否完全无索引可落（两桶都空）——调用方据此直接收工、不打无谓的日志。 */
 	public boolean isEmpty() {
 		return targets.isEmpty() && unresolved.isEmpty();
