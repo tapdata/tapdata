@@ -7763,5 +7763,186 @@ class TaskServiceImplTest {
         }
     }
 
+    @Nested
+    @DisplayName("导入时恢复目标环境已删除的任务")
+    class RestoreDeletedTaskOnImportTest {
+
+        private TaskRepository repository;
+        private MongoTemplate mongoTemplate;
+        private ObjectId taskId;
+
+        @BeforeEach
+        void init() {
+            repository = mock(TaskRepository.class);
+            mongoTemplate = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(taskService, "repository", repository);
+            taskId = new ObjectId();
+        }
+
+        private TaskDto fileTask() {
+            TaskDto dto = new TaskDto();
+            dto.setId(taskId);
+            dto.setName("task3");
+            // 故意不是 edit，这样断言「恢复后状态是 edit」才能证明重置真的发生了
+            dto.setStatus(TaskDto.STATUS_RUNNING);
+            return dto;
+        }
+
+        private TaskDto existingTask(String status) {
+            TaskDto dto = new TaskDto();
+            dto.setId(taskId);
+            dto.setName("task3");
+            dto.setStatus(status);
+            return dto;
+        }
+
+        @Test
+        @DisplayName("checkTaskConfig：目标已删除时即使配置一致也算变更，且状态重置为 edit")
+        void testDeletedTargetIsAlwaysAChange() {
+            TaskDto taskDto = fileTask();
+            when(taskService.findOne(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(existingTask(TaskDto.STATUS_DELETING));
+            doCallRealMethod().when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+
+            boolean skipImport = taskService.checkTaskConfig(taskDto, user, ImportModeEnum.GROUP_IMPORT,
+                    new ArrayList<>(), new HashMap<>(), true);
+
+            assertFalse(skipImport, "目标环境已删除的任务必须算作有变更，不能跳过导入");
+            assertEquals(TaskDto.STATUS_EDIT, taskDto.getStatus(), "恢复时不能把 deleting 状态抄回来");
+        }
+
+        @Test
+        @DisplayName("回归：目标未删除且配置一致时仍然跳过导入")
+        void testUnchangedTaskIsStillSkipped() {
+            TaskDto taskDto = fileTask();
+            when(taskService.findOne(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(existingTask(TaskDto.STATUS_EDIT));
+            doCallRealMethod().when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+
+            boolean skipImport = taskService.checkTaskConfig(taskDto, user, ImportModeEnum.GROUP_IMPORT,
+                    new ArrayList<>(), new HashMap<>(), false);
+
+            assertTrue(skipImport, "配置一致的任务仍应跳过导入");
+        }
+
+        @Test
+        @DisplayName("回归：仅运行状态不同（导出时 running、目标是 stop）仍视为无变化")
+        void testRunningStatusDifferenceIsNotAChange() {
+            TaskDto taskDto = fileTask();
+            when(taskService.findOne(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(existingTask(TaskDto.STATUS_STOP));
+            doCallRealMethod().when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+
+            boolean skipImport = taskService.checkTaskConfig(taskDto, user, ImportModeEnum.GROUP_IMPORT,
+                    new ArrayList<>(), new HashMap<>(), false);
+
+            assertTrue(skipImport, "运行状态差异不算配置变更");
+        }
+
+        @Test
+        @DisplayName("reviveDeletedTask：清除 is_deleted 与 deleteName，并把状态拉回 edit")
+        void testReviveClearsDeletionMarkers() {
+            when(repository.getMongoOperations()).thenReturn(mongoTemplate);
+            doCallRealMethod().when(taskService).reviveDeletedTask(any(ObjectId.class));
+
+            taskService.reviveDeletedTask(taskId);
+
+            org.mockito.ArgumentCaptor<Update> updateCaptor = org.mockito.ArgumentCaptor.forClass(Update.class);
+            verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(TaskEntity.class));
+            Document updateObject = updateCaptor.getValue().getUpdateObject();
+            Document set = (Document) updateObject.get("$set");
+            Document unset = (Document) updateObject.get("$unset");
+            assertEquals(false, set.get("is_deleted"), "必须显式清除删除标记");
+            assertEquals(TaskDto.STATUS_EDIT, set.get("status"), "必须把状态从 deleting 拉回 edit");
+            assertNotNull(unset, "必须清掉删除时写入的 deleteName");
+            assertTrue(unset.containsKey("deleteName"), "必须清掉删除时写入的 deleteName");
+        }
+
+        @Test
+        @DisplayName("isDeletedTask：is_deleted 已置位或停在 deleting/delete_failed 的记录都算删除态")
+        void testIsDeletedTaskQueriesBothDeletionStates() {
+            doCallRealMethod().when(taskService).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            when(taskService.findAll(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(Collections.singletonList(new TaskEntity()));
+
+            assertTrue(taskService.isDeletedTask(taskId, user));
+
+            org.mockito.ArgumentCaptor<Query> queryCaptor = org.mockito.ArgumentCaptor.forClass(Query.class);
+            verify(taskService).findAll(queryCaptor.capture(), any(UserDetail.class));
+            String queryJson = queryCaptor.getValue().getQueryObject().toJson();
+            assertTrue(queryJson.contains("is_deleted"), "查询要覆盖 is_deleted 已置位的记录");
+            assertTrue(queryJson.contains(TaskDto.STATUS_DELETING), "查询要覆盖仍停在 deleting 的记录");
+            assertTrue(queryJson.contains(TaskDto.STATUS_DELETE_FAILED), "查询要覆盖 delete_failed 的记录");
+        }
+
+        @Test
+        @DisplayName("isDeletedTask：查不到删除态记录时返回 false")
+        void testIsDeletedTaskReturnsFalseForLivingTask() {
+            doCallRealMethod().when(taskService).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            when(taskService.findAll(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            assertFalse(taskService.isDeletedTask(taskId, user));
+        }
+
+        @Test
+        @DisplayName("batchImport：目标已删除时先复活再走覆盖导入")
+        void testBatchImportRevivesDeletedTaskBeforeImport() {
+            TaskDto taskDto = fileTask();
+            doReturn(true).when(taskService).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            doReturn(false).when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+            doNothing().when(taskService).reviveDeletedTask(any(ObjectId.class));
+            doNothing().when(taskService).handleGroupImportTaskMode(any(), any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(anyList(), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyMap(), anyMap(), anyList());
+
+            taskService.batchImport(new ArrayList<>(Collections.singletonList(taskDto)), user,
+                    ImportModeEnum.GROUP_IMPORT, new ArrayList<>(), new HashMap<>(),
+                    new HashMap<>(), new HashMap<>(), new ArrayList<>());
+
+            verify(taskService, times(1)).reviveDeletedTask(taskId);
+            verify(taskService, times(1)).checkTaskConfig(eq(taskDto), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), eq(true));
+        }
+
+        @Test
+        @DisplayName("回归：导入副本 / 冲突即取消模式不做恢复，语义保持不变")
+        void testCopyAndCancelModesDoNotRestore() {
+            TaskDto taskDto = fileTask();
+            doReturn(false).when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+            doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(anyList(), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyMap(), anyMap(), anyList());
+
+            taskService.batchImport(new ArrayList<>(Collections.singletonList(taskDto)), user,
+                    ImportModeEnum.IMPORT_AS_COPY, new ArrayList<>(), new HashMap<>(),
+                    new HashMap<>(), new HashMap<>(), new ArrayList<>());
+
+            verify(taskService, never()).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            verify(taskService, never()).reviveDeletedTask(any(ObjectId.class));
+        }
+
+        @Test
+        @DisplayName("回归：目标未删除时不触发复活")
+        void testBatchImportDoesNotReviveLivingTask() {
+            TaskDto taskDto = fileTask();
+            doReturn(false).when(taskService).isDeletedTask(any(ObjectId.class), any(UserDetail.class));
+            doReturn(false).when(taskService).checkTaskConfig(any(TaskDto.class), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyBoolean());
+            doNothing().when(taskService).handleGroupImportTaskMode(any(), any(), any(), any(), any(), any(), any());
+            doCallRealMethod().when(taskService).batchImport(anyList(), any(UserDetail.class),
+                    any(ImportModeEnum.class), anyList(), anyMap(), anyMap(), anyMap(), anyList());
+
+            taskService.batchImport(new ArrayList<>(Collections.singletonList(taskDto)), user,
+                    ImportModeEnum.GROUP_IMPORT, new ArrayList<>(), new HashMap<>(),
+                    new HashMap<>(), new HashMap<>(), new ArrayList<>());
+
+            verify(taskService, never()).reviveDeletedTask(any(ObjectId.class));
+        }
+    }
 
 }

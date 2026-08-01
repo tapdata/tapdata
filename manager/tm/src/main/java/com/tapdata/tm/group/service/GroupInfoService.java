@@ -53,6 +53,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.servingindex.ServingIndexLandingService;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
+import com.tapdata.tm.task.utils.TaskDeletionState;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
@@ -1576,6 +1577,19 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
+    /**
+     * 这批 id 中在目标环境已处于删除态（is_deleted 已置位，或仍停在 deleting / delete_failed）的任务 id。
+     * 这类记录不参与配置比对：删除时任务被改过名，比对只会产出一条无意义的 name 变更，而不会触发恢复。
+     */
+    private Set<String> findDeletedTaskIds(Collection<ObjectId> taskIds, UserDetail user) {
+        if (CollectionUtils.isEmpty(taskIds)) {
+            return Collections.emptySet();
+        }
+        return taskService.findAll(TaskDeletionState.deletedQuery(taskIds), user).stream()
+                .map(task -> task.getId().toHexString())
+                .collect(Collectors.toSet());
+    }
+
     private ResourceDiff buildTaskDiff(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
         ResourceDiff diff = new ResourceDiff();
 
@@ -1616,10 +1630,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     : taskService
                         .findAllDto(new Query(Criteria.where("_id").in(regularTaskIds).and("is_deleted").ne(true)), user)
                         .stream().collect(Collectors.toMap(t -> t.getId().toHexString(), t -> t, (a, b) -> a));
+            // 已删除的任务必须算作变更（恢复），否则误删的任务再导入也找不回来。
+            // 只有删除是特例，其余运行状态差异仍按无变化处理。
+            Set<String> deletedTaskIds = findDeletedTaskIds(regularTaskIds, user);
             for (Map.Entry<TaskDto, String> entry : fileTaskEntries) {
                 TaskDto fileTask = entry.getKey();
                 String type = entry.getValue();
-                TaskDto existingTask = existingByKey.get(fileTask.getId().toHexString());
+                String fileTaskId = fileTask.getId().toHexString();
+                TaskDto existingTask = deletedTaskIds.contains(fileTaskId) ? null : existingByKey.get(fileTaskId);
                 if (existingTask == null) {
                     ResourceDiffItem item = new ResourceDiffItem(fileTask.getName(), type);
                     item.setSyncType(fileTask.getType());

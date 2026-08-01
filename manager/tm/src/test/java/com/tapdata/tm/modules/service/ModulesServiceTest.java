@@ -3087,4 +3087,44 @@ class ModulesServiceTest {
             assertEquals(0, result.getOutputCount());
         }
     }
+
+    @Nested
+    @DisplayName("导入时恢复目标环境已删除的 API")
+    class RestoreDeletedModuleOnImportTest {
+        private ModulesDto moduleDto;
+        private UserDetail user;
+        private ModulesRepository repository;
+
+        @BeforeEach
+        void setUp() {
+            modulesService = spy(new ModulesService(modulesRepository));
+            moduleDto = new ModulesDto();
+            moduleDto.setId(new ObjectId("662877df9179877be8b37075"));
+            moduleDto.setName("test_api");
+            // 目标环境这条记录已被 deleteLogicsById 置为 is_deleted:true
+            moduleDto.setIsDeleted(true);
+
+            user = mock(UserDetail.class);
+            repository = mock(ModulesRepository.class);
+            ReflectionTestUtils.setField(modulesService, "repository", repository);
+        }
+
+        /**
+         * ModulesEntity.isDeleted 是包装类型 Boolean：DTO 上为 null 时 buildUpdateSet 会跳过它，
+         * 目标环境里被删的同 _id 记录就会带着 is_deleted:true 留下来，导入报成功但 API 依然不可见。
+         * batchImport 目前靠入口处的 setIsDeleted(false) 兜住这一点——这条测试守住它，别被顺手删掉。
+         */
+        @Test
+        @DisplayName("batchImport 入口必须清除删除标记，被删的 API 才能恢复")
+        void testBatchImportClearsDeletedFlag() {
+            doNothing().when(modulesService).alignConnectionWithDataSource(any(ModulesDto.class));
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(Collections.singletonList(moduleDto), user,
+                    com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT, new HashMap<>(), new HashMap<>());
+
+            assertEquals(Boolean.FALSE, moduleDto.getIsDeleted(),
+                    "导入被删除的 API 时必须清除删除标记，否则它依然不可见");
+        }
+    }
 }
