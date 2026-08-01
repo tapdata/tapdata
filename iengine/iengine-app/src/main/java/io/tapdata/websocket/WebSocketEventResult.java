@@ -122,7 +122,8 @@ public class WebSocketEventResult implements Serializable {
 		DROP_TABLE("dropTable"),
 		DOWNLOAD_PDK_FILE_FLAG("downloadPdkFileFlag"),
 		PROGRESS_REPORTING("progressReporting"),
-		QUERY_INDEXES_RESULT("queryIndexesResult")
+		QUERY_INDEXES_RESULT("queryIndexesResult"),
+		CREATE_INDEX_RESULT("createIndexResult")
 		;
 
 		private String type;
