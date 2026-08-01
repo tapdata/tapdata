@@ -33,6 +33,7 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
+import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.utils.SpringContextHelper;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
@@ -2695,6 +2696,123 @@ public class GroupInfoServiceTest {
             assertTrue(diff.getAdd().stream().anyMatch(i -> "m_task".equals(i.getName()) && "migrate".equals(i.getType())));
             assertTrue(diff.getAdd().stream().anyMatch(i -> "s_task".equals(i.getName()) && "sync".equals(i.getType())));
             assertTrue(diff.getAdd().stream().anyMatch(i -> "v_task".equals(i.getName()) && "validate".equals(i.getType())));
+        }
+    }
+
+    @Nested
+    @DisplayName("buildTaskDiff: 目标环境已删除的任务判定为变更（恢复）")
+    class BuildTaskDiffDeletedRestoreTest {
+
+        private ResourceDiff invoke(Map<String, List<TaskUpAndLoadDto>> payloads) {
+            return ReflectionTestUtils.invokeMethod(groupInfoService, "buildTaskDiff", payloads, user);
+        }
+
+        private TaskUpAndLoadDto migrateTaskPayload(String id, String name) {
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
+            json.put("name", name);
+            json.put("type", "initial_sync+cdc");
+            json.put("syncType", "migrate");
+            return new TaskUpAndLoadDto(GroupConstants.COLLECTION_TASK, JsonUtil.toJsonUseJackson(json));
+        }
+
+        /** remove() 删除任务时会把 name 改成「原名_随机6位」并把原名存进 deleteName */
+        private TaskDto halfDeletedTask(ObjectId id, String originalName, String status) {
+            TaskDto dto = new TaskDto();
+            dto.setId(id);
+            dto.setName(originalName + "_ab12cd");
+            dto.setDeleteName(originalName);
+            dto.setStatus(status);
+            dto.setType("initial_sync+cdc");
+            dto.setSyncType("migrate");
+            return dto;
+        }
+
+        private TaskEntity idOnlyEntity(ObjectId id) {
+            TaskEntity entity = new TaskEntity();
+            entity.setId(id);
+            return entity;
+        }
+
+        @Test
+        @DisplayName("status=deleting 且已被改名 → 落 add 桶，不是 name 变更")
+        void testDeletingTaskIsRestoreNotNameChange() {
+            ObjectId taskId = new ObjectId();
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "MigrateTask.json", List.of(migrateTaskPayload(taskId.toHexString(), "task3")));
+
+            when(taskService.findAllDto(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(List.of(halfDeletedTask(taskId, "task3", TaskDto.STATUS_DELETING)));
+            when(taskService.findAll(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(List.of(idOnlyEntity(taskId)));
+
+            ResourceDiff diff = invoke(payloads);
+
+            assertEquals(1, diff.getAdd().size(), "被删除的任务应作为恢复项进入 add 桶");
+            assertEquals("task3", diff.getAdd().get(0).getName());
+            assertTrue(diff.getUpdate().isEmpty(), "不应把删除时的改名当成普通的 name 变更");
+        }
+
+        @Test
+        @DisplayName("status=delete_failed 且已被改名 → 落 add 桶")
+        void testDeleteFailedTaskIsRestore() {
+            ObjectId taskId = new ObjectId();
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "MigrateTask.json", List.of(migrateTaskPayload(taskId.toHexString(), "task3")));
+
+            when(taskService.findAllDto(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(List.of(halfDeletedTask(taskId, "task3", TaskDto.STATUS_DELETE_FAILED)));
+            when(taskService.findAll(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(List.of(idOnlyEntity(taskId)));
+
+            ResourceDiff diff = invoke(payloads);
+
+            assertEquals(1, diff.getAdd().size());
+            assertEquals("task3", diff.getAdd().get(0).getName());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("回归：is_deleted=true（查不到活跃记录）仍落 add 桶")
+        void testFullyDeletedTaskIsRestore() {
+            ObjectId taskId = new ObjectId();
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "MigrateTask.json", List.of(migrateTaskPayload(taskId.toHexString(), "task3")));
+
+            when(taskService.findAllDto(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(Collections.emptyList());
+            when(taskService.findAll(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(List.of(idOnlyEntity(taskId)));
+
+            ResourceDiff diff = invoke(payloads);
+
+            assertEquals(1, diff.getAdd().size());
+            assertEquals("task3", diff.getAdd().get(0).getName());
+            assertTrue(diff.getUpdate().isEmpty());
+        }
+
+        @Test
+        @DisplayName("回归：仅运行状态 stop→running、配置一致 → 既不 add 也不 update")
+        void testRunningStatusOnlyIsNotAChange() {
+            ObjectId taskId = new ObjectId();
+            Map<String, List<TaskUpAndLoadDto>> payloads = Map.of(
+                    "MigrateTask.json", List.of(migrateTaskPayload(taskId.toHexString(), "task2")));
+
+            TaskDto running = new TaskDto();
+            running.setId(taskId);
+            running.setName("task2");
+            running.setStatus(TaskDto.STATUS_RUNNING);
+            running.setType("initial_sync+cdc");
+            running.setSyncType("migrate");
+
+            when(taskService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(List.of(running));
+            when(taskService.findAll(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(Collections.emptyList());
+
+            ResourceDiff diff = invoke(payloads);
+
+            assertTrue(diff.getAdd().isEmpty(), "运行状态差异不算变更");
+            assertTrue(diff.getUpdate().isEmpty(), "运行状态差异不算变更");
         }
     }
 
