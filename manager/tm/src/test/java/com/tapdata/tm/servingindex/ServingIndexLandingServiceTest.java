@@ -227,4 +227,25 @@ class ServingIndexLandingServiceTest {
 		assertEquals("engine boom", work.getOutcomes().get(0).getError());
 		assertTrue(work.getOutcomes().get(1).isSucceeded(), "第二个集合照常走完");
 	}
+
+	@Test
+	@DisplayName("P3-4 dry-run：照样读回+比对出三桶，但一条索引都不建")
+	void previewComparesButNeverCreates() {
+		readbackReturns(ServingIndexReadback.success(
+				Collections.singletonList(existing("a_1", "a", true))));
+
+		com.tapdata.tm.module.dto.ServingIndexLandingReport report = service.preview(
+				Collections.singletonList(api("查客户", CONNECTION_ID, "CUSTOMER",
+						idx("a_1", "a", true), idx("b_-1", "b", false))),
+				conMap(), user);
+
+		com.tapdata.tm.module.dto.ServingIndexTargetReport target = report.getTargets().get(0);
+		assertEquals(1, target.getCreate().size(), "报告要照实说「会建 b_-1」");
+		assertEquals("b_-1", target.getCreate().get(0).getName());
+		assertEquals(1, target.getSkip().size());
+		org.mockito.Mockito.verify(servingIndexService, org.mockito.Mockito.never()).sendCreateIndexes(
+				org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+	}
 }

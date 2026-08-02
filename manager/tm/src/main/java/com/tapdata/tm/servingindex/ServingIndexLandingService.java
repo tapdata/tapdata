@@ -4,6 +4,8 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.ServingIndexLandingPlan;
+import com.tapdata.tm.module.dto.ServingIndexLandingReport;
+import com.tapdata.tm.module.dto.ServingIndexLandingReports;
 import com.tapdata.tm.module.dto.ServingIndexLandingPlanner;
 import com.tapdata.tm.module.dto.ServingIndexLandingTarget;
 import com.tapdata.tm.module.dto.ServingIndexLandingTargets;
@@ -11,6 +13,7 @@ import com.tapdata.tm.module.dto.ServingIndexTargetOutcome;
 import com.tapdata.tm.module.dto.ServingIndexLandingWorkList;
 import com.tapdata.tm.module.dto.UnresolvedServingIndexTarget;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -50,6 +53,7 @@ public class ServingIndexLandingService {
 	private final long readbackTimeoutMillis;
 	private final long createTimeoutMillis;
 
+	@Autowired
 	public ServingIndexLandingService(ServingIndexService servingIndexService, ServingIndexRendezvous rendezvous) {
 		this(servingIndexService, rendezvous, DEFAULT_READBACK_TIMEOUT_MILLIS, DEFAULT_CREATE_TIMEOUT_MILLIS);
 	}
@@ -77,14 +81,22 @@ public class ServingIndexLandingService {
 	public ServingIndexLandingWorkList landAfterImport(List<ModulesDto> importedModules,
 													   Map<String, DataSourceConnectionDto> conMap,
 													   UserDetail user) {
+		return land(importedModules, conMap, user, true);
+	}
+
+	private ServingIndexLandingWorkList land(List<ModulesDto> importedModules,
+											 Map<String, DataSourceConnectionDto> conMap,
+											 UserDetail user, boolean execute) {
 		ServingIndexLandingWorkList work = ServingIndexLandingTargets.from(importedModules, conMap);
+		// 无条件先打一行：导入是低频动作，刷不了屏；而「没被调用」与「调用了但没声明可落」
+		// 若都不打日志就在现场无从分辨——2026-08-01 实机查「为什么没日志」时正是卡在这。
+		log.info("serving index landing planned, modules = {}, conMap = {}, targets = {}, declared = {}, unresolved = {}",
+				importedModules == null ? 0 : importedModules.size(), conMap == null ? 0 : conMap.size(),
+				work.getTargets().size(), work.declaredCount(), work.getUnresolved().size());
 		if (work.isEmpty()) {
-			// 绝大多数导入不带索引声明：不打日志，免得刷屏。
 			return work;
 		}
 
-		log.info("serving index landing planned, targets = {}, declared = {}, unresolved = {}",
-				work.getTargets().size(), work.declaredCount(), work.getUnresolved().size());
 		for (ServingIndexLandingTarget target : work.getTargets()) {
 			log.info("serving index landing target, connection = {}({}), table = {}, declared = {}, from = {}",
 					target.getConnectionName(), target.getConnectionId(), target.getTableName(),
@@ -98,9 +110,20 @@ public class ServingIndexLandingService {
 
 		// 逐 target 执行，不首错即停：一个集合塌了不该拖累其余集合（P3-5 汇总口径）。
 		for (ServingIndexLandingTarget target : work.getTargets()) {
-			work.getOutcomes().add(apply(target, user));
+			work.getOutcomes().add(apply(target, user, execute));
 		}
 		return work;
+	}
+
+	/**
+	 * P3-4 · <b>dry-run</b>：只读回 + 比对 + 出分桶报告，<b>一条索引都不建</b>。
+	 *
+	 * <p>与 {@link #landAfterImport} 走同一条比对路径——报告若和真跑的结果不一致，报告就没有价值。
+	 * 唯一的差别是「将创建」那一桶不下发。</p>
+	 */
+	public ServingIndexLandingReport preview(List<ModulesDto> importedModules,
+											 Map<String, DataSourceConnectionDto> conMap, UserDetail user) {
+		return ServingIndexLandingReports.of(land(importedModules, conMap, user, false));
 	}
 
 	/**
@@ -110,7 +133,7 @@ public class ServingIndexLandingService {
 	 * 所以<b>绝不能</b>拿它当冲突判定——它只是第二道兜底（应对 query 与 create 之间的漂移窗口）。
 	 * 读回拿不到就<b>不建</b>：把失败当成「目标没有索引」，在只加不删语义下就是往目标库重复建索引。</p>
 	 */
-	private ServingIndexTargetOutcome apply(ServingIndexLandingTarget target, UserDetail user) {
+	private ServingIndexTargetOutcome apply(ServingIndexLandingTarget target, UserDetail user, boolean execute) {
 		ServingIndexTargetOutcome outcome = new ServingIndexTargetOutcome();
 		outcome.setConnectionId(target.getConnectionId());
 		outcome.setConnectionName(target.getConnectionName());
@@ -134,8 +157,8 @@ public class ServingIndexLandingService {
 		log.info("serving index landing plan, connection = {}, table = {}, create = {}, skip = {}, extra = {}",
 				target.getConnectionName(), target.getTableName(),
 				plan.getCreate().size(), plan.getSkip().size(), plan.getExtra().size());
-		if (plan.getCreate().isEmpty()) {
-			// 幂等成功：第二次连跑就走这里（plan 的验收口径「第二次全部 skip」）。
+		if (plan.getCreate().isEmpty() || !execute) {
+			// create 为空 = 幂等成功（验收口径「第二次全部 skip」）；!execute = dry-run，比对到此为止。
 			return outcome;
 		}
 

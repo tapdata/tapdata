@@ -78,6 +78,9 @@ public final class ServingIndexLandingTargets {
 			target.getDeclared().addAll(declared);
 			if (!isBlank(module.getName())) {
 				target.getSourceApis().add(module.getName());
+				for (ServingIndex declaration : declared) {
+					target.recordDeclaredBy(ServingIndexSignature.of(declaration), module.getName());
+				}
 			}
 		}
 		return work;

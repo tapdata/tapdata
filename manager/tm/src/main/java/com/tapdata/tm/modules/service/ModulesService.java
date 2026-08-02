@@ -159,6 +159,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private ApplicationService applicationService;
 	private DataSourceService dataSourceService;
 	private MetadataInstancesService metadataInstancesService;
+	/** TAP-12057 · P3-1：API 列表页导入这条腿也要落地服务型索引。 */
+	private com.tapdata.tm.servingindex.ServingIndexLandingService servingIndexLandingService;
 	private FileService fileService;
 	private ApiCallService apiCallService;
 	private DataSourceDefinitionService dataSourceDefinitionService;
@@ -1816,6 +1818,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			}
 			try {
 				batchImport(modulesDtos, user, importMode, conMap, metaMap);
+				// TAP-12057 · P3-1：声明已落库、conMap 已建立，此刻才谈得上把索引建到目标库（ADR-0002）
+				servingIndexLandingService.landAfterImport(modulesDtos, conMap, user);
 			} catch (Exception e) {
 				log.error("Modules.batchImport error", e);
 			}

@@ -7,6 +7,7 @@ import io.tapdata.entity.schema.TapIndexField;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -59,6 +60,7 @@ public class ServingIndexRendezvous {
 	private final Sleeper sleeper;
 	private final long pollIntervalMillis;
 
+	@Autowired
 	public ServingIndexRendezvous(MessageQueueService messageQueueService) {
 		this(messageQueueService, System::currentTimeMillis, Thread::sleep, DEFAULT_POLL_INTERVAL_MILLIS);
 	}

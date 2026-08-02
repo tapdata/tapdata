@@ -4,7 +4,9 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import lombok.Getter;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 一个落地工作项 = {@code (目标连接, 集合)} + 该桶上的声明并集。TAP-12057 · P3-1。
@@ -32,9 +34,26 @@ public class ServingIndexLandingTarget {
 	/** 贡献了本桶的 API（Module）名，按出现顺序。 */
 	private final List<String> sourceApis = new ArrayList<>();
 
+	/**
+	 * 身份签名 → 声明它的 API 名。P3-2 定的口径：<b>来源 API 不进逐条计划</b>，签名即天然 join key，
+	 * P3-4 出报告时按签名回查即可——所以这份归属留在工作项上，而不是塞进每条 {@link ServingIndex}。
+	 */
+	private final Map<String, List<String>> declaredBy = new LinkedHashMap<>();
+
 	public ServingIndexLandingTarget(DataSourceConnectionDto connection, String tableName) {
 		this.connection = connection;
 		this.tableName = tableName;
+	}
+
+	/** 记一条「这个签名由哪个 API 声明」；同一签名被多个 API 声明时按出现顺序累加、不去重成一个。 */
+	void recordDeclaredBy(String signature, String apiName) {
+		if (signature == null || signature.isEmpty() || apiName == null || apiName.isEmpty()) {
+			return;
+		}
+		List<String> apis = declaredBy.computeIfAbsent(signature, k -> new ArrayList<>());
+		if (!apis.contains(apiName)) {
+			apis.add(apiName);
+		}
 	}
 
 	/** 目标环境的连接 id（十六进制）；连接或其 id 为空时返回 {@code null}。 */

@@ -2501,11 +2501,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     .getOrDefault(ResourceType.MODULE, Collections.emptyMap());
             if (MapUtils.isNotEmpty(modules)) {
                 refreshModuleLastUpdate(modules.values());
-                moduleImportResult = modulesService.batchImport(new ArrayList<>(modules.values()), user, importMode, conMap, null);
+                List<ModulesDto> importedModules = new ArrayList<>(modules.values());
+                moduleImportResult = modulesService.batchImport(importedModules, user, importMode, conMap, null);
                 refreshMetadataLastUpdate(metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()));
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, conMap, null, null);
+                // TAP-12057 · P3-1：整包导入腿（CICD 部署走这条），与 executeImportApisStandaloneAsync 同一时序
+                servingIndexLandingService.landAfterImport(importedModules, conMap, user);
             } else {
                 moduleImportResult = null;
             }
