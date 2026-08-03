@@ -3,6 +3,7 @@ package com.tapdata.tm.servingindex;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ServingIndex;
 import com.tapdata.tm.module.dto.ServingIndexLandingPlan;
 import com.tapdata.tm.module.dto.ServingIndexLandingReport;
 import com.tapdata.tm.module.dto.ServingIndexLandingReports;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -119,6 +121,47 @@ public class ServingIndexLandingService {
 	}
 
 	/**
+	 * <b>建后复核</b>：把「将创建」那一桶建完之后再读回一次，确认它们真的在目标库里。P3-3 补强。
+	 *
+	 * <p>为什么不能只信回执（2026-08-02 实机现场）：声明降序 → 连接器按升序建（P0 方向 bug 的旧 jar）→
+	 * 撞上同键异名的既有索引 → Mongo 报 <b>85 IndexOptionsConflict</b> → 连接器 catch 后 continue、报「成功」
+	 * → <b>平台报 created=1，库里一条没多</b>。前置比对只决定「要不要建」，回执只转述连接器的说法；
+	 * 本工单要消灭的正是这种谎，所以多花一次读回把它兜住（与 <b>ADR-0005</b>「绝不依赖 85/86」同源）。</p>
+	 *
+	 * <p><b>拿不到复核结果 ≠ 没建成</b>：复核那次读回失败时不倒打一耙判失败，只是不声称已核实
+	 * （{@code createVerified} 保持 false，报告里看得见）。</p>
+	 */
+	private void verifyCreated(ServingIndexLandingTarget target, ServingIndexLandingPlan plan,
+							   ServingIndexTargetOutcome outcome, UserDetail user) {
+		if (outcome.getCreated().isEmpty()) {
+			// 一条都没建成就没什么可复核的，也不该白花一次读回。
+			return;
+		}
+		String token = rendezvous.newToken();
+		String reqId = "si-land-verify-" + token.substring(TOKEN_PREFIX_LENGTH);
+		servingIndexService.sendQueryIndexes(target.getConnection(), target.getTableName(), reqId, token, user);
+		ServingIndexReadback readback = rendezvous.await(token, reqId, readbackTimeoutMillis);
+		if (!readback.isUsable()) {
+			log.warn("serving index landing create unverified, table = {}, error = {}", target.getTableName(),
+					readback.isTimedOut() ? "read back timeout, engine offline or no reply" : readback.getError());
+			return;
+		}
+		outcome.setCreateVerified(true);
+
+		List<ServingIndex> claimed = new ArrayList<>();
+		for (ServingIndex creation : plan.getCreate()) {
+			if (outcome.getCreated().contains(creation.getName())) {
+				claimed.add(creation);
+			}
+		}
+		for (ServingIndex missing : ServingIndexLandingPlanner.missingAfterCreate(claimed, readback.getIndexes())) {
+			outcome.getCreated().remove(missing.getName());
+			outcome.getFailed().add(missing.getName() + ": reported created but absent on re-read, the connector may "
+					+ "have swallowed a conflict (error 85/86) or dropped the field direction");
+		}
+	}
+
+	/**
 	 * P3-5 · <b>收集汇总</b>——「不首错即停」的另一半。
 	 *
 	 * <p>逐 target 各走各的之后，得有一处把「建了什么 / 谁没建成 / 谁根本落不了地」一次说清：
@@ -194,6 +237,7 @@ public class ServingIndexLandingService {
 		}
 		outcome.getCreated().addAll(ack.getCreated());
 		outcome.getFailed().addAll(ack.getFailed());
+		verifyCreated(target, plan, outcome, user);
 		if (!outcome.isSucceeded()) {
 			log.warn("serving index landing had failures, table = {}, error = {}, failed = {}",
 					target.getTableName(), outcome.getError(), outcome.getFailed());

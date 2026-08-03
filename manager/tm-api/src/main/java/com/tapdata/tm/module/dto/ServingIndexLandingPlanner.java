@@ -3,9 +3,11 @@ package com.tapdata.tm.module.dto;
 import io.tapdata.entity.schema.TapIndex;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 落地侧自写索引比对（纯函数）。TAP-12057 · P3-2（方案 §3.4 / <b>ADR-0005</b>）。
@@ -121,5 +123,38 @@ public final class ServingIndexLandingPlanner {
 			}
 		}
 		return new ServingIndex(ServingIndexName.of(declaration), declaration.getUnique(), fields);
+	}
+
+	/**
+	 * <b>建后复核</b>：下发创建之后再读回一次，挑出「说建了、库里却没有」的那些。TAP-12057 · P3-3 补强。
+	 *
+	 * <p>为什么非做不可（2026-08-02 实机现场）：声明降序 → 连接器按升序建（P0 方向 bug 的旧 jar）→
+	 * 撞上同键异名的既有索引 → Mongo 报 <b>85 IndexOptionsConflict</b> → 连接器 catch 后 continue、
+	 * 对调用方报「成功」→ <b>平台报 created=1，库里一条没多</b>。前置比对只决定「要不要建」、回执只转述
+	 * 连接器的说法，<b>只有再读一次才知道真假</b>——与 <b>ADR-0005</b>「绝不依赖 errorCode 85/86」同一条理由。</p>
+	 *
+	 * <p>比对口径与 {@link #plan} 完全一致（有序字段 + 方向），故目标那条叫别的名字<b>不算</b>缺失。</p>
+	 *
+	 * @param intended 本轮下发创建的索引
+	 * @param actual   创建后再次读回的目标现有索引；{@code null} 视同一条都没有
+	 * @return {@code intended} 中在 {@code actual} 里找不到同签名者（顺序保持 {@code intended} 的顺序）
+	 */
+	public static List<ServingIndex> missingAfterCreate(List<ServingIndex> intended, List<TapIndex> actual) {
+		List<ServingIndex> missing = new ArrayList<>();
+		if (intended == null || intended.isEmpty()) {
+			return missing;
+		}
+		Set<String> present = new HashSet<>();
+		if (actual != null) {
+			for (TapIndex tapIndex : actual) {
+				present.add(ServingIndexSignature.of(ServingIndexMapper.toServingIndex(tapIndex)));
+			}
+		}
+		for (ServingIndex index : intended) {
+			if (index != null && !present.contains(ServingIndexSignature.of(index))) {
+				missing.add(index);
+			}
+		}
+		return missing;
 	}
 }

@@ -222,4 +222,47 @@ class ServingIndexLandingPlannerTest {
 		assertTrue(noDeclaration.getCreate().isEmpty());
 		assertEquals(1, noDeclaration.getExtra().size());
 	}
+
+	// ---- 建后复核（P3-3 补强）：连接器把 85/86 吞掉后照报"成功"，只有再读回一次才知道真假 ----
+
+	@Test
+	@DisplayName("说建了、库里也确实有 → 没有缺失")
+	void nothingMissingWhenCreatedIndexesAreReallyThere() {
+		List<ServingIndex> missing = ServingIndexLandingPlanner.missingAfterCreate(
+				declared(idx("b_-1", null, f("b", false))),
+				existing(tapIndex("a_1", null, tif("a", true)), tapIndex("b_-1", null, tif("b", false))));
+
+		assertTrue(missing.isEmpty());
+	}
+
+	@Test
+	@DisplayName("说建了、库里只有同字段的反向索引 → 缺失（正是连接器丢方向 + 吞 85 的现场）")
+	void reportsMissingWhenOnlyTheOppositeDirectionIsThere() {
+		List<ServingIndex> missing = ServingIndexLandingPlanner.missingAfterCreate(
+				declared(idx("b_-1", null, f("b", false))),
+				existing(tapIndex("b_1", null, tif("b", true))));
+
+		assertEquals(1, missing.size());
+		assertEquals("b_-1", missing.get(0).getName());
+	}
+
+	@Test
+	@DisplayName("复核按签名而非按名：目标那条叫别的名字也算建上了")
+	void matchesBySignatureNotByName() {
+		List<ServingIndex> missing = ServingIndexLandingPlanner.missingAfterCreate(
+				declared(idx("b_-1", null, f("b", false))),
+				existing(tapIndex("DBA_手工建的名字", null, tif("b", false))));
+
+		assertTrue(missing.isEmpty());
+	}
+
+	@Test
+	@DisplayName("null / 空入参安全：没说建过就没有缺失；读回为空则全部算缺失")
+	void missingAfterCreateIsNullSafe() {
+		assertTrue(ServingIndexLandingPlanner.missingAfterCreate(null, null).isEmpty());
+		assertTrue(ServingIndexLandingPlanner.missingAfterCreate(Collections.emptyList(),
+				existing(tapIndex("a_1", null, tif("a", true)))).isEmpty());
+		assertEquals(1, ServingIndexLandingPlanner.missingAfterCreate(
+				declared(idx("a_1", null, f("a", true))), null).size());
+	}
 }

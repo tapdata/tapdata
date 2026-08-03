@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -197,8 +198,11 @@ class ServingIndexLandingServiceTest {
     @Test
 	@DisplayName("目标缺索引 → 只把「将创建」那一桶发下去，已有的不重发")
 	void createsOnlyTheMissingBucket() {
+		// 第二次读回 = 建后复核，故要带上刚建成的 b_-1（真实库就是这样）
 		readbackReturns(ServingIndexReadback.success(
-				Collections.singletonList(existing("a_1", "a", true))));
+						Collections.singletonList(existing("a_1", "a", true))),
+				ServingIndexReadback.success(Arrays.asList(
+						existing("a_1", "a", true), existing("b_-1", "b", false))));
 		org.mockito.Mockito.when(rendezvous.awaitCreateAck(org.mockito.ArgumentMatchers.anyString(),
 						org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong()))
 				.thenReturn(ServingIndexCreateAck.of(Collections.singletonList("b_-1"), Collections.emptyList()));
@@ -343,5 +347,90 @@ class ServingIndexLandingServiceTest {
 				"要明确报「需 DDL 权限」（方案 §4），而不是裸抛驱动错误: " + errors);
 		assertTrue(errors.stream().anyMatch(line -> line.contains("not authorized on mdm")),
 				"驱动原文仍要留着——排查靠它: " + errors);
+	}
+
+	// ---- 建后复核（P3-3 补强，2026-08-02 实机现场：连接器吞 85 后照报成功）----
+
+	/** 首次读回（比对用）与建后复核那次读回，按调用次序分别打桩。 */
+	private void readbackReturns(ServingIndexReadback first, ServingIndexReadback second) {
+		org.mockito.Mockito.when(rendezvous.await(org.mockito.ArgumentMatchers.anyString(),
+						org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong()))
+				.thenReturn(first).thenReturn(second);
+	}
+
+	private void createAckReturns(ServingIndexCreateAck ack) {
+		org.mockito.Mockito.when(rendezvous.awaitCreateAck(org.mockito.ArgumentMatchers.anyString(),
+						org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong()))
+				.thenReturn(ack);
+	}
+
+	private ServingIndexLandingWorkList landOneDescendingDeclaration() {
+		return service.landAfterImport(
+				Collections.singletonList(api("查客户", CONNECTION_ID, "CUSTOMER", idx("b_-1", "b", false))),
+				conMap(), user);
+	}
+
+	@Test
+	@DisplayName("建完再读回一次确认真建上了")
+	void verifiesCreatedIndexesByReadingThemBack() {
+		readbackReturns(ServingIndexReadback.success(Collections.emptyList()),
+				ServingIndexReadback.success(Collections.singletonList(existing("b_-1", "b", false))));
+		createAckReturns(ServingIndexCreateAck.of(Collections.singletonList("b_-1"), Collections.emptyList()));
+
+		ServingIndexTargetOutcome outcome = landOneDescendingDeclaration().getOutcomes().get(0);
+
+		assertEquals(Collections.singletonList("b_-1"), outcome.getCreated());
+		assertTrue(outcome.getFailed().isEmpty());
+		assertTrue(outcome.isCreateVerified());
+		assertTrue(outcome.isSucceeded());
+		org.mockito.Mockito.verify(servingIndexService, org.mockito.Mockito.times(2)).sendQueryIndexes(
+				org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("CUSTOMER"),
+				org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+				org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	@DisplayName("连接器报「建了」但库里没有 → 判失败，不跟着连接器一起撒谎")
+	void catchesSwallowedConflictWhenTheIndexIsNotActuallyThere() {
+		// 现场就是这样：声明降序、旧连接器按升序建、撞同键异名 → 85 → 吞掉 → 回执报 created
+		readbackReturns(ServingIndexReadback.success(Collections.emptyList()),
+				ServingIndexReadback.success(Collections.singletonList(existing("b_1", "b", true))));
+		createAckReturns(ServingIndexCreateAck.of(Collections.singletonList("b_-1"), Collections.emptyList()));
+
+		ServingIndexTargetOutcome outcome = landOneDescendingDeclaration().getOutcomes().get(0);
+
+		assertTrue(outcome.getCreated().isEmpty(), "复核没找到就不能算建成: " + outcome.getCreated());
+		assertEquals(1, outcome.getFailed().size());
+		assertTrue(outcome.getFailed().get(0).startsWith("b_-1:"), outcome.getFailed().get(0));
+		assertTrue(outcome.isCreateVerified());
+		assertFalse(outcome.isSucceeded());
+	}
+
+	@Test
+	@DisplayName("一条都没建就不多跑一次读回——复核只为「说建了」的那些")
+	void skipsVerificationWhenNothingWasCreated() {
+		readbackReturns(ServingIndexReadback.success(
+				Collections.singletonList(existing("随便什么名", "b", false))));
+
+		landOneDescendingDeclaration();
+
+		org.mockito.Mockito.verify(servingIndexService, org.mockito.Mockito.times(1)).sendQueryIndexes(
+				org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("CUSTOMER"),
+				org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+				org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	@DisplayName("复核那次读回本身失败 → 不倒打一耙判失败，但也不声称已核实")
+	void keepsCreatedButUnverifiedWhenVerificationReadbackFails() {
+		readbackReturns(ServingIndexReadback.success(Collections.emptyList()),
+				ServingIndexReadback.timeout());
+		createAckReturns(ServingIndexCreateAck.of(Collections.singletonList("b_-1"), Collections.emptyList()));
+
+		ServingIndexTargetOutcome outcome = landOneDescendingDeclaration().getOutcomes().get(0);
+
+		assertEquals(Collections.singletonList("b_-1"), outcome.getCreated());
+		assertTrue(outcome.getFailed().isEmpty(), "拿不到复核结果不等于没建成");
+		assertFalse(outcome.isCreateVerified());
 	}
 }

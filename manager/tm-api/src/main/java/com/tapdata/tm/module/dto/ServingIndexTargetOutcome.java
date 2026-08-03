@@ -41,6 +41,9 @@ public class ServingIndexTargetOutcome implements Serializable {
 	/** 本 target 整体失败原因（读回失败 / 建索引整体失败 / 超时）；成功为 {@code null}。 */
 	private String error;
 
+	/** 建后复核是否完成（复核发现「说建了、库里没有」的记进 {@link #failed}）。 */
+	private boolean createVerified;
+
 	/** 本 target 是否成功走完（读回 → 比对 →（按需）创建，且无逐条失败）。 */
 	public boolean isSucceeded() {
 		return error == null && plan != null && failed.isEmpty();
