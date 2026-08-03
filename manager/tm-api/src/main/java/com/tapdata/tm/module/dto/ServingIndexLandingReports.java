@@ -62,6 +62,11 @@ public final class ServingIndexLandingReports {
 			targetReport.getSkip().add(entry);
 		}
 		for (ServingIndex spare : plan.getExtra()) {
+			if (ServingIndexes.isDefaultIdIndex(spare)) {
+				// _id_ 每张表都有、既删不得也声明不得，列在「目标多出」里是每份报告都带的噪声。
+				// 只从展示里去掉——它仍占着 64 上限里的一格，故下面的计数照算（ADR-0008）。
+				continue;
+			}
 			// 目标多出：不是任何 API 声明的，来源留空。
 			targetReport.getExtra().add(entry(spare, false, Collections.emptyMap()));
 		}

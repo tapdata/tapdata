@@ -84,7 +84,7 @@ class ServingIndexLandingReportsTest {
 				Arrays.asList(
 						api("查客户", "CUSTOMER", idx("a_1", null, f("a", true))),
 						api("查客户明细", "CUSTOMER", idx("b_-1", null, f("b", false)))),
-				Arrays.asList(existing("_id_", null, "_id", true), existing("随便什么名", null, "a", true)));
+				Arrays.asList(existing("DBA_手工建的", null, "c", true), existing("随便什么名", null, "a", true)));
 
 		ServingIndexTargetReport target = report.getTargets().get(0);
 		assertEquals(1, target.getCreate().size());
@@ -96,7 +96,7 @@ class ServingIndexLandingReportsTest {
 		assertEquals(Collections.singletonList("查客户"), target.getSkip().get(0).getSourceApis());
 
 		assertEquals(1, target.getExtra().size());
-		assertEquals("_id_", target.getExtra().get(0).getName());
+		assertEquals("DBA_手工建的", target.getExtra().get(0).getName());
 		assertTrue(target.getExtra().get(0).getSourceApis().isEmpty(), "目标多出的不是任何 API 声明的");
 	}
 
@@ -203,5 +203,23 @@ class ServingIndexLandingReportsTest {
 		assertEquals(1, summary.getTargets());
 		assertEquals(1, summary.getFailed());
 		assertFalse(summary.isClean());
+	}
+
+	@Test
+	@DisplayName("_id_ 不进「目标多出」的展示，但仍算进索引总数——64 上限是算它的")
+	void hidesDefaultIdIndexFromExtraButStillCountsIt() {
+		ServingIndexLandingReport report = reportOf(
+				Collections.singletonList(api("查客户", "CUSTOMER", idx("a_1", null, f("a", true)))),
+				Arrays.asList(existing("a_1", null, "a", true),
+						existing("_id_", null, "_id", true),
+						existing("b_1", null, "b", true)));
+
+		ServingIndexTargetReport target = report.getTargets().get(0);
+		assertEquals(1, target.getSkip().size());
+		assertEquals(1, target.getExtra().size(), "只该剩 b_1，_id_ 不由本功能管理: "
+				+ target.getExtra().stream().map(ServingIndexReportEntry::getName).toList());
+		assertEquals("b_1", target.getExtra().get(0).getName());
+		assertEquals(3, target.getExistingCount(), "计数仍要含 _id_——它占着 Mongo 64 上限里的一格");
+		assertEquals(3, target.getProjectedCount());
 	}
 }

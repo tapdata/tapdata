@@ -69,9 +69,9 @@ public final class ServingIndexLoadPlanner {
 		return verdict(mapped, LoadedIndexAttribution.UNCLASSIFIED, true, false, null);
 	}
 
-	/** {@code _id_} 默认索引（按名判定，MongoDB 保留名）。 */
+	/** {@code _id_} 默认索引；口径与落地报告共用一份（{@link ServingIndexes#isDefaultIdIndex}）。 */
 	private static boolean isIdIndex(ServingIndex mapped) {
-		return mapped != null && "_id_".equals(mapped.getName());
+		return ServingIndexes.isDefaultIdIndex(mapped);
 	}
 
 	private static LoadedServingIndex verdict(ServingIndex index, LoadedIndexAttribution attribution,
