@@ -123,6 +123,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -203,8 +204,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		parseTapType(modulesDto);
 		modulesDto.withPathSettingIfNeed();
 		final ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
-		final String connectionId = modulesDto.getConnection().toString();
-		Optional.ofNullable(dataSourceService.findById(MongoUtils.toObjectId(connectionId)))
+		// TAP-12425：与 activeApis 保持同一套解析口径，datasource 优先、connection 兜底，
+		// 这样历史导入写坏 connection 的 API 详情页仍能展示正确的连接。
+		final ObjectId connection = resolveApiConnectionId(modulesDto);
+		final String connectionId = connection == null ? null : connection.toHexString();
+		Optional.ofNullable(connection)
+				.map(connectionObjectId -> dataSourceService.findById(connectionObjectId))
 				.ifPresent(dataSourceConnectionDto -> {
 					dataSourceConnectionDto.setDatabase_password(null);
 					dataSourceConnectionDto.setPlain_password(null);
@@ -587,9 +592,26 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			return new ArrayList<>();
 		}
 		List<ConnectionVo> connectionVos = new ArrayList<>();
-		Map<ObjectId, List<ModulesDto>> connectionMap = apis.stream().collect(Collectors.groupingBy(ModulesDto::getConnection));
-		Set<ObjectId> connections = connectionMap.keySet();
-		assert !connections.isEmpty();
+		// TAP-12425：优先按 datasource 解析连接——API Server 也是按 datasource 匹配数据源的
+		// （见 apiserver generators/tapDataCodeGenerator.js），而 connection 可能被历史导入写坏。
+		// 两者都解析不出连接的 API 直接跳过，避免 groupingBy/toHexString 在 null 上抛 NPE 拖垮整个发布。
+		Set<ObjectId> connections = new LinkedHashSet<>();
+		List<ModulesDto> resolvableApis = new ArrayList<>();
+		for (ModulesDto api : apis) {
+			ObjectId connectionId = resolveApiConnectionId(api);
+			if (connectionId == null) {
+				log.warn("Api {}({}) has no resolvable connection, skip publishing it",
+						api.getName(), api.getId());
+				continue;
+			}
+			api.setConnection(connectionId);
+			connections.add(connectionId);
+			resolvableApis.add(api);
+		}
+		if (connections.isEmpty()) {
+			return new ArrayList<>();
+		}
+		apis = resolvableApis;
 		Query query = Query.query(Criteria.where("id").in(connections));
 		List<DataSourceConnectionDto> dataSourceConnectionDtoList = dataSourceService.findAll(query);
 		List<String> databaseTypes = dataSourceConnectionDtoList.stream()
@@ -649,6 +671,19 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		apiDefinitionVo.setApis(apis);
 		withEncryptionRule(apis);
 		return apis;
+	}
+
+	/**
+	 * TAP-12425：解析 API 实际指向的连接 _id，datasource 优先、connection 兜底。
+	 *
+	 * @return 解析不出时返回 null
+	 */
+	protected ObjectId resolveApiConnectionId(ModulesDto api) {
+		if (null == api) {
+			return null;
+		}
+		ObjectId fromDataSource = MongoUtils.toObjectId(api.getDataSource());
+		return fromDataSource != null ? fromDataSource : api.getConnection();
 	}
 
 	protected String parseUri(Map<String, Object> connectionConfig) {
@@ -1855,6 +1890,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			try {
 				modulesDto.setIsDeleted(false);
 				modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+				alignConnectionWithDataSource(modulesDto);
 
 				// 根据导入模式处理
 				switch (importMode) {
@@ -1898,6 +1934,27 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			}
 		}
 		return importResult;
+	}
+
+	/**
+	 * TAP-12425：以 datasource（回退 connectionId）为准重建 connection。
+	 *
+	 * <p>导入包里的 connection 不可信：老包把 ObjectId 序列化成了 {@code {"timestamp":..,"date":..}}，
+	 * 回读时会得到一个随机 ObjectId 或 null。datasource / connectionId 是字符串，能原样往返，
+	 * 且 API Server 本身就是按 datasource 去匹配数据源的，因此它们才是权威来源。</p>
+	 *
+	 * <p>两者都不可用时保持原值不动，交由后续 {@link #updateConnectionIds} 的 conMap 映射处理。</p>
+	 */
+	protected void alignConnectionWithDataSource(ModulesDto modulesDto) {
+		String connectionId = StringUtils.isNotBlank(modulesDto.getDataSource())
+				? modulesDto.getDataSource() : modulesDto.getConnectionId();
+		ObjectId connection = MongoUtils.toObjectId(connectionId);
+		if (connection == null) {
+			return;
+		}
+		modulesDto.setConnection(connection);
+		modulesDto.setConnectionId(connectionId);
+		modulesDto.setDataSource(connectionId);
 	}
 
 	/**
