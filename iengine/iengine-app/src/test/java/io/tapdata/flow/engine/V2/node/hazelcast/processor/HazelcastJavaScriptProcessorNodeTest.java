@@ -111,9 +111,12 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 					null,
 					null,
 					true));
+			hazelcastJavaScriptProcessorNode = spy(hazelcastJavaScriptProcessorNode);
 			Map<String, Invocable> engineMap = new HashMap<>();
-			engineMap.put(processorBaseContext.getNode().getId(), engine);
+			engineMap.put(processorBaseContext.getNode().getId() + "-" + Thread.currentThread().getId(), engine);
 			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode, "engineMap", engineMap);
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode, "sharedInitDone", true);
+			doReturn(engine).when(hazelcastJavaScriptProcessorNode).buildEngine();
 			tapdataEvent = mock(TapdataEvent.class);
 			tapEvent = mock(TapUpdateRecordEvent.class);
 			when(tapEvent.getTableId()).thenReturn("tableId");
@@ -214,6 +217,8 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 				hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
 			});
 			assertEquals(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,tapCodeException.getCode());
+			assertEquals("a is not defeind", tapCodeException.getMessage());
+			assertInstanceOf(ScriptException.class, tapCodeException.getCause());
 		}
 
 		@DisplayName("test try tryProcess for testRun exception")

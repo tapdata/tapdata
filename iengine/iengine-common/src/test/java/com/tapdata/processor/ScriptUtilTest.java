@@ -34,11 +34,31 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 public class ScriptUtilTest {
+
+	@Test
+	public void sharedEngineShouldBackIndependentContexts() throws Exception {
+		assertSame(ScriptUtil.getSharedEngine(), ScriptUtil.getSharedEngine());
+
+		ScriptEngine firstContext = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName());
+		ScriptEngine secondContext = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName());
+		try {
+			// Contexts share the thread-safe Engine but must keep task-local JS state isolated.
+			firstContext.eval("var contextValue = 'first';");
+			secondContext.eval("var contextValue = 'second';");
+
+			assertEquals("first", firstContext.eval("contextValue"));
+			assertEquals("second", secondContext.eval("contextValue"));
+		} finally {
+			((GraalJSScriptEngine) firstContext).close();
+			((GraalJSScriptEngine) secondContext).close();
+		}
+	}
 
     @Test
     public void testGetScriptEngine3() throws Exception {

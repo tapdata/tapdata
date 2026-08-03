@@ -150,6 +150,22 @@ public class ScriptUtil {
 			"javax.script."
 	);
 
+	private static volatile Engine sharedEngine;
+
+	public static Engine getSharedEngine() {
+		if (sharedEngine == null) {
+			synchronized (ScriptUtil.class) {
+				if (sharedEngine == null) {
+					sharedEngine = Engine.newBuilder()
+							.allowExperimentalOptions(true)
+							.option("engine.WarnInterpreterOnly", "false")
+							.build();
+				}
+			}
+		}
+		return sharedEngine;
+	}
+
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
 		return getScriptEngine(jsEngineName,
 				new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO),
@@ -184,15 +200,7 @@ public class ScriptUtil {
 			if (externalClassLoader != null) {
 				contextBuilder.hostClassLoader(externalClassLoader);
 			}
-			scriptEngine = GraalJSScriptEngine
-					.create(Engine.newBuilder()
-									.allowExperimentalOptions(true)
-									.option("engine.WarnInterpreterOnly", "false")
-									.out(out)
-									.err(err)
-									.build(),
-							contextBuilder
-					);
+			scriptEngine = GraalJSScriptEngine.create(getSharedEngine(), contextBuilder);
 			SimpleScriptContext scriptContext = new SimpleScriptContext();
 			scriptContext.setWriter(new OutputStreamWriter(out));
 			scriptContext.setErrorWriter(new OutputStreamWriter(err));
