@@ -1,29 +1,13 @@
 package io.tapdata.websocket.handler;
 
-import com.tapdata.constant.ConnectionUtil;
-import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.index.PdkIndexService;
-import io.tapdata.flow.engine.V2.index.TwoDbRedline;
-import io.tapdata.flow.engine.V2.log.LogFactory;
-import io.tapdata.flow.engine.V2.util.PdkUtil;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.schema.PdkTableMap;
-import io.tapdata.schema.TapTableMap;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventResult;
@@ -43,8 +27,9 @@ import java.util.Objects;
  * P3 · 「建索引」连接运维动作 handler（TAP-12057）。读侧 {@link QueryIndexesHandler} 的写向对偶。
  *
  * <p>TM 落地 service 经 {@code MessageQueueService}/WebSocket 下发 {@code data.type = "createIndex"}，
- * 本 handler 按连接即时构建 PDK {@link ConnectorNode}（{@link QueryIndexesHandler} 同款生命周期），
- * 逐条委派 {@link PdkIndexService#createIndex}，<b>同步返回</b> {@link WebSocketEventResult}。</p>
+ * PDK {@link ConnectorNode} 的构建与生命周期由 {@link ConnectionScopedPdkHandler} 封口（与读侧
+ * {@link QueryIndexesHandler} 共用），本 handler 逐条委派 {@link PdkIndexService#createIndex}，
+ * <b>同步返回</b> {@link WebSocketEventResult}。</p>
  *
  * <p><b>本 handler 不做身份比对</b>（ADR-0005）：创建/跳过的判定由 TM 侧前置 {@code QueryIndexes} +
  * {@code ServingIndexLandingPlanner} 完成，下发到这里的<b>已经是「将创建」那一桶</b>。索引名也由 TM 按
@@ -59,7 +44,7 @@ import java.util.Objects;
  * 目标解析到平台自有库即在建节点前响亮失败。</p>
  */
 @EventHandlerAnnotation(type = "createIndex")
-public class CreateIndexHandler extends BaseEventHandler {
+public class CreateIndexHandler extends ConnectionScopedPdkHandler {
 
 	private static final Logger logger = LogManager.getLogger(CreateIndexHandler.class);
 	private static final String TAG = CreateIndexHandler.class.getSimpleName();
@@ -75,6 +60,11 @@ public class CreateIndexHandler extends BaseEventHandler {
 	static final String UNIQUE = "unique";
 
 	PdkIndexService pdkIndexService = new PdkIndexService();
+
+	@Override
+	protected String pdkTag() {
+		return TAG;
+	}
 
 	@Override
 	public Object handle(Map event, SendMessage sendMessage) {
@@ -194,55 +184,19 @@ public class CreateIndexHandler extends BaseEventHandler {
 	}
 
 	/**
-	 * 按连接即时构建 PDK 连接器节点，逐条下发索引创建；节点生命周期（INIT/STOP/release）在此封口。
+	 * 逐条下发索引创建。节点构建与生命周期（红线/INIT/STOP/release）由
+	 * {@link ConnectionScopedPdkHandler#withConnectorNode} 封口，本方法只提供「拿到节点之后做什么」。
 	 * 该封口触达 Hazelcast / PDK 包下载，故属集成范畴，单测以 spy 隔离（逐条记账逻辑见 {@link #applyEach}）。
 	 */
 	protected void createIndexes(Connections connections, String tableName, List<TapIndex> indexes,
 								 CreateIndexResult result) throws Throwable {
-		// P1-3 两库红线（ADR-0002）：目标解析到平台自有库 → 响亮失败，绝不在平台库上建服务型索引。
-		TwoDbRedline.assertTargetIsUserDb(connections.getDatabase_uri(), platformMongoUri());
-		DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-		String associateId = connections.getName() + "_" + System.currentTimeMillis();
-		try {
-			PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
-					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
-			ConnectorNode connectorNode = PdkUtil.createNode(
-					connections.getId(),
-					databaseType,
-					clientMongoOperator,
-					associateId,
-					connections.getConfig(),
-					new PdkTableMap(connectionScopedTableMap(connections)),
-					new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, connections.getId()), HazelcastUtil.getInstance()),
-					PdkStateMap.globalStateMap(HazelcastUtil.getInstance()),
-					InstanceFactory.instance(LogFactory.class).getLog()
-			);
-			try {
-				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
-				TapTable table = new TapTable(tableName);
-				// 一条索引一个事件：失败可归因到具体索引，配合 applyEach 的逐条记账。
-				applyEach(indexes, index -> pdkIndexService.createIndex(connectorNode, table,
-						new TapCreateIndexEvent().indexList(Collections.singletonList(index))), result);
-			} finally {
-				try {
-					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
-				} catch (Exception e) {
-					logger.warn("Stop connector node failed, table: {}, message: {}", tableName, e.getMessage());
-				}
-			}
-		} finally {
-			PDKIntegration.releaseAssociateId(associateId);
-		}
-	}
-
-	/** 建节点用的表映射（seam）：连接级动作、无任务上下文，故用空表映射。理由同读侧，勿改回按 nodeId 查 TM。 */
-	protected TapTableMap<String, TapTable> connectionScopedTableMap(Connections connections) {
-		return TapTableMap.create(AutoInspectConstants.MODULE_NAME, connections.getId());
-	}
-
-	/** 平台自有库 uri（{@code TAPDATA_MONGO_URI}）；抽为 seam 便于两库红线用例注入。见 ADR-0002。 */
-	protected String platformMongoUri() {
-		return CommonUtils.getenv("TAPDATA_MONGO_URI");
+		withConnectorNode(connections, tableName, connectorNode -> {
+			TapTable table = new TapTable(tableName);
+			// 一条索引一个事件：失败可归因到具体索引，配合 applyEach 的逐条记账。
+			applyEach(indexes, index -> pdkIndexService.createIndex(connectorNode, table,
+					new TapCreateIndexEvent().indexList(Collections.singletonList(index))), result);
+			return null;
+		});
 	}
 
 	/** 单条索引的创建动作（注入点），便于把逐条记账与 PDK 节点解耦。 */
