@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.index;
 
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -21,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class IndexPackageRedlineArchTest {
 
 	private static final String MONGO_TEMPLATE = "org.springframework.data.mongodb.core.MongoTemplate";
+	private static final String PDK_INDEX_SERVICE = "io.tapdata.flow.engine.V2.index.PdkIndexService";
 
 	/** 索引/落地包禁依赖 MongoTemplate。落地包（p3）随其落盘后并入本 package 匹配。 */
 	private static final ArchRule NO_MONGO_TEMPLATE = noClasses()
@@ -43,5 +46,43 @@ class IndexPackageRedlineArchTest {
 		JavaClasses withViolator = new ClassFileImporter()
 				.importClasses(RedlineViolatorFixture.class, MongoTemplate.class);
 		assertThrows(AssertionError.class, () -> NO_MONGO_TEMPLATE.check(withViolator));
+	}
+
+	/**
+	 * 上面那条按<b>包</b>匹配，覆盖不到包外的索引通道使用者——{@code QueryIndexesHandler} 与
+	 * {@code CreateIndexHandler} 都在 {@code io.tapdata.websocket.handler}（P1 起就有的缺口）。
+	 * 那个包里混着大量无关 handler、不能整包封，故改<b>按结构</b>匹配：<b>凡是驱动索引通道
+	 * （依赖 {@link PdkIndexService}）的类，都不许依赖 MongoTemplate</b>——不必维护类名清单，
+	 * 将来新增的使用者自动被罩住。
+	 */
+	private static final DescribedPredicate<JavaClass> DRIVE_INDEX_CHANNEL =
+			new DescribedPredicate<JavaClass>("依赖 PdkIndexService（驱动索引读写通道）") {
+				@Override
+				public boolean test(JavaClass javaClass) {
+					return javaClass.getDirectDependenciesFromSelf().stream()
+							.anyMatch(dep -> PDK_INDEX_SERVICE.equals(dep.getTargetClass().getFullName()));
+				}
+			};
+
+	private static final ArchRule INDEX_CHANNEL_USERS_NO_MONGO_TEMPLATE = noClasses()
+			.that(DRIVE_INDEX_CHANNEL)
+			.should().dependOnClassesThat().haveFullyQualifiedName(MONGO_TEMPLATE)
+			.because("驱动索引读写通道的类只能经 PDK 连接器作用于用户库；MongoTemplate 直连平台自有库（ADR-0002）");
+
+	@Test
+	@DisplayName("全仓扫：所有索引通道使用者（含两个 ws handler）都不依赖 MongoTemplate")
+	void everyIndexChannelUser_isCleanOfMongoTemplate() {
+		JavaClasses engineClasses = new ClassFileImporter()
+				.withImportOption(new ImportOption.DoNotIncludeTests())
+				.importPackages("io.tapdata");
+		assertDoesNotThrow(() -> INDEX_CHANNEL_USERS_NO_MONGO_TEMPLATE.check(engineClasses));
+	}
+
+	@Test
+	@DisplayName("teeth：既用索引通道又连平台库 → 红线响亮失败")
+	void indexChannelUserTouchingMongoTemplate_isCaught() {
+		JavaClasses withViolator = new ClassFileImporter()
+				.importClasses(IndexChannelUserViolatorFixture.class, PdkIndexService.class, MongoTemplate.class);
+		assertThrows(AssertionError.class, () -> INDEX_CHANNEL_USERS_NO_MONGO_TEMPLATE.check(withViolator));
 	}
 }
