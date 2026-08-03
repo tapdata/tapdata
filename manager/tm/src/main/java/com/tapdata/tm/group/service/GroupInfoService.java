@@ -44,6 +44,11 @@ import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ServingIndexImportResult;
+import com.tapdata.tm.module.dto.ServingIndexLandingReport;
+import com.tapdata.tm.module.dto.ServingIndexLandingWorkList;
+import com.tapdata.tm.module.dto.ServingIndexPlanDiffs;
+import com.tapdata.tm.module.dto.ServingIndexPreviewResult;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.modules.vo.ModulesListVo;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
@@ -716,6 +721,118 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         return new GroupImportResult(recordId.toHexString(), diff);
     }
 
+    // ====================== Serving index leg (TAP-12057 · P4-1) ======================
+    //
+    // 索引腿在部署矩阵里排在 apis 之后、独立成腿（方案 §3.5）：建索引是整条流水线里唯一昂贵且在
+    // 已有数据的集合上带风险的操作，必须在计划表里显式可见、可单独审阅。
+    //
+    // 与 apis 腿的两点差别是刻意的：
+    //   1. **不看 Module diff**。apis 腿只对有变更的 Module 落地（见 executeImportApisStandaloneAsync
+    //      里的 toImport 过滤），于是「API 一个字没改、但目标库索引被人删了」永远补不回来。
+    //      索引腿的输入是包里的声明 + conMap，与 Module 有没有 diff 无关。
+    //   2. **不写 Module**。声明落库归 apis 腿；这一腿只把索引建到用户库（ADR-0002 两库红线）。
+
+    public ServingIndexPreviewResult previewIndexes(MultipartFile file, UserDetail user) throws IOException {
+        return previewIndexes(parseImportPayloads(file), user);
+    }
+
+    ServingIndexPreviewResult previewIndexes(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
+        Map<ResourceType, Map<String, ?>> resourceMapsByType = new LinkedHashMap<>();
+        Map<ResourceType, List<MetadataInstancesDto>> metadataByType = new LinkedHashMap<>();
+        List<ModulesDto> modules = collectPackagedModules(payloads, resourceMapsByType, metadataByType);
+        if (modules.isEmpty()) {
+            log.info("serving index preview: package carries no API, nothing to plan");
+            return ServingIndexPlanDiffs.preview(new ServingIndexLandingReport());
+        }
+        Map<String, DataSourceConnectionDto> conMap =
+                buildConMapFromPayload(payloads, resourceMapsByType, metadataByType, user);
+        log.info("serving index preview: apis = {}, conMap = {}", modules.size(), conMap.size());
+        return ServingIndexPlanDiffs.preview(servingIndexLandingService.preview(modules, conMap, user));
+    }
+
+    public ServingIndexImportResult importIndexes(MultipartFile file, UserDetail user) throws IOException {
+        return importIndexes(parseImportPayloads(file), user);
+    }
+
+    ServingIndexImportResult importIndexes(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
+        Map<ResourceType, Map<String, ?>> resourceMapsByType = new LinkedHashMap<>();
+        Map<ResourceType, List<MetadataInstancesDto>> metadataByType = new LinkedHashMap<>();
+        List<ModulesDto> modules = collectPackagedModules(payloads, resourceMapsByType, metadataByType);
+        if (modules.isEmpty()) {
+            log.info("serving index import: package carries no API, nothing to land");
+            return ServingIndexPlanDiffs.imported(new ServingIndexLandingWorkList());
+        }
+        Map<String, DataSourceConnectionDto> conMap =
+                buildConMapFromPayload(payloads, resourceMapsByType, metadataByType, user);
+        log.info("serving index import: apis = {}, conMap = {}", modules.size(), conMap.size());
+        return ServingIndexPlanDiffs.imported(servingIndexLandingService.landAfterImport(modules, conMap, user));
+    }
+
+    /** 解析出包里的 Module（声明就在它们身上），同时把 resourceMap/metadata 填给调用方后续复用。 */
+    @SuppressWarnings("unchecked")
+    private List<ModulesDto> collectPackagedModules(Map<String, List<TaskUpAndLoadDto>> payloads,
+            Map<ResourceType, Map<String, ?>> resourceMapsByType,
+            Map<ResourceType, List<MetadataInstancesDto>> metadataByType) {
+        ResourceHandler moduleHandler = resourceHandlerRegistry.getHandler(ResourceType.MODULE);
+        if (moduleHandler != null) {
+            String filename = ResourceType.getResourceName(ResourceType.MODULE.name());
+            List<TaskUpAndLoadDto> payload = payloads.getOrDefault(filename, Collections.emptyList());
+            Map<String, Object> resourceMap = new LinkedHashMap<>();
+            List<MetadataInstancesDto> metadata = new ArrayList<>();
+            moduleHandler.collectPayload(payload, resourceMap, metadata);
+            resourceMapsByType.put(ResourceType.MODULE, resourceMap);
+            metadataByType.put(ResourceType.MODULE, metadata);
+        }
+        Map<String, ModulesDto> modules = (Map<String, ModulesDto>) resourceMapsByType
+                .getOrDefault(ResourceType.MODULE, Collections.emptyMap());
+        return new ArrayList<>(modules.values());
+    }
+
+    /**
+     * 建立 {@code 导出侧连接 id → 目标环境连接} 的 conMap（<b>按 id 匹配，不按连接名</b>——
+     * 同名连接互相覆盖是既有教训，见 {@code DataSourceServiceImpl.batchImport} 的注释）。
+     *
+     * <p>apis 腿与索引腿<b>共用这一份</b>：两条腿若各解析各的，同一个包在同一环境里可能落到不同的库，
+     * 而「索引建到别人的库」不报错、只表现为全表扫描（<b>ADR-0002</b> 两库红线）。</p>
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, DataSourceConnectionDto> buildConMapFromPayload(Map<String, List<TaskUpAndLoadDto>> payloads,
+            Map<ResourceType, Map<String, ?>> resourceMapsByType,
+            Map<ResourceType, List<MetadataInstancesDto>> metadataByType, UserDetail user) {
+        // CONNECTION 没有专用 handler，通过任意已注册 handler 的 collectPayloadRelatedResources 解析连接数据
+        resourceHandlerRegistry.getAllHandlers().stream().findFirst().ifPresent(
+                h -> h.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType, user));
+
+        // 用 payload 中连接的 _id 查询 DB 里已存在的连接，建立 旧ID -> 连接DTO 的映射
+        Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
+        Map<String, DataSourceConnectionDto> payloadConnections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
+                .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
+        if (payloadConnections.isEmpty()) {
+            return conMap;
+        }
+        List<ObjectId> connectionIds = payloadConnections.keySet().stream()
+                .filter(StringUtils::isNotBlank)
+                .map(ObjectId::new)
+                .collect(Collectors.toList());
+        Map<String, DataSourceConnectionDto> existingById = connectionIds.isEmpty()
+                ? Collections.emptyMap()
+                : dataSourceService.findAllDto(
+                        new Query(Criteria.where("_id").in(connectionIds).and("is_deleted").ne(true)), user)
+                    .stream().collect(Collectors.toMap(c -> c.getId().toHexString(), c -> c, (a, b) -> a));
+        for (String oldId : payloadConnections.keySet()) {
+            DataSourceConnectionDto existing = existingById.get(oldId);
+            if (existing != null) {
+                conMap.put(oldId, existing);
+                log.info("conMap built (api): id={}, name={}", oldId, existing.getName());
+            } else {
+                log.warn("conMap build (api): connection id={} not found in DB", oldId);
+            }
+        }
+        log.info("conMap built from payload connections (api), payload size={}, matched={}",
+                payloadConnections.size(), conMap.size());
+        return conMap;
+    }
+
     /**
      * 同步导入 GroupInfo：从文件（tar 或 json）中解析 GroupInfo.json，
      * 按资源类型+名称在 DB 中查找当前资源 ID，然后以 name 为 key upsert 各分组。
@@ -959,19 +1076,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             // 收集文件中所有 modules
             Map<ResourceType, Map<String, ?>> resourceMapsByType = new LinkedHashMap<>();
             Map<ResourceType, List<MetadataInstancesDto>> metadataByType = new LinkedHashMap<>();
-            ResourceHandler moduleHandler = resourceHandlerRegistry.getHandler(ResourceType.MODULE);
-            if (moduleHandler != null) {
-                String filename = ResourceType.getResourceName(ResourceType.MODULE.name());
-                List<TaskUpAndLoadDto> payload = payloads.getOrDefault(filename, Collections.emptyList());
-                Map<String, Object> resourceMap = new LinkedHashMap<>();
-                List<MetadataInstancesDto> metadata = new ArrayList<>();
-                moduleHandler.collectPayload(payload, resourceMap, metadata);
-                resourceMapsByType.put(ResourceType.MODULE, resourceMap);
-                metadataByType.put(ResourceType.MODULE, metadata);
-            }
-            Map<String, ModulesDto> allModules = (Map<String, ModulesDto>) resourceMapsByType
-                    .getOrDefault(ResourceType.MODULE, Collections.emptyMap());
-            if (MapUtils.isEmpty(allModules)) {
+            List<ModulesDto> allModules = collectPackagedModules(payloads, resourceMapsByType, metadataByType);
+            if (allModules.isEmpty()) {
                 log.info("Async import apis completed, no modules found, recordId={}", recordId);
                 updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
                 return;
@@ -989,38 +1095,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             log.info("Async import apis: add={}, update={}, total changed={}, recordId={}",
                     diff.getAdd().size(), diff.getUpdate().size(), changedNames.size(), recordId);
 
-            // CONNECTION 没有专用 handler，通过任意已注册 handler 的 collectPayloadRelatedResources 解析连接数据
-            resourceHandlerRegistry.getAllHandlers().stream().findFirst().ifPresent(
-                    h -> h.collectPayloadRelatedResources(payloads, resourceMapsByType, metadataByType, user));
-
-            // 用 payload 中连接的 _id 查询 DB 里已存在的连接，建立 旧ID -> 连接DTO 的映射
-            Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
-            Map<String, DataSourceConnectionDto> payloadConnections = (Map<String, DataSourceConnectionDto>) resourceMapsByType
-                    .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
-            if (!payloadConnections.isEmpty()) {
-                List<ObjectId> connectionIds = payloadConnections.keySet().stream()
-                        .filter(StringUtils::isNotBlank)
-                        .map(ObjectId::new)
-                        .collect(Collectors.toList());
-                Map<String, DataSourceConnectionDto> existingById = connectionIds.isEmpty()
-                        ? Collections.emptyMap()
-                        : dataSourceService.findAllDto(
-                                new Query(Criteria.where("_id").in(connectionIds).and("is_deleted").ne(true)), user)
-                            .stream().collect(Collectors.toMap(c -> c.getId().toHexString(), c -> c, (a, b) -> a));
-                for (String oldId : payloadConnections.keySet()) {
-                    DataSourceConnectionDto existing = existingById.get(oldId);
-                    if (existing != null) {
-                        conMap.put(oldId, existing);
-                        log.info("conMap built (api): id={}, name={}", oldId, existing.getName());
-                    } else {
-                        log.warn("conMap build (api): connection id={} not found in DB", oldId);
-                    }
-                }
-                log.info("conMap built from payload connections (api), payload size={}, matched={}", payloadConnections.size(), conMap.size());
-            }
+            Map<String, DataSourceConnectionDto> conMap =
+                    buildConMapFromPayload(payloads, resourceMapsByType, metadataByType, user);
 
             // 只导入有变更的 modules
-            List<ModulesDto> toImport = allModules.values().stream()
+            List<ModulesDto> toImport = allModules.stream()
                     .filter(m -> changedNames.contains(m.getName()))
                     .collect(Collectors.toList());
 
