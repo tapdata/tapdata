@@ -1272,6 +1272,64 @@ class ModulesServiceTest {
 			assertTrue(result.isEmpty());
 			verify(dataSourceDefinitionService, never()).findAllDto(any(Query.class), eq(userDetail));
 		}
+
+		@Test
+		@DisplayName("connection 已被历史导入写坏时，按 datasource 解析连接（TAP-12425）")
+		void testActiveApisResolvesConnectionByDataSource() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId realConnection = new ObjectId("68a1b2c3d4e5f60718293a4b");
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			// 库里存量脏数据：connection 是导入时被 Jackson 重建出来的随机 ObjectId
+			modulesDto.setConnection(new ObjectId("68a1b2c33861f4f43eb56485"));
+			modulesDto.setDataSource(realConnection.toHexString());
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(realConnection);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
+			Map<String, Object> config = new HashMap<>();
+			config.put("uri", "mongodb://root:test123@localhost:27017/test?authSource=admin");
+			dataSourceConnectionDto.setConfig(config);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(Lists.newArrayList(dataSourceConnectionDto));
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail)))
+					.thenReturn(Lists.newArrayList(definitionDto));
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertEquals(1, result.size());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+			assertEquals(realConnection.toHexString(), String.valueOf(apiDefinitionVo.getConnections().get(0).getId()));
+		}
+
+		@Test
+		@DisplayName("connection 与 datasource 均缺失的 API 被跳过而非抛 NPE（TAP-12425）")
+		void testActiveApisSkipsApiWithoutResolvableConnection() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto broken = new ModulesDto();
+			broken.setId(new ObjectId());
+			broken.setName("broken_api");
+			apis.add(broken);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			List<ModulesDto> result = assertDoesNotThrow(
+					() -> modulesService.activeApis(apiDefinitionVo, userDetail));
+
+			assertTrue(result.isEmpty());
+			verify(dataSourceService, never()).findAll(any(Query.class));
+		}
 	}
 
 	@Nested
@@ -1983,6 +2041,69 @@ class ModulesServiceTest {
 
             // Verify
             verify(modulesService, times(1)).handleImportAsCopyMode(moduleDto, user, conMap);
+        }
+
+        @Test
+        @DisplayName("GROUP_IMPORT：connection 被 JSON 往返改写后，按 datasource 重建（TAP-12425）")
+        void testBatchImportGroupModeRepairsConnectionFromDataSource() {
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT;
+            ObjectId realConnection = new ObjectId("68a1b2c3d4e5f60718293a4b");
+            // 导出包里 connection 被 Jackson 写成 {"timestamp":..,"date":..}，回读得到的是另一个 ObjectId
+            moduleDto.setConnection(new ObjectId("68a1b2c33861f4f43eb56485"));
+            moduleDto.setConnectionId(realConnection.toHexString());
+            moduleDto.setDataSource(realConnection.toHexString());
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            assertEquals(realConnection, moduleDto.getConnection());
+        }
+
+        @Test
+        @DisplayName("GROUP_IMPORT：connection 反序列化为 null 时，同样按 datasource 重建（TAP-12425）")
+        void testBatchImportGroupModeRepairsNullConnection() {
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT;
+            ObjectId realConnection = new ObjectId("68a1b2c3d4e5f60718293a4b");
+            moduleDto.setConnection(null);
+            moduleDto.setConnectionId(null);
+            moduleDto.setDataSource(realConnection.toHexString());
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            assertEquals(realConnection, moduleDto.getConnection());
+            assertEquals(realConnection.toHexString(), moduleDto.getConnectionId());
+        }
+
+        @Test
+        @DisplayName("datasource 不可用时回退到 connectionId 重建 connection（TAP-12425）")
+        void testBatchImportRepairsConnectionFromConnectionId() {
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT;
+            ObjectId realConnection = new ObjectId("68a1b2c3d4e5f60718293a4b");
+            moduleDto.setConnection(new ObjectId("68a1b2c33861f4f43eb56485"));
+            moduleDto.setConnectionId(realConnection.toHexString());
+            moduleDto.setDataSource(null);
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            assertEquals(realConnection, moduleDto.getConnection());
+            assertEquals(realConnection.toHexString(), moduleDto.getDataSource());
+        }
+
+        @Test
+        @DisplayName("datasource / connectionId 都不可用时保留原 connection，交由 conMap 映射（TAP-12425）")
+        void testBatchImportKeepsConnectionWhenNoTrustedSource() {
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT;
+            ObjectId original = new ObjectId("68a1b2c33861f4f43eb56485");
+            moduleDto.setConnection(original);
+            moduleDto.setConnectionId(null);
+            moduleDto.setDataSource(null);
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            assertEquals(original, moduleDto.getConnection());
         }
     }
 

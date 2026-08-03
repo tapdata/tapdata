@@ -1,11 +1,13 @@
 package com.tapdata.tm.commons.dag.process;
 
+import cn.hutool.core.util.StrUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TableIndexColumn;
+import com.tapdata.tm.commons.util.CapitalizedEnum;
 import com.tapdata.tm.commons.util.PartitionTableFieldRenameOperator;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import lombok.Getter;
@@ -95,8 +97,45 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
 
         fieldNameReduction(inputFields, outputSchema.getFields(), fieldsNameTransform);
         fieldNameUpLow(inputFields, outputSchema.getFields(), fieldsNameTransform);
+        applyFieldsNameTransformToIndices(inputFields, outputSchema);
 
         return outputSchema;
+    }
+
+    private void applyFieldsNameTransformToIndices(List<String> inputFields, Schema outputSchema) {
+        if (StringUtils.isBlank(fieldsNameTransform)) {
+            return;
+        }
+        Optional.ofNullable(outputSchema.getIndices()).ifPresent(indexList ->
+                indexList.forEach(index -> {
+                    if (null == index.getColumns()) {
+                        return;
+                    }
+                    index.getColumns().forEach(column -> {
+                        String columnName = column.getColumnName();
+                        if (inputFields.contains(columnName)) {
+                            column.setColumnName(convertCase(columnName, fieldsNameTransform));
+                        }
+                    });
+                }));
+    }
+
+    private String convertCase(String name, String fieldsNameTransform) {
+        if (StringUtils.isBlank(name)) {
+            return name;
+        }
+        switch (CapitalizedEnum.fromValue(fieldsNameTransform.trim())) {
+            case UPPER:
+                return StringUtils.upperCase(name);
+            case LOWER:
+                return StringUtils.lowerCase(name);
+            case SNAKE:
+                return StrUtil.toUnderlineCase(name);
+            case CAMEL:
+                return StrUtil.toCamelCase(name);
+            default:
+                return name;
+        }
     }
 
     @Override

@@ -21,6 +21,9 @@ public class AlarmDatasourceDto {
     private AlarmTypeEnum type;
     private String agentId;
     private String connectionId;
+    private String taskId;
+    private String nodeId;
+    private String node;
     private String name;
     private String summary;
     private AlarmKeyEnum metric;

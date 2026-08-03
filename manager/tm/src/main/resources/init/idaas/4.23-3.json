@@ -1,0 +1,976 @@
+[
+  {
+    "update": "Permission",
+    "updates": [
+      {
+        "q": {
+          "name": "v2_data_check_creation"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data_check",
+            "description": "创建任务",
+            "name": "v2_data_check_creation",
+            "need_permission": true,
+            "order": 1,
+            "resources": [
+              {
+                "type": "page",
+                "code": "v2_data_check_creation",
+                "path": "/dataVerification/create"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data_check_import"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data_check",
+            "description": "导入任务",
+            "name": "v2_data_check_import",
+            "need_permission": true,
+            "order": 2,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_data_check_import"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data_check_export"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data_check",
+            "description": "导出任务",
+            "name": "v2_data_check_export",
+            "need_permission": true,
+            "order": 3,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_data_check_export"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data_check_all_data"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data_check",
+            "description": "全部数据授权",
+            "name": "v2_data_check_all_data",
+            "need_permission": true,
+            "order": 1,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data_check_all_data_Edit"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data_check",
+            "description": "编辑全部数据",
+            "name": "v2_data_check_all_data_Edit",
+            "need_permission": true,
+            "order": 2,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data_check_all_data_Delete"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data_check",
+            "description": "删除全部数据",
+            "name": "v2_data_check_all_data_Delete",
+            "need_permission": true,
+            "order": 3,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data_check_all_data_Start"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data_check",
+            "description": "启动全部数据",
+            "name": "v2_data_check_all_data_Start",
+            "need_permission": true,
+            "order": 4,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_data_check_all_data_Stop"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_data_check",
+            "description": "停止全部数据",
+            "name": "v2_data_check_all_data_Stop",
+            "need_permission": true,
+            "order": 5,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_log_collector_all_data"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_log_collector",
+            "description": "全部数据授权",
+            "name": "v2_log_collector_all_data",
+            "need_permission": true,
+            "order": 1,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_log_collector_all_data_Edit"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_log_collector",
+            "description": "编辑全部数据",
+            "name": "v2_log_collector_all_data_Edit",
+            "need_permission": true,
+            "order": 2,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_log_collector_all_data_Delete"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_log_collector",
+            "description": "删除全部数据",
+            "name": "v2_log_collector_all_data_Delete",
+            "need_permission": true,
+            "order": 3,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_log_collector_all_data_Reset"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_log_collector",
+            "description": "重置全部数据",
+            "name": "v2_log_collector_all_data_Reset",
+            "need_permission": true,
+            "order": 4,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_log_collector_all_data_Start"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_log_collector",
+            "description": "启动全部数据",
+            "name": "v2_log_collector_all_data_Start",
+            "need_permission": true,
+            "order": 5,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_log_collector_all_data_Stop"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_log_collector",
+            "description": "停止全部数据",
+            "name": "v2_log_collector_all_data_Stop",
+            "need_permission": true,
+            "order": 6,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_shared_cache_creation"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_shared_cache",
+            "description": "创建任务",
+            "name": "v2_shared_cache_creation",
+            "need_permission": true,
+            "order": 1,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_shared_cache_creation"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_shared_cache_import"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_shared_cache",
+            "description": "导入任务",
+            "name": "v2_shared_cache_import",
+            "need_permission": true,
+            "order": 2,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_shared_cache_import"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_shared_cache_export"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_shared_cache",
+            "description": "导出任务",
+            "name": "v2_shared_cache_export",
+            "need_permission": true,
+            "order": 3,
+            "resources": [
+              {
+                "type": "button",
+                "code": "v2_shared_cache_export"
+              }
+            ],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_shared_cache_all_data"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_shared_cache",
+            "description": "全部数据授权",
+            "name": "v2_shared_cache_all_data",
+            "need_permission": true,
+            "order": 1,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_shared_cache_all_data_Edit"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_shared_cache",
+            "description": "编辑全部数据",
+            "name": "v2_shared_cache_all_data_Edit",
+            "need_permission": true,
+            "order": 2,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_shared_cache_all_data_Delete"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_shared_cache",
+            "description": "删除全部数据",
+            "name": "v2_shared_cache_all_data_Delete",
+            "need_permission": true,
+            "order": 3,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_shared_cache_all_data_Reset"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_shared_cache",
+            "description": "重置全部数据",
+            "name": "v2_shared_cache_all_data_Reset",
+            "need_permission": true,
+            "order": 4,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_shared_cache_all_data_Start"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_shared_cache",
+            "description": "启动全部数据",
+            "name": "v2_shared_cache_all_data_Start",
+            "need_permission": true,
+            "order": 5,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "name": "v2_shared_cache_all_data_Stop"
+        },
+        "u": {
+          "$set": {
+            "parentId": "v2_shared_cache",
+            "description": "停止全部数据",
+            "name": "v2_shared_cache_all_data_Stop",
+            "need_permission": true,
+            "order": 6,
+            "resources": [],
+            "status": "enable",
+            "type": "read",
+            "version": "v2"
+          }
+        },
+        "upsert": true
+      },
+      {"q":{"name":"v2_project_management_creation"},"u":{"$set":{"parentId":"v2_project_management","description":"创建项目","name":"v2_project_management_creation","need_permission":true,"order":1,"resources":[{"type":"button","code":"v2_project_management_creation"}],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_project_management_git_config"},"u":{"$set":{"parentId":"v2_project_management","description":"Git配置","name":"v2_project_management_git_config","need_permission":true,"order":2,"resources":[{"type":"button","code":"v2_project_management_git_config"}],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_project_management_all_data"},"u":{"$set":{"parentId":"v2_project_management","description":"全部数据授权","name":"v2_project_management_all_data","need_permission":true,"order":3,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_project_management_all_data_Edit"},"u":{"$set":{"parentId":"v2_project_management","description":"编辑全部数据","name":"v2_project_management_all_data_Edit","need_permission":true,"order":4,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_project_management_all_data_Delete"},"u":{"$set":{"parentId":"v2_project_management","description":"删除全部数据","name":"v2_project_management_all_data_Delete","need_permission":true,"order":5,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_project_import_and_export_import"},"u":{"$set":{"parentId":"v2_project_import_and_export","description":"导入项目","name":"v2_project_import_and_export_import","need_permission":true,"order":1,"resources":[{"type":"button","code":"v2_project_import_and_export_import"}],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_project_import_and_export_export"},"u":{"$set":{"parentId":"v2_project_import_and_export","description":"导出项目","name":"v2_project_import_and_export_export","need_permission":true,"order":2,"resources":[{"type":"button","code":"v2_project_import_and_export_export"}],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_project_import_and_export_all_data"},"u":{"$set":{"parentId":"v2_project_import_and_export","description":"全部数据授权","name":"v2_project_import_and_export_all_data","need_permission":true,"order":3,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_user_management_menu_creation"},"u":{"$set":{"parentId":"v2_user_management_menu","description":"创建用户","name":"v2_user_management_menu_creation","need_permission":true,"order":1,"resources":[{"type":"button","code":"v2_user_management_menu_creation"}],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_user_management_menu_all_data"},"u":{"$set":{"parentId":"v2_user_management_menu","description":"全部数据授权","name":"v2_user_management_menu_all_data","need_permission":true,"order":2,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_user_management_menu_all_data_Edit"},"u":{"$set":{"parentId":"v2_user_management_menu","description":"编辑全部数据","name":"v2_user_management_menu_all_data_Edit","need_permission":true,"order":3,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_user_management_menu_all_data_Delete"},"u":{"$set":{"parentId":"v2_user_management_menu","description":"删除全部数据","name":"v2_user_management_menu_all_data_Delete","need_permission":true,"order":4,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_conn_heartbeat"},"u":{"$set":{"parentId":"v2_advanced_features","description":"心跳任务","name":"v2_conn_heartbeat","need_permission":true,"order":8,"resources":[{"type":"button","code":"v2_conn_heartbeat","path":""}],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_conn_heartbeat_all_data"},"u":{"$set":{"parentId":"v2_conn_heartbeat","description":"全部数据授权","name":"v2_conn_heartbeat_all_data","need_permission":true,"order":1,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_conn_heartbeat_all_data_Start"},"u":{"$set":{"parentId":"v2_conn_heartbeat","description":"启动全部数据","name":"v2_conn_heartbeat_all_data_Start","need_permission":true,"order":2,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_conn_heartbeat_all_data_Stop"},"u":{"$set":{"parentId":"v2_conn_heartbeat","description":"停止全部数据","name":"v2_conn_heartbeat_all_data_Stop","need_permission":true,"order":3,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_conn_heartbeat_all_data_Reset"},"u":{"$set":{"parentId":"v2_conn_heartbeat","description":"重置全部数据","name":"v2_conn_heartbeat_all_data_Reset","need_permission":true,"order":4,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true},
+      {"q":{"name":"v2_conn_heartbeat_all_data_Delete"},"u":{"$set":{"parentId":"v2_conn_heartbeat","description":"删除全部数据","name":"v2_conn_heartbeat_all_data_Delete","need_permission":true,"order":5,"resources":[],"status":"enable","type":"read","version":"v2"}},"upsert":true}
+    ]
+  },
+  {
+    "update": "RoleMapping",
+    "updates": [
+      {
+        "q": {
+          "principalId": "v2_data_check_creation",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_data_check_creation",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_data_check_import",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_data_check_import",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_data_check_export",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_data_check_export",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_data_check_all_data",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_data_check_all_data",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_data_check_all_data_Edit",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_data_check_all_data_Edit",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_data_check_all_data_Delete",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_data_check_all_data_Delete",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_data_check_all_data_Start",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_data_check_all_data_Start",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_data_check_all_data_Stop",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_data_check_all_data_Stop",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_log_collector_all_data",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_log_collector_all_data",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_log_collector_all_data_Edit",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_log_collector_all_data_Edit",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_log_collector_all_data_Delete",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_log_collector_all_data_Delete",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_log_collector_all_data_Reset",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_log_collector_all_data_Reset",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_log_collector_all_data_Start",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_log_collector_all_data_Start",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_log_collector_all_data_Stop",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_log_collector_all_data_Stop",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_shared_cache_creation",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_shared_cache_creation",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_shared_cache_import",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_shared_cache_import",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_shared_cache_export",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_shared_cache_export",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_shared_cache_all_data",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_shared_cache_all_data",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_shared_cache_all_data_Edit",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_shared_cache_all_data_Edit",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_shared_cache_all_data_Delete",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_shared_cache_all_data_Delete",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_shared_cache_all_data_Reset",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_shared_cache_all_data_Reset",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_shared_cache_all_data_Start",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_shared_cache_all_data_Start",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "principalId": "v2_shared_cache_all_data_Stop",
+          "principalType": "PERMISSION",
+          "roleId": {
+            "$oid": "5b9a0a383fcba02649524bf1"
+          }
+        },
+        "u": {
+          "$set": {
+            "principalId": "v2_shared_cache_all_data_Stop",
+            "principalType": "PERMISSION",
+            "roleId": {
+              "$oid": "5b9a0a383fcba02649524bf1"
+            },
+            "self_only": false
+          }
+        },
+        "upsert": true
+      },
+      {"q":{"principalId":"v2_project_management_creation","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_project_management_creation","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_project_management_git_config","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_project_management_git_config","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_project_management_all_data","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_project_management_all_data","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_project_management_all_data_Edit","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_project_management_all_data_Edit","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_project_management_all_data_Delete","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_project_management_all_data_Delete","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_project_import_and_export_import","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_project_import_and_export_import","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_project_import_and_export_export","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_project_import_and_export_export","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_project_import_and_export_all_data","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_project_import_and_export_all_data","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_user_management_menu_creation","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_user_management_menu_creation","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_user_management_menu_all_data","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_user_management_menu_all_data","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_user_management_menu_all_data_Edit","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_user_management_menu_all_data_Edit","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_user_management_menu_all_data_Delete","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_user_management_menu_all_data_Delete","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_conn_heartbeat","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_conn_heartbeat","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_conn_heartbeat_all_data","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_conn_heartbeat_all_data","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_conn_heartbeat_all_data_Start","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_conn_heartbeat_all_data_Start","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_conn_heartbeat_all_data_Stop","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_conn_heartbeat_all_data_Stop","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_conn_heartbeat_all_data_Reset","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_conn_heartbeat_all_data_Reset","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true},
+      {"q":{"principalId":"v2_conn_heartbeat_all_data_Delete","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"}},"u":{"$set":{"principalId":"v2_conn_heartbeat_all_data_Delete","principalType":"PERMISSION","roleId":{"$oid":"5b9a0a383fcba02649524bf1"},"self_only":false}},"upsert":true}
+    ]
+  }
+]

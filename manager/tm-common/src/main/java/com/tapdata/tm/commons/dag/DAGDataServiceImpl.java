@@ -404,12 +404,13 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                     JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
 
             metadataInstancesDto = modelDeduction(metadataInstancesDto, schema, dataSource, needPossibleDataTypes, options);
+            String inferredMetaType = SchemaUtils.inferModelMetaType(_metaType, schema.getMetaType(), metadataInstancesDto.getMetaType());
             metadataInstancesDto.getFields().forEach(field -> {
                 field.setSourceDbType(dataSource.getDatabase_type());
                 field.setDataTypeTemp(field.getDataType());
             });
 
-            metadataInstancesDto.setMetaType(_metaType);
+            metadataInstancesDto.setMetaType(inferredMetaType);
             metadataInstancesDto.setDeleted(false);
             metadataInstancesDto.setSource(sourceDto);
 
@@ -429,7 +430,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setQualifiedName(
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName(), taskId));
 
-            metadataInstancesDto = MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
+            metadataInstancesDto = MetaDataBuilderUtils.build(metadataInstancesDto.getMetaType(), dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
                     metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
@@ -1245,7 +1246,13 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         for (MetadataInstancesDto metadataInstancesDto : batchInsertMetaDataList) {
-            if (metadataInstancesDto.getQualifiedName().equals(qualifiedName)) {
+            if (Objects.equals(metadataInstancesDto.getQualifiedName(), qualifiedName)) {
+                return metadataInstancesDto;
+            }
+        }
+        for (MetadataInstancesDto metadataInstancesDto : batchInsertMetaDataList) {
+            if (Objects.equals(metadataInstancesDto.getNodeId(), nodeId)
+                    && Objects.equals(metadataInstancesDto.getOriginalName(), tableName)) {
                 return metadataInstancesDto;
             }
         }

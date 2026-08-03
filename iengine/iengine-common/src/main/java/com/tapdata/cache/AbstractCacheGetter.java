@@ -10,8 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public abstract class AbstractCacheGetter implements ICacheGetter {
 
@@ -61,7 +63,7 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
 		Map<String, Object> record = getRecord(cacheName, cacheKeys);
 		if (record == null && lookup) {
-			List<Map<String, Object>> rows = getDataSourceRowsGetter().getRows(cacheKeys);
+			List<Map<String, Object>> rows = projectFields(getDataSourceRowsGetter().getRows(cacheKeys));
 			if (CollectionUtils.isNotEmpty(rows)) {
 				String key = CacheUtil.cacheKey(cacheKeys);
 				cacheStore.cacheRow(cacheName, key, rows);
@@ -79,7 +81,7 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 		List<Map<String, Object>> recordList = getRecordList(cacheName, cacheKeys);
 		if (CollectionUtils.isEmpty(recordList) && lookup) {
 			IDataSourceRowsGetter iDataSourceRowsGetter = getDataSourceRowsGetter();
-			List<Map<String, Object>> rows = iDataSourceRowsGetter.getRows(cacheKeys);
+			List<Map<String, Object>> rows = projectFields(iDataSourceRowsGetter.getRows(cacheKeys));
 			if (CollectionUtils.isNotEmpty(rows)) {
 				recordList = new ArrayList<>(rows.size());
 				for (Map<String, Object> row : rows) {
@@ -93,6 +95,19 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 			cacheStats.hitRateStats(cacheName, true);
 		}
 		return recordList;
+	}
+
+	protected List<Map<String, Object>> projectFields(List<Map<String, Object>> rows) {
+		Set<String> fields = cacheConfig == null ? null : cacheConfig.getFields();
+		if (CollectionUtils.isEmpty(rows) || CollectionUtils.isEmpty(fields)) {
+			return rows;
+		}
+		Set<String> projectFields = new HashSet<>(fields);
+		List<Map<String, Object>> projected = new ArrayList<>(rows.size());
+		for (Map<String, Object> row : rows) {
+			projected.add(CacheUtil.cacheFieldRow(row, projectFields));
+		}
+		return projected;
 	}
 
 

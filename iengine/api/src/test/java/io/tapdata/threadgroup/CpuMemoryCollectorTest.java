@@ -974,12 +974,13 @@ class CpuMemoryCollectorTest {
 
         @Test
         @DisplayName("test eachThreadGroup with threads")
-        void testEachThreadGroupWithThreads() {
+        void testEachThreadGroupWithThreads() throws InterruptedException {
             ThreadFactory threadFactory = mock(ThreadFactory.class);
             ThreadGroup threadGroup = new ThreadGroup("testGroup");
+            java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
             Thread thread = new Thread(threadGroup, () -> {
                 try {
-                    Thread.sleep(100);
+                    latch.await();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -996,7 +997,8 @@ class CpuMemoryCollectorTest {
 
             collector.eachThreadGroup(weakReferences, useless, consumer);
 
-            thread.interrupt();
+            latch.countDown();
+            thread.join(2000);
             assertFalse(threadIds.isEmpty());
         }
 

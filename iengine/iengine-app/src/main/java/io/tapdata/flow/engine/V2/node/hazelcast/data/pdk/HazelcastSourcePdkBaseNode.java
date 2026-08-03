@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -35,9 +36,17 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmDatasourceDto;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.alarm.AlarmComponentEnum;
+import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
+import com.tapdata.tm.commons.alarm.AlarmTypeEnum;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
+import com.tapdata.tm.error.NoPrimaryKeyVirtualFieldExCode_42;
 import com.tapdata.tm.skiperrortable.SkipErrorTableStatusEnum;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.*;
@@ -59,6 +68,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -85,12 +95,21 @@ import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadFunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionFunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadMultiConnectionOneByOneFunctionProxy;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamic.proxy.StreamReadOneByOneFunctionProxy;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryService;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionOneByOneFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadOneByOneFunction;
 import io.tapdata.task.skiperrortable.ISkipErrorTable;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -250,6 +269,19 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         return false;
     }
 
+    protected void initFunctionProxy() {
+        ConnectorNode connectorNode = getConnectorNode();
+        ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+        StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
+        StreamReadOneByOneFunction streamReadOneByOneFunction = connectorFunctions.getStreamReadOneByOneFunction();
+        StreamReadMultiConnectionFunction streamReadMultiConnectionFunction = connectorFunctions.getStreamReadMultiConnectionFunction();
+        StreamReadMultiConnectionOneByOneFunction streamReadMultiConnectionOneByOneFunction = connectorFunctions.getStreamReadMultiConnectionOneByOneFunction();
+        connectorFunctions.supportOneByOneStreamRead(StreamReadOneByOneFunctionProxy.instance(streamReadOneByOneFunction));
+        connectorFunctions.supportStreamRead(StreamReadFunctionProxy.instance(streamReadFunction));
+        connectorFunctions.supportStreamReadMultiConnectionFunction(StreamReadMultiConnectionFunctionProxy.instance(streamReadMultiConnectionFunction));
+        connectorFunctions.supportStreamReadMultiConnectionOneByOneFunction(StreamReadMultiConnectionOneByOneFunctionProxy.instance(streamReadMultiConnectionOneByOneFunction));
+    }
+
     @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
         noPrimaryKeyVirtualField.init(getNode().getGraph());
@@ -276,6 +308,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             } catch (Throwable e) {
                 obsLogger.error("Source connector(" + getNode().getName() + ") initialization error: " + e.getMessage(), e);
                 throw new NodeException(e).context(getProcessorBaseContext());
+            }
+            if (!isPollingCDC(getNode())) {
+                initFunctionProxy();
             }
             dataProcessorContext.getTapTableMap().forEach((id, table) -> noPrimaryKeyVirtualField.add(table));
             initSourceReadBatchSize();
@@ -1065,6 +1100,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                                 return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || !Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
                             case OnlyUniqueIndex:
                                 return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
+                            case View:
+                                return (Function<TapTable, Boolean>) tapTable -> {
+                                    String metaType = tapTable.getType();
+                                    return MetaType.isView(metaType);
+                                };
                             default:
                                 break;
                         }
@@ -1132,7 +1172,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 }
             });
             if (CollectionUtils.isNotEmpty(missingTableNames)) {
-                obsLogger.warn("It is expected to load {} new table models, and {} table models no longer exist and will be ignored. The table name(s) that does not exist: {}",
+                obsLogger.info("It is expected to load {} new table models, and {} table models no longer exist and will be ignored. The table which does not need as new table add to task: {}",
                         addList.size(), missingTableNames.size(), missingTableNames);
             }
             if (CollectionUtils.isEmpty(loadedTableNames)) {
@@ -1446,16 +1486,51 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             try {
                 if (!noPrimaryKeyVirtualField.addHashValue(recordEvent)) return null;
             } catch (NoPrimaryKeyException e) {
-                if (NoPrimaryKeyException.CODE_INCOMPLETE_FIELDS == e.getCode()) {
-                    obsLogger.warn("Table '{}' user lacks complete before information, and subsequent update and delete events will be ignored: {}", recordEvent.getTableId(), e.getMessage());
-                    logger.warn("Table '{}' user lacks complete before information, and subsequent update and delete events will be ignored", recordEvent.getTableId(), e);
-                } else {
-                    obsLogger.warn("Table '{}' add hash filed failed, and subsequent update and delete events will be ignored: {}", recordEvent.getTableId(), e.getMessage());
-                    logger.error("Table '{}' add hash filed failed, and subsequent update and delete events will be ignored", recordEvent.getTableId(), e);
-                }
+                throw new TapCodeException(NoPrimaryKeyVirtualFieldExCode_42.GENERATE_HASH_KEY_FAILED, e).dynamicDescriptionParameters(recordEvent);
             }
         } else if (tapEvent instanceof HeartbeatEvent) {
             tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
+        } else if (tapEvent instanceof TapDDLWarningEvent) {
+            TapDDLWarningEvent warningEvent = (TapDDLWarningEvent) tapEvent;
+            obsLogger.warn("Source node received a DDL warning event: {}, warning message: {}",
+                    warningEvent, warningEvent.getWarningMessage());
+
+            // Send alarm notification (email, SMS, in-app notification) via TM alarm system
+            try {
+                Connections connections = dataProcessorContext.getConnections();
+                TaskDto taskDto = dataProcessorContext.getTaskDto();
+                Map<String, Object> param = new HashMap<>();
+                param.put("ddlWarningLog", warningEvent.getWarningMessage());
+                param.put("ddlWarningTime", DateUtil.now());
+                param.put("taskName", taskDto.getName());
+
+                AlarmDatasourceDto alarmDto = AlarmDatasourceDto.builder()
+                        .level(Level.WARNING)
+                        .agentId(CommonUtils.getenv("process_id"))
+                        .component(AlarmComponentEnum.FE)
+                        .status(AlarmStatusEnum.ING)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM)
+                        .name(connections.getName())
+                        .taskId(taskDto.getId().toHexString())
+                        .nodeId(getNode().getId())
+                        .node(getNode().getName())
+                        .summary(AlarmKeyEnum.TASK_DDL_WARNING.name())
+                        .metric(AlarmKeyEnum.TASK_DDL_WARNING)
+                        .param(param)
+                        .lastNotifyTime(new Date())
+                        .build();
+                if (null != connections.getUser_id()) {
+                    alarmDto.setUserId(connections.getUser_id());
+                }
+                clientMongoOperator.insertOne(alarmDto, "alarm/addDatasourceMsg");
+            } catch (Exception e) {
+                logger.warn("Failed to send DDL warning alarm: {}", e.getMessage(), e);
+            }
+
+            tapdataEvent.setStreamOffset(offsetObj);
+            tapdataEvent.setSourceTime(warningEvent.getReferenceTime());
+            // TapDDLWarningEvent does not alter schema; skip handleSchemaChange.
+            // The event is passed through unconditionally so downstream nodes can also react.
         } else if (tapEvent instanceof TapDDLEvent) {
             obsLogger.trace("Source node received an ddl event: " + tapEvent);
 

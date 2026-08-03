@@ -57,6 +57,9 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
     }
 
     private String convertTableName(TapEvent tapEvent, String tableId) {
+        if (null == tableId) {
+            return null;
+        }
         TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) getNode();
         if (tapEvent instanceof TapRenameTableEvent) {
             String newTableId = tableRenameProcessNode.convertTableName(tableNameMappingMap, tableId, true);

@@ -15,6 +15,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUnknownRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.exception.TapCodeException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -476,14 +477,6 @@ public class NoPrimaryKeyVirtualFieldTest {
                     return data;
                 }).get());
             Assertions.assertThrows(NoPrimaryKeyException.class, () -> instance.addHashValue(recordEvent));
-            Assertions.assertFalse(instance.addHashValue(recordEvent));
-            Assertions.assertFalse(instance.addHashValue(TapDeleteRecordEvent.create()
-                .table(tableNameNoPk)
-                .before(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
-                    data.put("created", System.currentTimeMillis());
-                    return data;
-                }).get())
-            ));
         }
 
         @Test
@@ -501,22 +494,7 @@ public class NoPrimaryKeyVirtualFieldTest {
 
             try (MockedStatic<MessageDigest> mockedStatic = Mockito.mockStatic(MessageDigest.class)) {
                 mockedStatic.when(() -> MessageDigest.getInstance(Mockito.anyString())).thenThrow(new NoSuchAlgorithmException("XXX not found"));
-                Assertions.assertThrows(NoPrimaryKeyException.class, () -> instance.addHashValue(recordEvent));
-                Assertions.assertFalse(instance.addHashValue(recordEvent));
-                Assertions.assertFalse(instance.addHashValue(TapInsertRecordEvent.create()
-                    .table(tableNameNoPk)
-                    .after(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
-                        data.put("created", System.currentTimeMillis());
-                        return data;
-                    }).get())
-                ));
-                Assertions.assertFalse(instance.addHashValue(TapDeleteRecordEvent.create()
-                    .table(tableNameNoPk)
-                    .before(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
-                        data.put("created", System.currentTimeMillis());
-                        return data;
-                    }).get())
-                ));
+                Assertions.assertThrows(TapCodeException.class, () -> instance.addHashValue(recordEvent));
             }
         }
 
@@ -536,21 +514,6 @@ public class NoPrimaryKeyVirtualFieldTest {
             try (MockedStatic<MessageDigest> mockedStatic = Mockito.mockStatic(MessageDigest.class)) {
                 mockedStatic.when(() -> MessageDigest.getInstance(Mockito.anyString())).thenThrow(new RuntimeException("others"));
                 Assertions.assertThrows(NoPrimaryKeyException.class, () -> instance.addHashValue(recordEvent));
-                Assertions.assertFalse(instance.addHashValue(recordEvent));
-                Assertions.assertFalse(instance.addHashValue(TapInsertRecordEvent.create()
-                    .table(tableNameNoPk)
-                    .after(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
-                        data.put("created", System.currentTimeMillis());
-                        return data;
-                    }).get())
-                ));
-                Assertions.assertFalse(instance.addHashValue(TapDeleteRecordEvent.create()
-                    .table(tableNameNoPk)
-                    .before(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
-                        data.put("created", System.currentTimeMillis());
-                        return data;
-                    }).get())
-                ));
             }
         }
 

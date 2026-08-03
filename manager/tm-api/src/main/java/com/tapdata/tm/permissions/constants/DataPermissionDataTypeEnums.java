@@ -46,6 +46,16 @@ public enum DataPermissionDataTypeEnums implements IDataPermissionAction {
 		DataPermissionActionEnums.Delete,
 		DataPermissionActionEnums.Start,
 		DataPermissionActionEnums.Stop
+	), GroupInfo(
+		"GroupInfo",
+		DataPermissionActionEnums.View,
+		DataPermissionActionEnums.Edit,
+		DataPermissionActionEnums.Delete
+	), User(
+		"User",
+		DataPermissionActionEnums.View,
+		DataPermissionActionEnums.Edit,
+		DataPermissionActionEnums.Delete
 	)
 	;
 	private final String collection;

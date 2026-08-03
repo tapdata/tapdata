@@ -1037,8 +1037,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         return;
                     }
                 }
-                updateMemoryFromDDLInfoMap(consumeEvent);
-                obsLogger.trace("The target node refreshes the memory model according to the ddl event({})", consumeEvent.getTapEvent());
+				boolean skipTargetTableUpdate = consumeEvent.getTapEvent() instanceof TapCreateTableEvent
+						&& Boolean.TRUE.equals(consumeEvent.getTapEvent().getInfo(SKIP_TARGET_CREATE_TABLE_INFO_KEY));
+				updateMemoryFromDDLInfoMap(consumeEvent, !skipTargetTableUpdate);
+				obsLogger.trace("The target node refreshes the memory model according to the ddl event({}), skip target table model: {}",
+						consumeEvent.getTapEvent(), skipTargetTableUpdate);
             }
             enqueue(this.tapEventProcessQueue, consumeEvent);
         }
@@ -1321,7 +1324,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		String sourceNodeAssociateId = tapdataEvent.getSourceNodeAssociateId();
 		if (null != sourceNodeId && null != sourceNodeAssociateId && null != ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId)) {
 			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId);
-			sourceConnectorNodeMap.putIfAbsent(sourceNodeId, connectorNode);
+			// A source runner restart when handle new tables rebuilds the ConnectorNode under a new
+			ConnectorNode previous = sourceConnectorNodeMap.put(sourceNodeId, connectorNode);
+			if (null != previous && previous != connectorNode) {
+				obsLogger.info("Source connector node of {} refreshed to associateId {} after restart, offset flush will target the active CDC engine", sourceNodeId, sourceNodeAssociateId);
+			}
 		}
 	}
 
@@ -2519,4 +2526,3 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 }
-

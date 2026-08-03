@@ -819,12 +819,19 @@ public class TaskServiceImpl extends TaskService{
     }
 
 
-    public TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user) {
+    public TaskDto updateShareCacheTask(
+            String id,
+            SaveShareCacheParam saveShareCacheParam,
+            UserDetail user,
+            boolean canStart
+    ) {
         TaskDto taskDto = findById(MongoUtils.toObjectId(id));
         parseCacheToTaskDto(saveShareCacheParam, taskDto);
 
         updateById(taskDto, user);
-        start(taskDto.getId(), user);
+        if (canStart) {
+            start(taskDto.getId(), user);
+        }
         return taskDto;
 
     }
@@ -2101,6 +2108,7 @@ public class TaskServiceImpl extends TaskService{
                 shareCacheVo.setSyncStatus(taskDto.getSyncStatus());
                 shareCacheVo.setStatuses(taskDto.getStatuses());
                 shareCacheVo.setId(taskDto.getId().toString());
+                shareCacheVo.setPermissionActions(taskDto.getPermissionActions());
                 shareCacheVos.add(shareCacheVo);
             }
         }
@@ -2131,6 +2139,7 @@ public class TaskServiceImpl extends TaskService{
         shareCacheDetailVo.setAutoCreateIndex(targetNode.getAutoCreateIndex());
         shareCacheDetailVo.setCreateTime(taskDto.getCreateAt());
         shareCacheDetailVo.setCreateUser(taskDto.getCreateUser());
+        shareCacheDetailVo.setPermissionActions(taskDto.getPermissionActions());
         if (null != sourceNode.getAttrs()) {
             shareCacheDetailVo.setFields((List<String>) sourceNode.getAttrs().get(FIELDS));
         }

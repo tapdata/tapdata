@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.ddl;
 import com.tapdata.tm.commons.dag.DDLConfiguration;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
+import io.tapdata.entity.event.ddl.TapDDLWarningEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -89,5 +90,13 @@ class DDLFilterTest {
 
         result = ddlFilter.test(new TapCreateTableEvent());
         Assertions.assertFalse(result);
+    }
+
+    @Test
+    void testDDLWarningTest() {
+        TapDDLWarningEvent warningEvent = new TapDDLWarningEvent();
+        DDLFilter ddlFilter = DDLFilter.create(new ArrayList<>(), null, null, null);
+        boolean result = ddlFilter.test(warningEvent);
+        Assertions.assertTrue(result);
     }
 }

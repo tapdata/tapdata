@@ -20,10 +20,10 @@
         <graalvm.py.group0>org</graalvm.py.group0>
         <graalvm.py.group1>python</graalvm.py.group1>
         <graalvm.py.version>2.7.2</graalvm.py.version>
-        <tapdata.pdk.runner.version>2.8-SNAPSHOT</tapdata.pdk.runner.version>
-        <script.engine.module.version>2.8-SNAPSHOT</script.engine.module.version>
-        <class.supervisor.version>2.8-SNAPSHOT</class.supervisor.version>
-        <pdk.error.code.version>2.8-SNAPSHOT</pdk.error.code.version>
+        <tapdata.pdk.runner.version>2.9-SNAPSHOT</tapdata.pdk.runner.version>
+        <script.engine.module.version>2.9-SNAPSHOT</script.engine.module.version>
+        <class.supervisor.version>2.9-SNAPSHOT</class.supervisor.version>
+        <pdk.error.code.version>2.9-SNAPSHOT</pdk.error.code.version>
     </properties>
     <!--<dependencyManagement>-->
     <dependencies>
@@ -265,20 +265,9 @@
     </build>
     <repositories>
         <repository>
-            <id>tapdata-wendangshujuku-mongo</id>
-            <name>mongo</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
             <id>nexus-releases</id>
             <name>nexus-maven-release</name>
-            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+            <url>https://nexus.tapdata.net/repository/maven-public/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -297,24 +286,13 @@
                 <enabled>true</enabled>
             </snapshots>
         </repository>
-        <repository>
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
     </repositories>
 
     <distributionManagement>
         <repository>
             <id>nexus-tapdata-net</id>
             <name>Nexus Release Repository</name>
-            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+            <url>https://nexus.tapdata.net/repository/maven-public/</url>
         </repository>
         <snapshotRepository>
             <id>nexus-tapdata-net</id>

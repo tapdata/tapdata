@@ -5,9 +5,15 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.userGroup.dto.UserGroupDto;
 import com.tapdata.tm.userGroup.service.UserGroupService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,7 +23,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 
 /**
@@ -60,11 +68,9 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
     public ResponseMessage<UserGroupDto> update(@RequestBody UserGroupDto userGroup) {
-        if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
-            return success(userGroupService.save(userGroup, getLoginUser()));
-        } else {
-            throw new BizException("NotAuthorized");
-        }
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit,
+                () -> success(userGroupService.save(userGroup, userDetail)));
     }
 
 
@@ -84,7 +90,13 @@ public class UserGroupController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(userGroupService.find(filter, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        Filter userGroupFilter = filter;
+        return DataPermissionMenuEnums.UserManagement.checkAndSetFilter(
+                userDetail,
+                DataPermissionActionEnums.View,
+                () -> success(userGroupService.find(userGroupFilter, userDetail))
+        );
     }
 
     /**
@@ -95,11 +107,9 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
     public ResponseMessage<UserGroupDto> put(@RequestBody UserGroupDto userGroup) {
-        if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
-            return success(userGroupService.replaceOrInsert(userGroup, getLoginUser()));
-        } else {
-            throw new BizException("NotAuthorized");
-        }
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit,
+                () -> success(userGroupService.replaceOrInsert(userGroup, userDetail)));
     }
 
 
@@ -110,10 +120,13 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Check whether a model instance exists in the data source")
     @RequestMapping(value = "{id}", method = RequestMethod.HEAD)
     public ResponseMessage<HashMap<String, Boolean>> checkById(@PathVariable("id") String id) {
-        long count = userGroupService.count(Where.where("_id", MongoUtils.toObjectId(id)), getLoginUser());
-        HashMap<String, Boolean> existsValue = new HashMap<>();
-        existsValue.put("exists", count > 0);
-        return success(existsValue);
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.View, () -> {
+            long count = userGroupService.count(Where.where("_id", MongoUtils.toObjectId(id)), userDetail);
+            HashMap<String, Boolean> existsValue = new HashMap<>();
+            existsValue.put("exists", count > 0);
+            return success(existsValue);
+        });
     }
 
     /**
@@ -124,12 +137,11 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
     public ResponseMessage<UserGroupDto> updateById(@PathVariable("id") String id, @RequestBody UserGroupDto userGroup) {
-        if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit, () -> {
             userGroup.setId(MongoUtils.toObjectId(id));
-            return success(userGroupService.save(userGroup, getLoginUser()));
-        } else {
-            throw new BizException("NotAuthorized");
-        }
+            return success(userGroupService.save(userGroup, userDetail));
+        });
     }
 
 
@@ -143,7 +155,9 @@ public class UserGroupController extends BaseController {
     public ResponseMessage<UserGroupDto> findById(@PathVariable("id") String id,
             @RequestParam(value = "fields", required = false) String fieldsJson) {
         Field fields = parseField(fieldsJson);
-        return success(userGroupService.findById(MongoUtils.toObjectId(id),  fields, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.View,
+                () -> success(userGroupService.findById(MongoUtils.toObjectId(id), fields, userDetail)));
     }
 
     /**
@@ -154,7 +168,9 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PutMapping("{id}")
     public ResponseMessage<UserGroupDto> replceById(@PathVariable("id") String id, @RequestBody UserGroupDto userGroup) {
-        return success(userGroupService.replaceById(MongoUtils.toObjectId(id), userGroup, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
+                () -> success(userGroupService.replaceById(MongoUtils.toObjectId(id), userGroup, userDetail)));
     }
 
     /**
@@ -165,7 +181,9 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PostMapping("{id}/replace")
     public ResponseMessage<UserGroupDto> replaceById2(@PathVariable("id") String id, @RequestBody UserGroupDto userGroup) {
-        return success(userGroupService.replaceById(MongoUtils.toObjectId(id), userGroup, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Edit,
+                () -> success(userGroupService.replaceById(MongoUtils.toObjectId(id), userGroup, userDetail)));
     }
 
 
@@ -178,7 +196,9 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Boolean> delete(@PathVariable("id") String id) {
-        return success(userGroupService.deleteById(MongoUtils.toObjectId(id), getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.Delete,
+                () -> success(userGroupService.deleteById(MongoUtils.toObjectId(id), userDetail)));
     }
 
     /**
@@ -189,10 +209,13 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Check whether a model instance exists in the data source")
     @GetMapping("{id}/exists")
     public ResponseMessage<HashMap<String, Boolean>> checkById1(@PathVariable("id") String id) {
-        long count = userGroupService.count(Where.where("_id", MongoUtils.toObjectId(id)), getLoginUser());
-        HashMap<String, Boolean> existsValue = new HashMap<>();
-        existsValue.put("exists", count > 0);
-        return success(existsValue);
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfId(userDetail, id, DataPermissionActionEnums.View, () -> {
+            long count = userGroupService.count(Where.where("_id", MongoUtils.toObjectId(id)), userDetail);
+            HashMap<String, Boolean> existsValue = new HashMap<>();
+            existsValue.put("exists", count > 0);
+            return success(existsValue);
+        });
     }
 
     /**
@@ -207,10 +230,18 @@ public class UserGroupController extends BaseController {
         if (where == null) {
             where = new Where();
         }
-        long count = userGroupService.count(where, getLoginUser());
-        HashMap<String, Long> countValue = new HashMap<>();
-        countValue.put("count", count);
-        return success(countValue);
+        UserDetail userDetail = getLoginUser();
+        Where userGroupWhere = where;
+        return DataPermissionMenuEnums.UserManagement.checkAndSetFilter(
+                userDetail,
+                DataPermissionActionEnums.View,
+                () -> {
+                    long count = userGroupService.count(userGroupWhere, userDetail);
+                    HashMap<String, Long> countValue = new HashMap<>();
+                    countValue.put("count", count);
+                    return success(countValue);
+                }
+        );
     }
 
     /**
@@ -229,7 +260,13 @@ public class UserGroupController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(userGroupService.findOne(filter, getLoginUser()));
+        UserDetail userDetail = getLoginUser();
+        Filter userGroupFilter = filter;
+        return DataPermissionMenuEnums.UserManagement.checkAndSetFilter(
+                userDetail,
+                DataPermissionActionEnums.View,
+                () -> success(userGroupService.findOne(userGroupFilter, userDetail))
+        );
     }
 
     /**
@@ -240,11 +277,14 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody UserGroupDto userGroup) {
-        Where where = parseWhere(whereJson);
-        long count = userGroupService.updateByWhere(where, userGroup, getLoginUser());
-        HashMap<String, Long> countValue = new HashMap<>();
-        countValue.put("count", count);
-        return success(countValue);
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit, () -> {
+            Where where = parseWhere(whereJson);
+            long count = userGroupService.updateByWhere(where, userGroup, userDetail);
+            HashMap<String, Long> countValue = new HashMap<>();
+            countValue.put("count", count);
+            return success(countValue);
+        });
     }
 
     /**
@@ -255,12 +295,55 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Update an existing model instance or insert a new one into the data source based on the where criteria.")
     @PostMapping("upsertWithWhere")
     public ResponseMessage<UserGroupDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody UserGroupDto userGroup) {
-        if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
+        UserDetail userDetail = getLoginUser();
+        return dataPermissionCheckOfMenu(userDetail, DataPermissionActionEnums.Edit, () -> {
             Where where = parseWhere(whereJson);
-            return success(userGroupService.upsertByWhere(where, userGroup, getLoginUser()));
-        } else {
-            throw new BizException("NotAuthorized");
-        }
+            return success(userGroupService.upsertByWhere(where, userGroup, userDetail));
+        });
+    }
+
+    private <T> T dataPermissionCheckOfMenu(
+            UserDetail userDetail,
+            DataPermissionActionEnums action,
+            Supplier<T> supplier
+    ) {
+        return DataPermissionHelper.check(
+                userDetail,
+                DataPermissionMenuEnums.UserManagement,
+                action,
+                DataPermissionDataTypeEnums.User,
+                null,
+                supplier,
+                () -> dataPermissionUnAuth(action, Lists.newArrayList(action))
+        );
+    }
+
+    private <T> T dataPermissionCheckOfId(
+            UserDetail userDetail,
+            String id,
+            DataPermissionActionEnums action,
+            Supplier<T> supplier
+    ) {
+        return DataPermissionHelper.checkOfQuery(
+                userDetail,
+                DataPermissionDataTypeEnums.User,
+                action,
+                userGroupService.dataPermissionFindById(MongoUtils.toObjectId(id), new Field()),
+                dto -> DataPermissionMenuEnums.UserManagement,
+                supplier,
+                () -> dataPermissionUnAuth(action, Lists.newArrayList(action))
+        );
+    }
+
+    private <T> T dataPermissionUnAuth(
+            DataPermissionActionEnums action,
+            List<DataPermissionActionEnums> need
+    ) {
+        throw new BizException(
+                "insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.User, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.User, need)
+        );
     }
 
 }

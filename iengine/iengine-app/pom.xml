@@ -268,7 +268,7 @@
         </dependency>
 
         <dependency>
-            <groupId>org.samba.jcifs</groupId>
+            <groupId>jcifs</groupId>
             <artifactId>jcifs</artifactId>
         </dependency>
 

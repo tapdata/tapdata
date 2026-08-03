@@ -2,6 +2,7 @@ package com.tapdata.tm.user.entity;
 
 import com.tapdata.manager.common.annotation.SetOnInsert;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -20,7 +21,7 @@ import java.util.Map;
 @Data
 @EqualsAndHashCode(callSuper=false)
 @Document("User")
-public class User extends BaseEntity {
+public class User extends BaseEntity implements IDataPermissionEntity {
 
     @Field("accesscode")
     @Indexed(unique = true)

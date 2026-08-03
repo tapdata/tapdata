@@ -262,8 +262,6 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 			LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(connection, clientMongoOperator,
 				null == schema.getTables() ? schema.getTapTableCount() : schema.getTables().size());
 			loadSchemaRunner.run();
-		} else {
-			updateLoadSchemaFieldStatus(isExternalStorage, connection, ConnectorConstant.LOAD_FIELD_STATUS_FINISHED, schema, UUIDGenerator.uuid());
 		}
 	}
 

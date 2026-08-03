@@ -61,6 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -1169,6 +1170,44 @@ class ApiMetricsChartQueryTest {
             worker.setWorkerStatus(apiServerStatus);
             serverMap.put("server-id", worker);
             Assertions.assertDoesNotThrow(() -> apiMetricsChartQuery.currentCpuCores(items, serverMap));
+        }
+    }
+
+    @Nested
+    class currentCpuCores2Test {
+        @BeforeEach
+        void init() {
+            doCallRealMethod().when(apiMetricsChartQuery).currentCpuCores(anyList(), anyMap(), anyBoolean());
+        }
+
+        @Test
+        void testCpuCoreIdNull() {
+            List<UsageBase> items = new ArrayList<>();
+            UsageBase usageBase = new UsageBase();
+            usageBase.setProcessId("server-id");
+            items.add(usageBase);
+            Map<String, Worker> serverMap = new HashMap<>();
+            Worker worker = new Worker();
+            worker.setProcessId("server-id");
+            worker.setWorkerStatus(new ApiServerStatus());
+            serverMap.put("server-id", worker);
+            Assertions.assertDoesNotThrow(() -> apiMetricsChartQuery.currentCpuCores(items, serverMap, true));
+        }
+
+        @Test
+        void testCpuCoreIdNotNull() {
+            List<UsageBase> items = new ArrayList<>();
+            UsageBase usageBase = new UsageBase();
+            usageBase.setProcessId("server-id");
+            items.add(usageBase);
+            Map<String, Worker> serverMap = new HashMap<>();
+            Worker worker = new Worker();
+            worker.setProcessId("server-id");
+            ApiServerStatus status = new ApiServerStatus();
+            status.setCpuCores(1);
+            worker.setWorkerStatus(status);
+            serverMap.put("server-id", worker);
+            Assertions.assertDoesNotThrow(() -> apiMetricsChartQuery.currentCpuCores(items, serverMap, true));
         }
     }
 

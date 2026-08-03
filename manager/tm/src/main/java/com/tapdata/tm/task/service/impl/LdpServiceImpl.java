@@ -1077,13 +1077,14 @@ public class LdpServiceImpl implements LdpService {
                     LinkedList<DatabaseNode> targetNode = dag.getTargetNode();
                     DatabaseNode last = targetNode.getFirst();
                     if (last != null) {
+						Map<String, String> map = new HashMap<>();
                         List<SyncObjects> syncObjects = last.getSyncObjects();
-                        SyncObjects syncObjects1 = syncObjects.get(0);
-                        Map<String, String> map = new HashMap<>();
-                        LinkedHashMap<String, String> tableNameRelation = syncObjects1.getTableNameRelation();
-                        tableNameRelation.forEach((k, v) -> {
-                            map.put(v, k);
-                        });
+						if (CollectionUtils.isNotEmpty(syncObjects)) {
+							SyncObjects syncObjects1 = syncObjects.get(0);
+							Optional.ofNullable(syncObjects1)
+									.map(SyncObjects::getTableNameRelation)
+									.ifPresent(rel -> rel.forEach((k, v) -> map.put(v, k)));
+						}
 
                         List<String> ldpNewTables = taskDto.getLdpNewTables();
                         if (ldpNewTables == null) {

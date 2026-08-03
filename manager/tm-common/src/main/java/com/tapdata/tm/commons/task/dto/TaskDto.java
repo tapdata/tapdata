@@ -141,6 +141,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private Integer resetTimes;
 
     private Long currentEventTimestamp;
+    private Map<String, Long> nodeCurrentEventTimestamp;
     private Long snapshotDoneAt;
 
     private Long scheduleDate;
