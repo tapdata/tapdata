@@ -186,4 +186,22 @@ class ServingIndexLandingReportsTest {
 				Collections.singletonList(existing("a_1", null, "a", true)));
 		assertFalse(clean.needsAttention());
 	}
+
+	@Test
+	@DisplayName("P3-5：报告自带汇总——看的人不该自己把三桶加起来数失败")
+	void reportCarriesTheSummary() {
+		ServingIndexLandingWorkList work = ServingIndexLandingTargets.from(
+				Collections.singletonList(api("查客户", "CUSTOMER", idx("a_1", null, f("a", true)))), conMap());
+		ServingIndexTargetOutcome outcome = new ServingIndexTargetOutcome();
+		outcome.setConnectionName("MDM-生产库");
+		outcome.setTableName("CUSTOMER");
+		outcome.setError("read back timeout, engine offline or no reply");
+		work.getOutcomes().add(outcome);
+
+		ServingIndexLandingSummary summary = ServingIndexLandingReports.of(work).getSummary();
+
+		assertEquals(1, summary.getTargets());
+		assertEquals(1, summary.getFailed());
+		assertFalse(summary.isClean());
+	}
 }

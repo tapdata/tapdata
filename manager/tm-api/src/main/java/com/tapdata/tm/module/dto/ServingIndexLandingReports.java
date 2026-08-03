@@ -29,6 +29,7 @@ public final class ServingIndexLandingReports {
 			return report;
 		}
 		report.getUnresolved().addAll(work.getUnresolved());
+		report.setSummary(ServingIndexLandingSummary.of(work));
 		for (int i = 0; i < work.getOutcomes().size(); i++) {
 			ServingIndexTargetOutcome outcome = work.getOutcomes().get(i);
 			ServingIndexLandingTarget target = i < work.getTargets().size() ? work.getTargets().get(i) : null;

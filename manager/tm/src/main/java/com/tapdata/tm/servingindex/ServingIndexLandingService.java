@@ -7,6 +7,7 @@ import com.tapdata.tm.module.dto.ServingIndexLandingPlan;
 import com.tapdata.tm.module.dto.ServingIndexLandingReport;
 import com.tapdata.tm.module.dto.ServingIndexLandingReports;
 import com.tapdata.tm.module.dto.ServingIndexLandingPlanner;
+import com.tapdata.tm.module.dto.ServingIndexLandingSummary;
 import com.tapdata.tm.module.dto.ServingIndexLandingTarget;
 import com.tapdata.tm.module.dto.ServingIndexLandingTargets;
 import com.tapdata.tm.module.dto.ServingIndexTargetOutcome;
@@ -103,8 +104,9 @@ public class ServingIndexLandingService {
 					target.getDeclared().size(), target.getSourceApis());
 		}
 		for (UnresolvedServingIndexTarget gap : work.getUnresolved()) {
-			// warn 而非静默：目标连接猜不出来就不能建索引，猜错等于建到别的库（ADR-0002）。
-			log.warn("serving index landing unresolved, api = {}, reason = {}, connectionId = {}, table = {}, indexes = {}",
+			// error 而非 warn（P3-5）：目标连接猜不出来就不能建索引，猜错等于建到别的库（ADR-0002）；
+			// 这条要在 CICD 现场一眼看见——warn 淹在导入的流水日志里，和静默跳过没区别。
+			log.error("serving index landing unresolved, api = {}, reason = {}, connectionId = {}, table = {}, indexes = {}",
 					gap.getApiName(), gap.getReason(), gap.getConnectionId(), gap.getTableName(), gap.getIndexCount());
 		}
 
@@ -112,7 +114,25 @@ public class ServingIndexLandingService {
 		for (ServingIndexLandingTarget target : work.getTargets()) {
 			work.getOutcomes().add(apply(target, user, execute));
 		}
+		summarise(work);
 		return work;
+	}
+
+	/**
+	 * P3-5 · <b>收集汇总</b>——「不首错即停」的另一半。
+	 *
+	 * <p>逐 target 各走各的之后，得有一处把「建了什么 / 谁没建成 / 谁根本落不了地」一次说清：
+	 * 失败散在几十行日志里等于没报，而现场翻 CICD 日志的人往往只看得见最后这一行。
+	 * 权限不足在 {@link ServingIndexLandingSummary#describe()} 里单独点名——它是唯一「改个授权就能恢复」
+	 * 的常见失败，重跑幂等（方案 §4）。</p>
+	 */
+	private void summarise(ServingIndexLandingWorkList work) {
+		ServingIndexLandingSummary summary = ServingIndexLandingSummary.of(work);
+		if (summary.isClean()) {
+			log.info("serving index landing summary, {}", summary.describe());
+			return;
+		}
+		log.error("serving index landing summary, {}; problems = {}", summary.describe(), summary.getProblems());
 	}
 
 	/**

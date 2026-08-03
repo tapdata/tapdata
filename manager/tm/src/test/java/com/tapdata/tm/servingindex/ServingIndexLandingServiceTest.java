@@ -9,12 +9,17 @@ import com.tapdata.tm.module.dto.ServingIndexField;
 import com.tapdata.tm.module.dto.ServingIndexLandingWorkList;
 import com.tapdata.tm.module.dto.ServingIndexTargetOutcome;
 import com.tapdata.tm.module.dto.UnresolvedServingIndexTarget;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +47,8 @@ class ServingIndexLandingServiceTest {
 	private ServingIndexService servingIndexService;
 	private ServingIndexRendezvous rendezvous;
 	private UserDetail user;
+	/** P3-5 的「响亮」是有级别的：日志级别本身就是契约，故这里真去接日志、不靠肉眼看控制台。 */
+	private ListAppender<ILoggingEvent> logs;
 
 	@BeforeEach
 	void setUp() {
@@ -57,6 +64,28 @@ class ServingIndexLandingServiceTest {
 		user = new UserDetail("userId123", "customerId", "testuser", "password", "customerType",
 				"accessCode", false, false, false, false,
 				Collections.singletonList(new SimpleGrantedAuthority("role")));
+		logs = new ListAppender<>();
+		logs.start();
+		serviceLogger().addAppender(logs);
+	}
+
+	@AfterEach
+	void tearDown() {
+		serviceLogger().detachAppender(logs);
+	}
+
+	private static ch.qos.logback.classic.Logger serviceLogger() {
+		return (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(ServingIndexLandingService.class);
+	}
+
+	private List<String> loggedAt(Level level) {
+		List<String> messages = new ArrayList<>();
+		for (ILoggingEvent event : logs.list) {
+			if (event.getLevel() == level) {
+				messages.add(event.getFormattedMessage());
+			}
+		}
+		return messages;
 	}
 
 	private static ModulesDto api(String name, String connectionId, String tableName, ServingIndex... indexes) {
@@ -247,5 +276,72 @@ class ServingIndexLandingServiceTest {
 				org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
 				org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.any(),
 				org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+	}
+
+	// ---- P3-5 错误处置（方案 §4 风险表）----
+
+	@Test
+	@DisplayName("conMap 未命中走 ERROR——warn 会淹在 CICD 日志里，和静默跳过没区别")
+	void reportsUnresolvedTargetsLoudly() {
+		service.landAfterImport(
+				Collections.singletonList(api("查客户", CONNECTION_ID, "CUSTOMER", idx("a_1", "a", true))),
+				new HashMap<>(), user);
+
+		List<String> errors = loggedAt(Level.ERROR);
+		assertTrue(errors.stream().anyMatch(line -> line.contains("unresolved") && line.contains("查客户")),
+				"未命中必须以 ERROR 点名到 API: " + errors);
+	}
+
+	@Test
+	@DisplayName("有失败 → 末尾一行 ERROR 汇总，点名失败的 (连接,集合)")
+	void summarisesFailuresAtErrorLevel() {
+		service.landAfterImport(
+				Arrays.asList(
+						api("查客户", CONNECTION_ID, "CUSTOMER", idx("a_1", "a", true)),
+						api("查订单", CONNECTION_ID, "ORDER", idx("b_-1", "b", false))),
+				conMap(), user);
+
+		List<String> errors = loggedAt(Level.ERROR);
+		assertTrue(errors.stream().anyMatch(line -> line.contains("summary") && line.contains("failed = 2")),
+				"失败要有一处一次说清，而不是散在逐 target 日志里: " + errors);
+		assertTrue(errors.stream().anyMatch(line -> line.contains("CUSTOMER") && line.contains("ORDER")),
+				"汇总要逐 (连接,集合) 点名: " + errors);
+	}
+
+	@Test
+	@DisplayName("全部落地 → 汇总走 INFO，不制造假警报")
+	void summarisesCleanRunAtInfoLevel() {
+		readbackReturns(ServingIndexReadback.success(
+				Collections.singletonList(existing("随便什么名", "a", true))));
+
+		service.landAfterImport(
+				Collections.singletonList(api("查客户", CONNECTION_ID, "CUSTOMER", idx("a_1", "a", true))),
+				conMap(), user);
+
+		assertTrue(loggedAt(Level.ERROR).isEmpty(), "干净的落地不该有 ERROR: " + loggedAt(Level.ERROR));
+		assertTrue(loggedAt(Level.INFO).stream()
+						.anyMatch(line -> line.contains("summary") && line.contains("succeeded = 1")),
+				loggedAt(Level.INFO).toString());
+	}
+
+	@Test
+	@DisplayName("目标账号无 DDL 权限 → 汇总里说人话，而不是把驱动原文丢给人")
+	void namesMissingDdlPrivilegeInsteadOfRawDriverText() {
+		readbackReturns(ServingIndexReadback.success(Collections.emptyList()));
+		org.mockito.Mockito.when(rendezvous.awaitCreateAck(org.mockito.ArgumentMatchers.anyString(),
+						org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong()))
+				.thenReturn(ServingIndexCreateAck.of(Collections.emptyList(), Collections.singletonList(
+						"a_1: Command failed with error 13 (Unauthorized): 'not authorized on mdm to execute "
+								+ "command { createIndexes: \"CUSTOMER\" }'")));
+
+		service.landAfterImport(
+				Collections.singletonList(api("查客户", CONNECTION_ID, "CUSTOMER", idx("a_1", "a", true))),
+				conMap(), user);
+
+		List<String> errors = loggedAt(Level.ERROR);
+		assertTrue(errors.stream().anyMatch(line -> line.contains("privilege")),
+				"要明确报「需 DDL 权限」（方案 §4），而不是裸抛驱动错误: " + errors);
+		assertTrue(errors.stream().anyMatch(line -> line.contains("not authorized on mdm")),
+				"驱动原文仍要留着——排查靠它: " + errors);
 	}
 }
