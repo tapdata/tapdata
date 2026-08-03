@@ -467,15 +467,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                         foundSample.put(FIELD_SS_VS_CURR_EVENT_TS, taskTs);
                     }
 
-                    Object snapDoneObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT);
-                    if (taskSnapshotDoneAt != null && (snapDoneObj == null || (snapDoneObj instanceof Number && ((Number) snapDoneObj).longValue() <= 0))) {
-                        foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
-                    }
-
-                    Object snapTableTotalObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL);
-                    if (snapTableTotalObj != null && (snapTableTotalObj == null || (snapTableTotalObj instanceof Number && ((Number) snapTableTotalObj).longValue() <= 0))) {
-                        foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL, foundSample.get(MetricCons.SS.VS.F_TABLE_TOTAL));
-                    }
+                    putSnapshotSamples(foundSample, taskSnapshotDoneAt);
                 } else {
                     Map<String, Object> newSample = new HashMap<>();
                     Map<String, String> newTags = new HashMap<>(querySample.getTags());
@@ -526,15 +518,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                             foundSample.put(FIELD_SS_VS_CURR_EVENT_TS, taskTs);
                         }
 
-                        Object snapDoneObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT);
-                        if (taskSnapshotDoneAt != null && (snapDoneObj == null || (snapDoneObj instanceof Number && ((Number) snapDoneObj).longValue() <= 0))) {
-                            foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
-                        }
-
-                        Object snapTableTotalObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL);
-                        if (snapTableTotalObj != null && (snapTableTotalObj == null || (snapTableTotalObj instanceof Number && ((Number) snapTableTotalObj).longValue() <= 0))) {
-                            foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL, foundSample.get(MetricCons.SS.VS.F_TABLE_TOTAL));
-                        }
+                        putSnapshotSamples(foundSample, taskSnapshotDoneAt);
                     } else {
                         Map<String, Object> newSample = new HashMap<>();
                         Map<String, String> newTags = new HashMap<>(querySample.getTags());
@@ -559,6 +543,18 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     }
                 }
             }
+        }
+    }
+
+    private static void putSnapshotSamples(Map<String, Object> foundSample, Long taskSnapshotDoneAt) {
+        Object snapDoneObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT);
+        if (taskSnapshotDoneAt != null && (snapDoneObj == null || (snapDoneObj instanceof Number && ((Number) snapDoneObj).longValue() <= 0))) {
+            foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_DONE_AT, taskSnapshotDoneAt);
+        }
+
+        Object snapTableTotalObj = foundSample.get(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL);
+        if (snapTableTotalObj != null && (snapTableTotalObj == null || (snapTableTotalObj instanceof Number && ((Number) snapTableTotalObj).longValue() <= 0))) {
+            foundSample.put(MetricCons.SS.VS.F_SNAPSHOT_TABLE_TOTAL, foundSample.get(MetricCons.SS.VS.F_TABLE_TOTAL));
         }
     }
 
