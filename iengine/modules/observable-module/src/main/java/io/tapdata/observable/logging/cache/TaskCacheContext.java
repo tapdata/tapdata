@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -20,6 +21,7 @@ import java.util.stream.Stream;
 class TaskCacheContext {
     private static final String SEGMENTS_DIR = "segments";
     private static final String TASK_NAME_FILE = "task-name";
+    private static final String STOP_DISCARD_MARKER = "stop-discard";
 
     private enum State {
         ACTIVE,
@@ -35,16 +37,16 @@ class TaskCacheContext {
     private final CacheLogDispatcher dispatcher;
     private final ReentrantLock lock = new ReentrantLock();
     private final NavigableMap<Long, CacheGeneration> generations = new TreeMap<>();
-    private final ArrayBlockingQueue<MonitoringLogsDto> ingressQueue;
+    private final ArrayBlockingQueue<PendingWrite> ingressQueue;
     private final AtomicBoolean writeScheduled = new AtomicBoolean();
     private final AtomicLong rejectedWrites = new AtomicLong();
+    private final AtomicLong activationEpoch = new AtomicLong();
 
     private CacheObserveLogConfig config;
     private String taskName;
     private volatile State state = State.STOPPED;
 
     TaskCacheContext(String taskId,
-                     String taskName,
                      Path taskPath,
                      MonitoringLogCodec codec,
                      CacheObserveLogAudit audit,
@@ -52,7 +54,6 @@ class TaskCacheContext {
                      CacheLogDispatcher dispatcher,
                      int ingressCapacity) {
         this.taskId = taskId;
-        this.taskName = taskName;
         this.taskPath = taskPath;
         this.codec = codec;
         this.audit = audit;
@@ -67,12 +68,17 @@ class TaskCacheContext {
             if (state == State.DELETED) {
                 return false;
             }
+            if (state == State.ACTIVE) {
+                return true;
+            }
             config = currentConfig;
             taskName = name;
+            discardStoppedInventoryIfRequired();
             openInventory();
             reclaimFullyConsumed();
             enforceRetention();
             persistTaskName();
+            activationEpoch.incrementAndGet();
             state = State.ACTIVE;
             return true;
         } catch (IOException e) {
@@ -83,13 +89,17 @@ class TaskCacheContext {
     }
 
     boolean append(MonitoringLogsDto log) {
+        return append(new PendingWrite(activationEpoch.get(), log));
+    }
+
+    boolean append(PendingWrite pendingWrite) {
         lock.lock();
         try {
-            if (state != State.ACTIVE) {
+            if (!isCurrent(pendingWrite)) {
                 return false;
             }
             CacheGeneration active = activeGeneration();
-            active.append(log);
+            active.append(pendingWrite.log);
             if (active.sizeBytes() >= config.getMaxFileSizeBytes()) {
                 rotate(active.getId() + 1L);
             }
@@ -105,9 +115,21 @@ class TaskCacheContext {
         if (state != State.ACTIVE) {
             return false;
         }
-        if (ingressQueue.offer(log)) {
-            return true;
+        PendingWrite pendingWrite = new PendingWrite(activationEpoch.get(), log);
+        if (ingressQueue.offer(pendingWrite)) {
+            if (isCurrent(pendingWrite)) {
+                return true;
+            }
+            ingressQueue.remove(pendingWrite);
+            return false;
         }
+        auditRejected(log, ingressQueue.size(), ingressQueue.remainingCapacity());
+        return false;
+    }
+
+    private void auditRejected(MonitoringLogsDto log,
+                               int queueSize,
+                               int remainingCapacity) {
         long dropped = rejectedWrites.incrementAndGet();
         if (dropped == 1L || dropped % 1000L == 0L) {
             audit.writeRejected(
@@ -115,18 +137,23 @@ class TaskCacheContext {
                     taskName,
                     log.getLevel(),
                     dropped,
-                    ingressQueue.size(),
-                    ingressQueue.size() + ingressQueue.remainingCapacity());
+                    queueSize,
+                    queueSize + remainingCapacity);
         }
-        return false;
     }
 
-    MonitoringLogsDto pollPendingWrite() {
-        return ingressQueue.poll();
+    PendingWrite pollPendingWrite() {
+        PendingWrite pendingWrite;
+        while ((pendingWrite = ingressQueue.poll()) != null) {
+            if (isCurrent(pendingWrite)) {
+                return pendingWrite;
+            }
+        }
+        return null;
     }
 
     boolean hasPendingWrites() {
-        return !ingressQueue.isEmpty();
+        return state == State.ACTIVE && !ingressQueue.isEmpty();
     }
 
     boolean markWriteScheduled() {
@@ -175,7 +202,40 @@ class TaskCacheContext {
                 return;
             }
             state = State.STOPPED;
-            ingressQueue.clear();
+            activationEpoch.incrementAndGet();
+            int pendingMemoryLogs = ingressQueue.size();
+            long unconsumedGenerations = generations.values().stream()
+                    .filter(generation -> !generation.isFullyConsumed())
+                    .count();
+            long discardedBytes = CacheGeneration.directorySize(taskPath.resolve(SEGMENTS_DIR));
+            boolean unknownInventoryWithData = generations.isEmpty() && discardedBytes > 0L;
+            clearMemoryQueues();
+            if (pendingMemoryLogs > 0 || unconsumedGenerations > 0 || unknownInventoryWithData) {
+                audit.stopDiscard(
+                        taskId,
+                        taskName,
+                        pendingMemoryLogs,
+                        unconsumedGenerations,
+                        discardedBytes);
+            }
+            discardStoppedInventory();
+        } catch (IOException e) {
+            audit.deleteFailed(taskId, taskName, taskPath.resolve(SEGMENTS_DIR), e);
+            throw new IllegalStateException("Discard stopped task cache failed: " + taskId, e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    void closeRetainingCache() {
+        lock.lock();
+        try {
+            if (state == State.DELETED) {
+                return;
+            }
+            state = State.STOPPED;
+            activationEpoch.incrementAndGet();
+            clearMemoryQueues();
             closeGenerations();
         } finally {
             lock.unlock();
@@ -186,7 +246,8 @@ class TaskCacheContext {
         lock.lock();
         try {
             state = State.DELETED;
-            ingressQueue.clear();
+            activationEpoch.incrementAndGet();
+            clearMemoryQueues();
             closeGenerations();
             try {
                 CacheGeneration.deleteRecursively(taskPath);
@@ -208,7 +269,7 @@ class TaskCacheContext {
         try (Stream<Path> paths = Files.list(segments)) {
             paths.filter(Files::isDirectory)
                     .map(this::generationEntry)
-                    .filter(entry -> entry != null)
+                    .filter(Objects::nonNull)
                     .forEach(entry -> generations.put(entry.getKey(), entry.getValue()));
         }
         if (generations.isEmpty()) {
@@ -216,6 +277,42 @@ class TaskCacheContext {
             return;
         }
         generations.lastEntry().getValue().initializePayloadBytes();
+    }
+
+    private boolean isCurrent(PendingWrite pendingWrite) {
+        return state == State.ACTIVE && pendingWrite.epoch == activationEpoch.get();
+    }
+
+    private void clearMemoryQueues() {
+        ingressQueue.clear();
+    }
+
+    private void discardStoppedInventoryIfRequired() throws IOException {
+        Path marker = taskPath.resolve(STOP_DISCARD_MARKER);
+        if (!Files.isRegularFile(marker)) {
+            return;
+        }
+        closeGenerations();
+        CacheGeneration.deleteRecursively(taskPath.resolve(SEGMENTS_DIR));
+        Files.deleteIfExists(marker);
+    }
+
+    private void discardStoppedInventory() throws IOException {
+        if (!Files.exists(taskPath)) {
+            closeGenerations();
+            return;
+        }
+        Files.createDirectories(taskPath);
+        Path marker = taskPath.resolve(STOP_DISCARD_MARKER);
+        Files.write(
+                marker,
+                new byte[0],
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE);
+        closeGenerations();
+        CacheGeneration.deleteRecursively(taskPath.resolve(SEGMENTS_DIR));
+        Files.deleteIfExists(marker);
     }
 
     private Map.Entry<Long, CacheGeneration> generationEntry(Path path) {
@@ -322,5 +419,19 @@ class TaskCacheContext {
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING,
                 StandardOpenOption.WRITE);
+    }
+
+    static final class PendingWrite {
+        private final long epoch;
+        private final MonitoringLogsDto log;
+
+        private PendingWrite(long epoch, MonitoringLogsDto log) {
+            this.epoch = epoch;
+            this.log = log;
+        }
+
+        MonitoringLogsDto getLog() {
+            return log;
+        }
     }
 }

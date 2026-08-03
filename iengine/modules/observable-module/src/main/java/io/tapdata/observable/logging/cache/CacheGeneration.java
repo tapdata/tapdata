@@ -75,12 +75,12 @@ class CacheGeneration implements AutoCloseable {
             return null;
         }
         ExcerptTailer tailer = sink == CacheLogSink.FILE ? fileTailer : tmTailer;
-        AtomicReference<MonitoringLogsDto> record = new AtomicReference<>();
-        boolean read = tailer.readDocument(wire -> record.set(codec.read(wire.getValueIn())));
+        AtomicReference<MonitoringLogsDto> decodedLog = new AtomicReference<>();
+        boolean read = tailer.readDocument(wire -> decodedLog.set(codec.read(wire.getValueIn())));
         if (read) {
             inFlightDispatches++;
         }
-        return read ? record.get() : null;
+        return read ? decodedLog.get() : null;
     }
 
     void completeDispatch(boolean succeeded) {
@@ -216,9 +216,9 @@ class CacheGeneration implements AutoCloseable {
     private long recoverPayloadBytes() {
         long recoveredBytes = 0L;
         try (ExcerptTailer recoveryTailer = queue.createTailer().toStart()) {
-            AtomicReference<MonitoringLogsDto> record = new AtomicReference<>();
-            while (recoveryTailer.readDocument(wire -> record.set(codec.read(wire.getValueIn())))) {
-                recoveredBytes = Math.addExact(recoveredBytes, codec.measure(record.get()));
+            AtomicReference<MonitoringLogsDto> decodedLog = new AtomicReference<>();
+            while (recoveryTailer.readDocument(wire -> decodedLog.set(codec.read(wire.getValueIn())))) {
+                recoveredBytes = Math.addExact(recoveredBytes, codec.measure(decodedLog.get()));
             }
         }
         return recoveredBytes;

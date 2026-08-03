@@ -76,4 +76,20 @@ class CacheObserveLogAudit {
                 queueSize,
                 queueCapacity);
     }
+
+    void stopDiscard(String taskId,
+                     String taskName,
+                     int pendingMemoryLogs,
+                     long unconsumedGenerations,
+                     long discardedBytes) {
+        logger.warn(
+                "CACHE_OBSERVE_LOG_STOP_DISCARD taskId={} taskName={} dataLoss=true "
+                        + "pendingMemoryLogs={} unconsumedGenerations={} discardedBytes={} "
+                        + "message=Some task logs were discarded before synchronization completed",
+                taskId,
+                taskName,
+                pendingMemoryLogs,
+                unconsumedGenerations,
+                discardedBytes);
+    }
 }

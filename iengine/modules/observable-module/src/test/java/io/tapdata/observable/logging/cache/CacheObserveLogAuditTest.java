@@ -69,4 +69,22 @@ class CacheObserveLogAuditTest {
                 eq(100),
                 eq(100));
     }
+
+    @Test
+    void shouldWarnWhenStopDiscardsUnconsumedLogs() {
+        Logger logger = mock(Logger.class);
+        CacheObserveLogAudit audit = new CacheObserveLogAudit(logger);
+
+        audit.stopDiscard("task-id", "task-name", 2, 3L, 4096L);
+
+        verify(logger).warn(
+                eq("CACHE_OBSERVE_LOG_STOP_DISCARD taskId={} taskName={} dataLoss=true "
+                        + "pendingMemoryLogs={} unconsumedGenerations={} discardedBytes={} "
+                        + "message=Some task logs were discarded before synchronization completed"),
+                eq("task-id"),
+                eq("task-name"),
+                eq(2),
+                eq(3L),
+                eq(4096L));
+    }
 }

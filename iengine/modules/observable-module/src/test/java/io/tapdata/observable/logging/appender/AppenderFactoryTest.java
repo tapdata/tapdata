@@ -6,6 +6,7 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import io.tapdata.observable.logging.cache.MonitoringLogCodec;
 import lombok.SneakyThrows;
+import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
@@ -104,7 +105,7 @@ public class AppenderFactoryTest {
                 doCallRealMethod().when(instance).readMessageFromCacheQueue(tailer,"fileAppender");
                 when(tailer.readDocument(any())).thenThrow(new RuntimeException("read Error"));
                 instance.readMessageFromCacheQueue(tailer,"fileAppender");
-                verify(logger,times(1)).warn(anyString(),any(),any());
+                verify(logger).warn(anyString(), any(Throwable.class));
             }
         }
         @DisplayName("test ReadMessage when the queue is empty,will waiting")
@@ -560,5 +561,42 @@ public class AppenderFactoryTest {
 
         verify(appenderFactory).appenderAppendLog(monitoringLogsDto, FILE_APPENDER_TAILER_ID);
         verify(appenderFactory).appenderAppendLog(monitoringLogsDto, AppenderFactory.TM_APPENDER_TAILER_ID);
+    }
+
+    @Test
+    void readMessageRestoresInterruptedStatus() throws InterruptedException {
+        AppenderFactory appenderFactory = mock(AppenderFactory.class);
+        ExcerptTailer tailer = mock(ExcerptTailer.class);
+        Semaphore semaphore = mock(Semaphore.class);
+        ReflectionTestUtils.setField(appenderFactory, "emptyWaiting", semaphore);
+        doCallRealMethod().when(appenderFactory).readMessageFromCacheQueue(tailer, FILE_APPENDER_TAILER_ID);
+        when(tailer.readDocument(any())).thenReturn(false);
+        when(semaphore.tryAcquire(1, 200, TimeUnit.MILLISECONDS)).thenThrow(new InterruptedException());
+
+        try {
+            appenderFactory.readMessageFromCacheQueue(tailer, FILE_APPENDER_TAILER_ID);
+
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
+    void appendLogRestoresInterruptedStatus() {
+        AppenderFactory appenderFactory = mock(AppenderFactory.class);
+        SingleChronicleQueue queue = mock(SingleChronicleQueue.class);
+        ReflectionTestUtils.setField(appenderFactory, "cacheLogsQueue", queue);
+        ReflectionTestUtils.setField(appenderFactory, "emptyWaiting", new Semaphore(1));
+        doCallRealMethod().when(appenderFactory).appendLog(any(MonitoringLogsDto.class));
+        when(queue.acquireAppender()).thenThrow(new InterruptedRuntimeException());
+
+        try {
+            appenderFactory.appendLog(MonitoringLogsDto.builder().taskId("task-id").build());
+
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 }

@@ -15,7 +15,7 @@
             "key": "observe.log.cache.maxFileSizeMB",
             "key_label": "CacheObserveLogs max file size MB",
             "scope": "global",
-            "user_visible": false
+            "user_visible": true
           },
           "$setOnInsert": {
             "value": "100"
@@ -36,7 +36,7 @@
             "key": "observe.log.cache.maxBackupIndex",
             "key_label": "CacheObserveLogs max backup index",
             "scope": "global",
-            "user_visible": false
+            "user_visible": true
           },
           "$setOnInsert": {
             "value": "5"

@@ -1,6 +1,5 @@
 package io.tapdata.observable.logging.appender;
 
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import io.tapdata.observable.logging.cache.CacheLogSink;
 import io.tapdata.observable.logging.cache.MonitoringLogCodec;
@@ -10,27 +9,26 @@ import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.wire.ValueIn;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
-import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author jackin
  * @date 2022/6/20 11:55
  **/
-public class AppenderFactory implements Serializable {
+public class AppenderFactory {
 	public static final String FILE_APPENDER_TAILER_ID = "FILE_APPENDER_TAILER";
 	public static final String DEBUG_FILE_APPENDER_TAILER_ID = "DEBUG_FILE_APPENDER_TAILER";
-	public static final String TM_APPENDER_TAILER_ID= "TM_APPENDER_TAILER";
-	private volatile static AppenderFactory INSTANCE;
+	public static final String TM_APPENDER_TAILER_ID = "TM_APPENDER_TAILER";
+	private static final String DEBUG_APPENDER_SUFFIX = "_debug";
+	private static volatile AppenderFactory INSTANCE;
 
 	public static AppenderFactory getInstance() {
 		if (INSTANCE == null) {
@@ -44,7 +42,7 @@ public class AppenderFactory implements Serializable {
 	}
 
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);
-	public final static int BATCH_SIZE = 100;
+	public static final int BATCH_SIZE = 100;
 	/**
 	 * Test-only compatibility hook for existing Wire-format tests. Production writes always
 	 * use {@link TaskCacheManager} and never initialize a shared queue.
@@ -73,8 +71,10 @@ public class AppenderFactory implements Serializable {
 			} else {
 				emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
 			}
-		} catch (Throwable e) {
-			logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (Exception e) {
+			logger.warn("Failed to append task logs", e);
 		}
 	}
 
@@ -87,33 +87,30 @@ public class AppenderFactory implements Serializable {
 		if (StringUtils.isBlank(taskId)) {
 			return;
 		}
-		List<Appender<MonitoringLogsDto>> appenders = Arrays.asList(taskId, taskId + "_debug")
-				.stream()
+		List<Appender<MonitoringLogsDto>> appenders = Stream.of(taskId, taskId + DEBUG_APPENDER_SUFFIX)
 				.map(appenderMap::get)
 				.filter(Objects::nonNull)
 				.flatMap(Collection::stream)
-				.collect(Collectors.toList());
-		if (CollectionUtils.isNotEmpty(appenders)) {
-			appenders.stream().filter(appender -> null != appender).filter((appender -> {
-				if (FILE_APPENDER_TAILER_ID.equals(tailerType)) {
-					return appender instanceof FileAppender;
-				} else {
-					return appender instanceof ObsHttpTMAppender || appender instanceof ScriptNodeProcessNodeAppender;
-				}
-			})).forEach(appender -> {
-				appender.append(monitoringLogsDto);
-			});
+				.toList();
+		appenders.stream()
+				.filter(Objects::nonNull)
+				.filter(appender -> supportsSink(appender, tailerType))
+				.forEach(appender -> appender.append(monitoringLogsDto));
+	}
+
+	private static boolean supportsSink(Appender<MonitoringLogsDto> appender, String tailerType) {
+		if (FILE_APPENDER_TAILER_ID.equals(tailerType)) {
+			return appender instanceof FileAppender;
 		}
+		return appender instanceof ObsHttpTMAppender || appender instanceof ScriptNodeProcessNodeAppender;
 	}
 
 	protected void deleteFileIfLessThanCurrentCycle(int cycle, File file) {
 		if (cycle < this.cycle) {
 			boolean successFlag = FileUtils.deleteQuietly(file);
 			logger.info("Delete chronic released store file: {}, success: {}. cycle: {}", file, successFlag, cycle);
-			this.cycle = cycle;
-		} else {
-			this.cycle = cycle;
 		}
+		this.cycle = cycle;
 	}
 
 	public void addTaskAppender(BaseTaskAppender<MonitoringLogsDto> taskAppender) {
@@ -145,7 +142,7 @@ public class AppenderFactory implements Serializable {
 	public void removeAppenders(String key) {
 		taskCacheManager.deactivateTask(key);
 		this.appenderMap.remove(key);
-		this.appenderMap.remove(key + "_debug");
+		this.appenderMap.remove(key + DEBUG_APPENDER_SUFFIX);
 	}
 
 	public void appendLog(MonitoringLogsDto logsDto) {
@@ -155,9 +152,10 @@ public class AppenderFactory implements Serializable {
 		}
 		try (ExcerptAppender excerptAppender = cacheLogsQueue.acquireAppender()) {
 			excerptAppender.writeDocument(w -> codec.write(w.getValueOut(), logsDto));
-		} catch (InterruptedRuntimeException ignored) {
+		} catch (InterruptedRuntimeException e) {
+			Thread.currentThread().interrupt();
 		} catch (Exception e) {
-			logger.warn("Append log in cache queue failed, error: {}\n Stack: {}", e.getMessage(), Log4jUtil.getStackString(e));
+			logger.warn("Append log in cache queue failed", e);
 		}
 		if (emptyWaiting.availablePermits() < 1) {
 			emptyWaiting.release(1);
@@ -180,7 +178,7 @@ public class AppenderFactory implements Serializable {
 
 	public void deleteTaskCache(String taskId) {
 		this.appenderMap.remove(taskId);
-		this.appenderMap.remove(taskId + "_debug");
+		this.appenderMap.remove(taskId + DEBUG_APPENDER_SUFFIX);
 		taskCacheManager.deleteTaskCache(taskId);
 	}
 

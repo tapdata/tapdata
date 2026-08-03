@@ -130,7 +130,6 @@ public class TaskCacheManager implements AutoCloseable {
         CacheObserveLogConfig config = configSupplier.get();
         TaskCacheContext context = contexts.computeIfAbsent(taskId, id -> new TaskCacheContext(
                 id,
-                taskName,
                 taskPath,
                 codec,
                 audit,
@@ -171,10 +170,19 @@ public class TaskCacheManager implements AutoCloseable {
     }
 
     public void deactivateTask(String taskId) {
-        TaskCacheContext context = contexts.get(taskId);
-        if (context != null) {
-            context.stop();
+        Path taskPath = resolveTaskPath(taskId);
+        if (taskPath == null) {
+            return;
         }
+        TaskCacheContext context = contexts.computeIfAbsent(taskId, id -> new TaskCacheContext(
+                id,
+                taskPath,
+                codec,
+                audit,
+                this::totalCacheBytes,
+                dispatcher,
+                ingressCapacity));
+        context.stop();
     }
 
     public void deleteTaskCache(String taskId) {
@@ -185,7 +193,6 @@ public class TaskCacheManager implements AutoCloseable {
         deletedTasks.add(taskId);
         TaskCacheContext context = contexts.computeIfAbsent(taskId, id -> new TaskCacheContext(
                 id,
-                null,
                 taskPath,
                 codec,
                 audit,
@@ -233,7 +240,7 @@ public class TaskCacheManager implements AutoCloseable {
             }
         }
         for (TaskCacheContext context : contexts.values()) {
-            context.stop();
+            context.closeRetainingCache();
         }
         if (cacheWriters != null) {
             cacheWriters.shutdownNow();
@@ -264,15 +271,18 @@ public class TaskCacheManager implements AutoCloseable {
     private void drainWrites(TaskCacheContext context) {
         try {
             int drained = 0;
-            MonitoringLogsDto log;
+            TaskCacheContext.PendingWrite pendingWrite;
             while (drained < WRITE_DRAIN_BATCH_SIZE
-                    && (log = context.pollPendingWrite()) != null) {
+                    && (pendingWrite = context.pollPendingWrite()) != null) {
                 try {
-                    if (context.append(log)) {
+                    if (context.append(pendingWrite)) {
                         available.release();
                     }
                 } catch (RuntimeException e) {
-                    LOGGER.warn("Append log to task CacheObserveLogs failed, taskId={}", log.getTaskId(), e);
+                    LOGGER.warn(
+                            "Append log to task CacheObserveLogs failed, taskId={}",
+                            pendingWrite.getLog().getTaskId(),
+                            e);
                 }
                 drained++;
             }

@@ -453,26 +453,30 @@ class TaskCacheManagerIntegrationTest {
     }
 
     @Test
-    void shouldStopResumeAndDeleteWithoutLateRecreation() throws IOException {
+    void shouldDiscardUnconsumedLogsOnStopWithoutReplayingAfterResume() throws IOException {
+        List<MonitoringLogsDto> dispatched = new ArrayList<>();
         CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
         Path segments = tempDir.resolve("task-a").resolve("segments");
         try (TaskCacheManager manager = new TaskCacheManager(
                 tempDir,
                 new CacheObserveLogConfig(1024L * 1024L, 2),
-                (log, sink) -> {
-                },
+                (log, sink) -> dispatched.add(log),
                 audit,
                 false)) {
             assertTrue(manager.activateTask("task-a", "Task A"));
             assertTrue(manager.append(log("task-a", "Task A", "before stop")));
-            Path activeGeneration = onlyGeneration(segments);
 
             manager.deactivateTask("task-a");
+            assertFalse(Files.exists(segments));
             assertFalse(manager.append(log("task-a", "Task A", "late")));
 
             assertTrue(manager.activateTask("task-a", "Task A"));
+            assertFalse(manager.pollOnce(CacheLogSink.FILE));
+            assertFalse(manager.pollOnce(CacheLogSink.TM));
             assertTrue(manager.append(log("task-a", "Task A", "after resume")));
-            assertEquals(activeGeneration, onlyGeneration(segments));
+            assertTrue(manager.pollOnce(CacheLogSink.FILE));
+            assertEquals(1, dispatched.size());
+            assertEquals("after resume", dispatched.get(0).getMessage());
 
             manager.deleteTaskCache("task-a");
             assertFalse(Files.exists(tempDir.resolve("task-a")));
@@ -480,6 +484,52 @@ class TaskCacheManagerIntegrationTest {
             assertFalse(manager.activateTask("task-a", "Task A"));
             manager.deleteTaskCache("task-a");
         }
+
+        verify(audit).stopDiscard(
+                eq("task-a"),
+                eq("Task A"),
+                eq(0),
+                eq(1L),
+                anyLong());
+    }
+
+    @Test
+    void shouldDiscardStoppedTaskInventoryBeforeItIsReactivatedAfterManagerRestart() {
+        CacheObserveLogConfig config = new CacheObserveLogConfig(1024L * 1024L, 2);
+        Path segments = tempDir.resolve("task-a").resolve("segments");
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                config,
+                (log, sink) -> {
+                },
+                mock(CacheObserveLogAudit.class),
+                false)) {
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            assertTrue(manager.append(log("task-a", "Task A", "before restart")));
+        }
+        assertTrue(Files.isDirectory(segments));
+
+        CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                config,
+                (log, sink) -> {
+                },
+                audit,
+                false)) {
+            manager.deactivateTask("task-a");
+            assertFalse(Files.exists(segments));
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            assertFalse(manager.pollOnce(CacheLogSink.FILE));
+            assertFalse(manager.pollOnce(CacheLogSink.TM));
+        }
+
+        verify(audit).stopDiscard(
+                eq("task-a"),
+                eq(null),
+                eq(0),
+                eq(0L),
+                anyLong());
     }
 
     @Test
