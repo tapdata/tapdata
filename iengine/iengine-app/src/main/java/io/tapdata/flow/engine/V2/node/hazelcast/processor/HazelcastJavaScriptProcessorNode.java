@@ -121,6 +121,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		}
 	}
 
+	private static TapCodeException wrapScriptProcessException(Throwable throwable) {
+		Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
+		String message = StringUtils.defaultIfBlank(
+				throwable.getMessage(),
+				StringUtils.defaultIfBlank(cause.getMessage(), cause.getClass().getName())
+		);
+		return new TapCodeException(
+				ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,
+				message,
+				cause
+		).dynamicDescriptionParameters(message);
+	}
+
 	private synchronized void ensureSharedInit() {
 		if (sharedInitDone) {
 			return;
@@ -294,7 +307,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				);
 			}
 			if (errorAtomicRef.get() != null) {
-				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
+				throw wrapScriptProcessException(errorAtomicRef.get());
 			}
 
 		} else {
@@ -307,14 +320,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 					scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
 				}
 			} catch (Exception e) {
-				// ScriptException often has no cause. Keep the original exception so
-				// the task error never degrades to an unhelpful "null" message.
-				Throwable cause = e.getCause() == null ? e : e.getCause();
-				throw new TapCodeException(
-						ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,
-						e.getMessage(),
-						cause
-				).dynamicDescriptionParameters(e.getMessage());
+				throw wrapScriptProcessException(e);
 			}
 		}
 
