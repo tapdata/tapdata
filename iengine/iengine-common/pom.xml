@@ -489,7 +489,7 @@
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-jdk18on</artifactId>
-            <version>1.80</version>
+            <version>${org.bouncycastle.version}</version>
             <scope>compile</scope>
         </dependency>
 

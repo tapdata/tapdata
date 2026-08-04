@@ -433,10 +433,12 @@
             <artifactId>bcprov-jdk18on</artifactId>
             <scope>compile</scope>
         </dependency>
+        <!-- fastjson2 compatibility artifact; fastjson 1.x is EOL and 1.2.83 carries
+             CVE-2026-16723 (RCE under stock config) with no fixed 1.x release. -->
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
-            <version>1.2.83</version>
+            <version>2.0.64</version>
         </dependency>
 		<dependency>
 			<groupId>com.sun.mail</groupId>

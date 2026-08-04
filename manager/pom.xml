@@ -42,13 +42,14 @@
 		<commons-net.version>3.11.1</commons-net.version>
 		<gson.version>2.12.1</gson.version>
 		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
-		<org.bouncycastle.version>1.84</org.bouncycastle.version>
-		<!-- Aligned with Spring Boot 4.0.x BOM (Jakarta EE 11 baseline) -->
-		<netty.version>4.2.15.Final</netty.version>
+		<org.bouncycastle.version>1.85</org.bouncycastle.version>
+		<!-- Overrides Spring Boot 4.0.x BOM (netty 4.2.15 / tomcat 11.0.22): both BOM values
+		     carry open CVEs, so we pin forward. Jakarta EE 11 baseline unchanged. -->
+		<netty.version>4.2.16.Final</netty.version>
 		<hutool.version>5.8.40</hutool.version>
         <github-api.version>1.330</github-api.version>
         <jgit.version>7.5.0.202512021534-r</jgit.version>
-		<tomcat.version>11.0.23</tomcat.version>
+		<tomcat.version>11.0.24</tomcat.version>
 		<jackson.version>2.21.4</jackson.version>
 		<logback.version>1.5.37</logback.version>
 		<httpcore5.version>5.4.3</httpcore5.version>
