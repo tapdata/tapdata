@@ -36,20 +36,4 @@ public class ServingIndexPlanRow implements Serializable {
 
 	/** 声明它的 API，多个以逗号相连。 */
 	private String declaredBy;
-
-	/**
-	 * 这一行的依据：{@link #BASIS_DIFF} 与目标库比对得出，{@link #BASIS_DECLARED} 目标连接尚未落地、
-	 * 按包内声明计划。
-	 *
-	 * <p>首次部署时 {@code connections} 腿排在索引腿之后，preview 那一刻读不到目标库，只能按声明出
-	 * <b>乐观计划</b>——目标库里已有的那几条也会列出来，落地时会被识别为已存在而跳过（planned ≥ actual，
-	 * 以 import 报告为准）。审阅计划的人必须能区分这两种依据，故列在表里。</p>
-	 */
-	private String basis;
-
-	/** 依据：已与目标库比对。 */
-	public static final String BASIS_DIFF = "diff";
-
-	/** 依据：目标连接尚未落地，按包内声明计划。 */
-	public static final String BASIS_DECLARED = "declared";
 }

@@ -19,7 +19,7 @@ import java.util.Map;
  * <p><b>三态切分</b>：
  * <ol>
  *   <li>连接已落地 → 归 {@link Split#getResolved()}，交给既有 dry-run 走<b>真实比对</b>（读目标库，出 add/skip）；</li>
- *   <li>连接待落地 → 按<b>包内声明</b>直接出计划行（{@link ServingIndexPlanRow#BASIS_DECLARED}）；</li>
+ *   <li>连接待落地 → 按<b>包内声明</b>直接出计划行；</li>
  *   <li>包里也没带 → 仍归 {@code resolved}，由既有逻辑照常报 {@code CONNECTION_UNRESOLVED}
  *       ——那种落不了地是真的，补不回来。</li>
  * </ol>
@@ -118,7 +118,6 @@ public final class ServingIndexPendingPlans {
 		// 展示串 = 身份签名，与真实比对那条路径同一种渲染（方向必须一眼可见）。
 		row.setKeys(ServingIndexSignature.ofFields(declaration.getFields()));
 		row.setUnique(Boolean.TRUE.equals(declaration.getUnique()));
-		row.setBasis(ServingIndexPlanRow.BASIS_DECLARED);
 		return row;
 	}
 

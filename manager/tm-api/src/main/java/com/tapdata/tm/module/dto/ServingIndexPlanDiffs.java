@@ -128,9 +128,6 @@ public final class ServingIndexPlanDiffs {
 		row.setKeys(ServingIndexSignature.ofFields(fields));
 		row.setUnique(unique);
 		row.setDeclaredBy(sourceApis == null ? "" : String.join(", ", sourceApis));
-		// 这两条路径都读回过目标库：preview 是比对得出的计划，import 是比对后真建成的事实。
-		// 与之相对的是 ServingIndexPendingPlans 那条「连接尚未落地、只能按声明计划」的乐观路径。
-		row.setBasis(ServingIndexPlanRow.BASIS_DIFF);
 		return row;
 	}
 

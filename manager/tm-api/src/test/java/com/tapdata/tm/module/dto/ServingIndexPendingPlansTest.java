@@ -78,8 +78,6 @@ class ServingIndexPendingPlansTest {
 		assertEquals("LAST_CHANGE_-1", row.getName());
 		assertEquals("LAST_CHANGE:-1", row.getKeys(), "方向必须一眼可见（P0 那个缺陷正在这里）");
 		assertEquals("customer_by_country", row.getDeclaredBy());
-		assertEquals(ServingIndexPlanRow.BASIS_DECLARED, row.getBasis(),
-				"审阅计划的人得知道这一行是「按声明」而非「与目标库比对」得出的");
 	}
 
 	@Test

@@ -84,20 +84,6 @@ class ServingIndexPlanDiffsTest {
 			assertSame(report, result.getReport(), "富报告要原样带上，计划表只是它的摘要");
 		}
 
-		@Test
-		@DisplayName("报告出来的行标注依据为 diff——与「首次部署按声明计划」的行必须分得清")
-		void rowsFromReportAreMarkedAsDiffed() {
-			ServingIndexLandingReport report = new ServingIndexLandingReport();
-			ServingIndexTargetReport target = target("fdm", "MDM_CUSTOMER");
-			target.getCreate().add(entry("CUSTOMER_ID_1", false, Collections.singletonList("customer"),
-					field("CUSTOMER_ID", true)));
-			report.getTargets().add(target);
-
-			ServingIndexPlanRow row = ServingIndexPlanDiffs.preview(report).getAdd().get(0);
-
-			assertEquals(ServingIndexPlanRow.BASIS_DIFF, row.getBasis(),
-					"这一行是读回目标库比对得出的，审阅的人据此知道它是事实而非乐观计划");
-		}
 
 		@Test
 		@DisplayName("降序渲染成 -1，复合索引按声明顺序拼——方向看不见就等于没修 P0")

@@ -268,7 +268,6 @@ class GroupInfoServiceServingIndexLegTest {
 		ServingIndexPlanRow row = result.getAdd().get(0);
 		assertEquals("CUSTOMER_ID:1", row.getKeys());
 		assertEquals("fdm", row.getConnection(), "取包里那个连接的名字，落地后同名同 id 就是它");
-		assertEquals(ServingIndexPlanRow.BASIS_DECLARED, row.getBasis());
 		assertNull(ServingIndexPlanDiffs.problemOf(result.getReport()),
 				"首次部署不该红——连接由排在前面的 connections 腿落地（ADR-0032）");
 	}
