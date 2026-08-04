@@ -21,6 +21,7 @@ import com.tapdata.tm.module.dto.ServingIndexLandingWorkList;
 import com.tapdata.tm.module.dto.ServingIndexPlanDiffs;
 import com.tapdata.tm.module.dto.ServingIndexPlanRow;
 import com.tapdata.tm.module.dto.ServingIndexPreviewResult;
+import com.tapdata.tm.module.dto.ServingIndexReportEntry;
 import com.tapdata.tm.module.dto.ServingIndexTargetOutcome;
 import com.tapdata.tm.module.dto.ServingIndexTargetReport;
 import com.tapdata.tm.modules.service.ModulesService;
@@ -162,6 +163,16 @@ class GroupInfoServiceServingIndexLegTest {
 		return report;
 	}
 
+	/** 同上，但「将创建」桶里真放一条——手工语句是逐条 create 生成的，空桶测不出接线。 */
+	private ServingIndexLandingReport reportPlanningOneIndex() {
+		ServingIndexLandingReport report = reportWithOneCreate();
+		ServingIndexReportEntry entry = new ServingIndexReportEntry();
+		entry.setName("CUSTOMER_ID_1");
+		entry.setFields(new ArrayList<>(Collections.singletonList(new ServingIndexField("CUSTOMER_ID", true))));
+		report.getTargets().get(0).getCreate().add(entry);
+		return report;
+	}
+
 	private ServingIndexLandingWorkList workWithOneCreated() {
 		ServingIndexLandingTarget target = new ServingIndexLandingTarget(targetConnection, "MDM_CUSTOMER");
 		ServingIndex created = new ServingIndex("CUSTOMER_ID_1", false,
@@ -288,6 +299,63 @@ class GroupInfoServiceServingIndexLegTest {
 		verify(servingIndexLandingService).landAfterImport(modulesCaptor.capture(), any(Map.class), eq(user));
 		assertEquals(1, modulesCaptor.getValue().size(),
 				"落地那一刻 connections 腿已经跑完，连接还解不出就是真没建成，必须红（ADR-0030）");
+	}
+
+	@Test
+	@DisplayName("preview · 真实比对路径：MongoDB 目标的计划行配一条手工建索引语句")
+	@SuppressWarnings("unchecked")
+	void previewAttachesManualCommandForMongoTarget() {
+		targetConnection.setDatabase_type("MongoDB");
+		wireHandlers();
+		when(servingIndexLandingService.preview(anyList(), any(Map.class), any(UserDetail.class)))
+				.thenReturn(reportPlanningOneIndex());
+
+		ServingIndexPreviewResult result = groupInfoService.previewIndexes(payloads(), user);
+
+		assertEquals(1, result.getAdd().size());
+		assertEquals(Collections.singletonList(
+						"db.MDM_CUSTOMER.createIndex({ \"CUSTOMER_ID\": 1 }, "
+								+ "{ name: \"CUSTOMER_ID_1\", background: true })"),
+				result.getCommands(),
+				"类型表按目标连接 id 建键（报告里 target 的 connectionId 就是它）——改按连接名或包内 id "
+						+ "建键都查不到，语句会静默地一条都不出，而计划表照常显示，没人察觉");
+	}
+
+	@Test
+	@DisplayName("preview · 非 MongoDB 目标不出语句：宁可不给，也不给一条可能跑错的")
+	@SuppressWarnings("unchecked")
+	void previewOmitsManualCommandForNonMongoTarget() {
+		targetConnection.setDatabase_type("MySQL");
+		wireHandlers();
+		when(servingIndexLandingService.preview(anyList(), any(Map.class), any(UserDetail.class)))
+				.thenReturn(reportPlanningOneIndex());
+
+		ServingIndexPreviewResult result = groupInfoService.previewIndexes(payloads(), user);
+
+		assertEquals(1, result.getAdd().size(), "计划行照出——不出的只是语句");
+		assertTrue(result.getCommands().isEmpty(),
+				"其它数据源建索引语法各异，凭空生成一条可能跑错的语句比不给更糟");
+	}
+
+	@Test
+	@DisplayName("preview · 首次部署：连接还没落地，语句也照出（按包里那个连接的类型）")
+	@SuppressWarnings("unchecked")
+	void previewAttachesManualCommandOnThePendingPath() {
+		targetConnection.setDatabase_type("MongoDB");
+		wireHandlers();
+		// 首次部署：connections 腿排在索引腿之后，此刻目标环境一个连接都没有（ADR-0032）
+		when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class)))
+				.thenReturn(Collections.emptyList());
+
+		ServingIndexPreviewResult result = groupInfoService.previewIndexes(payloads(), user);
+
+		verify(servingIndexLandingService, never()).preview(anyList(), any(Map.class), any(UserDetail.class));
+		assertEquals(Collections.singletonList(
+						"db.MDM_CUSTOMER.createIndex({ \"CUSTOMER_ID\": 1 }, "
+								+ "{ name: \"CUSTOMER_ID_1\", background: true })"),
+				result.getCommands(),
+				"待落地那条路走的是 split.getPendingCommands()，与真实比对路径各接各的——"
+						+ "少接一条，首次部署（最典型的场景）就恰好没有语句");
 	}
 
 	@Test
