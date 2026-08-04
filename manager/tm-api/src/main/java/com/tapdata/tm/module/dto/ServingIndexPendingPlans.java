@@ -4,6 +4,7 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import lombok.Getter;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +34,9 @@ import java.util.Map;
  */
 public final class ServingIndexPendingPlans {
 
+	/** 归并桶的键分隔符——用连接名/表名里不会出现的字符，避免拼接歧义。 */
+	private static final String KEY_SEPARATOR = "\u0000";
+
 	private ServingIndexPendingPlans() {
 	}
 
@@ -59,6 +63,11 @@ public final class ServingIndexPendingPlans {
 		if (modules == null || modules.isEmpty()) {
 			return split;
 		}
+		// 按 (连接, 集合, 身份签名) 归并——与真实比对那条路径同一种口径
+		// （ServingIndexLandingTargets 先按 (连接,集合) 分桶、ServingIndexLandingPlanner 再按签名合并）。
+		// 不归并的话，两个 API 声明同一条索引就会在计划表里出现两行，审阅的人看到的条数与实际要建的对不上。
+		Map<String, ServingIndexPlanRow> rowByBucket = new LinkedHashMap<>();
+		Map<String, List<String>> apisByBucket = new LinkedHashMap<>();
 		for (ModulesDto module : modules) {
 			if (module == null) {
 				continue;
@@ -80,10 +89,25 @@ public final class ServingIndexPendingPlans {
 				continue;
 			}
 			for (ServingIndex declaration : declared) {
-				split.getPendingRows().add(row(packaged.getName(), module, declaration));
+				String bucket = packaged.getName() + KEY_SEPARATOR + module.getTableName()
+						+ KEY_SEPARATOR + ServingIndexSignature.of(declaration);
+				// 首个声明定下展示用的名字与 unique（名字不参与身份；unique 不一致仅注记，ADR-0005）。
+				rowByBucket.computeIfAbsent(bucket, k -> row(packaged.getName(), module, declaration));
+				addApi(apisByBucket.computeIfAbsent(bucket, k -> new ArrayList<>()), module.getName());
 			}
 		}
+		rowByBucket.forEach((bucket, row) -> {
+			row.setDeclaredBy(String.join(", ", apisByBucket.get(bucket)));
+			split.getPendingRows().add(row);
+		});
 		return split;
+	}
+
+	/** 同一条索引可能被多个 API 声明——都列出来，让人看清「谁需要它」；去重且保持首次出现的顺序。 */
+	private static void addApi(List<String> apis, String api) {
+		if (api != null && !api.isEmpty() && !apis.contains(api)) {
+			apis.add(api);
+		}
 	}
 
 	private static ServingIndexPlanRow row(String connectionName, ModulesDto module, ServingIndex declaration) {
@@ -94,7 +118,6 @@ public final class ServingIndexPendingPlans {
 		// 展示串 = 身份签名，与真实比对那条路径同一种渲染（方向必须一眼可见）。
 		row.setKeys(ServingIndexSignature.ofFields(declaration.getFields()));
 		row.setUnique(Boolean.TRUE.equals(declaration.getUnique()));
-		row.setDeclaredBy(module.getName() == null ? "" : module.getName());
 		row.setBasis(ServingIndexPlanRow.BASIS_DECLARED);
 		return row;
 	}

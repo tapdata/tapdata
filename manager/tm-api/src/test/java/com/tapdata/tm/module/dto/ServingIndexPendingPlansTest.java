@@ -124,6 +124,59 @@ class ServingIndexPendingPlansTest {
 		assertTrue(split.getResolved().isEmpty(), "无声明 = 无事可做，也不该拖累 dry-run");
 	}
 
+	private static ServingIndexPlanRow rowWithKeys(ServingIndexPendingPlans.Split split, String keys) {
+		return split.getPendingRows().stream().filter(r -> keys.equals(r.getKeys())).findFirst()
+				.orElseThrow(() -> new AssertionError("计划表里没有 keys = " + keys));
+	}
+
+	@Test
+	@DisplayName("多个 API 声明同一条索引 → 合并成一行，declaredBy 列出全部 API")
+	void sameIndexDeclaredBySeveralApisIsMergedIntoOneRow() {
+		ModulesDto byCountry = module("customer_by_country", CONNECTION_ID, "MDM_CUSTOMER",
+				index("LAST_CHANGE_-1", false, field("LAST_CHANGE", false)),
+				index("CITY_1", false, field("CITY", true)));
+		ModulesDto byEmail = module("customer_by_email", CONNECTION_ID, "MDM_CUSTOMER",
+				index("LAST_CHANGE_-1", false, field("LAST_CHANGE", false)));
+
+		ServingIndexPendingPlans.Split split = ServingIndexPendingPlans.split(
+				Arrays.asList(byCountry, byEmail), Collections.emptyMap(), map(CONNECTION_ID, connection("mdm")));
+
+		assertEquals(2, split.getPendingRows().size(),
+				"同一条索引在计划表里出现两次 = 审阅的人看到的条数与实际要建的对不上");
+		assertEquals("customer_by_country, customer_by_email", rowWithKeys(split, "LAST_CHANGE:-1").getDeclaredBy(),
+				"这一列就是「哪些 API 需要这条索引」，多个 API 必须都列出来");
+		assertEquals("customer_by_country", rowWithKeys(split, "CITY:1").getDeclaredBy());
+	}
+
+	@Test
+	@DisplayName("身份 = 有序字段 + 方向：名字不同、键相同的两条声明仍合并为一行")
+	void declarationsWithSameKeysButDifferentNamesMerge() {
+		ModulesDto a = module("api_a", CONNECTION_ID, "MDM_CUSTOMER",
+				index("CITY_1", false, field("CITY", true)));
+		ModulesDto b = module("api_b", CONNECTION_ID, "MDM_CUSTOMER",
+				index("city_lookup", false, field("CITY", true)));
+
+		ServingIndexPendingPlans.Split split = ServingIndexPendingPlans.split(
+				Arrays.asList(a, b), Collections.emptyMap(), map(CONNECTION_ID, connection("mdm")));
+
+		assertEquals(1, split.getPendingRows().size(), "名字不参与身份——绝不按名比对（ADR-0005）");
+		assertEquals("api_a, api_b", split.getPendingRows().get(0).getDeclaredBy());
+	}
+
+	@Test
+	@DisplayName("不同集合上的同键索引不合并——身份的作用域是 (连接, 集合)")
+	void sameKeysOnDifferentTablesDoNotMerge() {
+		ModulesDto customer = module("api_customer", CONNECTION_ID, "MDM_CUSTOMER",
+				index("CITY_1", false, field("CITY", true)));
+		ModulesDto policy = module("api_policy", CONNECTION_ID, "MDM_POLICY",
+				index("CITY_1", false, field("CITY", true)));
+
+		ServingIndexPendingPlans.Split split = ServingIndexPendingPlans.split(
+				Arrays.asList(customer, policy), Collections.emptyMap(), map(CONNECTION_ID, connection("mdm")));
+
+		assertEquals(2, split.getPendingRows().size(), "两张表各要一条，合并了就少建一条");
+	}
+
 	@Test
 	@DisplayName("一个 Module 的多条声明各出一行，来源 API 都指向它")
 	void everyDeclarationGetsItsOwnRow() {
