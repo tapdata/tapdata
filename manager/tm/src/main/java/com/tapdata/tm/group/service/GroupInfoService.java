@@ -47,6 +47,7 @@ import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.ServingIndexImportResult;
 import com.tapdata.tm.module.dto.ServingIndexLandingReport;
 import com.tapdata.tm.module.dto.ServingIndexLandingWorkList;
+import com.tapdata.tm.module.dto.ServingIndexPendingPlans;
 import com.tapdata.tm.module.dto.ServingIndexPlanDiffs;
 import com.tapdata.tm.module.dto.ServingIndexPreviewResult;
 import com.tapdata.tm.modules.service.ModulesService;
@@ -746,8 +747,30 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
         Map<String, DataSourceConnectionDto> conMap =
                 buildConMapFromPayload(payloads, resourceMapsByType, metadataByType, user);
-        log.info("serving index preview: apis = {}, conMap = {}", modules.size(), conMap.size());
-        return ServingIndexPlanDiffs.preview(servingIndexLandingService.preview(modules, conMap, user));
+
+        // 首次部署到全新环境时，连接由排在索引腿之后的 connections 腿建立，此刻还查不到（ADR-0032）：
+        // 「包里带了、目标环境暂无」是正常中间态，不能与「包里根本没带」一样报红——那会让整条流水线
+        // 在部署任何东西之前自锁。前者按包内声明出乐观计划（读不到目标库，无从知道哪些已存在；落地时
+        // 会前置 QueryIndexes 自写比对并跳过），后者仍交给 dry-run 照常报 CONNECTION_UNRESOLVED。
+        ServingIndexPendingPlans.Split split = ServingIndexPendingPlans.split(
+                modules, conMap, packagedConnections(resourceMapsByType));
+        log.info("serving index preview: apis = {}, conMap = {}, dry-run = {}, planned-by-declaration = {}",
+                modules.size(), conMap.size(), split.getResolved().size(), split.getPendingRows().size());
+
+        ServingIndexLandingReport report = split.getResolved().isEmpty()
+                ? new ServingIndexLandingReport()
+                : servingIndexLandingService.preview(split.getResolved(), conMap, user);
+        ServingIndexPreviewResult result = ServingIndexPlanDiffs.preview(report);
+        result.getAdd().addAll(split.getPendingRows());
+        return result;
+    }
+
+    /** 包里带来的连接（{@code 导出侧 id → 连接}）——用来分辨「待落地」与「包里根本没带」。 */
+    @SuppressWarnings("unchecked")
+    private Map<String, DataSourceConnectionDto> packagedConnections(
+            Map<ResourceType, Map<String, ?>> resourceMapsByType) {
+        return (Map<String, DataSourceConnectionDto>) resourceMapsByType
+                .getOrDefault(ResourceType.CONNECTION, Collections.emptyMap());
     }
 
     public ServingIndexImportResult importIndexes(MultipartFile file, UserDetail user) throws IOException {

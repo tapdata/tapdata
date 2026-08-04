@@ -100,6 +100,16 @@ public final class ServingIndexLandingTargets {
 		return byId;
 	}
 
+	/**
+	 * 单次解析（自建 byTargetId）——给 {@link ServingIndexPendingPlans} 复用，
+	 * 免得「怎么找 Module 的目标连接」在两处各写一遍、日后分叉。
+	 */
+	static DataSourceConnectionDto resolveConnection(String connectionId,
+													 Map<String, DataSourceConnectionDto> conMap) {
+		DataSourceConnectionDto hit = resolveConnection(connectionId, conMap, indexByTargetId(conMap));
+		return hit == null || hit.getId() == null ? null : hit;
+	}
+
 	private static DataSourceConnectionDto resolveConnection(String connectionId,
 															Map<String, DataSourceConnectionDto> conMap,
 															Map<String, DataSourceConnectionDto> byTargetId) {
@@ -116,7 +126,7 @@ public final class ServingIndexLandingTargets {
 	 * {@code ModulesService#alignConnectionWithDataSource} 对齐，但导出包里的 {@code connection}
 	 * 曾被序列化成对象形态、回读得到 null，所以逐个兜。
 	 */
-	private static String resolveConnectionId(ModulesDto module) {
+	static String resolveConnectionId(ModulesDto module) {
 		if (!isBlank(module.getConnectionId())) {
 			return module.getConnectionId();
 		}

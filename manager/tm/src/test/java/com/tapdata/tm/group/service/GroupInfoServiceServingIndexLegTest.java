@@ -18,6 +18,8 @@ import com.tapdata.tm.module.dto.ServingIndexLandingPlan;
 import com.tapdata.tm.module.dto.ServingIndexLandingReport;
 import com.tapdata.tm.module.dto.ServingIndexLandingTarget;
 import com.tapdata.tm.module.dto.ServingIndexLandingWorkList;
+import com.tapdata.tm.module.dto.ServingIndexPlanDiffs;
+import com.tapdata.tm.module.dto.ServingIndexPlanRow;
 import com.tapdata.tm.module.dto.ServingIndexPreviewResult;
 import com.tapdata.tm.module.dto.ServingIndexTargetOutcome;
 import com.tapdata.tm.module.dto.ServingIndexTargetReport;
@@ -43,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -246,6 +249,46 @@ class GroupInfoServiceServingIndexLegTest {
 		groupInfoService.importIndexes(payloads(), user);
 
 		verify(modulesService, never()).batchImport(anyList(), any(UserDetail.class), any(), any(Map.class), any());
+	}
+
+	@Test
+	@DisplayName("preview · 首次部署：目标环境还没有这个连接 → 不报错，按包内声明出计划")
+	@SuppressWarnings("unchecked")
+	void previewPlansDeclaredIndexesWhenTargetConnectionHasNotLandedYet() {
+		wireHandlers();
+		// connections 腿排在索引腿之后：preview 那一刻目标环境一个连接都没有（首次部署的常态）
+		when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class)))
+				.thenReturn(Collections.emptyList());
+
+		ServingIndexPreviewResult result = groupInfoService.previewIndexes(payloads(), user);
+
+		verify(servingIndexLandingService, never()).preview(anyList(), any(Map.class), any(UserDetail.class));
+		assertEquals(1, result.getAdd().size(),
+				"计划表为空 → has_changes=false → 这条腿进不了 matrix → 索引永远建不上");
+		ServingIndexPlanRow row = result.getAdd().get(0);
+		assertEquals("CUSTOMER_ID:1", row.getKeys());
+		assertEquals("fdm", row.getConnection(), "取包里那个连接的名字，落地后同名同 id 就是它");
+		assertEquals(ServingIndexPlanRow.BASIS_DECLARED, row.getBasis());
+		assertNull(ServingIndexPlanDiffs.problemOf(result.getReport()),
+				"首次部署不该红——连接由排在前面的 connections 腿落地（ADR-0032）");
+	}
+
+	@Test
+	@DisplayName("import 不吃这套宽容：连接解不出仍交给落地服务，由它照常报红")
+	@SuppressWarnings("unchecked")
+	void importStillDelegatesWhenTargetConnectionMissing() {
+		wireHandlers();
+		when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class)))
+				.thenReturn(Collections.emptyList());
+		when(servingIndexLandingService.landAfterImport(anyList(), any(Map.class), any(UserDetail.class)))
+				.thenReturn(new ServingIndexLandingWorkList());
+
+		groupInfoService.importIndexes(payloads(), user);
+
+		ArgumentCaptor<List<ModulesDto>> modulesCaptor = ArgumentCaptor.forClass(List.class);
+		verify(servingIndexLandingService).landAfterImport(modulesCaptor.capture(), any(Map.class), eq(user));
+		assertEquals(1, modulesCaptor.getValue().size(),
+				"落地那一刻 connections 腿已经跑完，连接还解不出就是真没建成，必须红（ADR-0030）");
 	}
 
 	@Test
