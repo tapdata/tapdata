@@ -147,20 +147,15 @@ public class ScriptUtil {
 			"javax.script."
 	);
 
-	private static volatile Engine sharedEngine;
-
 	public static Engine getSharedEngine() {
-		if (sharedEngine == null) {
-			synchronized (ScriptUtil.class) {
-				if (sharedEngine == null) {
-					sharedEngine = Engine.newBuilder()
-							.allowExperimentalOptions(true)
-							.option("engine.WarnInterpreterOnly", "false")
-							.build();
-				}
-			}
-		}
-		return sharedEngine;
+		return SharedEngineHolder.INSTANCE;
+	}
+
+	private static class SharedEngineHolder {
+		private static final Engine INSTANCE = Engine.newBuilder()
+				.allowExperimentalOptions(true)
+				.option("engine.WarnInterpreterOnly", "false")
+				.build();
 	}
 
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
