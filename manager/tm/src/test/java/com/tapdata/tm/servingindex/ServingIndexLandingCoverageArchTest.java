@@ -37,7 +37,12 @@ class ServingIndexLandingCoverageArchTest {
 	 * 目标连接无从解析，本期不接（TODO {@code P3-import-leg-scope}）。豁免写在这里而不是删规则,
 	 * 这样它是一条<b>有据可查的决定</b>，不是一个漏洞。
 	 */
-	private static final Set<String> EXEMPT = Set.of("GroupInfoService#executeImportApisAsync");
+	private static final Set<String> EXEMPT = Set.of(
+			"GroupInfoService#executeImportApisAsync",
+			// CICD 的 apis 腿：索引由排在它之后的独立索引腿建（/import/indexes，ADR-0030）。
+			// 两条路并存时本腿异步抢先建掉，审批人被叫住时索引早已存在——审批闸形同虚设，
+			// 且由哪条腿建取决于时序（2026-08-04 P4-4 实测撞出）。整包导入腿不在此列，它没有独立索引腿。
+			"GroupInfoService#executeImportApisStandaloneAsync");
 
 	private static boolean calls(JavaMethod method, String ownerFqn, String methodName) {
 		for (JavaMethodCall call : method.getMethodCallsFromSelf()) {

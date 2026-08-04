@@ -1134,8 +1134,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 metadataInstancesService.batchImport(
                         metadataByType.getOrDefault(ResourceType.MODULE, Collections.emptyList()),
                         user, conMap, null, null);
-                // TAP-12057 · P3-1：声明已落库、conMap 已建立，此刻才谈得上把索引建到目标库（ADR-0002）
-                servingIndexLandingService.landAfterImport(toImport, conMap, user);
+                // TAP-12057：这条腿**不建索引**。索引在部署矩阵里是排在 apis 之后的独立一腿
+                // （/import/indexes，ADR-0030），由它在自己的审批闸后建。P3-1 当初把落地接在这里，
+                // 是因为那时还没有独立腿；两条路并存的后果是本腿异步抢先建掉，审批人被叫住时索引
+                // 早已存在，而且由哪条腿建取决于时序（2026-08-04 P4-4 实测撞出）。
+                // 整包导入腿 executeImportAsync 保留落地——那条流程没有独立索引腿。
             }
 
             log.info("Async import apis completed, recordId={}, imported={}", recordId, toImport.size());

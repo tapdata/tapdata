@@ -149,35 +149,17 @@ class GroupInfoServiceServingIndexLandingTest {
 	}
 
 	@Test
-	@DisplayName("Module 落库之后才触发索引落地，且拿到的是真实 conMap（旧连接 id → 目标连接）")
+	@DisplayName("apis 腿不落地索引——那是独立索引腿的职责，否则审批闸形同虚设")
 	@SuppressWarnings("unchecked")
-	void landsServingIndexesAfterModulesImported() {
+	void doesNotLandServingIndexesFromTheApiLeg() {
 		wireHandlers();
 
 		groupInfoService.executeImportApisStandaloneAsync(payloads(), ImportModeEnum.REPLACE, user, new ObjectId());
 
-		ArgumentCaptor<List<ModulesDto>> modulesCaptor = ArgumentCaptor.forClass(List.class);
-		ArgumentCaptor<Map<String, DataSourceConnectionDto>> conMapCaptor = ArgumentCaptor.forClass(Map.class);
-		InOrder order = inOrder(modulesService, servingIndexLandingService);
-		order.verify(modulesService).batchImport(anyList(), eq(user), eq(ImportModeEnum.REPLACE), any(Map.class),
-				isNull());
-		order.verify(servingIndexLandingService).landAfterImport(modulesCaptor.capture(), conMapCaptor.capture(),
-				eq(user));
-
-		assertEquals(1, modulesCaptor.getValue().size());
-		assertSame(importedModule, modulesCaptor.getValue().get(0), "落地要用刚导入的那批 Module 本体（声明就在它身上）");
-		assertSame(targetConnection, conMapCaptor.getValue().get(CONNECTION_ID),
-				"conMap 必须是导入现场那一张：目标连接解析错 = 索引建到别的库（ADR-0002）");
-	}
-
-	@Test
-	@DisplayName("这批导入没有任何 Module 时不触发落地")
-	void skipsLandingWhenNothingImported() {
-		when(resourceHandlerRegistry.getHandler(ResourceType.MODULE)).thenReturn(null);
-
-		groupInfoService.executeImportApisStandaloneAsync(
-				Collections.<String, List<TaskUpAndLoadDto>>emptyMap(), ImportModeEnum.REPLACE, user, new ObjectId());
-
+		// Module 照常落库——声明的存储是 apis 腿的职责，没变。
+		verify(modulesService).batchImport(anyList(), eq(user), eq(ImportModeEnum.REPLACE), any(Map.class), isNull());
+		// 但索引一条都不建：部署矩阵里 Serving Indexes 是排在 apis 之后的独立一腿（ADR-0030），
+		// 由它在自己的审批闸后建。apis 腿抢先建掉，审批人被叫住时索引其实已经存在了。
 		verify(servingIndexLandingService, org.mockito.Mockito.never())
 				.landAfterImport(anyList(), any(Map.class), any(UserDetail.class));
 	}
