@@ -71,13 +71,9 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 			//need to change as engine classLoader
 			Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
 			if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
+				// Share the thread-safe Graal Engine, while this wrapper still owns an isolated Context.
 				graalJSScriptEngine = GraalJSScriptEngine
-						.create(Engine.newBuilder()
-										.allowExperimentalOptions(true)
-										.option("engine.WarnInterpreterOnly", "false")
-										.out(out)
-										.err(err)
-										.build(),
+						.create(ScriptUtil.getSharedEngine(),
 								Context.newBuilder("js")
 										.allowAllAccess(false)
 										.allowHostAccess(ScriptUtil.SANDBOX_HOST_ACCESS)
