@@ -28,17 +28,13 @@ public class AppenderFactory {
 	public static final String DEBUG_FILE_APPENDER_TAILER_ID = "DEBUG_FILE_APPENDER_TAILER";
 	public static final String TM_APPENDER_TAILER_ID = "TM_APPENDER_TAILER";
 	private static final String DEBUG_APPENDER_SUFFIX = "_debug";
-	private static volatile AppenderFactory INSTANCE;
 
 	public static AppenderFactory getInstance() {
-		if (INSTANCE == null) {
-			synchronized (AppenderFactory.class) {
-				if (INSTANCE == null) {
-					INSTANCE = new AppenderFactory();
-				}
-			}
-		}
-		return INSTANCE;
+		return InstanceHolder.INSTANCE;
+	}
+
+	private static class InstanceHolder {
+		private static final AppenderFactory INSTANCE = new AppenderFactory();
 	}
 
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);

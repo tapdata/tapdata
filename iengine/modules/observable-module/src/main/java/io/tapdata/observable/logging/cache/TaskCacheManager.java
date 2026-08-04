@@ -300,7 +300,9 @@ public class TaskCacheManager implements AutoCloseable {
                 continue;
             }
             try {
-                available.tryAcquire(100, TimeUnit.MILLISECONDS);
+                if (!available.tryAcquire(100, TimeUnit.MILLISECONDS) && !running.get()) {
+                    return;
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
