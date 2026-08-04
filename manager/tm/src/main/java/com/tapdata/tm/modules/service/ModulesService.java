@@ -87,6 +87,7 @@ import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
@@ -201,6 +202,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	public ModulesDetailVo findById(String id) {
 		final ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
 		modulesDto.withPathSettingIfNeed();
+		transformStatusMsg(modulesDto);
 		final ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
 		// TAP-12425：与 activeApis 保持同一套解析口径，datasource 优先、connection 兜底，
 		// 这样历史导入写坏 connection 的 API 详情页仍能展示正确的连接。
@@ -253,8 +255,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         Optional.ofNullable(page.getItems())
                 .ifPresent(items -> items.stream()
                         .filter(e -> e instanceof ModulesDto)
-                        .forEach(e -> ((ModulesDto) e).withPathSettingIfNeed()));
-
+                        .forEach(e -> {
+							transformStatusMsg((ModulesDto) e);
+							((ModulesDto) e).withPathSettingIfNeed();
+						}));
         String createUser = "";
         List<ModulesListVo> modulesListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(page.getItems(), ModulesListVo.class);
         if (CollectionUtils.isNotEmpty(modulesListVoList)) {
@@ -321,6 +325,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 		// TAP-12057 · P2-1：写入前确定性归一化 servingIndexes（排序 + 方向规范），避免 Module 全量 diff 抖动（ADR-0001）。
 		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
+        removeStatusInfo(modulesDto);
 		return super.save(modulesDto, userDetail);
 
 	}
@@ -377,6 +382,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		checkModule(checkItem);
 		// TAP-12057 · P2-1：更新链路同样归一化 servingIndexes（ADR-0001）。
 		modulesDto.setServingIndexes(ServingIndexNormalizer.normalize(modulesDto.getServingIndexes()));
+        removeStatusInfo(modulesDto);
 		return super.upsertByWhere(where, modulesDto, userDetail);
 	}
 
@@ -434,6 +440,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 		existedModulesDto.setName(copyName);
 		existedModulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+		removeStatusInfo(existedModulesDto);
 		save(existedModulesDto, userDetail);
 		return existedModulesDto;
 	}
@@ -518,11 +525,26 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					newDto.setListtags(listTag);
 				}
 				newDto.setIsDeleted(false);
+				removeStatusInfo(newDto);
 				super.upsert(query, newDto, userDetail);
 			}
 		}
 	}
 
+	protected void removeStatusInfo(ModulesDto newDto) {
+		newDto.setPublishStatus("");
+	}
+
+	protected void transformStatusMsg(ModulesDto modulesDto) {
+		if (null == modulesDto) {
+			return;
+		}
+		String key = modulesDto.getPublishStatus();
+		if (StringUtils.isBlank(key)) {
+			return;
+		}
+		modulesDto.setPublishStatus(MessageUtil.getMessage(key));
+	}
 
 	/**
 	 * 查找已经发布的api
@@ -594,33 +616,37 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			String connectionId = dataSourceConnectionDto.getId().toHexString();
 			String databaseType = dataSourceConnectionDto.getDatabase_type();
 			Map<String, Object> connectionConfig = dataSourceConnectionDto.getConfig();
-			try {
-				if (databaseType.toLowerCase(Locale.ROOT).contains("mongo")) {
+			if (databaseType.toLowerCase(Locale.ROOT).contains("mongo")) {
+				try {
 					connectionConfig.put(URI, parseUri(connectionConfig));
+				} catch (Exception e) {
+					fialedApi.put(connectionId, "api.publish.failed");
+					log.warn("Failed to parse mongo connection config: {}", e.getMessage());
+					continue;
 				}
-				Map<String, Object> properties = dataSourceDefinitionMap.get(databaseType);
+			}
+			Map<String, Object> properties = dataSourceDefinitionMap.get(databaseType);
+			if (properties != null) {
 				LinkedHashMap<String, Object> connection = (LinkedHashMap<String, Object>) properties.get("connection");
 				analyzeApiServerKey(dataSourceConnectionDto, connection, null);
-				ConnectionVo connectionVo = cn.hutool.core.bean.BeanUtil.copyProperties(dataSourceConnectionDto, ConnectionVo.class);
-				if (null != connectionVo) {
-					String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
-					connectionVo.setDatabase_password(plainPassword);
-					if ("oracle".equalsIgnoreCase(databaseType) && "SID".equals(connectionConfig.get("thinType"))) {
-						Optional.ofNullable(connectionConfig.get("sid"))
-								.map(Object::toString)
-								.ifPresent(connectionVo::setDatabase_name);
-					}
-					if (null == connectionVo.getDatabase_password()) {
-						Optional.ofNullable(connectionConfig)
-								.map(m -> m.get("password"))
-								.map(String::valueOf)
-								.ifPresent(connectionVo::setDatabase_password);
-					}
-				}
-				connectionVos.add(connectionVo);
-			} catch (Exception e) {
-				fialedApi.put(connectionId, e.getMessage());
 			}
+			ConnectionVo connectionVo = cn.hutool.core.bean.BeanUtil.copyProperties(dataSourceConnectionDto, ConnectionVo.class);
+			if (null != connectionVo) {
+				String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
+				connectionVo.setDatabase_password(plainPassword);
+				if ("oracle".equalsIgnoreCase(databaseType) && "SID".equals(connectionConfig.get("thinType"))) {
+					Optional.ofNullable(connectionConfig.get("sid"))
+							.map(Object::toString)
+							.ifPresent(connectionVo::setDatabase_name);
+				}
+				if (null == connectionVo.getDatabase_password()) {
+					Optional.ofNullable(connectionConfig)
+							.map(m -> m.get("password"))
+							.map(String::valueOf)
+							.ifPresent(connectionVo::setDatabase_password);
+				}
+			}
+			connectionVos.add(connectionVo);
 		}
 		apis = updatePublishMsg(apis, fialedApi);
 		apiDefinitionVo.setConnections(connectionVos);
@@ -643,13 +669,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	protected String parseUri(Map<String, Object> connectionConfig) {
-		String uri = (String) connectionConfig.get(URI);
-		if (uri == null) {
-			uri = MongoUriUtil.uriByParam(connectionConfig);
-		} else {
-			uri = MongoUriUtil.uriByConnectionString(uri);
+		Object isUri = connectionConfig.get("isUri");
+		if (isUri instanceof Boolean uri && uri) {
+			String uriChar = (String) connectionConfig.get(URI);
+			return MongoUriUtil.uriByConnectionString(uriChar);
 		}
-		return uri;
+		return MongoUriUtil.uriByParam(connectionConfig);
 	}
 
 	public List<ModulesDto> updatePublishMsg(List<ModulesDto> apis, Map<String, String> connectionIdAndStatusMsg) {
@@ -1846,7 +1871,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				modulesDto.setIsDeleted(false);
 				modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
 				alignConnectionWithDataSource(modulesDto);
-
+				removeStatusInfo(modulesDto);
 				// 根据导入模式处理
 				switch (importMode) {
 					case REPLACE,REUSE_EXISTING: {
