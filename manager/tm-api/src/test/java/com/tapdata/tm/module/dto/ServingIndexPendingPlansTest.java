@@ -49,9 +49,14 @@ class ServingIndexPendingPlansTest {
 	}
 
 	private static DataSourceConnectionDto connection(String name) {
+		return connection(name, "MongoDB");
+	}
+
+	private static DataSourceConnectionDto connection(String name, String databaseType) {
 		DataSourceConnectionDto connection = new DataSourceConnectionDto();
 		connection.setId(new ObjectId(CONNECTION_ID));
 		connection.setName(name);
+		connection.setDatabase_type(databaseType);
 		return connection;
 	}
 
@@ -191,5 +196,37 @@ class ServingIndexPendingPlansTest {
 		assertEquals("COUNTRY_CODE:1,LAST_CHANGE:-1", rows.get(1).getKeys(),
 				"与身份签名同一种渲染（ServingIndexSignature.ofFields），不能自成一格");
 		assertTrue(rows.get(2).isUnique(), "unique 是创建时的参数，计划表得带上");
+	}
+
+	@Test
+	@DisplayName("MongoDB 连接：每条待落地的声明附一句可直接手工执行的 createIndex")
+	void pendingDeclarationsCarryMongoCommands() {
+		ModulesDto module = module("customer_by_country", CONNECTION_ID, "MDM_CUSTOMER",
+				index("LAST_CHANGE_-1", false, field("LAST_CHANGE", false)),
+				index("EMAIL_1_CUSTOMER_ID_1", true, field("EMAIL", true), field("CUSTOMER_ID", true)));
+
+		ServingIndexPendingPlans.Split split = ServingIndexPendingPlans.split(
+				Collections.singletonList(module), Collections.emptyMap(), map(CONNECTION_ID, connection("mdm")));
+
+		assertEquals(Arrays.asList(
+				"db.MDM_CUSTOMER.createIndex({ \"LAST_CHANGE\": -1 }, { name: \"LAST_CHANGE_-1\", background: true })",
+				"db.MDM_CUSTOMER.createIndex({ \"EMAIL\": 1, \"CUSTOMER_ID\": 1 }, "
+						+ "{ name: \"EMAIL_1_CUSTOMER_ID_1\", unique: true, background: true })"),
+				split.getPendingCommands(),
+				"审批人要能直接复制去目标库执行——手拼最容易拼错的正是方向");
+	}
+
+	@Test
+	@DisplayName("非 MongoDB 连接不出语句——凭空生成一条可能跑错的语句比不给更糟")
+	void nonMongoConnectionsGetNoCommands() {
+		ModulesDto module = module("customer_by_country", CONNECTION_ID, "CUSTOMER",
+				index("CITY_1", false, field("CITY", true)));
+
+		ServingIndexPendingPlans.Split split = ServingIndexPendingPlans.split(
+				Collections.singletonList(module), Collections.emptyMap(),
+				map(CONNECTION_ID, connection("mysql_insurance", "Mysql")));
+
+		assertEquals(1, split.getPendingRows().size(), "计划行照出——不出的只是手工语句");
+		assertTrue(split.getPendingCommands().isEmpty());
 	}
 }

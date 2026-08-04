@@ -28,17 +28,35 @@ public final class ServingIndexPlanDiffs {
 	private ServingIndexPlanDiffs() {
 	}
 
-	/** dry-run：把「将创建」桶铺成计划表，富报告原样带上。 */
+	/** dry-run：把「将创建」桶铺成计划表，富报告原样带上。不带数据源类型 = 不出手工语句。 */
 	public static ServingIndexPreviewResult preview(ServingIndexLandingReport report) {
+		return preview(report, java.util.Collections.emptyMap());
+	}
+
+	/**
+	 * 同上，并按 {@code 目标连接 id → database_type} 为 MongoDB 目标附手工执行语句。
+	 */
+	public static ServingIndexPreviewResult preview(ServingIndexLandingReport report,
+													java.util.Map<String, String> databaseTypeByConnectionId) {
 		ServingIndexPreviewResult result = new ServingIndexPreviewResult();
 		result.setReport(report);
 		if (report == null) {
 			return result;
 		}
 		for (ServingIndexTargetReport target : report.getTargets()) {
+			String databaseType = databaseTypeByConnectionId == null
+					? null
+					: databaseTypeByConnectionId.get(target.getConnectionId());
 			for (ServingIndexReportEntry entry : target.getCreate()) {
 				result.getAdd().add(row(target.getConnectionName(), target.getTableName(), entry.getName(),
 						entry.getFields(), entry.isUnique(), entry.getSourceApis()));
+				// 手工执行语句只对 MongoDB 生成；语句不进表格（太长会把计划表挤垮），
+				// 与 add 平行放一份，worker 渲染成表格下方的代码块。
+				String command = ServingIndexManualCommands.of(databaseType, target.getTableName(),
+						new ServingIndex(entry.getName(), entry.isUnique(), entry.getFields()));
+				if (command != null) {
+					result.getCommands().add(command);
+				}
 			}
 		}
 		return result;

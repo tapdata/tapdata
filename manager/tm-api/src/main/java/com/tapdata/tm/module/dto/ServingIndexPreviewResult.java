@@ -4,6 +4,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * {@code POST /api/groupInfo/preview/indexes} 的响应体。TAP-12057 · P4-1（方案 §3.5）。
@@ -23,4 +25,12 @@ public class ServingIndexPreviewResult extends ServingIndexPlanDiff implements S
 
 	/** dry-run 分桶报告全文（P3-4）。 */
 	private ServingIndexLandingReport report;
+
+	/**
+	 * 给人手工执行的建索引语句，<b>仅 MongoDB 连接有</b>（其它数据源为空）。
+	 *
+	 * <p>与 {@code add} 平行的一份，不进表格：语句很长，塞进表格一列会把计划表挤垮。
+	 * worker 侧渲染成表格下方的代码块。</p>
+	 */
+	private List<String> commands = new ArrayList<>();
 }

@@ -86,6 +86,39 @@ class ServingIndexPlanDiffsTest {
 
 
 		@Test
+		@DisplayName("MongoDB 目标：每条将创建的索引附一句可手工执行的 createIndex")
+		void mongoTargetsCarryManualCommands() {
+			ServingIndexLandingReport report = new ServingIndexLandingReport();
+			ServingIndexTargetReport target = target("mdm", "MDM_CUSTOMER");
+			target.getCreate().add(entry("LAST_CHANGE_-1", false, Collections.singletonList("customer"),
+					field("LAST_CHANGE", false)));
+			report.getTargets().add(target);
+			java.util.Map<String, String> types = Collections.singletonMap(target.getConnectionId(), "MongoDB");
+
+			ServingIndexPreviewResult result = ServingIndexPlanDiffs.preview(report, types);
+
+			assertEquals(Collections.singletonList(
+					"db.MDM_CUSTOMER.createIndex({ \"LAST_CHANGE\": -1 }, { name: \"LAST_CHANGE_-1\", background: true })"),
+					result.getCommands());
+		}
+
+		@Test
+		@DisplayName("非 MongoDB 目标不出语句，计划行照出")
+		void nonMongoTargetsGetNoCommands() {
+			ServingIndexLandingReport report = new ServingIndexLandingReport();
+			ServingIndexTargetReport target = target("mysql_insurance", "CUSTOMER");
+			target.getCreate().add(entry("CITY_1", false, Collections.singletonList("customer"),
+					field("CITY", true)));
+			report.getTargets().add(target);
+			java.util.Map<String, String> types = Collections.singletonMap(target.getConnectionId(), "Mysql");
+
+			ServingIndexPreviewResult result = ServingIndexPlanDiffs.preview(report, types);
+
+			assertEquals(1, result.getAdd().size());
+			assertTrue(result.getCommands().isEmpty());
+		}
+
+		@Test
 		@DisplayName("降序渲染成 -1，复合索引按声明顺序拼——方向看不见就等于没修 P0")
 		void rendersDirectionAndCompositeOrder() {
 			ServingIndexLandingReport report = new ServingIndexLandingReport();

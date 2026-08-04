@@ -760,9 +760,26 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         ServingIndexLandingReport report = split.getResolved().isEmpty()
                 ? new ServingIndexLandingReport()
                 : servingIndexLandingService.preview(split.getResolved(), conMap, user);
-        ServingIndexPreviewResult result = ServingIndexPlanDiffs.preview(report);
+        ServingIndexPreviewResult result = ServingIndexPlanDiffs.preview(report, databaseTypesByTargetId(conMap));
         result.getAdd().addAll(split.getPendingRows());
+        result.getCommands().addAll(split.getPendingCommands());
         return result;
+    }
+
+    /**
+     * {@code 目标连接 id → database_type}——给计划表配手工执行语句用（只有 MongoDB 出语句）。
+     *
+     * <p>键取<b>目标</b>连接的 id：报告里 target 的 connectionId 是解析之后的那个，
+     * 与 conMap 的键（导出侧 id）不是一回事。</p>
+     */
+    private Map<String, String> databaseTypesByTargetId(Map<String, DataSourceConnectionDto> conMap) {
+        Map<String, String> types = new LinkedHashMap<>();
+        for (DataSourceConnectionDto connection : conMap.values()) {
+            if (connection != null && connection.getId() != null) {
+                types.put(connection.getId().toHexString(), connection.getDatabase_type());
+            }
+        }
+        return types;
     }
 
     /** 包里带来的连接（{@code 导出侧 id → 连接}）——用来分辨「待落地」与「包里根本没带」。 */

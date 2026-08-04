@@ -49,6 +49,14 @@ public final class ServingIndexPendingPlans {
 
 		/** 连接待落地：按包内声明出的计划行。 */
 		private final List<ServingIndexPlanRow> pendingRows = new ArrayList<>();
+
+		/**
+		 * 与 {@link #pendingRows} 一一对应的手工执行语句；<b>仅 MongoDB 连接有</b>，其它数据源为空。
+		 *
+		 * <p>审批人常常要自己去目标库确认、或在大集合上先手工建一遍再放行；语句由 TM 生成而不是让人
+		 * 照着表格手拼——手拼最容易拼错的正是方向。</p>
+		 */
+		private final List<String> pendingCommands = new ArrayList<>();
 	}
 
 	/**
@@ -68,6 +76,9 @@ public final class ServingIndexPendingPlans {
 		// 不归并的话，两个 API 声明同一条索引就会在计划表里出现两行，审阅的人看到的条数与实际要建的对不上。
 		Map<String, ServingIndexPlanRow> rowByBucket = new LinkedHashMap<>();
 		Map<String, List<String>> apisByBucket = new LinkedHashMap<>();
+		// 手工执行语句只对 MongoDB 生成——其它数据源的建索引语法各异，凭空生成一条
+		// 可能跑不通甚至跑错的语句，比不给更糟（ServingIndexManualCommands）。
+		Map<String, String> commandByBucket = new LinkedHashMap<>();
 		for (ModulesDto module : modules) {
 			if (module == null) {
 				continue;
@@ -93,12 +104,21 @@ public final class ServingIndexPendingPlans {
 						+ KEY_SEPARATOR + ServingIndexSignature.of(declaration);
 				// 首个声明定下展示用的名字与 unique（名字不参与身份；unique 不一致仅注记，ADR-0005）。
 				rowByBucket.computeIfAbsent(bucket, k -> row(packaged.getName(), module, declaration));
+				String command = ServingIndexManualCommands.of(
+						packaged.getDatabase_type(), module.getTableName(), declaration);
+				if (command != null) {
+					commandByBucket.putIfAbsent(bucket, command);
+				}
 				addApi(apisByBucket.computeIfAbsent(bucket, k -> new ArrayList<>()), module.getName());
 			}
 		}
 		rowByBucket.forEach((bucket, row) -> {
 			row.setDeclaredBy(String.join(", ", apisByBucket.get(bucket)));
 			split.getPendingRows().add(row);
+			String command = commandByBucket.get(bucket);
+			if (command != null) {
+				split.getPendingCommands().add(command);
+			}
 		});
 		return split;
 	}
