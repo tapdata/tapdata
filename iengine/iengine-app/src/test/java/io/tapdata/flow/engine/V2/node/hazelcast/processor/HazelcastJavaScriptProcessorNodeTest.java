@@ -111,9 +111,12 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 					null,
 					null,
 					true));
+			hazelcastJavaScriptProcessorNode = spy(hazelcastJavaScriptProcessorNode);
 			Map<String, Invocable> engineMap = new HashMap<>();
-			engineMap.put(processorBaseContext.getNode().getId(), engine);
+			engineMap.put(processorBaseContext.getNode().getId() + "-" + Thread.currentThread().getId(), engine);
 			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode, "engineMap", engineMap);
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode, "sharedInitDone", true);
+			doReturn(engine).when(hazelcastJavaScriptProcessorNode).buildEngine();
 			tapdataEvent = mock(TapdataEvent.class);
 			tapEvent = mock(TapUpdateRecordEvent.class);
 			when(tapEvent.getTableId()).thenReturn("tableId");
@@ -198,8 +201,24 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("test tryProcess for exception JAVA_SCRIPT_PROCESS_FAILED")
 		@Test
 		void test5() throws ScriptException, NoSuchMethodException {
-			boolean standard = true;
-			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",standard);
+			ScriptException scriptException = new ScriptException("a is not defeind");
+			TapCodeException tapCodeException = assertProcessException(scriptException);
+			assertEquals(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,tapCodeException.getCode());
+			assertEquals("a is not defeind", tapCodeException.getMessage());
+			assertSame(scriptException, tapCodeException.getCause());
+		}
+
+		@Test
+		void processExceptionWithoutMessageUsesExceptionType() throws ScriptException, NoSuchMethodException {
+			ScriptException scriptException = new ScriptException((String) null);
+			TapCodeException tapCodeException = assertProcessException(scriptException);
+
+			assertEquals(ScriptException.class.getName(), tapCodeException.getMessage());
+			assertSame(scriptException, tapCodeException.getCause());
+		}
+
+		private TapCodeException assertProcessException(ScriptException scriptException) throws ScriptException, NoSuchMethodException {
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",true);
 			Map<String, Object> after = mock(HashMap.class);
 			Map<String, Object> before = mock(HashMap.class);
 			tapEvent = new TapUpdateRecordEvent();
@@ -208,12 +227,10 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 			tapEvent.setTableId("tableId");
 			when(tapdataEvent.getTapEvent()).thenReturn(tapEvent);
 
-			doThrow(new ScriptException("a is not defeind")).when(engine).invokeFunction(anyString(),any());
+			doThrow(scriptException).when(engine).invokeFunction(anyString(),any());
 			when(tapdataEvent.clone()).thenReturn(tapdataEvent);
-			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
-				hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
-			});
-			assertEquals(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,tapCodeException.getCode());
+			return assertThrows(TapCodeException.class, () ->
+					hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer));
 		}
 
 		@DisplayName("test try tryProcess for testRun exception")
@@ -293,7 +310,12 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 		ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode1,"clientMongoOperator",clientMongoOperator);
 		List<JavaScriptFunctions> javaScriptFunctions=new ArrayList<>();
 		when(clientMongoOperator.find(any(Query.class),anyString(),any(Class.class))).thenReturn(javaScriptFunctions);
+		ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode1,"script",jsProcessorNode1.getScript());
+		ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode1,"javaScriptFunctions",javaScriptFunctions);
+		ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode1,"scriptCacheService",mock(ScriptCacheService.class));
+		ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode1,"sharedInitDone",true);
 		doCallRealMethod().when(hazelcastJavaScriptProcessorNode1).getOrInitEngine();
+		doCallRealMethod().when(hazelcastJavaScriptProcessorNode1).buildEngine();
 		try(MockedStatic<ScriptUtil> scriptUtilMockedStatic = mockStatic(ScriptUtil.class);){
 			scriptUtilMockedStatic.when(()->{
 				ScriptUtil.getScriptEngine(anyString(),anyString(),anyList(),any(HttpClientMongoOperator.class),eq(null),eq(null),any(ScriptCacheService.class),any(ObsScriptLogger.class),eq(false));
