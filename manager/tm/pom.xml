@@ -433,12 +433,18 @@
             <artifactId>bcprov-jdk18on</artifactId>
             <scope>compile</scope>
         </dependency>
-        <!-- fastjson2 compatibility artifact; fastjson 1.x is EOL and 1.2.83 carries
-             CVE-2026-16723 (RCE under stock config) with no fixed 1.x release. -->
+        <!-- 1.2.84 修 CVE-2026-16723（1.2.68–1.2.83 默认配置即可 RCE），
+             且与 1.2.83 二进制兼容。
+             ⚠ 不要升到 fastjson 2.x（含兼容包 com.alibaba:fastjson:2.0.x）：
+             tm 依赖 tapdata-pdk-runner，其 AbstractResultDeserializer 直接读
+             DefaultJSONParser.input / .lexer——1.x 里是 public final，2.x 兼容包
+             里是 private。pdk-runner 的字节码按 1.x 编译，换 2.x 会在解析
+             TapTable/TapField 的 TapType 时抛 IllegalAccessError（2026-08-04 实测）。
+             升 2.x 的前置条件 = 先在 tapdata-common-lib 重写该类。 -->
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
-            <version>2.0.64</version>
+            <version>1.2.84</version>
         </dependency>
 		<dependency>
 			<groupId>com.sun.mail</groupId>

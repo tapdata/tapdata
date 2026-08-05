@@ -496,6 +496,18 @@
                 <version>${org.bouncycastle.version}</version>
             </dependency>
 
+            <!-- 引擎自身不声明 fastjson，它由 tapdata-pdk-runner 传递进来（13 条路径全汇于此）。
+                 pdk-runner 仍锁 1.2.83（带 CVE-2026-16723，默认配置即可 RCE），此处接管到 1.2.84。
+                 1.2.84 与 1.2.83 二进制兼容（DefaultJSONParser.input / .lexer 仍是 public final），
+                 pdk-runner 的字节码无需重编。
+                 ⚠ 同 manager/tm/pom.xml：绝不可换成 fastjson 2.x 兼容包，那两个字段在 2.x 是
+                 private，会在解析 TapTable/TapField 的 TapType 时抛 IllegalAccessError。 -->
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>fastjson</artifactId>
+                <version>1.2.84</version>
+            </dependency>
+
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-web</artifactId>
