@@ -991,6 +991,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 log.info("Vault secrets found, injecting into {} connections", connections.size());
                 injectVaultSecrets(connections, vaultSecrets, user);
             }
+            // 在 vault 注入之后、落库之前：包里仍缺的敏感字段改用目标既有值，绝不写空
+            // （[ADR-0034] D5）。刻意放在 vaultSecrets 判空之外——最危险的正是「没带 vault」。
+            preserveExistingSecrets(connections, user);
             refreshImportLastUpdate(connections.values(), connectionMetadata);
             Map<String, DataSourceConnectionDto> conMap = dataSourceService.batchImport(
                     new ArrayList<>(connections.values()), user, importMode);
@@ -2559,6 +2562,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 log.info("Vault secrets found, injecting into {} connections", connections.size());
                 injectVaultSecrets(connections, vaultSecrets, user);
             }
+            // 同上：无条件保护，缺 vault 时才是真正会把目标凭据抹空的那条路（[ADR-0034] D5）
+            preserveExistingSecrets(connections, user);
             List<MetadataInstancesDto> connectionMetadata = metadataByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyList());
             refreshImportLastUpdate(connections.values(), connectionMetadata);
@@ -2753,6 +2758,45 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
         Map<String, String> secrets = JsonUtil.parseJsonUseJackson(json, new TypeReference<Map<String, String>>() {});
         return secrets != null ? secrets : Collections.emptyMap();
+    }
+
+    /**
+     * 导入侧保护：包内敏感字段缺值时，改用目标环境已有的值（[ADR-0034] D5/D6）。
+     *
+     * 必须排在 {@link #injectVaultSecrets} **之后**——vault 提供了值就不算缺，那是用户
+     * 明确要写入的新凭据。到这一步仍为空的，只可能是脱敏抹出来的洞：导出会无条件清空
+     * 敏感字段，而 GROUP_IMPORT 落库是整文档覆盖，两者叠加就把目标环境已有的
+     * uri/password 覆盖成空，且导入照常报成功（实撞：uri is blank）。
+     *
+     * 与 importMode 无关：REPLACE 要替换的是用户配置的内容，不是脱敏留下的空洞。
+     *
+     * @return 被保留的字段清单（{@code 连接名.字段路径}），交给导入报告汇报——D7 要求绝不静默
+     */
+    List<String> preserveExistingSecrets(Map<String, DataSourceConnectionDto> connections, UserDetail user) {
+        List<String> preserved = new ArrayList<>();
+        if (connections == null || connections.isEmpty()) {
+            return preserved;
+        }
+        for (DataSourceConnectionDto conn : connections.values()) {
+            if (conn == null || conn.getId() == null) {
+                continue;   // 新连接，目标环境没有可保留的既有值
+            }
+            DataSourceConnectionDto existing = dataSourceService.findById(conn.getId(), "config");
+            if (existing == null || MapUtils.isEmpty(existing.getConfig())) {
+                continue;
+            }
+            DataSourceDefinitionDto definition =
+                    dataSourceDefinitionService.findByPdkHash(conn.getPdkHash(), Integer.MAX_VALUE, user);
+            List<String> paths = ResourceHandler.restoreMissingSecretsFromExisting(
+                    conn, existing.getConfig(), definition);
+            if (paths.isEmpty()) {
+                continue;
+            }
+            paths.forEach(path -> preserved.add(conn.getName() + "." + path));
+            log.warn("Import: package omits secret field(s) for connection '{}', kept the target environment's existing value(s): {}",
+                    conn.getName(), paths);
+        }
+        return preserved;
     }
 
     /**
