@@ -46,6 +46,7 @@ import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
+import com.tapdata.tm.task.utils.TaskDeletionState;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.userLog.constant.Operation;
 import io.github.openlg.graphlib.Graph;
@@ -3742,9 +3743,22 @@ public class TaskServiceImpl extends TaskService{
            try{
                taskDto.setTaskRecordId(new ObjectId().toHexString());
 
-               if(ImportModeEnum.GROUP_IMPORT.equals(importMode) && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap)){
+               // 目标环境该任务已被删除时，删除本身就是一种变更：必须导入并把记录从删除态拉回来，
+               // 否则误删的任务再导入也恢复不了。其余运行状态差异（如 stop → running）仍按无变化处理。
+               // 只在项目导入（GROUP_IMPORT）下恢复——REPLACE / IMPORT_AS_COPY 走按 name 查重，
+               // 复活后 DB 里的名字仍是删除时改过的「原名_随机6位」，查不到会另分配 _id 变成副本。
+               boolean restoreDeleted = ImportModeEnum.GROUP_IMPORT.equals(importMode)
+                       && isDeletedTask(taskDto.getId(), user);
+
+               if(ImportModeEnum.GROUP_IMPORT.equals(importMode)
+                       && checkTaskConfig(taskDto, user, importMode, resetTaskList,externalStorageMap, restoreDeleted)){
                    importResult.put(taskDto.getId().toHexString(),0L);
                    continue;
+               }
+
+               if (restoreDeleted) {
+                   // 先清掉删除标记，后面的查重才能命中这条记录，按「已存在 → 覆盖更新」正常走完
+                   reviveDeletedTask(taskDto.getId());
                }
 
                // 根据导入模式处理
@@ -3804,21 +3818,55 @@ public class TaskServiceImpl extends TaskService{
     }
 
     /**
+     * 目标环境该任务是否处于删除态：is_deleted 已置位，或仍停在 deleting / delete_failed。
+     * 两种状态下任务都已从列表消失（列表按 status $nin [deleting, delete_failed] 过滤），
+     * 对导入而言都必须算作「有变更、需要恢复」。
+     */
+    protected boolean isDeletedTask(ObjectId taskId, UserDetail user) {
+        if (taskId == null) {
+            return false;
+        }
+        return CollectionUtils.isNotEmpty(
+                findAll(TaskDeletionState.deletedQuery(Collections.singletonList(taskId)), user));
+    }
+
+    /**
+     * 把一条处于删除态的任务记录拉回可用状态。
+     *
+     * <p>只能走原生 update：{@code is_deleted} 与 {@code deleteName} 不在 TaskDto 上，
+     * {@code buildUpdateSet} 覆盖不到；{@code status} 又被 {@link com.tapdata.tm.task.repository.TaskRepository}
+     * 的 buildUpdateSet / filterStatus 显式拦掉。
+     */
+    protected void reviveDeletedTask(ObjectId taskId) {
+        Update update = new Update()
+                .set(IS_DELETED, false)
+                .set(STATUS, TaskDto.STATUS_EDIT)
+                .unset("deleteName");
+        repository.getMongoOperations().updateFirst(
+                new Query(Criteria.where("_id").is(taskId)), update, TaskEntity.class);
+        log.info("Restore deleted task on import, task id = {}", taskId);
+    }
+
+    /**
      * 校验任务配置是否一致
      * 如果配置一致则返回 true，不需要停止任务
      * 如果配置不一致则需要停止任务，返回 false
      *
-     * @param taskDto       导入的任务
-     * @param user          用户信息
-     * @param importMode    导入模式
-     * @param resetTaskList 需要重置的任务列表
+     * @param taskDto        导入的任务
+     * @param user           用户信息
+     * @param importMode     导入模式
+     * @param resetTaskList  需要重置的任务列表
+     * @param restoreDeleted 目标环境该任务已处于删除态，本次导入是一次恢复
      * @return true 表示配置一致，false 表示配置不一致
      */
-    protected boolean checkTaskConfig(TaskDto taskDto, UserDetail user, ImportModeEnum importMode, List<String> resetTaskList,Map<String,String> externalStorageMap){
+    protected boolean checkTaskConfig(TaskDto taskDto, UserDetail user, ImportModeEnum importMode, List<String> resetTaskList,Map<String,String> externalStorageMap, boolean restoreDeleted){
         boolean enableStatusPreserve = importMode == ImportModeEnum.GROUP_IMPORT && resetTaskList != null;
-        boolean shouldReset = enableStatusPreserve
+        // 恢复被删除的任务时必须重置状态：既不能因为「配置一致」跳过导入，
+        // 也不能把 deleting / delete_failed 抄回导入的任务上（抄回去列表里依然看不到）
+        boolean shouldReset = restoreDeleted
+                || (enableStatusPreserve
                 && taskDto.getId() != null
-                && resetTaskList.contains(taskDto.getId().toHexString());
+                && resetTaskList.contains(taskDto.getId().toHexString()));
 
         // GROUP_IMPORT 按 _id 查，其他模式按 name 查
         Query existingQuery;
