@@ -734,6 +734,46 @@ public interface ResourceHandler {
     /**
      * 从 config map 中按点号分隔的路径读取值（支持嵌套路径，如 "ssl.password"）
      */
+    /**
+     * 导入侧：包内敏感字段缺失/为空时，保留目标环境已有的值（[ADR-0034] D5/D6）。
+     *
+     * 为什么需要它：导出会把敏感字段抹空，而 GROUP_IMPORT 的落库是整文档覆盖
+     * （{@code DataSourceServiceImpl.handleGroupImportConnection} → {@code importSave}），
+     * 于是「脱敏包 + 未提供 vault」会把目标环境已有的 uri/password 覆盖成空，导入还报成功。
+     * 包里那个空缺是脱敏流程的产物、不是用户配置的内容，因此**任何 importMode 下都不该覆盖**。
+     *
+     * @return 被保留（即包内缺值、改用目标既有值）的 config path，供调用方汇报——D7 要求绝不静默。
+     */
+    static List<String> restoreMissingSecretsFromExisting(DataSourceConnectionDto incoming,
+            Map<String, Object> existingConfig, DataSourceDefinitionDto definition) {
+        List<String> preserved = new ArrayList<>();
+        if (incoming == null || MapUtils.isEmpty(existingConfig)) {
+            return preserved;
+        }
+        Map<String, Object> config = incoming.getConfig();
+        if (config == null) {
+            config = new LinkedHashMap<>();
+            incoming.setConfig(config);
+        }
+        for (String path : getMaskedConfigPaths(definition)) {
+            if (isPresent(getNestedValue(config, path))) {
+                continue;
+            }
+            Object existingValue = getNestedValue(existingConfig, path);
+            if (!isPresent(existingValue)) {
+                continue;
+            }
+            setNestedValue(config, path, existingValue);
+            preserved.add(path);
+        }
+        return preserved;
+    }
+
+    /** 空字符串与 null 同等对待：脱敏既可能删键，也可能留下空串。 */
+    private static boolean isPresent(Object value) {
+        return value != null && !(value instanceof CharSequence && ((CharSequence) value).length() == 0);
+    }
+
     static Object getNestedValue(Map<String, Object> config, String path) {
         if (config == null || path == null) return null;
         String[] parts = path.split("\\.");
