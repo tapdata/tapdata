@@ -51,6 +51,7 @@ import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.module.dto.ServingIndex;
 import com.tapdata.tm.module.dto.ServingIndexNormalizer;
 import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.module.enums.ApiType;
@@ -2107,6 +2108,28 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Update update = new Update().set("paths.$[].fields.$[id1].description", discoveryFieldDto.getBusinessDesc())
 				.filterArray("id1.id", discoveryFieldDto.getId());
 		update(query, update, userDetail);
+	}
+
+	/**
+	 * 只更新一个 Module 的 {@code servingIndexes}（TAP-12057 · 索引 tab 与编辑态解绑）。
+	 *
+	 * <p><b>为什么要一条窄写路径</b>：索引 tab 的「勾选即存」不能借道 {@link #updateModuleById}——那条路会把
+	 * 前端整张表单回写，而前端进编辑态时会把 {@code status} 翻成 {@code pending}，于是「收录一条索引」的副作用
+	 * 是把已发布的 API 撤下发布；它还会跑 {@code checkModule}（basePath/名称查重），让一次与 API 定义无关的勾选
+	 * 可能被别的 API 的路径冲突挡下。本方法只 {@code $set} 这一个字段，其余一概不碰。</p>
+	 *
+	 * <p>写入前照样过 {@link ServingIndexNormalizer}（ADR-0001 / P2-1）：确定性排序 + 方向显式，
+	 * 与编辑保存路径同口径，否则同一份索引经两条路径写出两种 JSON、CICD 全量 diff 误报变更。</p>
+	 *
+	 * <p>空列表是合法输入（取消最后一条勾选），照写不误——不能当成「没传」跳过。</p>
+	 */
+	public void updateServingIndexes(String id, List<ServingIndex> servingIndexes, UserDetail userDetail) {
+		if (StringUtils.isBlank(id)) {
+			throw new BizException("IllegalArgument", "Id");
+		}
+		List<ServingIndex> normalized = ServingIndexNormalizer.normalize(servingIndexes);
+		updateById(MongoUtils.toObjectId(id), new Update().set("servingIndexes",
+				normalized == null ? new ArrayList<ServingIndex>() : normalized), userDetail);
 	}
 
 	public void updateIntParameter(String id, Param param, UserDetail userDetail) {

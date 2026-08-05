@@ -11,6 +11,7 @@ import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.modules.param.ApiDetailParam;
+import com.tapdata.tm.modules.param.ServingIndexesParam;
 import com.tapdata.tm.modules.param.UpdateEncryptionParam;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -261,6 +262,25 @@ public class ModulesController extends BaseController {
     UserDetail userDetail = getLoginUser();
     checkModulePermission(request, userDetail, id, DataPermissionActionEnums.Publish);
     modulesService.updateIntParameter(id,param, userDetail);
+    return success();
+  }
+
+  /**
+   * 只更新一个 Module 的服务型索引收录清单（TAP-12057 · 索引 tab 与编辑态解绑，「勾选即存」）。
+   *
+   * <p>刻意<b>不</b>复用 {@code PATCH /api/Modules}：那条路整表单回写、且前端进编辑态会把 {@code status}
+   * 翻成 {@code pending}——收录一条索引就把已发布的 API 撤下发布；它还跑 {@code checkModule} 查重，
+   * 让一次与 API 定义无关的勾选可能被别的 API 路径冲突挡下。见 {@link ModulesService#updateServingIndexes}。</p>
+   *
+   * <p>权限按 {@code Edit}：收录索引是编辑 API 的元数据，不涉及发布/撤销。</p>
+   */
+  @Operation(summary = "更新 module 的服务型索引收录清单")
+  @PatchMapping("{id}/serving-indexes")
+  public ResponseMessage<Void> updateServingIndexes(HttpServletRequest request, @PathVariable("id") String id,
+                                                    @RequestBody ServingIndexesParam param) {
+    UserDetail userDetail = getLoginUser();
+    checkModulePermission(request, userDetail, id, DataPermissionActionEnums.Edit);
+    modulesService.updateServingIndexes(id, param.getServingIndexes(), userDetail);
     return success();
   }
 

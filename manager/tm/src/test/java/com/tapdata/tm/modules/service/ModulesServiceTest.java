@@ -421,6 +421,81 @@ class ModulesServiceTest {
 	}
 
 	@Nested
+	@DisplayName("Method updateServingIndexes test（TAP-12057 · 索引 tab 与编辑态解绑，勾选即存）")
+	class UpdateServingIndexesTest {
+		private UserDetail userDetail;
+
+		@BeforeEach
+		void beforeEach() {
+			userDetail = mock(UserDetail.class);
+		}
+
+		@Test
+		@DisplayName("只 $set servingIndexes 一个字段——绝不连带改 status（否则收录索引会把已发布 API 撤下发布）")
+		void test_onlySetsServingIndexes() {
+			String moduleId = new ObjectId().toHexString();
+
+			modulesService.updateServingIndexes(moduleId, new ArrayList<>(Collections.singletonList(
+					new ServingIndex("ix_a", null, new ArrayList<>(Collections.singletonList(
+							new ServingIndexField("a", true)))))), userDetail);
+
+			ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+			ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+			verify(modulesRepository, times(1)).updateFirst(queryCaptor.capture(), updateCaptor.capture(), eq(userDetail));
+
+			Document set = (Document) updateCaptor.getValue().getUpdateObject().get("$set");
+			assertEquals(Collections.singleton("servingIndexes"), set.keySet(),
+					"窄端点只允许写 servingIndexes：多写任何一个字段都可能悄悄改动 API 定义");
+			assertEquals(moduleId, queryCaptor.getValue().getQueryObject().get("_id").toString());
+		}
+
+		@Test
+		@DisplayName("写入前归一化：确定性排序 + 方向显式（与编辑保存路径同口径，ADR-0001 / P2-1）")
+		void test_normalizesBeforeWrite() {
+			modulesService.updateServingIndexes(new ObjectId().toHexString(), new ArrayList<>(Arrays.asList(
+					new ServingIndex("ix_b", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("b", null)))),
+					new ServingIndex("ix_a", null, new ArrayList<>(Collections.singletonList(new ServingIndexField("a", false)))))),
+					userDetail);
+
+			ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+			verify(modulesRepository, times(1)).updateFirst(any(Query.class), updateCaptor.capture(), eq(userDetail));
+
+			@SuppressWarnings("unchecked")
+			List<ServingIndex> written = (List<ServingIndex>) ((Document) updateCaptor.getValue()
+					.getUpdateObject().get("$set")).get("servingIndexes");
+			assertEquals(2, written.size());
+			// 签名 "a:-1" < "b:1" → ix_a 在前；方向规范：a(降序)→FALSE，b(null 升序)→显式 TRUE
+			assertEquals("a", written.get(0).getFields().get(0).getField());
+			assertEquals(Boolean.FALSE, written.get(0).getFields().get(0).getAsc());
+			assertEquals("b", written.get(1).getFields().get(0).getField());
+			assertEquals(Boolean.TRUE, written.get(1).getFields().get(0).getAsc());
+		}
+
+		@Test
+		@DisplayName("清空收录：空列表照写，不能被当成「没传」而跳过（否则最后一条索引取消勾选存不下去）")
+		void test_emptyListIsWritten() {
+			modulesService.updateServingIndexes(new ObjectId().toHexString(), new ArrayList<>(), userDetail);
+
+			ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+			verify(modulesRepository, times(1)).updateFirst(any(Query.class), updateCaptor.capture(), eq(userDetail));
+
+			@SuppressWarnings("unchecked")
+			List<ServingIndex> written = (List<ServingIndex>) ((Document) updateCaptor.getValue()
+					.getUpdateObject().get("$set")).get("servingIndexes");
+			assertNotNull(written);
+			assertTrue(written.isEmpty());
+		}
+
+		@Test
+		@DisplayName("id 为空 → BizException，不落任何写")
+		void test_blankIdRejected() {
+			assertThrows(BizException.class,
+					() -> modulesService.updateServingIndexes("  ", new ArrayList<>(), userDetail));
+			verify(modulesRepository, never()).updateFirst(any(Query.class), any(Update.class), any());
+		}
+	}
+
+	@Nested
 	@DisplayName("Method checkModule test")
 	class CheckModuleTest {
 		@Test
