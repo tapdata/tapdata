@@ -3034,4 +3034,60 @@ public class GroupInfoServiceTest {
         }
     }
 
+    /**
+     * 导入侧保护（ADR-0034 D5/D6/D7）：脱敏包未带 vault 时，绝不用空值覆盖目标环境
+     * 已有的连接凭据。实撞过一次——Create MongoDB client failed, error: uri is blank。
+     */
+    @Nested
+    @DisplayName("preserveExistingSecrets")
+    class PreserveExistingSecretsTest {
+
+        private com.tapdata.tm.commons.schema.DataSourceDefinitionDto definitionWithUri() {
+            Map<String, Object> uriMeta = new LinkedHashMap<>();
+            uriMeta.put("apiServerKey", "database_uri");
+            Map<String, Object> connProps = new LinkedHashMap<>();
+            connProps.put("uri", uriMeta);
+            Map<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connProps);
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            properties.put("connection", connection);
+            com.tapdata.tm.commons.schema.DataSourceDefinitionDto def =
+                    new com.tapdata.tm.commons.schema.DataSourceDefinitionDto();
+            def.setProperties(properties);
+            return def;
+        }
+
+        @Test
+        @DisplayName("包里 uri 被脱敏抹空时，改用目标既有 uri，并把该字段报出来")
+        void maskedPackage_keepsTargetSecretAndReportsIt() {
+            ObjectId connId = new ObjectId();
+
+            DataSourceConnectionDto incoming = new DataSourceConnectionDto();
+            incoming.setId(connId);
+            incoming.setName("MDM_CUSTOMER");
+            incoming.setPdkHash("pdkhash-mongodb");
+            incoming.setConfig(new LinkedHashMap<>(Map.of("isUri", true)));
+
+            DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setId(connId);
+            existing.setConfig(new LinkedHashMap<>(Map.of(
+                    "isUri", true,
+                    "uri", "mongodb://real-host:27017/dmp")));
+
+            when(dataSourceService.findById(eq(connId), any(String[].class))).thenReturn(existing);
+            when(dataSourceDefinitionService.findByPdkHash(eq("pdkhash-mongodb"), anyInt(), any(UserDetail.class)))
+                    .thenReturn(definitionWithUri());
+
+            Map<String, DataSourceConnectionDto> connections = new LinkedHashMap<>();
+            connections.put("MDM_CUSTOMER", incoming);
+
+            List<String> report = groupInfoService.preserveExistingSecrets(connections, user);
+
+            assertEquals("mongodb://real-host:27017/dmp", incoming.getConfig().get("uri"),
+                    "目标既有 uri 必须留下——包里那个空缺是脱敏产物，不是用户的配置");
+            assertEquals(List.of("MDM_CUSTOMER.uri"), report,
+                    "保留了哪些字段必须报出来，否则用户分不清『凭据已更新』和『沿用了旧的』");
+        }
+    }
+
 }
