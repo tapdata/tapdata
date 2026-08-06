@@ -103,8 +103,10 @@ class ServingIndexesExportDiffTest {
 
 	/** 按真实导出路径把一个 Module 变成导入侧看到的文件 JSON（含 strip 环节）。 */
 	private String exportedJson(ModulesDto dto) {
+		// maskSecrets=true 与本用例写就时的行为一致（那会儿导出无条件脱敏）；脱敏只作用于连接与
+		// 任务自带的 metadata，不影响本用例断言的 Module 载荷（[ADR-0034]）。
 		List<TaskUpAndLoadDto> payload = moduleResourceHandler.buildExportPayload(
-				new ArrayList<>(Collections.singletonList(dto)), user);
+				new ArrayList<>(Collections.singletonList(dto)), user, true);
 		assertEquals(1, payload.size());
 		Object stripped = ReflectionTestUtils.invokeMethod(groupInfoService, "parseAndStripExportJson",
 				GroupConstants.COLLECTION_MODULES, payload.get(0).getJson());
