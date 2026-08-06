@@ -67,7 +67,7 @@ public class ModuleResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user) {
+    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user, boolean maskSecrets) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         if (CollectionUtils.isEmpty(resources)) {
             return payload;

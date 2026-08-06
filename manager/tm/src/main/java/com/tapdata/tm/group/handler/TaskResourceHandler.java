@@ -115,7 +115,7 @@ public class TaskResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user) {
+    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user, boolean maskSecrets) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         if (CollectionUtils.isEmpty(resources)) {
             return payload;
@@ -177,6 +177,11 @@ public class TaskResourceHandler implements ResourceHandler {
                     for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
                         metadataInstancesDto.setCustomId(null);
                         metadataInstancesDto.setLastUpdBy(null);
+                        if (maskSecrets) {
+                            // metadata 的 source 是连接的整份拷贝，带顶层凭据镜像 —— 凭据的第四处载体
+                            // （[ADR-0034]；2026-08-06 实机在真实包的 Task/*.json 里抓到）
+                            ResourceHandler.maskMirroredSecretFields(metadataInstancesDto);
+                        }
                         payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_METADATA_INSTANCES,
                                 JsonUtil.toJsonUseJackson(metadataInstancesDto)));
                         metadataCount++;
@@ -316,7 +321,7 @@ public class TaskResourceHandler implements ResourceHandler {
             List<TaskDto> shareCacheTasks = taskService.findAllDto(
                     Query.query(Criteria.where("name").in(shareCacheNames).and("is_deleted").ne(true)),
                     user);
-            List<TaskUpAndLoadDto> payload = buildExportPayload(shareCacheTasks, user);
+            List<TaskUpAndLoadDto> payload = buildExportPayload(shareCacheTasks, user, maskSecrets);
             payloadsByType.computeIfAbsent(ResourceType.SHARE_CACHE.name(), k -> new ArrayList<>()).addAll(payload);
         }
 
@@ -328,7 +333,7 @@ public class TaskResourceHandler implements ResourceHandler {
                     tagIds.addAll(inspectDto.getListtags().stream().map(tag -> MongoUtils.toObjectId(tag.getId())).toList());
                 }
             });
-            List<TaskUpAndLoadDto> payload = inspectResourceHandler.buildExportPayload(inspectDtoList, user);
+            List<TaskUpAndLoadDto> payload = inspectResourceHandler.buildExportPayload(inspectDtoList, user, maskSecrets);
             payloadsByType.computeIfAbsent(ResourceType.INSPECT_TASK.name(), k -> new ArrayList<>()).addAll(payload);
         }
 

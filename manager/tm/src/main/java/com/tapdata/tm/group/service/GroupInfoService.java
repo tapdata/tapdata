@@ -486,7 +486,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
             ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
             if (handler != null) {
-                List<TaskUpAndLoadDto> payload = handler.buildExportPayload(entry.getValue(), user);
+                List<TaskUpAndLoadDto> payload = handler.buildExportPayload(entry.getValue(), user, maskSecrets);
                 payloadsByType.put(entry.getKey().name(), payload);
             }
         }
