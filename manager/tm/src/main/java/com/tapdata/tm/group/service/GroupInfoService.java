@@ -91,6 +91,7 @@ import java.security.SecureRandom;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.data.mongodb.core.query.Update;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.user.dto.UserDto;
@@ -500,7 +501,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
         }
         if (!exportConnectionIds.isEmpty()) {
-            List<TaskUpAndLoadDto> connMetadataPayload = buildConnectionMetadataPayload(exportConnectionIds, user);
+            List<TaskUpAndLoadDto> connMetadataPayload = buildConnectionMetadataPayload(exportConnectionIds, user, maskSecrets);
             if (!connMetadataPayload.isEmpty()) {
                 payloadsByType.computeIfAbsent(ResourceType.CONNECTION.name(), k -> new ArrayList<>())
                         .addAll(connMetadataPayload);
@@ -2828,14 +2829,16 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             if (conn == null || conn.getId() == null) {
                 continue;   // 新连接，目标环境没有可保留的既有值
             }
-            DataSourceConnectionDto existing = dataSourceService.findById(conn.getId(), "config");
-            if (existing == null || MapUtils.isEmpty(existing.getConfig())) {
+            // 投影必须同时带上 config 与顶层镜像字段——导出把两处一起抹了，这里就得能看见两处
+            String[] projection = Stream.concat(Stream.of("config"),
+                    ResourceHandler.MIRRORED_SECRET_FIELDS.stream()).toArray(String[]::new);
+            DataSourceConnectionDto existing = dataSourceService.findById(conn.getId(), projection);
+            if (existing == null) {
                 continue;
             }
             DataSourceDefinitionDto definition =
                     dataSourceDefinitionService.findByPdkHash(conn.getPdkHash(), Integer.MAX_VALUE, user);
-            List<String> paths = ResourceHandler.restoreMissingSecretsFromExisting(
-                    conn, existing.getConfig(), definition);
+            List<String> paths = ResourceHandler.restoreMissingSecretsFromExisting(conn, existing, definition);
             if (paths.isEmpty()) {
                 continue;
             }
@@ -3012,7 +3015,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      * 查询连接关联的模型元数据（database 级别 + table/collection 等级别），序列化为导出 payload。
      * taskId 为空的条目为连接原始模型，区别于任务节点派生的模型（后者由 TaskResourceHandler 导出）。
      */
-    private List<TaskUpAndLoadDto> buildConnectionMetadataPayload(Collection<String> connectionIds, UserDetail user) {
+    private List<TaskUpAndLoadDto> buildConnectionMetadataPayload(Collection<String> connectionIds, UserDetail user,
+            boolean maskSecrets) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         for (String connectionId : connectionIds) {
             try {
@@ -3029,6 +3033,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     meta.setCustomId(null);
                     meta.setLastUpdBy(null);
                     meta.setUserId(null);
+                    if (maskSecrets) {
+                        // 表级 metadata 的 source 同样是连接的整份拷贝，凭据在这里也有一份
+                        ResourceHandler.maskMirroredSecretFields(meta);
+                    }
                     payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_METADATA_INSTANCES,
                             JsonUtil.toJsonUseJackson(meta)));
                 }
