@@ -3127,7 +3127,7 @@ public class GroupInfoServiceTest {
             ResourceHandler handler = mock(ResourceHandler.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
             lenient().when(handler.getResourceType()).thenReturn(ResourceType.MODULE);
             lenient().doReturn(List.of(new ModulesDto())).when(handler).loadResources(anyList(), any(UserDetail.class));
-            lenient().when(handler.buildExportPayload(anyList(), any(UserDetail.class))).thenReturn(new ArrayList<>());
+            lenient().when(handler.buildExportPayload(anyList(), any(UserDetail.class), anyBoolean())).thenReturn(new ArrayList<>());
             lenient().when(handler.loadConnections(anyList())).thenReturn(new ArrayList<>());
             ResourceHandlerRegistry registry = new ResourceHandlerRegistry();
             ReflectionTestUtils.setField(registry, "handlers", List.of(handler));

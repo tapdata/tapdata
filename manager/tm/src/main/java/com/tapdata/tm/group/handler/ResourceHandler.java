@@ -92,11 +92,18 @@ public interface ResourceHandler {
     /**
      * 构建资源的导出数据
      *
-     * @param resources 资源列表
-     * @param user      用户信息
+     * @param resources   资源列表
+     * @param user        用户信息
+     * @param maskSecrets 是否移除包内凭据（[ADR-0034] D1/D2）。任务导出会把 DAG 各节点的
+     *                    {@link MetadataInstancesDto} 一并塞进包，其 {@code source} 是连接的
+     *                    整份拷贝、带顶层凭据镜像 —— 这是继连接文档、database 级与 table 级
+     *                    metadata 之后的**第四处载体**，2026-08-06 实机在真实包里抓到
+     *                    （老包同样在漏，故非回归）。
+     *                    <p>刻意不留带默认值的重载：一个能被静默取到的默认，就是下一次把明文
+     *                    凭据推上 GitHub 的入口。
      * @return 导出数据 payload 列表
      */
-    List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user);
+    List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user, boolean maskSecrets);
 
     /**
      * 从导入的 payload 中收集资源和元数据

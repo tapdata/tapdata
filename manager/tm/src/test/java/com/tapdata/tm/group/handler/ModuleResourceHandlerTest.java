@@ -122,14 +122,14 @@ public class ModuleResourceHandlerTest {
         @Test
         @DisplayName("Should return empty list when resources is null")
         void testBuildExportPayloadNullResources() {
-            List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(null, user);
+            List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(null, user, false);
             assertTrue(result.isEmpty());
         }
 
         @Test
         @DisplayName("Should return empty list when resources is empty")
         void testBuildExportPayloadEmptyResources() {
-            List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(new ArrayList<>(), user);
+            List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(new ArrayList<>(), user, false);
             assertTrue(result.isEmpty());
         }
 
@@ -143,7 +143,7 @@ public class ModuleResourceHandlerTest {
             module.setLastUpdBy("lastUpdBy");
             module.setStatus("active");
 
-            List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(Arrays.asList(module), user);
+            List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(Arrays.asList(module), user, false);
 
             assertEquals(1, result.size());
             assertEquals(GroupConstants.COLLECTION_MODULES, result.get(0).getCollectionName());
@@ -161,7 +161,7 @@ public class ModuleResourceHandlerTest {
             module.setId(new ObjectId());
             module.setName("Test Module");
 
-            List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(Arrays.asList(module), user);
+            List<TaskUpAndLoadDto> result = moduleResourceHandler.buildExportPayload(Arrays.asList(module), user, false);
 
             assertEquals(GroupConstants.COLLECTION_MODULES, result.get(0).getCollectionName());
         }
