@@ -49,6 +49,11 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
+import com.tapdata.tm.group.service.transfer.GroupExportRequest;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -3109,12 +3114,20 @@ public class GroupInfoServiceTest {
     @DisplayName("导出脱敏开关接线")
     class ExportMaskWiringTest {
 
+        private static final String SECRET_URI = "mongodb://real-host:27017/dmp";
+        private static final String SECRET_PASSWORD = "s3cr3t-p4ssw0rd";
+        /** 凭据在包里共三处载体，各给一个可区分的值——否则某一处漏抹了也测不出来 */
+        private static final String SECRET_IN_DB_META = "mongodb://real-host:27017/from-database-metadata";
+        private static final String SECRET_IN_TABLE_META = "mongodb://real-host:27017/from-table-metadata";
+
         private ResourceHandler registerModuleHandler() {
-            ResourceHandler handler = mock(ResourceHandler.class);
-            when(handler.getResourceType()).thenReturn(ResourceType.MODULE);
-            doReturn(List.of(new ModulesDto())).when(handler).loadResources(anyList(), any(UserDetail.class));
-            when(handler.buildExportPayload(anyList(), any(UserDetail.class))).thenReturn(new ArrayList<>());
-            when(handler.loadConnections(anyList())).thenReturn(new ArrayList<>());
+            // defaultAnswer=CALLS_REAL_METHODS：handleRelatedResources / buildConnectionPayload 正是被测的
+            // default 方法，普通 mock 会把它们一并空转掉，连接就永远进不了包（这套用例也就白测了）
+            ResourceHandler handler = mock(ResourceHandler.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
+            lenient().when(handler.getResourceType()).thenReturn(ResourceType.MODULE);
+            lenient().doReturn(List.of(new ModulesDto())).when(handler).loadResources(anyList(), any(UserDetail.class));
+            lenient().when(handler.buildExportPayload(anyList(), any(UserDetail.class))).thenReturn(new ArrayList<>());
+            lenient().when(handler.loadConnections(anyList())).thenReturn(new ArrayList<>());
             ResourceHandlerRegistry registry = new ResourceHandlerRegistry();
             ReflectionTestUtils.setField(registry, "handlers", List.of(handler));
             registry.init();
@@ -3159,6 +3172,101 @@ public class GroupInfoServiceTest {
                 groupInfoService.exportGroupInfos(mock(HttpServletResponse.class), request, user);
             }
             return built.getValue();
+        }
+
+        /**
+         * ES-2b：凭据在包里有**两份**拷贝——Connection 文档，以及 MetadataInstances.source
+         * （SourceDto 带 config 与 database_uri/password，由 DAGService 整份序列化连接而来）。
+         * 所以红线的判据必须是「**整包**搜不到明文凭据」，只看连接文档会漏掉第二条腿。
+         */
+        private String wholePackage(ExportGroupRequest request) {
+            ResourceHandler handler = registerModuleHandler();
+            DataSourceEntity connection = new DataSourceEntity();
+            connection.setId(new ObjectId());
+            connection.setName("MDM_CUSTOMER");
+            connection.setPdkHash("pdkhash-mongodb");
+            connection.setConfig(new LinkedHashMap<>(Map.of("isUri", true, "uri", SECRET_URI)));
+            // 同一批 secret 在实体顶层还有一份镜像（线上确有：08-01 那次事故里 config.uri 被抹空、顶层 database_uri 仍在）
+            connection.setDatabase_uri(SECRET_URI);
+            connection.setDatabase_password(SECRET_PASSWORD);
+            connection.setPlain_password(SECRET_PASSWORD);
+            doReturn(List.of(connection)).when(handler).loadConnections(anyList());
+
+            DataSourceDefinitionService definitionService = mock(DataSourceDefinitionService.class);
+            lenient().when(definitionService.findByPdkHash(any(), anyInt(), any())).thenReturn(definitionWithUri());
+            String connId = connection.getId().toHexString();
+            lenient().when(metadataInstancesService.findOne(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(metadataCarryingSecrets(connId, SECRET_IN_DB_META));
+            lenient().when(metadataInstancesService.findAllDto(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(new ArrayList<>(List.of(metadataCarryingSecrets(connId, SECRET_IN_TABLE_META))));
+
+            ArgumentCaptor<GroupExportRequest> exported = ArgumentCaptor.forClass(GroupExportRequest.class);
+            try (MockedStatic<cn.hutool.extra.spring.SpringUtil> springUtil =
+                         Mockito.mockStatic(cn.hutool.extra.spring.SpringUtil.class)) {
+                springUtil.when(() -> cn.hutool.extra.spring.SpringUtil.getBean(DataSourceDefinitionService.class))
+                        .thenReturn(definitionService);
+                springUtil.when(() -> cn.hutool.extra.spring.SpringUtil.getBean(
+                                com.tapdata.tm.metadatainstance.service.MetadataInstancesService.class))
+                        .thenReturn(metadataInstancesService);
+                runExport(request);
+            }
+            verify(groupTransferStrategy).exportGroups(exported.capture());
+            StringBuilder all = new StringBuilder();
+            exported.getValue().getContents().forEach((k, v) -> all.append(new String(v, StandardCharsets.UTF_8)));
+            return all.toString();
+        }
+
+        /** metadata 里那份连接拷贝——线上由 DAGService:419 整份序列化连接得来，这里照那个形状造 */
+        private MetadataInstancesDto metadataCarryingSecrets(String connectionId, String uri) {
+            MetadataInstancesDto meta = new MetadataInstancesDto();
+            meta.setId(new ObjectId());
+            SourceDto source = new SourceDto();
+            source.setName("MDM_CUSTOMER");
+            // source._id 必须是所属连接的 id：buildConnectionFileContents 靠它把元数据归到连接名下，
+            // 不设就整份被丢掉，这套用例也就测不到 metadata 这条腿
+            source.set_id(connectionId);
+            source.setDatabase_uri(uri);
+            source.setDatabase_password(SECRET_PASSWORD);
+            source.setPlain_password(SECRET_PASSWORD);
+            meta.setSource(source);
+            return meta;
+        }
+
+        private DataSourceDefinitionDto definitionWithUri() {
+            Map<String, Object> uriMeta = new LinkedHashMap<>();
+            uriMeta.put("apiServerKey", "database_uri");
+            Map<String, Object> connProps = new LinkedHashMap<>();
+            connProps.put("uri", uriMeta);
+            Map<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connProps);
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            properties.put("connection", connection);
+            DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+            def.setProperties(properties);
+            return def;
+        }
+
+        @Test
+        @DisplayName("对照组：FILE 保真时整包里确实找得到凭据（否则红线用例是空断言）")
+        void faithfulPackageActuallyContainsTheSecret() {
+            String pkg = wholePackage(exportRequest(GroupTransferType.FILE, null));
+            assertTrue(pkg.contains(SECRET_URI), "连接文档那份凭据没进包，红线用例就白测了");
+            assertTrue(pkg.contains(SECRET_IN_DB_META), "database 级 metadata 那份没进包，红线用例覆盖不到这条腿");
+            assertTrue(pkg.contains(SECRET_IN_TABLE_META), "table 级 metadata 那份没进包，红线用例覆盖不到这条腿");
+        }
+
+        @Test
+        @DisplayName("红线（整包）：GIT + 显式要求保真，整个包里搜不到明文凭据")
+        void gitPackageNeverCarriesPlaintextSecrets() {
+            String pkg = wholePackage(exportRequest(GroupTransferType.GIT, false));
+            assertFalse(pkg.contains(SECRET_URI),
+                    "GIT 包会进 git 历史、永久留存且可被 fork/缓存——明文凭据一处都不能有。"
+                            + "凭据在包里有两份拷贝（Connection 文档 + MetadataInstances.source），"
+                            + "只抹前者等于没抹（ADR-0034 D2）");
+            assertFalse(pkg.contains(SECRET_IN_DB_META), "database 级 metadata 里那份连接拷贝同样不能留");
+            assertFalse(pkg.contains(SECRET_IN_TABLE_META), "table 级 metadata 里那份连接拷贝同样不能留");
+            assertFalse(pkg.contains(SECRET_PASSWORD),
+                    "顶层 database_password / plain_password 是同一个 secret 的另一处存放点，同样不能留");
         }
 
         @Test

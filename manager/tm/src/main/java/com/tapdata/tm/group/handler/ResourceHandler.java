@@ -17,6 +17,7 @@ import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.utils.ExcelUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import org.apache.commons.collections4.CollectionUtils;
@@ -176,8 +177,12 @@ public interface ResourceHandler {
                     .getBean(DataSourceDefinitionService.class);
             DataSourceDefinitionDto definition = dataSourceDefinitionService
                     .findByPdkHash(entity.getPdkHash(), Integer.MAX_VALUE, user);
-            if (maskSecrets && definition != null) {
-                maskSensitiveConfigFields(entity, definition);
+            if (maskSecrets) {
+                if (definition != null) {
+                    maskSensitiveConfigFields(entity, definition);
+                }
+                // config 之外还有一份顶层镜像，不抹等于没抹（[ADR-0034] D2）
+                maskMirroredSecretFields(entity);
             }
 
             // 收集元数据
@@ -195,6 +200,10 @@ public interface ResourceHandler {
                     Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)),
                     user);
             if (dataSourceMetadataInstance != null) {
+                if (maskSecrets) {
+                    // metadata 的 source 是连接的整份拷贝（DAGService 序列化而来），凭据的第三处存放点
+                    maskMirroredSecretFields(dataSourceMetadataInstance);
+                }
                 payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_METADATA_INSTANCES,
                         JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
             }
@@ -448,6 +457,51 @@ public interface ResourceHandler {
      * 根据 DataSourceDefinitionDto 中的 apiServerKey 定义，找到 DataSourceEntity.config
      * 里对应的路径并清空值。只处理 SENSITIVE_API_KEYS 中声明的标准化 apiServerKey。
      */
+    /**
+     * 顶层凭据镜像字段：{@link #SENSITIVE_API_KEYS} 那一批 secret 在 {@code config} **之外**的第二处存放点。
+     *
+     * 连接实体、以及 {@code MetadataInstances.source}（连接的整份拷贝）都各有一份，字段名完全相同。
+     * 这不是「扩敏感字段集合」（[ADR-0034] 明确不改 {@code SENSITIVE_API_KEYS} 的成员），
+     * 而是把**既有的那一组 secret** 应用到之前被漏掉的载体上 —— 只抹 config 的话，
+     * 导出包里照样躺着明文 uri/password。
+     *
+     * {@code plain_password} / {@code database_password_1} 是同一个口令的别名；
+     * {@code database_name} / {@code database_type} 等不是凭据，不动。证书材料（{@code sslPass} 等）
+     * 属 ADR 划出的「扩敏感字段集合是另一件事」，不在此列。
+     */
+    List<String> MIRRORED_SECRET_FIELDS = List.of(
+            "database_host", "database_username", "database_port",
+            "database_uri", "database_password", "plain_password", "database_password_1");
+
+    /** 抹掉连接实体上的顶层凭据镜像（导出侧）。 */
+    static void maskMirroredSecretFields(DataSourceEntity conn) {
+        if (conn == null) {
+            return;
+        }
+        conn.setDatabase_host(null);
+        conn.setDatabase_username(null);
+        conn.setDatabase_port(null);
+        conn.setDatabase_uri(null);
+        conn.setDatabase_password(null);
+        conn.setPlain_password(null);
+        conn.setDatabase_password_1(null);
+    }
+
+    /** 抹掉 metadata 里那份连接拷贝上的顶层凭据镜像（导出侧）。 */
+    static void maskMirroredSecretFields(MetadataInstancesDto metadata) {
+        if (metadata == null || metadata.getSource() == null) {
+            return;
+        }
+        SourceDto source = metadata.getSource();
+        source.setDatabase_host(null);
+        source.setDatabase_username(null);
+        source.setDatabase_port(null);
+        source.setDatabase_uri(null);
+        source.setDatabase_password(null);
+        source.setPlain_password(null);
+        source.setDatabase_password_1(null);
+    }
+
     private static void maskSensitiveConfigFields(DataSourceEntity conn,
             DataSourceDefinitionDto definition) {
         Map<String, Object> config = conn.getConfig();
@@ -753,9 +807,30 @@ public interface ResourceHandler {
      * @return 被保留（即包内缺值、改用目标既有值）的 config path，供调用方汇报——D7 要求绝不静默。
      */
     static List<String> restoreMissingSecretsFromExisting(DataSourceConnectionDto incoming,
-            Map<String, Object> existingConfig, DataSourceDefinitionDto definition) {
+            DataSourceConnectionDto existing, DataSourceDefinitionDto definition) {
         List<String> preserved = new ArrayList<>();
-        if (incoming == null || MapUtils.isEmpty(existingConfig)) {
+        if (incoming == null || existing == null) {
+            return preserved;
+        }
+        // 顶层镜像与 config 同等对待：导出把两处一起抹了，导入就得把两处一起补回来，
+        // 否则 ES-2b 只是把「凭据被抹空」从 config 挪到了顶层
+        restoreMirroredField("database_host", incoming.getDatabase_host(), existing.getDatabase_host(),
+                incoming::setDatabase_host, preserved);
+        restoreMirroredField("database_username", incoming.getDatabase_username(), existing.getDatabase_username(),
+                incoming::setDatabase_username, preserved);
+        restoreMirroredField("database_port", incoming.getDatabase_port(), existing.getDatabase_port(),
+                incoming::setDatabase_port, preserved);
+        restoreMirroredField("database_uri", incoming.getDatabase_uri(), existing.getDatabase_uri(),
+                incoming::setDatabase_uri, preserved);
+        restoreMirroredField("database_password", incoming.getDatabase_password(), existing.getDatabase_password(),
+                incoming::setDatabase_password, preserved);
+        restoreMirroredField("plain_password", incoming.getPlain_password(), existing.getPlain_password(),
+                incoming::setPlain_password, preserved);
+        restoreMirroredField("database_password_1", incoming.getDatabase_password_1(),
+                existing.getDatabase_password_1(), incoming::setDatabase_password_1, preserved);
+
+        Map<String, Object> existingConfig = existing.getConfig();
+        if (MapUtils.isEmpty(existingConfig)) {
             return preserved;
         }
         Map<String, Object> config = incoming.getConfig();
@@ -780,6 +855,16 @@ public interface ResourceHandler {
     /** 空字符串与 null 同等对待：脱敏既可能删键，也可能留下空串。 */
     private static boolean isPresent(Object value) {
         return value != null && !(value instanceof CharSequence && ((CharSequence) value).length() == 0);
+    }
+
+    /** 顶层镜像字段的逐个补回：包里缺、目标有 ⇒ 用目标的，并记下字段名交给导入报告。 */
+    private static <V> void restoreMirroredField(String name, V incomingValue, V existingValue,
+            java.util.function.Consumer<V> setter, List<String> preserved) {
+        if (isPresent(incomingValue) || !isPresent(existingValue)) {
+            return;
+        }
+        setter.accept(existingValue);
+        preserved.add(name);
     }
 
     static Object getNestedValue(Map<String, Object> config, String path) {

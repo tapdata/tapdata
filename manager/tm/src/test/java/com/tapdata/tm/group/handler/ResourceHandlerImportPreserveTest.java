@@ -48,16 +48,55 @@ public class ResourceHandlerImportPreserveTest {
     @DisplayName("包里 uri 缺失时保留目标既有 uri，并报告该字段")
     void missingSensitiveField_keepsExistingValueAndReportsIt() {
         DataSourceConnectionDto incoming = connection(new LinkedHashMap<>(Map.of("isUri", true)));
-        Map<String, Object> existingConfig = new LinkedHashMap<>(Map.of(
+        DataSourceConnectionDto existing = connection(new LinkedHashMap<>(Map.of(
                 "isUri", true,
-                "uri", "mongodb://real-host:27017/dmp"));
+                "uri", "mongodb://real-host:27017/dmp")));
 
         List<String> preserved = ResourceHandler.restoreMissingSecretsFromExisting(
-                incoming, existingConfig, definitionWithUri());
+                incoming, existing, definitionWithUri());
 
         assertEquals("mongodb://real-host:27017/dmp", incoming.getConfig().get("uri"),
                 "目标既有 uri 必须被保留——包里那个空缺是脱敏的产物，不是用户的配置");
         assertEquals(List.of("uri"), preserved,
                 "被保留的字段必须报出来，否则就是静默（ADR-0034 D7）");
+    }
+
+    /**
+     * ES-2b：导出把 config 与顶层镜像**两处**一起抹了，导入就必须两处一起补回来——
+     * 只补 config 的话，等于把「凭据被抹空」从 config 挪到了顶层，坑还在。
+     */
+    @Test
+    @DisplayName("顶层镜像字段（database_uri / password 等）同样保留目标既有值并报出来")
+    void missingMirroredFields_keepExistingValuesAndAreReported() {
+        DataSourceConnectionDto incoming = connection(new LinkedHashMap<>(Map.of("isUri", true)));
+        DataSourceConnectionDto existing = connection(new LinkedHashMap<>(Map.of("isUri", true)));
+        existing.setDatabase_uri("mongodb://real-host:27017/dmp");
+        existing.setDatabase_password("s3cr3t");
+        existing.setDatabase_port(27017);
+
+        List<String> preserved = ResourceHandler.restoreMissingSecretsFromExisting(
+                incoming, existing, definitionWithUri());
+
+        assertEquals("mongodb://real-host:27017/dmp", incoming.getDatabase_uri());
+        assertEquals("s3cr3t", incoming.getDatabase_password());
+        assertEquals(27017, incoming.getDatabase_port());
+        assertTrue(preserved.containsAll(List.of("database_uri", "database_password", "database_port")),
+                "三个被保留的顶层字段都要报出来，实际：" + preserved);
+    }
+
+    @Test
+    @DisplayName("包里带了值就不动它——那是用户要写入的新凭据，不是脱敏留下的洞")
+    void presentValuesAreNotOverwritten() {
+        DataSourceConnectionDto incoming = connection(new LinkedHashMap<>(Map.of("isUri", true)));
+        incoming.setDatabase_uri("mongodb://new-host:27017/dmp");
+        DataSourceConnectionDto existing = connection(new LinkedHashMap<>(Map.of("isUri", true)));
+        existing.setDatabase_uri("mongodb://real-host:27017/dmp");
+
+        List<String> preserved = ResourceHandler.restoreMissingSecretsFromExisting(
+                incoming, existing, definitionWithUri());
+
+        assertEquals("mongodb://new-host:27017/dmp", incoming.getDatabase_uri(),
+                "包里给了值就是用户的意图，保护不能反过来把新凭据顶掉");
+        assertTrue(preserved.isEmpty(), "什么都没保留就不该报，否则报告全是噪声：" + preserved);
     }
 }
