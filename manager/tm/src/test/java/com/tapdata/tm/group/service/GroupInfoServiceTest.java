@@ -44,6 +44,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -3081,12 +3082,191 @@ public class GroupInfoServiceTest {
             Map<String, DataSourceConnectionDto> connections = new LinkedHashMap<>();
             connections.put("MDM_CUSTOMER", incoming);
 
-            List<String> report = groupInfoService.preserveExistingSecrets(connections, user);
+            Map<String, List<String>> report = groupInfoService.preserveExistingSecrets(connections, user);
 
             assertEquals("mongodb://real-host:27017/dmp", incoming.getConfig().get("uri"),
                     "目标既有 uri 必须留下——包里那个空缺是脱敏产物，不是用户的配置");
-            assertEquals(List.of("MDM_CUSTOMER.uri"), report,
-                    "保留了哪些字段必须报出来，否则用户分不清『凭据已更新』和『沿用了旧的』");
+            assertEquals(Map.of(connId.toHexString(), List.of("uri")), report,
+                    "保留了哪些字段必须按连接报出来，否则用户分不清『凭据已更新』和『沿用了旧的』");
+        }
+    }
+
+    /**
+     * ES-4b：① 两处调用点的接线覆盖 ② 保留清单接进导入报告（ADR-0034 D7 的「显形」）。
+     *
+     * 断言刻意走行为面而不是 verify(调用发生过)：落库那份 config 必须已带目标既有 uri、
+     * 导入记录里必须报出「哪个连接的哪个字段沿用了旧值」。摘掉任一调用点即转红。
+     */
+    @Nested
+    @DisplayName("preserveExistingSecrets 接线 + 导入报告显形")
+    class PreserveExistingSecretsWiringTest {
+
+        private static final String REAL_URI = "mongodb://real-host:27017/dmp";
+
+        private DataSourceDefinitionDto definitionWithUri() {
+            Map<String, Object> uriMeta = new LinkedHashMap<>();
+            uriMeta.put("apiServerKey", "database_uri");
+            Map<String, Object> connProps = new LinkedHashMap<>();
+            connProps.put("uri", uriMeta);
+            Map<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connProps);
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            properties.put("connection", connection);
+            DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+            def.setProperties(properties);
+            return def;
+        }
+
+        /** 包里的连接：uri 已被导出脱敏抹掉，只剩非敏感项 */
+        private TaskUpAndLoadDto maskedConnectionPayload(ObjectId connId, String name) {
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", connId.toHexString());
+            json.put("name", name);
+            json.put("pdkHash", "pdkhash-mongodb");
+            json.put("config", new LinkedHashMap<>(Map.of("isUri", true)));
+            return new TaskUpAndLoadDto(GroupConstants.COLLECTION_CONNECTION, JsonUtil.toJsonUseJackson(json));
+        }
+
+        /** 目标环境里那条连接：凭据齐全 */
+        private DataSourceConnectionDto existingWithRealUri(ObjectId connId) {
+            DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setId(connId);
+            existing.setConfig(new LinkedHashMap<>(Map.of("isUri", true, "uri", REAL_URI)));
+            return existing;
+        }
+
+        private void stubTargetLookup(ObjectId connId) {
+            when(dataSourceService.findById(eq(connId), any(String[].class)))
+                    .thenReturn(existingWithRealUri(connId));
+            when(dataSourceDefinitionService.findByPdkHash(eq("pdkhash-mongodb"), anyInt(), any(UserDetail.class)))
+                    .thenReturn(definitionWithUri());
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<DataSourceConnectionDto> captureBatchImported() {
+            ArgumentCaptor<List<DataSourceConnectionDto>> captor = ArgumentCaptor.forClass(List.class);
+            verify(dataSourceService).batchImport(captor.capture(), eq(user), any());
+            return captor.getValue();
+        }
+
+        private void assertReportsPreservedField(List<GroupInfoRecordDetail> details, String connName, String field) {
+            assertNotNull(details, "导入报告不能为 null——D7 要求保留旧凭据这件事必须显形");
+            String messages = details.stream()
+                    .flatMap(d -> d.getRecordDetails().stream())
+                    .filter(rd -> connName.equals(rd.getResourceName()))
+                    .map(GroupInfoRecordDetail.RecordDetail::getMessage)
+                    .filter(java.util.Objects::nonNull)
+                    .reduce("", (a, b) -> a + " " + b);
+            assertTrue(messages.contains(field),
+                    "导入报告里必须能看到 " + connName + " 的 " + field + " 沿用了目标既有值，实际报告：" + messages);
+        }
+
+        @Test
+        @DisplayName("拆分导入（executeImportConnectionsAsync）：落库前保留目标既有 uri，并在导入记录里报出来")
+        @SuppressWarnings("unchecked")
+        void connectionsImportPath_preservesAndReports() {
+            ObjectId connId = new ObjectId();
+            ObjectId recordId = new ObjectId();
+            Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
+            payloads.put("Connection.json", List.of(maskedConnectionPayload(connId, "MDM_CUSTOMER")));
+
+            stubTargetLookup(connId);
+            when(dataSourceService.batchImport(anyList(), any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
+            doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+
+            groupInfoService.executeImportConnectionsAsync(payloads, ImportModeEnum.GROUP_IMPORT, user, recordId,
+                    Collections.emptyMap());
+
+            assertEquals(REAL_URI, captureBatchImported().get(0).getConfig().get("uri"),
+                    "落库的那份 config 必须已经带上目标既有 uri——否则空值会把目标环境的凭据抹掉");
+
+            ArgumentCaptor<List<GroupInfoRecordDetail>> details = ArgumentCaptor.forClass(List.class);
+            verify(groupInfoService).updateRecordStatus(eq(recordId), eq(GroupInfoRecordDto.STATUS_COMPLETED),
+                    isNull(), details.capture(), eq(user));
+            assertReportsPreservedField(details.getValue(), "MDM_CUSTOMER", "uri");
+        }
+
+        @Test
+        @DisplayName("整组导入（executeImportAsync）：同样保留目标既有 uri，并在导入记录里报出来")
+        @SuppressWarnings("unchecked")
+        void groupImportPath_preservesAndReports() {
+            ObjectId connId = new ObjectId();
+            ObjectId recordId = new ObjectId();
+            Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
+            payloads.put("GroupInfo.json", new ArrayList<>());
+
+            DataSourceConnectionDto incoming = new DataSourceConnectionDto();
+            incoming.setId(connId);
+            incoming.setName("MDM_CUSTOMER");
+            incoming.setPdkHash("pdkhash-mongodb");
+            incoming.setConfig(new LinkedHashMap<>(Map.of("isUri", true)));
+            registerConnectionHandler(connId, incoming);
+
+            stubTargetLookup(connId);
+            when(dataSourceService.batchImport(anyList(), any(), any())).thenReturn(new HashMap<>());
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
+            doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
+            doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+
+            groupInfoService.executeImportAsync(payloads, user, ImportModeEnum.GROUP_IMPORT, "test.tar", recordId);
+
+            assertEquals(REAL_URI, captureBatchImported().get(0).getConfig().get("uri"),
+                    "整组导入这条路同样会整文档覆盖，缺了保护一样会抹空目标凭据");
+
+            ArgumentCaptor<List<GroupInfoRecordDetail>> details = ArgumentCaptor.forClass(List.class);
+            verify(groupInfoService).updateRecordStatus(eq(recordId), eq(GroupInfoRecordDto.STATUS_COMPLETED),
+                    isNull(), details.capture(), eq(user));
+            assertReportsPreservedField(details.getValue(), "MDM_CUSTOMER", "uri");
+        }
+
+        /** 让 executeImportAsync 的资源收集环节吐出这条连接（生产上由 Task/Module handler 的关联收集完成） */
+        @SuppressWarnings("unchecked")
+        private void registerConnectionHandler(ObjectId connId, DataSourceConnectionDto incoming) {
+            ResourceHandler connectionHandler = mock(ResourceHandler.class);
+            when(connectionHandler.getResourceType()).thenReturn(ResourceType.CONNECTION);
+            doAnswer(invocation -> {
+                ((Map<String, Object>) invocation.getArgument(1)).put(connId.toHexString(), incoming);
+                return null;
+            }).when(connectionHandler).collectPayload(any(), any(), any());
+            ResourceHandlerRegistry registry = new ResourceHandlerRegistry();
+            ReflectionTestUtils.setField(registry, "handlers", List.of(connectionHandler));
+            registry.init();
+            ReflectionTestUtils.setField(groupInfoService, "resourceHandlerRegistry", registry);
+        }
+
+        @Test
+        @DisplayName("报告显形：已有的连接行直接挂上消息，不另起一行")
+        void reportAttachesToExistingConnectionRow() {
+            ObjectId connId = new ObjectId();
+            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
+            detail.setGroupName("MDM");
+            GroupInfoRecordDetail.RecordDetail row = new GroupInfoRecordDetail.RecordDetail();
+            row.setResourceType(ResourceType.CONNECTION);
+            row.setResourceId(connId.toHexString());
+            row.setResourceName("MDM_CUSTOMER");
+            row.setAction(GroupInfoRecordDetail.RecordAction.IMPORTING);
+            detail.getRecordDetails().add(row);
+            List<GroupInfoRecordDetail> details = new ArrayList<>(List.of(detail));
+
+            DataSourceConnectionDto conn = new DataSourceConnectionDto();
+            conn.setId(connId);
+            conn.setName("MDM_CUSTOMER");
+
+            groupInfoService.reportPreservedSecrets(details,
+                    Map.of(connId.toHexString(), List.of("uri", "ssl.password")),
+                    Map.of(connId.toHexString(), conn));
+
+            assertEquals(1, details.size(), "已有行能挂上就不该另起一个分组");
+            assertEquals(1, details.get(0).getRecordDetails().size(), "同一个连接不该出现两行");
+            String message = details.get(0).getRecordDetails().get(0).getMessage();
+            assertNotNull(message);
+            assertTrue(message.contains("uri") && message.contains("ssl.password"),
+                    "两个被保留的字段都要报出来，实际：" + message);
+            assertEquals(GroupInfoRecordDetail.RecordAction.IMPORTING,
+                    details.get(0).getRecordDetails().get(0).getAction(),
+                    "连接确实导入了，只是部分字段沿用旧值——不该改写 action 误报成跳过");
         }
     }
 

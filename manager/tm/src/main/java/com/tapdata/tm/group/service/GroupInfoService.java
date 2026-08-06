@@ -993,13 +993,15 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             // 在 vault 注入之后、落库之前：包里仍缺的敏感字段改用目标既有值，绝不写空
             // （[ADR-0034] D5）。刻意放在 vaultSecrets 判空之外——最危险的正是「没带 vault」。
-            preserveExistingSecrets(connections, user);
+            // 这条路的 details 本来是空的，保留清单就是它唯一的内容（D7 不许只落日志）。
+            List<GroupInfoRecordDetail> details = new ArrayList<>();
+            reportPreservedSecrets(details, preserveExistingSecrets(connections, user), connections);
             refreshImportLastUpdate(connections.values(), connectionMetadata);
             Map<String, DataSourceConnectionDto> conMap = dataSourceService.batchImport(
                     new ArrayList<>(connections.values()), user, importMode);
             metadataInstancesService.batchImport(connectionMetadata, user, conMap, new HashMap<>(), new HashMap<>());
             log.info("Async import connections completed, recordId={}, count={}", recordId, connections.size());
-            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
+            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, details, user);
         } catch (Exception e) {
             log.error("Async import connections failed, recordId={}, error={}",
                     recordId, ThrowableUtils.getStackTraceByPn(e));
@@ -2562,8 +2564,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 log.info("Vault secrets found, injecting into {} connections", connections.size());
                 injectVaultSecrets(connections, vaultSecrets, user);
             }
-            // 同上：无条件保护，缺 vault 时才是真正会把目标凭据抹空的那条路（[ADR-0034] D5）
-            preserveExistingSecrets(connections, user);
+            // 同上：无条件保护，缺 vault 时才是真正会把目标凭据抹空的那条路（[ADR-0034] D5）；
+            // 保留清单挂到 details 里已有的连接行上，随下一次 updateImportProgress 落库（D7）
+            reportPreservedSecrets(details, preserveExistingSecrets(connections, user), connections);
             List<MetadataInstancesDto> connectionMetadata = metadataByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyList());
             refreshImportLastUpdate(connections.values(), connectionMetadata);
@@ -2770,10 +2773,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      *
      * 与 importMode 无关：REPLACE 要替换的是用户配置的内容，不是脱敏留下的空洞。
      *
-     * @return 被保留的字段清单（{@code 连接名.字段路径}），交给导入报告汇报——D7 要求绝不静默
+     * @return 连接 id → 被保留的 config 路径；交给 {@link #reportPreservedSecrets} 写进导入报告——D7 要求绝不静默
      */
-    List<String> preserveExistingSecrets(Map<String, DataSourceConnectionDto> connections, UserDetail user) {
-        List<String> preserved = new ArrayList<>();
+    Map<String, List<String>> preserveExistingSecrets(Map<String, DataSourceConnectionDto> connections, UserDetail user) {
+        Map<String, List<String>> preserved = new LinkedHashMap<>();
         if (connections == null || connections.isEmpty()) {
             return preserved;
         }
@@ -2792,11 +2795,85 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             if (paths.isEmpty()) {
                 continue;
             }
-            paths.forEach(path -> preserved.add(conn.getName() + "." + path));
+            preserved.put(conn.getId().toHexString(), paths);
             log.warn("Import: package omits secret field(s) for connection '{}', kept the target environment's existing value(s): {}",
                     conn.getName(), paths);
         }
         return preserved;
+    }
+
+    /** 导入报告里那句「这些字段沿用了目标既有值」的正文——单点定义，两条导入路径同一措辞。 */
+    static String preservedSecretsMessage(List<String> paths) {
+        return "Kept the target environment's existing value for secret field(s) missing in the package: "
+                + String.join(", ", paths);
+    }
+
+    /**
+     * 把 {@link #preserveExistingSecrets} 的结果写进导入报告（[ADR-0034] D7「绝不静默」）。
+     *
+     * 只落在 WARN 日志上不算显形——用户翻不到日志，就分不清「凭据已更新」和「沿用了旧的」，
+     * 于是修好了数据破坏、换来一个更隐蔽的「以为更新了其实没有」。
+     *
+     * 报告里已有该连接的行就直接挂消息（整组导入这条路），一行都没有就补一行
+     * （拆分导入 {@code executeImportConnectionsAsync} 整份 details 本来就是空的）。
+     * 不改写 {@code action}：连接确实导入了，只是部分字段沿用旧值，改成 SKIPPED 会是误报。
+     */
+    void reportPreservedSecrets(List<GroupInfoRecordDetail> details,
+            Map<String, List<String>> preservedByConnectionId,
+            Map<String, DataSourceConnectionDto> connections) {
+        if (details == null || MapUtils.isEmpty(preservedByConnectionId)) {
+            return;
+        }
+        Set<String> attached = new HashSet<>();
+        for (GroupInfoRecordDetail detail : details) {
+            if (detail == null || CollectionUtils.isEmpty(detail.getRecordDetails())) {
+                continue;
+            }
+            for (GroupInfoRecordDetail.RecordDetail row : detail.getRecordDetails()) {
+                if (row == null || ResourceType.CONNECTION != row.getResourceType()) {
+                    continue;
+                }
+                List<String> paths = preservedByConnectionId.get(row.getResourceId());
+                if (CollectionUtils.isEmpty(paths)) {
+                    continue;
+                }
+                String message = preservedSecretsMessage(paths);
+                row.setMessage(StringUtils.isBlank(row.getMessage()) ? message : row.getMessage() + " | " + message);
+                attached.add(row.getResourceId());
+            }
+        }
+        List<GroupInfoRecordDetail.RecordDetail> added = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : preservedByConnectionId.entrySet()) {
+            if (attached.contains(entry.getKey())) {
+                continue;
+            }
+            GroupInfoRecordDetail.RecordDetail row = new GroupInfoRecordDetail.RecordDetail();
+            row.setResourceType(ResourceType.CONNECTION);
+            row.setResourceId(entry.getKey());
+            row.setResourceName(resolveConnectionName(connections, entry.getKey()));
+            row.setAction(GroupInfoRecordDetail.RecordAction.IMPORTED);
+            row.setMessage(preservedSecretsMessage(entry.getValue()));
+            added.add(row);
+        }
+        if (!added.isEmpty()) {
+            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
+            detail.setMessage("Some secret fields were kept from the target environment");
+            detail.getRecordDetails().addAll(added);
+            details.add(detail);
+        }
+    }
+
+    /** 按 id 取连接名——报告行给人看的是名字，不是 ObjectId。 */
+    private static String resolveConnectionName(Map<String, DataSourceConnectionDto> connections, String connectionId) {
+        if (connections == null) {
+            return null;
+        }
+        for (DataSourceConnectionDto conn : connections.values()) {
+            if (conn != null && conn.getId() != null && conn.getId().toHexString().equals(connectionId)) {
+                return conn.getName();
+            }
+        }
+        return null;
     }
 
     /**
