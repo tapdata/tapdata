@@ -1,5 +1,6 @@
 package com.tapdata.tm.group.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -3246,6 +3247,42 @@ public class GroupInfoServiceTest {
             return def;
         }
 
+        /** 整包的文件清单——manifest 是根级 sidecar，得按文件名取，不能像凭据那样整包搜字符串 */
+        private Map<String, byte[]> packageFiles(ExportGroupRequest request) {
+            registerModuleHandler();
+            runExport(request);
+            ArgumentCaptor<GroupExportRequest> exported = ArgumentCaptor.forClass(GroupExportRequest.class);
+            verify(groupTransferStrategy).exportGroups(exported.capture());
+            return exported.getValue().getContents();
+        }
+
+        private Map<String, Object> manifestOf(ExportGroupRequest request) {
+            byte[] manifest = packageFiles(request).get(GroupConstants.PACKAGE_MANIFEST_FILE);
+            assertNotNull(manifest, "包里必须带 " + GroupConstants.PACKAGE_MANIFEST_FILE
+                    + "——导入侧只能靠它区分「这个字段真的没配」和「这个字段被脱敏抹空了」（ADR-0034 D3）");
+            return JsonUtil.parseJsonUseJackson(new String(manifest, StandardCharsets.UTF_8),
+                    new TypeReference<Map<String, Object>>() {});
+        }
+
+        @Test
+        @DisplayName("包标记：FILE 保真包标 secretsMasked=false")
+        void faithfulPackageIsMarkedUnmasked() {
+            assertEquals(Boolean.FALSE,
+                    manifestOf(exportRequest(GroupTransferType.FILE, null))
+                            .get(GroupConstants.MANIFEST_KEY_SECRETS_MASKED),
+                    "保真包里的空值是用户真实配置，导入侧要照写；标记错成 true 会让它被当成脱敏留下的洞");
+        }
+
+        @Test
+        @DisplayName("包标记：GIT 被强制脱敏时标 secretsMasked=true——按**实际发生**的写，不是按入参")
+        void forciblyMaskedPackageIsMarkedMasked() {
+            assertEquals(Boolean.TRUE,
+                    manifestOf(exportRequest(GroupTransferType.GIT, false))
+                            .get(GroupConstants.MANIFEST_KEY_SECRETS_MASKED),
+                    "入参说要保真、通路强制脱敏了，标记必须跟着实际结果走："
+                            + "标成 false 等于告诉导入侧「包里的空值可信」，正好把目标环境的凭据抹空");
+        }
+
         @Test
         @DisplayName("对照组：FILE 保真时整包里确实找得到凭据（否则红线用例是空断言）")
         void faithfulPackageActuallyContainsTheSecret() {
@@ -3335,12 +3372,116 @@ public class GroupInfoServiceTest {
             Map<String, DataSourceConnectionDto> connections = new LinkedHashMap<>();
             connections.put("MDM_CUSTOMER", incoming);
 
-            Map<String, List<String>> report = groupInfoService.preserveExistingSecrets(connections, user);
+            Map<String, List<String>> report = groupInfoService.preserveExistingSecrets(
+                    Collections.emptyMap(), connections, user);
 
             assertEquals("mongodb://real-host:27017/dmp", incoming.getConfig().get("uri"),
                     "目标既有 uri 必须留下——包里那个空缺是脱敏产物，不是用户的配置");
             assertEquals(Map.of(connId.toHexString(), List.of("uri")), report,
                     "保留了哪些字段必须按连接报出来，否则用户分不清『凭据已更新』和『沿用了旧的』");
+        }
+    }
+
+    /**
+     * ES-3：包自带脱敏标记（[ADR-0034] D3/D4）——导入侧**是否信任包里的空值**由它决定。
+     *
+     * 脱敏包里的空值是抹出来的洞（保留目标既有值），保真包里的空值是用户真实配置（照写）。
+     * 两者在包里长得一模一样，不可由内容推断，只能靠标记；标记缺失 ⇒ 老包 ⇒ 按脱敏包（D4）。
+     */
+    @Nested
+    @DisplayName("包脱敏标记决定导入侧是否保留既有凭据")
+    class PackageSecretsMarkTest {
+
+        private static final String REAL_URI = "mongodb://real-host:27017/dmp";
+
+        private DataSourceDefinitionDto definitionWithUri() {
+            Map<String, Object> uriMeta = new LinkedHashMap<>();
+            uriMeta.put("apiServerKey", "database_uri");
+            Map<String, Object> connProps = new LinkedHashMap<>();
+            connProps.put("uri", uriMeta);
+            Map<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", connProps);
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            properties.put("connection", connection);
+            DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+            def.setProperties(properties);
+            return def;
+        }
+
+        private Map<String, List<TaskUpAndLoadDto>> payloadsWithManifest(String manifestJson) {
+            Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
+            if (manifestJson != null) {
+                payloads.put(GroupConstants.PACKAGE_MANIFEST_FILE,
+                        List.of(new TaskUpAndLoadDto(GroupConstants.PACKAGE_MANIFEST_FILE, manifestJson)));
+            }
+            return payloads;
+        }
+
+        /** 包里 uri 缺失的那条连接；目标环境同 id 的连接凭据齐全 */
+        private DataSourceConnectionDto incomingWithBlankUri(ObjectId connId) {
+            DataSourceConnectionDto incoming = new DataSourceConnectionDto();
+            incoming.setId(connId);
+            incoming.setName("MDM_CUSTOMER");
+            incoming.setPdkHash("pdkhash-mongodb");
+            incoming.setConfig(new LinkedHashMap<>(Map.of("isUri", true)));
+            return incoming;
+        }
+
+        private void stubTargetHasRealUri(ObjectId connId) {
+            DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setId(connId);
+            existing.setConfig(new LinkedHashMap<>(Map.of("isUri", true, "uri", REAL_URI)));
+            lenient().when(dataSourceService.findById(eq(connId), any(String[].class))).thenReturn(existing);
+            lenient().when(dataSourceDefinitionService.findByPdkHash(eq("pdkhash-mongodb"), anyInt(), any(UserDetail.class)))
+                    .thenReturn(definitionWithUri());
+        }
+
+        /** @return 包里那条连接落库前的 uri（null = 没被回填） */
+        private Object uriAfterPreserve(String manifestJson) {
+            ObjectId connId = new ObjectId();
+            DataSourceConnectionDto incoming = incomingWithBlankUri(connId);
+            stubTargetHasRealUri(connId);
+            Map<String, DataSourceConnectionDto> connections = new LinkedHashMap<>();
+            connections.put("MDM_CUSTOMER", incoming);
+
+            groupInfoService.preserveExistingSecrets(payloadsWithManifest(manifestJson), connections, user);
+            return incoming.getConfig().get("uri");
+        }
+
+        @Test
+        @DisplayName("保真包（secretsMasked=false）：包里的空值是用户真实配置，照写，不拿目标旧值回填")
+        void faithfulPackage_trustsBlankValue() {
+            assertNull(uriAfterPreserve("{\"secretsMasked\":false}"),
+                    "保真包里没有 uri，就是这个连接真的没配 uri；"
+                            + "拿目标旧值回填等于让用户永远删不掉一个配置项，且「以为更新了其实没有」");
+        }
+
+        @Test
+        @DisplayName("脱敏包（secretsMasked=true）：空值是抹出来的洞，保留目标既有值")
+        void maskedPackage_keepsTargetValue() {
+            assertEquals(REAL_URI, uriAfterPreserve("{\"secretsMasked\":true}"),
+                    "脱敏包里的空缺不是用户配置，写下去就把目标环境的连接打死了");
+        }
+
+        @Test
+        @DisplayName("老包（无标记文件）：按脱敏包处理——历史包事实上都是脱敏的（D4）")
+        void oldPackageWithoutManifest_keepsTargetValue() {
+            assertEquals(REAL_URI, uriAfterPreserve(null),
+                    "把老包当保真包，就会信任包里的空值——正是 ADR-0034 要修的那个 bug");
+        }
+
+        @Test
+        @DisplayName("标记文件在、但没有这一位：按脱敏包处理——别把「没写」当成「写了 false」")
+        void manifestWithoutTheBit_keepsTargetValue() {
+            assertEquals(REAL_URI, uriAfterPreserve("{\"someFutureField\":1}"),
+                    "将来包格式若改名/漏写这一位，必须退回保守的一侧，不能静默变成「信任空值」");
+        }
+
+        @Test
+        @DisplayName("标记读不懂时按脱敏包处理——不确定就别信任空值")
+        void unreadableManifest_keepsTargetValue() {
+            assertEquals(REAL_URI, uriAfterPreserve("not-json-at-all"),
+                    "解析不了就退回最保守的一侧：错判成保真包的代价是抹掉目标凭据，反过来只是少更新一个字段");
         }
     }
 
@@ -3440,6 +3581,36 @@ public class GroupInfoServiceTest {
             assertReportsPreservedField(details.getValue(), "MDM_CUSTOMER", "uri");
         }
 
+        /**
+         * ES-3 接线：包标记必须真的传到 preserveExistingSecrets——判据只在那儿算一次，
+         * 但读得到 payloads 的是调用点。把 payloads 忘在调用点上，保真包就会被当老包处理。
+         */
+        @Test
+        @DisplayName("拆分导入 + 保真包：包里的空 uri 照写，不拿目标旧值回填")
+        void connectionsImportPath_faithfulPackageWritesBlankThrough() {
+            ObjectId connId = new ObjectId();
+            ObjectId recordId = new ObjectId();
+            Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
+            payloads.put("Connection.json", List.of(maskedConnectionPayload(connId, "MDM_CUSTOMER")));
+            payloads.put(GroupConstants.PACKAGE_MANIFEST_FILE, List.of(new TaskUpAndLoadDto(
+                    GroupConstants.PACKAGE_MANIFEST_FILE, "{\"secretsMasked\":false}")));
+
+            // 目标环境确实有真 uri：不 stub 的话，这条用例在「漏传 payloads」时也会绿（findById 返回 null 而已）
+            lenient().when(dataSourceService.findById(eq(connId), any(String[].class)))
+                    .thenReturn(existingWithRealUri(connId));
+            lenient().when(dataSourceDefinitionService.findByPdkHash(eq("pdkhash-mongodb"), anyInt(), any(UserDetail.class)))
+                    .thenReturn(definitionWithUri());
+            when(dataSourceService.batchImport(anyList(), any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
+            doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+
+            groupInfoService.executeImportConnectionsAsync(payloads, ImportModeEnum.GROUP_IMPORT, user, recordId,
+                    Collections.emptyMap());
+
+            assertNull(captureBatchImported().get(0).getConfig().get("uri"),
+                    "保真包说这个连接就是没配 uri，导入侧不该拿目标旧值把它填回去");
+        }
+
         @Test
         @DisplayName("整组导入（executeImportAsync）：同样保留目标既有 uri，并在导入记录里报出来")
         @SuppressWarnings("unchecked")
@@ -3472,6 +3643,40 @@ public class GroupInfoServiceTest {
             verify(groupInfoService).updateRecordStatus(eq(recordId), eq(GroupInfoRecordDto.STATUS_COMPLETED),
                     isNull(), details.capture(), eq(user));
             assertReportsPreservedField(details.getValue(), "MDM_CUSTOMER", "uri");
+        }
+
+        @Test
+        @DisplayName("整组导入 + 保真包：包里的空 uri 同样照写——两条调用点都得把 payloads 传下去")
+        void groupImportPath_faithfulPackageWritesBlankThrough() {
+            ObjectId connId = new ObjectId();
+            ObjectId recordId = new ObjectId();
+            Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
+            payloads.put("GroupInfo.json", new ArrayList<>());
+            payloads.put(GroupConstants.PACKAGE_MANIFEST_FILE, List.of(new TaskUpAndLoadDto(
+                    GroupConstants.PACKAGE_MANIFEST_FILE, "{\"secretsMasked\":false}")));
+
+            DataSourceConnectionDto incoming = new DataSourceConnectionDto();
+            incoming.setId(connId);
+            incoming.setName("MDM_CUSTOMER");
+            incoming.setPdkHash("pdkhash-mongodb");
+            incoming.setConfig(new LinkedHashMap<>(Map.of("isUri", true)));
+            registerConnectionHandler(connId, incoming);
+
+            // 同上：目标环境确实有真 uri，漏传 payloads 时才会被这条用例抓住
+            lenient().when(dataSourceService.findById(eq(connId), any(String[].class)))
+                    .thenReturn(existingWithRealUri(connId));
+            lenient().when(dataSourceDefinitionService.findByPdkHash(eq("pdkhash-mongodb"), anyInt(), any(UserDetail.class)))
+                    .thenReturn(definitionWithUri());
+            when(dataSourceService.batchImport(anyList(), any(), any())).thenReturn(new HashMap<>());
+            when(metadataDefinitionService.batchImport(any(), any())).thenReturn(new HashMap<>());
+            doNothing().when(batchUpChecker).checkDataSourceConnection(any(), any(), any());
+            doNothing().when(groupInfoService).updateImportProgress(any(), anyInt(), any(), any());
+            doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+
+            groupInfoService.executeImportAsync(payloads, user, ImportModeEnum.GROUP_IMPORT, "test.tar", recordId);
+
+            assertNull(captureBatchImported().get(0).getConfig().get("uri"),
+                    "整组导入这条路也必须读包标记——只在拆分导入那条路接上，等于一半的入口还在拿旧值回填");
         }
 
         /** 让 executeImportAsync 的资源收集环节吐出这条连接（生产上由 Task/Module handler 的关联收集完成） */

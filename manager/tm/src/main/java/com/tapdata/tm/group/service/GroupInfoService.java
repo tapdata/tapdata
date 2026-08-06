@@ -532,7 +532,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         recordDto = groupInfoRecordService.save(recordDto, user);
 
         // 构建导出文件内容
-        Map<String, byte[]> contents = buildExportContents(groupInfoPayload, payloadsByType, userExportContents);
+        Map<String, byte[]> contents = buildExportContents(groupInfoPayload, payloadsByType, userExportContents,
+                maskSecrets);
 
         log.info("Start exporting groups, groupCount={}, user={}", groupInfos.size(), user.getUsername());
 
@@ -891,7 +892,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             // （[ADR-0034] D5）。刻意放在 vaultSecrets 判空之外——最危险的正是「没带 vault」。
             // 这条路的 details 本来是空的，保留清单就是它唯一的内容（D7 不许只落日志）。
             List<GroupInfoRecordDetail> details = new ArrayList<>();
-            reportPreservedSecrets(details, preserveExistingSecrets(connections, user), connections);
+            reportPreservedSecrets(details, preserveExistingSecrets(payloads, connections, user), connections);
             refreshImportLastUpdate(connections.values(), connectionMetadata);
             Map<String, DataSourceConnectionDto> conMap = dataSourceService.batchImport(
                     new ArrayList<>(connections.values()), user, importMode);
@@ -2495,7 +2496,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             // 同上：无条件保护，缺 vault 时才是真正会把目标凭据抹空的那条路（[ADR-0034] D5）；
             // 保留清单挂到 details 里已有的连接行上，随下一次 updateImportProgress 落库（D7）
-            reportPreservedSecrets(details, preserveExistingSecrets(connections, user), connections);
+            reportPreservedSecrets(details, preserveExistingSecrets(payloads, connections, user), connections);
             List<MetadataInstancesDto> connectionMetadata = metadataByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyList());
             refreshImportLastUpdate(connections.values(), connectionMetadata);
@@ -2690,6 +2691,37 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     }
 
     /**
+     * 本次导入的包是否已脱敏（[ADR-0034] D3/D4）——**导入侧是否信任包里空值的唯一判据**，别处不许再算一遍。
+     *
+     * 脱敏包里的空值是抹出来的洞，保真包里的空值是用户真实配置；两者在包里长得一模一样，
+     * 不可由内容推断（"真的没配 uri" 与 "uri 被抹空" 的连接文档完全相同），只能靠包自带的标记。
+     *
+     * 缺文件 / 空内容 / 读不懂 / 没有这一位，一律按**脱敏包**处理：历史包事实上都是脱敏的，
+     * 这个默认与真相一致，老包因此自动获得 D5 的保护；反过来把老包当保真包，就会信任包里的
+     * 空值——正好复现 ADR-0034 要修的那个 bug（实撞：uri is blank）。
+     */
+    boolean packageSecretsMasked(Map<String, List<TaskUpAndLoadDto>> payloads) {
+        if (payloads == null) {
+            return true;
+        }
+        List<TaskUpAndLoadDto> manifest = payloads.getOrDefault(
+                GroupConstants.PACKAGE_MANIFEST_FILE, Collections.emptyList());
+        if (CollectionUtils.isEmpty(manifest) || StringUtils.isBlank(manifest.get(0).getJson())) {
+            return true;
+        }
+        try {
+            Map<String, Object> parsed = JsonUtil.parseJsonUseJackson(
+                    manifest.get(0).getJson(), new TypeReference<Map<String, Object>>() {});
+            // 只有**显式** false 才算保真包：读到别的（缺这一位、类型不对）都退回保守的一侧
+            return parsed == null
+                    || !Boolean.FALSE.equals(parsed.get(GroupConstants.MANIFEST_KEY_SECRETS_MASKED));
+        } catch (Exception e) {
+            log.warn("Import: unreadable package manifest, treating the package as masked: {}", e.getMessage());
+            return true;
+        }
+    }
+
+    /**
      * 导入侧保护：包内敏感字段缺值时，改用目标环境已有的值（[ADR-0034] D5/D6）。
      *
      * 必须排在 {@link #injectVaultSecrets} **之后**——vault 提供了值就不算缺，那是用户
@@ -2701,9 +2733,15 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      *
      * @return 连接 id → 被保留的 config 路径；交给 {@link #reportPreservedSecrets} 写进导入报告——D7 要求绝不静默
      */
-    Map<String, List<String>> preserveExistingSecrets(Map<String, DataSourceConnectionDto> connections, UserDetail user) {
+    Map<String, List<String>> preserveExistingSecrets(Map<String, List<TaskUpAndLoadDto>> payloads,
+            Map<String, DataSourceConnectionDto> connections, UserDetail user) {
         Map<String, List<String>> preserved = new LinkedHashMap<>();
         if (connections == null || connections.isEmpty()) {
+            return preserved;
+        }
+        if (!packageSecretsMasked(payloads)) {
+            // 保真包：包里的空缺就是用户的真实配置，照写。拿目标旧值回填会让用户永远删不掉一个
+            // 配置项，而且同样是「以为更新了其实没有」——D7 要防的正是这个。
             return preserved;
         }
         for (DataSourceConnectionDto conn : connections.values()) {
@@ -3402,10 +3440,26 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
+    /**
+     * 包清单（[ADR-0034] D3）：根级 sidecar，只记「本包是否已脱敏」这一位。
+     *
+     * 取值必须是**本次导出实际发生**的脱敏结果（{@link #resolveMaskSecrets} 的返回值），
+     * 不是入参要的那个——GIT 会强制覆盖入参，跟着入参写就等于骗导入侧「包里的空值可信」。
+     */
+    private byte[] buildPackageManifest(boolean maskSecrets) {
+        Map<String, Object> manifest = new LinkedHashMap<>();
+        manifest.put(GroupConstants.MANIFEST_KEY_SECRETS_MASKED, maskSecrets);
+        return JsonUtil.toJsonUseJackson(manifest).getBytes(StandardCharsets.UTF_8);
+    }
+
     private Map<String, byte[]> buildExportContents(List<TaskUpAndLoadDto> groupInfoPayload,
             Map<String, List<TaskUpAndLoadDto>> payloadsByType,
-            Map<String, byte[]> userExportContents) {
+            Map<String, byte[]> userExportContents,
+            boolean maskSecrets) {
         Map<String, byte[]> contents = new LinkedHashMap<>();
+
+        // export-manifest.json — 根级 sidecar，标记本包是否已脱敏（[ADR-0034] D3）
+        contents.put(GroupConstants.PACKAGE_MANIFEST_FILE, buildPackageManifest(maskSecrets));
 
         // GroupInfo.json — 根目录，无子目录
         contents.put("GroupInfo.json", toJsonBytes(groupInfoPayload));
