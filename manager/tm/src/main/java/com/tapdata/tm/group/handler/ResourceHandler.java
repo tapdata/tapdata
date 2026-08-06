@@ -132,10 +132,14 @@ public interface ResourceHandler {
      */
     String resolveResourceName(String resourceId, Map<String, ?> resourceMap);
 
+    /**
+     * @param maskSecrets 是否抹掉连接凭据。**刻意不提供带默认值的重载**：调用方必须自己声明意图——
+     *                    一个能被静默取到的默认，就是将来把明文凭据推上 GitHub 的入口（[ADR-0034] D2）
+     */
     default void handleRelatedResources(Map<String, List<TaskUpAndLoadDto>> payloadsByType, List<?> resources,
-            UserDetail user,Set<ObjectId> tagIds) {
+            UserDetail user,Set<ObjectId> tagIds, boolean maskSecrets) {
         List<DataSourceEntity> connections = loadConnections(resources);
-        List<TaskUpAndLoadDto> connectionPayload = buildConnectionPayload(connections, user);
+        List<TaskUpAndLoadDto> connectionPayload = buildConnectionPayload(connections, user, maskSecrets);
         if (CollectionUtils.isNotEmpty(connections)) {
             connections.forEach(c -> {
                 if (CollectionUtils.isNotEmpty(c.getListtags())) {
@@ -149,8 +153,12 @@ public interface ResourceHandler {
 
     /**
      * 构建连接的导出payload（只收集连接和元数据，不生成Excel）
+     *
+     * @param maskSecrets 是否抹掉 config 里的敏感字段。FILE 默认保真、GIT 强制脱敏，
+     *                    口径由 {@code GroupInfoService.resolveMaskSecrets} 单点解析（[ADR-0034] D1/D2）
      */
-    default List<TaskUpAndLoadDto> buildConnectionPayload(List<DataSourceEntity> connections, UserDetail user) {
+    default List<TaskUpAndLoadDto> buildConnectionPayload(List<DataSourceEntity> connections, UserDetail user,
+            boolean maskSecrets) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         if (CollectionUtils.isEmpty(connections)) {
             return payload;
@@ -168,7 +176,7 @@ public interface ResourceHandler {
                     .getBean(DataSourceDefinitionService.class);
             DataSourceDefinitionDto definition = dataSourceDefinitionService
                     .findByPdkHash(entity.getPdkHash(), Integer.MAX_VALUE, user);
-            if (definition != null) {
+            if (maskSecrets && definition != null) {
                 maskSensitiveConfigFields(entity, definition);
             }
 

@@ -406,6 +406,38 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
+    /** 导出记录里那句「已强制脱敏」——用户明确要保真却被覆盖时写上，绝不静默（[ADR-0034] D2）。 */
+    static final String MASK_FORCED_MESSAGE =
+            "Secrets were removed from the package: this transfer type always masks them and cannot be overridden.";
+
+    /**
+     * 本次导出是否脱敏（[ADR-0034] D1/D2）——**导出脱敏与否的唯一判据**，别处不许再算一遍。
+     *
+     * FILE 默认保真（本地包要能直接搬到另一个环境用），可显式要求移除敏感信息；
+     * GIT 一律脱敏，入参说什么都没用 —— 这是红线不是默认值：能被一个入参绕过，
+     * 就等于明文凭据可以被推上 GitHub，而 git 历史永久留存、可被 fork/缓存。
+     *
+     * 意图取不到时（请求或传输类型为 null）按最保守的来：脱敏。
+     */
+    static boolean resolveMaskSecrets(ExportGroupRequest request) {
+        if (request == null || request.getGroupTransferType() == null) {
+            return true;
+        }
+        return request.getGroupTransferType().isForceMaskSecrets()
+                || Boolean.TRUE.equals(request.getRemoveSensitiveData());
+    }
+
+    /**
+     * 用户**明确要求保真**、却被通路的强制脱敏覆盖了吗？只有这种情况才有「被吞掉的请求」需要回告；
+     * 压根没提要求的（{@code removeSensitiveData == null}）不算。
+     */
+    static boolean isMaskForciblyOverridden(ExportGroupRequest request) {
+        return request != null
+                && request.getGroupTransferType() != null
+                && request.getGroupTransferType().isForceMaskSecrets()
+                && Boolean.FALSE.equals(request.getRemoveSensitiveData());
+    }
+
     public void exportGroupInfos(HttpServletResponse response, ExportGroupRequest exportGroupRequest, UserDetail user) {
 		List<String> groupIds = exportGroupRequest.getGroupIds();
 		Map<String, List<String>> groupResetTask = exportGroupRequest.getGroupResetTask();
@@ -421,6 +453,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 		if (groupTransferType == GroupTransferType.GIT) {
 			checkExportingGroups(groupIds, user);
 		}
+
+        // 脱敏与否在这里一次定死，往下只传结果（[ADR-0034] D1/D2）
+        boolean maskSecrets = resolveMaskSecrets(exportGroupRequest);
+        if (isMaskForciblyOverridden(exportGroupRequest)) {
+            log.warn("Export via {} always masks secrets; the request asked to keep them and was overridden",
+                    groupTransferType);
+        }
 
         applyResetTaskList(groupInfos, groupResetTask);
 
@@ -442,7 +481,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
             ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
             if (handler != null) {
-                handler.handleRelatedResources(payloadsByType, entry.getValue(), user,new HashSet<>());
+                handler.handleRelatedResources(payloadsByType, entry.getValue(), user,new HashSet<>(), maskSecrets);
             }
         }
         for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
@@ -484,6 +523,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         String name = buildGroupExportFileName(groupInfos, yyyymmdd);
         GroupInfoRecordDto recordDto = buildExportRecord(GroupInfoRecordDto.TYPE_EXPORT, user,
                 buildExportRecordDetails(groupInfos, resourcesByType), name, exportGroupRequest, groupInfos.get(0));
+        if (isMaskForciblyOverridden(exportGroupRequest)) {
+            // 用户明确要保真却被强制脱敏 —— 不能静默吞掉这个请求（[ADR-0034] D2）。
+            // 成功路径的 updateRecordStatus 传 message=null，不会覆盖这里写的内容。
+            recordDto.setMessage(MASK_FORCED_MESSAGE);
+        }
         recordDto = groupInfoRecordService.save(recordDto, user);
 
         // 构建导出文件内容

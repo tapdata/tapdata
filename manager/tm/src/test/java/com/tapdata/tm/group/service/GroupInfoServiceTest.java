@@ -3036,6 +3036,151 @@ public class GroupInfoServiceTest {
     }
 
     /**
+     * ES-2 导出脱敏分流（[ADR-0034] D1/D2）：FILE 默认保真、可显式要求脱敏；
+     * GIT **强制脱敏且不可被入参绕过**——这是红线不是默认值，git 历史是永久的。
+     */
+    @Nested
+    @DisplayName("导出脱敏分流")
+    class ExportMaskPolicyTest {
+
+        private ExportGroupRequest request(GroupTransferType type, Boolean removeSensitiveData) {
+            ExportGroupRequest request = new ExportGroupRequest();
+            request.setGroupTransferType(type);
+            request.setRemoveSensitiveData(removeSensitiveData);
+            return request;
+        }
+
+        @Test
+        @DisplayName("FILE 未指定 ⇒ 保真（本地包要能直接用）")
+        void fileDefaultsToFaithful() {
+            assertFalse(GroupInfoService.resolveMaskSecrets(request(GroupTransferType.FILE, null)));
+        }
+
+        @Test
+        @DisplayName("FILE 显式要求移除敏感信息 ⇒ 脱敏")
+        void fileHonoursExplicitRemoval() {
+            assertTrue(GroupInfoService.resolveMaskSecrets(request(GroupTransferType.FILE, true)));
+        }
+
+        @Test
+        @DisplayName("FILE 显式要求保真 ⇒ 保真")
+        void fileHonoursExplicitFaithful() {
+            assertFalse(GroupInfoService.resolveMaskSecrets(request(GroupTransferType.FILE, false)));
+        }
+
+        @Test
+        @DisplayName("GIT 未指定 ⇒ 脱敏")
+        void gitDefaultsToMasked() {
+            assertTrue(GroupInfoService.resolveMaskSecrets(request(GroupTransferType.GIT, null)));
+        }
+
+        @Test
+        @DisplayName("红线：GIT + 入参显式要求保真 ⇒ 仍然脱敏")
+        void gitCannotBeTalkedOutOfMasking() {
+            assertTrue(GroupInfoService.resolveMaskSecrets(request(GroupTransferType.GIT, false)),
+                    "GIT 强制脱敏是红线不是默认值——能被一个入参绕过，就等于明文凭据可以被推上 GitHub，"
+                            + "而 git 历史永久留存、可被 fork/缓存（ADR-0034 D2）");
+        }
+
+        @Test
+        @DisplayName("传输类型缺失 / 整个请求缺失 ⇒ 按最保守的来（脱敏）")
+        void unknownIntentFallsBackToMasking() {
+            assertTrue(GroupInfoService.resolveMaskSecrets(request(null, false)));
+            assertTrue(GroupInfoService.resolveMaskSecrets(null));
+        }
+
+        @Test
+        @DisplayName("GIT 吞掉了「要保真」这个请求时必须告知，不静默")
+        void gitOverrideIsAnnounced() {
+            assertTrue(GroupInfoService.isMaskForciblyOverridden(request(GroupTransferType.GIT, false)),
+                    "用户明确要保真却被强制脱敏，这件事必须显形（ADR-0034 D2）");
+            assertFalse(GroupInfoService.isMaskForciblyOverridden(request(GroupTransferType.GIT, null)),
+                    "用户压根没提要求，就没有「被吞掉的请求」可告知");
+            assertFalse(GroupInfoService.isMaskForciblyOverridden(request(GroupTransferType.FILE, false)),
+                    "FILE 本来就给保真，没有覆盖发生");
+        }
+    }
+
+    /**
+     * ES-2 接线：exportGroupInfos 必须把**解析后**的开关传下去，并在被强制覆盖时留下记录。
+     * 光验策略函数不够——ES-4 刚撞过「方法有测试、接线没有」。
+     */
+    @Nested
+    @DisplayName("导出脱敏开关接线")
+    class ExportMaskWiringTest {
+
+        private ResourceHandler registerModuleHandler() {
+            ResourceHandler handler = mock(ResourceHandler.class);
+            when(handler.getResourceType()).thenReturn(ResourceType.MODULE);
+            doReturn(List.of(new ModulesDto())).when(handler).loadResources(anyList(), any(UserDetail.class));
+            when(handler.buildExportPayload(anyList(), any(UserDetail.class))).thenReturn(new ArrayList<>());
+            when(handler.loadConnections(anyList())).thenReturn(new ArrayList<>());
+            ResourceHandlerRegistry registry = new ResourceHandlerRegistry();
+            ReflectionTestUtils.setField(registry, "handlers", List.of(handler));
+            registry.init();
+            ReflectionTestUtils.setField(groupInfoService, "resourceHandlerRegistry", registry);
+            return handler;
+        }
+
+        private ExportGroupRequest exportRequest(GroupTransferType type, Boolean removeSensitiveData) {
+            ExportGroupRequest request = new ExportGroupRequest();
+            request.setGroupIds(List.of(new ObjectId().toHexString()));
+            request.setGroupTransferType(type);
+            request.setRemoveSensitiveData(removeSensitiveData);
+            request.setGroupResetTask(new HashMap<>());
+            return request;
+        }
+
+        private GroupInfoRecordDto runExport(ExportGroupRequest request) {
+            GroupInfoDto groupInfo = new GroupInfoDto();
+            groupInfo.setId(new ObjectId());
+            groupInfo.setName("Test Group");
+            ResourceItem item = new ResourceItem();
+            item.setId(new ObjectId().toHexString());
+            item.setType(ResourceType.MODULE);
+            groupInfo.setResourceItemList(new ArrayList<>(List.of(item)));
+            // GIT 导出的记录会读 gitInfo，与本用例无关但不能为 null
+            com.tapdata.tm.group.dto.GroupGitInfoDto gitInfo = new com.tapdata.tm.group.dto.GroupGitInfoDto();
+            gitInfo.setRepoUrl("https://example.invalid/repo.git");
+            groupInfo.setGitInfo(gitInfo);
+            doReturn(List.of(groupInfo)).when(groupInfoService).findAllDto(any(Query.class), any(UserDetail.class));
+
+            GroupInfoRecordDto savedRecord = new GroupInfoRecordDto();
+            savedRecord.setId(new ObjectId());
+            ArgumentCaptor<GroupInfoRecordDto> built = ArgumentCaptor.forClass(GroupInfoRecordDto.class);
+            when(groupInfoRecordService.save(built.capture(), any(UserDetail.class))).thenReturn(savedRecord);
+            doNothing().when(groupInfoService).updateRecordStatus(any(), any(), any(), any(), any());
+            lenient().when(transferStrategyRegistry.getStrategy(any())).thenReturn(groupTransferStrategy);
+
+            // GIT 是异步通路，doExport 会去 Spring 容器里取自己；单测里把它指回这个 spy
+            try (MockedStatic<SpringContextHelper> springContext = Mockito.mockStatic(SpringContextHelper.class)) {
+                springContext.when(() -> SpringContextHelper.getBean(GroupInfoService.class))
+                        .thenReturn(groupInfoService);
+                groupInfoService.exportGroupInfos(mock(HttpServletResponse.class), request, user);
+            }
+            return built.getValue();
+        }
+
+        @Test
+        @DisplayName("FILE 未指定：传给 handler 的是「保真」")
+        void fileExportPassesFaithfulDown() {
+            ResourceHandler handler = registerModuleHandler();
+            runExport(exportRequest(GroupTransferType.FILE, null));
+            verify(handler).handleRelatedResources(any(), anyList(), eq(user), anySet(), eq(false));
+        }
+
+        @Test
+        @DisplayName("红线接线：GIT + 显式要求保真，传给 handler 的仍是「脱敏」，且导出记录里说明已强制脱敏")
+        void gitExportForcesMaskDownAndAnnouncesIt() {
+            ResourceHandler handler = registerModuleHandler();
+            GroupInfoRecordDto record = runExport(exportRequest(GroupTransferType.GIT, false));
+
+            verify(handler).handleRelatedResources(any(), anyList(), eq(user), anySet(), eq(true));
+            assertNotNull(record.getMessage(), "被强制脱敏这件事必须留在导出记录里，不能静默吞掉用户的请求");
+        }
+    }
+
+    /**
      * 导入侧保护（ADR-0034 D5/D6/D7）：脱敏包未带 vault 时，绝不用空值覆盖目标环境
      * 已有的连接凭据。实撞过一次——Create MongoDB client failed, error: uri is blank。
      */
