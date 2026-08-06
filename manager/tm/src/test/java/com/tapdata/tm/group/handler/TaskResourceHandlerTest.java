@@ -552,7 +552,7 @@ public class TaskResourceHandlerTest {
             when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(new ArrayList<>());
             when(inspectService.findByTaskIdList(anyList())).thenReturn(new ArrayList<>());
 
-            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user,new HashSet<>());
+            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user,new HashSet<>(), true);
 
             verify(taskService).findAllDto(any(Query.class), eq(user));
         }
@@ -577,7 +577,7 @@ public class TaskResourceHandlerTest {
             inspectPayload.setJson(JsonUtil.toJsonUseJackson(inspect));
             when(inspectResourceHandler.buildExportPayload(anyList(), eq(user))).thenReturn(Arrays.asList(inspectPayload));
 
-            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user, new HashSet<>());
+            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user, new HashSet<>(), true);
 
             assertTrue(payloadsByType.containsKey(ResourceType.INSPECT_TASK.name()));
         }
