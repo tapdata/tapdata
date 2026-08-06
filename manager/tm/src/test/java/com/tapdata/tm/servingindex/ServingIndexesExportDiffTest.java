@@ -153,10 +153,14 @@ class ServingIndexesExportDiffTest {
 		Map<String, List<TaskUpAndLoadDto>> payloadsByType = new LinkedHashMap<>();
 		payloadsByType.put("MODULE", new ArrayList<>(Collections.singletonList(
 				new TaskUpAndLoadDto(GroupConstants.COLLECTION_MODULES, JsonUtil.toJsonUseJackson(dto)))));
+		// 第 4 个参数 maskSecrets 是 [ADR-0034] 的导出脱敏分流带来的。本用例只关心 Module 载荷里
+		// 有没有 servingIndexes（脱敏只作用于连接），传 true 是为了与本用例写就时的行为一致 ——
+		// 那会儿导出无条件脱敏。⚠ 这里是反射调用：签名再变一次，编译期照样不报错，只会在运行期
+		// 抛 IllegalStateException: Method not found。
 		@SuppressWarnings("unchecked")
 		Map<String, byte[]> contents = (Map<String, byte[]>) ReflectionTestUtils.invokeMethod(
 				groupInfoService, "buildExportContents",
-				new ArrayList<TaskUpAndLoadDto>(), payloadsByType, new LinkedHashMap<String, byte[]>());
+				new ArrayList<TaskUpAndLoadDto>(), payloadsByType, new LinkedHashMap<String, byte[]>(), true);
 		assertNotNull(contents);
 		String entry = "API/" + id.toHexString() + "_Module.json";
 		assertTrue(contents.containsKey(entry), "导出包应有 " + entry + "，实际：" + contents.keySet());
