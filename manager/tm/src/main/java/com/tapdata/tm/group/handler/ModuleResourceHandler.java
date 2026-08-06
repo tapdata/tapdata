@@ -67,7 +67,7 @@ public class ModuleResourceHandler implements ResourceHandler {
     }
 
     @Override
-    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user) {
+    public List<TaskUpAndLoadDto> buildExportPayload(List<?> resources, UserDetail user, boolean maskSecrets) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         if (CollectionUtils.isEmpty(resources)) {
             return payload;
@@ -202,8 +202,8 @@ public class ModuleResourceHandler implements ResourceHandler {
 
     @Override
     public void handleRelatedResources(Map<String, List<TaskUpAndLoadDto>> payloadsByType, List<?> resources,
-            UserDetail user,Set<ObjectId> tagIds) {
-        ResourceHandler.super.handleRelatedResources(payloadsByType, resources, user,tagIds);
+            UserDetail user,Set<ObjectId> tagIds, boolean maskSecrets) {
+        ResourceHandler.super.handleRelatedResources(payloadsByType, resources, user,tagIds, maskSecrets);
 
         List<ModulesDto> modules = (List<ModulesDto>) resources;
         for (ModulesDto modulesDto : modules) {

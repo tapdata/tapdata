@@ -139,6 +139,13 @@ public class FileGroupTransferStrategy implements GroupTransferStrategy {
                         list.add(new TaskUpAndLoadDto(GroupConstants.VAULT_FILE,
                                 new String(bytes, StandardCharsets.UTF_8)));
                         payloads.put(GroupConstants.VAULT_FILE, list);
+                    } else if (GroupConstants.PACKAGE_MANIFEST_FILE.equalsIgnoreCase(baseName)) {
+                        // 包清单同 vault：它是包的元信息不是资源，走通用解析会被当成资源列表、
+                        // 失败后静默变成空列表，标记就此消失（[ADR-0034] D3）
+                        List<TaskUpAndLoadDto> list = new ArrayList<>();
+                        list.add(new TaskUpAndLoadDto(GroupConstants.PACKAGE_MANIFEST_FILE,
+                                new String(bytes, StandardCharsets.UTF_8)));
+                        payloads.put(GroupConstants.PACKAGE_MANIFEST_FILE, list);
                     } else {
                         // JSON文件：按文件名映射到对应的资源类型 key，支持新旧格式
                         List<TaskUpAndLoadDto> list = parseTaskUpAndLoadList(bytes);
