@@ -1,6 +1,5 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
-import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.cache.scripts.ScriptCacheService;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
@@ -52,6 +51,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+import java.io.Closeable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -80,6 +80,11 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 	private boolean finalJs = false;
 
+	private volatile boolean sharedInitDone = false;
+	private String script;
+	private List<JavaScriptFunctions> javaScriptFunctions;
+	private ScriptCacheService scriptCacheService;
+
 	private final Map<String, Invocable> engineMap;
 	private final Map<String, ScriptExecutorsManager.ScriptExecutor> sourceMap;
 	private final Map<String, ScriptExecutorsManager.ScriptExecutor> targetMap;
@@ -100,92 +105,129 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	}
 
 	protected Invocable getOrInitEngine() {
-		String nodeId = getNode().getId();
-		return engineMap.computeIfAbsent(nodeId, tn -> {
-			Node<?> node = getNode();
-			String script;
-			if (node instanceof JsProcessorNode) {
-				script = ((JsProcessorNode) node).getScript();
-			} else if (node instanceof MigrateJsProcessorNode) {
-				MigrateJsProcessorNode processorNode = (MigrateJsProcessorNode) node;
-				script = processorNode.getScript();
-			} else if (node instanceof CacheLookupProcessorNode) {
-				script = ((CacheLookupProcessorNode) node).getScript();
-			} else {
-				throw new RuntimeException("unsupported node " + node.getClass().getName());
-			}
+		ensureSharedInit();
+		String engineKey = getNode().getId() + "-" + Thread.currentThread().getId();
+		return engineMap.computeIfAbsent(engineKey, k -> buildEngine());
+	}
 
-			if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {
-				this.standard = true;
-			}
-			if (node instanceof JsProcessorNode){
-				JsProcessorNode processorNode = (JsProcessorNode) node;
-				int jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
-				finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
-			} else if (node instanceof MigrateJsProcessorNode){
-				MigrateJsProcessorNode processorNode = (MigrateJsProcessorNode)node;
-				int jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
-				finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
-			}
+	private void closeEngine(Invocable engine) {
+		if (!(engine instanceof Closeable)) {
+			return;
+		}
+		try {
+			((Closeable) engine).close();
+		} catch (Exception e) {
+			logger.warn("Error closing script engine", e);
+		}
+	}
 
-			List<JavaScriptFunctions> javaScriptFunctions = standard ?
-					null
-					: clientMongoOperator.find( new Query(where("type")
-							.ne("system"))
-							.with(Sort.by(Sort.Order.asc("last_update"))),
-					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION,
-					JavaScriptFunctions.class
+	private static TapCodeException wrapScriptProcessException(Throwable throwable) {
+		Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
+		String message = StringUtils.defaultIfBlank(
+				throwable.getMessage(),
+				StringUtils.defaultIfBlank(cause.getMessage(), cause.getClass().getName())
+		);
+		return new TapCodeException(
+				ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,
+				message,
+				cause
+		).dynamicDescriptionParameters(message);
+	}
+
+	private synchronized void ensureSharedInit() {
+		if (sharedInitDone) {
+			return;
+		}
+		Node<?> node = getNode();
+		if (node instanceof JsProcessorNode) {
+			this.script = ((JsProcessorNode) node).getScript();
+		} else if (node instanceof MigrateJsProcessorNode) {
+			this.script = ((MigrateJsProcessorNode) node).getScript();
+		} else if (node instanceof CacheLookupProcessorNode) {
+			this.script = ((CacheLookupProcessorNode) node).getScript();
+		} else {
+			throw new RuntimeException("unsupported node " + node.getClass().getName());
+		}
+
+		if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {
+			this.standard = true;
+		}
+		if (node instanceof JsProcessorNode) {
+			JsProcessorNode processorNode = (JsProcessorNode) node;
+			int jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+			finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
+		} else if (node instanceof MigrateJsProcessorNode) {
+			MigrateJsProcessorNode processorNode = (MigrateJsProcessorNode) node;
+			int jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+			finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
+		}
+
+		this.javaScriptFunctions = standard ?
+				null
+				: clientMongoOperator.find(new Query(where("type")
+						.ne("system"))
+						.with(Sort.by(Sort.Order.asc("last_update"))),
+				ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION,
+				JavaScriptFunctions.class
+		);
+
+		this.scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
+
+		if (!this.standard) {
+			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
+					node.getTaskId(), node.getId(),
+					!processorBaseContext.getTaskDto().isNormalTask()
 			);
+			String nodeId = node.getId();
+			List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
+			List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
+			sourceMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(predecessors, SOURCE_TAG));
+			targetMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(successors, TARGET_TAG));
+		}
 
-			ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
-			Invocable engine;
-			ObsScriptLogger obsScriptLogger;
-			if(getProcessorBaseContext().getTaskDto().isNormalTask()){
-				obsScriptLogger = new ObsScriptLogger(getScriptObsLogger(),logger);
-			}else{
-				obsScriptLogger = new ObsScriptLogger(obsLogger,logger);
-			}
-			try {
-				engine = finalJs ?
-						ScriptStandardizationUtil.getScriptStandardizationEngine(
-								JSEngineEnum.GRAALVM_JS.getEngineName(),
-								script,
-								javaScriptFunctions,
-								clientMongoOperator,
-								scriptCacheService,
-								obsScriptLogger,
-								this.standard)
-						: ScriptUtil.getScriptEngine(
-						JSEngineEnum.GRAALVM_JS.getEngineName(),
-						script,
-						javaScriptFunctions,
-						clientMongoOperator,
-						null,
-						null,
-						scriptCacheService,
-						obsScriptLogger,
-						this.standard);
-			} catch (ScriptException e) {
-				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e)
-						.dynamicDescriptionParameters(e.getMessage());
-			}
-			if (!this.standard) {
-				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
-						node.getTaskId(), node.getId(),
-						!processorBaseContext.getTaskDto().isNormalTask()
-				);
-				((ScriptEngine) engine).put("ScriptExecutorsManager", scriptExecutorsManager);
-				List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
-				List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
+		this.sharedInitDone = true;
+	}
 
-				ScriptExecutorsManager.ScriptExecutor source = sourceMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(predecessors, SOURCE_TAG));
-				ScriptExecutorsManager.ScriptExecutor target = targetMap.computeIfAbsent(nodeId, k -> getDefaultScriptExecutor(successors, TARGET_TAG));
-				((ScriptEngine) engine).put(SOURCE_TAG, source);
-				((ScriptEngine) engine).put(TARGET_TAG, target);
-			}
-			((ScriptEngine) engine).put("env", getTaskEnvReadMap());
-			return engine;
-		});
+	Invocable buildEngine() {
+		Node<?> node = getNode();
+		ObsScriptLogger obsScriptLogger;
+		if (getProcessorBaseContext().getTaskDto().isNormalTask()) {
+			obsScriptLogger = new ObsScriptLogger(getScriptObsLogger(), logger);
+		} else {
+			obsScriptLogger = new ObsScriptLogger(obsLogger, logger);
+		}
+		Invocable engine;
+		try {
+			engine = finalJs ?
+					ScriptStandardizationUtil.getScriptStandardizationEngine(
+							JSEngineEnum.GRAALVM_JS.getEngineName(),
+							script,
+							javaScriptFunctions,
+							clientMongoOperator,
+							scriptCacheService,
+							obsScriptLogger,
+							this.standard)
+					: ScriptUtil.getScriptEngine(
+					JSEngineEnum.GRAALVM_JS.getEngineName(),
+					script,
+					javaScriptFunctions,
+					clientMongoOperator,
+					null,
+					null,
+					scriptCacheService,
+					obsScriptLogger,
+					this.standard);
+		} catch (ScriptException e) {
+			throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e)
+					.dynamicDescriptionParameters(e.getMessage());
+		}
+		if (!this.standard) {
+			((ScriptEngine) engine).put("ScriptExecutorsManager", scriptExecutorsManager);
+			((ScriptEngine) engine).put(SOURCE_TAG, sourceMap.get(node.getId()));
+			((ScriptEngine) engine).put(TARGET_TAG, targetMap.get(node.getId()));
+		}
+		((ScriptEngine) engine).put("env", getTaskEnvReadMap());
+		return engine;
 	}
 
 	private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
@@ -231,10 +273,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		String op = TapEventUtil.getOp(tapEvent);
 		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
 		Map<String, Object> context = buildContextMap(tapdataEvent, tapEvent, before, this.globalTaskContent, this.processContextThreadLocal);
-
-		Invocable engine = getOrInitEngine();
-
-		((ScriptEngine) engine).put("context", context);
+		ensureSharedInit();
 
 		AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
 		AtomicReference<Object> scriptInvokeBeforeResult = new AtomicReference<>();
@@ -244,11 +283,17 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			AtomicReference<Throwable> errorAtomicRef = new AtomicReference<>();
 			Thread thread = new Thread(() -> {
 				Thread.currentThread().setName("Javascript-Test-Runner");
+				Invocable runnerEngine = null;
 				try {
-					scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
+					// A GraalJS Context is single-threaded. Create, bind, invoke, and close
+					// the runner engine on this thread instead of sharing a worker-owned Context.
+					runnerEngine = buildEngine();
+					((ScriptEngine) runnerEngine).put("context", context);
+					scriptInvokeResult.set(runnerEngine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
 				} catch (Throwable throwable) {
 					errorAtomicRef.set(throwable);
 				} finally {
+					closeEngine(runnerEngine);
 					countDownLatch.countDown();
 				}
 			});
@@ -256,12 +301,18 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			boolean threadFinished = countDownLatch.await(10L, TimeUnit.SECONDS);
 			if (!threadFinished) {
 				thread.interrupt();
+				throw new TapCodeException(
+						ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,
+						"JavaScript execution timed out after 10 seconds"
+				);
 			}
 			if (errorAtomicRef.get() != null) {
-				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
+				throw wrapScriptProcessException(errorAtomicRef.get());
 			}
 
 		} else {
+			Invocable engine = getOrInitEngine();
+			((ScriptEngine) engine).put("context", context);
 			try {
 				scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
 				// handle before
@@ -269,7 +320,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 					scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
 				}
 			} catch (Exception e) {
-				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, e.getCause()).dynamicDescriptionParameters(e.getMessage());
+				throw wrapScriptProcessException(e);
 			}
 		}
 
@@ -407,18 +458,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				}
 			}, TAG);
 
-			// Close and clear script engines
+			// Close and clear script engines (per-thread engines: GraalJSScriptEngine or Closeable TapJavaScriptEngine)
 			CommonUtils.ignoreAnyError(() -> {
 				if (this.engineMap != null) {
-					this.engineMap.values().forEach(engine -> {
-						if (engine instanceof GraalJSScriptEngine) {
-							try {
-								((GraalJSScriptEngine) engine).close();
-							} catch (Exception e) {
-								logger.warn("Error closing GraalJS engine: {}", e.getMessage());
-							}
-						}
-					});
+					this.engineMap.values().forEach(this::closeEngine);
 					this.engineMap.clear();
 				}
 			}, TAG);

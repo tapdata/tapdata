@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
@@ -37,8 +38,10 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 
@@ -196,14 +199,14 @@ public class TaskResourceHandlerTest {
         @Test
         @DisplayName("Should return empty list when resources is null")
         void testBuildExportPayloadNullResources() {
-            List<TaskUpAndLoadDto> result = taskResourceHandler.buildExportPayload(null, user);
+            List<TaskUpAndLoadDto> result = taskResourceHandler.buildExportPayload(null, user, false);
             assertTrue(result.isEmpty());
         }
 
         @Test
         @DisplayName("Should return empty list when resources is empty")
         void testBuildExportPayloadEmptyResources() {
-            List<TaskUpAndLoadDto> result = taskResourceHandler.buildExportPayload(new ArrayList<>(), user);
+            List<TaskUpAndLoadDto> result = taskResourceHandler.buildExportPayload(new ArrayList<>(), user, false);
             assertTrue(result.isEmpty());
         }
 
@@ -219,7 +222,7 @@ public class TaskResourceHandlerTest {
             task.setUserId("userId");
             task.setAgentId("agentId");
 
-            List<TaskUpAndLoadDto> result = taskResourceHandler.buildExportPayload(Arrays.asList(task), user);
+            List<TaskUpAndLoadDto> result = taskResourceHandler.buildExportPayload(Arrays.asList(task), user, false);
 
             assertEquals(0, result.size());
 //            assertEquals(GroupConstants.COLLECTION_TASK, result.get(0).getCollectionName());
@@ -239,7 +242,7 @@ public class TaskResourceHandlerTest {
             task.setName("Test Task");
             task.setStatus(TaskDto.STATUS_RUNNING);
 
-            taskResourceHandler.buildExportPayload(Arrays.asList(task), user);
+            taskResourceHandler.buildExportPayload(Arrays.asList(task), user, false);
 
             assertEquals(TaskDto.STATUS_EDIT, task.getStatus());
         }
@@ -252,9 +255,62 @@ public class TaskResourceHandlerTest {
             task.setName("Test Task");
             task.setDag(null);
 
-            List<TaskUpAndLoadDto> result = taskResourceHandler.buildExportPayload(Arrays.asList(task), user);
+            List<TaskUpAndLoadDto> result = taskResourceHandler.buildExportPayload(Arrays.asList(task), user, false);
 
             assertEquals(0, result.size());
+        }
+
+        /**
+         * 任务导出会把 DAG 每个节点的 MetadataInstances 一并塞进包，而它的 source 是连接的整份
+         * 拷贝、带顶层凭据镜像 —— 这是继连接文档、database 级与 table 级 metadata 之后的**第四处
+         * 载体**。2026-08-06 实机在真实导出包里抓到（`Task/*.json` 的 `[].json.source.database_uri`），
+         * 老包同样在漏，故非回归。ES-2b 的整包红线测试之所以没抓到，正是因为它的 fixture 里
+         * 只有 Module 一条腿、压根没有任务自带的 metadata。
+         */
+        private String exportedPackageText(String secretUri, boolean maskSecrets) {
+            TaskDto task = new TaskDto();
+            task.setId(new ObjectId());
+            task.setName("Task Carrying Metadata");
+
+            DAG dag = mock(DAG.class);
+            task.setDag(dag);
+            DatabaseNode node = mock(DatabaseNode.class);
+            lenient().when(node.getId()).thenReturn("node-1");
+            when(dag.getNodes()).thenReturn(Arrays.asList(node));
+
+            MetadataInstancesDto metadata = new MetadataInstancesDto();
+            SourceDto source = new SourceDto();
+            source.setDatabase_uri(secretUri);
+            metadata.setSource(source);
+            when(metadataInstancesService.findByNodeId(eq("node-1"), isNull(), eq(user), eq(task)))
+                    .thenReturn(new ArrayList<>(Arrays.asList(metadata)));
+
+            List<TaskUpAndLoadDto> payload =
+                    taskResourceHandler.buildExportPayload(Arrays.asList(task), user, maskSecrets);
+            StringBuilder sb = new StringBuilder();
+            payload.forEach(p -> sb.append(p.getJson()));
+            return sb.toString();
+        }
+
+        @Test
+        @DisplayName("红线：脱敏导出时，任务自带 metadata 里那份连接拷贝的顶层凭据也必须抹掉")
+        void taskBorneMetadataSecretIsMasked() {
+            String secretUri = "mongodb://real-host:27017/from-task-metadata";
+
+            assertFalse(exportedPackageText(secretUri, true).contains(secretUri),
+                    "任务自带的 MetadataInstances.source 是凭据的第四处载体；漏了它，"
+                            + "「GIT 包里永远没有明文凭据」（ADR-0034）就仍是假的 —— "
+                            + "而 git 历史永久留存、可被 fork/缓存");
+        }
+
+        @Test
+        @DisplayName("对照：保真导出时这份凭据必须还在（否则上一条测的是「压根没导出」）")
+        void taskBorneMetadataSecretSurvivesFaithfulExport() {
+            String secretUri = "mongodb://real-host:27017/from-task-metadata";
+
+            assertTrue(exportedPackageText(secretUri, false).contains(secretUri),
+                    "没有这条对照，上一条断言可以靠「metadata 根本没进包」而假绿 —— "
+                            + "ES-2b 那次就是这么被骗过一次的");
         }
     }
 
@@ -552,7 +608,7 @@ public class TaskResourceHandlerTest {
             when(taskService.findAllDto(any(Query.class), eq(user))).thenReturn(new ArrayList<>());
             when(inspectService.findByTaskIdList(anyList())).thenReturn(new ArrayList<>());
 
-            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user,new HashSet<>());
+            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user,new HashSet<>(), true);
 
             verify(taskService).findAllDto(any(Query.class), eq(user));
         }
@@ -575,9 +631,9 @@ public class TaskResourceHandlerTest {
             TaskUpAndLoadDto inspectPayload = new TaskUpAndLoadDto();
             inspectPayload.setCollectionName(GroupConstants.COLLECTION_INSPECT);
             inspectPayload.setJson(JsonUtil.toJsonUseJackson(inspect));
-            when(inspectResourceHandler.buildExportPayload(anyList(), eq(user))).thenReturn(Arrays.asList(inspectPayload));
+            when(inspectResourceHandler.buildExportPayload(anyList(), eq(user), anyBoolean())).thenReturn(Arrays.asList(inspectPayload));
 
-            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user, new HashSet<>());
+            taskResourceHandler.handleRelatedResources(payloadsByType, Arrays.asList(task), user, new HashSet<>(), true);
 
             assertTrue(payloadsByType.containsKey(ResourceType.INSPECT_TASK.name()));
         }

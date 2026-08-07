@@ -54,6 +54,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.utils.TaskConfigCompareUtil;
+import com.tapdata.tm.task.utils.TaskDeletionState;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
@@ -86,6 +87,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.data.mongodb.core.query.Update;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.user.dto.UserDto;
@@ -405,6 +407,38 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
+    /** 导出记录里那句「已强制脱敏」——用户明确要保真却被覆盖时写上，绝不静默（[ADR-0034] D2）。 */
+    static final String MASK_FORCED_MESSAGE =
+            "Secrets were removed from the package: this transfer type always masks them and cannot be overridden.";
+
+    /**
+     * 本次导出是否脱敏（[ADR-0034] D1/D2）——**导出脱敏与否的唯一判据**，别处不许再算一遍。
+     *
+     * FILE 默认保真（本地包要能直接搬到另一个环境用），可显式要求移除敏感信息；
+     * GIT 一律脱敏，入参说什么都没用 —— 这是红线不是默认值：能被一个入参绕过，
+     * 就等于明文凭据可以被推上 GitHub，而 git 历史永久留存、可被 fork/缓存。
+     *
+     * 意图取不到时（请求或传输类型为 null）按最保守的来：脱敏。
+     */
+    static boolean resolveMaskSecrets(ExportGroupRequest request) {
+        if (request == null || request.getGroupTransferType() == null) {
+            return true;
+        }
+        return request.getGroupTransferType().isForceMaskSecrets()
+                || Boolean.TRUE.equals(request.getRemoveSensitiveData());
+    }
+
+    /**
+     * 用户**明确要求保真**、却被通路的强制脱敏覆盖了吗？只有这种情况才有「被吞掉的请求」需要回告；
+     * 压根没提要求的（{@code removeSensitiveData == null}）不算。
+     */
+    static boolean isMaskForciblyOverridden(ExportGroupRequest request) {
+        return request != null
+                && request.getGroupTransferType() != null
+                && request.getGroupTransferType().isForceMaskSecrets()
+                && Boolean.FALSE.equals(request.getRemoveSensitiveData());
+    }
+
     public void exportGroupInfos(HttpServletResponse response, ExportGroupRequest exportGroupRequest, UserDetail user) {
 		List<String> groupIds = exportGroupRequest.getGroupIds();
 		Map<String, List<String>> groupResetTask = exportGroupRequest.getGroupResetTask();
@@ -420,6 +454,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
 		if (groupTransferType == GroupTransferType.GIT) {
 			checkExportingGroups(groupIds, user);
 		}
+
+        // 脱敏与否在这里一次定死，往下只传结果（[ADR-0034] D1/D2）
+        boolean maskSecrets = resolveMaskSecrets(exportGroupRequest);
+        if (isMaskForciblyOverridden(exportGroupRequest)) {
+            log.warn("Export via {} always masks secrets; the request asked to keep them and was overridden",
+                    groupTransferType);
+        }
 
         applyResetTaskList(groupInfos, groupResetTask);
 
@@ -441,13 +482,13 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
             ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
             if (handler != null) {
-                handler.handleRelatedResources(payloadsByType, entry.getValue(), user,new HashSet<>());
+                handler.handleRelatedResources(payloadsByType, entry.getValue(), user,new HashSet<>(), maskSecrets);
             }
         }
         for (Map.Entry<ResourceType, List<?>> entry : resourcesByType.entrySet()) {
             ResourceHandler handler = resourceHandlerRegistry.getHandler(entry.getKey());
             if (handler != null) {
-                List<TaskUpAndLoadDto> payload = handler.buildExportPayload(entry.getValue(), user);
+                List<TaskUpAndLoadDto> payload = handler.buildExportPayload(entry.getValue(), user, maskSecrets);
                 payloadsByType.put(entry.getKey().name(), payload);
             }
         }
@@ -462,7 +503,7 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
         }
         if (!exportConnectionIds.isEmpty()) {
-            List<TaskUpAndLoadDto> connMetadataPayload = buildConnectionMetadataPayload(exportConnectionIds, user);
+            List<TaskUpAndLoadDto> connMetadataPayload = buildConnectionMetadataPayload(exportConnectionIds, user, maskSecrets);
             if (!connMetadataPayload.isEmpty()) {
                 payloadsByType.computeIfAbsent(ResourceType.CONNECTION.name(), k -> new ArrayList<>())
                         .addAll(connMetadataPayload);
@@ -483,10 +524,16 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         String name = buildGroupExportFileName(groupInfos, yyyymmdd);
         GroupInfoRecordDto recordDto = buildExportRecord(GroupInfoRecordDto.TYPE_EXPORT, user,
                 buildExportRecordDetails(groupInfos, resourcesByType), name, exportGroupRequest, groupInfos.get(0));
+        if (isMaskForciblyOverridden(exportGroupRequest)) {
+            // 用户明确要保真却被强制脱敏 —— 不能静默吞掉这个请求（[ADR-0034] D2）。
+            // 成功路径的 updateRecordStatus 传 message=null，不会覆盖这里写的内容。
+            recordDto.setMessage(MASK_FORCED_MESSAGE);
+        }
         recordDto = groupInfoRecordService.save(recordDto, user);
 
         // 构建导出文件内容
-        Map<String, byte[]> contents = buildExportContents(groupInfoPayload, payloadsByType, userExportContents);
+        Map<String, byte[]> contents = buildExportContents(groupInfoPayload, payloadsByType, userExportContents,
+                maskSecrets);
 
         log.info("Start exporting groups, groupCount={}, user={}", groupInfos.size(), user.getUsername());
 
@@ -841,12 +888,17 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 log.info("Vault secrets found, injecting into {} connections", connections.size());
                 injectVaultSecrets(connections, vaultSecrets, user);
             }
+            // 在 vault 注入之后、落库之前：包里仍缺的敏感字段改用目标既有值，绝不写空
+            // （[ADR-0034] D5）。刻意放在 vaultSecrets 判空之外——最危险的正是「没带 vault」。
+            // 这条路的 details 本来是空的，保留清单就是它唯一的内容（D7 不许只落日志）。
+            List<GroupInfoRecordDetail> details = new ArrayList<>();
+            reportPreservedSecrets(details, preserveExistingSecrets(payloads, connections, user), connections);
             refreshImportLastUpdate(connections.values(), connectionMetadata);
             Map<String, DataSourceConnectionDto> conMap = dataSourceService.batchImport(
                     new ArrayList<>(connections.values()), user, importMode);
             metadataInstancesService.batchImport(connectionMetadata, user, conMap, new HashMap<>(), new HashMap<>());
             log.info("Async import connections completed, recordId={}, count={}", recordId, connections.size());
-            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, new ArrayList<>(), user);
+            updateRecordStatus(recordId, GroupInfoRecordDto.STATUS_COMPLETED, null, details, user);
         } catch (Exception e) {
             log.error("Async import connections failed, recordId={}, error={}",
                     recordId, ThrowableUtils.getStackTraceByPn(e));
@@ -1582,6 +1634,19 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
+    /**
+     * 这批 id 中在目标环境已处于删除态（is_deleted 已置位，或仍停在 deleting / delete_failed）的任务 id。
+     * 这类记录不参与配置比对：删除时任务被改过名，比对只会产出一条无意义的 name 变更，而不会触发恢复。
+     */
+    private Set<String> findDeletedTaskIds(Collection<ObjectId> taskIds, UserDetail user) {
+        if (CollectionUtils.isEmpty(taskIds)) {
+            return Collections.emptySet();
+        }
+        return taskService.findAll(TaskDeletionState.deletedQuery(taskIds), user).stream()
+                .map(task -> task.getId().toHexString())
+                .collect(Collectors.toSet());
+    }
+
     private ResourceDiff buildTaskDiff(Map<String, List<TaskUpAndLoadDto>> payloads, UserDetail user) {
         ResourceDiff diff = new ResourceDiff();
 
@@ -1622,10 +1687,14 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     : taskService
                         .findAllDto(new Query(Criteria.where("_id").in(regularTaskIds).and("is_deleted").ne(true)), user)
                         .stream().collect(Collectors.toMap(t -> t.getId().toHexString(), t -> t, (a, b) -> a));
+            // 已删除的任务必须算作变更（恢复），否则误删的任务再导入也找不回来。
+            // 只有删除是特例，其余运行状态差异仍按无变化处理。
+            Set<String> deletedTaskIds = findDeletedTaskIds(regularTaskIds, user);
             for (Map.Entry<TaskDto, String> entry : fileTaskEntries) {
                 TaskDto fileTask = entry.getKey();
                 String type = entry.getValue();
-                TaskDto existingTask = existingByKey.get(fileTask.getId().toHexString());
+                String fileTaskId = fileTask.getId().toHexString();
+                TaskDto existingTask = deletedTaskIds.contains(fileTaskId) ? null : existingByKey.get(fileTaskId);
                 if (existingTask == null) {
                     ResourceDiffItem item = new ResourceDiffItem(fileTask.getName(), type);
                     item.setSyncType(fileTask.getType());
@@ -2425,6 +2494,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 log.info("Vault secrets found, injecting into {} connections", connections.size());
                 injectVaultSecrets(connections, vaultSecrets, user);
             }
+            // 同上：无条件保护，缺 vault 时才是真正会把目标凭据抹空的那条路（[ADR-0034] D5）；
+            // 保留清单挂到 details 里已有的连接行上，随下一次 updateImportProgress 落库（D7）
+            reportPreservedSecrets(details, preserveExistingSecrets(payloads, connections, user), connections);
             List<MetadataInstancesDto> connectionMetadata = metadataByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyList());
             refreshImportLastUpdate(connections.values(), connectionMetadata);
@@ -2619,6 +2691,158 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
     }
 
     /**
+     * 本次导入的包是否已脱敏（[ADR-0034] D3/D4）——**导入侧是否信任包里空值的唯一判据**，别处不许再算一遍。
+     *
+     * 脱敏包里的空值是抹出来的洞，保真包里的空值是用户真实配置；两者在包里长得一模一样，
+     * 不可由内容推断（"真的没配 uri" 与 "uri 被抹空" 的连接文档完全相同），只能靠包自带的标记。
+     *
+     * 缺文件 / 空内容 / 读不懂 / 没有这一位，一律按**脱敏包**处理：历史包事实上都是脱敏的，
+     * 这个默认与真相一致，老包因此自动获得 D5 的保护；反过来把老包当保真包，就会信任包里的
+     * 空值——正好复现 ADR-0034 要修的那个 bug（实撞：uri is blank）。
+     */
+    boolean packageSecretsMasked(Map<String, List<TaskUpAndLoadDto>> payloads) {
+        if (payloads == null) {
+            return true;
+        }
+        List<TaskUpAndLoadDto> manifest = payloads.getOrDefault(
+                GroupConstants.PACKAGE_MANIFEST_FILE, Collections.emptyList());
+        if (CollectionUtils.isEmpty(manifest) || StringUtils.isBlank(manifest.get(0).getJson())) {
+            return true;
+        }
+        try {
+            Map<String, Object> parsed = JsonUtil.parseJsonUseJackson(
+                    manifest.get(0).getJson(), new TypeReference<Map<String, Object>>() {});
+            // 只有**显式** false 才算保真包：读到别的（缺这一位、类型不对）都退回保守的一侧
+            return parsed == null
+                    || !Boolean.FALSE.equals(parsed.get(GroupConstants.MANIFEST_KEY_SECRETS_MASKED));
+        } catch (Exception e) {
+            log.warn("Import: unreadable package manifest, treating the package as masked: {}", e.getMessage());
+            return true;
+        }
+    }
+
+    /**
+     * 导入侧保护：包内敏感字段缺值时，改用目标环境已有的值（[ADR-0034] D5/D6）。
+     *
+     * 必须排在 {@link #injectVaultSecrets} **之后**——vault 提供了值就不算缺，那是用户
+     * 明确要写入的新凭据。到这一步仍为空的，只可能是脱敏抹出来的洞：导出会无条件清空
+     * 敏感字段，而 GROUP_IMPORT 落库是整文档覆盖，两者叠加就把目标环境已有的
+     * uri/password 覆盖成空，且导入照常报成功（实撞：uri is blank）。
+     *
+     * 与 importMode 无关：REPLACE 要替换的是用户配置的内容，不是脱敏留下的空洞。
+     *
+     * @return 连接 id → 被保留的 config 路径；交给 {@link #reportPreservedSecrets} 写进导入报告——D7 要求绝不静默
+     */
+    Map<String, List<String>> preserveExistingSecrets(Map<String, List<TaskUpAndLoadDto>> payloads,
+            Map<String, DataSourceConnectionDto> connections, UserDetail user) {
+        Map<String, List<String>> preserved = new LinkedHashMap<>();
+        if (connections == null || connections.isEmpty()) {
+            return preserved;
+        }
+        if (!packageSecretsMasked(payloads)) {
+            // 保真包：包里的空缺就是用户的真实配置，照写。拿目标旧值回填会让用户永远删不掉一个
+            // 配置项，而且同样是「以为更新了其实没有」——D7 要防的正是这个。
+            return preserved;
+        }
+        for (DataSourceConnectionDto conn : connections.values()) {
+            if (conn == null || conn.getId() == null) {
+                continue;   // 新连接，目标环境没有可保留的既有值
+            }
+            // 投影必须同时带上 config 与顶层镜像字段——导出把两处一起抹了，这里就得能看见两处
+            String[] projection = Stream.concat(Stream.of("config"),
+                    ResourceHandler.MIRRORED_SECRET_FIELDS.stream()).toArray(String[]::new);
+            DataSourceConnectionDto existing = dataSourceService.findById(conn.getId(), projection);
+            if (existing == null) {
+                continue;
+            }
+            DataSourceDefinitionDto definition =
+                    dataSourceDefinitionService.findByPdkHash(conn.getPdkHash(), Integer.MAX_VALUE, user);
+            List<String> paths = ResourceHandler.restoreMissingSecretsFromExisting(conn, existing, definition);
+            if (paths.isEmpty()) {
+                continue;
+            }
+            preserved.put(conn.getId().toHexString(), paths);
+            log.warn("Import: package omits secret field(s) for connection '{}', kept the target environment's existing value(s): {}",
+                    conn.getName(), paths);
+        }
+        return preserved;
+    }
+
+    /** 导入报告里那句「这些字段沿用了目标既有值」的正文——单点定义，两条导入路径同一措辞。 */
+    static String preservedSecretsMessage(List<String> paths) {
+        return "Kept the target environment's existing value for secret field(s) missing in the package: "
+                + String.join(", ", paths);
+    }
+
+    /**
+     * 把 {@link #preserveExistingSecrets} 的结果写进导入报告（[ADR-0034] D7「绝不静默」）。
+     *
+     * 只落在 WARN 日志上不算显形——用户翻不到日志，就分不清「凭据已更新」和「沿用了旧的」，
+     * 于是修好了数据破坏、换来一个更隐蔽的「以为更新了其实没有」。
+     *
+     * 报告里已有该连接的行就直接挂消息（整组导入这条路），一行都没有就补一行
+     * （拆分导入 {@code executeImportConnectionsAsync} 整份 details 本来就是空的）。
+     * 不改写 {@code action}：连接确实导入了，只是部分字段沿用旧值，改成 SKIPPED 会是误报。
+     */
+    void reportPreservedSecrets(List<GroupInfoRecordDetail> details,
+            Map<String, List<String>> preservedByConnectionId,
+            Map<String, DataSourceConnectionDto> connections) {
+        if (details == null || MapUtils.isEmpty(preservedByConnectionId)) {
+            return;
+        }
+        Set<String> attached = new HashSet<>();
+        for (GroupInfoRecordDetail detail : details) {
+            if (detail == null || CollectionUtils.isEmpty(detail.getRecordDetails())) {
+                continue;
+            }
+            for (GroupInfoRecordDetail.RecordDetail row : detail.getRecordDetails()) {
+                if (row == null || ResourceType.CONNECTION != row.getResourceType()) {
+                    continue;
+                }
+                List<String> paths = preservedByConnectionId.get(row.getResourceId());
+                if (CollectionUtils.isEmpty(paths)) {
+                    continue;
+                }
+                String message = preservedSecretsMessage(paths);
+                row.setMessage(StringUtils.isBlank(row.getMessage()) ? message : row.getMessage() + " | " + message);
+                attached.add(row.getResourceId());
+            }
+        }
+        List<GroupInfoRecordDetail.RecordDetail> added = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : preservedByConnectionId.entrySet()) {
+            if (attached.contains(entry.getKey())) {
+                continue;
+            }
+            GroupInfoRecordDetail.RecordDetail row = new GroupInfoRecordDetail.RecordDetail();
+            row.setResourceType(ResourceType.CONNECTION);
+            row.setResourceId(entry.getKey());
+            row.setResourceName(resolveConnectionName(connections, entry.getKey()));
+            row.setAction(GroupInfoRecordDetail.RecordAction.IMPORTED);
+            row.setMessage(preservedSecretsMessage(entry.getValue()));
+            added.add(row);
+        }
+        if (!added.isEmpty()) {
+            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
+            detail.setMessage("Some secret fields were kept from the target environment");
+            detail.getRecordDetails().addAll(added);
+            details.add(detail);
+        }
+    }
+
+    /** 按 id 取连接名——报告行给人看的是名字，不是 ObjectId。 */
+    private static String resolveConnectionName(Map<String, DataSourceConnectionDto> connections, String connectionId) {
+        if (connections == null) {
+            return null;
+        }
+        for (DataSourceConnectionDto conn : connections.values()) {
+            if (conn != null && conn.getId() != null && conn.getId().toHexString().equals(connectionId)) {
+                return conn.getName();
+            }
+        }
+        return null;
+    }
+
+    /**
      * 将 vault 敏感信息注入连接 config，替换导出时已脱敏的字段。
      */
     private void injectVaultSecrets(Map<String, DataSourceConnectionDto> connections,
@@ -2710,7 +2934,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      * 查询连接关联的模型元数据（database 级别 + table/collection 等级别），序列化为导出 payload。
      * taskId 为空的条目为连接原始模型，区别于任务节点派生的模型（后者由 TaskResourceHandler 导出）。
      */
-    private List<TaskUpAndLoadDto> buildConnectionMetadataPayload(Collection<String> connectionIds, UserDetail user) {
+    private List<TaskUpAndLoadDto> buildConnectionMetadataPayload(Collection<String> connectionIds, UserDetail user,
+            boolean maskSecrets) {
         List<TaskUpAndLoadDto> payload = new ArrayList<>();
         for (String connectionId : connectionIds) {
             try {
@@ -2727,6 +2952,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     meta.setCustomId(null);
                     meta.setLastUpdBy(null);
                     meta.setUserId(null);
+                    if (maskSecrets) {
+                        // 表级 metadata 的 source 同样是连接的整份拷贝，凭据在这里也有一份
+                        ResourceHandler.maskMirroredSecretFields(meta);
+                    }
                     payload.add(new TaskUpAndLoadDto(GroupConstants.COLLECTION_METADATA_INSTANCES,
                             JsonUtil.toJsonUseJackson(meta)));
                 }
@@ -3211,10 +3440,26 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
+    /**
+     * 包清单（[ADR-0034] D3）：根级 sidecar，只记「本包是否已脱敏」这一位。
+     *
+     * 取值必须是**本次导出实际发生**的脱敏结果（{@link #resolveMaskSecrets} 的返回值），
+     * 不是入参要的那个——GIT 会强制覆盖入参，跟着入参写就等于骗导入侧「包里的空值可信」。
+     */
+    private byte[] buildPackageManifest(boolean maskSecrets) {
+        Map<String, Object> manifest = new LinkedHashMap<>();
+        manifest.put(GroupConstants.MANIFEST_KEY_SECRETS_MASKED, maskSecrets);
+        return JsonUtil.toJsonUseJackson(manifest).getBytes(StandardCharsets.UTF_8);
+    }
+
     private Map<String, byte[]> buildExportContents(List<TaskUpAndLoadDto> groupInfoPayload,
             Map<String, List<TaskUpAndLoadDto>> payloadsByType,
-            Map<String, byte[]> userExportContents) {
+            Map<String, byte[]> userExportContents,
+            boolean maskSecrets) {
         Map<String, byte[]> contents = new LinkedHashMap<>();
+
+        // export-manifest.json — 根级 sidecar，标记本包是否已脱敏（[ADR-0034] D3）
+        contents.put(GroupConstants.PACKAGE_MANIFEST_FILE, buildPackageManifest(maskSecrets));
 
         // GroupInfo.json — 根目录，无子目录
         contents.put("GroupInfo.json", toJsonBytes(groupInfoPayload));

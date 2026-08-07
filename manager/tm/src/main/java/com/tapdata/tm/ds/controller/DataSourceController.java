@@ -25,7 +25,7 @@ import com.tapdata.tm.ds.param.ValidateTableParam;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.ds.vo.AllDataSourceConnectionVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
-import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
+import com.tapdata.tm.task.param.BatchApplyListTagsParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
@@ -565,8 +565,8 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = " 批量修改所属类别")
     @PatchMapping("batchUpdateListtags")
-    public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchUpdateParam batchUpdateParam) {
-        return success(metadataDefinitionService.batchUpdateListTags("Connections", batchUpdateParam, getLoginUser()));
+    public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchApplyListTagsParam batchApplyListTagsParam) {
+        return success(metadataDefinitionService.batchApplyListTags("Connections", batchApplyListTagsParam, getLoginUser()));
     }
 
     /**

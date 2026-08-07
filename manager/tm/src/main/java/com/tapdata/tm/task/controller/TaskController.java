@@ -38,6 +38,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.param.BatchApplyListTagsParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
@@ -1252,6 +1253,12 @@ public class TaskController extends BaseController {
     @PatchMapping("batchUpdateListtags")
     public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchUpdateParam batchUpdateParam) {
         return success(metadataDefinitionService.batchUpdateListTags("Task", batchUpdateParam, getLoginUser()));
+    }
+
+    @Operation(summary = "批量增删任务标签")
+    @PatchMapping("batchApplyListtags")
+    public ResponseMessage<List<String>> batchApplyListTags(@RequestBody BatchApplyListTagsParam batchApplyListTagsParam) {
+        return success(metadataDefinitionService.batchApplyListTags("Task", batchApplyListTagsParam, getLoginUser()));
     }
 
     @Operation(summary = "获取建表语句")

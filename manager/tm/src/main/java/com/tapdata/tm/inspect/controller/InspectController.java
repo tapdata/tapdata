@@ -21,7 +21,7 @@ import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.inspect.service.InspectTaskService;
 import com.tapdata.tm.inspect.vo.InspectRecoveryStartVerifyVo;
 import com.tapdata.tm.inspect.vo.InspectTaskVo;
-import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
+import com.tapdata.tm.task.param.BatchApplyListTagsParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
@@ -434,8 +434,8 @@ public class InspectController extends BaseController {
 
     @Operation(summary = "批量修改标签")
     @PatchMapping("batchUpdateListtags")
-    public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchUpdateParam batchUpdateParam) {
-        return success(metadataDefinitionService.batchUpdateListTags("Inspect", batchUpdateParam, getLoginUser()));
+    public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchApplyListTagsParam batchApplyListTagsParam) {
+        return success(metadataDefinitionService.batchApplyListTags("Inspect", batchApplyListTagsParam, getLoginUser()));
     }
 
     @Operation(summary = "导出修复事件SQL")
