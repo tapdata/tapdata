@@ -1589,7 +1589,11 @@ public class TaskController extends BaseController {
     public ResponseMessage<List<MutiResponseMessage>> batchUpdateTaskAlarm(@RequestBody BatchUpdateAlarmParam alarm){
         UserDetail userDetail = getLoginUser();
         List<String> taskIds = alarm.getTaskIds();
-        List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+        List<ObjectId> taskObjectIds = taskIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .distinct().map(MongoUtils::toObjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
         return success(batchUpdateTaskAlarmWithDataPermission(alarm, taskObjectIds, userDetail));
     }
 
