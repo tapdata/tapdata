@@ -87,6 +87,7 @@ import java.util.stream.Stream;
 @Slf4j
 public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     private static final int TASK_ID_BATCH_SIZE = 100;
+    private static final long LATEST_SAMPLE_LOOKBACK_MILLIS = 5L * 60L * 1000L;
 
     public static final String SAMPLE_TYPE_TABLE = MetricCons.SampleType.TABLE.code();
     public static final String SAMPLE_TYPE_TASK = MetricCons.SampleType.TASK.code();
@@ -1463,16 +1464,20 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             return result;
         }
 
+        Date queryEnd = new Date();
+        Date queryStart = new Date(queryEnd.getTime() - LATEST_SAMPLE_LOOKBACK_MILLIS);
         forEachTaskIdBatch(normalizedTaskIds, taskIdBatch -> {
             Criteria criteria = Criteria.where(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
                     .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK)
-                    .and(PATH_TAGS_TASK_ID).in(taskIdBatch);
+                    .and(PATH_TAGS_TASK_ID).in(taskIdBatch)
+                    .and(MetricCons.F_DATE).gte(queryStart).lte(queryEnd);
             Aggregation aggregation = Aggregation.newAggregation(
                     Aggregation.match(criteria),
                     Aggregation.sort(Sort.by(Sort.Order.asc(PATH_TAGS_TASK_ID), Sort.Order.desc(MetricCons.F_DATE))),
                     Aggregation.group(PATH_TAGS_TASK_ID).first("$$ROOT").as("latestRecord"),
                     Aggregation.replaceRoot().withValueOf("$latestRecord"),
-                    Aggregation.project(MetricCons.F_TAGS, MetricCons.F_SAMPLES));
+                    Aggregation.project(MetricCons.F_TAGS, MetricCons.F_SAMPLES))
+                    .withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
             mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class)
                     .getMappedResults()
                     .forEach(entity -> extractLatestSample(entity)

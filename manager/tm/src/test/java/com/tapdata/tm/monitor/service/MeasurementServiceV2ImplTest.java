@@ -2,6 +2,7 @@ package com.tapdata.tm.monitor.service;
 
 
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.commons.metrics.MetricCons;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
@@ -32,8 +33,10 @@ import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.internal.verification.Times;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -194,6 +197,45 @@ class MeasurementServiceV2ImplTest {
         }
 
         @Test
+        @DisplayName("聚合查询限制最近五分钟并允许磁盘排序")
+        void testAggregationLimitsTimeRangeAndAllowsDiskUse() {
+            mockAggregationResults(List.of());
+            long beforeQuery = System.currentTimeMillis();
+
+            measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1"));
+
+            long afterQuery = System.currentTimeMillis();
+            ArgumentCaptor<Aggregation> aggregationCaptor = ArgumentCaptor.forClass(Aggregation.class);
+            verify(mongoOperations).aggregate(aggregationCaptor.capture(), eq(MeasurementEntity.COLLECTION_NAME),
+                    eq(MeasurementEntity.class));
+            Aggregation aggregation = aggregationCaptor.getValue();
+            Document match = aggregation.toPipeline(Aggregation.DEFAULT_CONTEXT).get(0).get("$match", Document.class);
+            Document dateRange = match.get(MetricCons.F_DATE, Document.class);
+            Date queryStart = dateRange.getDate("$gte");
+            Date queryEnd = dateRange.getDate("$lte");
+
+            assertEquals(5L * 60L * 1000L, queryEnd.getTime() - queryStart.getTime());
+            assertTrue(queryEnd.getTime() >= beforeQuery && queryEnd.getTime() <= afterQuery);
+            assertTrue(aggregation.getOptions().isAllowDiskUse());
+        }
+
+        @Test
+        @DisplayName("聚合查询去重并过滤空白taskId")
+        void testTaskIdsAreNormalizedBeforeAggregation() {
+            mockAggregationResults(List.of());
+
+            measurementServiceV2.findLastMinuteSamplesByTaskIds(List.of("task-1", "task-1", " ", "task-2"));
+
+            ArgumentCaptor<Aggregation> aggregationCaptor = ArgumentCaptor.forClass(Aggregation.class);
+            verify(mongoOperations).aggregate(aggregationCaptor.capture(), eq(MeasurementEntity.COLLECTION_NAME),
+                    eq(MeasurementEntity.class));
+            Document match = aggregationCaptor.getValue().toPipeline(Aggregation.DEFAULT_CONTEXT)
+                    .get(0).get("$match", Document.class);
+            assertEquals(List.of("task-1", "task-2"),
+                    match.get(MeasurementServiceV2Impl.PATH_TAGS_TASK_ID, Document.class).getList("$in", String.class));
+        }
+
+        @Test
         @DisplayName("entity的samples为空时跳过")
         void testEntityEmptySamples() {
             MeasurementEntity entity = new MeasurementEntity();
@@ -270,7 +312,7 @@ class MeasurementServiceV2ImplTest {
         }
 
         @Test
-        @DisplayName("超过单批上限时分批聚合且不回退为单任务查询")
+        @DisplayName("超过单批上限时分批聚合")
         void testTaskIdsAreBatched() {
             AtomicInteger batchCount = new AtomicInteger();
             when(mongoOperations.aggregate(any(Aggregation.class), eq(MeasurementEntity.COLLECTION_NAME), eq(MeasurementEntity.class)))

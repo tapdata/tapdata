@@ -15,10 +15,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -73,6 +76,8 @@ class ObsMongoConfigTest {
                 latestIndex);
         assertEquals(ObsMongoConfig.IDX_GRNTY_TYPE_TASK_ID_DATE, optionsCaptor.getAllValues().get(0).getName());
         assertEquals(ObsMongoConfig.IDX_TASK_ID_GRNTY_TYPE_DATE, optionsCaptor.getAllValues().get(1).getName());
+        assertFalse(optionsCaptor.getAllValues().get(0).isBackground());
+        assertFalse(optionsCaptor.getAllValues().get(1).isBackground());
     }
 
     @Test
@@ -106,6 +111,23 @@ class ObsMongoConfigTest {
     }
 
     @Test
+    void shouldTreatNumericIndexDirectionsAsEquivalent() {
+        mockExistingIndexes(
+                index("legacy-throughput-index", new Document("grnty", 1.0)
+                        .append("tags.type", 1.0)
+                        .append("tags.taskId", 1.0)
+                        .append("date", 1.0)),
+                index("legacy-latest-index", new Document("tags.taskId", 1.0)
+                        .append("grnty", 1.0)
+                        .append("tags.type", 1.0)
+                        .append("date", -1.0)));
+
+        config.initializeDashboardIndexes(collection);
+
+        verify(collection, never()).createIndex(any(Bson.class), any(IndexOptions.class));
+    }
+
+    @Test
     void shouldSkipConflictingIndexAndContinueWithRemainingIndex() {
         when(collection.estimatedDocumentCount()).thenReturn(100L);
         mockExistingIndexes(index(ObsMongoConfig.IDX_GRNTY_TYPE_TASK_ID_DATE,
@@ -126,16 +148,45 @@ class ObsMongoConfigTest {
     }
 
     @Test
-    void shouldPropagateIndexCreationFailure() {
-        when(collection.estimatedDocumentCount()).thenReturn(100L);
+    void shouldIsolateIndexCreationFailure() {
         mockExistingIndexes();
         RuntimeException failure = new RuntimeException("index build failed");
         when(collection.createIndex(any(Bson.class), any(IndexOptions.class))).thenThrow(failure);
 
-        RuntimeException actual = assertThrows(RuntimeException.class,
-                () -> config.initializeAgentMeasurementIndexes(collection));
+        config.initializeDashboardIndexes(collection);
 
-        assertSame(failure, actual);
+        verify(collection, times(2)).createIndex(any(Bson.class), any(IndexOptions.class));
+    }
+
+    @Test
+    void shouldIsolateIndexInspectionFailure() {
+        when(collection.listIndexes()).thenThrow(new RuntimeException("list indexes failed"));
+
+        config.initializeDashboardIndexes(collection);
+
+        verify(collection, never()).createIndex(any(Bson.class), any(IndexOptions.class));
+    }
+
+    @Test
+    void shouldScheduleDashboardIndexesWithoutWaitingForBuild() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ObsMongoConfig configSpy = org.mockito.Mockito.spy(config);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            started.countDown();
+            release.await(5, TimeUnit.SECONDS);
+            return null;
+        }).when(configSpy).initializeDashboardIndexes(collection);
+
+        CompletableFuture<Void> future = configSpy.initializeDashboardIndexesAsync(collection);
+
+        assertTrue(started.await(5, TimeUnit.SECONDS));
+        try {
+            assertFalse(future.isDone());
+        } finally {
+            release.countDown();
+        }
+        future.get(5, TimeUnit.SECONDS);
     }
 
     private void mockExistingIndexes(Document... indexes) {

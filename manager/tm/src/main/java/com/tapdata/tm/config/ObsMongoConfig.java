@@ -25,6 +25,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -66,7 +68,8 @@ public class ObsMongoConfig implements AsyncConfigurer {
                     mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(uri));
                 }
                 MongoCollection<Document> agentMeasurementV2 = mongoTemplate.getCollection(MeasurementEntity.COLLECTION_NAME);
-                initializeAgentMeasurementIndexes(agentMeasurementV2);
+                initializeBootstrapIndexes(agentMeasurementV2);
+                initializeDashboardIndexesAsync(agentMeasurementV2);
 
                 return mongoTemplate;
             } catch (Exception e) {
@@ -76,6 +79,11 @@ public class ObsMongoConfig implements AsyncConfigurer {
     }
 
     void initializeAgentMeasurementIndexes(MongoCollection<Document> agentMeasurementV2) {
+        initializeBootstrapIndexes(agentMeasurementV2);
+        initializeDashboardIndexes(agentMeasurementV2);
+    }
+
+    private void initializeBootstrapIndexes(MongoCollection<Document> agentMeasurementV2) {
         if (agentMeasurementV2.estimatedDocumentCount() == 0) {
             agentMeasurementV2.dropIndexes();
 
@@ -98,18 +106,45 @@ public class ObsMongoConfig implements AsyncConfigurer {
             agentMeasurementV2.createIndex(new BsonDocument("date", new BsonInt32(-1)),
                     new IndexOptions().expireAfter(7L, TimeUnit.DAYS));
         }
+    }
 
-        List<Document> existingIndexes = agentMeasurementV2.listIndexes().into(new ArrayList<>());
-        ensureIndex(agentMeasurementV2, existingIndexes, IDX_GRNTY_TYPE_TASK_ID_DATE,
+    CompletableFuture<Void> initializeDashboardIndexesAsync(MongoCollection<Document> agentMeasurementV2) {
+        try {
+            return CompletableFuture.runAsync(() -> initializeDashboardIndexes(agentMeasurementV2));
+        } catch (RuntimeException e) {
+            logger.error("Unable to schedule AgentMeasurementV2 dashboard index initialization", e);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    void initializeDashboardIndexes(MongoCollection<Document> agentMeasurementV2) {
+        List<Document> existingIndexes;
+        try {
+            existingIndexes = agentMeasurementV2.listIndexes().into(new ArrayList<>());
+        } catch (Exception e) {
+            logger.error("Unable to inspect AgentMeasurementV2 indexes; dashboard index initialization skipped", e);
+            return;
+        }
+
+        ensureIndexSafely(agentMeasurementV2, existingIndexes, IDX_GRNTY_TYPE_TASK_ID_DATE,
                 new Document("grnty", 1)
                         .append("tags.type", 1)
                         .append("tags.taskId", 1)
                         .append("date", 1));
-        ensureIndex(agentMeasurementV2, existingIndexes, IDX_TASK_ID_GRNTY_TYPE_DATE,
+        ensureIndexSafely(agentMeasurementV2, existingIndexes, IDX_TASK_ID_GRNTY_TYPE_DATE,
                 new Document("tags.taskId", 1)
                         .append("grnty", 1)
                         .append("tags.type", 1)
                         .append("date", -1));
+    }
+
+    private void ensureIndexSafely(MongoCollection<Document> collection, List<Document> existingIndexes,
+                                   String indexName, Document indexKeys) {
+        try {
+            ensureIndex(collection, existingIndexes, indexName, indexKeys);
+        } catch (Exception e) {
+            logger.error("Unable to initialize AgentMeasurementV2 index {}", indexName, e);
+        }
     }
 
     private void ensureIndex(MongoCollection<Document> collection, List<Document> existingIndexes,
@@ -128,19 +163,38 @@ public class ObsMongoConfig implements AsyncConfigurer {
                 return;
             }
             if (sameIndexKeys(existingKeys, indexKeys)) {
-                logger.info("Index {} already exists in collection {} as {}, skipping creation",
+                logger.warn("Index {} already exists in collection {} as {}, skipping creation",
                         indexName, MeasurementEntity.COLLECTION_NAME, existingIndex.getString("name"));
                 return;
             }
         }
 
-        collection.createIndex(indexKeys, new IndexOptions().name(indexName).background(true));
+        collection.createIndex(indexKeys, new IndexOptions().name(indexName));
         existingIndexes.add(new Document("name", indexName).append("key", indexKeys));
         logger.info("Created index {} in collection {}", indexName, MeasurementEntity.COLLECTION_NAME);
     }
 
     private boolean sameIndexKeys(Document left, Document right) {
-        return left != null && right != null
-                && new ArrayList<>(left.entrySet()).equals(new ArrayList<>(right.entrySet()));
+        if (left == null || right == null || left.size() != right.size()) {
+            return false;
+        }
+        List<Map.Entry<String, Object>> leftEntries = new ArrayList<>(left.entrySet());
+        List<Map.Entry<String, Object>> rightEntries = new ArrayList<>(right.entrySet());
+        for (int i = 0; i < leftEntries.size(); i++) {
+            Map.Entry<String, Object> leftEntry = leftEntries.get(i);
+            Map.Entry<String, Object> rightEntry = rightEntries.get(i);
+            if (!Objects.equals(leftEntry.getKey(), rightEntry.getKey())
+                    || !sameIndexValue(leftEntry.getValue(), rightEntry.getValue())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean sameIndexValue(Object left, Object right) {
+        if (left instanceof Number && right instanceof Number) {
+            return Double.compare(((Number) left).doubleValue(), ((Number) right).doubleValue()) == 0;
+        }
+        return Objects.equals(left, right);
     }
 }
