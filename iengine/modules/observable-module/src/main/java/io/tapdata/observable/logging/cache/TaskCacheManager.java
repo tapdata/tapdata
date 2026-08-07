@@ -335,7 +335,7 @@ public class TaskCacheManager implements AutoCloseable {
         Semaphore available = sink == CacheLogSink.FILE ? fileAvailable : tmAvailable;
         while (running.get()) {
             if (pollOnce(sink)) {
-                available.tryAcquire();
+                available.drainPermits();
                 continue;
             }
             try {
