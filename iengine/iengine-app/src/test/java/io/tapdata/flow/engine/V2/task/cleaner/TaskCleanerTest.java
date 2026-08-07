@@ -13,7 +13,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -45,7 +44,7 @@ class TaskCleanerTest {
     }
 
     @Test
-    void shouldReportTaskFailedWhenCacheDeletionFails() {
+    void shouldNotFailTaskDeletionWhenCacheDeletionFails() throws TaskCleanerException {
         ClientMongoOperator operator = mock(ClientMongoOperator.class);
         TaskDto task = task();
         when(operator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(task);
@@ -57,14 +56,12 @@ class TaskCleanerTest {
         try (MockedStatic<AppenderFactory> factory = mockStatic(AppenderFactory.class)) {
             factory.when(AppenderFactory::getInstance).thenReturn(appenderFactory);
 
-            assertThrows(
-                    TaskCleanerException.class,
-                    () -> new TaskDeleteCleaner(
-                            new TaskCleanerContext(task.getId().toHexString(), operator)).clean());
+            new TaskDeleteCleaner(
+                    new TaskCleanerContext(task.getId().toHexString(), operator)).clean();
         }
 
         List<TaskResetEventDto> events = events(operator);
-        assertEquals(TaskResetEventDto.ResetStatusEnum.TASK_FAILED,
+        assertEquals(TaskResetEventDto.ResetStatusEnum.TASK_SUCCEED,
                 events.get(events.size() - 1).getStatus());
     }
 

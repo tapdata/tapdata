@@ -24,7 +24,6 @@ class CacheGeneration implements AutoCloseable {
     static final String FILE_TAILER_ID = "FILE_APPENDER_TAILER";
     static final String TM_TAILER_ID = "TM_APPENDER_TAILER";
     static final String PAYLOAD_BYTES_FILE = "payload-bytes";
-    private static final String DISPATCH_FAILED_FILE = "dispatch-failed";
     // Chronicle reserves an additional overlap region, so a 3MB block keeps a new queue file within 4MB.
     private static final long CHRONICLE_BLOCK_SIZE_BYTES = 3L * 1024L * 1024L;
     private static final Logger LOGGER = LoggerFactory.getLogger(CacheGeneration.class);
@@ -90,15 +89,6 @@ class CacheGeneration implements AutoCloseable {
         inFlightDispatches--;
         if (!succeeded) {
             dispatchFailed = true;
-            try {
-                Files.write(
-                        path.resolve(DISPATCH_FAILED_FILE),
-                        new byte[0],
-                        StandardOpenOption.CREATE,
-                        StandardOpenOption.WRITE);
-            } catch (IOException e) {
-                LOGGER.warn("Persist CacheObserveLogs dispatch failure failed, path={}", path, e);
-            }
         }
     }
 
@@ -107,8 +97,7 @@ class CacheGeneration implements AutoCloseable {
             return false;
         }
         long lastIndex = queue.lastIndex();
-        return !dispatchFailed
-                && inFlightDispatches == 0
+        return inFlightDispatches == 0
                 && (lastIndex == Long.MIN_VALUE
                 || (hasConsumedThrough(fileTailer, lastIndex)
                 && hasConsumedThrough(tmTailer, lastIndex)));
@@ -116,6 +105,10 @@ class CacheGeneration implements AutoCloseable {
 
     long sizeBytes() {
         return sizeBytes;
+    }
+
+    boolean hadDispatchFailure() {
+        return dispatchFailed;
     }
 
     void initializePayloadBytes() throws IOException {
@@ -197,7 +190,6 @@ class CacheGeneration implements AutoCloseable {
             sizeBytes = persistedPayloadBytes.getAsLong();
             payloadBytesInitialized = true;
         }
-        dispatchFailed = Files.isRegularFile(path.resolve(DISPATCH_FAILED_FILE));
         open = true;
     }
 

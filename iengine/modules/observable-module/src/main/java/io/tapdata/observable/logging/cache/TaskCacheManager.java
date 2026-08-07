@@ -8,13 +8,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,6 +31,8 @@ public class TaskCacheManager implements AutoCloseable {
     private static final String CACHE_DIRECTORY = "CacheObserveLogs";
     private static final int DEFAULT_INGRESS_CAPACITY = 10000;
     private static final int WRITE_DRAIN_BATCH_SIZE = 256;
+    // Covers the one-hour delayed TaskLogger cleanup without retaining deleted task IDs forever.
+    private static final long DELETED_TASK_RETENTION_MILLIS = TimeUnit.HOURS.toMillis(2L);
 
     private final Path rootPath;
     private final Supplier<CacheObserveLogConfig> configSupplier;
@@ -40,8 +40,10 @@ public class TaskCacheManager implements AutoCloseable {
     private final CacheObserveLogAudit audit;
     private final MonitoringLogCodec codec = new MonitoringLogCodec();
     private final Map<String, TaskCacheContext> contexts = new ConcurrentHashMap<>();
-    private final Set<String> deletedTasks = ConcurrentHashMap.newKeySet();
-    private final Semaphore available = new Semaphore(0);
+    private final Map<String, Long> deletedTasks = new ConcurrentHashMap<>();
+    private final Semaphore fileAvailable = new Semaphore(0);
+    private final Semaphore tmAvailable = new Semaphore(0);
+    private final Object availableSignalLock = new Object();
     private final AtomicBoolean running = new AtomicBoolean();
     private final AtomicInteger filePollCursor = new AtomicInteger();
     private final AtomicInteger tmPollCursor = new AtomicInteger();
@@ -124,26 +126,41 @@ public class TaskCacheManager implements AutoCloseable {
 
     public boolean activateTask(String taskId, String taskName) {
         Path taskPath = resolveTaskPath(taskId);
-        if (taskPath == null || deletedTasks.contains(taskId)) {
+        if (taskPath == null || isDeletedTask(taskId)) {
             return false;
         }
         CacheObserveLogConfig config = configSupplier.get();
-        TaskCacheContext context = contexts.computeIfAbsent(taskId, id -> new TaskCacheContext(
-                id,
-                taskPath,
-                codec,
-                audit,
-                this::totalCacheBytes,
-                dispatcher,
-                ingressCapacity));
-        return context.activate(taskName, config);
+        AtomicBoolean activated = new AtomicBoolean();
+        contexts.compute(taskId, (id, current) -> {
+            boolean created = current == null;
+            TaskCacheContext context = created
+                    ? new TaskCacheContext(
+                            id,
+                            taskPath,
+                            codec,
+                            audit,
+                            this::totalCacheBytes,
+                            dispatcher,
+                            ingressCapacity)
+                    : current;
+            try {
+                activated.set(context.activate(taskName, config));
+            } catch (RuntimeException e) {
+                if (created) {
+                    context.closeRetainingCache();
+                }
+                throw e;
+            }
+            return context;
+        });
+        return activated.get();
     }
 
     public boolean append(MonitoringLogsDto log) {
         if (closed.get()
                 || log == null
                 || StringUtils.isBlank(log.getTaskId())
-                || deletedTasks.contains(log.getTaskId())) {
+                || isDeletedTask(log.getTaskId())) {
             return false;
         }
         TaskCacheContext context = contexts.get(log.getTaskId());
@@ -154,7 +171,7 @@ public class TaskCacheManager implements AutoCloseable {
             if (cacheWriters == null) {
                 boolean appended = context.append(log);
                 if (appended) {
-                    available.release();
+                    signalAvailable();
                 }
                 return appended;
             }
@@ -183,6 +200,7 @@ public class TaskCacheManager implements AutoCloseable {
                 dispatcher,
                 ingressCapacity));
         context.stop();
+        removeStoppedContext(context);
     }
 
     public void deleteTaskCache(String taskId) {
@@ -190,7 +208,8 @@ public class TaskCacheManager implements AutoCloseable {
         if (taskPath == null) {
             throw new IllegalArgumentException("Invalid task id: " + taskId);
         }
-        deletedTasks.add(taskId);
+        purgeExpiredDeletedTasks();
+        deletedTasks.put(taskId, System.currentTimeMillis());
         TaskCacheContext context = contexts.computeIfAbsent(taskId, id -> new TaskCacheContext(
                 id,
                 taskPath,
@@ -199,8 +218,11 @@ public class TaskCacheManager implements AutoCloseable {
                 this::totalCacheBytes,
                 dispatcher,
                 ingressCapacity));
-        context.delete();
-        contexts.remove(taskId, context);
+        try {
+            context.delete();
+        } finally {
+            contexts.remove(taskId, context);
+        }
     }
 
     boolean pollOnce(CacheLogSink sink) {
@@ -213,14 +235,25 @@ public class TaskCacheManager implements AutoCloseable {
         for (int offset = 0; offset < snapshot.size(); offset++) {
             TaskCacheContext context = snapshot.get((start + offset) % snapshot.size());
             try {
-                if (context.poll(sink)) {
+                boolean dispatched = context.poll(sink);
+                removeStoppedContext(context);
+                if (dispatched) {
                     return true;
                 }
             } catch (RuntimeException e) {
                 LOGGER.warn("Dispatch cached task log failed, sink={}", sink, e);
+                removeStoppedContext(context);
             }
         }
         return false;
+    }
+
+    int contextCount() {
+        return contexts.size();
+    }
+
+    int availablePermits(CacheLogSink sink) {
+        return (sink == CacheLogSink.FILE ? fileAvailable : tmAvailable).availablePermits();
     }
 
     @Override
@@ -229,7 +262,8 @@ public class TaskCacheManager implements AutoCloseable {
             return;
         }
         if (pollers != null && running.compareAndSet(true, false)) {
-            available.release(2);
+            fileAvailable.release();
+            tmAvailable.release();
             pollers.shutdownNow();
             try {
                 if (!pollers.awaitTermination(5, TimeUnit.SECONDS)) {
@@ -276,7 +310,7 @@ public class TaskCacheManager implements AutoCloseable {
                     && (pendingWrite = context.pollPendingWrite()) != null) {
                 try {
                     if (context.append(pendingWrite)) {
-                        available.release();
+                        signalAvailable();
                     }
                 } catch (RuntimeException e) {
                     LOGGER.warn(
@@ -290,13 +324,18 @@ public class TaskCacheManager implements AutoCloseable {
             context.clearWriteScheduled();
             if (!closed.get() && context.hasPendingWrites()) {
                 scheduleWrite(context);
+            } else {
+                context.completeWriteDrain();
+                removeStoppedContext(context);
             }
         }
     }
 
     private void poll(CacheLogSink sink) {
+        Semaphore available = sink == CacheLogSink.FILE ? fileAvailable : tmAvailable;
         while (running.get()) {
             if (pollOnce(sink)) {
+                available.tryAcquire();
                 continue;
             }
             try {
@@ -324,12 +363,42 @@ public class TaskCacheManager implements AutoCloseable {
     }
 
     private long totalCacheBytes() {
-        try {
-            return CacheGeneration.directorySize(rootPath);
-        } catch (IOException e) {
-            LOGGER.warn("Read CacheObserveLogs total size failed, root={}", rootPath, e);
-            return -1L;
+        return contexts.values().stream()
+                .mapToLong(TaskCacheContext::sizeBytes)
+                .sum();
+    }
+
+    private void signalAvailable() {
+        synchronized (availableSignalLock) {
+            if (fileAvailable.availablePermits() == 0) {
+                fileAvailable.release();
+            }
+            if (tmAvailable.availablePermits() == 0) {
+                tmAvailable.release();
+            }
         }
+    }
+
+    private void removeStoppedContext(TaskCacheContext context) {
+        contexts.computeIfPresent(context.getTaskId(), (taskId, current) ->
+                current == context && current.isStopped() ? null : current);
+    }
+
+    private boolean isDeletedTask(String taskId) {
+        Long deletedAt = deletedTasks.get(taskId);
+        if (deletedAt == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() - deletedAt < DELETED_TASK_RETENTION_MILLIS) {
+            return true;
+        }
+        deletedTasks.remove(taskId, deletedAt);
+        return false;
+    }
+
+    private void purgeExpiredDeletedTasks() {
+        long oldestRetained = System.currentTimeMillis() - DELETED_TASK_RETENTION_MILLIS;
+        deletedTasks.entrySet().removeIf(entry -> entry.getValue() < oldestRetained);
     }
 
     private static Path defaultRootPath() {

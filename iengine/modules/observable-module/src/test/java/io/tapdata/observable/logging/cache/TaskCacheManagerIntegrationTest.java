@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -85,6 +86,25 @@ class TaskCacheManagerIntegrationTest {
         }
 
         assertTrue(dispatched.stream().anyMatch(log -> "quiet-task".equals(log.getTaskId())));
+    }
+
+    @Test
+    void shouldCoalesceBurstWakeSignalsPerSink() {
+        try (TaskCacheManager manager = new TaskCacheManager(
+                tempDir,
+                new CacheObserveLogConfig(1024L * 1024L, 2),
+                (log, sink) -> {
+                },
+                mock(CacheObserveLogAudit.class),
+                false)) {
+            assertTrue(manager.activateTask("task-a", "Task A"));
+            for (int index = 0; index < 100; index++) {
+                assertTrue(manager.append(log("task-a", "Task A", "message-" + index)));
+            }
+
+            assertEquals(1, manager.availablePermits(CacheLogSink.FILE));
+            assertEquals(1, manager.availablePermits(CacheLogSink.TM));
+        }
     }
 
     @Test
@@ -267,7 +287,7 @@ class TaskCacheManagerIntegrationTest {
     }
 
     @Test
-    void shouldKeepFailedDispatchGenerationUntilForcedEviction() throws IOException {
+    void shouldReclaimFailedDispatchGenerationAfterBothSinksAdvance() throws IOException {
         Path segments = tempDir.resolve("task-a").resolve("segments");
         CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
         try (TaskCacheManager manager = new TaskCacheManager(
@@ -285,27 +305,7 @@ class TaskCacheManagerIntegrationTest {
 
             assertFalse(manager.pollOnce(CacheLogSink.FILE));
             assertTrue(manager.pollOnce(CacheLogSink.TM));
-            assertEquals(2L, generationCount(segments));
-            verify(audit, never()).evict(
-                    anyString(),
-                    anyString(),
-                    anyLong(),
-                    eq(false),
-                    anyString(),
-                    anyLong(),
-                    anyLong());
-        }
-
-        try (TaskCacheManager manager = new TaskCacheManager(
-                tempDir,
-                new CacheObserveLogConfig(1L, 1),
-                (log, sink) -> {
-                },
-                audit,
-                false)) {
-            assertTrue(manager.activateTask("task-a", "Task A"));
-            assertEquals(2L, generationCount(segments));
-            assertTrue(manager.append(log("task-a", "Task A", "two")));
+            assertEquals(1L, generationCount(segments));
         }
 
         verify(audit).evict(
@@ -453,7 +453,7 @@ class TaskCacheManagerIntegrationTest {
     }
 
     @Test
-    void shouldDiscardUnconsumedLogsOnStopWithoutReplayingAfterResume() throws IOException {
+    void shouldDrainAcceptedLogsOnStopBeforeRemovingContext() throws IOException {
         List<MonitoringLogsDto> dispatched = new ArrayList<>();
         CacheObserveLogAudit audit = mock(CacheObserveLogAudit.class);
         Path segments = tempDir.resolve("task-a").resolve("segments");
@@ -467,16 +467,23 @@ class TaskCacheManagerIntegrationTest {
             assertTrue(manager.append(log("task-a", "Task A", "before stop")));
 
             manager.deactivateTask("task-a");
-            assertFalse(Files.exists(segments));
+            assertTrue(Files.exists(segments));
             assertFalse(manager.append(log("task-a", "Task A", "late")));
+            assertTrue(manager.pollOnce(CacheLogSink.FILE));
+            assertTrue(manager.pollOnce(CacheLogSink.TM));
+            assertFalse(Files.exists(segments));
+            assertEquals(0, manager.contextCount());
+            assertEquals(2, dispatched.size());
+            assertEquals("before stop", dispatched.get(0).getMessage());
+            assertEquals("before stop", dispatched.get(1).getMessage());
 
             assertTrue(manager.activateTask("task-a", "Task A"));
             assertFalse(manager.pollOnce(CacheLogSink.FILE));
             assertFalse(manager.pollOnce(CacheLogSink.TM));
             assertTrue(manager.append(log("task-a", "Task A", "after resume")));
             assertTrue(manager.pollOnce(CacheLogSink.FILE));
-            assertEquals(1, dispatched.size());
-            assertEquals("after resume", dispatched.get(0).getMessage());
+            assertEquals(3, dispatched.size());
+            assertEquals("after resume", dispatched.get(2).getMessage());
 
             manager.deleteTaskCache("task-a");
             assertFalse(Files.exists(tempDir.resolve("task-a")));
@@ -485,11 +492,11 @@ class TaskCacheManagerIntegrationTest {
             manager.deleteTaskCache("task-a");
         }
 
-        verify(audit).stopDiscard(
-                eq("task-a"),
-                eq("Task A"),
-                eq(0),
-                eq(1L),
+        verify(audit, never()).stopDiscard(
+                anyString(),
+                anyString(),
+                anyInt(),
+                anyLong(),
                 anyLong());
     }
 

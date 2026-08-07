@@ -229,6 +229,24 @@ public class TaskLoggerTest {
         }
 
         @Test
+        void testCacheLifecycleFailureDoesNotEscapeLogger() {
+            TaskLogger taskLogger = mock(TaskLogger.class);
+            AppenderFactory appenderFactory = mock(AppenderFactory.class);
+            ReflectionTestUtils.setField(taskLogger, "taskId", "task-id");
+            ReflectionTestUtils.setField(taskLogger, "taskName", "task-name");
+            ReflectionTestUtils.setField(taskLogger, "logAppendFactory", appenderFactory);
+            doCallRealMethod().when(taskLogger).pauseCache();
+            doCallRealMethod().when(taskLogger).resumeCache();
+            doThrow(new IllegalStateException("activate failed"))
+                    .when(appenderFactory).activateTask("task-id", "task-name");
+            doThrow(new IllegalStateException("deactivate failed"))
+                    .when(appenderFactory).deactivateTask("task-id");
+
+            Assertions.assertDoesNotThrow(taskLogger::resumeCache);
+            Assertions.assertDoesNotThrow(taskLogger::pauseCache);
+        }
+
+        @Test
         void testStartActivatesCacheAfterAppenderStarts() {
             TaskLogger taskLogger = mock(TaskLogger.class);
             AppenderFactory appenderFactory = mock(AppenderFactory.class);

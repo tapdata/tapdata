@@ -25,6 +25,8 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -37,6 +39,7 @@ import java.util.function.Consumer;
  * @author Dexter
  **/
 public class TaskLogger extends ObsLogger {
+	private static final Logger LOGGER = LoggerFactory.getLogger(TaskLogger.class);
 	private static final Long RECORD_CEILING_DEFAULT = 500L;
 	private static final Long INTERVAL_CEILING_DEFAULT = 500L;
 	private static final long serialVersionUID = -5640539419072201312L;
@@ -394,13 +397,21 @@ public class TaskLogger extends ObsLogger {
 
 	void pauseCache() {
 		if (logAppendFactory != null && !testTask) {
-			logAppendFactory.deactivateTask(taskId);
+			try {
+				logAppendFactory.deactivateTask(taskId);
+			} catch (RuntimeException e) {
+				LOGGER.warn("Deactivate task CacheObserveLogs failed, taskId={}", taskId, e);
+			}
 		}
 	}
 
 	void resumeCache() {
 		if (logAppendFactory != null && !testTask) {
-			logAppendFactory.activateTask(taskId, taskName);
+			try {
+				logAppendFactory.activateTask(taskId, taskName);
+			} catch (RuntimeException e) {
+				LOGGER.warn("Activate task CacheObserveLogs failed, taskId={}", taskId, e);
+			}
 		}
 	}
 

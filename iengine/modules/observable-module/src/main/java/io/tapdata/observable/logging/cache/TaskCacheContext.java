@@ -25,6 +25,7 @@ class TaskCacheContext {
 
     private enum State {
         ACTIVE,
+        DRAINING,
         STOPPED,
         DELETED
     }
@@ -41,6 +42,7 @@ class TaskCacheContext {
     private final AtomicBoolean writeScheduled = new AtomicBoolean();
     private final AtomicLong rejectedWrites = new AtomicLong();
     private final AtomicLong activationEpoch = new AtomicLong();
+    private final AtomicLong cachedPayloadBytes = new AtomicLong();
 
     private CacheObserveLogConfig config;
     private String taskName;
@@ -89,6 +91,9 @@ class TaskCacheContext {
     }
 
     boolean append(MonitoringLogsDto log) {
+        if (state != State.ACTIVE) {
+            return false;
+        }
         return append(new PendingWrite(activationEpoch.get(), log));
     }
 
@@ -99,7 +104,9 @@ class TaskCacheContext {
                 return false;
             }
             CacheGeneration active = activeGeneration();
+            long previousSize = active.sizeBytes();
             active.append(pendingWrite.log);
+            cachedPayloadBytes.addAndGet(active.sizeBytes() - previousSize);
             if (active.sizeBytes() >= config.getMaxFileSizeBytes()) {
                 rotate(active.getId() + 1L);
             }
@@ -153,7 +160,7 @@ class TaskCacheContext {
     }
 
     boolean hasPendingWrites() {
-        return state == State.ACTIVE && !ingressQueue.isEmpty();
+        return (state == State.ACTIVE || state == State.DRAINING) && !ingressQueue.isEmpty();
     }
 
     boolean markWriteScheduled() {
@@ -164,12 +171,33 @@ class TaskCacheContext {
         writeScheduled.set(false);
     }
 
+    void completeWriteDrain() {
+        lock.lock();
+        try {
+            completeStopIfDrained();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    boolean isStopped() {
+        return state == State.STOPPED;
+    }
+
+    String getTaskId() {
+        return taskId;
+    }
+
+    long sizeBytes() {
+        return cachedPayloadBytes.get();
+    }
+
     boolean poll(CacheLogSink sink) {
         MonitoringLogsDto log = null;
         CacheGeneration dispatchedGeneration = null;
         lock.lock();
         try {
-            if (state != State.ACTIVE) {
+            if (state != State.ACTIVE && state != State.DRAINING) {
                 return false;
             }
             for (CacheGeneration generation : generations.values()) {
@@ -201,29 +229,34 @@ class TaskCacheContext {
             if (state == State.DELETED) {
                 return;
             }
-            state = State.STOPPED;
-            activationEpoch.incrementAndGet();
+            if (state == State.STOPPED) {
+                discardInactiveInventory();
+                return;
+            }
+            state = State.DRAINING;
+            completeStopIfDrained();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void discardInactiveInventory() {
+        try {
             int pendingMemoryLogs = ingressQueue.size();
-            long unconsumedGenerations = generations.values().stream()
-                    .filter(generation -> !generation.isFullyConsumed())
-                    .count();
             long discardedBytes = CacheGeneration.directorySize(taskPath.resolve(SEGMENTS_DIR));
-            boolean unknownInventoryWithData = generations.isEmpty() && discardedBytes > 0L;
             clearMemoryQueues();
-            if (pendingMemoryLogs > 0 || unconsumedGenerations > 0 || unknownInventoryWithData) {
+            if (pendingMemoryLogs > 0 || discardedBytes > 0L) {
                 audit.stopDiscard(
                         taskId,
                         taskName,
                         pendingMemoryLogs,
-                        unconsumedGenerations,
+                        0L,
                         discardedBytes);
             }
             discardStoppedInventory();
+            cachedPayloadBytes.set(0L);
         } catch (IOException e) {
             audit.deleteFailed(taskId, taskName, taskPath.resolve(SEGMENTS_DIR), e);
-            throw new IllegalStateException("Discard stopped task cache failed: " + taskId, e);
-        } finally {
-            lock.unlock();
         }
     }
 
@@ -249,6 +282,7 @@ class TaskCacheContext {
             activationEpoch.incrementAndGet();
             clearMemoryQueues();
             closeGenerations();
+            cachedPayloadBytes.set(0L);
             try {
                 CacheGeneration.deleteRecursively(taskPath);
             } catch (IOException e) {
@@ -277,10 +311,14 @@ class TaskCacheContext {
             return;
         }
         generations.lastEntry().getValue().initializePayloadBytes();
+        cachedPayloadBytes.set(generations.values().stream()
+                .mapToLong(CacheGeneration::sizeBytes)
+                .sum());
     }
 
     private boolean isCurrent(PendingWrite pendingWrite) {
-        return state == State.ACTIVE && pendingWrite.epoch == activationEpoch.get();
+        return (state == State.ACTIVE || state == State.DRAINING)
+                && pendingWrite.epoch == activationEpoch.get();
     }
 
     private void clearMemoryQueues() {
@@ -361,9 +399,10 @@ class TaskCacheContext {
         lock.lock();
         try {
             generation.completeDispatch(succeeded);
-            if (succeeded && state == State.ACTIVE) {
+            if (state == State.ACTIVE || state == State.DRAINING) {
                 reclaimFullyConsumed();
             }
+            completeStopIfDrained();
         } catch (IOException e) {
             throw new IllegalStateException("Reclaim consumed task cache failed: " + taskId, e);
         } finally {
@@ -384,7 +423,7 @@ class TaskCacheContext {
     private void evictOldest() throws IOException {
         Map.Entry<Long, CacheGeneration> oldest = generations.firstEntry();
         CacheGeneration generation = oldest.getValue();
-        boolean dataLoss = !generation.isFullyConsumed();
+        boolean dataLoss = generation.hadDispatchFailure() || !generation.isFullyConsumed();
         String deletedPath = generation.getPath().toString();
         try {
             generation.deleteClosed();
@@ -393,14 +432,35 @@ class TaskCacheContext {
             throw e;
         }
         generations.remove(oldest.getKey());
+        cachedPayloadBytes.addAndGet(-generation.sizeBytes());
         audit.evict(
                 taskId,
                 taskName,
                 generation.getId(),
                 dataLoss,
                 deletedPath,
-                CacheGeneration.directorySize(taskPath),
+                cachedPayloadBytes.get(),
                 totalCacheBytes.getAsLong());
+    }
+
+    private void completeStopIfDrained() {
+        if (state != State.DRAINING || writeScheduled.get() || !ingressQueue.isEmpty()) {
+            return;
+        }
+        for (CacheGeneration generation : generations.values()) {
+            if (!generation.isFullyConsumed()) {
+                return;
+            }
+        }
+        state = State.STOPPED;
+        activationEpoch.incrementAndGet();
+        closeGenerations();
+        cachedPayloadBytes.set(0L);
+        try {
+            CacheGeneration.deleteRecursively(taskPath.resolve(SEGMENTS_DIR));
+        } catch (IOException e) {
+            audit.deleteFailed(taskId, taskName, taskPath.resolve(SEGMENTS_DIR), e);
+        }
     }
 
     private void closeGenerations() {
