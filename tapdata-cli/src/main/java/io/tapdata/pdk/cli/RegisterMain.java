@@ -2,6 +2,7 @@ package io.tapdata.pdk.cli;
 
 import org.apache.commons.io.FilenameUtils;
 
+import java.io.File;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -131,7 +132,7 @@ public class RegisterMain {
 
         ConnectorEnums(AuthenticationType authType, String... tags) {
             String connectorPrefix = name().toLowerCase().replace("_", "-");
-            this.path = String.format("%s/dist/%s-connector-v1.0-SNAPSHOT.jar", BASE_PATH, connectorPrefix);
+            this.path = resolveConnectorJarPath(connectorPrefix);
             this.tags.add("all"); // add default tag: all
             this.tags.add(connectorPrefix); // add connector name tag
             this.tags.add(authType.name().toLowerCase()); // add connector AuthenticationType
@@ -154,6 +155,21 @@ public class RegisterMain {
                 }
             }
         }
+    }
+
+    private static String resolveConnectorJarPath(String connectorPrefix) {
+        File distDir = new File(BASE_PATH, "dist");
+        File[] candidates = distDir.listFiles((dir, name) ->
+                name.startsWith(connectorPrefix + "-connector-")
+                        && name.endsWith(".jar")
+                        && !name.endsWith("-sources.jar")
+                        && !name.endsWith("-javadoc.jar")
+                        && !name.endsWith("-original.jar"));
+        if (candidates != null && candidates.length > 0) {
+            Arrays.sort(candidates, Comparator.comparingLong(File::lastModified).reversed());
+            return candidates[0].getPath();
+        }
+        return String.format("%s/dist/%s-connector-v1.0-SNAPSHOT.jar", BASE_PATH, connectorPrefix);
     }
 
     public static void main(String... args) {
