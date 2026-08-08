@@ -174,6 +174,7 @@ make_docker() {
   cp "$TAPDATA_DIR/build/image/docker-entrypoint.sh" .
   cp -r "$TAPDATA_DIR/build/image/bin" .
   cp -r "$TAPDATA_DIR/build/image/supervisor" .
+  printf '{"app_version":"%s"}\n' "$TAG_NAME" > ./.version
 
   info ">> download and prepare async-profiler for amd64 and arm64..."
   rm -rf ./docker-assets/async-profiler

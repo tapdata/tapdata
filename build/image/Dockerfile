@@ -56,6 +56,7 @@ COPY lib/ /tapdata/apps/lib
 COPY components/ /tapdata/apps/components
 COPY docker-entrypoint.sh /tapdata/apps/start.sh
 COPY bin/ /tapdata/apps
+COPY .version /tapdata/apps/.version
 
 RUN pipx install tapflow
 
