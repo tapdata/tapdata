@@ -14,5 +14,6 @@ public enum NodeResetDesc {
 	task_reset_aggregate_node,
 	task_reset_custom_node,
 	task_reset_join_node,
+	task_reset_duck_db_node,
 	unknown_error,
 }

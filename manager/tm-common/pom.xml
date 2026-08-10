@@ -140,20 +140,25 @@
         <version>2.12.1</version>
     </dependency>
     <dependency>
-        <groupId>io.tapdata</groupId>
-        <artifactId>tapdata-pdk-runner</artifactId>
-      <version>${tapdata-pdk-runner.version}</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>commons-lang3</artifactId>
-          <groupId>org.apache.commons</groupId>
-        </exclusion>
-        <exclusion>
-          <artifactId>jackson-databind</artifactId>
-          <groupId>com.fasterxml.jackson.core</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
+                <groupId>io.tapdata</groupId>
+                <artifactId>tapdata-pdk-runner</artifactId>
+                <version>${tapdata-pdk-runner.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <artifactId>commons-lang3</artifactId>
+                        <groupId>org.apache.commons</groupId>
+                    </exclusion>
+                    <exclusion>
+                        <artifactId>jackson-databind</artifactId>
+                        <groupId>com.fasterxml.jackson.core</groupId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <!-- jsqlparser -->
+            <dependency>
+                <groupId>com.github.jsqlparser</groupId>
+                <artifactId>jsqlparser</artifactId>
+            </dependency>
     <dependency>
       <groupId>com.github.oshi</groupId>
       <artifactId>oshi-core</artifactId>

@@ -578,4 +578,8 @@ public abstract class Node<S> extends Element{
         }
         return null;
     }
+
+    public boolean snapshotCdcBarrierEnable() {
+        return false;
+    }
 }

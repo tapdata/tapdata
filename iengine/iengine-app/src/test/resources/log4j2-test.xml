@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+    </Appenders>
+    
+    <Loggers>
+        <!-- ArrowWriter 相关包：输出详细日志（DEBUG级别） -->
+        <Logger name="io.tapdata.flow.engine.V2.node.duckdb.ArrowWriter" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        
+        <!-- DuckDB 操作相关包 -->
+        <Logger name="io.tapdata.flow.engine.V2.node.duckdb" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        
+        <!-- Hazelcast DuckDbSqlNode 相关包 -->
+        <Logger name="io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastDuckDbSqlNode" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        
+        <!-- Root Logger: 输出 INFO 及以上级别到控制台 -->
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>

@@ -76,7 +76,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private Boolean enableConcurrentProcess;
 	private int concurrentNum;
 	private SimpleConcurrentProcessorImpl<List<BatchEventWrapper>, List<TapdataEvent>> simpleConcurrentProcessor;
-	private int concurrentBatchSize;
+	protected int concurrentBatchSize;
 
 	private ObsLogger scriptObsLogger;
 
@@ -107,7 +107,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		if (concurrentNum <= 1) {
 			enableConcurrentProcess = false;
 		}
-		concurrentBatchSize = CommonUtils.getPropertyInt(PROCESSOR_BATCH_SIZE_PROP_KEY, DEFAULT_BATCH_SIZE);
+		concurrentBatchSize = concurrentBatchSize();
 		if (Boolean.TRUE.equals(enableConcurrentProcess)) {
 			if (!supportConcurrentProcess()) {
 				obsLogger.trace("Node {}({}: {}) enable concurrent process, but not support concurrent process, disable concurrent process", getNode().getType(), getNode().getName(), getNode().getId());
@@ -119,6 +119,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				obsLogger.trace("Node {}({}: {}) enable concurrent process, concurrent num: {}", getNode().getType(), getNode().getName(), getNode().getId(), concurrentNum);
 			}
 		}
+	}
+
+	protected int concurrentBatchSize() {
+		return CommonUtils.getPropertyInt(PROCESSOR_BATCH_SIZE_PROP_KEY, DEFAULT_BATCH_SIZE);
 	}
 
 	protected void initBatchProcessorIfNeed() {
@@ -138,10 +142,13 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					}
 
 					if (Boolean.TRUE.equals(enableConcurrentProcess)) {
-						ListUtils.partition(drainEvents, concurrentBatchSize).forEach(e -> simpleConcurrentProcessor.runAsync(e, this::batchProcess));
+						ListUtils.partition(drainEvents, concurrentBatchSize).forEach(e -> simpleConcurrentProcessor.runAsync(e, es -> {
+							List<TapdataEvent> esList = new ArrayList<>();
+							this.batchProcess(es, esList::addAll);
+							return esList;
+						}));
 					} else {
-						List<TapdataEvent> tapdataEvents = new ArrayList<>(batchProcess(drainEvents));
-						enqueue(tapdataEvents);
+						batchProcess(drainEvents, this::enqueue);
 					}
 
 				}
@@ -185,7 +192,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		}
 	}
 
-	protected List<TapdataEvent> batchProcess(List<BatchEventWrapper> batchEventWrappers) {
+	protected void batchProcess(List<BatchEventWrapper> batchEventWrappers, Consumer<List<TapdataEvent>> consumer) {
 		List<TapdataEvent> result = new ArrayList<>();
 		List<TapdataEvent> tapdataEvents = new ArrayList<>();
 		for (BatchEventWrapper batchEventWrapper : batchEventWrappers) {
@@ -233,12 +240,18 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					}
 
 					result.add(tapdataEvent);
+					if (result.size() >= concurrentBatchSize) {
+						consumer.accept(result);
+						result.clear();
+					}
 				}
 			});
 			reCalcMemorySize(batchEventWrappers);
 			Optional.ofNullable(processorNodeProcessAspect).ifPresent(aspect -> batchEventWrappers.forEach(cbe -> AspectUtils.accept(aspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), cbe.getTapdataEvent())));
 		});
-		return result;
+		if (!result.isEmpty()) {
+			consumer.accept(result);
+		}
 	}
 
 	@Override
@@ -323,6 +336,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 				// consider process is done
 				processedEventList.add(event);
+				if (processedEventList.size() >= concurrentBatchSize) {
+					enqueue(processedEventList);
+					processedEventList.clear();
+				}
 				if (null != processorNodeProcessAspect) {
 					AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
 				}
@@ -500,19 +517,27 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				BatchEventWrapper finalBatchEventWrapper;
 				if (needCopyBatchEventWrapper()) {
 					try {
-						finalBatchEventWrapper = batchEventWrapper.clone();
+						finalBatchEventWrapper = new BatchEventWrapper(event);
+						finalBatchEventWrapper.processAspect = batchEventWrapper.processAspect;
+						finalBatchEventWrapper.tapValueTransform = batchEventWrapper.tapValueTransform;
 					} catch (Throwable throwable) {
 						throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
 					}
 				} else {
 					finalBatchEventWrapper = batchEventWrapper;
+					finalBatchEventWrapper.setTapdataEvent(event);
 				}
-				finalBatchEventWrapper.setTapdataEvent(event);
 				BatchProcessResult batchProcessResult = new BatchProcessResult(finalBatchEventWrapper, processResult);
 				batchProcessResults.add(batchProcessResult);
+				if (batchProcessResults.size() >= concurrentBatchSize) {
+					consumer.accept(batchProcessResults);
+					batchProcessResults.clear();
+				}
 			});
 		}
-		consumer.accept(batchProcessResults);
+		if (!batchProcessResults.isEmpty()) {
+			consumer.accept(batchProcessResults);
+		}
 	}
 
 	protected void setIgnore(boolean ignore) {

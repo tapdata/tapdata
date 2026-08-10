@@ -24,7 +24,7 @@ public enum NodeTypeEnum {
 	STANDARD_JS_PROCESSOR("standard_js_processor"),
 	UNION_PROCESSOR("union_processor"),
 	MIGRATE_UNION_PROCESSOR("migrate_union_processor"),
-
+	DUCKDB_SQL_PROCESSOR("duckdb_sql_processor"),
 	MIGRATE_JS_PROCESSOR("migrate_js_processor"),
 	MIGRATE_PYTHON_PROCESS("migrate_python_process"),
 	STANDARD_MIGRATE_JS_PROCESSOR("standard_migrate_js_processor"),
