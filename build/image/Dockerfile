@@ -1,4 +1,7 @@
-FROM ghcr.io/tapdata/base:0.2
+ARG BASE_IMAGE=ghcr.io/tapdata/base:0.2
+FROM ${BASE_IMAGE}
+
+ARG TARGETARCH
 
 ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF8
 
@@ -53,13 +56,14 @@ COPY lib/ /tapdata/apps/lib
 COPY components/ /tapdata/apps/components
 COPY docker-entrypoint.sh /tapdata/apps/start.sh
 COPY bin/ /tapdata/apps
+COPY .version /tapdata/apps/.version
 
 RUN pipx install tapflow
 
 ENV PATH="/root/.local/bin:$PATH"
 
-# 使用已经下载好的async-profiler文件
-COPY components/async-profiler/ /tapdata/apps/components/async-profiler/
+# 使用目标架构对应的async-profiler文件
+COPY docker-assets/async-profiler/${TARGETARCH}/ /tapdata/apps/components/async-profiler/
 
 COPY supervisor/ /tapdata/apps/supervisor/
 

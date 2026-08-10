@@ -9,6 +9,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -26,17 +27,56 @@ import javax.script.ScriptException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 public class ScriptUtilTest {
+
+	@Test
+	public void sharedEngineShouldBackConcurrentIndependentContexts() throws Exception {
+		int contextCount = 8;
+		ExecutorService executor = Executors.newFixedThreadPool(contextCount);
+		CountDownLatch start = new CountDownLatch(1);
+		List<Future<String>> results = new ArrayList<>();
+		try {
+			for (int index = 0; index < contextCount; index++) {
+				String expectedValue = "context-" + index;
+				results.add(executor.submit(() -> {
+					start.await();
+					ScriptEngine context = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName());
+					try {
+						assertSame(ScriptUtil.getSharedEngine(), ((GraalJSScriptEngine) context).getPolyglotEngine());
+						context.eval("var contextValue = '" + expectedValue + "';");
+						return (String) context.eval("contextValue");
+					} finally {
+						((GraalJSScriptEngine) context).close();
+					}
+				}));
+			}
+
+			start.countDown();
+			for (int index = 0; index < contextCount; index++) {
+				assertEquals("context-" + index, results.get(index).get());
+			}
+		} finally {
+			executor.shutdownNow();
+			assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+		}
+	}
 
     @Test
     public void testGetScriptEngine3() throws Exception {
@@ -123,6 +163,59 @@ public class ScriptUtilTest {
             Object value = engine.eval("Java.type('com.tapdata.processor.ScriptUtilTest$ExternalJarHelper').value()");
 
             assertEquals("jar-ok", value);
+        }
+    }
+
+    @Test
+    public void getScriptEngineShouldSupportCommonJavaCollectionCallbacks() throws Exception {
+        ScriptEngine engine = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName());
+        try {
+            List<Integer> numbers = new ArrayList<>(List.of(3, 1, 2));
+            Map<String, Integer> values = new HashMap<>();
+            values.put("first", 1);
+            engine.put("numbers", numbers);
+            engine.put("values", values);
+
+            Object sum = engine.eval("var sum = 0;"
+                    + "numbers.forEach(function(value) { sum += value; });"
+                    + "numbers.removeIf(function(value) { return value % 2 === 0; });"
+                    + "numbers.replaceAll(function(value) { return value * 2; });"
+                    + "numbers.sort(function(left, right) { return left - right; });"
+                    + "sum;");
+            Object mapSum = engine.eval("var mapSum = 0;"
+                    + "values.forEach(function(key, value) { mapSum += value; });"
+                    + "values.computeIfAbsent('second', function(key) { return 2; });"
+                    + "values.compute('first', function(key, value) { return value + 3; });"
+                    + "mapSum;");
+
+            assertEquals(6, ((Number) sum).intValue());
+            assertEquals(List.of(2, 6), numbers);
+            assertEquals(1, ((Number) mapSum).intValue());
+            assertEquals(4, values.get("first"));
+            assertEquals(2, values.get("second"));
+        } finally {
+            ((GraalJSScriptEngine) engine).close();
+        }
+    }
+
+    @Test
+    public void getScriptEngineShouldStringifyFilterContainingDateTime() throws Exception {
+        ScriptEngine engine = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName());
+        try {
+            engine.put("valDate", new DateTime(Instant.parse("2024-05-08T16:30:45.123Z")));
+
+            Object json = engine.eval("var filter = {"
+                    + "employeeNumber: 'E001',"
+                    + "salesDateTime: { '$dateTime': valDate },"
+                    + "departmentCode: 'D001'"
+                    + "}; JSON.stringify(filter);");
+
+            String expected = "{\"employeeNumber\":\"E001\","
+                    + "\"salesDateTime\":{\"$dateTime\":\"2024-05-08T16:30:45.123Z\"},"
+                    + "\"departmentCode\":\"D001\"}";
+            assertEquals(expected, json);
+        } finally {
+            ((GraalJSScriptEngine) engine).close();
         }
     }
 

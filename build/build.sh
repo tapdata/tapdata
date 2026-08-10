@@ -162,37 +162,68 @@ elif [[ $PACKAGE_COMPONENTS == "all" ]]; then
 fi
 
 make_docker() {
-  cd $OUTPUT_DIR/
-  cp $TAPDATA_DIR/build/image/Dockerfile .
-  cp $TAPDATA_DIR/build/image/docker-entrypoint.sh .
-  cp -r $TAPDATA_DIR/build/image/bin .
-  cp -r $TAPDATA_DIR/build/image/supervisor .
+  local builder_name
+  local cache_scope
+  local cache_ref
+  local profiler_arch
+  local target_arch
+  local build_status
 
-  info ">> download and prepare async-profiler..."
-  mkdir -p ./components/
-  if [[ $PLATFORM == "x86_64" ]]; then
-    rsync -vzrt --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/enterprise-artifact/tools/async-profiler-3.0-linux-x64.tar.gz ./async-profiler.tar.gz
-  else
-    rsync -vzrt --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/enterprise-artifact/tools/async-profiler-3.0-linux-arm64.tar.gz ./async-profiler.tar.gz
-  fi
-  tar -xzf async-profiler.tar.gz -C ./components/
-  mv ./components/async-profiler-* ./components/async-profiler
+  cd "$OUTPUT_DIR/"
+  cp "$TAPDATA_DIR/build/image/Dockerfile" .
+  cp "$TAPDATA_DIR/build/image/docker-entrypoint.sh" .
+  cp -r "$TAPDATA_DIR/build/image/bin" .
+  cp -r "$TAPDATA_DIR/build/image/supervisor" .
+  printf '{"app_version":"%s"}\n' "$TAG_NAME" > ./.version
+
+  info ">> download and prepare async-profiler for amd64 and arm64..."
+  rm -rf ./docker-assets/async-profiler
+  mkdir -p ./docker-assets/async-profiler
+  for profiler_arch in x64 arm64; do
+    if [[ $profiler_arch == "x64" ]]; then
+      target_arch="amd64"
+    else
+      target_arch="arm64"
+    fi
+    rsync -vzrt --password-file=/tmp/rsync.passwd \
+      "rsync://root@192.168.1.184:873/data/enterprise-artifact/tools/async-profiler-3.0-linux-$profiler_arch.tar.gz" \
+      ./async-profiler.tar.gz
+    tar -xzf ./async-profiler.tar.gz -C ./docker-assets/async-profiler
+    mv "./docker-assets/async-profiler/async-profiler-3.0-linux-$profiler_arch" \
+      "./docker-assets/async-profiler/$target_arch"
+  done
   rm -f ./async-profiler.tar.gz
 
-  info ">> clean old builder (Avoid CI conflicts)..."
-  docker buildx rm multi-platform || true
+  builder_name="tapdata-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-$$"
+  cache_scope=$(printf '%s' "${TAPDATA_CACHE_SCOPE:-${GITHUB_REF_NAME:-default}}" | tr '/:@' '-' | tr -cd '[:alnum:]_.-')
+  cache_scope="cache-${cache_scope:0:100}"
+  cache_ref="${TAPDATA_CACHE_REPOSITORY:-harbor.internal.tapdata.io/tapdata/tapdata-build-cache}:${cache_scope}"
+
+  trap "docker buildx rm '$builder_name' >/dev/null 2>&1 || true; rm -rf './docker-assets'" EXIT
+
   info ">> Install QEMU..."
   docker run --privileged --rm tonistiigi/binfmt --install all
-  info ">> create builder..."
-  docker buildx create --name multi-platform --use
-  info ">> init builder（Prevent DeadlineExceeded）"
-  docker buildx inspect --bootstrap
+  info ">> create isolated builder: $builder_name"
+  docker buildx create --name "$builder_name" --driver docker-container --use
+  docker buildx inspect "$builder_name" --bootstrap
+
+  info ">> registry cache: $cache_ref"
   info ">> building..."
   docker buildx build \
+    --builder "$builder_name" \
     --platform linux/amd64,linux/arm64 \
-    -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME \
-    . \
-    --push
+    --build-arg "BASE_IMAGE=${TAPDATA_BASE_IMAGE:-ghcr.io/tapdata/base:0.2}" \
+    --cache-from "type=registry,ref=$cache_ref" \
+    --cache-to "type=registry,ref=$cache_ref,mode=max,ignore-error=true" \
+    --tag "${TAPDATA_IMAGE_REPOSITORY:-harbor.internal.tapdata.io/tapdata/tapdata}:$TAG_NAME" \
+    --push \
+    .
+  build_status=$?
+
+  docker buildx rm "$builder_name" || true
+  rm -rf ./docker-assets
+  trap - EXIT
+  return "$build_status"
 }
 
 make_tar() {

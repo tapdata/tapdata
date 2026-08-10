@@ -1490,6 +1490,13 @@ class MeasurementServiceV2ImplTest {
             nodeTs.put("node1", 987654321L);
             nodeTs.put("node2", 888888888L);
             taskDto.setNodeCurrentEventTimestamp(nodeTs);
+            Map<String, Object> attrs = new HashMap<>();
+            Map<String, Object> milestone = new HashMap<>();
+            Map<String, Object> snapshot = new HashMap<>();
+            snapshot.put("progress", 2);
+            milestone.put("SNAPSHOT", snapshot);
+            attrs.put("milestone", milestone);
+            taskDto.setAttrs(attrs);
 
             when(taskService.findByTaskId(any(ObjectId.class), any(String[].class))).thenReturn(taskDto);
 
@@ -1507,6 +1514,7 @@ class MeasurementServiceV2ImplTest {
             assertNotNull(paddedSample);
             assertEquals(888888888L, paddedSample.get("currentEventTimestamp"));
             assertEquals(123456789L, paddedSample.get("snapshotDoneAt"));
+            assertEquals(2L, paddedSample.get("snapshotTableTotal"));
             assertEquals("database", ((Map<String, String>) paddedSample.get("tags")).get("nodeType"));
         }
 
@@ -1532,6 +1540,13 @@ class MeasurementServiceV2ImplTest {
             taskDto.setSyncType("sync");
             taskDto.setSnapshotDoneAt(555555L);
             taskDto.setCurrentEventTimestamp(999999L);
+            Map<String, Object> attrs = new HashMap<>();
+            Map<String, Object> milestone = new HashMap<>();
+            Map<String, Object> snapshot = new HashMap<>();
+            snapshot.put("progress", 2);
+            milestone.put("SNAPSHOT", snapshot);
+            attrs.put("milestone", milestone);
+            taskDto.setAttrs(attrs);
 
             when(taskService.findByTaskId(any(ObjectId.class), any(String[].class))).thenReturn(taskDto);
 
@@ -1542,6 +1557,7 @@ class MeasurementServiceV2ImplTest {
             Map<String, Object> padded = resultList.get(0);
             assertEquals(999999L, padded.get("currentEventTimestamp"));
             assertEquals(555555L, padded.get("snapshotDoneAt"));
+            assertEquals(2L, padded.get("snapshotTableTotal"));
             assertEquals("task", ((Map<String, String>) padded.get("tags")).get("type"));
         }
     }

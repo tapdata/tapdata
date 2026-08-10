@@ -192,7 +192,7 @@
         <repository>
             <id>nexus-releases</id>
             <name>nexus-maven-release</name>
-            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+            <url>https://nexus.tapdata.net/repository/maven-public/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -217,7 +217,7 @@
         <repository>
             <id>nexus-tapdata-net</id>
             <name>Nexus Release Repository</name>
-            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+            <url>https://nexus.tapdata.net/repository/maven-public/</url>
         </repository>
         <snapshotRepository>
             <id>nexus-tapdata-net</id>

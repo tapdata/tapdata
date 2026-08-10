@@ -84,4 +84,12 @@ public class AlarmMailTemplate {
             "    No incremental event captured for {2}\n" +
             "    Last observed time: {3}\n" +
             "    Alarm time: {4}";
+    public static final String ENGINE_OFFLINE_TITLE = "【Tapdata Notification: Engine offline】{0}";
+    public static final String ENGINE_OFFLINE_CONTENT = "Engine {0} has gone offline. Please handle this in time. The {1} tasks running on this engine will be rescheduled to other available engines.\n" +
+            "    Engine hostname: {0}\n" +
+            "    Alarm time: {2}";
+    public static final String ENGINE_ONLINE_TITLE = "【Tapdata Notification: Engine online】{0}";
+    public static final String ENGINE_ONLINE_CONTENT = "Engine {0} is back online.\n" +
+            "    Engine hostname: {0}\n" +
+            "    Alarm time: {1}";
 }

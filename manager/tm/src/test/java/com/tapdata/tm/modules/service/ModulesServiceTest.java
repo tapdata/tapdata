@@ -1272,6 +1272,64 @@ class ModulesServiceTest {
 			assertTrue(result.isEmpty());
 			verify(dataSourceDefinitionService, never()).findAllDto(any(Query.class), eq(userDetail));
 		}
+
+		@Test
+		@DisplayName("connection 已被历史导入写坏时，按 datasource 解析连接（TAP-12425）")
+		void testActiveApisResolvesConnectionByDataSource() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			ObjectId realConnection = new ObjectId("68a1b2c3d4e5f60718293a4b");
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto modulesDto = new ModulesDto();
+			modulesDto.setId(new ObjectId());
+			// 库里存量脏数据：connection 是导入时被 Jackson 重建出来的随机 ObjectId
+			modulesDto.setConnection(new ObjectId("68a1b2c33861f4f43eb56485"));
+			modulesDto.setDataSource(realConnection.toHexString());
+			apis.add(modulesDto);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+			dataSourceConnectionDto.setId(realConnection);
+			dataSourceConnectionDto.setDatabase_type("MongoDB");
+			Map<String, Object> config = new HashMap<>();
+			config.put("uri", "mongodb://root:test123@localhost:27017/test?authSource=admin");
+			dataSourceConnectionDto.setConfig(config);
+			when(dataSourceService.findAll(any(Query.class))).thenReturn(Lists.newArrayList(dataSourceConnectionDto));
+
+			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+			definitionDto.setType("MongoDB");
+			LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+			LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+			connection.put("properties", new LinkedHashMap<>());
+			properties.put("connection", connection);
+			definitionDto.setProperties(properties);
+			when(dataSourceDefinitionService.findAllDto(any(Query.class), eq(userDetail)))
+					.thenReturn(Lists.newArrayList(definitionDto));
+
+			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
+
+			assertEquals(1, result.size());
+			assertNotNull(apiDefinitionVo.getConnections());
+			assertEquals(1, apiDefinitionVo.getConnections().size());
+			assertEquals(realConnection.toHexString(), String.valueOf(apiDefinitionVo.getConnections().get(0).getId()));
+		}
+
+		@Test
+		@DisplayName("connection 与 datasource 均缺失的 API 被跳过而非抛 NPE（TAP-12425）")
+		void testActiveApisSkipsApiWithoutResolvableConnection() {
+			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+			List<ModulesDto> apis = new ArrayList<>();
+			ModulesDto broken = new ModulesDto();
+			broken.setId(new ObjectId());
+			broken.setName("broken_api");
+			apis.add(broken);
+			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+
+			List<ModulesDto> result = assertDoesNotThrow(
+					() -> modulesService.activeApis(apiDefinitionVo, userDetail));
+
+			assertTrue(result.isEmpty());
+			verify(dataSourceService, never()).findAll(any(Query.class));
+		}
 	}
 
 	@Nested
@@ -1983,6 +2041,69 @@ class ModulesServiceTest {
 
             // Verify
             verify(modulesService, times(1)).handleImportAsCopyMode(moduleDto, user, conMap);
+        }
+
+        @Test
+        @DisplayName("GROUP_IMPORT：connection 被 JSON 往返改写后，按 datasource 重建（TAP-12425）")
+        void testBatchImportGroupModeRepairsConnectionFromDataSource() {
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT;
+            ObjectId realConnection = new ObjectId("68a1b2c3d4e5f60718293a4b");
+            // 导出包里 connection 被 Jackson 写成 {"timestamp":..,"date":..}，回读得到的是另一个 ObjectId
+            moduleDto.setConnection(new ObjectId("68a1b2c33861f4f43eb56485"));
+            moduleDto.setConnectionId(realConnection.toHexString());
+            moduleDto.setDataSource(realConnection.toHexString());
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            assertEquals(realConnection, moduleDto.getConnection());
+        }
+
+        @Test
+        @DisplayName("GROUP_IMPORT：connection 反序列化为 null 时，同样按 datasource 重建（TAP-12425）")
+        void testBatchImportGroupModeRepairsNullConnection() {
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT;
+            ObjectId realConnection = new ObjectId("68a1b2c3d4e5f60718293a4b");
+            moduleDto.setConnection(null);
+            moduleDto.setConnectionId(null);
+            moduleDto.setDataSource(realConnection.toHexString());
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            assertEquals(realConnection, moduleDto.getConnection());
+            assertEquals(realConnection.toHexString(), moduleDto.getConnectionId());
+        }
+
+        @Test
+        @DisplayName("datasource 不可用时回退到 connectionId 重建 connection（TAP-12425）")
+        void testBatchImportRepairsConnectionFromConnectionId() {
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT;
+            ObjectId realConnection = new ObjectId("68a1b2c3d4e5f60718293a4b");
+            moduleDto.setConnection(new ObjectId("68a1b2c33861f4f43eb56485"));
+            moduleDto.setConnectionId(realConnection.toHexString());
+            moduleDto.setDataSource(null);
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            assertEquals(realConnection, moduleDto.getConnection());
+            assertEquals(realConnection.toHexString(), moduleDto.getDataSource());
+        }
+
+        @Test
+        @DisplayName("datasource / connectionId 都不可用时保留原 connection，交由 conMap 映射（TAP-12425）")
+        void testBatchImportKeepsConnectionWhenNoTrustedSource() {
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT;
+            ObjectId original = new ObjectId("68a1b2c33861f4f43eb56485");
+            moduleDto.setConnection(original);
+            moduleDto.setConnectionId(null);
+            moduleDto.setDataSource(null);
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            assertEquals(original, moduleDto.getConnection());
         }
     }
 
@@ -2988,4 +3109,44 @@ class ModulesServiceTest {
 			service.analyzeApiServerKey(dataSourceConnectionDto, connection, parent);
 		}
 	}
+
+    @Nested
+    @DisplayName("导入时恢复目标环境已删除的 API")
+    class RestoreDeletedModuleOnImportTest {
+        private ModulesDto moduleDto;
+        private UserDetail user;
+        private ModulesRepository repository;
+
+        @BeforeEach
+        void setUp() {
+            modulesService = spy(new ModulesService(modulesRepository));
+            moduleDto = new ModulesDto();
+            moduleDto.setId(new ObjectId("662877df9179877be8b37075"));
+            moduleDto.setName("test_api");
+            // 目标环境这条记录已被 deleteLogicsById 置为 is_deleted:true
+            moduleDto.setIsDeleted(true);
+
+            user = mock(UserDetail.class);
+            repository = mock(ModulesRepository.class);
+            ReflectionTestUtils.setField(modulesService, "repository", repository);
+        }
+
+        /**
+         * ModulesEntity.isDeleted 是包装类型 Boolean：DTO 上为 null 时 buildUpdateSet 会跳过它，
+         * 目标环境里被删的同 _id 记录就会带着 is_deleted:true 留下来，导入报成功但 API 依然不可见。
+         * batchImport 目前靠入口处的 setIsDeleted(false) 兜住这一点——这条测试守住它，别被顺手删掉。
+         */
+        @Test
+        @DisplayName("batchImport 入口必须清除删除标记，被删的 API 才能恢复")
+        void testBatchImportClearsDeletedFlag() {
+            doNothing().when(modulesService).alignConnectionWithDataSource(any(ModulesDto.class));
+            doNothing().when(modulesService).handleGroupImportModuleMode(eq(moduleDto), eq(user), any());
+
+            modulesService.batchImport(Collections.singletonList(moduleDto), user,
+                    com.tapdata.tm.commons.task.dto.ImportModeEnum.GROUP_IMPORT, new HashMap<>(), new HashMap<>());
+
+            assertEquals(Boolean.FALSE, moduleDto.getIsDeleted(),
+                    "导入被删除的 API 时必须清除删除标记，否则它依然不可见");
+        }
+    }
 }

@@ -1735,6 +1735,25 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		verify(ddlEventHandlers,times(5)).handle(any());
 	}
 
+	@Test
+	@DisplayName("Skip physical table creation when create table event only updates models")
+	void testSkipCreateTableForModelUpdate() {
+		TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+		createTableEvent.setTableId("dynamic_table");
+		createTableEvent.addInfo("SKIP_TARGET_CREATE_TABLE", true);
+		ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "obsLogger", mockObsLogger);
+
+		Boolean result = ReflectionTestUtils.invokeMethod(
+				hazelcastTargetPdkDataNode,
+				"executeCreateTableFunction",
+				createTableEvent
+		);
+
+		assertTrue(result);
+		verify(hazelcastTargetPdkDataNode, never()).getTgtTableNameFromTapEvent(any(TapEvent.class));
+		verify(hazelcastTargetPdkDataNode, never()).createTable(any(), any(AtomicBoolean.class), anyBoolean());
+	}
+
 	@Nested
 	class testWriteRecord {
 
@@ -1817,6 +1836,53 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			});
 			verify(syncMetricCollector, times(1)).log(anyList());
 
+		}
+	}
+
+	@Nested
+	@DisplayName("getUpdateConditionFields Method Test")
+	class getUpdateConditionFieldsTest {
+		private TapTable tapTable;
+
+		@BeforeEach
+		void beforeEach() {
+			tapTable = mock(TapTable.class);
+			when(tapTable.getId()).thenReturn("test_table");
+			when(tapTable.primaryKeys(true)).thenReturn(new LinkedHashSet<>(Arrays.asList("id")));
+		}
+
+		private List<String> invoke(Node<?> node) {
+			return ReflectionTestUtils.invokeMethod(hazelcastTargetPdkDataNode, "getUpdateConditionFields", node, tapTable);
+		}
+
+		@Test
+		@DisplayName("DatabaseNode with empty list for table falls back to primary keys and writes back to map")
+		void databaseNodeEmptyFallbackToPk() {
+			DatabaseNode node = mock(DatabaseNode.class);
+			Map<String, List<String>> map = new HashMap<>();
+			map.put("test_table", new ArrayList<>());
+			when(node.getUpdateConditionFieldMap()).thenReturn(map);
+			assertEquals(Arrays.asList("id"), invoke(node));
+			assertEquals(Arrays.asList("id"), map.get("test_table"));
+		}
+
+		@Test
+		@DisplayName("DatabaseNode with absent table key falls back to primary keys")
+		void databaseNodeAbsentFallbackToPk() {
+			DatabaseNode node = mock(DatabaseNode.class);
+			Map<String, List<String>> map = new HashMap<>();
+			when(node.getUpdateConditionFieldMap()).thenReturn(map);
+			assertEquals(Arrays.asList("id"), invoke(node));
+		}
+
+		@Test
+		@DisplayName("DatabaseNode with configured fields returns them")
+		void databaseNodeConfigured() {
+			DatabaseNode node = mock(DatabaseNode.class);
+			Map<String, List<String>> map = new HashMap<>();
+			map.put("test_table", new ArrayList<>(Arrays.asList("name")));
+			when(node.getUpdateConditionFieldMap()).thenReturn(map);
+			assertEquals(Arrays.asList("name"), invoke(node));
 		}
 	}
 }

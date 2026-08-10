@@ -1,0 +1,43 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": { "category": "scheduler", "key": "alarmNotify_task_lastScanTime" },
+        "u": {
+          "$set": {
+            "category": "scheduler",
+            "key": "alarmNotify_task_lastScanTime",
+            "key_label": "alarm task notify last scan time",
+            "documentation": "Persistent scan cursor (high-water mark) for task alarm notification. Initialized lazily to now-30s at first scan.",
+            "hot_reloading": false,
+            "scope": "global",
+            "last_update": 0,
+            "last_update_by": "",
+            "user_visible": false
+          },
+          "$setOnInsert": { "value": null }
+        },
+        "upsert": true
+      },
+      {
+        "q": { "category": "scheduler", "key": "alarmNotify_datasource_lastScanTime" },
+        "u": {
+          "$set": {
+            "category": "scheduler",
+            "key": "alarmNotify_datasource_lastScanTime",
+            "key_label": "alarm datasource notify last scan time",
+            "documentation": "Persistent scan cursor (high-water mark) for datasource alarm notification. Initialized lazily to now-30s at first scan.",
+            "hot_reloading": false,
+            "scope": "global",
+            "last_update": 0,
+            "last_update_by": "",
+            "user_visible": false
+          },
+          "$setOnInsert": { "value": null }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

@@ -1,5 +1,6 @@
 package com.tapdata.tm.permissions.constants;
 
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -51,6 +52,40 @@ class DataPermissionMenuEnumsTest {
     }
 
     @Test
+    void testLogCollectorTask() {
+        Assertions.assertEquals("v2_log_collector_all_data", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Edit", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Delete", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Delete.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Reset", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Reset.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Start", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Start.name()));
+        Assertions.assertEquals("v2_log_collector_all_data_Stop", DataPermissionMenuEnums.LogCollectorTack.getAllDataPermissionName(DataPermissionActionEnums.Stop.name()));
+        Assertions.assertEquals(DataPermissionDataTypeEnums.Task, DataPermissionMenuEnums.LogCollectorTack.getDataType());
+    }
+
+    @Test
+    void testConnectionHeartbeatTask() {
+        Assertions.assertEquals("v2_conn_heartbeat_all_data", DataPermissionMenuEnums.ConnHeartbeatTack.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_conn_heartbeat_all_data_Delete", DataPermissionMenuEnums.ConnHeartbeatTack.getAllDataPermissionName(DataPermissionActionEnums.Delete.name()));
+        Assertions.assertEquals("v2_conn_heartbeat_all_data_Reset", DataPermissionMenuEnums.ConnHeartbeatTack.getAllDataPermissionName(DataPermissionActionEnums.Reset.name()));
+        Assertions.assertEquals("v2_conn_heartbeat_all_data_Start", DataPermissionMenuEnums.ConnHeartbeatTack.getAllDataPermissionName(DataPermissionActionEnums.Start.name()));
+        Assertions.assertEquals("v2_conn_heartbeat_all_data_Stop", DataPermissionMenuEnums.ConnHeartbeatTack.getAllDataPermissionName(DataPermissionActionEnums.Stop.name()));
+        Assertions.assertNull(DataPermissionMenuEnums.ConnHeartbeatTack.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertEquals(DataPermissionDataTypeEnums.Task, DataPermissionMenuEnums.ConnHeartbeatTack.getDataType());
+        Assertions.assertEquals(DataPermissionMenuEnums.ConnHeartbeatTack, DataPermissionMenuEnums.ofTaskSyncType(TaskDto.SYNC_TYPE_CONN_HEARTBEAT));
+    }
+
+    @Test
+    void testMemCacheTask() {
+        Assertions.assertEquals("v2_shared_cache_all_data", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Edit", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Delete", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Delete.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Reset", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Reset.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Start", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Start.name()));
+        Assertions.assertEquals("v2_shared_cache_all_data_Stop", DataPermissionMenuEnums.MemCacheTack.getAllDataPermissionName(DataPermissionActionEnums.Stop.name()));
+        Assertions.assertEquals(DataPermissionDataTypeEnums.Task, DataPermissionMenuEnums.MemCacheTack.getDataType());
+    }
+
+    @Test
     void testTaskRebalance() {
         Assertions.assertEquals("v2_task_rebalance", DataPermissionMenuEnums.TaskRebalance.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
         Assertions.assertEquals("v2_task_rebalance_Edit", DataPermissionMenuEnums.TaskRebalance.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
@@ -71,7 +106,27 @@ class DataPermissionMenuEnumsTest {
 
     @Test
     void testInspect() {
-        Assertions.assertNull(DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_data_check_all_data", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.View.name()));
+        Assertions.assertEquals("v2_data_check_all_data_Edit", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Edit.name()));
+        Assertions.assertEquals("v2_data_check_all_data_Delete", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Delete.name()));
+        Assertions.assertEquals("v2_data_check_all_data_Start", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Start.name()));
+        Assertions.assertEquals("v2_data_check_all_data_Stop", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Stop.name()));
+        Assertions.assertNull(DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName(DataPermissionActionEnums.Reset.name()));
         Assertions.assertEquals(DataPermissionDataTypeEnums.INSPECT, DataPermissionMenuEnums.INSPECT_TACK.getDataType());
+    }
+
+    @Test
+    void testProjectMenus() {
+        Assertions.assertEquals("v2_project_management_all_data_Delete", DataPermissionMenuEnums.ProjectManagement.getAllDataPermissionName("Delete"));
+        Assertions.assertEquals("v2_project_import_and_export_all_data", DataPermissionMenuEnums.ProjectImportAndExport.getAllDataPermissionName("View"));
+        Assertions.assertNull(DataPermissionMenuEnums.ProjectImportAndExport.getAllDataPermissionName("Edit"));
+    }
+
+    @Test
+    void testUserManagement() {
+        Assertions.assertEquals("v2_user_management_menu_all_data", DataPermissionMenuEnums.UserManagement.getAllDataPermissionName("View"));
+        Assertions.assertEquals("v2_user_management_menu_all_data_Edit", DataPermissionMenuEnums.UserManagement.getAllDataPermissionName("Edit"));
+        Assertions.assertEquals("v2_user_management_menu_all_data_Delete", DataPermissionMenuEnums.UserManagement.getAllDataPermissionName("Delete"));
+        Assertions.assertEquals(DataPermissionDataTypeEnums.User, DataPermissionMenuEnums.UserManagement.getDataType());
     }
 }

@@ -10,6 +10,7 @@ import com.tapdata.tm.trace.service.data.TraceDataService;
 import com.tapdata.tm.utils.MessageUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -49,10 +51,23 @@ public class TraceServiceImpl implements TraceService {
 
     private void validateFilters(WideTableTraceRequest request) {
         if (request.getFilters() == null
-                || ((CollectionUtils.isEmpty(request.getFilters().getCustom()) || request.getFilters().getCustom().contains(null))
-                && StringUtils.isBlank(request.getFilters().getSql()))) {
+                || (StringUtils.isBlank(request.getFilters().getSql())
+                && !hasEffectiveCustomFilter(request)
+                && !hasEffectiveConditionFilter(request))) {
             throw new BizException("Trace.Filters.NotNull");
         }
+    }
+
+    private boolean hasEffectiveCustomFilter(WideTableTraceRequest request) {
+        return CollectionUtils.emptyIfNull(request.getFilters().getCustom()).stream()
+                .filter(Objects::nonNull)
+                .anyMatch(custom -> StringUtils.isNotBlank(custom.getKey()));
+    }
+
+    private boolean hasEffectiveConditionFilter(WideTableTraceRequest request) {
+        return CollectionUtils.emptyIfNull(request.getFilters().getConditions()).stream()
+                .filter(MapUtils::isNotEmpty)
+                .anyMatch(condition -> condition.keySet().stream().anyMatch(StringUtils::isNotBlank));
     }
 
     private TraceNodeError toError(String code, String message) {

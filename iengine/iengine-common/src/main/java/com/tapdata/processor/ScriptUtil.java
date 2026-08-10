@@ -57,7 +57,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.function.Consumer;
+import java.util.function.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -87,6 +87,15 @@ public class ScriptUtil {
 			.allowArrayAccess(true)
 			.allowIterableAccess(true)
 			.allowIteratorAccess(true)
+			.allowImplementations(Consumer.class)
+			.allowImplementations(BiConsumer.class)
+			.allowImplementations(Function.class)
+			.allowImplementations(BiFunction.class)
+			.allowImplementations(Predicate.class)
+			.allowImplementations(UnaryOperator.class)
+			.allowImplementations(Comparator.class)
+			.allowImplementations(BinaryOperator.class)
+			.allowImplementations(Supplier.class)
 			.denyAccess(Class.class)
 			.denyAccess(ClassLoader.class, true)
 			.denyAccess(File.class, true)
@@ -138,6 +147,17 @@ public class ScriptUtil {
 			"javax.script."
 	);
 
+	public static Engine getSharedEngine() {
+		return SharedEngineHolder.INSTANCE;
+	}
+
+	private static class SharedEngineHolder {
+		private static final Engine INSTANCE = Engine.newBuilder()
+				.allowExperimentalOptions(true)
+				.option("engine.WarnInterpreterOnly", "false")
+				.build();
+	}
+
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
 		return getScriptEngine(jsEngineName,
 				new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO),
@@ -172,15 +192,7 @@ public class ScriptUtil {
 			if (externalClassLoader != null) {
 				contextBuilder.hostClassLoader(externalClassLoader);
 			}
-			scriptEngine = GraalJSScriptEngine
-					.create(Engine.newBuilder()
-									.allowExperimentalOptions(true)
-									.option("engine.WarnInterpreterOnly", "false")
-									.out(out)
-									.err(err)
-									.build(),
-							contextBuilder
-					);
+			scriptEngine = GraalJSScriptEngine.create(getSharedEngine(), contextBuilder);
 			SimpleScriptContext scriptContext = new SimpleScriptContext();
 			scriptContext.setWriter(new OutputStreamWriter(out));
 			scriptContext.setErrorWriter(new OutputStreamWriter(err));
