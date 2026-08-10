@@ -32,7 +32,7 @@ class JsFieldMapperTest {
         @Test
         void returnsEmptyMapForUnsupportedReturnExpression() {
             String script = """
-                    return { fieldA: record.field_a };
+                    return build(record);
                     """;
 
             assertTrue(JsFieldMapper.parseMapping(script).isEmpty());
@@ -41,6 +41,36 @@ class JsFieldMapperTest {
 
     @Nested
     class ObjectLiteralScenarios {
+        @Test
+        void parsesDirectReturnedObjectLiteralWithQuotedAndUnquotedKeys() {
+            String script = """
+                    return {
+                        departmentCode: record.dept_cde,
+                        "paymentMethodCode": record.pymt_mthd_cde,
+                        'statusCode': record.status_code
+                    };
+                    """;
+
+            assertEquals(Map.of(
+                    "departmentCode", "dept_cde",
+                    "paymentMethodCode", "pymt_mthd_cde",
+                    "statusCode", "status_code"
+            ), JsFieldMapper.parseMapping(script));
+        }
+
+        @Test
+        void directReturnedObjectLiteralIgnoresComplexValuesThatAreNotDirectRecordFieldReads() {
+            String script = """
+                    return {
+                        direct: record.direct_field,
+                        computed: record.left_field + record.right_field,
+                        wrapped: String(record.wrapped_field)
+                    };
+                    """;
+
+            assertEquals(Map.of("direct", "direct_field"), JsFieldMapper.parseMapping(script));
+        }
+
         @Test
         void parsesSimpleObjectLiteralWithQuotedAndUnquotedKeys() {
             String script = """
@@ -72,7 +102,7 @@ class JsFieldMapperTest {
         }
 
         @Test
-        void usesLastSimpleReturnVariable() {
+        void usesFirstSimpleReturnVariable() {
             String script = """
                     var first = { fieldA: record.first_a };
                     var second = { fieldA: record.second_a };
@@ -80,7 +110,7 @@ class JsFieldMapperTest {
                     return second;
                     """;
 
-            assertEquals(Map.of("fieldA", "second_a"), JsFieldMapper.parseMapping(script));
+            assertEquals(Map.of("fieldA", "first_a"), JsFieldMapper.parseMapping(script));
         }
 
         @Test

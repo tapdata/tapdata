@@ -9,12 +9,13 @@ import java.util.regex.Pattern;
 
 /**
  * 动态解析 JavaScript 脚本中 return 对象与 record 之间的字段映射关系。
- * 自动识别 return 返回的变量名，并解析其赋值来源。
+ * 自动识别 return 返回的变量名或对象字面量，并解析其赋值来源。
  *
  * <p>当前实现是面向字段血缘推导的轻量级启发式解析，不是完整 JavaScript AST 解析器。
  * 支持的场景：
  * <ul>
- *     <li>最后一个简单返回语句：{@code return ret;}。</li>
+ *     <li>第一个简单返回语句：{@code return ret;}。</li>
+ *     <li>第一个返回语句直接返回简单对象字面量：{@code return { newField: record.oldField };}。</li>
  *     <li>{@code var/let/const ret = { newField: record.oldField }} 或 {@code ret = {...}} 对象字面量。</li>
  *     <li>{@code ret.newField = record.oldField} 形式的点号赋值。</li>
  *     <li>{@code ret.aliasField = ret.knownField} 形式的同对象字段转传，前提是来源字段已解析。</li>
@@ -38,7 +39,7 @@ public final class JsFieldMapper {
 
     /**
      * 从给定的 JavaScript 脚本中解析字段映射关系。
-     * 先提取 return 语句返回的变量名，再解析该变量的赋值（对象字面量 + 后续赋值）。
+     * 先提取第一个 return 语句，再解析返回对象与 record 的赋值关系。
      *
      * @param jsCode 完整的 JavaScript 代码字符串
      * @return 映射表（新字段名 → 原字段名），若无映射则返回空 Map
@@ -49,12 +50,20 @@ public final class JsFieldMapper {
             return mapping;
         }
         jsCode = stripComments(jsCode);
-        String returnedVar = extractReturnedVariable(jsCode);
-        if (returnedVar == null) {
+        ReturnExpression returnExpression = extractReturnExpression(jsCode);
+        if (returnExpression == null) {
             return mapping;
         }
 
         // 1. 解析对象字面量，建立初始映射
+        String returnedVar = returnExpression.variableName;
+        if (returnExpression.objectLiteralBody != null) {
+            mapping.putAll(parseObjectLiteral(returnExpression.objectLiteralBody));
+            return mapping;
+        }
+        if (returnedVar == null) {
+            return mapping;
+        }
         String literalBody = extractObjectLiteral(jsCode, returnedVar);
         if (literalBody != null) {
             mapping.putAll(parseObjectLiteral(literalBody)); // 此时 mapping 包含 pymtMthdIntrlNamEng → record.pymt_mthd_intrl_nam_eng
@@ -172,28 +181,94 @@ public final class JsFieldMapper {
     }
 
     /**
-     * 提取最后一个 return 语句返回的变量名（假设为简单标识符）。
+     * 提取第一个 return 语句的返回表达式。
      */
-    private static String extractReturnedVariable(String jsCode) {
-        // 匹配 return 后面紧跟的标识符（忽略分号和空格）
+    private static ReturnExpression extractReturnExpression(String jsCode) {
         Pattern returnPattern = Pattern.compile(
-                "\\breturn\\s+(" + IDENTIFIER + ")\\s*[;\\s]*$",
-                Pattern.MULTILINE
+                "\\breturn\\b"
         );
         Matcher matcher = returnPattern.matcher(jsCode);
-        String lastMatch = null;
-        while (matcher.find()) {
-            lastMatch = matcher.group(1);
+        if (!matcher.find()) {
+            return null;
         }
-        // 如果没有匹配到，尝试匹配 return 后带分号等，再取最后一个
-        if (lastMatch == null) {
-            Pattern altPattern = Pattern.compile("\\breturn\\s+(" + IDENTIFIER + ")\\s*;");
-            Matcher altMatcher = altPattern.matcher(jsCode);
-            while (altMatcher.find()) {
-                lastMatch = altMatcher.group(1);
+        int expressionStart = skipInlineWhitespace(jsCode, matcher.end());
+        if (expressionStart >= jsCode.length()) {
+            return null;
+        }
+        if (jsCode.charAt(expressionStart) == '{') {
+            int closeBrace = findMatchingBrace(jsCode, expressionStart);
+            if (closeBrace < 0) {
+                return null;
+            }
+            return ReturnExpression.objectLiteral(jsCode.substring(expressionStart + 1, closeBrace));
+        }
+        String returnedExpression = readSimpleReturnExpression(jsCode, expressionStart).trim();
+        return returnedExpression.matches(IDENTIFIER) ? ReturnExpression.variable(returnedExpression) : null;
+    }
+
+    private static int skipInlineWhitespace(String jsCode, int start) {
+        int index = start;
+        while (index < jsCode.length()) {
+            char current = jsCode.charAt(index);
+            if (current != ' ' && current != '\t' && current != '\f') {
+                break;
+            }
+            index++;
+        }
+        return index;
+    }
+
+    private static String readSimpleReturnExpression(String jsCode, int start) {
+        int index = start;
+        while (index < jsCode.length()) {
+            char current = jsCode.charAt(index);
+            if (current == ';' || current == '\r' || current == '\n') {
+                break;
+            }
+            index++;
+        }
+        return jsCode.substring(start, index);
+    }
+
+    private static int findMatchingBrace(String jsCode, int openBraceIndex) {
+        int depth = 0;
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+        boolean inTemplateLiteral = false;
+
+        for (int i = openBraceIndex; i < jsCode.length(); i++) {
+            char current = jsCode.charAt(i);
+            if (inSingleQuote || inDoubleQuote || inTemplateLiteral) {
+                if (current == '\\' && i + 1 < jsCode.length()) {
+                    i++;
+                    continue;
+                }
+                if (inSingleQuote && current == '\'') {
+                    inSingleQuote = false;
+                } else if (inDoubleQuote && current == '"') {
+                    inDoubleQuote = false;
+                } else if (inTemplateLiteral && current == '`') {
+                    inTemplateLiteral = false;
+                }
+                continue;
+            }
+
+            if (current == '\'') {
+                inSingleQuote = true;
+            } else if (current == '"') {
+                inDoubleQuote = true;
+            } else if (current == '`') {
+                inTemplateLiteral = true;
+            } else if (current == '{') {
+                depth++;
+            } else if (current == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
             }
         }
-        return lastMatch;
+        return -1;
     }
 
     /**
@@ -239,5 +314,23 @@ public final class JsFieldMapper {
             }
         }
         return map;
+    }
+
+    private static final class ReturnExpression {
+        private final String variableName;
+        private final String objectLiteralBody;
+
+        private ReturnExpression(String variableName, String objectLiteralBody) {
+            this.variableName = variableName;
+            this.objectLiteralBody = objectLiteralBody;
+        }
+
+        private static ReturnExpression variable(String variableName) {
+            return new ReturnExpression(variableName, null);
+        }
+
+        private static ReturnExpression objectLiteral(String objectLiteralBody) {
+            return new ReturnExpression(null, objectLiteralBody);
+        }
     }
 }
