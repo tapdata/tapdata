@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
+import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import lombok.Setter;
@@ -115,6 +116,11 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void taskRetryAlarm(String taskId, Map<String, Object> params) {
+        throw new BizException(ERROR);
+    }
+
+    @Override
+    public void batchUpdate(BatchUpdateAlarmParam alarm) {
         throw new BizException(ERROR);
     }
 }

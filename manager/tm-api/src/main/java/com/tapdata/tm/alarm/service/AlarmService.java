@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
+import com.tapdata.tm.commons.task.dto.alarm.BatchUpdateAlarmParam;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import org.springframework.data.mongodb.core.query.Query;
@@ -73,4 +74,6 @@ public interface AlarmService {
     void updateTaskAlarm(AlarmVO alarm);
 
     void taskRetryAlarm(String taskId,Map<String, Object> params);
+
+    void batchUpdate(BatchUpdateAlarmParam alarm);
 }
