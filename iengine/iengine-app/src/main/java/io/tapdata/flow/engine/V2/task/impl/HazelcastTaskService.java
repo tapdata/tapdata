@@ -26,7 +26,6 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
 import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Setting;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -51,7 +50,6 @@ import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.*;
-import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.utils.MergeTablePropertiesUtil;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -81,6 +79,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControll
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.util.CapabilityChecker;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
@@ -255,7 +254,7 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient, open);
 			hazelcastTaskClient.setJob(job);
 			obsLogger.info("Task started");
-			if (open) {
+			if (open && CapabilityChecker.hasAutoIncrementalBatchSizeNode(taskDto, this::getConnection, clientMongoOperator)) {
 				AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
 				obsLogger.info("Task supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data");
 			}

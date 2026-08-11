@@ -66,6 +66,8 @@ import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.entity.logger.Log;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastCacheTarget;
@@ -73,6 +75,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSource;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkSourceAndTargetTableNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourceConcurrentReadDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
@@ -94,6 +97,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastRenameTablePr
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastTypeFilterProcessorNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastUnwindProcessNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
+import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.preview.TaskPreviewInstance;
 import io.tapdata.flow.engine.V2.task.preview.TaskPreviewService;
@@ -103,6 +107,7 @@ import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.core.api.impl.JsonParserImpl;
 import io.tapdata.pdk.core.executor.ThreadFactory;
 import io.tapdata.schema.TapTableMap;
@@ -2180,6 +2185,111 @@ public class HazelcastTaskServiceTest {
                         eq(ConstructType.IMAP),
                         anyString()
                 );
+            }
+        }
+    }
+
+    @Nested
+    class StartTaskAutoIncrementalBatchSizeTest {
+        private static final String STREAM_READ_ONE_BY_ONE_FUNCTION = "stream_read_one_by_one_function";
+
+        private ClientMongoOperator clientMongoOperator;
+        private ConfigurationCenter configurationCenter;
+        private HazelcastInstance hazelcastInstance;
+        private JetService jetService;
+        private CpuMemoryScheduler cpuMemoryScheduler;
+        private HazelcastTaskService hazelcastTaskService;
+
+        @BeforeEach
+        void setUp() {
+            clientMongoOperator = mock(ClientMongoOperator.class);
+            configurationCenter = mock(ConfigurationCenter.class);
+            hazelcastInstance = mock(HazelcastInstance.class);
+            jetService = mock(JetService.class);
+            cpuMemoryScheduler = mock(CpuMemoryScheduler.class);
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
+            ReflectionTestUtils.setField(hazelcastTaskService, "configurationCenter", configurationCenter);
+            ReflectionTestUtils.setField(hazelcastTaskService, "hazelcastInstance", hazelcastInstance);
+            ReflectionTestUtils.setField(hazelcastTaskService, "cpuMemoryScheduler", cpuMemoryScheduler);
+            when(hazelcastInstance.getJet()).thenReturn(jetService);
+        }
+
+        @Test
+        void testStartTaskDoesNotStartAdjustBatchSizeWhenDagHasNoOneByOneNode() {
+            startTaskAndVerifyAdjustBatchSize(List.of(Capability.create("stream_read_function")), true, false);
+        }
+
+        @Test
+        void testStartTaskStartsAdjustBatchSizeWhenDagHasOneByOneNode() {
+            startTaskAndVerifyAdjustBatchSize(List.of(Capability.create(STREAM_READ_ONE_BY_ONE_FUNCTION)), true, true);
+        }
+
+        private void startTaskAndVerifyAdjustBatchSize(List<Capability> capabilities, boolean expectedOpen, boolean expectAdjustStart) {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setName("auto-adjust-task");
+            taskDto.setSyncType("migrate");
+            taskDto.setAutoIncrementalBatchSize(true);
+
+            Connections sourceConnection = new Connections();
+            sourceConnection.setId("source-connection");
+            sourceConnection.setPdkType("pdk");
+            sourceConnection.setPdkHash("source-pdk-hash");
+            DatabaseTypeEnum.DatabaseType sourceDatabaseType = new DatabaseTypeEnum.DatabaseType();
+            sourceDatabaseType.setCapabilities(capabilities);
+
+            TableNode sourceNode = new TableNode();
+            sourceNode.setId("source-node");
+            sourceNode.setConnectionId(sourceConnection.getId());
+            TableNode targetNode = new TableNode();
+            targetNode.setId("target-node");
+
+            Graph<Node, Edge> graph = new Graph<>();
+            graph.setNode(sourceNode.getId(), sourceNode);
+            graph.setNode(targetNode.getId(), targetNode);
+            graph.setEdge(sourceNode.getId(), targetNode.getId(), new Edge(sourceNode.getId(), targetNode.getId()));
+            taskDto.setDag(new DAG(graph));
+
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            ObsLogger obsLogger = mock(ObsLogger.class);
+            LogFactory logFactory = mock(LogFactory.class);
+            Log log = mock(Log.class);
+            JetDag jetDag = mock(JetDag.class);
+            com.hazelcast.jet.core.DAG hazelcastDag = mock(com.hazelcast.jet.core.DAG.class);
+            Job job = mock(Job.class);
+            HazelcastTaskClient taskClient = mock(HazelcastTaskClient.class);
+
+            when(obsLoggerFactory.getObsLogger(taskDto)).thenReturn(obsLogger);
+            when(logFactory.getLog(taskDto)).thenReturn(log);
+            when(jetDag.getDag()).thenReturn(hazelcastDag);
+            when(jetService.newJob(eq(hazelcastDag), any(JobConfig.class))).thenReturn(job);
+            doNothing().when(hazelcastTaskService).cleanAllUnselectedError(eq(taskDto), eq(obsLogger));
+            doReturn(sourceConnection).when(hazelcastTaskService).getConnection(sourceConnection.getId());
+            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(eq(taskDto), eq(true), any(Boolean.class));
+
+            try (
+                    MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
+                    MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class);
+                    MockedStatic<AspectUtils> aspectUtilsMockedStatic = mockStatic(AspectUtils.class);
+                    MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class);
+                    MockedStatic<HazelcastTaskClient> taskClientMockedStatic = mockStatic(HazelcastTaskClient.class);
+                    MockedStatic<AdjustBatchSizeFactory> adjustBatchSizeFactoryMockedStatic = mockStatic(AdjustBatchSizeFactory.class)
+            ) {
+                obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                instanceFactoryMockedStatic.when(() -> InstanceFactory.instance(LogFactory.class)).thenReturn(logFactory);
+                aspectUtilsMockedStatic.when(() -> AspectUtils.executeAspect(any())).thenReturn(null);
+                connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(eq(clientMongoOperator), eq(sourceConnection.getPdkHash()))).thenReturn(sourceDatabaseType);
+                taskClientMockedStatic.when(() -> HazelcastTaskClient.create(eq(taskDto), eq(clientMongoOperator), eq(clientMongoOperator), eq(configurationCenter), eq(hazelcastInstance))).thenReturn(taskClient);
+
+                TaskClient<TaskDto> actual = hazelcastTaskService.startTask(taskDto);
+
+                assertSame(taskClient, actual);
+                verify(hazelcastTaskService).task2HazelcastDAG(taskDto, true, expectedOpen);
+                if (expectAdjustStart) {
+                    adjustBatchSizeFactoryMockedStatic.verify(() -> AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger), times(1));
+                } else {
+                    adjustBatchSizeFactoryMockedStatic.verify(() -> AdjustBatchSizeFactory.start(anyString(), any(ObsLogger.class)), never());
+                }
             }
         }
     }

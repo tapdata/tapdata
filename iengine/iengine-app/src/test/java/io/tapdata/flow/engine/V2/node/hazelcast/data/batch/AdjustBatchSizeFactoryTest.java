@@ -9,8 +9,15 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -60,6 +67,130 @@ class AdjustBatchSizeFactoryTest {
             ObsLogger logger = mock(ObsLogger.class);
             AdjustBatchSizeFactory.start("taskStart", logger);
             AdjustBatchSizeFactory.stop("taskStart");
+        }
+
+        @Test
+        void testStartIgnoresBlankTaskId() {
+            AdjustBatchSizeFactory instance = AdjustBatchSizeFactory.getInstance();
+            ScheduledExecutorService oldScheduledExecutor =
+                    (ScheduledExecutorService) getField(instance, "scheduledExecutor");
+            ScheduledExecutorService scheduledExecutor = mock(ScheduledExecutorService.class);
+            ObsLogger logger = mock(ObsLogger.class);
+            setField(instance, "scheduledExecutor", scheduledExecutor);
+            try {
+                AdjustBatchSizeFactory.start(" ", logger);
+
+                verify(scheduledExecutor, never())
+                        .scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+                verify(logger, never()).info(anyString());
+            } finally {
+                AdjustBatchSizeFactory.stop(" ");
+                setField(instance, "scheduledExecutor", oldScheduledExecutor);
+            }
+        }
+
+        @Test
+        void testStartAllowsMissingLogger() {
+            AdjustBatchSizeFactory instance = AdjustBatchSizeFactory.getInstance();
+            ScheduledExecutorService oldScheduledExecutor =
+                    (ScheduledExecutorService) getField(instance, "scheduledExecutor");
+            ScheduledExecutorService scheduledExecutor = mock(ScheduledExecutorService.class);
+            ScheduledFuture<?> future = mock(ScheduledFuture.class);
+            doReturn(future).when(scheduledExecutor)
+                    .scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+            setField(instance, "scheduledExecutor", scheduledExecutor);
+            try {
+                Assertions.assertDoesNotThrow(() -> AdjustBatchSizeFactory.start("task-null-logger", null));
+
+                verify(scheduledExecutor, times(1))
+                        .scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+            } finally {
+                AdjustBatchSizeFactory.stop("task-null-logger");
+                setField(instance, "scheduledExecutor", oldScheduledExecutor);
+            }
+        }
+
+        @Test
+        void testStopMarksRegisteredManagerNotAliveAfterStart() {
+            AdjustBatchSizeFactory instance = AdjustBatchSizeFactory.getInstance();
+            ScheduledExecutorService oldScheduledExecutor =
+                    (ScheduledExecutorService) getField(instance, "scheduledExecutor");
+            ScheduledExecutorService scheduledExecutor = mock(ScheduledExecutorService.class);
+            ScheduledFuture<?> future = mock(ScheduledFuture.class);
+            doReturn(future).when(scheduledExecutor)
+                    .scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
+            setField(instance, "scheduledExecutor", scheduledExecutor);
+
+            String taskId = "task-reuse-alive";
+            AdjustStage stage = mock(AdjustStage.class);
+            when(stage.getNodeId()).thenReturn("node-reuse-alive");
+            try {
+                AdjustBatchSizeFactory.register(taskId, stage, mock(ThreadPoolExecutorEx.class));
+
+                @SuppressWarnings("unchecked")
+                Map<String, AdjustBatchSizeFactory.AdjustManager> managerMap =
+                        (Map<String, AdjustBatchSizeFactory.AdjustManager>) getField(instance, "adjustInstanceMap");
+                AdjustBatchSizeFactory.AdjustManager manager = managerMap.get(taskId);
+                Assertions.assertNotNull(manager);
+
+                AdjustBatchSizeFactory.start(taskId, mock(ObsLogger.class));
+                AdjustBatchSizeFactory.stop(taskId);
+
+                Assertions.assertFalse(manager.isAlive.get());
+            } finally {
+                AdjustBatchSizeFactory.unregister(taskId);
+                setField(instance, "scheduledExecutor", oldScheduledExecutor);
+            }
+        }
+
+        @Test
+        void testConcurrentStartCancelsSupersededFuture() throws Exception {
+            AdjustBatchSizeFactory instance = AdjustBatchSizeFactory.getInstance();
+            ScheduledExecutorService oldScheduledExecutor =
+                    (ScheduledExecutorService) getField(instance, "scheduledExecutor");
+            ScheduledExecutorService scheduledExecutor = mock(ScheduledExecutorService.class);
+            ScheduledFuture<?> firstFuture = mock(ScheduledFuture.class);
+            ScheduledFuture<?> secondFuture = mock(ScheduledFuture.class);
+            AtomicInteger scheduleCount = new AtomicInteger();
+            CyclicBarrier scheduleBarrier = new CyclicBarrier(2);
+            when(scheduledExecutor.scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
+                    .thenAnswer(invocation -> {
+                        int index = scheduleCount.getAndIncrement();
+                        try {
+                            scheduleBarrier.await(500L, TimeUnit.MILLISECONDS);
+                        } catch (Exception ignored) {
+                            // The synchronized implementation schedules one task at a time.
+                        }
+                        return index == 0 ? firstFuture : secondFuture;
+                    });
+            setField(instance, "scheduledExecutor", scheduledExecutor);
+
+            String taskId = "task-concurrent-start";
+            ObsLogger logger = mock(ObsLogger.class);
+            ExecutorService executorService = Executors.newFixedThreadPool(2);
+            CountDownLatch startLatch = new CountDownLatch(2);
+            try {
+                Runnable startTask = () -> {
+                    startLatch.countDown();
+                    try {
+                        startLatch.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    AdjustBatchSizeFactory.start(taskId, logger);
+                };
+
+                Future<?> first = executorService.submit(startTask);
+                Future<?> second = executorService.submit(startTask);
+                first.get(2L, TimeUnit.SECONDS);
+                second.get(2L, TimeUnit.SECONDS);
+
+                verify(firstFuture, times(1)).cancel(true);
+            } finally {
+                executorService.shutdownNow();
+                AdjustBatchSizeFactory.stop(taskId);
+                setField(instance, "scheduledExecutor", oldScheduledExecutor);
+            }
         }
 
         @Test
@@ -174,7 +305,7 @@ class AdjustBatchSizeFactoryTest {
             map.put("task-foreach", manager);
 
             IncreaseRuleInstance ruleInstance = mock(IncreaseRuleInstance.class);
-            AdjustBatchSizeFactory.AdjustManager.NODE_LIST.put("node", ruleInstance);
+            manager.nodeList.put("node", ruleInstance);
             @SuppressWarnings("unchecked")
             Consumer<IncreaseRuleInstance> consumer = mock(Consumer.class);
 
@@ -249,4 +380,3 @@ class AdjustBatchSizeFactoryTest {
         }
     }
 }
-

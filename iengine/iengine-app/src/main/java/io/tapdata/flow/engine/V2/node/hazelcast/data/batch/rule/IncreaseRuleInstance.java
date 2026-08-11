@@ -150,7 +150,7 @@ public final class IncreaseRuleInstance {
     }
 
     boolean exit() {
-        return queue.isEmpty() || isAlive == null;
+        return queue.isEmpty() || isAlive == null || !isAlive.get();
     }
 
     void collect(List<AdjustInfo> adjustInfos, long now) {
