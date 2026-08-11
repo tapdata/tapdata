@@ -69,6 +69,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -78,12 +79,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
 @Slf4j
 public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
+    private static final int TASK_ID_BATCH_SIZE = 100;
+    private static final long LATEST_SAMPLE_LOOKBACK_MILLIS = 5L * 60L * 1000L;
+
     public static final String SAMPLE_TYPE_TABLE = MetricCons.SampleType.TABLE.code();
     public static final String SAMPLE_TYPE_TASK = MetricCons.SampleType.TASK.code();
 
@@ -1480,30 +1485,49 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     @Override
     public Map<String, Sample> findLastMinuteSamplesByTaskIds(List<String> taskIds) {
         Map<String, Sample> result = new HashMap<>();
-        if (CollectionUtils.isEmpty(taskIds)) {
+        List<String> normalizedTaskIds = normalizeTaskIds(taskIds);
+        if (normalizedTaskIds.isEmpty()) {
             return result;
         }
 
-        for (String tid : taskIds) {
-            if (StringUtils.isBlank(tid)) {
-                continue;
-            }
-            Optional.ofNullable(findLastMinuteByTaskId(tid))
-                    .map(MeasurementEntity::getSamples)
-                    .filter(samples -> !samples.isEmpty())
-                    .flatMap(samples -> samples.stream()
-                            .filter(Objects::nonNull)
-                            .filter(sample -> sample.getDate() != null)
-                            .max(Comparator.comparing(Sample::getDate)))
-                    .ifPresent(latest -> result.put(tid, latest));
-        }
+        Date queryEnd = new Date();
+        Date queryStart = new Date(queryEnd.getTime() - LATEST_SAMPLE_LOOKBACK_MILLIS);
+        forEachTaskIdBatch(normalizedTaskIds, taskIdBatch -> {
+            Criteria criteria = Criteria.where(MetricCons.F_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
+                    .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK)
+                    .and(PATH_TAGS_TASK_ID).in(taskIdBatch)
+                    .and(MetricCons.F_DATE).gte(queryStart).lte(queryEnd);
+            Aggregation aggregation = Aggregation.newAggregation(
+                    Aggregation.match(criteria),
+                    Aggregation.sort(Sort.by(Sort.Order.asc(PATH_TAGS_TASK_ID), Sort.Order.desc(MetricCons.F_DATE))),
+                    Aggregation.group(PATH_TAGS_TASK_ID).first("$$ROOT").as("latestRecord"),
+                    Aggregation.replaceRoot().withValueOf("$latestRecord"),
+                    Aggregation.project(MetricCons.F_TAGS, MetricCons.F_SAMPLES))
+                    .withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+            mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class)
+                    .getMappedResults()
+                    .forEach(entity -> extractLatestSample(entity)
+                            .ifPresent(sample -> result.put(entity.getTags().get(FIELD_TAGS_TASK_ID), sample)));
+        });
         return result;
+    }
+
+    private Optional<Sample> extractLatestSample(MeasurementEntity entity) {
+        if (entity == null || entity.getTags() == null || StringUtils.isBlank(entity.getTags().get(FIELD_TAGS_TASK_ID))
+                || CollectionUtils.isEmpty(entity.getSamples())) {
+            return Optional.empty();
+        }
+        return entity.getSamples().stream()
+                .filter(Objects::nonNull)
+                .filter(sample -> sample.getDate() != null)
+                .max(Comparator.comparing(Sample::getDate));
     }
 
     @Override
     public TaskMetricsTrendVo aggregateTaskMetricsByTaskIds(List<String> taskIds, long startAt, long endAt) {
         TaskMetricsTrendVo result = new TaskMetricsTrendVo();
-        if (CollectionUtils.isEmpty(taskIds) || startAt >= endAt) {
+        List<String> normalizedTaskIds = normalizeTaskIds(taskIds);
+        if (normalizedTaskIds.isEmpty() || startAt >= endAt) {
             return result;
         }
 
@@ -1513,32 +1537,10 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         long bucketEnd = endAt - endAt % interval;
         long queryStart = bucketStart;
 
-        Criteria criteria = Criteria.where(MetricCons.F_DATE).gte(new Date(queryStart)).lte(new Date(endAt))
-                .and(PATH_TAGS_TASK_ID).in(taskIds)
-                .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK)
-                .and(MetricCons.F_GRANULARITY).is(rangeProfile.queryGranularity);
-        Query query = new Query(criteria);
-        query.fields().include(MetricCons.F_TAGS, MetricCons.F_DATE, MetricCons.F_GRANULARITY,
-                PATH_SS_DATE,
-                MetricCons.SS.VS.path(MetricCons.SS.VS.F_OUTPUT_QPS),
-                MetricCons.SS.VS.path(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS));
-        query.with(Sort.by(MetricCons.F_DATE).ascending());
-
         // taskId -> bucket -> list of sample values (outputQps, outputSizeQps)
         Map<String, Map<Long, List<double[]>>> taskBucketSamples = new HashMap<>();
-        // stream the result set so entities are consumed and discarded one by one instead of
-        try (Stream<MeasurementEntity> stream = mongoOperations.stream(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME)) {
-            stream.forEach(entity -> {
-                if (entity == null || entity.getTags() == null) {
-                    return;
-                }
-                String taskId = entity.getTags().get(FIELD_TAGS_TASK_ID);
-                if (StringUtils.isBlank(taskId)) {
-                    return;
-                }
-                collectTaskMetricsEntity(entity, rangeProfile, startAt, endAt, interval, taskId, taskBucketSamples);
-            });
-        }
+        forEachTaskIdBatch(normalizedTaskIds, taskIdBatch -> collectTaskMetricsBatch(taskIdBatch, rangeProfile, queryStart,
+                startAt, endAt, interval, taskBucketSamples));
 
         // 每个 taskId 在每个 bucket 内取平均值，再跨 taskId 求和
         Map<Long, Double> outputQpsMap = new HashMap<>();
@@ -1574,6 +1576,49 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             result.getOutputSizeQps().add(Optional.ofNullable(outputSizeQps).orElse(0D));
         }
         return result;
+    }
+
+    private void collectTaskMetricsBatch(List<String> taskIdBatch, TaskMetricsRangeProfile rangeProfile, long queryStart,
+                                         long startAt, long endAt, long interval,
+                                         Map<String, Map<Long, List<double[]>>> taskBucketSamples) {
+        Criteria criteria = Criteria.where(MetricCons.F_GRANULARITY).is(rangeProfile.queryGranularity)
+                .and(PATH_TAGS_TYPE).is(SAMPLE_TYPE_TASK)
+                .and(PATH_TAGS_TASK_ID).in(taskIdBatch)
+                .and(MetricCons.F_DATE).gte(new Date(queryStart)).lte(new Date(endAt));
+        Query query = new Query(criteria);
+        query.fields().include(MetricCons.F_TAGS, MetricCons.F_DATE, MetricCons.F_GRANULARITY,
+                PATH_SS_DATE,
+                MetricCons.SS.VS.path(MetricCons.SS.VS.F_OUTPUT_QPS),
+                MetricCons.SS.VS.path(MetricCons.SS.VS.F_OUTPUT_SIZE_QPS));
+        query.with(Sort.by(MetricCons.F_DATE).ascending());
+
+        try (Stream<MeasurementEntity> stream = mongoOperations.stream(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME)) {
+            stream.forEach(entity -> {
+                if (entity == null || entity.getTags() == null) {
+                    return;
+                }
+                String taskId = entity.getTags().get(FIELD_TAGS_TASK_ID);
+                if (StringUtils.isBlank(taskId)) {
+                    return;
+                }
+                collectTaskMetricsEntity(entity, rangeProfile, startAt, endAt, interval, taskId, taskBucketSamples);
+            });
+        }
+    }
+
+    private List<String> normalizeTaskIds(List<String> taskIds) {
+        if (CollectionUtils.isEmpty(taskIds)) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(taskIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new)));
+    }
+
+    private void forEachTaskIdBatch(List<String> taskIds, Consumer<List<String>> batchConsumer) {
+        for (int start = 0; start < taskIds.size(); start += TASK_ID_BATCH_SIZE) {
+            batchConsumer.accept(taskIds.subList(start, Math.min(start + TASK_ID_BATCH_SIZE, taskIds.size())));
+        }
     }
 
     private void collectTaskMetricsEntity(MeasurementEntity entity, TaskMetricsRangeProfile rangeProfile, long startAt, long endAt, long interval,
