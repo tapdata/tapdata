@@ -234,7 +234,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	@Override
 	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 		super.doInitWithDisableNode(context);
-		registerAdjustStageIfNeed();
 		if (getNode().disabledNode() && isRunning()) {
 			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
 			Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
