@@ -254,9 +254,13 @@ public class 	HazelcastTaskService implements TaskService<TaskDto> {
 			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient, open);
 			hazelcastTaskClient.setJob(job);
 			obsLogger.info("Task started");
-			if (open && CapabilityChecker.hasAutoIncrementalBatchSizeNode(taskDto, this::getConnection, clientMongoOperator)) {
-				AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
-				obsLogger.info("Task supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data");
+			try {
+				if (open && CapabilityChecker.hasAutoIncrementalBatchSizeNode(taskDto, this::getConnection, clientMongoOperator)) {
+					AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
+					obsLogger.info("Task supports automatic adjustment of incremental batch size and the automatic adjustment of batch size switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data");
+				}
+			} catch (Exception e) {
+				obsLogger.warn("When checking whether automatic adjustment of batch size is required, an exception occurs: {}. This exception does not affect the actual operation of the task.", e.getMessage(), e);
 			}
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
