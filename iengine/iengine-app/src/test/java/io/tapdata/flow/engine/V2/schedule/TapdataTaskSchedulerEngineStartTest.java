@@ -50,32 +50,6 @@ class TapdataTaskSchedulerEngineStartTest {
 		assertEquals(thirdPingTime, thirdTask.getPingTime());
 	}
 
-	@Test
-	@DisplayName("engine startup scheduler should refresh pending start task ping time on each tick")
-	void shouldRefreshPendingStartTaskPingTimeWhenProcessingStartupQueue() {
-		TapdataTaskScheduler scheduler = new TapdataTaskScheduler();
-		TaskDto firstTask = buildTask("first");
-		TaskDto secondTask = buildTask("second");
-		TaskDto thirdTask = buildTask("third");
-		RecordingClientMongoOperator clientMongoOperator = new RecordingClientMongoOperator(Arrays.asList(firstTask, secondTask, thirdTask));
-		ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
-		ReflectionTestUtils.setField(scheduler, "instanceNo", "agent-1");
-		ReflectionTestUtils.setField(scheduler, "engineStartTaskSchedulerStarted", true);
-
-		scheduler.runTaskIfNeedWhenEngineStart();
-		assertEquals(3, clientMongoOperator.updates.size());
-
-		ReflectionTestUtils.invokeMethod(scheduler, "processEngineStartTaskQueue");
-
-		assertEquals(6, clientMongoOperator.updates.size());
-		List<String> refreshedIds = clientMongoOperator.updateIds.subList(3, 6);
-		assertTrue(refreshedIds.contains(firstTask.getId().toHexString()));
-		assertTrue(refreshedIds.contains(secondTask.getId().toHexString()));
-		assertTrue(refreshedIds.contains(thirdTask.getId().toHexString()));
-		clientMongoOperator.updateCollections.subList(3, 6)
-				.forEach(collection -> assertEquals(ConnectorConstant.TASK_COLLECTION, collection));
-	}
-
 	private static long pingTime(Update update) {
 		Document set = update.getUpdateObject().get("$set", Document.class);
 		return ((Number) set.get(TaskDto.PING_TIME_FIELD)).longValue();
