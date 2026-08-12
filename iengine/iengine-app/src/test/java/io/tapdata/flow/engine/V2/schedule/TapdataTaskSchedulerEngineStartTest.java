@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.schedule;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +14,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,9 +37,9 @@ class TapdataTaskSchedulerEngineStartTest {
 		scheduler.runTaskIfNeedWhenEngineStart();
 
 		assertEquals(3, clientMongoOperator.updates.size());
-		assertEquals(firstTask.getId().toHexString(), clientMongoOperator.updateIds.get(0));
-		assertEquals(secondTask.getId().toHexString(), clientMongoOperator.updateIds.get(1));
-		assertEquals(thirdTask.getId().toHexString(), clientMongoOperator.updateIds.get(2));
+		assertEquals(firstTask.getId(), queryId(clientMongoOperator.updateQueries.get(0)));
+		assertEquals(secondTask.getId(), queryId(clientMongoOperator.updateQueries.get(1)));
+		assertEquals(thirdTask.getId(), queryId(clientMongoOperator.updateQueries.get(2)));
 
 		long firstPingTime = pingTime(clientMongoOperator.updates.get(0));
 		long secondPingTime = pingTime(clientMongoOperator.updates.get(1));
@@ -55,6 +57,10 @@ class TapdataTaskSchedulerEngineStartTest {
 		return ((Number) set.get(TaskDto.PING_TIME_FIELD)).longValue();
 	}
 
+	private static Object queryId(Query query) {
+		return query.getQueryObject().get("_id");
+	}
+
 	private static TaskDto buildTask(String name) {
 		TaskDto taskDto = new TaskDto();
 		taskDto.setId(ObjectId.get());
@@ -66,7 +72,7 @@ class TapdataTaskSchedulerEngineStartTest {
 	private static class RecordingClientMongoOperator extends ClientMongoOperator {
 		private final List<TaskDto> tasks;
 		private final List<Update> updates = new ArrayList<>();
-		private final List<String> updateIds = new ArrayList<>();
+		private final List<Query> updateQueries = new ArrayList<>();
 		private final List<String> updateCollections = new ArrayList<>();
 
 		private RecordingClientMongoOperator(List<TaskDto> tasks) {
@@ -82,11 +88,16 @@ class TapdataTaskSchedulerEngineStartTest {
 		}
 
 		@Override
-		public <T> T updateById(Update update, String collection, String id, Class<T> className) {
+		public UpdateResult update(Query query, Update update, String collection) {
 			updates.add(update);
-			updateIds.add(id);
+			updateQueries.add(query);
 			updateCollections.add(collection);
-			return null;
+			return UpdateResult.acknowledged(1L, 1L, null);
+		}
+
+		@Override
+		public <T> T updateById(Update update, String collection, String id, Class<T> className) {
+			throw new AssertionError("Task ping time refresh must use query update instead of updateById");
 		}
 	}
 }
