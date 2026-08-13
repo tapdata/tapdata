@@ -5,9 +5,15 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.sso.dto.SamlConfig;
+import com.tapdata.tm.sso.dto.SamlConfigForm;
+import com.tapdata.tm.sso.dto.SamlConfigView;
 import com.tapdata.tm.sso.security.SsoSecretCipher;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 /**
@@ -23,6 +29,9 @@ public class SamlConfigServiceImpl implements SamlConfigService {
 
     @Autowired
     private SsoSecretCipher ssoSecretCipher;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     @Override
     public SamlConfig getConfig() {
@@ -58,6 +67,108 @@ public class SamlConfigServiceImpl implements SamlConfigService {
     @Override
     public boolean isEnabled() {
         return readBoolean(KeyEnum.SAML_LOGIN_ENABLE, false);
+    }
+
+    @Override
+    public SamlConfigView getMaskedConfig() {
+        SamlConfig config = getConfig();
+        boolean keyConfigured = StringUtils.isNotBlank(readString(KeyEnum.SAML_SP_PRIVATE_KEY));
+        return SamlConfigView.builder()
+                .enabled(config.isEnabled())
+                .spEntityId(config.getSpEntityId())
+                .spAcsUrl(config.getSpAcsUrl())
+                .spPrivateKeyConfigured(keyConfigured)
+                .spCertificate(config.getSpCertificate())
+                .idpEntityId(config.getIdpEntityId())
+                .idpSsoUrl(config.getIdpSsoUrl())
+                .idpSloUrl(config.getIdpSloUrl())
+                .idpSigningCertificate(config.getIdpSigningCertificate())
+                .nameIdFormat(config.getNameIdFormat())
+                .wantAssertionsSigned(config.isWantAssertionsSigned())
+                .signAuthnRequest(config.isSignAuthnRequest())
+                .signatureAlgorithm(config.getSignatureAlgorithm())
+                .clockSkewSeconds(config.getClockSkewSeconds())
+                .claimUsername(config.getClaimUsername())
+                .claimEmail(config.getClaimEmail())
+                .claimDisplayName(config.getClaimDisplayName())
+                .claimGroups(config.getClaimGroups())
+                .build();
+    }
+
+    @Override
+    public void saveConfig(SamlConfigForm form) {
+        if (form == null) {
+            return;
+        }
+        writeBoolean(KeyEnum.SAML_LOGIN_ENABLE, form.getEnabled());
+        writeString(KeyEnum.SAML_SP_ENTITY_ID, form.getSpEntityId());
+        writeString(KeyEnum.SAML_SP_ACS_URL, form.getSpAcsUrl());
+        writeSpPrivateKey(form.getSpPrivateKey());
+        writeString(KeyEnum.SAML_SP_CERTIFICATE, form.getSpCertificate());
+        writeString(KeyEnum.SAML_IDP_ENTITY_ID, form.getIdpEntityId());
+        writeString(KeyEnum.SAML_IDP_SSO_URL, form.getIdpSsoUrl());
+        writeString(KeyEnum.SAML_IDP_SLO_URL, form.getIdpSloUrl());
+        writeString(KeyEnum.SAML_IDP_SIGNING_CERTIFICATE, form.getIdpSigningCertificate());
+        writeString(KeyEnum.SAML_NAME_ID_FORMAT, form.getNameIdFormat());
+        writeBoolean(KeyEnum.SAML_WANT_ASSERTIONS_SIGNED, form.getWantAssertionsSigned());
+        writeBoolean(KeyEnum.SAML_SIGN_AUTHN_REQUEST, form.getSignAuthnRequest());
+        writeString(KeyEnum.SAML_SIGNATURE_ALGORITHM, form.getSignatureAlgorithm());
+        writeInt(KeyEnum.SAML_CLOCK_SKEW_SECONDS, form.getClockSkewSeconds());
+        writeString(KeyEnum.SAML_CLAIM_USERNAME, form.getClaimUsername());
+        writeString(KeyEnum.SAML_CLAIM_EMAIL, form.getClaimEmail());
+        writeString(KeyEnum.SAML_CLAIM_DISPLAY_NAME, form.getClaimDisplayName());
+        writeString(KeyEnum.SAML_CLAIM_GROUPS, form.getClaimGroups());
+    }
+
+    /**
+     * Encrypt and store the SP private key. A blank value preserves the existing
+     * stored key so clients that can never read the key back can still re-save
+     * other fields. Requires the master key to be configured.
+     */
+    private void writeSpPrivateKey(String plaintextPem) {
+        if (StringUtils.isBlank(plaintextPem)) {
+            return;
+        }
+        if (!ssoSecretCipher.isEnabled()) {
+            throw new IllegalStateException(
+                    "Cannot store SP private key: SSO master key (SSO_MASTER_KEY) is not configured");
+        }
+        writeRaw(KeyEnum.SAML_SP_PRIVATE_KEY, ssoSecretCipher.encrypt(plaintextPem));
+    }
+
+    private void writeString(KeyEnum key, String value) {
+        if (value == null) {
+            return;
+        }
+        writeRaw(key, value);
+    }
+
+    private void writeBoolean(KeyEnum key, Boolean value) {
+        if (value == null) {
+            return;
+        }
+        writeRaw(key, Boolean.toString(value));
+    }
+
+    private void writeInt(KeyEnum key, Integer value) {
+        if (value == null) {
+            return;
+        }
+        writeRaw(key, Integer.toString(value));
+    }
+
+    /**
+     * Upsert a single {@code saml.*} setting row under the SAML category so the
+     * configuration is self-contained and does not depend on pre-seeded rows.
+     */
+    private void writeRaw(KeyEnum key, String value) {
+        Query query = Query.query(Criteria.where("category").is(CategoryEnum.SAML.getValue())
+                .and("key").is(key.getValue()));
+        Update update = new Update()
+                .set("category", CategoryEnum.SAML.getValue())
+                .set("key", key.getValue())
+                .set("value", value);
+        mongoTemplate.upsert(query, update, Settings.class);
     }
 
     private String decryptPrivateKey(String stored) {
