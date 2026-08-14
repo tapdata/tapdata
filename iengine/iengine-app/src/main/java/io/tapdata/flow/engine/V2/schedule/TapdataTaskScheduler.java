@@ -410,22 +410,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 		long pingTime = System.currentTimeMillis();
-		Set<String> taskIds = engineStartPendingTaskMap.values()
+		engineStartPendingTaskMap.values()
 				.stream()
-				.map(task -> {
-					task.setPingTime(pingTime);
-					return task.getId().toHexString();
-				}).collect(Collectors.toSet());
-		if (!taskIds.isEmpty()) {
-			return;
-		}
-		try {
-			Update update = Update.update(TaskDto.PING_TIME_FIELD, pingTime);
-			clientMongoOperator.update(new Query(Criteria.where("_id").in(taskIds)), update, ConnectorConstant.TASK_COLLECTION);
-		} catch (Exception e) {
-			logger.warn("Failed to refresh engine startup tasks ping time, task ids: ({}), pingTime: {}, error: {}",
-					taskIds, pingTime, e.getMessage(), e);
-		}
+				.filter(task -> task != null && task.getId() != null)
+				.forEach(task -> refreshEngineStartTaskPingTime(task, pingTime));
 	}
 
 	private void refreshEngineStartTaskPingTime(TaskDto task, long pingTime) {
@@ -435,7 +423,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		try {
 			task.setPingTime(pingTime);
 			Update update = Update.update(TaskDto.PING_TIME_FIELD, pingTime);
-			clientMongoOperator.updateById(update, ConnectorConstant.TASK_COLLECTION, task.getId().toHexString(), TaskDto.class);
+			addAgentIdUpdate(update);
+			clientMongoOperator.update(Query.query(Criteria.where("_id").is(task.getId())), update, ConnectorConstant.TASK_COLLECTION);
 		} catch (Exception e) {
 			logger.warn("Failed to refresh engine startup task ping time: {} ({}), pingTime: {}, error: {}",
 					task.getName(), task.getId().toHexString(), pingTime, e.getMessage(), e);
