@@ -1,5 +1,6 @@
 package com.tapdata.tm.sso.service;
 
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.sso.dto.SamlAuthenticatedSubject;
 import com.tapdata.tm.sso.dto.SamlConfig;
 import com.tapdata.tm.sso.entity.SsoExternalIdentity;
@@ -12,6 +13,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,7 +32,13 @@ public class SamlIdentityResolverImpl implements SamlIdentityResolver {
     private UserService userService;
 
     @Autowired
+    private SamlProvisioningService samlProvisioningService;
+
+    @Autowired
     private MongoTemplate mongoTemplate;
+
+    /** System actor used when JIT-creating a user during login (no interactive admin). */
+    private static final String SYSTEM_ACTOR = "admin@admin.com";
 
     @Override
     public User resolve(SamlAuthenticatedSubject subject) {
@@ -53,16 +61,62 @@ public class SamlIdentityResolverImpl implements SamlIdentityResolver {
         if (StringUtils.isBlank(email)) {
             throw new SamlValidationException("Unable to determine email from SAML subject");
         }
-        User user = userService.findOneByEmail(email);
+        User user = findUserByEmail(email);
         if (user == null) {
             if (!config.isJitProvisioningEnabled()) {
                 throw new SamlValidationException("No matching TapData user and JIT provisioning is disabled");
             }
-            throw new SamlValidationException("JIT provisioning is enabled but not implemented in this milestone");
+            // 3. JIT provisioning: create the user (roles resolved from claimGroups, if any),
+            //    then bind. Roles are set only here, at first creation.
+            user = provisionUser(subject, config, email);
         }
         user = ensureActive(user);
         bind(subject, user);
         return user;
+    }
+
+    private User provisionUser(SamlAuthenticatedSubject subject, SamlConfig config, String email) {
+        UserDetail actor = userService.loadUserByUsername(SYSTEM_ACTOR);
+        String username = resolveUsername(subject, config);
+        List<String> roleNames = resolveRoleNames(subject, config);
+        User created = samlProvisioningService.provisionUser(email, username, roleNames, actor);
+        if (created == null) {
+            throw new SamlValidationException("Failed to provision user for SAML login");
+        }
+        return created;
+    }
+
+    private String resolveUsername(SamlAuthenticatedSubject subject, SamlConfig config) {
+        Map<String, List<String>> attributes = subject.getAttributes();
+        if (StringUtils.isNotBlank(config.getClaimUsername()) && attributes != null) {
+            List<String> values = attributes.get(config.getClaimUsername());
+            if (values != null && !values.isEmpty() && StringUtils.isNotBlank(values.get(0))) {
+                return values.get(0).trim();
+            }
+        }
+        return null;
+    }
+
+    private List<String> resolveRoleNames(SamlAuthenticatedSubject subject, SamlConfig config) {
+        List<String> roleNames = new ArrayList<>();
+        Map<String, List<String>> attributes = subject.getAttributes();
+        if (StringUtils.isNotBlank(config.getClaimGroups()) && attributes != null) {
+            List<String> values = attributes.get(config.getClaimGroups());
+            if (values != null) {
+                for (String value : values) {
+                    if (StringUtils.isNotBlank(value)) {
+                        roleNames.add(value.trim());
+                    }
+                }
+            }
+        }
+        return roleNames;
+    }
+
+    private User findUserByEmail(String email) {
+        Query query = Query.query(Criteria.where("email").is(email)
+                .orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false)));
+        return mongoTemplate.findOne(query, User.class);
     }
 
     private String resolveEmail(SamlAuthenticatedSubject subject, SamlConfig config) {
