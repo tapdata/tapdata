@@ -19,6 +19,7 @@ import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.saml.saml2.core.Subject;
 import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
+import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
@@ -148,6 +149,10 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
             throw new SamlValidationException("Weak signature algorithm is not allowed");
         }
         try {
+            // Enforce the SAML signature profile first (single same-document Reference,
+            // no wrapped/transformed content) to defend against XML Signature Wrapping,
+            // then verify the cryptographic signature against the IdP certificate.
+            new SAMLSignatureProfileValidator().validate(signature);
             BasicX509Credential credential = new BasicX509Credential(idpCert);
             SignatureValidator.validate(signature, credential);
         } catch (Exception e) {
