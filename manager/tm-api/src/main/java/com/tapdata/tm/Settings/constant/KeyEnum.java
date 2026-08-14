@@ -38,7 +38,10 @@ public enum KeyEnum {
     SAML_CLAIM_USERNAME("saml.claim.username"),
     SAML_CLAIM_EMAIL("saml.claim.email"),
     SAML_CLAIM_DISPLAY_NAME("saml.claim.displayName"),
-    SAML_CLAIM_GROUPS("saml.claim.groups")
+    SAML_CLAIM_GROUPS("saml.claim.groups"),
+    SAML_IDP_INITIATED_ENABLED("saml.idpInitiatedEnabled"),
+    SAML_JIT_PROVISIONING_ENABLED("saml.jitProvisioningEnabled"),
+    SAML_LOGIN_REDIRECT_URL("saml.loginRedirectUrl")
     ;
 
     private String value;

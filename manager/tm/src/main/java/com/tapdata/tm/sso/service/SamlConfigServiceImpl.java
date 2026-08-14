@@ -48,6 +48,9 @@ public class SamlConfigServiceImpl implements SamlConfigService {
                 .wantAssertionsSigned(readBoolean(KeyEnum.SAML_WANT_ASSERTIONS_SIGNED, true))
                 .signAuthnRequest(readBoolean(KeyEnum.SAML_SIGN_AUTHN_REQUEST, false))
                 .clockSkewSeconds(readInt(KeyEnum.SAML_CLOCK_SKEW_SECONDS, 120))
+                .idpInitiatedEnabled(readBoolean(KeyEnum.SAML_IDP_INITIATED_ENABLED, false))
+                .jitProvisioningEnabled(readBoolean(KeyEnum.SAML_JIT_PROVISIONING_ENABLED, false))
+                .loginRedirectUrl(readString(KeyEnum.SAML_LOGIN_REDIRECT_URL))
                 .claimUsername(readString(KeyEnum.SAML_CLAIM_USERNAME))
                 .claimEmail(readString(KeyEnum.SAML_CLAIM_EMAIL))
                 .claimDisplayName(readString(KeyEnum.SAML_CLAIM_DISPLAY_NAME))
@@ -88,6 +91,9 @@ public class SamlConfigServiceImpl implements SamlConfigService {
                 .signAuthnRequest(config.isSignAuthnRequest())
                 .signatureAlgorithm(config.getSignatureAlgorithm())
                 .clockSkewSeconds(config.getClockSkewSeconds())
+                .idpInitiatedEnabled(config.isIdpInitiatedEnabled())
+                .jitProvisioningEnabled(config.isJitProvisioningEnabled())
+                .loginRedirectUrl(config.getLoginRedirectUrl())
                 .claimUsername(config.getClaimUsername())
                 .claimEmail(config.getClaimEmail())
                 .claimDisplayName(config.getClaimDisplayName())
@@ -114,6 +120,9 @@ public class SamlConfigServiceImpl implements SamlConfigService {
         writeBoolean(KeyEnum.SAML_SIGN_AUTHN_REQUEST, form.getSignAuthnRequest());
         writeString(KeyEnum.SAML_SIGNATURE_ALGORITHM, form.getSignatureAlgorithm());
         writeInt(KeyEnum.SAML_CLOCK_SKEW_SECONDS, form.getClockSkewSeconds());
+        writeBoolean(KeyEnum.SAML_IDP_INITIATED_ENABLED, form.getIdpInitiatedEnabled());
+        writeBoolean(KeyEnum.SAML_JIT_PROVISIONING_ENABLED, form.getJitProvisioningEnabled());
+        writeString(KeyEnum.SAML_LOGIN_REDIRECT_URL, form.getLoginRedirectUrl());
         writeString(KeyEnum.SAML_CLAIM_USERNAME, form.getClaimUsername());
         writeString(KeyEnum.SAML_CLAIM_EMAIL, form.getClaimEmail());
         writeString(KeyEnum.SAML_CLAIM_DISPLAY_NAME, form.getClaimDisplayName());
