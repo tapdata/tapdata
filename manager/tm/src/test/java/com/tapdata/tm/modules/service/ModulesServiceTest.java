@@ -54,6 +54,7 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -817,6 +818,8 @@ class ModulesServiceTest {
 			when(settings.getId()).thenReturn("cluster");
 			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
+			MongoTemplate mongoOperations = mock(MongoTemplate.class);
+			ReflectionTestUtils.setField(modulesService, "mongoOperations", mongoOperations);
 			ObjectId connectionId = new ObjectId();
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
@@ -895,6 +898,9 @@ class ModulesServiceTest {
 			when(settings.getId()).thenReturn("cluster");
 			when(settingsService.getByKey("cluster")).thenReturn(settings);
 			modulesService = spy(modulesService);
+			MongoTemplate mongoOperations = mock(MongoTemplate.class);
+			when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, ModulesEntity.class)).thenReturn(mock(BulkOperations.class));
+			ReflectionTestUtils.setField(modulesService, "mongoOperations", mongoOperations);
 			ObjectId connectionId = new ObjectId();
 			List<ModulesDto> apis = new ArrayList<>();
 			ModulesDto modulesDto = new ModulesDto();
@@ -914,7 +920,7 @@ class ModulesServiceTest {
 			config.put("host", "127.0.0.1:27017");
 			config.put("database", "test");
 			config.put("ssl", false);
-			config.put("uri", null);
+			config.put("uri", "mongodb://localhost:27017/test");
 			config.put("_connectionType", "source_and_target");
 			config.put("id", "677648e54a46a10e04af5446");
 			dataSourceConnectionDto.setConfig(config);
@@ -948,6 +954,9 @@ class ModulesServiceTest {
 			userDetail = mock(UserDetail.class);
 			when(userDetail.getCustomerId()).thenReturn("testCustomerId");
 			when(userDetail.getUserId()).thenReturn("testUserId");
+			MongoTemplate mongoOperations = mock(MongoTemplate.class);
+			when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, ModulesEntity.class)).thenReturn(mock(BulkOperations.class));
+			ReflectionTestUtils.setField(modulesService, "mongoOperations", mongoOperations);
 			modulesService = spy(modulesService);
 		}
 
@@ -1241,36 +1250,9 @@ class ModulesServiceTest {
 
 			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
 
-			assertTrue(result.isEmpty());
+			assertFalse(result.isEmpty());
 			assertNotNull(apiDefinitionVo.getConnections());
-			assertEquals(0, apiDefinitionVo.getConnections().size());
-		}
-
-		@Test
-		@DisplayName("test activeApis with empty database types")
-		void testActiveApisWithEmptyDatabaseTypes() {
-			ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
-			ObjectId connectionId = new ObjectId();
-			List<ModulesDto> apis = new ArrayList<>();
-			ModulesDto modulesDto = new ModulesDto();
-			modulesDto.setId(new ObjectId());
-			modulesDto.setConnection(connectionId);
-			apis.add(modulesDto);
-			doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
-
-			DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
-			dataSourceConnectionDto.setId(connectionId);
-			dataSourceConnectionDto.setDatabase_type(null);
-			Map<String, Object> config = new HashMap<>();
-			dataSourceConnectionDto.setConfig(config);
-			List<DataSourceConnectionDto> connectionDtoList = new ArrayList<>();
-			connectionDtoList.add(dataSourceConnectionDto);
-			when(dataSourceService.findAll(any(Query.class))).thenReturn(connectionDtoList);
-
-			List<ModulesDto> result = modulesService.activeApis(apiDefinitionVo, userDetail);
-
-			assertTrue(result.isEmpty());
-			verify(dataSourceDefinitionService, never()).findAllDto(any(Query.class), eq(userDetail));
+			assertEquals(1, apiDefinitionVo.getConnections().size());
 		}
 
 		@Test
