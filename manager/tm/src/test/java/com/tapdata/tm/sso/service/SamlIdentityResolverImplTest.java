@@ -1,5 +1,6 @@
 package com.tapdata.tm.sso.service;
 
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.sso.dto.SamlAuthenticatedSubject;
 import com.tapdata.tm.sso.dto.SamlConfig;
 import com.tapdata.tm.sso.entity.SsoExternalIdentity;
@@ -16,10 +17,16 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,6 +40,8 @@ class SamlIdentityResolverImplTest {
     @Mock
     private UserService userService;
     @Mock
+    private SamlProvisioningService samlProvisioningService;
+    @Mock
     private MongoTemplate mongoTemplate;
 
     @BeforeEach
@@ -40,6 +49,7 @@ class SamlIdentityResolverImplTest {
         resolver = new SamlIdentityResolverImpl();
         ReflectionTestUtils.setField(resolver, "samlConfigService", samlConfigService);
         ReflectionTestUtils.setField(resolver, "userService", userService);
+        ReflectionTestUtils.setField(resolver, "samlProvisioningService", samlProvisioningService);
         ReflectionTestUtils.setField(resolver, "mongoTemplate", mongoTemplate);
     }
 
@@ -77,10 +87,11 @@ class SamlIdentityResolverImplTest {
         when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().build());
         when(mongoTemplate.findOne(any(Query.class), eq(SsoExternalIdentity.class))).thenReturn(null);
         User user = activeUser();
-        when(userService.findOneByEmail("user@corp.com")).thenReturn(user);
+        when(mongoTemplate.findOne(any(Query.class), eq(User.class))).thenReturn(user);
 
         assertEquals(user, resolver.resolve(subject()));
         verify(mongoTemplate).insert(any(SsoExternalIdentity.class));
+        verify(samlProvisioningService, never()).provisionUser(any(), any(), any(), any());
     }
 
     @Test
@@ -88,9 +99,32 @@ class SamlIdentityResolverImplTest {
     void jitDisabledRejects() {
         when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().jitProvisioningEnabled(false).build());
         when(mongoTemplate.findOne(any(Query.class), eq(SsoExternalIdentity.class))).thenReturn(null);
-        when(userService.findOneByEmail("user@corp.com")).thenReturn(null);
+        when(mongoTemplate.findOne(any(Query.class), eq(User.class))).thenReturn(null);
 
         assertThrows(SamlValidationException.class, () -> resolver.resolve(subject()));
+        verify(samlProvisioningService, never()).provisionUser(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("no user + JIT enabled -> provisions user with roles from claimGroups, then binds")
+    void jitEnabledProvisions() {
+        Map<String, List<String>> attrs = new HashMap<>();
+        attrs.put("groups", Arrays.asList("Analyst", "Engineer"));
+        SamlAuthenticatedSubject s = subject();
+        s.setAttributes(attrs);
+
+        when(samlConfigService.getConfig()).thenReturn(
+                SamlConfig.builder().jitProvisioningEnabled(true).claimGroups("groups").build());
+        when(mongoTemplate.findOne(any(Query.class), eq(SsoExternalIdentity.class))).thenReturn(null);
+        when(mongoTemplate.findOne(any(Query.class), eq(User.class))).thenReturn(null);
+        UserDetail actor = org.mockito.Mockito.mock(UserDetail.class);
+        when(userService.loadUserByUsername("admin@admin.com")).thenReturn(actor);
+        User created = activeUser();
+        when(samlProvisioningService.provisionUser(eq("user@corp.com"), any(),
+                eq(Arrays.asList("Analyst", "Engineer")), eq(actor))).thenReturn(created);
+
+        assertEquals(created, resolver.resolve(s));
+        verify(mongoTemplate).insert(any(SsoExternalIdentity.class));
     }
 
     @Test
@@ -100,7 +134,7 @@ class SamlIdentityResolverImplTest {
         when(mongoTemplate.findOne(any(Query.class), eq(SsoExternalIdentity.class))).thenReturn(null);
         User user = activeUser();
         user.setAccountStatus(0);
-        when(userService.findOneByEmail("user@corp.com")).thenReturn(user);
+        when(mongoTemplate.findOne(any(Query.class), eq(User.class))).thenReturn(user);
 
         assertThrows(SamlValidationException.class, () -> resolver.resolve(subject()));
     }

@@ -9,9 +9,16 @@ import com.tapdata.tm.sso.dto.SamlConfigView;
 import com.tapdata.tm.sso.dto.SamlValidationResult;
 import com.tapdata.tm.sso.dto.SpKeyPair;
 import com.tapdata.tm.sso.security.SpKeyPairGenerator;
+import com.tapdata.tm.base.security.LoginUserResolver;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.sso.dto.ImportPreviewResult;
 import com.tapdata.tm.sso.service.SamlConfigService;
 import com.tapdata.tm.sso.service.SamlMetadataService;
+import com.tapdata.tm.sso.service.SamlUserImportService;
 import com.tapdata.tm.sso.service.SamlValidationService;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,8 +26,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.io.ByteArrayOutputStream;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,6 +58,10 @@ class SsoConfigControllerTest {
     private SamlValidationService samlValidationService;
     @Mock
     private SpKeyPairGenerator spKeyPairGenerator;
+    @Mock
+    private SamlUserImportService samlUserImportService;
+    @Mock
+    private LoginUserResolver loginUserResolver;
 
     @BeforeEach
     void setUp() {
@@ -52,6 +70,8 @@ class SsoConfigControllerTest {
         ReflectionTestUtils.setField(controller, "samlMetadataService", samlMetadataService);
         ReflectionTestUtils.setField(controller, "samlValidationService", samlValidationService);
         ReflectionTestUtils.setField(controller, "spKeyPairGenerator", spKeyPairGenerator);
+        ReflectionTestUtils.setField(controller, "samlUserImportService", samlUserImportService);
+        ReflectionTestUtils.setField(controller, "loginUserResolver", loginUserResolver);
     }
 
     @Test
@@ -127,5 +147,55 @@ class SsoConfigControllerTest {
         when(spKeyPairGenerator.generate(any())).thenReturn(new SpKeyPair("k", "c"));
         controller.generateKeyPair();
         verify(spKeyPairGenerator).generate("CN=https://sp");
+    }
+
+    @Test
+    @DisplayName("user-import/template streams the workbook bytes as an attachment")
+    void downloadImportTemplate() throws Exception {
+        byte[] bytes = "XLSX".getBytes();
+        when(samlUserImportService.buildTemplate()).thenReturn(bytes);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        when(response.getOutputStream()).thenReturn(new ServletOutputStream() {
+            @Override public boolean isReady() { return true; }
+            @Override public void setWriteListener(WriteListener l) { }
+            @Override public void write(int b) { captured.write(b); }
+        });
+
+        controller.downloadImportTemplate(response);
+
+        verify(response).setHeader(eq("Content-Disposition"),
+                eq("attachment; filename=sso-user-import-template.xlsx"));
+        assertEquals("XLSX", captured.toString());
+    }
+
+    @Test
+    @DisplayName("user-import/validate parses mode and delegates with the login user")
+    void validateImport() {
+        MockMultipartFile file = new MockMultipartFile("file", new byte[]{1});
+        UserDetail actor = mock(UserDetail.class);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
+        when(loginUserResolver.resolve(any(), any())).thenReturn(actor);
+        ImportPreviewResult preview = new ImportPreviewResult();
+        when(samlUserImportService.validate(eq(file), eq(SamlUserImportService.ImportMode.UPDATE), eq(actor)))
+                .thenReturn(preview);
+
+        assertEquals(preview, controller.validateImport(file, "update").getData());
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    @Test
+    @DisplayName("unknown mode falls back to SKIP")
+    void confirmImportUnknownModeFallsBackToSkip() {
+        MockMultipartFile file = new MockMultipartFile("file", new byte[]{1});
+        UserDetail actor = mock(UserDetail.class);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
+        when(loginUserResolver.resolve(any(), any())).thenReturn(actor);
+        ImportPreviewResult preview = new ImportPreviewResult();
+        when(samlUserImportService.confirm(eq(file), eq(SamlUserImportService.ImportMode.SKIP), eq(actor)))
+                .thenReturn(preview);
+
+        assertEquals(preview, controller.confirmImport(file, "nonsense").getData());
+        RequestContextHolder.resetRequestAttributes();
     }
 }
