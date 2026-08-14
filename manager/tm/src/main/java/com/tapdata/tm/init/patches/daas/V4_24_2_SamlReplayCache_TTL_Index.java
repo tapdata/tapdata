@@ -21,8 +21,7 @@ import java.util.concurrent.TimeUnit;
  * Creates the SAML replay-cache indexes on the {@code SamlReplayCache} collection:
  * a unique compound index on {@code (type, recordId)} that makes a duplicate insert
  * (a replayed message) fail, and a TTL index on {@code createdAt} so consumed
- * records expire automatically. The TTL comfortably exceeds any reasonable
- * assertion lifetime plus clock skew.
+ * records expire automatically at their validated protocol expiry.
  */
 @PatchAnnotation(appType = AppType.DAAS, version = "4.24-2")
 public class V4_24_2_SamlReplayCache_TTL_Index extends AbsPatch {
@@ -44,9 +43,8 @@ public class V4_24_2_SamlReplayCache_TTL_Index extends AbsPatch {
         IndexDefinition uniqueIndex = compoundIndex.named("unq_saml_replay_type_record");
         mongoTemplate.indexOps(collectionName).createIndex(uniqueIndex);
 
-        long ttlValue = TimeUnit.HOURS.toSeconds(1L);
-        Index ttlIndex = new Index().on("createdAt", Sort.Direction.DESC)
-                .expire(ttlValue, TimeUnit.SECONDS).background();
+        Index ttlIndex = new Index().on("expiresAt", Sort.Direction.DESC)
+                .expire(0L, TimeUnit.SECONDS).background();
         mongoTemplate.indexOps(collectionName).ensureIndex(ttlIndex);
     }
 }

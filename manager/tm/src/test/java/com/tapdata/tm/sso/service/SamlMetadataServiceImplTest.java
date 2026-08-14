@@ -75,20 +75,35 @@ class SamlMetadataServiceImplTest {
     }
 
     @Test
-    @DisplayName("builds SP metadata containing entity ID, ACS URL and certificate")
+    @DisplayName("builds SP metadata containing entity ID, ACS URL, SLO URL and certificate")
     void buildsSpMetadata() {
         SamlConfig config = SamlConfig.builder()
                 .spEntityId("https://tapdata.example.com/sp")
                 .spAcsUrl("https://tapdata.example.com/api/sso/saml/acs")
+                .spSloUrl("https://tapdata.example.com/api/sso/saml/slo")
                 .spCertificate("-----BEGIN CERTIFICATE-----\nMIISPCERT\n-----END CERTIFICATE-----")
                 .build();
         String xml = service.buildSpMetadata(config);
         assertTrue(xml.contains("entityID=\"https://tapdata.example.com/sp\""));
         assertTrue(xml.contains("Location=\"https://tapdata.example.com/api/sso/saml/acs\""));
+        // SLO endpoint must be advertised with the HTTP-Redirect binding (matches /slo)
+        assertTrue(xml.contains("<md:SingleLogoutService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\""
+                + " Location=\"https://tapdata.example.com/api/sso/saml/slo\"/>"));
         assertTrue(xml.contains("MIISPCERT"));
         assertTrue(xml.contains("SPSSODescriptor"));
         // private key must never appear in metadata
         assertTrue(!xml.contains("PRIVATE"));
+    }
+
+    @Test
+    @DisplayName("SP metadata omits SingleLogoutService when spSloUrl is not configured")
+    void buildsSpMetadataWithoutSlo() {
+        SamlConfig config = SamlConfig.builder()
+                .spEntityId("https://tapdata.example.com/sp")
+                .spAcsUrl("https://tapdata.example.com/api/sso/saml/acs")
+                .build();
+        String xml = service.buildSpMetadata(config);
+        assertTrue(!xml.contains("SingleLogoutService"));
     }
 
     @Test

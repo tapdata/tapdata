@@ -39,6 +39,7 @@ public class SamlConfigServiceImpl implements SamlConfigService {
                 .enabled(readBoolean(KeyEnum.SAML_LOGIN_ENABLE, false))
                 .spEntityId(readString(KeyEnum.SAML_SP_ENTITY_ID))
                 .spAcsUrl(readString(KeyEnum.SAML_SP_ACS_URL))
+                .spSloUrl(readString(KeyEnum.SAML_SP_SLO_URL))
                 .spPrivateKey(decryptPrivateKey(readString(KeyEnum.SAML_SP_PRIVATE_KEY)))
                 .spCertificate(readString(KeyEnum.SAML_SP_CERTIFICATE))
                 .idpEntityId(readString(KeyEnum.SAML_IDP_ENTITY_ID))
@@ -80,6 +81,7 @@ public class SamlConfigServiceImpl implements SamlConfigService {
                 .enabled(config.isEnabled())
                 .spEntityId(config.getSpEntityId())
                 .spAcsUrl(config.getSpAcsUrl())
+                .spSloUrl(config.getSpSloUrl())
                 .spPrivateKeyConfigured(keyConfigured)
                 .spCertificate(config.getSpCertificate())
                 .idpEntityId(config.getIdpEntityId())
@@ -109,6 +111,7 @@ public class SamlConfigServiceImpl implements SamlConfigService {
         writeBoolean(KeyEnum.SAML_LOGIN_ENABLE, form.getEnabled());
         writeString(KeyEnum.SAML_SP_ENTITY_ID, form.getSpEntityId());
         writeString(KeyEnum.SAML_SP_ACS_URL, form.getSpAcsUrl());
+        writeString(KeyEnum.SAML_SP_SLO_URL, form.getSpSloUrl());
         writeSpPrivateKey(form.getSpPrivateKey());
         writeString(KeyEnum.SAML_SP_CERTIFICATE, form.getSpCertificate());
         writeString(KeyEnum.SAML_IDP_ENTITY_ID, form.getIdpEntityId());
@@ -156,7 +159,7 @@ public class SamlConfigServiceImpl implements SamlConfigService {
         if (value == null) {
             return;
         }
-        writeRaw(key, Boolean.toString(value));
+        writeBooleanRaw(key, value);
     }
 
     private void writeInt(KeyEnum key, Integer value) {
@@ -177,6 +180,20 @@ public class SamlConfigServiceImpl implements SamlConfigService {
                 .set("category", CategoryEnum.SAML.getValue())
                 .set("key", key.getValue())
                 .set("value", value);
+        mongoTemplate.upsert(query, update, Settings.class);
+    }
+
+    /**
+     * Upsert a boolean {@code saml.*} toggle into the {@code open} field, consistent
+     * with how {@link #readBoolean} reads it and how the UI toggle is stored.
+     */
+    private void writeBooleanRaw(KeyEnum key, boolean value) {
+        Query query = Query.query(Criteria.where("category").is(CategoryEnum.SAML.getValue())
+                .and("key").is(key.getValue()));
+        Update update = new Update()
+                .set("category", CategoryEnum.SAML.getValue())
+                .set("key", key.getValue())
+                .set("open", value);
         mongoTemplate.upsert(query, update, Settings.class);
     }
 
@@ -201,11 +218,11 @@ public class SamlConfigServiceImpl implements SamlConfigService {
     }
 
     private boolean readBoolean(KeyEnum key, boolean defaultValue) {
-        String raw = readString(key);
-        if (StringUtils.isBlank(raw)) {
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.SAML, key);
+        if (settings == null || settings.getOpen() == null) {
             return defaultValue;
         }
-        return Boolean.parseBoolean(raw.trim());
+        return settings.getOpen();
     }
 
     private int readInt(KeyEnum key, int defaultValue) {

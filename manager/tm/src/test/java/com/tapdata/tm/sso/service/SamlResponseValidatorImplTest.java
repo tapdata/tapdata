@@ -90,11 +90,38 @@ class SamlResponseValidatorImplTest {
     }
 
     @Test
+    @DisplayName("a response without local request correlation is rejected when IdP-initiated login is disabled")
+    void unsolicitedResponseRejectedWhenIdpInitiatedIsDisabled() throws Exception {
+        String response = signedResponse("user@corp.com", null, Instant.now().plusSeconds(300));
+        assertThrows(SamlValidationException.class, () -> validator.validate(config, response, null));
+    }
+
+    @Test
     @DisplayName("signature from a different key is rejected")
     void wrongSignatureRejected() throws Exception {
         String response = signedResponse("user@corp.com", REQUEST_ID, Instant.now().plusSeconds(300));
         // Point config at a different IdP cert so signature verification fails.
         config.setIdpSigningCertificate(new SpKeyPairGenerator().generate("CN=Other").getCertificatePem());
         assertThrows(SamlValidationException.class, () -> validator.validate(config, response, REQUEST_ID));
+    }
+
+    @Test
+    @DisplayName("XSW: forged assertion wrapped alongside the signed one is rejected")
+    void signatureWrappingRejected() throws Exception {
+        String wrapped = SamlTestAssertions.buildSignatureWrappingResponseBase64(
+                idpKeyPair.getCertificatePem(), idpKeyPair.getPrivateKeyPem(),
+                SP_ENTITY, ACS_URL, IDP_ENTITY, "victim@corp.com", "attacker@evil.com",
+                REQUEST_ID, Instant.now().plusSeconds(300));
+        assertThrows(SamlValidationException.class, () -> validator.validate(config, wrapped, REQUEST_ID));
+    }
+
+    @Test
+    @DisplayName("XXE: SAMLResponse with a DOCTYPE / external entity is rejected (AC-054)")
+    void xxeDoctypeRejected() {
+        String xxe = "<?xml version=\"1.0\"?>"
+                + "<!DOCTYPE Response [ <!ENTITY xxe SYSTEM \"file:///etc/passwd\"> ]>"
+                + "<samlp:Response xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\">&xxe;</samlp:Response>";
+        String base64 = java.util.Base64.getEncoder().encodeToString(xxe.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThrows(SamlValidationException.class, () -> validator.validate(config, base64, REQUEST_ID));
     }
 }

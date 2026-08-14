@@ -14,7 +14,7 @@ import java.util.Date;
  * a duplicate insert (enforced by the unique {@code (type, recordId)} index) means
  * the message is being replayed and must be rejected.
  * <p>
- * Records expire automatically via a TTL index on {@link #createdAt} so the
+ * Records expire automatically via a TTL index on {@link #expiresAt} so the
  * collection never grows unbounded. The TTL is created by a startup patch.
  */
 @Data
@@ -29,6 +29,13 @@ public class SamlReplayRecord extends BaseEntity {
     /** The SAML message/assertion id that must only be consumed once. */
     private String recordId;
 
-    /** Creation time; drives TTL expiry. */
+    /** Creation time, retained for audit and diagnostics. */
     private Date createdAt;
+
+    /**
+     * Absolute expiry time for this replay guard. For assertions this is their
+     * validated NotOnOrAfter time, preventing a still-valid assertion from
+     * becoming replayable merely because a fixed cache window elapsed.
+     */
+    private Date expiresAt;
 }

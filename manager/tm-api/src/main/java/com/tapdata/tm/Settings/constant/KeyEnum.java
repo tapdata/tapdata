@@ -24,6 +24,7 @@ public enum KeyEnum {
     SAML_LOGIN_ENABLE("saml.login.enable"),
     SAML_SP_ENTITY_ID("saml.sp.entityId"),
     SAML_SP_ACS_URL("saml.sp.acsUrl"),
+    SAML_SP_SLO_URL("saml.sp.sloUrl"),
     SAML_SP_PRIVATE_KEY("saml.sp.privateKey"),
     SAML_SP_CERTIFICATE("saml.sp.certificate"),
     SAML_IDP_ENTITY_ID("saml.idp.entityId"),

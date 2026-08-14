@@ -19,6 +19,7 @@ public class SamlConfigView {
     // ---- Service Provider (TapData) ----
     private String spEntityId;
     private String spAcsUrl;
+    private String spSloUrl;
     /** True when an SP private key is stored; the value itself is never returned. */
     private boolean spPrivateKeyConfigured;
     private String spCertificate;

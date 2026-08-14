@@ -19,6 +19,7 @@ import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.saml.saml2.core.Subject;
 import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
+import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
@@ -148,6 +149,10 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
             throw new SamlValidationException("Weak signature algorithm is not allowed");
         }
         try {
+            // Enforce the SAML signature profile first (single same-document Reference,
+            // no wrapped/transformed content) to defend against XML Signature Wrapping,
+            // then verify the cryptographic signature against the IdP certificate.
+            new SAMLSignatureProfileValidator().validate(signature);
             BasicX509Credential credential = new BasicX509Credential(idpCert);
             SignatureValidator.validate(signature, credential);
         } catch (Exception e) {
@@ -164,7 +169,10 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
             throw new SamlValidationException("Assertion not yet valid (NotBefore)");
         }
         Instant notOnOrAfter = conditions.getNotOnOrAfter();
-        if (notOnOrAfter != null && !now.minus(skew).isBefore(notOnOrAfter)) {
+        if (notOnOrAfter == null) {
+            throw new SamlValidationException("Assertion Conditions has no NotOnOrAfter");
+        }
+        if (!now.minus(skew).isBefore(notOnOrAfter)) {
             throw new SamlValidationException("Assertion has expired (NotOnOrAfter)");
         }
         validateAudience(conditions, config);
@@ -202,7 +210,7 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
                 continue;
             }
             Instant notOnOrAfter = data.getNotOnOrAfter();
-            if (notOnOrAfter != null && !now.minus(skew).isBefore(notOnOrAfter)) {
+            if (notOnOrAfter == null || !now.minus(skew).isBefore(notOnOrAfter)) {
                 continue;
             }
             if (StringUtils.isNotBlank(config.getSpAcsUrl()) && StringUtils.isNotBlank(data.getRecipient())
@@ -213,9 +221,9 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
                     && !expectedInResponseTo.equals(data.getInResponseTo())) {
                 continue;
             }
-            if (expectedInResponseTo == null && StringUtils.isNotBlank(data.getInResponseTo())
-                    && !config.isIdpInitiatedEnabled()) {
-                // Solicited response replayed as unsolicited, or IdP-initiated disabled.
+            if (expectedInResponseTo == null && !config.isIdpInitiatedEnabled()) {
+                // No local request correlation means this is IdP-initiated; reject it
+                // whenever that flow is disabled, regardless of the response field.
                 continue;
             }
             matched = true;
@@ -228,8 +236,9 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
 
     private void enforceReplay(Assertion assertion) {
         String assertionId = assertion.getID();
+        Instant notOnOrAfter = assertion.getConditions().getNotOnOrAfter();
         if (StringUtils.isBlank(assertionId)
-                || !replayCacheService.recordIfFirstUse("assertion", assertionId)) {
+                || !replayCacheService.recordIfFirstUse("assertion", assertionId, Date.from(notOnOrAfter))) {
             throw new SamlValidationException("Assertion has already been used (replay detected)");
         }
     }
