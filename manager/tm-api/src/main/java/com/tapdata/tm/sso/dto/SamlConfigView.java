@@ -35,6 +35,9 @@ public class SamlConfigView {
     private boolean signAuthnRequest;
     private String signatureAlgorithm;
     private int clockSkewSeconds;
+    private boolean idpInitiatedEnabled;
+    private boolean jitProvisioningEnabled;
+    private String loginRedirectUrl;
 
     // ---- Claim / attribute mapping ----
     private String claimUsername;

@@ -55,6 +55,14 @@ public class SamlConfig {
     /** Allowed clock skew in seconds for timestamp validation. Defaults to 120. */
     @Builder.Default
     private int clockSkewSeconds = 120;
+    /** Whether IdP-Initiated SSO (unsolicited response) is accepted. Defaults to false. */
+    @Builder.Default
+    private boolean idpInitiatedEnabled = false;
+    /** Whether Just-In-Time user provisioning is allowed on first login. Defaults to false. */
+    @Builder.Default
+    private boolean jitProvisioningEnabled = false;
+    /** SPA URL the browser is redirected to after a successful ACS login (token appended). */
+    private String loginRedirectUrl;
 
     // ---- Claim / attribute mapping (generic, not vendor-bound) ----
     /** SAML attribute (or NameID) carrying the username. */
