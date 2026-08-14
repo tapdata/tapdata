@@ -35,6 +35,9 @@ public class SamlConfigForm {
     private Boolean signAuthnRequest;
     private String signatureAlgorithm;
     private Integer clockSkewSeconds;
+    private Boolean idpInitiatedEnabled;
+    private Boolean jitProvisioningEnabled;
+    private String loginRedirectUrl;
 
     // ---- Claim / attribute mapping ----
     private String claimUsername;

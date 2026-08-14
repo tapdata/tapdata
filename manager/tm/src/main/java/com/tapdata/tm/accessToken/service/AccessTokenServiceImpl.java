@@ -223,11 +223,16 @@ public class AccessTokenServiceImpl implements AccessTokenService {
     }
 
     public AccessTokenDto save(User user) {
+        return save(user, AuthType.USERNAME_LOGIN.getValue());
+    }
+
+    public AccessTokenDto save(User user, String authType) {
         AccessTokenDto accessTokenDto = null;
         if (user != null) {
             String id = UUIDUtil.get64UUID();
             Date now = new Date();
-            AccessTokenEntity accessTokenEntity = new AccessTokenEntity(id, resolveTtlSeconds(), now, user.getId(), now, AuthType.USERNAME_LOGIN.getValue());
+            String resolvedAuthType = authType != null ? authType : AuthType.USERNAME_LOGIN.getValue();
+            AccessTokenEntity accessTokenEntity = new AccessTokenEntity(id, resolveTtlSeconds(), now, user.getId(), now, resolvedAuthType);
             accessTokenDto = new AccessTokenDto();
             BeanUtil.copyProperties(accessTokenEntity, accessTokenDto);
 
