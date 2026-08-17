@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 
 import java.io.Serializable;
@@ -59,6 +60,14 @@ public class DAG implements Serializable, Cloneable {
 
     private static Logger logger = LoggerFactory.getLogger(DAG.class);
     public static Map<String, Class<? extends Node>> nodeMapping = new ConcurrentHashMap<>();
+    private static volatile ResourceLoader resourceLoader;
+
+    public static void setResourceLoader(ResourceLoader resourceLoader) {
+        DAG.resourceLoader = resourceLoader;
+        logger.info("DAG resourceLoader set to {} (class: {})",
+                resourceLoader == null ? "null" : "available",
+                resourceLoader == null ? "-" : resourceLoader.getClass().getName());
+    }
 
     private final transient Graph<Node, Edge> graph;
 
@@ -81,53 +90,71 @@ public class DAG implements Serializable, Cloneable {
     @Setter
     private String ownerId;
 
-    static {
-
-        ClassPathScanningCandidateComponentProvider classPathScanningCandidateComponentProvider =
+    private static ClassPathScanningCandidateComponentProvider createNodeTypeScanner() {
+        ClassPathScanningCandidateComponentProvider scanner =
                 new ClassPathScanningCandidateComponentProvider(true);
-        classPathScanningCandidateComponentProvider.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
-        Set<BeanDefinition> result = classPathScanningCandidateComponentProvider.findCandidateComponents(DAG.class.getPackage().getName());
-        result.forEach(beanDefinition -> {
-            try {
-                Class<?> nodeClass = Class.forName(beanDefinition.getBeanClassName());
-                if (!Loader.isExtends(nodeClass, Node.class)) {
-                    logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName() );
-                    return;
-                }
-                NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
-                nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
-            } catch (Exception e) {
-                logger.error("Unable to load class: {}, NodeDeserialize will not be able to serialize the corresponding node type", beanDefinition.getBeanClassName(), e);
-            }
-        });
-        /*try {
+        scanner.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
+        ResourceLoader rl = DAG.resourceLoader;
+        if (rl != null) {
+            scanner.setResourceLoader(rl);
+        }
+        return scanner;
+    }
 
-            List<String> list = Loader.getResourceFiles(DAG.class.getPackage().getName());
+    static {
+        String basePackage = DAG.class.getPackage().getName();
+        ClassPathScanningCandidateComponentProvider scanner = createNodeTypeScanner();
+        Set<BeanDefinition> result = scanner.findCandidateComponents(basePackage);
 
-            list.forEach(url -> {
+        if (logger.isInfoEnabled()) {
+            logger.info("DAG static init scanning package [{}] with resourceLoader={}, found {} @NodeType candidate bean definitions",
+                    basePackage,
+                    resourceLoader == null ? "<not injected (default)>" : resourceLoader.getClass().getName(),
+                    result == null ? 0 : result.size());
+        }
+        int registered = 0;
+        int skipped = 0;
+        Set<String> registeredTypes = new LinkedHashSet<>();
+        if (result != null) {
+            for (BeanDefinition beanDefinition : result) {
+                String beanClassName = beanDefinition.getBeanClassName();
                 try {
-                    Class<?> nodeClass = Class.forName(url);
+                    Class<?> nodeClass = Class.forName(beanClassName, true, DAG.class.getClassLoader());
                     if (!Loader.isExtends(nodeClass, Node.class)) {
-                        logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName() );
-                        return;
+                        logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName());
+                        skipped++;
+                        continue;
                     }
                     NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
                     if (nodeType == null) {
-                        logger.debug("Class {} no have NodeType annotation , skip.", nodeClass.getName());
-                        return;
+                        logger.warn("Candidate class {} has no @NodeType annotation after annotation filter match, skip", beanClassName);
+                        skipped++;
+                        continue;
                     }
-                    nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
-                } catch (ClassNotFoundException e) {
-                    logger.error("Load node type failed.", e);
-                    e.printStackTrace();
+                    nodeMapping.put(nodeType.value(), (Class<? extends Node>) nodeClass);
+                    registeredTypes.add(nodeType.value());
+                    registered++;
+                } catch (Throwable t) {
+                    logger.error("Unable to load class: {}, NodeDeserialize will not be able to serialize the corresponding node type. Cause: {}",
+                            beanClassName, t.toString(), t);
+                    skipped++;
                 }
-            });
+            }
+        } else {
+            logger.warn("DAG static init scanner returned null candidate set for package [{}], nodeMapping will be empty until reloadClassByType runs",
+                    basePackage);
+        }
 
-        } catch (IOException e) {
-            logger.error("Load node type failed.", e);
-            e.printStackTrace();
-        }*/
-
+        if (registered == 0) {
+            logger.warn("DAG static init registered ZERO @NodeType node classes (package={}, candidates={}, skipped={}). " +
+                            "This typically means ClassPathScanningCandidateComponentProvider cannot enumerate resources inside " +
+                            "Spring Boot fat JAR (BOOT-INF/lib/*.jar). Ensure DAG.setResourceLoader(applicationContext) is called " +
+                            "before any TaskDto JSON deserialization (preview RPC etc.), so subsequent reloadClassByType can use it.",
+                    basePackage, result == null ? 0 : result.size(), skipped);
+        } else {
+            logger.info("DAG static init registered {} @NodeType node classes (types={}, skipped={})",
+                    registered, registeredTypes, skipped);
+        }
     }
 
     public DAG(Graph<Node, Edge> graph) {
@@ -1236,6 +1263,10 @@ public class DAG implements Serializable, Cloneable {
     public static Class<? extends Node> getClassByType(String type) {
         Class<? extends Node> clazz = nodeMapping.get(type);
         if (clazz == null) {
+            if (logger.isInfoEnabled()) {
+                logger.info("Node type [{}] not found in nodeMapping (current registered types: {}), triggering reloadClassByType scan",
+                        type, nodeMapping.isEmpty() ? "<empty>" : nodeMapping.keySet());
+            }
             clazz = DAG.reloadClassByType(type);
         }
         return clazz;
@@ -1244,31 +1275,63 @@ public class DAG implements Serializable, Cloneable {
     /**
      * 重新扫描类路径，查找带有 @NodeType 注解且 value 等于 type 的类，
      * 若找到则尝试加载并注册到 nodeMapping。
+     * 通过 createNodeTypeScanner() 优先使用外部注入的 ResourceLoader（Spring Boot fat JAR 下的 ApplicationContext），
+     * 以便正确枚举 BOOT-INF/lib/*.jar 内的资源。
      */
     protected static synchronized Class<? extends Node> reloadClassByType(String type) {
-        ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(true);
-        scanner.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
         String basePackage = DAG.class.getPackage().getName();
+        ClassPathScanningCandidateComponentProvider scanner = createNodeTypeScanner();
         Set<BeanDefinition> candidates = scanner.findCandidateComponents(basePackage);
-        for (BeanDefinition bd : candidates) {
-            String className = bd.getBeanClassName();
-            try {
-                Class<?> clazz = Class.forName(className, true, DAG.class.getClassLoader());
-                NodeType annotation = clazz.getAnnotation(NodeType.class);
-                if (annotation != null && type.equals(annotation.value())) {
-                    if (!Node.class.isAssignableFrom(clazz)) {
-                        throw new IllegalArgumentException("Class " + className + " is not a subclass of Node");
-                    }
-                    @SuppressWarnings("unchecked")
-                    Class<? extends Node> nodeClass = (Class<? extends Node>) clazz;
-                    nodeMapping.put(type, nodeClass);
-                    return nodeClass;
-                }
-            } catch (ClassNotFoundException | NoClassDefFoundError e) {
-                // 忽略加载失败的类，继续扫描下一个
-            }
+
+        if (logger.isInfoEnabled()) {
+            logger.info("reloadClassByType scanning package [{}] for @NodeType(value=\"{}\"), resourceLoader={}, candidates={}",
+                    basePackage,
+                    type,
+                    resourceLoader == null ? "<not injected (default)> - fat JAR enumeration may fail"
+                            : resourceLoader.getClass().getName(),
+                    candidates == null ? 0 : candidates.size());
         }
-        throw new RuntimeException("Cannot find or load node class for type: " + type);
+
+        if (candidates == null || candidates.isEmpty()) {
+            logger.warn("reloadClassByType found ZERO @NodeType candidates (package={}, resourceLoader={}). " +
+                            "Please confirm DAG.setResourceLoader(ApplicationContext) was called after Spring context startup, " +
+                            "so the scanner can resolve nested jar: URLs inside BOOT-INF/lib/*.jar",
+                    basePackage,
+                    resourceLoader == null ? "<not injected>" : resourceLoader.getClass().getName());
+        } else {
+            int scanned = 0;
+            for (BeanDefinition bd : candidates) {
+                String className = bd.getBeanClassName();
+                scanned++;
+                try {
+                    Class<?> clazz = Class.forName(className, true, DAG.class.getClassLoader());
+                    NodeType annotation = clazz.getAnnotation(NodeType.class);
+                    if (annotation != null && type.equals(annotation.value())) {
+                        if (!Node.class.isAssignableFrom(clazz)) {
+                            logger.error("Candidate class {} matches @NodeType(\"{}\") but does not extend Node, skip", className, type);
+                            continue;
+                        }
+                        @SuppressWarnings("unchecked")
+                        Class<? extends Node> nodeClass = (Class<? extends Node>) clazz;
+                        nodeMapping.put(type, nodeClass);
+                        logger.info("reloadClassByType successfully registered @NodeType(\"{}\") -> {} (after scanning {} candidates)",
+                                type, className, scanned);
+                        return nodeClass;
+                    }
+                } catch (Throwable t) {
+                    logger.warn("Failed to load node class {} while looking for @NodeType(\"{}\"), continue. Cause: {}",
+                            className, type, t.toString(), t);
+                }
+            }
+            logger.warn("reloadClassByType scanned all {} candidates for package [{}] but none matched @NodeType(\"{}\")",
+                    scanned, basePackage, type);
+        }
+        throw new RuntimeException(String.format(
+                "Cannot find or load node class for type: %s (package=%s, candidates=%d, resourceLoader=%s, registeredTypes=%s)",
+                type, basePackage,
+                candidates == null ? 0 : candidates.size(),
+                resourceLoader == null ? "<not injected>" : resourceLoader.getClass().getName(),
+                nodeMapping.isEmpty() ? "<empty>" : nodeMapping.keySet().toString()));
     }
 
     @Data
