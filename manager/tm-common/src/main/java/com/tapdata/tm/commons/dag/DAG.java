@@ -1245,10 +1245,7 @@ public class DAG implements Serializable, Cloneable {
      * 重新扫描类路径，查找带有 @NodeType 注解且 value 等于 type 的类，
      * 若找到则尝试加载并注册到 nodeMapping。
      */
-    public static synchronized Class<? extends Node> reloadClassByType(String type) {
-        if (nodeMapping.containsKey(type)) {
-            return nodeMapping.get(type);
-        }
+    protected static synchronized Class<? extends Node> reloadClassByType(String type) {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(true);
         scanner.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
         String basePackage = DAG.class.getPackage().getName();
