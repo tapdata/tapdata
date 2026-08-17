@@ -5,6 +5,7 @@ import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.annotation.IgnoreLogin;
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.sso.dto.AuthnRequestResult;
 import com.tapdata.tm.sso.dto.InboundLogout;
 import com.tapdata.tm.sso.dto.LogoutRedirectResult;
@@ -68,10 +69,20 @@ public class SsoLoginController extends BaseController {
     private UserService userService;
     private MongoTemplate mongoTemplate;
 
+    @Operation(summary = "Whether SAML SSO login is enabled (for showing the login button)")
+    @GetMapping("/enabled")
+    public ResponseMessage<Boolean> enabled() {
+        return success(samlConfigService.isEnabled());
+    }
+
     @Operation(summary = "Start SP-Initiated SAML login (redirect to IdP)")
     @GetMapping("/login")
     public void login(@RequestParam(value = "relayState", required = false) String relayState,
                       HttpServletResponse response) throws IOException {
+        if (!isSafeLocalRedirect(relayState)) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid RelayState");
+            return;
+        }
         SamlConfig config = samlConfigService.getConfig();
         if (!config.isEnabled()) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "SAML login is not enabled");
@@ -94,6 +105,9 @@ public class SsoLoginController extends BaseController {
             return;
         }
         try {
+            if (!isSafeLocalRedirect(relayState)) {
+                throw new SamlValidationException("Invalid RelayState");
+            }
             String expectedInResponseTo = readRequestIdCookie(request);
             SamlAuthenticatedSubject subject =
                     samlResponseValidator.validate(config, samlResponse, expectedInResponseTo);
@@ -123,6 +137,10 @@ public class SsoLoginController extends BaseController {
     public void logout(@RequestParam(value = "access_token", required = false) String accessToken,
                        @RequestParam(value = "relayState", required = false) String relayState,
                        HttpServletResponse response) throws IOException {
+        if (!isSafeLocalRedirect(relayState)) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid RelayState");
+            return;
+        }
         SamlConfig config = samlConfigService.getConfig();
         SsoSession session = findSessionByAccessToken(accessToken);
 
@@ -223,6 +241,13 @@ public class SsoLoginController extends BaseController {
             return config.getLoginRedirectUrl();
         }
         return "/";
+    }
+
+    /** Only a same-origin absolute path may be carried through an untrusted IdP. */
+    private boolean isSafeLocalRedirect(String relayState) {
+        return StringUtils.isBlank(relayState)
+                || (relayState.startsWith("/") && !relayState.startsWith("//")
+                && (relayState.length() == 1 || relayState.charAt(1) != '\\'));
     }
 
     private void recordSession(SamlAuthenticatedSubject subject, User user, AccessTokenDto token) {

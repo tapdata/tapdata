@@ -254,11 +254,10 @@ public class SamlLogoutServiceImpl implements SamlLogoutService {
 
     private void verifyRedirectSignature(SamlConfig config, String sigAlg, String signature, String signedQuery) {
         if (StringUtils.isBlank(signature)) {
-            // Unsigned inbound LogoutRequest: only accept when the SP does not require signing.
-            if (config.isSignAuthnRequest()) {
-                throw new SamlValidationException("LogoutRequest is not signed but signing is required");
-            }
-            return;
+            throw new SamlValidationException("LogoutRequest must be signed");
+        }
+        if (StringUtils.isBlank(sigAlg) || StringUtils.isBlank(signedQuery)) {
+            throw new SamlValidationException("LogoutRequest signature parameters are incomplete");
         }
         if (StringUtils.isNotBlank(sigAlg) && WEAK_SIGNATURE_ALGS.contains(sigAlg)) {
             throw new SamlValidationException("Weak signature algorithm is not allowed");
