@@ -90,6 +90,13 @@ class SamlResponseValidatorImplTest {
     }
 
     @Test
+    @DisplayName("a response without local request correlation is rejected when IdP-initiated login is disabled")
+    void unsolicitedResponseRejectedWhenIdpInitiatedIsDisabled() throws Exception {
+        String response = signedResponse("user@corp.com", null, Instant.now().plusSeconds(300));
+        assertThrows(SamlValidationException.class, () -> validator.validate(config, response, null));
+    }
+
+    @Test
     @DisplayName("signature from a different key is rejected")
     void wrongSignatureRejected() throws Exception {
         String response = signedResponse("user@corp.com", REQUEST_ID, Instant.now().plusSeconds(300));

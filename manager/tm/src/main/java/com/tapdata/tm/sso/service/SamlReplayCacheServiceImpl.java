@@ -23,6 +23,11 @@ public class SamlReplayCacheServiceImpl implements SamlReplayCacheService {
 
     @Override
     public boolean recordIfFirstUse(String type, String recordId) {
+        return recordIfFirstUse(type, recordId, new Date(System.currentTimeMillis() + 60 * 60 * 1000L));
+    }
+
+    @Override
+    public boolean recordIfFirstUse(String type, String recordId, Date expiresAt) {
         if (StringUtils.isBlank(recordId)) {
             // No id to correlate on; cannot guarantee single use -> treat as replay.
             return false;
@@ -31,6 +36,7 @@ public class SamlReplayCacheServiceImpl implements SamlReplayCacheService {
         record.setType(StringUtils.defaultString(type));
         record.setRecordId(recordId);
         record.setCreatedAt(new Date());
+        record.setExpiresAt(expiresAt);
         try {
             mongoTemplate.insert(record);
             return true;

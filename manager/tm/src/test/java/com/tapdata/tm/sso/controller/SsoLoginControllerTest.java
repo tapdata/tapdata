@@ -85,10 +85,21 @@ class SsoLoginControllerTest {
                 .thenReturn(new AuthnRequestResult("https://idp/sso?SAMLRequest=abc", "_req-1"));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        controller.login("state", response);
+        controller.login("/state", response);
 
         assertEquals("https://idp/sso?SAMLRequest=abc", response.getRedirectedUrl());
         assertTrue(response.getCookie("TAPDATA_SAML_REQ") != null);
+    }
+
+    @Test
+    @DisplayName("login rejects an external RelayState")
+    void loginRejectsExternalRelayState() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        controller.login("https://attacker.example", response);
+
+        assertEquals(HttpServletResponse.SC_BAD_REQUEST, response.getStatus());
+        verify(samlAuthnRequestService, never()).buildRedirect(any(), any());
     }
 
     @Test

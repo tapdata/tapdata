@@ -105,20 +105,18 @@ class SamlLogoutServiceImplTest {
     }
 
     @Test
-    @DisplayName("unsigned LogoutRequest is accepted when signing is not required")
-    void unsignedAcceptedWhenNotRequired() {
+    @DisplayName("unsigned LogoutRequest is rejected even when outgoing request signing is disabled")
+    void unsignedRejectedWhenNotRequired() {
         SamlConfig config = baseConfig();
         LogoutRedirectResult result = service.buildLogoutRequest(config, "user@x", null, null);
-        when(replayCacheService.recordIfFirstUse(org.mockito.ArgumentMatchers.eq("logoutrequest"),
-                org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
         Map<String, String> params;
         try {
             params = queryParams(result.getRedirectUrl());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        InboundLogout inbound = service.parseLogoutRequest(config, params.get("SAMLRequest"), null, null, null);
-        assertEquals("user@x", inbound.getNameId());
+        assertThrows(SamlValidationException.class, () ->
+                service.parseLogoutRequest(config, params.get("SAMLRequest"), null, null, null));
     }
 
     @Test
