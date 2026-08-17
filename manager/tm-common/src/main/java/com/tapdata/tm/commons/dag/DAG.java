@@ -58,7 +58,7 @@ import java.util.stream.Stream;
 public class DAG implements Serializable, Cloneable {
 
     private static Logger logger = LoggerFactory.getLogger(DAG.class);
-    public static Map<String, Class<? extends Node>> nodeMapping = new HashMap<>();
+    public static Map<String, Class<? extends Node>> nodeMapping = new ConcurrentHashMap<>();
 
     private final transient Graph<Node, Edge> graph;
 
@@ -96,8 +96,8 @@ public class DAG implements Serializable, Cloneable {
                 }
                 NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
                 nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
-            } catch (ClassNotFoundException e) {
-                e.printStackTrace();
+            } catch (Exception e) {
+                logger.error("Unable to load class: {}, NodeDeserialize will not be able to serialize the corresponding node type", beanDefinition.getBeanClassName(), e);
             }
         });
         /*try {
@@ -1234,7 +1234,44 @@ public class DAG implements Serializable, Cloneable {
     }
 
     public static Class<? extends Node> getClassByType(String type) {
-        return nodeMapping.get(type);
+        Class<? extends Node> clazz = nodeMapping.get(type);
+        if (clazz == null) {
+            clazz = DAG.reloadClassByType(type);
+        }
+        return clazz;
+    }
+
+    /**
+     * 重新扫描类路径，查找带有 @NodeType 注解且 value 等于 type 的类，
+     * 若找到则尝试加载并注册到 nodeMapping。
+     */
+    public static synchronized Class<? extends Node> reloadClassByType(String type) {
+        if (nodeMapping.containsKey(type)) {
+            return nodeMapping.get(type);
+        }
+        ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(true);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
+        String basePackage = DAG.class.getPackage().getName();
+        Set<BeanDefinition> candidates = scanner.findCandidateComponents(basePackage);
+        for (BeanDefinition bd : candidates) {
+            String className = bd.getBeanClassName();
+            try {
+                Class<?> clazz = Class.forName(className, true, DAG.class.getClassLoader());
+                NodeType annotation = clazz.getAnnotation(NodeType.class);
+                if (annotation != null && type.equals(annotation.value())) {
+                    if (!Node.class.isAssignableFrom(clazz)) {
+                        throw new IllegalArgumentException("Class " + className + " is not a subclass of Node");
+                    }
+                    @SuppressWarnings("unchecked")
+                    Class<? extends Node> nodeClass = (Class<? extends Node>) clazz;
+                    nodeMapping.put(type, nodeClass);
+                    return nodeClass;
+                }
+            } catch (ClassNotFoundException | NoClassDefFoundError e) {
+                // 忽略加载失败的类，继续扫描下一个
+            }
+        }
+        throw new RuntimeException("Cannot find or load node class for type: " + type);
     }
 
     @Data
