@@ -15,7 +15,9 @@ import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Field;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -550,6 +552,103 @@ public class DAGTest {
 		void test2() {
 			LinkedList<DataParentNode> targetDataParentNodes = dag.getTargetDataParentNode();
 			assertEquals(1, targetDataParentNodes.size());
+		}
+	}
+
+	@Nested
+	@DisplayName("Method goInit test")
+	class GoInitTest {
+
+		@SuppressWarnings("unchecked")
+		private void resetNodeMapping() throws Exception {
+			Field nodeMappingField = DAG.class.getDeclaredField("nodeMapping");
+			nodeMappingField.setAccessible(true);
+			Map<String, Class<? extends Node>> freshMap = new ConcurrentHashMap<>();
+			nodeMappingField.set(null, freshMap);
+		}
+
+		@BeforeEach
+		void setUp() throws Exception {
+			resetNodeMapping();
+		}
+
+		@Test
+		@DisplayName("test goInit: scan package and fill nodeMapping with @NodeType classes")
+		void testGoInitFillsNodeMapping() {
+			assertTrue(DAG.nodeMapping.isEmpty(), "nodeMapping should be empty before goInit");
+
+			DAG.goInit();
+
+			assertFalse(DAG.nodeMapping.isEmpty(), "nodeMapping should not be empty after goInit");
+
+			Class<? extends Node> tableNodeClass = DAG.nodeMapping.get("table");
+			assertNotNull(tableNodeClass, "table node should be registered after goInit");
+			assertEquals(TableNode.class, tableNodeClass, "table node mapping should point to TableNode");
+
+			Class<? extends Node> jsProcessorNodeClass = DAG.nodeMapping.get("js_processor");
+			assertNotNull(jsProcessorNodeClass, "js_processor node should be registered after goInit");
+			assertEquals(JsProcessorNode.class, jsProcessorNodeClass, "js_processor node mapping should point to JsProcessorNode");
+
+			Class<? extends Node> fieldAddDelNodeClass = DAG.nodeMapping.get("field_add_del_processor");
+			assertNotNull(fieldAddDelNodeClass, "field_add_del_processor node should be registered after goInit");
+			assertEquals(
+					com.tapdata.tm.commons.dag.process.FieldAddDelProcessorNode.class,
+					fieldAddDelNodeClass,
+					"field_add_del_processor node mapping should point to FieldAddDelProcessorNode"
+			);
+
+			assertTrue(DAG.nodeMapping.size() >= 3, "at least three known @NodeType classes should be scanned");
+		}
+
+		@Test
+		@DisplayName("test goInit: getClassByType should return mapped class after goInit")
+		void testGetClassByTypeAfterGoInit() {
+			DAG.goInit();
+
+			Class<? extends Node> tableClazz = DAG.getClassByType("table");
+			assertNotNull(tableClazz, "getClassByType('table') should return TableNode class after goInit");
+			assertEquals(TableNode.class, tableClazz);
+
+			Class<? extends Node> unknownClazz = DAG.getClassByType("non_existent_type_xyz");
+			assertNull(unknownClazz, "getClassByType for unknown type should return null");
+		}
+
+		@Test
+		@DisplayName("test goInit: multiple calls should be idempotent and produce same mapping")
+		void testGoInitIdempotent() {
+			DAG.goInit();
+			int sizeAfterFirst = DAG.nodeMapping.size();
+			Map<String, Class<? extends Node>> copyAfterFirst = new HashMap<>(DAG.nodeMapping);
+
+			DAG.goInit();
+			DAG.goInit();
+			DAG.goInit();
+
+			assertEquals(sizeAfterFirst, DAG.nodeMapping.size(), "nodeMapping size should remain unchanged after repeated goInit calls");
+			assertEquals(copyAfterFirst, DAG.nodeMapping, "nodeMapping content should remain identical after repeated goInit calls");
+		}
+
+		@Test
+		@DisplayName("test goInit: all scanned entries must have NodeType annotation value matching key and extend Node")
+		void testGoInitAllEntriesValid() {
+			DAG.goInit();
+
+			assertFalse(DAG.nodeMapping.isEmpty());
+
+			for (Map.Entry<String, Class<? extends Node>> entry : DAG.nodeMapping.entrySet()) {
+				String nodeTypeValue = entry.getKey();
+				Class<? extends Node> nodeClass = entry.getValue();
+
+				assertNotNull(nodeClass, () -> "node class for type '" + nodeTypeValue + "' must not be null");
+				assertTrue(Node.class.isAssignableFrom(nodeClass),
+						() -> "class " + nodeClass.getName() + " registered for type '" + nodeTypeValue + "' must extend Node");
+
+				NodeType nodeTypeAnno = nodeClass.getAnnotation(NodeType.class);
+				assertNotNull(nodeTypeAnno,
+						() -> "class " + nodeClass.getName() + " registered for type '" + nodeTypeValue + "' must have @NodeType annotation");
+				assertEquals(nodeTypeValue, nodeTypeAnno.value(),
+						() -> "@NodeType value on class " + nodeClass.getName() + " must match the mapping key '" + nodeTypeValue + "'");
+			}
 		}
 	}
 }
