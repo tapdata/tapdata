@@ -81,53 +81,30 @@ public class DAG implements Serializable, Cloneable {
     @Setter
     private String ownerId;
 
-    static {
-
-        ClassPathScanningCandidateComponentProvider classPathScanningCandidateComponentProvider =
-                new ClassPathScanningCandidateComponentProvider(true);
-        classPathScanningCandidateComponentProvider.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
-        Set<BeanDefinition> result = classPathScanningCandidateComponentProvider.findCandidateComponents(DAG.class.getPackage().getName());
-        result.forEach(beanDefinition -> {
-            try {
-                Class<?> nodeClass = Class.forName(beanDefinition.getBeanClassName());
-                if (!Loader.isExtends(nodeClass, Node.class)) {
-                    logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName() );
-                    return;
-                }
-                NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
-                nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
-            } catch (Exception e) {
-                logger.error("Unable to load class: {}, NodeDeserialize will not be able to serialize the corresponding node type", beanDefinition.getBeanClassName(), e);
-            }
-        });
-        /*try {
-
-            List<String> list = Loader.getResourceFiles(DAG.class.getPackage().getName());
-
-            list.forEach(url -> {
+    public static void goInit() {
+        try {
+            ClassPathScanningCandidateComponentProvider classPathScanningCandidateComponentProvider =
+                    new ClassPathScanningCandidateComponentProvider(true);
+            classPathScanningCandidateComponentProvider.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
+            Set<BeanDefinition> result = classPathScanningCandidateComponentProvider.findCandidateComponents(DAG.class.getPackage().getName());
+            result.forEach(beanDefinition -> {
                 try {
-                    Class<?> nodeClass = Class.forName(url);
+                    String className = beanDefinition.getBeanClassName();
+                    Class<?> nodeClass = Class.forName(beanDefinition.getBeanClassName());
                     if (!Loader.isExtends(nodeClass, Node.class)) {
-                        logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName() );
                         return;
                     }
                     NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
-                    if (nodeType == null) {
-                        logger.debug("Class {} no have NodeType annotation , skip.", nodeClass.getName());
-                        return;
+                    if (nodeType != null) {
+                        nodeMapping.put(nodeType.value(), (Class<? extends Node>) nodeClass);
                     }
-                    nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
-                } catch (ClassNotFoundException e) {
-                    logger.error("Load node type failed.", e);
-                    e.printStackTrace();
+                } catch (Exception e) {
+                    logger.error("Unable to load class: {}, NodeDeserialize will not be able to serialize the corresponding node type", beanDefinition.getBeanClassName(), e);
                 }
             });
-
-        } catch (IOException e) {
-            logger.error("Load node type failed.", e);
-            e.printStackTrace();
-        }*/
-
+        } catch (Throwable t) {
+            logger.error("DAG node type scan failed during goInit, will be retried on first getClassByType access: {}", t.getMessage(), t);
+        }
     }
 
     public DAG(Graph<Node, Edge> graph) {
@@ -1234,41 +1211,7 @@ public class DAG implements Serializable, Cloneable {
     }
 
     public static Class<? extends Node> getClassByType(String type) {
-        Class<? extends Node> clazz = nodeMapping.get(type);
-        if (clazz == null) {
-            clazz = DAG.reloadClassByType(type);
-        }
-        return clazz;
-    }
-
-    /**
-     * 重新扫描类路径，查找带有 @NodeType 注解且 value 等于 type 的类，
-     * 若找到则尝试加载并注册到 nodeMapping。
-     */
-    protected static synchronized Class<? extends Node> reloadClassByType(String type) {
-        ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(true);
-        scanner.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
-        String basePackage = DAG.class.getPackage().getName();
-        Set<BeanDefinition> candidates = scanner.findCandidateComponents(basePackage);
-        for (BeanDefinition bd : candidates) {
-            String className = bd.getBeanClassName();
-            try {
-                Class<?> clazz = Class.forName(className, true, DAG.class.getClassLoader());
-                NodeType annotation = clazz.getAnnotation(NodeType.class);
-                if (annotation != null && type.equals(annotation.value())) {
-                    if (!Node.class.isAssignableFrom(clazz)) {
-                        throw new IllegalArgumentException("Class " + className + " is not a subclass of Node");
-                    }
-                    @SuppressWarnings("unchecked")
-                    Class<? extends Node> nodeClass = (Class<? extends Node>) clazz;
-                    nodeMapping.put(type, nodeClass);
-                    return nodeClass;
-                }
-            } catch (ClassNotFoundException | NoClassDefFoundError e) {
-                // 忽略加载失败的类，继续扫描下一个
-            }
-        }
-        throw new RuntimeException("Cannot find or load node class for type: " + type);
+        return nodeMapping.get(type);
     }
 
     @Data

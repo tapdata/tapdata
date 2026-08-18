@@ -1,5 +1,6 @@
 package com.tapdata.tm.config;
 
+import com.tapdata.tm.commons.dag.DAGNodeTypeInitializer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.coyote.ProtocolHandler;
 import org.apache.coyote.http11.Http11NioProtocol;
@@ -46,6 +47,11 @@ public class BeanConfig {
             }
         });
         return tomcatServletWebServerFactory;
+    }
+
+    @Bean
+    public DAGNodeTypeInitializer dagNodeTypeInitializer() {
+        return new DAGNodeTypeInitializer();
     }
 
     private Pattern pattern = Pattern.compile("^\\d+$");
