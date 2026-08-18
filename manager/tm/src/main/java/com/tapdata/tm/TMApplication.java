@@ -1,5 +1,6 @@
 package com.tapdata.tm;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
 import com.tapdata.tm.listener.MonitorConfigListener;
@@ -61,6 +62,7 @@ public class TMApplication {
 				.allowCircularReferences(true)
 				.build().run(args);
 		SpringContextHelper.applicationContext = applicationContext;
+		DAG.setResourceLoader(applicationContext);
 		// 启动 TCMApplication 的线程
 		new Thread(() -> {
 			try {
