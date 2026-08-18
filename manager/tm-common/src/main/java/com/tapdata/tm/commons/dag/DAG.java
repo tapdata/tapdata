@@ -39,8 +39,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
-import org.springframework.core.io.ResourceLoader;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 
 import java.io.Serializable;
@@ -61,7 +59,6 @@ public class DAG implements Serializable, Cloneable {
 
     private static Logger logger = LoggerFactory.getLogger(DAG.class);
     public static Map<String, Class<? extends Node>> nodeMapping = new ConcurrentHashMap<>();
-    private static volatile ResourceLoader resourceLoader;
 
     private final transient Graph<Node, Edge> graph;
 
@@ -84,75 +81,53 @@ public class DAG implements Serializable, Cloneable {
     @Setter
     private String ownerId;
 
-    public static void setResourceLoader(ResourceLoader resourceLoader) {
-        DAG.resourceLoader = resourceLoader;
-    }
-
-    /**
-     * Apply the minimal set of patches required to make ClassPathScanningCandidateComponentProvider work
-     * under Spring Boot 3.x fat JARs on Spring Framework 6.2.x.
-     * <p>Background: Spring 6.2 introduces internal JAR caching inside
-     * {@link PathMatchingResourcePatternResolver} which, in combination with Spring Boot 3.x
-     * nested {@code BOOT-INF/lib/*.jar} class paths (now exposed via the {@code jar:nested:}
-     * protocol), causes {@code ClassPathScanningCandidateComponentProvider.findCandidateComponents}
-     * to return an empty set in deployed environments while still working locally. Spring 6.2.6
-     * introduced {@link PathMatchingResourcePatternResolver#setUseCaches(Boolean)} to revert the
-     * caching behaviour; since {@code ClassPathScanningCandidateComponentProvider} offers no public accessor
-     * for its internal resolver we set it via reflection after first binding our injected
-     * {@link ResourceLoader} (which is typically the ApplicationContext and already
-     * understands nested jar URLs).<p/>
-     *
-     * @param scanner scanner to patch (created just before the call)
-     */
-    private static void configureScanner(ClassPathScanningCandidateComponentProvider scanner) {
-        if (scanner == null) {
-            return;
-        }
-        ResourceLoader rl = DAG.resourceLoader;
-        if (rl != null) {
-            scanner.setResourceLoader(rl);
-        }
-        try {
-            java.lang.reflect.Field resolverField = ClassPathScanningCandidateComponentProvider.class
-                    .getDeclaredField("resourcePatternResolver");
-            resolverField.setAccessible(true);
-            Object resolver = resolverField.get(scanner);
-            if (resolver instanceof PathMatchingResourcePatternResolver) {
-                PathMatchingResourcePatternResolver pmrpr = (PathMatchingResourcePatternResolver) resolver;
-                try {
-                    java.lang.reflect.Method setUseCaches = PathMatchingResourcePatternResolver.class
-                            .getMethod("setUseCaches", Boolean.class);
-                    setUseCaches.invoke(pmrpr, Boolean.FALSE);
-                } catch (NoSuchMethodException ignored) {
-                    // Spring < 6.2.6; workaround not available but caching not introduced either
-                } catch (Throwable t) {
-                    logger.warn("Failed to disable PathMatchingResourcePatternResolver#useCaches (Spring 6.2.x jar-scan workaround): {}", t.toString());
-                }
-            }
-        } catch (Throwable t) {
-            logger.debug("Could not apply PathMatchingResourcePatternResolver.setUseCaches(false) to ClassPathScanningCandidateComponentProvider (Spring < 6.2 or field renamed): {}", t.toString());
-        }
-    }
-
     static {
-        ClassPathScanningCandidateComponentProvider scanner =
+
+        ClassPathScanningCandidateComponentProvider classPathScanningCandidateComponentProvider =
                 new ClassPathScanningCandidateComponentProvider(true);
-        configureScanner(scanner);
-        scanner.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
-        Set<BeanDefinition> result = scanner.findCandidateComponents(DAG.class.getPackage().getName());
+        classPathScanningCandidateComponentProvider.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
+        Set<BeanDefinition> result = classPathScanningCandidateComponentProvider.findCandidateComponents(DAG.class.getPackage().getName());
         result.forEach(beanDefinition -> {
             try {
                 Class<?> nodeClass = Class.forName(beanDefinition.getBeanClassName());
                 if (!Loader.isExtends(nodeClass, Node.class)) {
-                    logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName());
+                    logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName() );
                     return;
                 }
                 NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
-                nodeMapping.put(nodeType.value(), (Class<? extends Node>) nodeClass);
+                nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
             } catch (Exception e) {
                 logger.error("Unable to load class: {}, NodeDeserialize will not be able to serialize the corresponding node type", beanDefinition.getBeanClassName(), e);
             }
         });
+        /*try {
+
+            List<String> list = Loader.getResourceFiles(DAG.class.getPackage().getName());
+
+            list.forEach(url -> {
+                try {
+                    Class<?> nodeClass = Class.forName(url);
+                    if (!Loader.isExtends(nodeClass, Node.class)) {
+                        logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName() );
+                        return;
+                    }
+                    NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
+                    if (nodeType == null) {
+                        logger.debug("Class {} no have NodeType annotation , skip.", nodeClass.getName());
+                        return;
+                    }
+                    nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
+                } catch (ClassNotFoundException e) {
+                    logger.error("Load node type failed.", e);
+                    e.printStackTrace();
+                }
+            });
+
+        } catch (IOException e) {
+            logger.error("Load node type failed.", e);
+            e.printStackTrace();
+        }*/
+
     }
 
     public DAG(Graph<Node, Edge> graph) {
@@ -1266,29 +1241,34 @@ public class DAG implements Serializable, Cloneable {
         return clazz;
     }
 
+    /**
+     * 重新扫描类路径，查找带有 @NodeType 注解且 value 等于 type 的类，
+     * 若找到则尝试加载并注册到 nodeMapping。
+     */
     protected static synchronized Class<? extends Node> reloadClassByType(String type) {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(true);
-        configureScanner(scanner);
         scanner.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
-        Set<BeanDefinition> candidates = scanner.findCandidateComponents(DAG.class.getPackage().getName());
-        for (BeanDefinition beanDefinition : candidates) {
+        String basePackage = DAG.class.getPackage().getName();
+        Set<BeanDefinition> candidates = scanner.findCandidateComponents(basePackage);
+        for (BeanDefinition bd : candidates) {
+            String className = bd.getBeanClassName();
             try {
-                Class<?> nodeClass = Class.forName(beanDefinition.getBeanClassName());
-                if (!Loader.isExtends(nodeClass, Node.class)) {
-                    continue;
+                Class<?> clazz = Class.forName(className, true, DAG.class.getClassLoader());
+                NodeType annotation = clazz.getAnnotation(NodeType.class);
+                if (annotation != null && type.equals(annotation.value())) {
+                    if (!Node.class.isAssignableFrom(clazz)) {
+                        throw new IllegalArgumentException("Class " + className + " is not a subclass of Node");
+                    }
+                    @SuppressWarnings("unchecked")
+                    Class<? extends Node> nodeClass = (Class<? extends Node>) clazz;
+                    nodeMapping.put(type, nodeClass);
+                    return nodeClass;
                 }
-                NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
-                if (nodeType != null) {
-                    nodeMapping.put(nodeType.value(), (Class<? extends Node>) nodeClass);
-                }
-            } catch (Exception e) {
-                logger.warn("Unable to load class: {}", beanDefinition.getBeanClassName(), e);
+            } catch (ClassNotFoundException | NoClassDefFoundError e) {
+                // 忽略加载失败的类，继续扫描下一个
             }
         }
-        if (nodeMapping.containsKey(type)) {
-            return nodeMapping.get(type);
-        }
-        throw new RuntimeException(String.format("Cannot find or load node class for type: %s", type));
+        throw new RuntimeException("Cannot find or load node class for type: " + type);
     }
 
     @Data
