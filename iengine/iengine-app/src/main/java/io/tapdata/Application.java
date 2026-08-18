@@ -9,7 +9,6 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
-import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.utils.OEMReplaceUtil;
 import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.aspect.LoggerInitAspect;
@@ -175,7 +174,6 @@ public class Application {
 				configurationCenter.putConfig(ConfigurationCenter.WORK_DIR, tapdataWorkDir);
 			}
 			BeanUtil.configurableApplicationContext = run;
-			DAG.setResourceLoader(run);
 
 			TapLogger.info(TAG, "Looking for Aspect annotations...");
 			long time = System.currentTimeMillis();
