@@ -59,7 +59,11 @@ public interface ResourceHandler {
             "port",     "database_port",
             "user",     "database_username",
             "password", "database_password",
-            "uri",      "database_uri"
+            "uri",      "database_uri",
+            // 格式 3 新增：库名不是 vault 里的独立键，而是从 DSN 解析出来的成分，
+            // 但它要走同一套 apiServerKey -> configPath 查表，故占一个伪 suffix。
+            // ⚠ 它**不进** SENSITIVE_API_KEYS——库名不是凭据，导出不脱敏（[ADR-0036]）。
+            "database", "database_name"
     );
 
     /**
@@ -70,7 +74,11 @@ public interface ResourceHandler {
             "host",     "host",
             "port",     "port",
             "user",     "username",
-            "password", "password"
+            "password", "password",
+            // schema BFS 落空时库名的落点。选 "database" 而非 "databaseName"/"database_name"：
+            // 与同表其余四项一样取 PDK config 的通用根键名（[ADR-0036] D8 要求把它定死，
+            // 否则 schema 缺失的连接会静默丢库名）。
+            "database", "database"
     );
 
     /**
@@ -569,7 +577,45 @@ public interface ResourceHandler {
 
         boolean hasDatabaseUri = apiKeyToConfigPath.containsKey("database_uri");
 
-        // 优先级1：查找 {connectionName}_uri
+        // 优先级1：格式 3——{connectionName}_DSN（Variables）+ {connectionName}_PASSWORD（Secrets）
+        String dsnVaultKey = findVaultKey(vaultSecrets, connectionName, "dsn");
+        if (dsnVaultKey != null) {
+            String dsnValue = vaultSecrets.get(dsnVaultKey);
+            String pwVaultKey = findVaultKey(vaultSecrets, connectionName, "password");
+            String pwValue = pwVaultKey == null ? null : vaultSecrets.get(pwVaultKey);
+            if (hasDatabaseUri) {
+                String configPath = apiKeyToConfigPath.get("database_uri");
+                String uriWithPassword = splicePasswordIntoDsn(dsnValue, pwValue);
+                log.info("Vault inject: connection='{}', configPath='{}' <- dsn (direct)", connectionName, configPath);
+                setNestedValue(finalConfig, configPath, uriWithPassword);
+                // 顶层镜像字段与 config 一起写（[ADR-0036] D9）。保存链路**不会**从 config
+                // 重推顶层，而 MetaDataBuilderUtils.generateQualifiedName 建元数据限定名读的
+                // 正是顶层——只写 config 会得到「连接连新库、元数据挂旧库名」的半改状态。
+                // 必须写在 preserveExistingSecrets 之前：restoreMirroredField 只在 incoming
+                // 缺该字段时回填，不写就会被目标环境的旧值填上。
+                conn.setDatabase_uri(uriWithPassword);
+            } else {
+                Map<String, Object> parts = parseDsnComponents(dsnValue);
+                log.info("Vault inject (dsn): connection='{}', parsed components={}", connectionName, parts);
+                injectParsedField(finalConfig, connectionName, "host", parts.get("host"), apiKeyToConfigPath);
+                injectParsedField(finalConfig, connectionName, "port", parts.get("port"), apiKeyToConfigPath);
+                injectParsedField(finalConfig, connectionName, "user", parts.get("user"), apiKeyToConfigPath);
+                injectParsedField(finalConfig, connectionName, "database", parts.get("database"), apiKeyToConfigPath);
+                if (pwValue != null) {
+                    injectParsedField(finalConfig, connectionName, "password", pwValue, apiKeyToConfigPath);
+                }
+                // 顶层镜像字段，同上（[ADR-0036] D9）。⚠ 顶层 database_password 刻意不写：
+                // 它存的是 AES 密文（beforeSave 由 plain_password 推出），塞明文会毁掉那个契约；
+                // 密码的缺值语义由 [ADR-0034] D5 管，连接器读的是 config 那一份。
+                if (parts.get("host") != null)     conn.setDatabase_host((String) parts.get("host"));
+                if (parts.get("port") != null)     conn.setDatabase_port((Integer) parts.get("port"));
+                if (parts.get("user") != null)     conn.setDatabase_username((String) parts.get("user"));
+                if (parts.get("database") != null) conn.setDatabase_name((String) parts.get("database"));
+            }
+            return;
+        }
+
+        // 优先级2：查找 {connectionName}_uri
         String uriVaultKey = findVaultKey(vaultSecrets, connectionName, "uri");
         if (uriVaultKey != null) {
             String uriValue = vaultSecrets.get(uriVaultKey);
@@ -584,7 +630,7 @@ public interface ResourceHandler {
             return;
         }
 
-        // 优先级2：查找 {connectionName}_url + _user + _password
+        // 优先级3：查找 {connectionName}_url + _user + _password
         String[] resolved = resolveVaultStrategy(vaultSecrets, connectionName);
         if (resolved != null) {
             log.info("Vault inject: connection='{}', resolved with prefix='{}'", connectionName, connectionName);
@@ -592,7 +638,7 @@ public interface ResourceHandler {
             return;
         }
 
-        // 优先级3：截取连接名后查找
+        // 优先级4：截取连接名后查找
         String truncated = truncateName(connectionName);
         if (truncated != null) {
             resolved = resolveVaultStrategy(vaultSecrets, truncated);
@@ -603,7 +649,7 @@ public interface ResourceHandler {
             }
         }
 
-        // 优先级4：使用 default 前缀查找
+        // 优先级5：使用 default 前缀查找
         resolved = resolveVaultStrategy(vaultSecrets, "default");
         if (resolved != null) {
             log.info("Vault inject: connection='{}', resolved with prefix='default'", connectionName);
@@ -611,7 +657,7 @@ public interface ResourceHandler {
             return;
         }
 
-        // 优先级5：所有策略均未命中，报错退出
+        // 优先级6：所有策略均未命中，报错退出
         throw new IllegalArgumentException(
                 "Vault inject: connection='" + connectionName + "' has no matching vault keys (tried: "
                         + connectionName + ", " + (truncated != null ? truncated : "<no truncation>") + ", default)");
@@ -740,6 +786,114 @@ public interface ResourceHandler {
      * 支持标准格式：scheme://user:password@host:port/db
      * 支持简化格式：host:port/username（无 scheme、无密码）
      */
+    /**
+     * 把 {@code {CONN}_PASSWORD} 补进 DSN 的 userinfo。
+     *
+     * 顺序是**先拼后验**（[ADR-0036] D8）：{@code ConnectionString} 会拒掉
+     * {@code mongodb://u@h/db}（无冒号那种空密码写法），所以不能先解析再拼——
+     * 那种形态在解析阶段就死了。改为在**原始串**上做字符串手术，再交给
+     * {@code ConnectionString} 做最终校验。
+     */
+    private static String splicePasswordIntoDsn(String dsn, String password) {
+        if (StringUtils.isBlank(dsn) || password == null) {
+            return dsn;
+        }
+        int schemeIdx = dsn.indexOf("://");
+        int userInfoStart = schemeIdx < 0 ? 0 : schemeIdx + 3;
+        int atIdx = dsn.indexOf('@', userInfoStart);
+        if (atIdx < 0) {
+            // 无 userinfo：不 splice，交给缺值规则（[ADR-0036] D10）
+            return dsn;
+        }
+        String userInfo = dsn.substring(userInfoStart, atIdx);
+        int colonIdx = userInfo.indexOf(':');
+        // 用户名**原样透传**：它是 DSN 作者写进 URI 的，已经该是编码态；再编码一次会把
+        // `%40` 变成 `%2540`。作者漏编码时由末尾的 ConnectionString 校验抓出来，
+        // 而不是我们悄悄替他改写（[ADR-0036] D8）。密码来自 Secrets、是裸值，必须由我们编码。
+        String user = colonIdx < 0 ? userInfo : userInfo.substring(0, colonIdx);
+        return dsn.substring(0, userInfoStart) + user + ":" + percentEncodeUserInfo(password)
+                + dsn.substring(atIdx);
+    }
+
+    /**
+     * 按 RFC 3986 对 userinfo 成分做 percent-encoding：只放行 unreserved
+     * （{@code ALPHA / DIGIT / - . _ ~}），其余一律编码。
+     *
+     * 刻意**不用** {@code URLEncoder}——那是 form 编码，会把空格写成 {@code +}，
+     * 而 {@code +} 在 URI 的 userinfo 里是字面加号，密码含空格时就会反解错。
+     */
+    private static String percentEncodeUserInfo(String raw) {
+        StringBuilder sb = new StringBuilder(raw.length() + 8);
+        for (byte b : raw.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            int c = b & 0xFF;
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                    || c == '-' || c == '.' || c == '_' || c == '~') {
+                sb.append((char) c);
+            } else {
+                sb.append('%').append(String.format("%02X", c));
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 解析格式 3 的 DSN，得到归一化目标四元组 {@code (host, port, user, database)}。
+     *
+     * ⚠ **刻意不复用 {@link #parseUriComponents}**（[ADR-0036] D5/D8）：那个函数在无 userinfo 时
+     * 把 path 首段当 username，而 DSN 的 path 首段是**库名**（`localhost:3306/test` 会得到
+     * `user=test`）；它底下的 {@code java.net.URI} 又把 `jdbc:xxx://…` 当 opaque URI，
+     * host/port/path 全为 null ⇒ 整个 JDBC 分支静默空跑。
+     *
+     * 归一化必须发生在解析**之前**：先剥可选的 {@code jdbc:}，再剥可选的 {@code scheme://}。
+     * 两个前缀都**只是入口宽容度、一律丢弃**，永不用于判型（类型来自连接自身的 definition/pdkHash）。
+     */
+    private static Map<String, Object> parseDsnComponents(String dsn) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (StringUtils.isBlank(dsn)) return result;
+
+        String rest = dsn.trim();
+        if (rest.regionMatches(true, 0, "jdbc:", 0, 5)) {
+            rest = rest.substring(5);
+        }
+        int schemeIdx = rest.indexOf("://");
+        if (schemeIdx >= 0) {
+            rest = rest.substring(schemeIdx + 3);
+        }
+
+        int queryIdx = rest.indexOf('?');
+        if (queryIdx >= 0) {
+            result.put("query", rest.substring(queryIdx + 1));
+            rest = rest.substring(0, queryIdx);
+        }
+
+        int atIdx = rest.lastIndexOf('@');
+        if (atIdx >= 0) {
+            String userInfo = rest.substring(0, atIdx);
+            int colonIdx = userInfo.indexOf(':');
+            String user = colonIdx < 0 ? userInfo : userInfo.substring(0, colonIdx);
+            if (StringUtils.isNotBlank(user)) result.put("user", user);
+            rest = rest.substring(atIdx + 1);
+        }
+
+        int slashIdx = rest.indexOf('/');
+        if (slashIdx >= 0) {
+            String database = rest.substring(slashIdx + 1);
+            if (StringUtils.isNotBlank(database)) result.put("database", database);
+            rest = rest.substring(0, slashIdx);
+        }
+
+        int colonIdx = rest.lastIndexOf(':');
+        if (colonIdx >= 0) {
+            String portStr = rest.substring(colonIdx + 1);
+            if (StringUtils.isNotBlank(portStr) && portStr.chars().allMatch(Character::isDigit)) {
+                result.put("port", Integer.parseInt(portStr));
+                rest = rest.substring(0, colonIdx);
+            }
+        }
+        if (StringUtils.isNotBlank(rest)) result.put("host", rest);
+        return result;
+    }
+
     private static Map<String, Object> parseUriComponents(String uriStr) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (StringUtils.isBlank(uriStr)) return result;

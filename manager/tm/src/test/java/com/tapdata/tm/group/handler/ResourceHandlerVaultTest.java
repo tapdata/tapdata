@@ -186,4 +186,242 @@ public class ResourceHandlerVaultTest {
                     () -> ResourceHandler.injectVaultSecretsToConnection(conn, vault, null));
         }
     }
+
+    @Nested
+    @DisplayName("格式 3：{CONN}_DSN(Variables) + {CONN}_PASSWORD(Secrets)")
+    class DsnFormatTest {
+
+        private DataSourceConnectionDto makeConn(String name) {
+            DataSourceConnectionDto conn = new DataSourceConnectionDto();
+            conn.setName(name);
+            conn.setConfig(new LinkedHashMap<>());
+            return conn;
+        }
+
+        /** 造一份只声明 configPath -> apiServerKey 的 definition，喂 buildConfigPathToApiKeyMap 的 BFS。 */
+        private DataSourceDefinitionDto defWith(Map<String, String> configPathToApiKey) {
+            LinkedHashMap<String, Object> props = new LinkedHashMap<>();
+            configPathToApiKey.forEach((path, apiKey) -> {
+                LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
+                meta.put("apiServerKey", apiKey);
+                props.put(path, meta);
+            });
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", props);
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            properties.put("connection", connection);
+
+            DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+            def.setProperties(properties);
+            return def;
+        }
+
+        @Test
+        @DisplayName("T7-7 MongoDB(L5)：DSN 整串直写 database_uri，{CONN}_PASSWORD splice 回 userinfo")
+        void t7_7_mongoDsnDirectWriteWithPasswordSplice() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_MONGO");
+            // 包里带来的是源环境旧值，应被 DSN 整串覆盖
+            conn.getConfig().put("uri", "mongodb://tapuser:oldpw@oldhost:27017/olddb");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_MONGO_DSN", "mongodb://tapuser:@h:27017/orders?authSource=admin"); // L5
+            vault.put("ORDERS_MONGO_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault,
+                    defWith(Map.of("uri", "database_uri")));
+
+            assertEquals("mongodb://tapuser:p@h:27017/orders?authSource=admin",
+                    conn.getConfig().get("uri"));
+        }
+
+        @Test
+        @DisplayName("T7-7a MongoDB(L6) 副本集：两个 host 与 replicaSet 保真，密码已填回")
+        void t7_7a_replicaSetSeedListSurvives() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_MONGO");
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_MONGO_DSN",
+                    "mongodb://tapuser:@h1:27017,h2:27017/orders?replicaSet=rs0"); // L6
+            vault.put("ORDERS_MONGO_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault,
+                    defWith(Map.of("uri", "database_uri")));
+
+            String written = (String) conn.getConfig().get("uri");
+            assertEquals("mongodb://tapuser:p@h1:27017,h2:27017/orders?replicaSet=rs0", written);
+            // 反解确认不是巧合的字符串相等：两个 host + replicaSet 真的还在
+            com.mongodb.ConnectionString parsed = new com.mongodb.ConnectionString(written);
+            assertEquals(java.util.List.of("h1:27017", "h2:27017"), parsed.getHosts());
+            assertEquals("rs0", parsed.getRequiredReplicaSetName());
+            assertEquals("orders", parsed.getDatabase());
+        }
+
+        @Test
+        @DisplayName("T7-7b MongoDB(L5+L12)：含 @ : / 的密码 splice 时 percent-encode，反解等于原密码")
+        void t7_7b_specialCharPasswordIsPercentEncoded() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_MONGO");
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_MONGO_DSN", "mongodb://tapuser:@h:27017/orders?authSource=admin"); // L5
+            vault.put("ORDERS_MONGO_PASSWORD", "p@ss:w/rd");                                     // L12
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault,
+                    defWith(Map.of("uri", "database_uri")));
+
+            String written = (String) conn.getConfig().get("uri");
+            assertEquals("mongodb://tapuser:p%40ss%3Aw%2Frd@h:27017/orders?authSource=admin", written);
+            // 真正的判据：驱动能把它反解回原密码
+            com.mongodb.ConnectionString parsed = new com.mongodb.ConnectionString(written);
+            assertEquals("p@ss:w/rd", new String(parsed.getPassword()));
+            assertEquals("tapuser", parsed.getUsername());
+        }
+
+        /** JDBC 侧 schema：不含 database_uri，含四项 + database_name。 */
+        private DataSourceDefinitionDto jdbcDef() {
+            LinkedHashMap<String, String> m = new LinkedHashMap<>();
+            m.put("host", "database_host");
+            m.put("port", "database_port");
+            m.put("user", "database_username");
+            m.put("password", "database_password");
+            m.put("database", "database_name");
+            return defWith(m);
+        }
+
+        @Test
+        @DisplayName("T7-8a JDBC(L1) 裸写形态：解析出 (user, localhost, 3306, test)，库名没被当用户名")
+        void t7_8a_bareFormNormalizes() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("database", "olddb");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "user@localhost:3306/test"); // L1
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            Map<String, Object> config = conn.getConfig();
+            assertEquals("localhost", config.get("host"));
+            assertEquals(3306, config.get("port"));
+            assertEquals("test", config.get("database"), "库名必须来自 DSN，覆盖包里的 olddb");
+            assertEquals("user", config.get("user"), "用户名取自 DSN 的 userinfo");
+            assertEquals("p", config.get("password"));
+            assertNotEquals("test", config.get("user"), "库名绝不能被当成用户名");
+        }
+
+        @Test
+        @DisplayName("T7-8 JDBC(L2) jdbc: 形态：库名跨环境覆盖 olddb -> test，path 首段没被当用户名")
+        void t7_8_jdbcPrefixedForm() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("database", "olddb");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "jdbc:mysql://user@localhost:3306/test"); // L2
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            Map<String, Object> config = conn.getConfig();
+            assertEquals("localhost", config.get("host"));
+            assertEquals(3306, config.get("port"));
+            assertEquals("test", config.get("database"));
+            assertEquals("user", config.get("user"));
+            assertNotEquals("test", config.get("user"));
+        }
+
+        @Test
+        @DisplayName("T7-8d JDBC(L3) 只有 scheme 无 jdbc:：与 L1/L2 得到同一组四元组")
+        void t7_8d_schemeOnlyForm() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "mysql://user@localhost:3306/test"); // L3
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            Map<String, Object> config = conn.getConfig();
+            assertEquals("localhost", config.get("host"));
+            assertEquals(3306, config.get("port"));
+            assertEquals("test", config.get("database"));
+            assertEquals("user", config.get("user"));
+        }
+
+        @Test
+        @DisplayName("T7-8c JDBC(L11) 漏写 userinfo：库名是 test、用户名不动，且不去读 {CONN}_USER")
+        void t7_8c_missingUserInfoDoesNotReadFormat2Key() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("user", "existing-user"); // 目标既有值，缺值规则应保留
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "localhost:3306/test"); // L11
+            vault.put("ORDERS_PG_USER", "format2-user");       // 格式 2 的键，格式 3 不认
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            Map<String, Object> config = conn.getConfig();
+            assertEquals("test", config.get("database"), "path 首段是库名，不是用户名");
+            assertEquals("existing-user", config.get("user"), "缺 userinfo 时保留目标既有用户名");
+            assertNotEquals("test", config.get("user"));
+            assertNotEquals("format2-user", config.get("user"), "格式 3 不得混读 {CONN}_USER");
+        }
+
+        @Test
+        @DisplayName("T7-8e JDBC query 串被丢弃，additionalString 原封不动")
+        void t7_8e_queryStringDiscarded() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("additionalString", "SENTINEL-UNTOUCHED");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "jdbc:postgresql://h:5432/newdb?currentSchema=other");
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            Map<String, Object> config = conn.getConfig();
+            assertEquals("newdb", config.get("database"), "query 串不得混进库名");
+            assertEquals("SENTINEL-UNTOUCHED", config.get("additionalString"),
+                    "query 串必须丢弃，不得塞进 additionalString");
+        }
+
+        @Test
+        @DisplayName("T7-8b 顶层镜像字段与 config 一起写：顶层 database_name = DSN 的库名")
+        void t7_8b_topLevelMirrorFieldsWritten() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("database", "olddb");
+            // 源环境带来的顶层值：全部指向旧环境
+            conn.setDatabase_name("olddb");
+            conn.setDatabase_host("oldhost");
+            conn.setDatabase_port(5432);
+            conn.setDatabase_username("olduser");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "jdbc:mysql://user@localhost:3306/test"); // L2
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            assertEquals("test", conn.getConfig().get("database"));
+            assertEquals("test", conn.getDatabase_name(),
+                    "顶层 database_name 决定元数据限定名，只写 config 会造成半改状态");
+            // 同样的半改危险适用于其余镜像字段：不写 ⇒ preserveExistingSecrets 用目标旧值填回
+            assertEquals("localhost", conn.getDatabase_host());
+            assertEquals(3306, conn.getDatabase_port());
+            assertEquals("user", conn.getDatabase_username());
+        }
+
+        @Test
+        @DisplayName("T7-8b(mongo) 顶层 database_uri 同样被更新")
+        void t7_8b_mongoTopLevelUriWritten() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_MONGO");
+            conn.setDatabase_uri("mongodb://tapuser:oldpw@oldhost:27017/olddb");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_MONGO_DSN", "mongodb://tapuser:@h:27017/orders?authSource=admin"); // L5
+            vault.put("ORDERS_MONGO_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault,
+                    defWith(Map.of("uri", "database_uri")));
+
+            assertEquals("mongodb://tapuser:p@h:27017/orders?authSource=admin",
+                    conn.getDatabase_uri());
+        }
+    }
 }
