@@ -1,12 +1,19 @@
 package com.tapdata.tm.group.handler;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -253,6 +260,10 @@ public class ResourceHandlerVaultTest {
             assertEquals(java.util.List.of("h1:27017", "h2:27017"), parsed.getHosts());
             assertEquals("rs0", parsed.getRequiredReplicaSetName());
             assertEquals("orders", parsed.getDatabase());
+            // D11 的对照：MongoDB 整串直写、不受 query 丢弃之限。把丢弃写成与类型无关的
+            // 实现会在这里误丢 replicaSet 并误报告警——而 HA 的常态就是副本集。
+            assertTrue(loggedAt(Level.WARN).stream().noneMatch(m -> m.contains("discarded")),
+                    "MongoDB 侧不得发 query 丢弃告警，实际 WARN=" + loggedAt(Level.WARN));
         }
 
         @Test
@@ -422,6 +433,191 @@ public class ResourceHandlerVaultTest {
 
             assertEquals("mongodb://tapuser:p@h:27017/orders?authSource=admin",
                     conn.getDatabase_uri());
+        }
+
+        /** 「响亮」是有级别的契约，故真去接日志，不靠肉眼看控制台。 */
+        private ListAppender<ILoggingEvent> logs;
+
+        @BeforeEach
+        void attachAppender() {
+            logs = new ListAppender<>();
+            logs.start();
+            handlerLogger().addAppender(logs);
+        }
+
+        @AfterEach
+        void detachAppender() {
+            handlerLogger().detachAppender(logs);
+        }
+
+        private ch.qos.logback.classic.Logger handlerLogger() {
+            return (ch.qos.logback.classic.Logger)
+                    org.slf4j.LoggerFactory.getLogger(ResourceHandler.class);
+        }
+
+        private List<String> loggedAt(Level level) {
+            List<String> messages = new ArrayList<>();
+            for (ILoggingEvent event : logs.list) {
+                if (event.getLevel() == level) messages.add(event.getFormattedMessage());
+            }
+            return messages;
+        }
+
+        private void assertWarnContains(String needle) {
+            assertTrue(loggedAt(Level.WARN).stream().anyMatch(m -> m.contains(needle)),
+                    "期望一条 WARN 逐字包含 '" + needle + "'，实际 WARN=" + loggedAt(Level.WARN));
+        }
+
+        @Test
+        @DisplayName("T7-8e query 串被丢弃时，告警逐字点名被丢掉的那一段")
+        void t7_8e_queryDiscardWarningNamesIt() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "jdbc:postgresql://h:5432/newdb?currentSchema=other");
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            assertWarnContains("currentSchema=other");
+        }
+
+        @Test
+        @DisplayName("D10(L10) DSN 无库名：沿用目标旧库名并告警，不报错")
+        void d10_missingDatabaseNameWarnsAndKeepsOld() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("database", "olddb");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "localhost:3306"); // L10
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            assertEquals("olddb", conn.getConfig().get("database"), "无库名时保留目标既有库名");
+            assertWarnContains("database name");
+        }
+
+        @Test
+        @DisplayName("D10(L11) DSN 漏写 userinfo：保留目标既有用户名并告警")
+        void d10_missingUserInfoWarns() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("user", "existing-user");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "localhost:3306/test"); // L11
+            vault.put("ORDERS_PG_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            assertWarnContains("username");
+        }
+
+        @Test
+        @DisplayName("D10 无 {CONN}_PASSWORD：不报错，告警逐字点名那个键名")
+        void d10_missingPasswordWarnsNamingTheKeyVerbatim() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "user@localhost:3306/test"); // L1，无 _PASSWORD
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            assertEquals("test", conn.getConfig().get("database"), "缺密码不影响其余成分照常写入");
+            // 泛化的 "no matching vault keys" 不算——操作者要能一眼看出该去配哪个键
+            assertWarnContains("ORDERS_PG_PASSWORD");
+        }
+
+        @Test
+        @DisplayName("T7-12 无 {CONN}_PASSWORD 时 password 路径原封不动，不写空串也不写 null")
+        void t7_12_noPasswordLeavesPasswordPathUntouched() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("password", "SENTINEL-TARGET-PASSWORD");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_DSN", "user@localhost:3306/test"); // L1，无 _PASSWORD
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            assertEquals("SENTINEL-TARGET-PASSWORD", conn.getConfig().get("password"),
+                    "写空值会让 [ADR-0034] D5 认为包里有值而放行，目标密码当场被抹空");
+            assertEquals("localhost", conn.getConfig().get("host"), "其余成分照常写入");
+        }
+
+        @Test
+        @DisplayName("D8 先拼后验：splice 结果非法时报错，且消息不回显拼出来的串")
+        void d8_splicedResultIsValidatedAndErrorDoesNotEchoIt() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_MONGO");
+            Map<String, String> vault = new LinkedHashMap<>();
+            // 作者漏编码的用户名：raw '@' 在 userinfo 里，ConnectionString 会拒
+            vault.put("ORDERS_MONGO_DSN", "mongodb://us@er:@h:27017/db");
+            vault.put("ORDERS_MONGO_PASSWORD", "secret-pw");
+
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> ResourceHandler.injectVaultSecretsToConnection(conn, vault,
+                            defWith(Map.of("uri", "database_uri"))));
+
+            assertTrue(ex.getMessage().contains("ORDERS_MONGO"), "消息要点名是哪条连接");
+            assertFalse(ex.getMessage().contains("secret-pw"),
+                    "splice 之后串里带着密码，消息绝不能回显它");
+        }
+
+        @Test
+        @DisplayName("优先级6 无命中报错文案提到 DSN，让老 TM 撞上时自解释")
+        void priority6_errorMessageMentionsDsn() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("OTHER_url", "h:1");
+            vault.put("OTHER_user", "u");
+            vault.put("OTHER_password", "p");
+
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef()));
+
+            assertTrue(ex.getMessage().toLowerCase().contains("dsn"),
+                    "老 TM 遇到只含 _DSN 的 vault 会走到这里中止整批导入，文案不提 DSN 就读成租户配错了；实际=" + ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("T7-9 老 vault 回归：只有 {CONN}_URI 时行为逐字不变，password 字段不被碰")
+        void t7_9_legacyUriPathUnchanged() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_MONGO");
+            conn.getConfig().put("password", "SENTINEL-TARGET-PASSWORD");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_MONGO_uri", "mongodb://u:pw@h:27017/db");
+            // ⚠ vault 里**必须**同时放一个 password 键，否则这条断言是假闸：
+            // 没有这个键时，任何"多去找一次 password"的实现都因查不到而跳过，哨兵照样活着。
+            vault.put("ORDERS_MONGO_password", "SHOULD-NOT-BE-INJECTED");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault,
+                    defWith(Map.of("uri", "database_uri")));
+
+            assertEquals("mongodb://u:pw@h:27017/db", conn.getConfig().get("uri"), "整串直写，与今天一致");
+            assertEquals("SENTINEL-TARGET-PASSWORD", conn.getConfig().get("password"),
+                    "老 uri 路径从不注入 password；新逻辑若无条件去找 password，这里会多写一个字段");
+        }
+
+        @Test
+        @DisplayName("T7-10 老格式回归：{CONN}_URL/_USER/_PASSWORD 结果不变，且库名不被新逻辑碰到")
+        void t7_10_legacyUrlPathDoesNotTouchDatabaseName() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_PG");
+            conn.getConfig().put("database", "olddb");
+            conn.setDatabase_name("olddb");
+
+            Map<String, String> vault = new LinkedHashMap<>();
+            vault.put("ORDERS_PG_URL", "pghost:5432");
+            vault.put("ORDERS_PG_USER", "pguser");
+            vault.put("ORDERS_PG_PASSWORD", "pgpass");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
+
+            Map<String, Object> config = conn.getConfig();
+            assertEquals("pghost", config.get("host"));
+            assertEquals(5432, config.get("port"));
+            assertEquals("pguser", config.get("user"));
+            assertEquals("pgpass", config.get("password"));
+            // 「已定口径 3」：库名覆盖是格式 3 独有的能力，老格式一个字都不改
+            assertEquals("olddb", config.get("database"), "老格式不得获得库名覆盖能力");
+            assertEquals("olddb", conn.getDatabase_name(), "顶层同理");
         }
     }
 }

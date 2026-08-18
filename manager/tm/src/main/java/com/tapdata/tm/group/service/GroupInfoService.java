@@ -2966,9 +2966,24 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      */
     private void injectVaultSecrets(Map<String, DataSourceConnectionDto> connections,
             Map<String, String> vaultSecrets, UserDetail user) {
+        // 批量查 definition，与本文件 diff 路径（:1559-1566）同一写法：原来是每条连接一次
+        // findByPdkHash，一次导入 N 条连接就是 N 次往返。
+        // ⚠ pdkHash == null 的连接必须**过滤出查询集合、但仍然照常注入**：逐条版把 null
+        // 直接传进 findByPdkHash（拿回 null），批量版若不过滤会把 null 塞进 IN 查询。
+        // 两者对外行为必须逐字相同——definition 为 null、走无 schema 的 fallback 分支。
+        Set<String> pdkHashes = new HashSet<>();
+        connections.values().forEach(c -> {
+            if (c.getPdkHash() != null) pdkHashes.add(c.getPdkHash());
+        });
+        Map<String, DataSourceDefinitionDto> defByPdkHash = pdkHashes.isEmpty()
+                ? Collections.emptyMap()
+                : dataSourceDefinitionService.findByPdkHashList(pdkHashes, user)
+                    .stream().collect(Collectors.toMap(
+                        DataSourceDefinitionDto::getPdkHash, d -> d, (a, b) -> a));
+
         connections.values().forEach(conn -> {
-            DataSourceDefinitionDto definition =
-                    dataSourceDefinitionService.findByPdkHash(conn.getPdkHash(), Integer.MAX_VALUE, user);
+            String pdkHash = conn.getPdkHash();
+            DataSourceDefinitionDto definition = pdkHash != null ? defByPdkHash.get(pdkHash) : null;
             if (definition == null) {
                 log.warn("Vault inject: definition not found for connection '{}', pdkHash={}, skipping schema BFS",
                         conn.getName(), conn.getPdkHash());

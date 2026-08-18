@@ -532,12 +532,28 @@ public interface ResourceHandler {
     /**
      * maskSensitiveConfigFields 的逆操作：将 vault.json 中的敏感信息注入连接的 config。
      *
-     * 注入优先级：
-     * 1. password：直接查找 {connName}_password，按 schema 路径写入
-     * 2. uri：查找 {connName}_uri
-     *    - 若 schema 中存在 database_uri（如 MongoDB）→ 整体直接写入 uri 字段
-     *    - 否则 → 按 "host:port/username" 格式解析，拆分写入 host/port/username
-     * 3. url（仅当 vault 中无 uri 时）：查找 {connName}_url，同样按 "host:port/username" 解析写入
+     * <p><b>注入优先级——六级，逐级下降，命中即停。</b> 这条链在三处各有一份表述
+     * （本注释、worker 的 {@code generate-vault.sh} 里两处），三处必须对得上：
+     * 漂开一处就够让人把 GitHub 那边配错，而配错的表现是「部署报绿、连接连的是别的东西」。
+     *
+     * <ol>
+     *   <li><b>dsn</b>（格式 3）：{@code {conn}_DSN}（Variables）+ {@code {conn}_PASSWORD}（Secrets）。
+     *       schema 含 {@code database_uri}（MongoDB）→ 密码 splice 回 userinfo 后**整串直写**；
+     *       否则（JDBC）→ 归一化后拆成 host/port/username/<b>database_name</b>。
+     *       <b>只认精确连接名</b>，不回落（回落＝连错库＝数据事故，[ADR-0036] D4）。</li>
+     *   <li><b>uri</b>（格式 1）：{@code {conn}_URI}。schema 含 {@code database_uri} → 整串直写；
+     *       否则按 {@code host:port/username} 解析。<b>此路径从不注入 password。</b></li>
+     *   <li><b>url + user + password</b>（格式 2）：三个键用<b>精确</b>连接名，缺一不可。</li>
+     *   <li>同上三键，用<b>截断</b>后的连接名（{@code A_B_C} → {@code A_B}）。</li>
+     *   <li>同上三键，用 {@code default} 前缀。</li>
+     *   <li>全不命中 → 抛 {@link IllegalArgumentException}。⚠ 调用方
+     *       {@code GroupInfoService.injectVaultSecrets} <b>没有 per-connection try/catch</b>，
+     *       所以这一抛会中止<b>整批</b>连接导入——文案因此要点名 DSN（见 [ADR-0036] D12 的升级顺序）。</li>
+     * </ol>
+     *
+     * <p>缺值一律走同一条规则（[ADR-0036] D10）：<b>不报错、不写空值</b>，保留目标环境既有值，
+     * 并发一条逐字点名缺了什么的 WARN。写空值会让 [ADR-0034] D5 误以为「包里有值」而放行，
+     * 目标凭据当场被抹空。
      */
     static void injectVaultSecretsToConnection(DataSourceConnectionDto conn,
             Map<String, String> vaultSecrets, DataSourceDefinitionDto definition) {
@@ -583,9 +599,17 @@ public interface ResourceHandler {
             String dsnValue = vaultSecrets.get(dsnVaultKey);
             String pwVaultKey = findVaultKey(vaultSecrets, connectionName, "password");
             String pwValue = pwVaultKey == null ? null : vaultSecrets.get(pwVaultKey);
+            if (pwValue == null) {
+                // 缺值统一规则（[ADR-0036] D10）：不报错、不写空值，但要**逐字点名那个键**——
+                // 泛化的告警读不出该去配哪个键，而拼错键名与「真的没密码」在数据上完全一样。
+                log.warn("Vault inject: connection='{}', no {}_PASSWORD in vault; keeping the target's"
+                        + " existing password. If this connection does have a password, that key name"
+                        + " is misspelled or missing.", connectionName, connectionName);
+            }
             if (hasDatabaseUri) {
                 String configPath = apiKeyToConfigPath.get("database_uri");
                 String uriWithPassword = splicePasswordIntoDsn(dsnValue, pwValue);
+                validateMongoDsn(uriWithPassword, connectionName, pwValue);
                 log.info("Vault inject: connection='{}', configPath='{}' <- dsn (direct)", connectionName, configPath);
                 setNestedValue(finalConfig, configPath, uriWithPassword);
                 // 顶层镜像字段与 config 一起写（[ADR-0036] D9）。保存链路**不会**从 config
@@ -597,6 +621,22 @@ public interface ResourceHandler {
             } else {
                 Map<String, Object> parts = parseDsnComponents(dsnValue);
                 log.info("Vault inject (dsn): connection='{}', parsed components={}", connectionName, parts);
+                if (parts.get("query") != null) {
+                    // [ADR-0036] D11：JDBC 的 query 串本期不解析、丢弃并告警。丢弃必须是响亮的——
+                    // 静默丢弃会让「参数配了但没生效」在目标环境才浮现。参数仍走包内 additionalString。
+                    log.warn("Vault inject: connection='{}', the DSN query string '?{}' is discarded"
+                            + " (not supported in this release); connection parameters still come from"
+                            + " the package's additionalString.", connectionName, parts.get("query"));
+                }
+                if (parts.get("user") == null) {
+                    log.warn("Vault inject: connection='{}', the DSN carries no userinfo, so no username"
+                            + " was taken from it; keeping the target's existing username."
+                            + " Format 3 does not read {}_USER.", connectionName, connectionName);
+                }
+                if (parts.get("database") == null) {
+                    log.warn("Vault inject: connection='{}', the DSN carries no database name;"
+                            + " keeping the target's existing database name.", connectionName);
+                }
                 injectParsedField(finalConfig, connectionName, "host", parts.get("host"), apiKeyToConfigPath);
                 injectParsedField(finalConfig, connectionName, "port", parts.get("port"), apiKeyToConfigPath);
                 injectParsedField(finalConfig, connectionName, "user", parts.get("user"), apiKeyToConfigPath);
@@ -658,9 +698,16 @@ public interface ResourceHandler {
         }
 
         // 优先级6：所有策略均未命中，报错退出
+        // 文案点名 DSN 是刻意的（[ADR-0036] D12）：只含 _DSN 的 vault 撞上一个不认识格式 3 的 TM 时，
+        // 走的正是这一条，而 injectVaultSecrets 没有 per-connection try/catch ⇒ 整批导入中止。
+        // 不提 DSN 的话，那条报错读起来像租户把键配错了，而不是「这个环境的 TM 该升级了」。
         throw new IllegalArgumentException(
                 "Vault inject: connection='" + connectionName + "' has no matching vault keys (tried: "
-                        + connectionName + ", " + (truncated != null ? truncated : "<no truncation>") + ", default)");
+                        + connectionName + "_DSN, " + connectionName + "_URI, "
+                        + connectionName + "_URL/_USER/_PASSWORD, "
+                        + (truncated != null ? truncated : "<no truncation>") + ", default). "
+                        + "If the repository is configured with " + connectionName
+                        + "_DSN, this TM predates format 3 and needs upgrading first.");
     }
 
     /**
@@ -816,6 +863,29 @@ public interface ResourceHandler {
     }
 
     /**
+     * 「先拼后验」的**验**（[ADR-0036] D8）：splice 完的串必须仍是合法 MongoDB 连接串。
+     *
+     * ⚠ 报错消息**绝不回显这个串**——splice 之后它带着明文密码。驱动本身的消息
+     * 经实测不回显（2026-08-18 探针），但仍防御性地把密码从中抹掉，避免驱动升级后走样。
+     */
+    private static void validateMongoDsn(String splicedUri, String connectionName, String password) {
+        if (StringUtils.isBlank(splicedUri)) return;
+        try {
+            new com.mongodb.ConnectionString(splicedUri);
+        } catch (RuntimeException e) {
+            String detail = e.getMessage() == null ? "" : e.getMessage();
+            if (password != null && !password.isEmpty()) {
+                detail = detail.replace(password, "***");
+            }
+            throw new IllegalArgumentException(
+                    "Vault inject: connection='" + connectionName + "', the DSN is not a valid MongoDB"
+                            + " connection string after splicing the password in: " + detail
+                            + " (the DSN is not echoed here because it now carries the password;"
+                            + " check that the username is percent-encoded)");
+        }
+    }
+
+    /**
      * 按 RFC 3986 对 userinfo 成分做 percent-encoding：只放行 unreserved
      * （{@code ALPHA / DIGIT / - . _ ~}），其余一律编码。
      *
@@ -852,9 +922,11 @@ public interface ResourceHandler {
         if (StringUtils.isBlank(dsn)) return result;
 
         String rest = dsn.trim();
-        if (rest.regionMatches(true, 0, "jdbc:", 0, 5)) {
-            rest = rest.substring(5);
-        }
+        // 剥 scheme 这一步**同时**吃掉 `jdbc:` 前缀：D5 收的三种形态里带前缀的两种
+        // （`jdbc:mysql://…` / `mysql://…`）都含 `://`，从它往后截即可。
+        // ⚠ 刻意**没有**单独再剥一次 `jdbc:`：那一步对本 ADR 收的任何形态都不可达
+        // （变异测试实证——去掉它没有任何用例变红），而对不含 `://` 的
+        // `jdbc:mysql:user@h/db` 它反而解析出 user=`mysql`，是错的而不是更宽容的。
         int schemeIdx = rest.indexOf("://");
         if (schemeIdx >= 0) {
             rest = rest.substring(schemeIdx + 3);
