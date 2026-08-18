@@ -87,16 +87,29 @@ public class DAG implements Serializable, Cloneable {
                 new ClassPathScanningCandidateComponentProvider(true);
         classPathScanningCandidateComponentProvider.addIncludeFilter(new AnnotationTypeFilter(NodeType.class));
         Set<BeanDefinition> result = classPathScanningCandidateComponentProvider.findCandidateComponents(DAG.class.getPackage().getName());
+        System.out.println("扫描到的 BeanDefinition 数量: " + result.size());
         result.forEach(beanDefinition -> {
             try {
+                String className = beanDefinition.getBeanClassName();
+                System.out.println("2. 正在处理类名: " + className);
                 Class<?> nodeClass = Class.forName(beanDefinition.getBeanClassName());
+                System.out.println("3. 类加载成功: " + nodeClass.getName());
                 if (!Loader.isExtends(nodeClass, Node.class)) {
-                    logger.debug("Class {} not extends {}, skip.", nodeClass.getName(), Node.class.getName() );
+                    System.out.println("4. 继承检查失败，跳过: " + className); // 关键点4
                     return;
                 }
+                System.out.println("5. 继承检查通过: " + className); // 关键点5
+
                 NodeType nodeType = nodeClass.getAnnotation(NodeType.class);
-                nodeMapping.put(nodeType.value(), (Class<? extends Node>)nodeClass);
+                System.out.println("6. 获取到的注解实例: " + nodeType); // 关键点6（如果是 null 就说明 Retention 不对）
+
+                if (nodeType != null) {
+                    nodeMapping.put(nodeType.value(), (Class<? extends Node>) nodeClass);
+                    System.out.println("7. 成功放入映射，key: " + nodeType.value()); // 关键点7
+                }
             } catch (Exception e) {
+                System.err.println("8. 发生异常: " + e.getMessage()); // 关键点8
+                e.printStackTrace();
                 logger.error("Unable to load class: {}, NodeDeserialize will not be able to serialize the corresponding node type", beanDefinition.getBeanClassName(), e);
             }
         });
