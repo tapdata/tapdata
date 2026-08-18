@@ -2981,6 +2981,9 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     .stream().collect(Collectors.toMap(
                         DataSourceDefinitionDto::getPdkHash, d -> d, (a, b) -> a));
 
+        // schema BFS 按 pdkHash 记忆化：它是 definition 的纯函数，同型连接结果完全相同。
+        // 用的是上面那把 key、这一个循环。
+        Map<String, Map<String, String>> bfsByPdkHash = new HashMap<>();
         connections.values().forEach(conn -> {
             String pdkHash = conn.getPdkHash();
             DataSourceDefinitionDto definition = pdkHash != null ? defByPdkHash.get(pdkHash) : null;
@@ -2988,7 +2991,10 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 log.warn("Vault inject: definition not found for connection '{}', pdkHash={}, skipping schema BFS",
                         conn.getName(), conn.getPdkHash());
             }
-            ResourceHandler.injectVaultSecretsToConnection(conn, vaultSecrets, definition);
+            Map<String, String> memoizedBfs = definition == null ? null
+                    : bfsByPdkHash.computeIfAbsent(pdkHash,
+                        h -> ResourceHandler.buildConfigPathToApiKeyMap(definition));
+            ResourceHandler.injectVaultSecretsToConnection(conn, vaultSecrets, definition, memoizedBfs);
         });
     }
 

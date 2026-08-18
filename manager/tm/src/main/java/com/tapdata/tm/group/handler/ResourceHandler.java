@@ -557,6 +557,24 @@ public interface ResourceHandler {
      */
     static void injectVaultSecretsToConnection(DataSourceConnectionDto conn,
             Map<String, String> vaultSecrets, DataSourceDefinitionDto definition) {
+        injectVaultSecretsToConnection(conn, vaultSecrets, definition, null);
+    }
+
+    /**
+     * 同上，但允许调用方传入已经算好的 schema BFS 结果（{@code configPath -> apiServerKey}）。
+     *
+     * <p>BFS 是 {@code definition} 的纯函数，而一次导入里同类型的连接共用同一份 definition，
+     * 逐条重跑纯属浪费。批量调用方（{@code GroupInfoService.injectVaultSecrets}）已经建好了
+     * {@code pdkHash -> definition} 的 map，顺手按同一把 key 缓存 BFS 结果即可。
+     *
+     * <p>⚠ 记忆化的是**原始 BFS 结果**、不是过滤后的 {@code apiKeyToConfigPath}：
+     * 「schema 里没有 connection.properties」那条告警判的是原始结果为空，而过滤后为空
+     * 是另一回事（schema 有内容、只是没有 vault 关心的键）。缓存错一层，告警就会对
+     * 一批本来正常的连接误报。三参版传 {@code null} ⇒ 行为与从前逐字相同。
+     */
+    static void injectVaultSecretsToConnection(DataSourceConnectionDto conn,
+            Map<String, String> vaultSecrets, DataSourceDefinitionDto definition,
+            Map<String, String> memoizedPathToApiKey) {
         if (conn == null || MapUtils.isEmpty(vaultSecrets)) {
             return;
         }
@@ -575,7 +593,9 @@ public interface ResourceHandler {
         // 使用 BFS 工具方法获取 apiServerKey -> configPath 映射
         Map<String, String> apiKeyToConfigPath = new LinkedHashMap<>();
         if (definition != null) {
-            Map<String, String> pathToApiKey = buildConfigPathToApiKeyMap(definition);
+            Map<String, String> pathToApiKey = memoizedPathToApiKey != null
+                    ? memoizedPathToApiKey
+                    : buildConfigPathToApiKeyMap(definition);
             if (pathToApiKey.isEmpty()) {
                 log.warn("Vault inject: definition schema missing 'connection.properties' for connection '{}', pdkType={}",
                         connectionName, conn.getDatabase_type());

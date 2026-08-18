@@ -113,4 +113,47 @@ class GroupInfoServiceVaultInjectTest {
         assertEquals("hc", c.getConfig().get("host"));
         assertFalse(a.getConfig().isEmpty(), "有 definition 的连接同样照常注入");
     }
+
+    @Test
+    @DisplayName("同型连接的 schema BFS 只跑一次：按 pdkHash 记忆化")
+    void memoizesSchemaBfsPerPdkHash() {
+        DataSourceConnectionDto a = conn("CONN_A", "hash-1");
+        DataSourceConnectionDto b = conn("CONN_B", "hash-1"); // 同型
+        DataSourceConnectionDto c = conn("CONN_C", "hash-1"); // 同型
+
+        Map<String, DataSourceConnectionDto> connections = new LinkedHashMap<>();
+        connections.put("a", a);
+        connections.put("b", b);
+        connections.put("c", c);
+
+        // BFS 的入口是 definition.getProperties()——用 mock 数它被读了几次，
+        // 就等于数 schema BFS 跑了几遍。三条同型连接应当只跑一遍。
+        DataSourceDefinitionDto def = org.mockito.Mockito.mock(DataSourceDefinitionDto.class);
+        when(def.getPdkHash()).thenReturn("hash-1");
+        LinkedHashMap<String, Object> props = new LinkedHashMap<>();
+        LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+        LinkedHashMap<String, Object> inner = new LinkedHashMap<>();
+        LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
+        meta.put("apiServerKey", "database_password");
+        inner.put("password", meta);
+        connection.put("properties", inner);
+        props.put("connection", connection);
+        when(def.getProperties()).thenReturn(props);
+        when(dataSourceDefinitionService.findByPdkHashList(any(), any())).thenReturn(List.of(def));
+
+        Map<String, String> vault = new LinkedHashMap<>();
+        for (String n : List.of("CONN_A", "CONN_B", "CONN_C")) {
+            vault.put(n + "_URL", "h:5432");
+            vault.put(n + "_USER", "u");
+            vault.put(n + "_PASSWORD", "p");
+        }
+
+        ReflectionTestUtils.invokeMethod(groupInfoService, "injectVaultSecrets", connections, vault, user);
+
+        verify(def, times(1)).getProperties();
+        // 记忆化不得改变结果：三条都要按 schema 路径写到 password 上
+        assertEquals("p", a.getConfig().get("password"));
+        assertEquals("p", b.getConfig().get("password"));
+        assertEquals("p", c.getConfig().get("password"));
+    }
 }
