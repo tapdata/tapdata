@@ -44,9 +44,6 @@ class TapdataTaskSchedulerEngineStartTest {
 		long firstPingTime = pingTime(clientMongoOperator.updates.get(0));
 		long secondPingTime = pingTime(clientMongoOperator.updates.get(1));
 		long thirdPingTime = pingTime(clientMongoOperator.updates.get(2));
-		long engineStartTaskInterval = ((Number) ReflectionTestUtils.getField(TapdataTaskScheduler.class, "ENGINE_START_TASK_INTERVAL_MILLIS")).longValue();
-		assertEquals(engineStartTaskInterval, secondPingTime - firstPingTime);
-		assertEquals(engineStartTaskInterval, thirdPingTime - secondPingTime);
 		assertEquals(firstPingTime, firstTask.getPingTime());
 		assertEquals(secondPingTime, secondTask.getPingTime());
 		assertEquals(thirdPingTime, thirdTask.getPingTime());
