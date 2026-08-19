@@ -513,6 +513,27 @@ public class ResourceHandlerVaultTest {
         }
 
         @Test
+        @DisplayName("D10(mongo · L11) DSN 漏写 userinfo：密码无处可拼，必须告警而不是静默丢")
+        void d10_mongoMissingUserInfoWarnsInsteadOfDroppingPasswordSilently() {
+            DataSourceConnectionDto conn = makeConn("ORDERS_MONGO");
+            Map<String, String> vault = new LinkedHashMap<>();
+            // 漏了 "tapuser:@" 那一截——不带凭据的 mongodb URI 本身合法，
+            // 所以 validateMongoDsn 放行、整条链路一路绿灯。
+            vault.put("ORDERS_MONGO_DSN", "mongodb://h:27017/orders");
+            vault.put("ORDERS_MONGO_PASSWORD", "p");
+
+            ResourceHandler.injectVaultSecretsToConnection(conn, vault,
+                    defWith(Map.of("uri", "database_uri")));
+
+            // 串照写、不报错（缺值规则不是「报错」）
+            assertEquals("mongodb://h:27017/orders", conn.getConfig().get("uri"));
+            // 但密码确实被丢了 ⇒ 必须留下逐字点名那个键的 WARN。
+            // 鉴别性：pwValue 非 null，所以「no {CONN}_PASSWORD in vault」那条压根不触发，
+            // 命中这个断言的只可能是 splice 侧新加的那条。
+            assertWarnContains("ORDERS_MONGO_PASSWORD");
+        }
+
+        @Test
         @DisplayName("D10 无 {CONN}_PASSWORD：不报错，告警逐字点名那个键名")
         void d10_missingPasswordWarnsNamingTheKeyVerbatim() {
             DataSourceConnectionDto conn = makeConn("ORDERS_PG");

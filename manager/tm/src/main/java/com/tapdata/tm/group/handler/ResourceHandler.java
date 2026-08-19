@@ -628,7 +628,7 @@ public interface ResourceHandler {
             }
             if (hasDatabaseUri) {
                 String configPath = apiKeyToConfigPath.get("database_uri");
-                String uriWithPassword = splicePasswordIntoDsn(dsnValue, pwValue);
+                String uriWithPassword = splicePasswordIntoDsn(dsnValue, pwValue, connectionName);
                 validateMongoDsn(uriWithPassword, connectionName, pwValue);
                 log.info("Vault inject: connection='{}', configPath='{}' <- dsn (direct)", connectionName, configPath);
                 setNestedValue(finalConfig, configPath, uriWithPassword);
@@ -654,8 +654,16 @@ public interface ResourceHandler {
                             + " Format 3 does not read {}_USER.", connectionName, connectionName);
                 }
                 if (parts.get("database") == null) {
-                    log.warn("Vault inject: connection='{}', the DSN carries no database name;"
-                            + " keeping the target's existing database name.", connectionName);
+                    // ⚠ 不能说「保留目标既有库名」：database_name **不在** SENSITIVE_API_KEYS 里，
+                    // 导出不脱敏它、restoreMissingSecretsFromExisting 也不回填它（它只补
+                    // getMaskedConfigPaths 与那七个顶层镜像字段）。而 GROUP_IMPORT 是整文档覆盖，
+                    // 所以真正落到目标上的是**包里那个、即源环境的**库名。旁边 username/password
+                    // 两条同形告警成立，恰恰因为那两个字段是被脱敏的。
+                    log.warn("Vault inject: connection='{}', the DSN carries no database name, so the"
+                            + " database name shipped in the package (the source environment's) is used"
+                            + " as-is. The target's own database name is NOT preserved: database_name is"
+                            + " not a masked field, so nothing restores it. Put the database name in the"
+                            + " DSN to make it environment-specific.", connectionName);
                 }
                 injectParsedField(finalConfig, connectionName, "host", parts.get("host"), apiKeyToConfigPath);
                 injectParsedField(finalConfig, connectionName, "port", parts.get("port"), apiKeyToConfigPath);
@@ -861,7 +869,7 @@ public interface ResourceHandler {
      * 那种形态在解析阶段就死了。改为在**原始串**上做字符串手术，再交给
      * {@code ConnectionString} 做最终校验。
      */
-    private static String splicePasswordIntoDsn(String dsn, String password) {
+    private static String splicePasswordIntoDsn(String dsn, String password, String connectionName) {
         if (StringUtils.isBlank(dsn) || password == null) {
             return dsn;
         }
@@ -869,7 +877,15 @@ public interface ResourceHandler {
         int userInfoStart = schemeIdx < 0 ? 0 : schemeIdx + 3;
         int atIdx = dsn.indexOf('@', userInfoStart);
         if (atIdx < 0) {
-            // 无 userinfo：不 splice，交给缺值规则（[ADR-0036] D10）
+            // 无 userinfo：没有地方 splice，密码只能丢。缺值规则（[ADR-0036] D10）的两半
+            // 是「不写空值」**和**「逐字点名地告警」——只做前半条，这就成了格式 3 里唯一一处
+            // 静默丢值：不带凭据的 mongodb URI 本身合法，validateMongoDsn 会放行，日志只留下
+            // 一条 INFO「<- dsn (direct)」，操作者要到测试连接鉴权失败时才发现。JDBC 分支对
+            // 同一种输入是告警的，这里必须对称。
+            log.warn("Vault inject: connection='{}', the DSN carries no userinfo, so {}_PASSWORD could"
+                    + " not be spliced in and was dropped; the imported connection will have no"
+                    + " credentials. Write the DSN with an empty password position, e.g."
+                    + " 'mongodb://<user>:@host:27017/db'.", connectionName, connectionName);
             return dsn;
         }
         String userInfo = dsn.substring(userInfoStart, atIdx);

@@ -2975,11 +2975,19 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         connections.values().forEach(c -> {
             if (c.getPdkHash() != null) pdkHashes.add(c.getPdkHash());
         });
+        // ⚠ 合并函数不能是 (a, b) -> a：被替换掉的 findByPdkHash 是
+        // `Sort.by("pdkAPIBuildNumber").descending()` + findOne，即**确定性地取 build number
+        // 最高的那份**，而 findByPdkHashList 是无序 findAll。同一个 pdkHash 确实会有多份文档
+        // （PkdSourceService 的 upsert 键含 pdkAPIBuildNumber，集合上那条
+        // pdkHash_1_pdkAPIBuildNumber_1 索引就是为它建的）；取错一份 ⇒ BFS 落在旧 schema 上，
+        // 而旧 schema 缺 database_uri 会让 MongoDB 连接的 hasDatabaseUri 变 false、格式 3 误走
+        // JDBC 分支，静默把连接写坏。故显式挑 build number 更高的那份。
         Map<String, DataSourceDefinitionDto> defByPdkHash = pdkHashes.isEmpty()
                 ? Collections.emptyMap()
                 : dataSourceDefinitionService.findByPdkHashList(pdkHashes, user)
                     .stream().collect(Collectors.toMap(
-                        DataSourceDefinitionDto::getPdkHash, d -> d, (a, b) -> a));
+                        DataSourceDefinitionDto::getPdkHash, d -> d,
+                        GroupInfoService::preferHigherPdkApiBuild));
 
         // schema BFS 按 pdkHash 记忆化：它是 definition 的纯函数，同型连接结果完全相同。
         // 用的是上面那把 key、这一个循环。
@@ -2996,6 +3004,22 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                         h -> ResourceHandler.buildConfigPathToApiKeyMap(definition));
             ResourceHandler.injectVaultSecretsToConnection(conn, vaultSecrets, definition, memoizedBfs);
         });
+    }
+
+    /**
+     * 同一个 pdkHash 的多份 definition 里挑一份——**保留 pdkAPIBuildNumber 更高的那份**，
+     * 复现被批量化替换掉的 {@code findByPdkHash} 的选择规则（按该字段降序取第一条）。
+     *
+     * <p>字段缺失时优先取有值的那一份：老 criteria 的 {@code lte(...)} 在 Mongo 里
+     * 根本不匹配缺字段的文档，所以「有 build number」本身就比「没有」更接近老行为。
+     */
+    private static DataSourceDefinitionDto preferHigherPdkApiBuild(DataSourceDefinitionDto a,
+            DataSourceDefinitionDto b) {
+        Integer buildA = a.getPdkAPIBuildNumber();
+        Integer buildB = b.getPdkAPIBuildNumber();
+        if (buildB == null) return a;
+        if (buildA == null) return b;
+        return buildB > buildA ? b : a;
     }
 
     protected List<GroupInfoDto> loadGroupInfosByIds(List<String> groupIds, UserDetail user) {

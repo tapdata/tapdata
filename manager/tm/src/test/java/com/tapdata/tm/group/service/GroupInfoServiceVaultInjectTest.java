@@ -25,6 +25,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -112,6 +113,51 @@ class GroupInfoServiceVaultInjectTest {
         assertEquals("uc", c.getConfig().get("username"));
         assertEquals("hc", c.getConfig().get("host"));
         assertFalse(a.getConfig().isEmpty(), "有 definition 的连接同样照常注入");
+    }
+
+    /** 造一份把 database_password 挂在指定 configPath 上的 definition，用 configPath 当指纹。 */
+    private DataSourceDefinitionDto defWithPasswordPath(String pdkHash, Integer buildNumber, String configPath) {
+        DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+        def.setPdkHash(pdkHash);
+        def.setPdkAPIBuildNumber(buildNumber);
+        LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
+        meta.put("apiServerKey", "database_password");
+        LinkedHashMap<String, Object> inner = new LinkedHashMap<>();
+        inner.put(configPath, meta);
+        LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+        connection.put("properties", inner);
+        LinkedHashMap<String, Object> props = new LinkedHashMap<>();
+        props.put("connection", connection);
+        def.setProperties(props);
+        return def;
+    }
+
+    @Test
+    @DisplayName("同 pdkHash 多份 definition：取 pdkAPIBuildNumber 最高的那份，不取返回顺序里的第一份")
+    void picksHighestPdkApiBuildNumberAmongDuplicates() {
+        // 同一个 pdkHash 有多份文档是设计使然：PkdSourceService 的 upsert 键含
+        // pdkAPIBuildNumber，集合上那条 pdkHash_1_pdkAPIBuildNumber_1 索引就是为它建的。
+        // 被批量化替换掉的 findByPdkHash 是「按该字段降序取第一条」，批量版必须复现这一点。
+        DataSourceConnectionDto a = conn("CONN_A", "hash-1");
+        Map<String, DataSourceConnectionDto> connections = new LinkedHashMap<>();
+        connections.put("a", a);
+
+        // 返回顺序刻意把**旧** build 排在前面——findAll 无序，(a, b) -> a 会取到它。
+        DataSourceDefinitionDto oldDef = defWithPasswordPath("hash-1", 5, "legacy_password");
+        DataSourceDefinitionDto newDef = defWithPasswordPath("hash-1", 8, "password");
+        when(dataSourceDefinitionService.findByPdkHashList(any(), any()))
+                .thenReturn(List.of(oldDef, newDef));
+
+        Map<String, String> vault = new LinkedHashMap<>();
+        vault.put("CONN_A_URL", "ha:5432");
+        vault.put("CONN_A_USER", "ua");
+        vault.put("CONN_A_PASSWORD", "pa");
+
+        ReflectionTestUtils.invokeMethod(groupInfoService, "injectVaultSecrets", connections, vault, user);
+
+        // configPath 就是指纹：写到哪个键上，就说明 BFS 跑的是哪一份 schema。
+        assertEquals("pa", a.getConfig().get("password"), "必须落在 build=8 那份 schema 的路径上");
+        assertNull(a.getConfig().get("legacy_password"), "落在 legacy 路径上 = 取到了旧 build 的 definition");
     }
 
     @Test
