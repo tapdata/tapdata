@@ -608,6 +608,25 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return infoVo;
 	}
 
+	void readSslPasswordIfNeed(DataSourceConnectionDto dataSourceConnectionDto) {
+		Boolean ssl = dataSourceConnectionDto.getSsl();
+		if (null == ssl || !ssl) {
+			return;
+		}
+		Map<String, Object> config = dataSourceConnectionDto.getConfig();
+		if (null == config || config.isEmpty()) {
+			return;
+		}
+		Object sslPassObj = config.get("sslPass");
+		if (null == sslPassObj) {
+			return;
+		}
+		String sslPass = String.valueOf(sslPassObj);
+		if (StringUtils.isNotBlank(sslPass)) {
+			dataSourceConnectionDto.setSslPass(sslPass);
+		}
+	}
+
 	protected List<ModulesDto> activeApis(ApiDefinitionVo apiDefinitionVo, UserDetail userDetail) {
 		//find active api
 		List<ModulesDto> apis = findAllActiveApi(ModuleStatusEnum.ACTIVE);
@@ -670,6 +689,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					continue;
 				}
 			}
+			readSslPasswordIfNeed(dataSourceConnectionDto);
 			Map<String, Object> properties = dataSourceDefinitionMap.get(databaseType);
 			if (properties != null) {
 				LinkedHashMap<String, Object> connection = (LinkedHashMap<String, Object>) properties.get("connection");
