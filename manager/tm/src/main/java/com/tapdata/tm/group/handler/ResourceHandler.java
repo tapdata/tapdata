@@ -59,7 +59,11 @@ public interface ResourceHandler {
             "port",     "database_port",
             "user",     "database_username",
             "password", "database_password",
-            "uri",      "database_uri"
+            "uri",      "database_uri",
+            // 格式 3 新增：库名不是 vault 里的独立键，而是从 DSN 解析出来的成分，
+            // 但它要走同一套 apiServerKey -> configPath 查表，故占一个伪 suffix。
+            // ⚠ 它**不进** SENSITIVE_API_KEYS——库名不是凭据，导出不脱敏（[ADR-0036]）。
+            "database", "database_name"
     );
 
     /**
@@ -70,7 +74,11 @@ public interface ResourceHandler {
             "host",     "host",
             "port",     "port",
             "user",     "username",
-            "password", "password"
+            "password", "password",
+            // schema BFS 落空时库名的落点。选 "database" 而非 "databaseName"/"database_name"：
+            // 与同表其余四项一样取 PDK config 的通用根键名（[ADR-0036] D8 要求把它定死，
+            // 否则 schema 缺失的连接会静默丢库名）。
+            "database", "database"
     );
 
     /**
@@ -524,15 +532,49 @@ public interface ResourceHandler {
     /**
      * maskSensitiveConfigFields 的逆操作：将 vault.json 中的敏感信息注入连接的 config。
      *
-     * 注入优先级：
-     * 1. password：直接查找 {connName}_password，按 schema 路径写入
-     * 2. uri：查找 {connName}_uri
-     *    - 若 schema 中存在 database_uri（如 MongoDB）→ 整体直接写入 uri 字段
-     *    - 否则 → 按 "host:port/username" 格式解析，拆分写入 host/port/username
-     * 3. url（仅当 vault 中无 uri 时）：查找 {connName}_url，同样按 "host:port/username" 解析写入
+     * <p><b>注入优先级——六级，逐级下降，命中即停。</b> 这条链在三处各有一份表述
+     * （本注释、worker 的 {@code generate-vault.sh} 里两处），三处必须对得上：
+     * 漂开一处就够让人把 GitHub 那边配错，而配错的表现是「部署报绿、连接连的是别的东西」。
+     *
+     * <ol>
+     *   <li><b>dsn</b>（格式 3）：{@code {conn}_DSN}（Variables）+ {@code {conn}_PASSWORD}（Secrets）。
+     *       schema 含 {@code database_uri}（MongoDB）→ 密码 splice 回 userinfo 后**整串直写**；
+     *       否则（JDBC）→ 归一化后拆成 host/port/username/<b>database_name</b>。
+     *       <b>只认精确连接名</b>，不回落（回落＝连错库＝数据事故，[ADR-0036] D4）。</li>
+     *   <li><b>uri</b>（格式 1）：{@code {conn}_URI}。schema 含 {@code database_uri} → 整串直写；
+     *       否则按 {@code host:port/username} 解析。<b>此路径从不注入 password。</b></li>
+     *   <li><b>url + user + password</b>（格式 2）：三个键用<b>精确</b>连接名，缺一不可。</li>
+     *   <li>同上三键，用<b>截断</b>后的连接名（{@code A_B_C} → {@code A_B}）。</li>
+     *   <li>同上三键，用 {@code default} 前缀。</li>
+     *   <li>全不命中 → 抛 {@link IllegalArgumentException}。⚠ 调用方
+     *       {@code GroupInfoService.injectVaultSecrets} <b>没有 per-connection try/catch</b>，
+     *       所以这一抛会中止<b>整批</b>连接导入——文案因此要点名 DSN（见 [ADR-0036] D12 的升级顺序）。</li>
+     * </ol>
+     *
+     * <p>缺值一律走同一条规则（[ADR-0036] D10）：<b>不报错、不写空值</b>，保留目标环境既有值，
+     * 并发一条逐字点名缺了什么的 WARN。写空值会让 [ADR-0034] D5 误以为「包里有值」而放行，
+     * 目标凭据当场被抹空。
      */
     static void injectVaultSecretsToConnection(DataSourceConnectionDto conn,
             Map<String, String> vaultSecrets, DataSourceDefinitionDto definition) {
+        injectVaultSecretsToConnection(conn, vaultSecrets, definition, null);
+    }
+
+    /**
+     * 同上，但允许调用方传入已经算好的 schema BFS 结果（{@code configPath -> apiServerKey}）。
+     *
+     * <p>BFS 是 {@code definition} 的纯函数，而一次导入里同类型的连接共用同一份 definition，
+     * 逐条重跑纯属浪费。批量调用方（{@code GroupInfoService.injectVaultSecrets}）已经建好了
+     * {@code pdkHash -> definition} 的 map，顺手按同一把 key 缓存 BFS 结果即可。
+     *
+     * <p>⚠ 记忆化的是**原始 BFS 结果**、不是过滤后的 {@code apiKeyToConfigPath}：
+     * 「schema 里没有 connection.properties」那条告警判的是原始结果为空，而过滤后为空
+     * 是另一回事（schema 有内容、只是没有 vault 关心的键）。缓存错一层，告警就会对
+     * 一批本来正常的连接误报。三参版传 {@code null} ⇒ 行为与从前逐字相同。
+     */
+    static void injectVaultSecretsToConnection(DataSourceConnectionDto conn,
+            Map<String, String> vaultSecrets, DataSourceDefinitionDto definition,
+            Map<String, String> memoizedPathToApiKey) {
         if (conn == null || MapUtils.isEmpty(vaultSecrets)) {
             return;
         }
@@ -551,7 +593,9 @@ public interface ResourceHandler {
         // 使用 BFS 工具方法获取 apiServerKey -> configPath 映射
         Map<String, String> apiKeyToConfigPath = new LinkedHashMap<>();
         if (definition != null) {
-            Map<String, String> pathToApiKey = buildConfigPathToApiKeyMap(definition);
+            Map<String, String> pathToApiKey = memoizedPathToApiKey != null
+                    ? memoizedPathToApiKey
+                    : buildConfigPathToApiKeyMap(definition);
             if (pathToApiKey.isEmpty()) {
                 log.warn("Vault inject: definition schema missing 'connection.properties' for connection '{}', pdkType={}",
                         connectionName, conn.getDatabase_type());
@@ -569,7 +613,77 @@ public interface ResourceHandler {
 
         boolean hasDatabaseUri = apiKeyToConfigPath.containsKey("database_uri");
 
-        // 优先级1：查找 {connectionName}_uri
+        // 优先级1：格式 3——{connectionName}_DSN（Variables）+ {connectionName}_PASSWORD（Secrets）
+        String dsnVaultKey = findVaultKey(vaultSecrets, connectionName, "dsn");
+        if (dsnVaultKey != null) {
+            String dsnValue = vaultSecrets.get(dsnVaultKey);
+            String pwVaultKey = findVaultKey(vaultSecrets, connectionName, "password");
+            String pwValue = pwVaultKey == null ? null : vaultSecrets.get(pwVaultKey);
+            if (pwValue == null) {
+                // 缺值统一规则（[ADR-0036] D10）：不报错、不写空值，但要**逐字点名那个键**——
+                // 泛化的告警读不出该去配哪个键，而拼错键名与「真的没密码」在数据上完全一样。
+                log.warn("Vault inject: connection='{}', no {}_PASSWORD in vault; keeping the target's"
+                        + " existing password. If this connection does have a password, that key name"
+                        + " is misspelled or missing.", connectionName, connectionName);
+            }
+            if (hasDatabaseUri) {
+                String configPath = apiKeyToConfigPath.get("database_uri");
+                String uriWithPassword = splicePasswordIntoDsn(dsnValue, pwValue, connectionName);
+                validateMongoDsn(uriWithPassword, connectionName, pwValue);
+                log.info("Vault inject: connection='{}', configPath='{}' <- dsn (direct)", connectionName, configPath);
+                setNestedValue(finalConfig, configPath, uriWithPassword);
+                // 顶层镜像字段与 config 一起写（[ADR-0036] D9）。保存链路**不会**从 config
+                // 重推顶层，而 MetaDataBuilderUtils.generateQualifiedName 建元数据限定名读的
+                // 正是顶层——只写 config 会得到「连接连新库、元数据挂旧库名」的半改状态。
+                // 必须写在 preserveExistingSecrets 之前：restoreMirroredField 只在 incoming
+                // 缺该字段时回填，不写就会被目标环境的旧值填上。
+                conn.setDatabase_uri(uriWithPassword);
+            } else {
+                Map<String, Object> parts = parseDsnComponents(dsnValue);
+                log.info("Vault inject (dsn): connection='{}', parsed components={}", connectionName, parts);
+                if (parts.get("query") != null) {
+                    // [ADR-0036] D11：JDBC 的 query 串本期不解析、丢弃并告警。丢弃必须是响亮的——
+                    // 静默丢弃会让「参数配了但没生效」在目标环境才浮现。参数仍走包内 additionalString。
+                    log.warn("Vault inject: connection='{}', the DSN query string '?{}' is discarded"
+                            + " (not supported in this release); connection parameters still come from"
+                            + " the package's additionalString.", connectionName, parts.get("query"));
+                }
+                if (parts.get("user") == null) {
+                    log.warn("Vault inject: connection='{}', the DSN carries no userinfo, so no username"
+                            + " was taken from it; keeping the target's existing username."
+                            + " Format 3 does not read {}_USER.", connectionName, connectionName);
+                }
+                if (parts.get("database") == null) {
+                    // ⚠ 这条只是预告，**真正的保留发生在 restoreDatabaseNameWhenDsnOmitsIt**——
+                    // 此处看不见目标环境那条连接，所以说不出最终用的是哪个库名（目标已有该连接
+                    // ⇒ 保留它的；首次部署 ⇒ 只能用包里的）。措辞对两种结局都要成立，具体结果
+                    // 由那一步逐字打出来。database_name 不在 SENSITIVE_API_KEYS 里，所以它走的
+                    // 不是 restoreMissingSecretsFromExisting 那条「缺值回填」链路。
+                    log.warn("Vault inject: connection='{}', the DSN carries no database name; the target"
+                            + " environment's existing database name will be kept if that connection"
+                            + " already exists there, otherwise the name shipped in the package is used."
+                            + " Put the database name in the DSN to make it environment-specific.",
+                            connectionName);
+                }
+                injectParsedField(finalConfig, connectionName, "host", parts.get("host"), apiKeyToConfigPath);
+                injectParsedField(finalConfig, connectionName, "port", parts.get("port"), apiKeyToConfigPath);
+                injectParsedField(finalConfig, connectionName, "user", parts.get("user"), apiKeyToConfigPath);
+                injectParsedField(finalConfig, connectionName, "database", parts.get("database"), apiKeyToConfigPath);
+                if (pwValue != null) {
+                    injectParsedField(finalConfig, connectionName, "password", pwValue, apiKeyToConfigPath);
+                }
+                // 顶层镜像字段，同上（[ADR-0036] D9）。⚠ 顶层 database_password 刻意不写：
+                // 它存的是 AES 密文（beforeSave 由 plain_password 推出），塞明文会毁掉那个契约；
+                // 密码的缺值语义由 [ADR-0034] D5 管，连接器读的是 config 那一份。
+                if (parts.get("host") != null)     conn.setDatabase_host((String) parts.get("host"));
+                if (parts.get("port") != null)     conn.setDatabase_port((Integer) parts.get("port"));
+                if (parts.get("user") != null)     conn.setDatabase_username((String) parts.get("user"));
+                if (parts.get("database") != null) conn.setDatabase_name((String) parts.get("database"));
+            }
+            return;
+        }
+
+        // 优先级2：查找 {connectionName}_uri
         String uriVaultKey = findVaultKey(vaultSecrets, connectionName, "uri");
         if (uriVaultKey != null) {
             String uriValue = vaultSecrets.get(uriVaultKey);
@@ -584,7 +698,7 @@ public interface ResourceHandler {
             return;
         }
 
-        // 优先级2：查找 {connectionName}_url + _user + _password
+        // 优先级3：查找 {connectionName}_url + _user + _password
         String[] resolved = resolveVaultStrategy(vaultSecrets, connectionName);
         if (resolved != null) {
             log.info("Vault inject: connection='{}', resolved with prefix='{}'", connectionName, connectionName);
@@ -592,7 +706,7 @@ public interface ResourceHandler {
             return;
         }
 
-        // 优先级3：截取连接名后查找
+        // 优先级4：截取连接名后查找
         String truncated = truncateName(connectionName);
         if (truncated != null) {
             resolved = resolveVaultStrategy(vaultSecrets, truncated);
@@ -603,7 +717,7 @@ public interface ResourceHandler {
             }
         }
 
-        // 优先级4：使用 default 前缀查找
+        // 优先级5：使用 default 前缀查找
         resolved = resolveVaultStrategy(vaultSecrets, "default");
         if (resolved != null) {
             log.info("Vault inject: connection='{}', resolved with prefix='default'", connectionName);
@@ -611,10 +725,17 @@ public interface ResourceHandler {
             return;
         }
 
-        // 优先级5：所有策略均未命中，报错退出
+        // 优先级6：所有策略均未命中，报错退出
+        // 文案点名 DSN 是刻意的（[ADR-0036] D12）：只含 _DSN 的 vault 撞上一个不认识格式 3 的 TM 时，
+        // 走的正是这一条，而 injectVaultSecrets 没有 per-connection try/catch ⇒ 整批导入中止。
+        // 不提 DSN 的话，那条报错读起来像租户把键配错了，而不是「这个环境的 TM 该升级了」。
         throw new IllegalArgumentException(
                 "Vault inject: connection='" + connectionName + "' has no matching vault keys (tried: "
-                        + connectionName + ", " + (truncated != null ? truncated : "<no truncation>") + ", default)");
+                        + connectionName + "_DSN, " + connectionName + "_URI, "
+                        + connectionName + "_URL/_USER/_PASSWORD, "
+                        + (truncated != null ? truncated : "<no truncation>") + ", default). "
+                        + "If the repository is configured with " + connectionName
+                        + "_DSN, this TM predates format 3 and needs upgrading first.");
     }
 
     /**
@@ -740,6 +861,147 @@ public interface ResourceHandler {
      * 支持标准格式：scheme://user:password@host:port/db
      * 支持简化格式：host:port/username（无 scheme、无密码）
      */
+    /**
+     * 把 {@code {CONN}_PASSWORD} 补进 DSN 的 userinfo。
+     *
+     * 顺序是**先拼后验**（[ADR-0036] D8）：{@code ConnectionString} 会拒掉
+     * {@code mongodb://u@h/db}（无冒号那种空密码写法），所以不能先解析再拼——
+     * 那种形态在解析阶段就死了。改为在**原始串**上做字符串手术，再交给
+     * {@code ConnectionString} 做最终校验。
+     */
+    private static String splicePasswordIntoDsn(String dsn, String password, String connectionName) {
+        if (StringUtils.isBlank(dsn) || password == null) {
+            return dsn;
+        }
+        int schemeIdx = dsn.indexOf("://");
+        int userInfoStart = schemeIdx < 0 ? 0 : schemeIdx + 3;
+        int atIdx = dsn.indexOf('@', userInfoStart);
+        if (atIdx < 0) {
+            // 无 userinfo：没有地方 splice，密码只能丢。缺值规则（[ADR-0036] D10）的两半
+            // 是「不写空值」**和**「逐字点名地告警」——只做前半条，这就成了格式 3 里唯一一处
+            // 静默丢值：不带凭据的 mongodb URI 本身合法，validateMongoDsn 会放行，日志只留下
+            // 一条 INFO「<- dsn (direct)」，操作者要到测试连接鉴权失败时才发现。JDBC 分支对
+            // 同一种输入是告警的，这里必须对称。
+            log.warn("Vault inject: connection='{}', the DSN carries no userinfo, so {}_PASSWORD could"
+                    + " not be spliced in and was dropped; the imported connection will have no"
+                    + " credentials. Write the DSN with an empty password position, e.g."
+                    + " 'mongodb://<user>:@host:27017/db'.", connectionName, connectionName);
+            return dsn;
+        }
+        String userInfo = dsn.substring(userInfoStart, atIdx);
+        int colonIdx = userInfo.indexOf(':');
+        // 用户名**原样透传**：它是 DSN 作者写进 URI 的，已经该是编码态；再编码一次会把
+        // `%40` 变成 `%2540`。作者漏编码时由末尾的 ConnectionString 校验抓出来，
+        // 而不是我们悄悄替他改写（[ADR-0036] D8）。密码来自 Secrets、是裸值，必须由我们编码。
+        String user = colonIdx < 0 ? userInfo : userInfo.substring(0, colonIdx);
+        return dsn.substring(0, userInfoStart) + user + ":" + percentEncodeUserInfo(password)
+                + dsn.substring(atIdx);
+    }
+
+    /**
+     * 「先拼后验」的**验**（[ADR-0036] D8）：splice 完的串必须仍是合法 MongoDB 连接串。
+     *
+     * ⚠ 报错消息**绝不回显这个串**——splice 之后它带着明文密码。驱动本身的消息
+     * 经实测不回显（2026-08-18 探针），但仍防御性地把密码从中抹掉，避免驱动升级后走样。
+     */
+    private static void validateMongoDsn(String splicedUri, String connectionName, String password) {
+        if (StringUtils.isBlank(splicedUri)) return;
+        try {
+            new com.mongodb.ConnectionString(splicedUri);
+        } catch (RuntimeException e) {
+            String detail = e.getMessage() == null ? "" : e.getMessage();
+            if (password != null && !password.isEmpty()) {
+                detail = detail.replace(password, "***");
+            }
+            throw new IllegalArgumentException(
+                    "Vault inject: connection='" + connectionName + "', the DSN is not a valid MongoDB"
+                            + " connection string after splicing the password in: " + detail
+                            + " (the DSN is not echoed here because it now carries the password;"
+                            + " check that the username is percent-encoded)");
+        }
+    }
+
+    /**
+     * 按 RFC 3986 对 userinfo 成分做 percent-encoding：只放行 unreserved
+     * （{@code ALPHA / DIGIT / - . _ ~}），其余一律编码。
+     *
+     * 刻意**不用** {@code URLEncoder}——那是 form 编码，会把空格写成 {@code +}，
+     * 而 {@code +} 在 URI 的 userinfo 里是字面加号，密码含空格时就会反解错。
+     */
+    private static String percentEncodeUserInfo(String raw) {
+        StringBuilder sb = new StringBuilder(raw.length() + 8);
+        for (byte b : raw.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            int c = b & 0xFF;
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                    || c == '-' || c == '.' || c == '_' || c == '~') {
+                sb.append((char) c);
+            } else {
+                sb.append('%').append(String.format("%02X", c));
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 解析格式 3 的 DSN，得到归一化目标四元组 {@code (host, port, user, database)}。
+     *
+     * ⚠ **刻意不复用 {@link #parseUriComponents}**（[ADR-0036] D5/D8）：那个函数在无 userinfo 时
+     * 把 path 首段当 username，而 DSN 的 path 首段是**库名**（`localhost:3306/test` 会得到
+     * `user=test`）；它底下的 {@code java.net.URI} 又把 `jdbc:xxx://…` 当 opaque URI，
+     * host/port/path 全为 null ⇒ 整个 JDBC 分支静默空跑。
+     *
+     * 归一化必须发生在解析**之前**：先剥可选的 {@code jdbc:}，再剥可选的 {@code scheme://}。
+     * 两个前缀都**只是入口宽容度、一律丢弃**，永不用于判型（类型来自连接自身的 definition/pdkHash）。
+     */
+    private static Map<String, Object> parseDsnComponents(String dsn) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (StringUtils.isBlank(dsn)) return result;
+
+        String rest = dsn.trim();
+        // 剥 scheme 这一步**同时**吃掉 `jdbc:` 前缀：D5 收的三种形态里带前缀的两种
+        // （`jdbc:mysql://…` / `mysql://…`）都含 `://`，从它往后截即可。
+        // ⚠ 刻意**没有**单独再剥一次 `jdbc:`：那一步对本 ADR 收的任何形态都不可达
+        // （变异测试实证——去掉它没有任何用例变红），而对不含 `://` 的
+        // `jdbc:mysql:user@h/db` 它反而解析出 user=`mysql`，是错的而不是更宽容的。
+        int schemeIdx = rest.indexOf("://");
+        if (schemeIdx >= 0) {
+            rest = rest.substring(schemeIdx + 3);
+        }
+
+        int queryIdx = rest.indexOf('?');
+        if (queryIdx >= 0) {
+            result.put("query", rest.substring(queryIdx + 1));
+            rest = rest.substring(0, queryIdx);
+        }
+
+        int atIdx = rest.lastIndexOf('@');
+        if (atIdx >= 0) {
+            String userInfo = rest.substring(0, atIdx);
+            int colonIdx = userInfo.indexOf(':');
+            String user = colonIdx < 0 ? userInfo : userInfo.substring(0, colonIdx);
+            if (StringUtils.isNotBlank(user)) result.put("user", user);
+            rest = rest.substring(atIdx + 1);
+        }
+
+        int slashIdx = rest.indexOf('/');
+        if (slashIdx >= 0) {
+            String database = rest.substring(slashIdx + 1);
+            if (StringUtils.isNotBlank(database)) result.put("database", database);
+            rest = rest.substring(0, slashIdx);
+        }
+
+        int colonIdx = rest.lastIndexOf(':');
+        if (colonIdx >= 0) {
+            String portStr = rest.substring(colonIdx + 1);
+            if (StringUtils.isNotBlank(portStr) && portStr.chars().allMatch(Character::isDigit)) {
+                result.put("port", Integer.parseInt(portStr));
+                rest = rest.substring(0, colonIdx);
+            }
+        }
+        if (StringUtils.isNotBlank(rest)) result.put("host", rest);
+        return result;
+    }
+
     private static Map<String, Object> parseUriComponents(String uriStr) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (StringUtils.isBlank(uriStr)) return result;
@@ -813,6 +1075,155 @@ public interface ResourceHandler {
      *
      * @return 被保留（即包内缺值、改用目标既有值）的 config path，供调用方汇报——D7 要求绝不静默。
      */
+    /**
+     * apiServerKey -> configPath 的反查表（只收 {@link #VAULT_SUFFIX_TO_API_KEY} 认识的那几个）。
+     * 单点定义：注入与下面的库名保留都读它，免得两处各建一份而悄悄漂开。
+     */
+    static Map<String, String> buildApiKeyToConfigPath(Map<String, String> pathToApiKey) {
+        Map<String, String> apiKeyToConfigPath = new LinkedHashMap<>();
+        if (pathToApiKey == null) {
+            return apiKeyToConfigPath;
+        }
+        for (Map.Entry<String, String> entry : pathToApiKey.entrySet()) {
+            if (VAULT_SUFFIX_TO_API_KEY.containsValue(entry.getValue())) {
+                apiKeyToConfigPath.put(entry.getValue(), entry.getKey());
+            }
+        }
+        return apiKeyToConfigPath;
+    }
+
+    /** MongoDB 连接串里的库名；解析不了或没有就返回 null。 */
+    private static String mongoDatabaseOf(String uri) {
+        if (StringUtils.isBlank(uri)) {
+            return null;
+        }
+        try {
+            return new com.mongodb.ConnectionString(uri).getDatabase();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 把库名拼进一个没有 path 段的 MongoDB 连接串。
+     *
+     * 与 {@link #splicePasswordIntoDsn} 同样是**原始串上的字符串手术**：种子列表
+     * （{@code h1:27017,h2:27017}）与 {@code ?replicaSet=}/{@code ?authSource=} 必须原样保真，
+     * 而先解析再重建一定会把它们normalize掉。
+     */
+    private static String spliceDatabaseIntoMongoUri(String uri, String database) {
+        int schemeIdx = uri.indexOf("://");
+        int start = schemeIdx < 0 ? 0 : schemeIdx + 3;
+        int atIdx = uri.indexOf('@', start);
+        int authorityStart = atIdx < 0 ? start : atIdx + 1;
+
+        int queryIdx = uri.indexOf('?', authorityStart);
+        int slashIdx = uri.indexOf('/', authorityStart);
+        boolean hasPathSeparator = slashIdx >= 0 && (queryIdx < 0 || slashIdx < queryIdx);
+
+        if (hasPathSeparator) {
+            int pathEnd = queryIdx < 0 ? uri.length() : queryIdx;
+            if (slashIdx + 1 != pathEnd) {
+                return null;    // 已经有库名了，不该走到这儿
+            }
+            return uri.substring(0, slashIdx + 1) + database + uri.substring(pathEnd);
+        }
+        int insertAt = queryIdx < 0 ? uri.length() : queryIdx;
+        return uri.substring(0, insertAt) + "/" + database + uri.substring(insertAt);
+    }
+
+    /**
+     * 格式 3 的 DSN **没写库名**时，把目标环境既有的库名放回 incoming（[ADR-0036] D10 第二行）。
+     *
+     * <p>⚠ 这件事**不能**交给 {@link #restoreMissingSecretsFromExisting}，两个理由：
+     * ① 那条链路的语义是「脱敏抹出来的洞」——只在 incoming 为空时回填，而这里 incoming
+     * <b>不为空</b>，它带着**源环境**的库名（{@code database_name} 不在
+     * {@link #SENSITIVE_API_KEYS} 里，导出根本不抹它）；② 它整条被保真包早退挡掉，而这条
+     * 保留不分包类型——DSN 分支只在操作者真的配了 {@code {CONN}_DSN} 时才走，那时格式 3
+     * 的语义压过打包模式。
+     *
+     * <p>不做这件事的后果：GROUP_IMPORT 是整文档覆盖 ⇒ SIT 的 {@code sit_orders} 覆盖掉
+     * PROD 的 {@code prod_orders}，部署报绿、测试连接也通过（库真实存在），
+     * 而连接从此指着**上一个环境的库**。
+     *
+     * @return 被保留下来的库名；没做任何事时返回 null（交给导入报告，D7 不许静默）
+     */
+    static String restoreDatabaseNameWhenDsnOmitsIt(DataSourceConnectionDto incoming,
+            DataSourceConnectionDto existing, DataSourceDefinitionDto definition,
+            Map<String, String> vaultSecrets) {
+        if (incoming == null || existing == null || MapUtils.isEmpty(vaultSecrets)) {
+            return null;
+        }
+        String connectionName = incoming.getName();
+        // 作用域仅精确名（[ADR-0036] D4）：DSN 携带库的身份，回落＝连错库。
+        String dsnVaultKey = findVaultKey(vaultSecrets, connectionName, "dsn");
+        if (dsnVaultKey == null) {
+            return null;    // 非格式 3 —— D5 推论：格式 1/2 的库名不被新逻辑碰到
+        }
+        String dsnValue = vaultSecrets.get(dsnVaultKey);
+        if (StringUtils.isBlank(dsnValue)) {
+            return null;
+        }
+        Map<String, String> apiKeyToConfigPath =
+                buildApiKeyToConfigPath(buildConfigPathToApiKeyMap(definition));
+        Map<String, Object> incomingConfig = incoming.getConfig();
+        Map<String, Object> existingConfig = existing.getConfig();
+        if (incomingConfig == null) {
+            return null;
+        }
+
+        if (apiKeyToConfigPath.containsKey("database_uri")) {
+            // MongoDB：库名没有独立字段，它活在整串 uri 的 path 段里。
+            String configPath = apiKeyToConfigPath.get("database_uri");
+            Object incomingUriValue = getNestedValue(incomingConfig, configPath);
+            String incomingUri = incomingUriValue instanceof String ? (String) incomingUriValue : null;
+            if (StringUtils.isBlank(incomingUri) || mongoDatabaseOf(incomingUri) != null) {
+                return null;    // DSN 自己带了库名 ⇒ DSN 赢
+            }
+            Object existingUriValue = existingConfig == null ? null : getNestedValue(existingConfig, configPath);
+            String existingUri = existingUriValue instanceof String
+                    ? (String) existingUriValue : existing.getDatabase_uri();
+            String existingDb = mongoDatabaseOf(existingUri);
+            if (StringUtils.isBlank(existingDb)) {
+                return null;    // 目标也没有库名 ⇒ 不写空值
+            }
+            String merged = spliceDatabaseIntoMongoUri(incomingUri, existingDb);
+            if (merged == null) {
+                return null;
+            }
+            setNestedValue(incomingConfig, configPath, merged);
+            incoming.setDatabase_uri(merged);
+            log.warn("Vault inject: connection='{}', the DSN carries no database name; kept the target"
+                    + " environment's existing database name '{}'. Put the database name in the DSN if"
+                    + " this environment should use a different one.", connectionName, existingDb);
+            return existingDb;
+        }
+
+        // JDBC：库名是独立字段 database_name。
+        Map<String, Object> parts = parseDsnComponents(dsnValue);
+        if (parts.get("database") != null) {
+            return null;    // DSN 赢——「库名可逐环境不同」是本期的核心能力
+        }
+        String configPath = apiKeyToConfigPath.get("database_name");
+        Object existingValue = (configPath == null || existingConfig == null)
+                ? null : getNestedValue(existingConfig, configPath);
+        String existingDb = existingValue instanceof String
+                ? (String) existingValue : existing.getDatabase_name();
+        if (StringUtils.isBlank(existingDb)) {
+            return null;
+        }
+        if (configPath != null) {
+            setNestedValue(incomingConfig, configPath, existingDb);
+        }
+        // 顶层镜像与 config 一起改（[ADR-0036] D9）：MetaDataBuilderUtils.generateQualifiedName
+        // 读的是顶层，只改 config 会得到「连接连对库、元数据挂错库名」的半改状态。
+        incoming.setDatabase_name(existingDb);
+        log.warn("Vault inject: connection='{}', the DSN carries no database name; kept the target"
+                + " environment's existing database name '{}'. Put the database name in the DSN if"
+                + " this environment should use a different one.", connectionName, existingDb);
+        return existingDb;
+    }
+
     static List<String> restoreMissingSecretsFromExisting(DataSourceConnectionDto incoming,
             DataSourceConnectionDto existing, DataSourceDefinitionDto definition) {
         List<String> preserved = new ArrayList<>();

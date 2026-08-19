@@ -1041,7 +1041,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             // （[ADR-0034] D5）。刻意放在 vaultSecrets 判空之外——最危险的正是「没带 vault」。
             // 这条路的 details 本来是空的，保留清单就是它唯一的内容（D7 不许只落日志）。
             List<GroupInfoRecordDetail> details = new ArrayList<>();
-            reportPreservedSecrets(details, preserveExistingSecrets(payloads, connections, user), connections);
+            Map<String, String> keptDatabaseNames = new LinkedHashMap<>();
+            reportPreservedSecrets(details,
+                    preserveExistingSecrets(payloads, connections, user, vaultSecrets, keptDatabaseNames),
+                    connections);
+            reportKeptDatabaseNames(details, keptDatabaseNames, connections);
             refreshImportLastUpdate(connections.values(), connectionMetadata);
             Map<String, DataSourceConnectionDto> conMap = dataSourceService.batchImport(
                     new ArrayList<>(connections.values()), user, importMode);
@@ -1563,7 +1567,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 ? Collections.emptyMap()
                 : dataSourceDefinitionService.findByPdkHashList(pdkHashes, user)
                     .stream().collect(Collectors.toMap(
-                        DataSourceDefinitionDto::getPdkHash, d -> d, (a, b) -> a));
+                        DataSourceDefinitionDto::getPdkHash, d -> d,
+                        GroupInfoService::preferHigherPdkApiBuild));
 
         // Inject vault secrets into file connections before comparison
         Map<String, String> vaultSecrets = parseVaultSecrets(payloads);
@@ -1577,6 +1582,35 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     log.warn("Vault inject failed for connection '{}' during diff, skipping: {}",
                             fileConn.getName(), e.getMessage());
                 }
+            }
+        }
+
+        // 预览必须跑与真实导入**同一套**保留逻辑，否则它报的是一件不会发生的变更。
+        // 导入侧 preserveExistingSecrets 做两件事，这里逐件对齐：
+        //   ① restoreMissingSecretsFromExisting —— 受 packageSecretsMasked 管辖（保真包里
+        //      空缺就是用户的真实配置），且**不受 vaultSecrets 是否为空影响**，与
+        //      importGroupInfo 那条路径的注释同源：最危险的正是「没带 vault」。
+        //   ② restoreDatabaseNameWhenDsnOmitsIt —— 不受包类型管辖（[ADR-0036] D10 第二行）。
+        // 不复用 preserveExistingSecrets 本体：它按连接逐条 findById，而这里 existingById
+        // 已经批量load好了，再查一遍就是把刚去掉的 N+1 又加回来。
+        boolean restoreMissingOnDiff = packageSecretsMasked(payloads);
+        for (Map.Entry<String, DataSourceConnectionDto> preserveEntry : fileConnsById.entrySet()) {
+            DataSourceConnectionDto fileConn = preserveEntry.getValue();
+            DataSourceConnectionDto existingConn = existingById.get(preserveEntry.getKey());
+            if (existingConn == null) {
+                continue;   // 目标还没有这条连接 ⇒ 没有可保留的既有值，预览就是 add
+            }
+            try {
+                String pdkHash = fileConn.getPdkHash();
+                DataSourceDefinitionDto def = pdkHash != null ? defByPdkHash.get(pdkHash) : null;
+                if (restoreMissingOnDiff) {
+                    ResourceHandler.restoreMissingSecretsFromExisting(fileConn, existingConn, def);
+                }
+                ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(fileConn, existingConn, def, vaultSecrets);
+            } catch (Exception e) {
+                // 与上面的注入循环同样的姿势：预览不该因为一条连接算不出来就整份失败
+                log.warn("Preserve-on-diff failed for connection '{}', showing the raw package value: {}",
+                        fileConn.getName(), e.getMessage());
             }
         }
 
@@ -2612,7 +2646,11 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             // 同上：无条件保护，缺 vault 时才是真正会把目标凭据抹空的那条路（[ADR-0034] D5）；
             // 保留清单挂到 details 里已有的连接行上，随下一次 updateImportProgress 落库（D7）
-            reportPreservedSecrets(details, preserveExistingSecrets(payloads, connections, user), connections);
+            Map<String, String> keptDatabaseNames = new LinkedHashMap<>();
+            reportPreservedSecrets(details,
+                    preserveExistingSecrets(payloads, connections, user, vaultSecrets, keptDatabaseNames),
+                    connections);
+            reportKeptDatabaseNames(details, keptDatabaseNames, connections);
             List<MetadataInstancesDto> connectionMetadata = metadataByType
                     .getOrDefault(ResourceType.CONNECTION, Collections.emptyList());
             refreshImportLastUpdate(connections.values(), connectionMetadata);
@@ -2854,21 +2892,35 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      */
     Map<String, List<String>> preserveExistingSecrets(Map<String, List<TaskUpAndLoadDto>> payloads,
             Map<String, DataSourceConnectionDto> connections, UserDetail user) {
+        return preserveExistingSecrets(payloads, connections, user, null, null);
+    }
+
+    /**
+     * @param vaultSecrets      格式 3 的库名保留要重新判定「DSN 有没有写库名」，得看得见 vault
+     * @param keptDatabaseNames 出参：连接 id → 被保留下来的库名，交给 {@link #reportKeptDatabaseNames}
+     */
+    Map<String, List<String>> preserveExistingSecrets(Map<String, List<TaskUpAndLoadDto>> payloads,
+            Map<String, DataSourceConnectionDto> connections, UserDetail user,
+            Map<String, String> vaultSecrets, Map<String, String> keptDatabaseNames) {
         Map<String, List<String>> preserved = new LinkedHashMap<>();
         if (connections == null || connections.isEmpty()) {
             return preserved;
         }
-        if (!packageSecretsMasked(payloads)) {
-            // 保真包：包里的空缺就是用户的真实配置，照写。拿目标旧值回填会让用户永远删不掉一个
-            // 配置项，而且同样是「以为更新了其实没有」——D7 要防的正是这个。
-            return preserved;
-        }
+        // 保真包：包里的空缺就是用户的真实配置，照写。拿目标旧值回填会让用户永远删不掉一个
+        // 配置项，而且同样是「以为更新了其实没有」——D7 要防的正是这个。
+        //
+        // ⚠ 它**只**关掉「缺值回填」这一半。格式 3 的库名保留不归它管：那不是缺值——包里
+        // 那个库名是实打实的**源环境**值（database_name 不在 SENSITIVE_API_KEYS 里，导出
+        // 根本不抹它），而 DSN 分支只在操作者真的配了 {CONN}_DSN 时才走，那时格式 3 的
+        // 语义压过打包模式（[ADR-0036] D10 第二行）。
+        boolean restoreMissing = packageSecretsMasked(payloads);
         for (DataSourceConnectionDto conn : connections.values()) {
             if (conn == null || conn.getId() == null) {
                 continue;   // 新连接，目标环境没有可保留的既有值
             }
-            // 投影必须同时带上 config 与顶层镜像字段——导出把两处一起抹了，这里就得能看见两处
-            String[] projection = Stream.concat(Stream.of("config"),
+            // 投影必须同时带上 config 与顶层镜像字段——导出把两处一起抹了，这里就得能看见两处。
+            // database_name 额外带上：它不是镜像密钥字段，但格式 3 的库名保留要读目标那份。
+            String[] projection = Stream.concat(Stream.of("config", "database_name"),
                     ResourceHandler.MIRRORED_SECRET_FIELDS.stream()).toArray(String[]::new);
             DataSourceConnectionDto existing = dataSourceService.findById(conn.getId(), projection);
             if (existing == null) {
@@ -2876,7 +2928,16 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
             }
             DataSourceDefinitionDto definition =
                     dataSourceDefinitionService.findByPdkHash(conn.getPdkHash(), Integer.MAX_VALUE, user);
-            List<String> paths = ResourceHandler.restoreMissingSecretsFromExisting(conn, existing, definition);
+
+            String keptDb = ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(
+                    conn, existing, definition, vaultSecrets);
+            if (keptDb != null && keptDatabaseNames != null) {
+                keptDatabaseNames.put(conn.getId().toHexString(), keptDb);
+            }
+
+            List<String> paths = restoreMissing
+                    ? ResourceHandler.restoreMissingSecretsFromExisting(conn, existing, definition)
+                    : Collections.emptyList();
             if (paths.isEmpty()) {
                 continue;
             }
@@ -2948,6 +3009,65 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
         }
     }
 
+    /** 库名保留的报告文案——**刻意不复用** {@link #preservedSecretsMessage}：那句说的是
+     * 「包里缺了敏感字段」，而库名既不敏感也不缺，包里带着的是源环境那个值。用错句子比不报更坏。 */
+    static String keptDatabaseNameMessage(String databaseName) {
+        return "The DSN carried no database name, so the target environment's existing database name '"
+                + databaseName + "' was kept instead of the one shipped in the package.";
+    }
+
+    /**
+     * 把格式 3 的库名保留写进导入报告（[ADR-0034] D7「绝不静默」）。
+     *
+     * 与 {@link #reportPreservedSecrets} 同形：报告里已有该连接的行就挂消息，没有就补一行。
+     * 分成两个方法而不是合并，是因为两者的**原因**不同——一个是脱敏留下的洞，一个是
+     * DSN 没写库名——合并就只能给出一句对其中一半不成立的话。
+     */
+    void reportKeptDatabaseNames(List<GroupInfoRecordDetail> details,
+            Map<String, String> keptByConnectionId,
+            Map<String, DataSourceConnectionDto> connections) {
+        if (details == null || MapUtils.isEmpty(keptByConnectionId)) {
+            return;
+        }
+        Set<String> attached = new HashSet<>();
+        for (GroupInfoRecordDetail detail : details) {
+            if (detail == null || CollectionUtils.isEmpty(detail.getRecordDetails())) {
+                continue;
+            }
+            for (GroupInfoRecordDetail.RecordDetail row : detail.getRecordDetails()) {
+                if (row == null || ResourceType.CONNECTION != row.getResourceType()) {
+                    continue;
+                }
+                String kept = keptByConnectionId.get(row.getResourceId());
+                if (StringUtils.isBlank(kept)) {
+                    continue;
+                }
+                String message = keptDatabaseNameMessage(kept);
+                row.setMessage(StringUtils.isBlank(row.getMessage()) ? message : row.getMessage() + " | " + message);
+                attached.add(row.getResourceId());
+            }
+        }
+        List<GroupInfoRecordDetail.RecordDetail> added = new ArrayList<>();
+        for (Map.Entry<String, String> entry : keptByConnectionId.entrySet()) {
+            if (attached.contains(entry.getKey())) {
+                continue;
+            }
+            GroupInfoRecordDetail.RecordDetail row = new GroupInfoRecordDetail.RecordDetail();
+            row.setResourceType(ResourceType.CONNECTION);
+            row.setResourceId(entry.getKey());
+            row.setResourceName(resolveConnectionName(connections, entry.getKey()));
+            row.setAction(GroupInfoRecordDetail.RecordAction.IMPORTED);
+            row.setMessage(keptDatabaseNameMessage(entry.getValue()));
+            added.add(row);
+        }
+        if (!added.isEmpty()) {
+            GroupInfoRecordDetail detail = new GroupInfoRecordDetail();
+            detail.setMessage("Some connections kept the target environment's database name");
+            detail.getRecordDetails().addAll(added);
+            details.add(detail);
+        }
+    }
+
     /** 按 id 取连接名——报告行给人看的是名字，不是 ObjectId。 */
     private static String resolveConnectionName(Map<String, DataSourceConnectionDto> connections, String connectionId) {
         if (connections == null) {
@@ -2966,15 +3086,60 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
      */
     private void injectVaultSecrets(Map<String, DataSourceConnectionDto> connections,
             Map<String, String> vaultSecrets, UserDetail user) {
+        // 批量查 definition，与本文件 diff 路径（:1559-1566）同一写法：原来是每条连接一次
+        // findByPdkHash，一次导入 N 条连接就是 N 次往返。
+        // ⚠ pdkHash == null 的连接必须**过滤出查询集合、但仍然照常注入**：逐条版把 null
+        // 直接传进 findByPdkHash（拿回 null），批量版若不过滤会把 null 塞进 IN 查询。
+        // 两者对外行为必须逐字相同——definition 为 null、走无 schema 的 fallback 分支。
+        Set<String> pdkHashes = new HashSet<>();
+        connections.values().forEach(c -> {
+            if (c.getPdkHash() != null) pdkHashes.add(c.getPdkHash());
+        });
+        // ⚠ 合并函数不能是 (a, b) -> a：被替换掉的 findByPdkHash 是
+        // `Sort.by("pdkAPIBuildNumber").descending()` + findOne，即**确定性地取 build number
+        // 最高的那份**，而 findByPdkHashList 是无序 findAll。同一个 pdkHash 确实会有多份文档
+        // （PkdSourceService 的 upsert 键含 pdkAPIBuildNumber，集合上那条
+        // pdkHash_1_pdkAPIBuildNumber_1 索引就是为它建的）；取错一份 ⇒ BFS 落在旧 schema 上，
+        // 而旧 schema 缺 database_uri 会让 MongoDB 连接的 hasDatabaseUri 变 false、格式 3 误走
+        // JDBC 分支，静默把连接写坏。故显式挑 build number 更高的那份。
+        Map<String, DataSourceDefinitionDto> defByPdkHash = pdkHashes.isEmpty()
+                ? Collections.emptyMap()
+                : dataSourceDefinitionService.findByPdkHashList(pdkHashes, user)
+                    .stream().collect(Collectors.toMap(
+                        DataSourceDefinitionDto::getPdkHash, d -> d,
+                        GroupInfoService::preferHigherPdkApiBuild));
+
+        // schema BFS 按 pdkHash 记忆化：它是 definition 的纯函数，同型连接结果完全相同。
+        // 用的是上面那把 key、这一个循环。
+        Map<String, Map<String, String>> bfsByPdkHash = new HashMap<>();
         connections.values().forEach(conn -> {
-            DataSourceDefinitionDto definition =
-                    dataSourceDefinitionService.findByPdkHash(conn.getPdkHash(), Integer.MAX_VALUE, user);
+            String pdkHash = conn.getPdkHash();
+            DataSourceDefinitionDto definition = pdkHash != null ? defByPdkHash.get(pdkHash) : null;
             if (definition == null) {
                 log.warn("Vault inject: definition not found for connection '{}', pdkHash={}, skipping schema BFS",
                         conn.getName(), conn.getPdkHash());
             }
-            ResourceHandler.injectVaultSecretsToConnection(conn, vaultSecrets, definition);
+            Map<String, String> memoizedBfs = definition == null ? null
+                    : bfsByPdkHash.computeIfAbsent(pdkHash,
+                        h -> ResourceHandler.buildConfigPathToApiKeyMap(definition));
+            ResourceHandler.injectVaultSecretsToConnection(conn, vaultSecrets, definition, memoizedBfs);
         });
+    }
+
+    /**
+     * 同一个 pdkHash 的多份 definition 里挑一份——**保留 pdkAPIBuildNumber 更高的那份**，
+     * 复现被批量化替换掉的 {@code findByPdkHash} 的选择规则（按该字段降序取第一条）。
+     *
+     * <p>字段缺失时优先取有值的那一份：老 criteria 的 {@code lte(...)} 在 Mongo 里
+     * 根本不匹配缺字段的文档，所以「有 build number」本身就比「没有」更接近老行为。
+     */
+    private static DataSourceDefinitionDto preferHigherPdkApiBuild(DataSourceDefinitionDto a,
+            DataSourceDefinitionDto b) {
+        Integer buildA = a.getPdkAPIBuildNumber();
+        Integer buildB = b.getPdkAPIBuildNumber();
+        if (buildB == null) return a;
+        if (buildA == null) return b;
+        return buildB > buildA ? b : a;
     }
 
     protected List<GroupInfoDto> loadGroupInfosByIds(List<String> groupIds, UserDetail user) {
