@@ -2315,6 +2315,147 @@ public class GroupInfoServiceTest {
             return new TaskUpAndLoadDto(GroupConstants.COLLECTION_CONNECTION, JsonUtil.toJsonUseJackson(json));
         }
 
+        // ---- diff 预览与真实导入必须说同一件事 -------------------------------
+        // 这两条盯的是同一类故障：预览路径 buildConnectionDiff 与导入路径各算各的，
+        // 一处修了另一处没修，而**预览错了不会有任何东西报出来**——它只是让操作者
+        // 据以批准导入的那张表是错的。
+
+        /** 带 pdkHash 的连接 payload——预览路径靠它去 defByPdkHash 里取 definition。 */
+        private TaskUpAndLoadDto connPayloadWithPdkHash(String id, String name, String pdkHash,
+                Map<String, Object> config) {
+            Map<String, Object> json = new LinkedHashMap<>();
+            json.put("id", id);
+            json.put("name", name);
+            json.put("connection_type", "source");
+            json.put("database_type", "MySQL");
+            json.put("pdkHash", pdkHash);
+            if (config != null) json.put("config", config);
+            return new TaskUpAndLoadDto(GroupConstants.COLLECTION_CONNECTION, JsonUtil.toJsonUseJackson(json));
+        }
+
+        /** 只声明 configPath -> apiServerKey 的 definition。 */
+        private DataSourceDefinitionDto defWithPaths(String pdkHash, Integer buildNumber,
+                Map<String, String> configPathToApiKey) {
+            LinkedHashMap<String, Object> props = new LinkedHashMap<>();
+            configPathToApiKey.forEach((path, apiKey) -> {
+                LinkedHashMap<String, Object> meta = new LinkedHashMap<>();
+                meta.put("apiServerKey", apiKey);
+                props.put(path, meta);
+            });
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", props);
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            properties.put("connection", connection);
+            DataSourceDefinitionDto def = new DataSourceDefinitionDto();
+            def.setPdkHash(pdkHash);
+            def.setPdkAPIBuildNumber(buildNumber);
+            def.setProperties(properties);
+            return def;
+        }
+
+        private List<String> changedFieldsOf(ResourceDiff diff) {
+            List<String> fields = new ArrayList<>();
+            for (ResourceDiffItem item : diff.getUpdate()) {
+                if (item.getChanges() == null) continue;
+                for (FieldChange c : item.getChanges()) fields.add(c.getField());
+            }
+            return fields;
+        }
+
+        @Test
+        @DisplayName("DSN 漏写库名：预览不得报一处不会发生的库名变更")
+        void diffRunsTheSamePreservationTheImportRuns() {
+            ObjectId connId = new ObjectId();
+            String pdkHash = "hash-pg";
+
+            // 包来自 SIT，带 sit_orders；目标 PROD 上已有 prod_orders。
+            Map<String, Object> fileConfig = new LinkedHashMap<>();
+            fileConfig.put("database", "sit_orders");
+            TaskUpAndLoadDto connItem = connPayloadWithPdkHash(
+                    connId.toHexString(), "conn1", pdkHash, fileConfig);
+
+            // DSN 只给 host/port/user、**没有库名**，且这三项与目标一致——
+            // 好让「库名」成为唯一可能的差异，断言因此是精确的。
+            Map<String, String> vaultMap = new LinkedHashMap<>();
+            vaultMap.put("conn1_dsn", "tapuser@pg.prod.internal:5432");
+            TaskUpAndLoadDto vaultItem = new TaskUpAndLoadDto(
+                    GroupConstants.VAULT_FILE, JsonUtil.toJsonUseJackson(vaultMap));
+
+            Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
+            payloads.put("Connection.json", List.of(connItem));
+            payloads.put(GroupConstants.VAULT_FILE, List.of(vaultItem));
+
+            DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setId(connId);
+            existing.setName("conn1");
+            existing.setConnection_type("source");
+            existing.setDatabase_type("MySQL");
+            existing.setPdkHash(pdkHash);
+            Map<String, Object> existingConfig = new LinkedHashMap<>();
+            existingConfig.put("host", "pg.prod.internal");
+            existingConfig.put("port", 5432);
+            existingConfig.put("user", "tapuser");
+            existingConfig.put("database", "prod_orders");
+            existing.setConfig(existingConfig);
+
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(List.of(existing));
+            lenient().when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class)))
+                    .thenReturn(List.of(defWithPaths(pdkHash, 2, Map.of(
+                            "host", "database_host", "port", "database_port",
+                            "user", "database_username", "database", "database_name"))));
+
+            ResourceDiff diff = invoke(payloads);
+
+            List<String> changed = changedFieldsOf(diff);
+            assertFalse(changed.contains("config.database"),
+                    "真实导入会保留目标的 prod_orders，预览报一处库名变更就是在报一件不会发生的事：" + changed);
+        }
+
+        @Test
+        @DisplayName("同 pdkHash 多份 definition：预览路径也要取 pdkAPIBuildNumber 更高的那份")
+        void diffPicksHighestPdkApiBuildNumberAmongDuplicates() {
+            ObjectId connId = new ObjectId();
+            String pdkHash = "hash-dup";
+
+            Map<String, Object> fileConfig = new LinkedHashMap<>();
+            fileConfig.put("database", "olddb");
+            TaskUpAndLoadDto connItem = connPayloadWithPdkHash(
+                    connId.toHexString(), "conn1", pdkHash, fileConfig);
+
+            Map<String, String> vaultMap = new LinkedHashMap<>();
+            vaultMap.put("conn1_dsn", "tapuser@h:5432/newdb");
+            TaskUpAndLoadDto vaultItem = new TaskUpAndLoadDto(
+                    GroupConstants.VAULT_FILE, JsonUtil.toJsonUseJackson(vaultMap));
+
+            Map<String, List<TaskUpAndLoadDto>> payloads = new HashMap<>();
+            payloads.put("Connection.json", List.of(connItem));
+            payloads.put(GroupConstants.VAULT_FILE, List.of(vaultItem));
+
+            DataSourceConnectionDto existing = new DataSourceConnectionDto();
+            existing.setId(connId);
+            existing.setName("conn1");
+            existing.setConnection_type("source");
+            existing.setDatabase_type("MySQL");
+            existing.setPdkHash(pdkHash);
+            existing.setConfig(new LinkedHashMap<>(Map.of("database", "olddb")));
+
+            // 用 configPath 当指纹：旧 build 把库名挂在 legacy_database 上，新 build 挂在
+            // database 上。返回顺序**刻意**把旧的排前面——(a, b) -> a 会保留它。
+            DataSourceDefinitionDto oldBuild = defWithPaths(pdkHash, 1, Map.of("legacy_database", "database_name"));
+            DataSourceDefinitionDto newBuild = defWithPaths(pdkHash, 2, Map.of("database", "database_name"));
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class)))
+                    .thenReturn(List.of(existing));
+            when(dataSourceDefinitionService.findByPdkHashList(anySet(), any(UserDetail.class)))
+                    .thenReturn(List.of(oldBuild, newBuild));
+
+            ResourceDiff diff = invoke(payloads);
+
+            List<String> changed = changedFieldsOf(diff);
+            assertTrue(changed.contains("config.database"),
+                    "取到旧 definition 就会把新库名写进 legacy_database，预览里 config.database 纹丝不动：" + changed);
+        }
+
         @Test
         @DisplayName("Empty payloads returns empty diff")
         void testEmptyPayloads() {

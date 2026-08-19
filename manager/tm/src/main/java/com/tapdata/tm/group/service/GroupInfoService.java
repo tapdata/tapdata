@@ -1567,7 +1567,8 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                 ? Collections.emptyMap()
                 : dataSourceDefinitionService.findByPdkHashList(pdkHashes, user)
                     .stream().collect(Collectors.toMap(
-                        DataSourceDefinitionDto::getPdkHash, d -> d, (a, b) -> a));
+                        DataSourceDefinitionDto::getPdkHash, d -> d,
+                        GroupInfoService::preferHigherPdkApiBuild));
 
         // Inject vault secrets into file connections before comparison
         Map<String, String> vaultSecrets = parseVaultSecrets(payloads);
@@ -1581,6 +1582,35 @@ public class GroupInfoService extends BaseService<GroupInfoDto, GroupInfoEntity,
                     log.warn("Vault inject failed for connection '{}' during diff, skipping: {}",
                             fileConn.getName(), e.getMessage());
                 }
+            }
+        }
+
+        // 预览必须跑与真实导入**同一套**保留逻辑，否则它报的是一件不会发生的变更。
+        // 导入侧 preserveExistingSecrets 做两件事，这里逐件对齐：
+        //   ① restoreMissingSecretsFromExisting —— 受 packageSecretsMasked 管辖（保真包里
+        //      空缺就是用户的真实配置），且**不受 vaultSecrets 是否为空影响**，与
+        //      importGroupInfo 那条路径的注释同源：最危险的正是「没带 vault」。
+        //   ② restoreDatabaseNameWhenDsnOmitsIt —— 不受包类型管辖（[ADR-0036] D10 第二行）。
+        // 不复用 preserveExistingSecrets 本体：它按连接逐条 findById，而这里 existingById
+        // 已经批量load好了，再查一遍就是把刚去掉的 N+1 又加回来。
+        boolean restoreMissingOnDiff = packageSecretsMasked(payloads);
+        for (Map.Entry<String, DataSourceConnectionDto> preserveEntry : fileConnsById.entrySet()) {
+            DataSourceConnectionDto fileConn = preserveEntry.getValue();
+            DataSourceConnectionDto existingConn = existingById.get(preserveEntry.getKey());
+            if (existingConn == null) {
+                continue;   // 目标还没有这条连接 ⇒ 没有可保留的既有值，预览就是 add
+            }
+            try {
+                String pdkHash = fileConn.getPdkHash();
+                DataSourceDefinitionDto def = pdkHash != null ? defByPdkHash.get(pdkHash) : null;
+                if (restoreMissingOnDiff) {
+                    ResourceHandler.restoreMissingSecretsFromExisting(fileConn, existingConn, def);
+                }
+                ResourceHandler.restoreDatabaseNameWhenDsnOmitsIt(fileConn, existingConn, def, vaultSecrets);
+            } catch (Exception e) {
+                // 与上面的注入循环同样的姿势：预览不该因为一条连接算不出来就整份失败
+                log.warn("Preserve-on-diff failed for connection '{}', showing the raw package value: {}",
+                        fileConn.getName(), e.getMessage());
             }
         }
 
