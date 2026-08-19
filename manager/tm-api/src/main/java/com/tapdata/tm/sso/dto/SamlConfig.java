@@ -24,6 +24,8 @@ public class SamlConfig {
     private String spEntityId;
     /** Assertion Consumer Service URL the IdP posts the SAML response to. */
     private String spAcsUrl;
+    /** SP Single Logout Service URL (HTTP-Redirect binding) advertised in SP metadata. */
+    private String spSloUrl;
     /** SP signing/decryption private key (PEM), decrypted for in-memory use only. */
     private String spPrivateKey;
     /** SP certificate (PEM) shared with the IdP for signature verification. */

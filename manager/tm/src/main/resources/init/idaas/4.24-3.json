@@ -405,6 +405,25 @@
           "$setOnInsert": { "value": "" }
         },
         "upsert": true
+      },
+      {
+        "q": { "key": "saml.sp.sloUrl" },
+        "u": {
+          "$set": {
+            "category": "SAML",
+            "category_sort": "95",
+            "default_value": " ",
+            "documentation": "Saml_Sp_Slo_Url_doc",
+            "hot_reloading": true,
+            "key": "saml.sp.sloUrl",
+            "key_label": "SP SLO URL",
+            "scope": "global",
+            "sort": "21",
+            "user_visible": true
+          },
+          "$setOnInsert": { "value": "" }
+        },
+        "upsert": true
       }
     ]
   }

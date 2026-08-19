@@ -69,6 +69,14 @@ public class SamlMetadataServiceImpl implements SamlMetadataService {
             appendKeyDescriptor(sb, "signing", cert);
             appendKeyDescriptor(sb, "encryption", cert);
         }
+        // Per the SAML metadata schema, SingleLogoutService must precede
+        // AssertionConsumerService inside SPSSODescriptor. Advertise it (HTTP-Redirect
+        // binding, matching the /slo endpoint) so the IdP can auto-configure SP SLO.
+        if (StringUtils.isNotBlank(config.getSpSloUrl())) {
+            sb.append("    <md:SingleLogoutService Binding=\"").append(BINDING_REDIRECT)
+                    .append("\" Location=\"").append(escape(config.getSpSloUrl()))
+                    .append("\"/>\n");
+        }
         sb.append("    <md:AssertionConsumerService Binding=\"").append(BINDING_POST)
                 .append("\" Location=\"").append(escape(config.getSpAcsUrl()))
                 .append("\" index=\"0\" isDefault=\"true\"/>\n");

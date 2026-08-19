@@ -32,13 +32,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
@@ -58,6 +57,9 @@ import java.util.Date;
 public class SsoLoginController extends BaseController {
 
     private static final String REQUEST_ID_COOKIE = "TAPDATA_SAML_REQ";
+    private static final String SAML_BASE_PATH = "/api/sso/saml";
+    /** SPA hash route that consumes the access_token and completes the login. */
+    private static final String DEFAULT_CALLBACK_REDIRECT = "/#/sso-callback";
 
     private SamlConfigService samlConfigService;
     private SamlAuthnRequestService samlAuthnRequestService;
@@ -94,11 +96,21 @@ public class SsoLoginController extends BaseController {
     }
 
     @Operation(summary = "Assertion Consumer Service (IdP posts SAML response here)")
-    @PostMapping("/acs")
-    public void acs(@RequestParam("SAMLResponse") String samlResponse,
-                    @RequestParam(value = "RelayState", required = false) String relayState,
-                    HttpServletRequest request,
+    @PostMapping(value = "/acs", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public void acs(HttpServletRequest request,
                     HttpServletResponse response) throws IOException {
+
+        // The upstream global RequestFilter reads and buffers the body, which prevents the
+        // servlet container from parsing form parameters. Parse the (replayable) body here
+        // instead of relying on @RequestParam.
+        String body = readBody(request);
+        String samlResponse = parseFormParameter(body, "SAMLResponse");
+        String relayState = parseFormParameter(body, "RelayState");
+
+        if (StringUtils.isBlank(samlResponse)) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "SAMLResponse missing");
+            return;
+        }
         SamlConfig config = samlConfigService.getConfig();
         if (!config.isEnabled()) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "SAML login is not enabled");
@@ -107,6 +119,14 @@ public class SsoLoginController extends BaseController {
         try {
             if (!isSafeLocalRedirect(relayState)) {
                 throw new SamlValidationException("Invalid RelayState");
+            }
+            // Never honour a RelayState that points back at the SAML endpoints themselves.
+            // An IdP-initiated login carries an IdP-supplied RelayState; if it targets
+            // /api/sso/saml/login the success redirect would re-start SP-initiated login
+            // and loop indefinitely. Drop it so buildSuccessRedirect falls back to the
+            // configured SPA callback URL.
+            if (isSamlEndpointRedirect(relayState)) {
+                relayState = null;
             }
             String expectedInResponseTo = readRequestIdCookie(request);
             SamlAuthenticatedSubject subject =
@@ -250,6 +270,34 @@ public class SsoLoginController extends BaseController {
                 && (relayState.length() == 1 || relayState.charAt(1) != '\\'));
     }
 
+    /**
+     * Whether the target points back at the SAML endpoints. Honouring such a value
+     * as the post-login target would redirect to SP-initiated login again and loop.
+     * Accepts both a local path (e.g. {@code /api/sso/saml/login}) and an absolute
+     * URL (e.g. {@code https://host/api/sso/saml/login}); only the path is inspected.
+     */
+    private boolean isSamlEndpointRedirect(String target) {
+        if (StringUtils.isBlank(target)) {
+            return false;
+        }
+        String path = target;
+        // Strip scheme://host so an absolute URL is compared on its path only.
+        int schemeCut = path.indexOf("://");
+        if (schemeCut >= 0) {
+            int pathStart = path.indexOf('/', schemeCut + 3);
+            path = pathStart >= 0 ? path.substring(pathStart) : "/";
+        }
+        int cut = path.indexOf('?');
+        if (cut >= 0) {
+            path = path.substring(0, cut);
+        }
+        cut = path.indexOf('#');
+        if (cut >= 0) {
+            path = path.substring(0, cut);
+        }
+        return path.equals(SAML_BASE_PATH) || path.startsWith(SAML_BASE_PATH + "/");
+    }
+
     private void recordSession(SamlAuthenticatedSubject subject, User user, AccessTokenDto token) {
         SsoSession session = new SsoSession();
         session.setNameId(subject.getNameId());
@@ -263,8 +311,14 @@ public class SsoLoginController extends BaseController {
     }
 
     private String buildSuccessRedirect(SamlConfig config, String relayState, String tokenId) {
-        String base = StringUtils.isNotBlank(relayState) ? relayState
-                : StringUtils.isNotBlank(config.getLoginRedirectUrl()) ? config.getLoginRedirectUrl() : "/";
+        // Neither the RelayState nor the configured loginRedirectUrl may point back at the
+        // SAML endpoints: doing so would re-start SP-initiated login and loop indefinitely.
+        // Both are guarded here so a misconfigured loginRedirectUrl (e.g. .../api/sso/saml/login)
+        // still falls back to the SPA callback route instead of looping.
+        String configured = config.getLoginRedirectUrl();
+        String base = StringUtils.isNotBlank(relayState) && !isSamlEndpointRedirect(relayState) ? relayState
+                : StringUtils.isNotBlank(configured) && !isSamlEndpointRedirect(configured) ? configured
+                : DEFAULT_CALLBACK_REDIRECT;
         String separator = base.contains("?") ? "&" : "?";
         return base + separator + "access_token=" + URLEncoder.encode(tokenId, StandardCharsets.UTF_8);
     }
@@ -295,5 +349,36 @@ public class SsoLoginController extends BaseController {
         cookie.setPath("/");
         cookie.setMaxAge(0);
         response.addCookie(cookie);
+    }
+
+    private String readBody(HttpServletRequest request) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader reader = request.getReader()) {
+            char[] buffer = new char[1024];
+            int read;
+            while ((read = reader.read(buffer)) != -1) {
+                sb.append(buffer, 0, read);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Extract a single field from an application/x-www-form-urlencoded body. Returns the
+     * URL-decoded value of the first occurrence of {@code name}, or {@code null} if absent.
+     */
+    private String parseFormParameter(String body, String name) {
+        if (StringUtils.isBlank(body)) {
+            return null;
+        }
+        for (String pair : body.split("&")) {
+            int idx = pair.indexOf('=');
+            String key = idx >= 0 ? pair.substring(0, idx) : pair;
+            if (name.equals(URLDecoder.decode(key, StandardCharsets.UTF_8))) {
+                String value = idx >= 0 ? pair.substring(idx + 1) : "";
+                return URLDecoder.decode(value, StandardCharsets.UTF_8);
+            }
+        }
+        return null;
     }
 }

@@ -19,6 +19,7 @@ public class SamlConfigForm {
     // ---- Service Provider (TapData) ----
     private String spEntityId;
     private String spAcsUrl;
+    private String spSloUrl;
     /** Write-only: PEM private key. Blank = keep existing stored key. */
     private String spPrivateKey;
     private String spCertificate;

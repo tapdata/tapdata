@@ -56,6 +56,15 @@ class SamlConfigServiceImplTest {
         when(settingsService.getByCategoryAndKey(eq(CategoryEnum.SAML), eq(key))).thenReturn(s);
     }
 
+    /** Boolean SAML toggles are stored in the {@code open} field, not {@code value}. */
+    private void stubBoolean(KeyEnum key, boolean value) {
+        Settings s = new Settings();
+        s.setCategory(CategoryEnum.SAML.getValue());
+        s.setKey(key.getValue());
+        s.setOpen(value);
+        when(settingsService.getByCategoryAndKey(eq(CategoryEnum.SAML), eq(key))).thenReturn(s);
+    }
+
     @Test
     @DisplayName("defaults apply when nothing is configured")
     void defaultsWhenEmpty() {
@@ -72,10 +81,10 @@ class SamlConfigServiceImplTest {
     @Test
     @DisplayName("reads generic fields from Settings")
     void readsFields() {
-        stub(KeyEnum.SAML_LOGIN_ENABLE, "true");
+        stubBoolean(KeyEnum.SAML_LOGIN_ENABLE, true);
         stub(KeyEnum.SAML_SP_ENTITY_ID, "https://tapdata/sp");
         stub(KeyEnum.SAML_IDP_SSO_URL, "https://idp/sso");
-        stub(KeyEnum.SAML_WANT_ASSERTIONS_SIGNED, "false");
+        stubBoolean(KeyEnum.SAML_WANT_ASSERTIONS_SIGNED, false);
         stub(KeyEnum.SAML_CLOCK_SKEW_SECONDS, "300");
         stub(KeyEnum.SAML_CLAIM_EMAIL, "email");
 
@@ -120,7 +129,7 @@ class SamlConfigServiceImplTest {
     @DisplayName("isEnabled reflects the enable flag")
     void isEnabledFlag() {
         assertFalse(service.isEnabled());
-        stub(KeyEnum.SAML_LOGIN_ENABLE, "true");
+        stubBoolean(KeyEnum.SAML_LOGIN_ENABLE, true);
         assertTrue(service.isEnabled());
     }
 

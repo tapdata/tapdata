@@ -18,6 +18,8 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.sso.service.SamlValidationException;
 import com.tapdata.tm.user.entity.User;
 import jakarta.servlet.http.HttpServletResponse;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -111,6 +113,19 @@ class SsoLoginControllerTest {
         assertEquals(HttpServletResponse.SC_FORBIDDEN, response.getStatus());
     }
 
+    private MockHttpServletRequest acsRequest(String samlResponse, String relayState) {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setMethod("POST");
+        request.setContentType("application/x-www-form-urlencoded");
+        StringBuilder body = new StringBuilder("SAMLResponse=")
+                .append(URLEncoder.encode(samlResponse, StandardCharsets.UTF_8));
+        if (relayState != null) {
+            body.append("&RelayState=").append(URLEncoder.encode(relayState, StandardCharsets.UTF_8));
+        }
+        request.setContent(body.toString().getBytes(StandardCharsets.UTF_8));
+        return request;
+    }
+
     @Test
     @DisplayName("ACS validates, issues token, records session and redirects with token")
     void acsHappyPath() throws Exception {
@@ -126,12 +141,81 @@ class SsoLoginControllerTest {
         token.setId("tok-123");
         when(accessTokenService.save(eq(user), anyString())).thenReturn(token);
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = acsRequest("RESP", null);
         MockHttpServletResponse response = new MockHttpServletResponse();
-        controller.acs("RESP", null, request, response);
+        controller.acs(request, response);
 
         verify(mongoTemplate).insert(any(com.tapdata.tm.sso.entity.SsoSession.class));
         assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?access_token=tok-123"));
+    }
+
+    @Test
+    @DisplayName("ACS drops a RelayState pointing at the SAML endpoints to avoid a login loop")
+    void acsDropsSamlEndpointRelayState() throws Exception {
+        when(samlConfigService.getConfig()).thenReturn(
+                SamlConfig.builder().enabled(true).loginRedirectUrl("https://tapdata/app").build());
+        SamlAuthenticatedSubject subject = new SamlAuthenticatedSubject();
+        subject.setNameId("user@corp.com");
+        when(samlResponseValidator.validate(any(), eq("RESP"), any())).thenReturn(subject);
+        User user = new User();
+        user.setId(new ObjectId());
+        when(samlIdentityResolver.resolve(subject)).thenReturn(user);
+        AccessTokenDto token = new AccessTokenDto();
+        token.setId("tok-123");
+        when(accessTokenService.save(eq(user), anyString())).thenReturn(token);
+
+        MockHttpServletRequest request = acsRequest("RESP", "/api/sso/saml/login");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        controller.acs(request, response);
+
+        // The self-referential RelayState is ignored; success falls back to loginRedirectUrl.
+        assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?access_token=tok-123"));
+    }
+
+    @Test
+    @DisplayName("ACS falls back to the SPA callback route when no loginRedirectUrl is configured")
+    void acsFallsBackToCallbackRoute() throws Exception {
+        when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().enabled(true).build());
+        SamlAuthenticatedSubject subject = new SamlAuthenticatedSubject();
+        subject.setNameId("user@corp.com");
+        when(samlResponseValidator.validate(any(), eq("RESP"), any())).thenReturn(subject);
+        User user = new User();
+        user.setId(new ObjectId());
+        when(samlIdentityResolver.resolve(subject)).thenReturn(user);
+        AccessTokenDto token = new AccessTokenDto();
+        token.setId("tok-123");
+        when(accessTokenService.save(eq(user), anyString())).thenReturn(token);
+
+        MockHttpServletRequest request = acsRequest("RESP", "/api/sso/saml/login");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        controller.acs(request, response);
+
+        assertTrue(response.getRedirectedUrl().startsWith("/#/sso-callback?access_token=tok-123"));
+    }
+
+    @Test
+    @DisplayName("ACS ignores a self-referential loginRedirectUrl and falls back to the callback route")
+    void acsDropsSamlEndpointLoginRedirectUrl() throws Exception {
+        // Reproduces the IdP-initiated loop: RelayState absent, but loginRedirectUrl is
+        // configured (as a full URL) to the SP-initiated login endpoint. Honouring it would
+        // re-start SAML login forever; it must fall back to the SPA callback route.
+        when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().enabled(true)
+                .loginRedirectUrl("https://tools.sam.pub/api/sso/saml/login").build());
+        SamlAuthenticatedSubject subject = new SamlAuthenticatedSubject();
+        subject.setNameId("user@corp.com");
+        when(samlResponseValidator.validate(any(), eq("RESP"), any())).thenReturn(subject);
+        User user = new User();
+        user.setId(new ObjectId());
+        when(samlIdentityResolver.resolve(subject)).thenReturn(user);
+        AccessTokenDto token = new AccessTokenDto();
+        token.setId("tok-123");
+        when(accessTokenService.save(eq(user), anyString())).thenReturn(token);
+
+        MockHttpServletRequest request = acsRequest("RESP", null);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        controller.acs(request, response);
+
+        assertTrue(response.getRedirectedUrl().startsWith("/#/sso-callback?access_token=tok-123"));
     }
 
     @Test
@@ -141,11 +225,25 @@ class SsoLoginControllerTest {
         when(samlResponseValidator.validate(any(), anyString(), any()))
                 .thenThrow(new SamlValidationException("signature invalid"));
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = acsRequest("RESP", null);
         MockHttpServletResponse response = new MockHttpServletResponse();
-        controller.acs("RESP", null, request, response);
+        controller.acs(request, response);
 
         assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
+    }
+
+    @Test
+    @DisplayName("ACS returns 400 when SAMLResponse is missing from the form body")
+    void acsMissingSamlResponse() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setMethod("POST");
+        request.setContentType("application/x-www-form-urlencoded");
+        request.setContent("RelayState=/".getBytes(StandardCharsets.UTF_8));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        controller.acs(request, response);
+
+        assertEquals(HttpServletResponse.SC_BAD_REQUEST, response.getStatus());
     }
 
     @Test
@@ -165,9 +263,9 @@ class SsoLoginControllerTest {
         token.setId("tok-123");
         when(accessTokenService.save(eq(user), anyString())).thenReturn(token);
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = acsRequest("RESP", null);
         MockHttpServletResponse response = new MockHttpServletResponse();
-        controller.acs("RESP", null, request, response);
+        controller.acs(request, response);
 
         verify(accessTokenService).removeAccessTokenByAuthType(eq(userId), eq("saml_login"));
         assertTrue(response.getRedirectedUrl().startsWith("https://tapdata/app?access_token=tok-123"));
@@ -189,9 +287,9 @@ class SsoLoginControllerTest {
         token.setId("tok-123");
         when(accessTokenService.save(eq(user), anyString())).thenReturn(token);
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = acsRequest("RESP", null);
         MockHttpServletResponse response = new MockHttpServletResponse();
-        controller.acs("RESP", null, request, response);
+        controller.acs(request, response);
 
         verify(accessTokenService, never()).removeAccessTokenByAuthType(any(), anyString());
     }
