@@ -654,16 +654,16 @@ public interface ResourceHandler {
                             + " Format 3 does not read {}_USER.", connectionName, connectionName);
                 }
                 if (parts.get("database") == null) {
-                    // ⚠ 不能说「保留目标既有库名」：database_name **不在** SENSITIVE_API_KEYS 里，
-                    // 导出不脱敏它、restoreMissingSecretsFromExisting 也不回填它（它只补
-                    // getMaskedConfigPaths 与那七个顶层镜像字段）。而 GROUP_IMPORT 是整文档覆盖，
-                    // 所以真正落到目标上的是**包里那个、即源环境的**库名。旁边 username/password
-                    // 两条同形告警成立，恰恰因为那两个字段是被脱敏的。
-                    log.warn("Vault inject: connection='{}', the DSN carries no database name, so the"
-                            + " database name shipped in the package (the source environment's) is used"
-                            + " as-is. The target's own database name is NOT preserved: database_name is"
-                            + " not a masked field, so nothing restores it. Put the database name in the"
-                            + " DSN to make it environment-specific.", connectionName);
+                    // ⚠ 这条只是预告，**真正的保留发生在 restoreDatabaseNameWhenDsnOmitsIt**——
+                    // 此处看不见目标环境那条连接，所以说不出最终用的是哪个库名（目标已有该连接
+                    // ⇒ 保留它的；首次部署 ⇒ 只能用包里的）。措辞对两种结局都要成立，具体结果
+                    // 由那一步逐字打出来。database_name 不在 SENSITIVE_API_KEYS 里，所以它走的
+                    // 不是 restoreMissingSecretsFromExisting 那条「缺值回填」链路。
+                    log.warn("Vault inject: connection='{}', the DSN carries no database name; the target"
+                            + " environment's existing database name will be kept if that connection"
+                            + " already exists there, otherwise the name shipped in the package is used."
+                            + " Put the database name in the DSN to make it environment-specific.",
+                            connectionName);
                 }
                 injectParsedField(finalConfig, connectionName, "host", parts.get("host"), apiKeyToConfigPath);
                 injectParsedField(finalConfig, connectionName, "port", parts.get("port"), apiKeyToConfigPath);
@@ -1075,6 +1075,155 @@ public interface ResourceHandler {
      *
      * @return 被保留（即包内缺值、改用目标既有值）的 config path，供调用方汇报——D7 要求绝不静默。
      */
+    /**
+     * apiServerKey -> configPath 的反查表（只收 {@link #VAULT_SUFFIX_TO_API_KEY} 认识的那几个）。
+     * 单点定义：注入与下面的库名保留都读它，免得两处各建一份而悄悄漂开。
+     */
+    static Map<String, String> buildApiKeyToConfigPath(Map<String, String> pathToApiKey) {
+        Map<String, String> apiKeyToConfigPath = new LinkedHashMap<>();
+        if (pathToApiKey == null) {
+            return apiKeyToConfigPath;
+        }
+        for (Map.Entry<String, String> entry : pathToApiKey.entrySet()) {
+            if (VAULT_SUFFIX_TO_API_KEY.containsValue(entry.getValue())) {
+                apiKeyToConfigPath.put(entry.getValue(), entry.getKey());
+            }
+        }
+        return apiKeyToConfigPath;
+    }
+
+    /** MongoDB 连接串里的库名；解析不了或没有就返回 null。 */
+    private static String mongoDatabaseOf(String uri) {
+        if (StringUtils.isBlank(uri)) {
+            return null;
+        }
+        try {
+            return new com.mongodb.ConnectionString(uri).getDatabase();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 把库名拼进一个没有 path 段的 MongoDB 连接串。
+     *
+     * 与 {@link #splicePasswordIntoDsn} 同样是**原始串上的字符串手术**：种子列表
+     * （{@code h1:27017,h2:27017}）与 {@code ?replicaSet=}/{@code ?authSource=} 必须原样保真，
+     * 而先解析再重建一定会把它们normalize掉。
+     */
+    private static String spliceDatabaseIntoMongoUri(String uri, String database) {
+        int schemeIdx = uri.indexOf("://");
+        int start = schemeIdx < 0 ? 0 : schemeIdx + 3;
+        int atIdx = uri.indexOf('@', start);
+        int authorityStart = atIdx < 0 ? start : atIdx + 1;
+
+        int queryIdx = uri.indexOf('?', authorityStart);
+        int slashIdx = uri.indexOf('/', authorityStart);
+        boolean hasPathSeparator = slashIdx >= 0 && (queryIdx < 0 || slashIdx < queryIdx);
+
+        if (hasPathSeparator) {
+            int pathEnd = queryIdx < 0 ? uri.length() : queryIdx;
+            if (slashIdx + 1 != pathEnd) {
+                return null;    // 已经有库名了，不该走到这儿
+            }
+            return uri.substring(0, slashIdx + 1) + database + uri.substring(pathEnd);
+        }
+        int insertAt = queryIdx < 0 ? uri.length() : queryIdx;
+        return uri.substring(0, insertAt) + "/" + database + uri.substring(insertAt);
+    }
+
+    /**
+     * 格式 3 的 DSN **没写库名**时，把目标环境既有的库名放回 incoming（[ADR-0036] D10 第二行）。
+     *
+     * <p>⚠ 这件事**不能**交给 {@link #restoreMissingSecretsFromExisting}，两个理由：
+     * ① 那条链路的语义是「脱敏抹出来的洞」——只在 incoming 为空时回填，而这里 incoming
+     * <b>不为空</b>，它带着**源环境**的库名（{@code database_name} 不在
+     * {@link #SENSITIVE_API_KEYS} 里，导出根本不抹它）；② 它整条被保真包早退挡掉，而这条
+     * 保留不分包类型——DSN 分支只在操作者真的配了 {@code {CONN}_DSN} 时才走，那时格式 3
+     * 的语义压过打包模式。
+     *
+     * <p>不做这件事的后果：GROUP_IMPORT 是整文档覆盖 ⇒ SIT 的 {@code sit_orders} 覆盖掉
+     * PROD 的 {@code prod_orders}，部署报绿、测试连接也通过（库真实存在），
+     * 而连接从此指着**上一个环境的库**。
+     *
+     * @return 被保留下来的库名；没做任何事时返回 null（交给导入报告，D7 不许静默）
+     */
+    static String restoreDatabaseNameWhenDsnOmitsIt(DataSourceConnectionDto incoming,
+            DataSourceConnectionDto existing, DataSourceDefinitionDto definition,
+            Map<String, String> vaultSecrets) {
+        if (incoming == null || existing == null || MapUtils.isEmpty(vaultSecrets)) {
+            return null;
+        }
+        String connectionName = incoming.getName();
+        // 作用域仅精确名（[ADR-0036] D4）：DSN 携带库的身份，回落＝连错库。
+        String dsnVaultKey = findVaultKey(vaultSecrets, connectionName, "dsn");
+        if (dsnVaultKey == null) {
+            return null;    // 非格式 3 —— D5 推论：格式 1/2 的库名不被新逻辑碰到
+        }
+        String dsnValue = vaultSecrets.get(dsnVaultKey);
+        if (StringUtils.isBlank(dsnValue)) {
+            return null;
+        }
+        Map<String, String> apiKeyToConfigPath =
+                buildApiKeyToConfigPath(buildConfigPathToApiKeyMap(definition));
+        Map<String, Object> incomingConfig = incoming.getConfig();
+        Map<String, Object> existingConfig = existing.getConfig();
+        if (incomingConfig == null) {
+            return null;
+        }
+
+        if (apiKeyToConfigPath.containsKey("database_uri")) {
+            // MongoDB：库名没有独立字段，它活在整串 uri 的 path 段里。
+            String configPath = apiKeyToConfigPath.get("database_uri");
+            Object incomingUriValue = getNestedValue(incomingConfig, configPath);
+            String incomingUri = incomingUriValue instanceof String ? (String) incomingUriValue : null;
+            if (StringUtils.isBlank(incomingUri) || mongoDatabaseOf(incomingUri) != null) {
+                return null;    // DSN 自己带了库名 ⇒ DSN 赢
+            }
+            Object existingUriValue = existingConfig == null ? null : getNestedValue(existingConfig, configPath);
+            String existingUri = existingUriValue instanceof String
+                    ? (String) existingUriValue : existing.getDatabase_uri();
+            String existingDb = mongoDatabaseOf(existingUri);
+            if (StringUtils.isBlank(existingDb)) {
+                return null;    // 目标也没有库名 ⇒ 不写空值
+            }
+            String merged = spliceDatabaseIntoMongoUri(incomingUri, existingDb);
+            if (merged == null) {
+                return null;
+            }
+            setNestedValue(incomingConfig, configPath, merged);
+            incoming.setDatabase_uri(merged);
+            log.warn("Vault inject: connection='{}', the DSN carries no database name; kept the target"
+                    + " environment's existing database name '{}'. Put the database name in the DSN if"
+                    + " this environment should use a different one.", connectionName, existingDb);
+            return existingDb;
+        }
+
+        // JDBC：库名是独立字段 database_name。
+        Map<String, Object> parts = parseDsnComponents(dsnValue);
+        if (parts.get("database") != null) {
+            return null;    // DSN 赢——「库名可逐环境不同」是本期的核心能力
+        }
+        String configPath = apiKeyToConfigPath.get("database_name");
+        Object existingValue = (configPath == null || existingConfig == null)
+                ? null : getNestedValue(existingConfig, configPath);
+        String existingDb = existingValue instanceof String
+                ? (String) existingValue : existing.getDatabase_name();
+        if (StringUtils.isBlank(existingDb)) {
+            return null;
+        }
+        if (configPath != null) {
+            setNestedValue(incomingConfig, configPath, existingDb);
+        }
+        // 顶层镜像与 config 一起改（[ADR-0036] D9）：MetaDataBuilderUtils.generateQualifiedName
+        // 读的是顶层，只改 config 会得到「连接连对库、元数据挂错库名」的半改状态。
+        incoming.setDatabase_name(existingDb);
+        log.warn("Vault inject: connection='{}', the DSN carries no database name; kept the target"
+                + " environment's existing database name '{}'. Put the database name in the DSN if"
+                + " this environment should use a different one.", connectionName, existingDb);
+        return existingDb;
+    }
+
     static List<String> restoreMissingSecretsFromExisting(DataSourceConnectionDto incoming,
             DataSourceConnectionDto existing, DataSourceDefinitionDto definition) {
         List<String> preserved = new ArrayList<>();

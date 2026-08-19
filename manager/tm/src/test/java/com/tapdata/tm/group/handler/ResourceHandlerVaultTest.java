@@ -482,8 +482,8 @@ public class ResourceHandlerVaultTest {
         }
 
         @Test
-        @DisplayName("D10(L10) DSN 无库名：沿用目标旧库名并告警，不报错")
-        void d10_missingDatabaseNameWarnsAndKeepsOld() {
+        @DisplayName("D10(L10) DSN 无库名：inject 不写库名、只告警，不报错")
+        void d10_missingDatabaseNameWarnsAndDoesNotWrite() {
             DataSourceConnectionDto conn = makeConn("ORDERS_PG");
             conn.getConfig().put("database", "olddb");
 
@@ -493,7 +493,14 @@ public class ResourceHandlerVaultTest {
 
             ResourceHandler.injectVaultSecretsToConnection(conn, vault, jdbcDef());
 
-            assertEquals("olddb", conn.getConfig().get("database"), "无库名时保留目标既有库名");
+            // ⚠ 这条**只**证明 inject 没往 database 写东西（injectParsedField 遇 null 直接
+            // no-op）。它一度被写成「保留目标既有库名」，那是错的：conn 是 **incoming**、
+            // 即包里那份，携带的是**源环境**的库名，与目标环境毫无关系。真正的覆盖发生在
+            // GROUP_IMPORT 整文档替换那一层，而「目标既有库名不被覆盖」由
+            // ResourceHandlerImportPreserveTest 那组 incoming/existing 双对象用例钉死。
+            // 一条名字撒谎的绿用例把这个缺陷盖了很久——改名是修复的一部分。
+            assertEquals("olddb", conn.getConfig().get("database"),
+                    "inject 不该往 database 写值；这里的 olddb 是包里那份，不是目标环境的");
             assertWarnContains("database name");
         }
 
