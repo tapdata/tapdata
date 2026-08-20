@@ -7,6 +7,7 @@ import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
+import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -1321,6 +1322,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
 		excludeRemoveTable(tables);
+		ensureShareCdcTablesReady(NodeUtil.getTableNames(dataProcessorContext.getNode()));
 		this.syncProgressType = SyncProgress.Type.SHARE_CDC;
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try {
@@ -1353,6 +1355,32 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
 		shareCdcTaskContext.setObsLogger(obsLogger);
 		return shareCdcTaskContext;
+	}
+
+	@Override
+	protected void ensureShareCdcForNewTables(List<String> tables) {
+		ensureShareCdcTablesReady(tables);
+	}
+
+	protected void ensureShareCdcTablesReady(List<String> tableNames) {
+		if (CollectionUtils.isEmpty(tableNames)) {
+			return;
+		}
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		if (taskDto == null || !Boolean.TRUE.equals(taskDto.getShareCdcEnable()) || taskDto.getId() == null) {
+			return;
+		}
+		Connections sourceConn = dataProcessorContext.getSourceConn();
+		if (sourceConn == null || StringUtils.isBlank(sourceConn.getId())) {
+			return;
+		}
+		Map<String, Object> body = new HashMap<>();
+		body.put("syncTaskId", taskDto.getId().toHexString());
+		body.put("connectionId", sourceConn.getId());
+		body.put("tableNames", tableNames);
+		body.put("waitReady", true);
+		obsLogger.info("Ensure share cdc tables before listen, connectionId: {}, tables: {}", sourceConn.getId(), tableNames);
+		clientMongoOperator.postOne(body, ConnectorConstant.LOG_COLLECTOR_ENSURE_TABLES, Object.class);
 	}
 
 	private void checkPollingCDCIfNeed() {

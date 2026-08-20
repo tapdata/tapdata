@@ -75,4 +75,11 @@ public interface ShareCdcReaderExCode_13 {
 			recoverable = true
 	)
 	String FIND_NEXT_FAILED = "13011";
+	@TapExCode(
+			describe = "Share CDC table mapping was not found after waiting. The log collector may not have added the dynamically created table yet.",
+			describeCN = "等待后仍未找到共享挖掘表映射。挖掘任务可能尚未纳入动态新增的表。",
+			dynamicDescription = "Mapping sign: {}, table: {}",
+			dynamicDescriptionCN = "映射标识：{}，表名：{}"
+	)
+	String TABLE_MAPPING_NOT_FOUND = "13012";
 }

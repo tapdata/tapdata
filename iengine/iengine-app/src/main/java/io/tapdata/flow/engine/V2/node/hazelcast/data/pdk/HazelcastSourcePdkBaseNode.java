@@ -1239,6 +1239,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 if (null != sourceRunner) {
                     this.sourceRunnerFirstTime.set(false);
                     newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
+                    ensureShareCdcForNewTables(loadedTableNames);
                     restartPdkConnector();
                 } else {
                     String error = "Source runner is null";
@@ -1248,6 +1249,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             }
         }
         return false;
+    }
+
+    protected void ensureShareCdcForNewTables(List<String> tables) {
     }
 
     protected void mergeSubInfoIntoMasterTableIfNeed(TapTable addTapTable) {
