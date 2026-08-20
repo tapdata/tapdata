@@ -496,6 +496,10 @@ public class UserServiceImpl extends UserService{
             validateRoleUsers(roleusers);
             long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
             log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
+            //update roleusers
+            Update update = new Update();
+            update.set("roleusers", roleusers);
+            updateById(userId, update, userDetail);
         // add new role mapping
             List<RoleMappingDto> roleMappingDtos = roleusers.stream().map(r -> (String) r).map(roleId -> {
                 RoleMappingDto roleMappingDto = new RoleMappingDto();

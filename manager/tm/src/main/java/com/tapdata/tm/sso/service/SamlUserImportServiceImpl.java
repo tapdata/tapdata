@@ -2,10 +2,14 @@ package com.tapdata.tm.sso.service;
 
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
+import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.sso.dto.ImportPreviewResult;
 import com.tapdata.tm.sso.dto.ImportRowResult;
 import com.tapdata.tm.user.entity.User;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.service.UserLogService;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -27,6 +31,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 /**
@@ -50,6 +55,9 @@ public class SamlUserImportServiceImpl implements SamlUserImportService {
 
     @Autowired
     private MongoTemplate mongoTemplate;
+
+    @Autowired
+    private UserLogService userLogService;
 
     @Override
     public byte[] buildTemplate() {
@@ -95,6 +103,9 @@ public class SamlUserImportServiceImpl implements SamlUserImportService {
             result.getRows().add(row);
         }
         result.recomputeCounts();
+        if (!dryRun) {
+            recordImportAudit(file, mode, result, actor);
+        }
         return result;
     }
 
@@ -126,7 +137,7 @@ public class SamlUserImportServiceImpl implements SamlUserImportService {
         if (mode == ImportMode.UPDATE) {
             row.setStatus(ImportRowResult.Status.UPDATE);
             if (!dryRun) {
-                updateRoles(existing, row.getRoleNames(), actor);
+                updateUser(existing, row.getUsername(), row.getRoleNames(), actor);
             }
         } else {
             row.setStatus(ImportRowResult.Status.SKIP);
@@ -134,22 +145,61 @@ public class SamlUserImportServiceImpl implements SamlUserImportService {
         }
     }
 
-    private void updateRoles(User user, List<String> roleNames, UserDetail actor) {
-        if (roleNames == null || roleNames.isEmpty()) {
-            return;
-        }
+    private void updateUser(User user, String username, List<String> roleNames, UserDetail actor) {
         String principalId = user.getId().toHexString();
         List<RoleMappingDto> mappings = new ArrayList<>();
-        for (String roleName : roleNames) {
-            if (StringUtils.isBlank(roleName)) {
-                continue;
+        Set<ObjectId> desiredRoleIds = new HashSet<>();
+        if (roleNames != null) {
+            for (String roleName : roleNames) {
+                if (StringUtils.isBlank(roleName)) {
+                    continue;
+                }
+                String roleId = samlProvisioningService.resolveOrCreateRoleId(roleName, actor);
+                ObjectId objectId = new ObjectId(roleId);
+                desiredRoleIds.add(objectId);
+                mappings.add(new RoleMappingDto(PrincipleType.USER.getValue(), principalId, objectId));
             }
-            String roleId = samlProvisioningService.resolveOrCreateRoleId(roleName, actor);
-            mappings.add(new RoleMappingDto("USER", principalId, new ObjectId(roleId)));
         }
-        if (!mappings.isEmpty()) {
-            roleMappingService.updateUserRoleMapping(mappings, actor);
+        // A non-empty roleNames cell is a replacement, not an additive upsert.
+        // Keep existing assignments when the optional cell is blank. Update both the
+        // normalized role-mapping collection and User.roleusers: different permission
+        // readers use these two representations, and updating only one makes roles
+        // appear to be cleared after an import.
+        if (roleNames != null && !roleNames.isEmpty()) {
+            roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(principalId)
+                    .and("principalType").is(PrincipleType.USER.getValue())));
+            if (!mappings.isEmpty()) {
+                roleMappingService.updateUserRoleMapping(mappings, actor);
+            }
         }
+        org.springframework.data.mongodb.core.query.Update userUpdate = new org.springframework.data.mongodb.core.query.Update();
+        boolean userChanged = false;
+        if (StringUtils.isNotBlank(username) && !StringUtils.equals(username.trim(), user.getUsername())) {
+            userUpdate.set("username", username.trim());
+            userChanged = true;
+        }
+        if (roleNames != null && !roleNames.isEmpty()) {
+            userUpdate.set("roleusers", desiredRoleIds.stream()
+                    .map(ObjectId::toHexString)
+                    .collect(Collectors.toList()));
+            userChanged = true;
+        }
+        if (userChanged) {
+            mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(user.getId())), userUpdate, User.class);
+        }
+        userLogService.addUserLog(Modular.USER, Operation.BATCH_UPDATE, actor,
+                principalId, user.getEmail(), StringUtils.join(roleNames == null ? List.of() : roleNames, ","), false);
+    }
+
+    private void recordImportAudit(MultipartFile file, ImportMode mode, ImportPreviewResult result, UserDetail actor) {
+        String fileName = StringUtils.defaultIfBlank(file == null ? null : file.getOriginalFilename(), "(unnamed)");
+        String summary = String.format("file=%s, mode=%s, total=%d, created=%d, updated=%d, skipped=%d, failed=%d",
+                fileName, mode, result.getTotal(), result.getCreateCount(), result.getUpdateCount(),
+                result.getSkipCount(), result.getFailedCount());
+        // UserLogService records the acting administrator and creation timestamp from
+        // UserDetail/UserLogEntity; keep the filename and deterministic result summary
+        // in the operation parameter for audit queries and exports.
+        userLogService.addUserLog(Modular.USER, Operation.BATCH_UPDATE, actor, summary);
     }
 
     private void fail(ImportRowResult row, String message) {

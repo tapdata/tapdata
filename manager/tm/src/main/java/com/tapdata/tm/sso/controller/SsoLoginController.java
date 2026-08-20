@@ -15,6 +15,8 @@ import com.tapdata.tm.sso.entity.SsoSession;
 import com.tapdata.tm.sso.service.SamlAuthnRequestService;
 import com.tapdata.tm.sso.service.SamlConfigService;
 import com.tapdata.tm.sso.service.SamlIdentityResolver;
+import com.tapdata.tm.sso.service.SamlLoginError;
+import com.tapdata.tm.sso.service.SamlLoginException;
 import com.tapdata.tm.sso.service.SamlLogoutService;
 import com.tapdata.tm.sso.service.SamlResponseValidator;
 import com.tapdata.tm.sso.service.SamlSessionService;
@@ -60,6 +62,8 @@ public class SsoLoginController extends BaseController {
     private static final String SAML_BASE_PATH = "/api/sso/saml";
     /** SPA hash route that consumes the access_token and completes the login. */
     private static final String DEFAULT_CALLBACK_REDIRECT = "/#/sso-callback";
+    /** SPA hash route shown when SAML login is refused; carries a sso_error reason code. */
+    private static final String LOGIN_ERROR_REDIRECT = "/#/login";
 
     private SamlConfigService samlConfigService;
     private SamlAuthnRequestService samlAuthnRequestService;
@@ -143,12 +147,14 @@ public class SsoLoginController extends BaseController {
             clearRequestIdCookie(response);
             response.sendRedirect(buildSuccessRedirect(config, relayState, token.getId()));
         } catch (SamlValidationException e) {
-            // Do not leak assertion contents; log message only (AC-055).
+            // Do not leak assertion contents; log message only (AC-055). Redirect the
+            // browser back to the SPA login page carrying a stable reason code so the
+            // user sees a clear localized message instead of a raw 401 error page.
             log.warn("SAML ACS validation failed: {}", e.getMessage());
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "SAML authentication failed");
+            response.sendRedirect(buildLoginErrorRedirect(resolveErrorCode(e)));
         } catch (Exception e) {
             log.error("SAML ACS processing error: {}", e.getMessage());
-            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "SAML authentication error");
+            response.sendRedirect(buildLoginErrorRedirect(SamlLoginError.SSO_FAILED.getCode()));
         }
     }
 
@@ -321,6 +327,18 @@ public class SsoLoginController extends BaseController {
                 : DEFAULT_CALLBACK_REDIRECT;
         String separator = base.contains("?") ? "&" : "?";
         return base + separator + "access_token=" + URLEncoder.encode(tokenId, StandardCharsets.UTF_8);
+    }
+
+    /** Map a refused login to its stable reason code; unknown causes are generic. */
+    private String resolveErrorCode(SamlValidationException e) {
+        if (e instanceof SamlLoginException) {
+            return ((SamlLoginException) e).getCode();
+        }
+        return SamlLoginError.SSO_FAILED.getCode();
+    }
+
+    private String buildLoginErrorRedirect(String code) {
+        return LOGIN_ERROR_REDIRECT + "?sso_error=" + URLEncoder.encode(code, StandardCharsets.UTF_8);
     }
 
     private Cookie buildRequestIdCookie(String requestId) {

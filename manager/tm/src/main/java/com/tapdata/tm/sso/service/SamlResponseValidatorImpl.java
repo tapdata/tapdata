@@ -13,6 +13,7 @@ import org.opensaml.saml.saml2.core.Audience;
 import org.opensaml.saml.saml2.core.AudienceRestriction;
 import org.opensaml.saml.saml2.core.AuthnStatement;
 import org.opensaml.saml.saml2.core.Conditions;
+import org.opensaml.saml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.core.StatusCode;
@@ -23,6 +24,10 @@ import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
+import org.opensaml.saml.saml2.encryption.Decrypter;
+import org.opensaml.xmlsec.DecryptionParameters;
+import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
+import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
@@ -76,7 +81,7 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
             verifySignature(response.getSignature(), idpCert);
         }
 
-        Assertion assertion = extractAssertion(response);
+        Assertion assertion = extractAssertion(response, config);
 
         boolean assertionSigned = assertion.getSignature() != null;
         if (assertionSigned) {
@@ -134,13 +139,38 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
         }
     }
 
-    private Assertion extractAssertion(Response response) {
+    private Assertion extractAssertion(Response response, SamlConfig config) {
         List<Assertion> assertions = response.getAssertions();
-        if (assertions == null || assertions.isEmpty()) {
-            // Encrypted assertions are not supported in this milestone.
-            throw new SamlValidationException("SAMLResponse contains no (unencrypted) assertion");
+        List<EncryptedAssertion> encryptedAssertions = response.getEncryptedAssertions();
+        int assertionCount = assertions == null ? 0 : assertions.size();
+        int encryptedCount = encryptedAssertions == null ? 0 : encryptedAssertions.size();
+        if (assertionCount + encryptedCount != 1) {
+            throw new SamlValidationException("SAMLResponse must contain exactly one assertion");
         }
-        return assertions.get(0);
+        if (assertionCount == 1) {
+            return assertions.get(0);
+        }
+        if (StringUtils.isAnyBlank(config.getSpPrivateKey(), config.getSpCertificate())) {
+            throw new SamlValidationException(
+                    "EncryptedAssertion requires the configured SP private key and certificate");
+        }
+        try {
+            X509Certificate certificate = SamlPemUtil.parseCertificate(config.getSpCertificate());
+            java.security.PrivateKey privateKey = SamlPemUtil.parsePrivateKey(config.getSpPrivateKey());
+            BasicX509Credential credential = new BasicX509Credential(certificate, privateKey);
+            StaticKeyInfoCredentialResolver resolver = new StaticKeyInfoCredentialResolver(credential);
+
+            DecryptionParameters parameters = new DecryptionParameters();
+            parameters.setKEKKeyInfoCredentialResolver(resolver);
+            parameters.setDataKeyInfoCredentialResolver(resolver);
+            parameters.setEncryptedKeyResolver(new InlineEncryptedKeyResolver());
+
+            Decrypter decrypter = new Decrypter(parameters);
+            decrypter.setRootInNewDocument(true);
+            return decrypter.decrypt(encryptedAssertions.get(0));
+        } catch (Exception e) {
+            throw new SamlValidationException("Unable to decrypt SAML EncryptedAssertion", e);
+        }
     }
 
     private void verifySignature(Signature signature, X509Certificate idpCert) {
