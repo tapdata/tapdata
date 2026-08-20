@@ -3131,4 +3131,185 @@ class ModulesServiceTest {
                     "导入被删除的 API 时必须清除删除标记，否则它依然不可见");
         }
     }
+
+    @Nested
+    @DisplayName("Method readSslPasswordIfNeed Test")
+    class ReadSslPasswordIfNeedTest {
+
+        @Test
+        @DisplayName("ssl is null, should return directly without setting sslPass")
+        void testSslIsNull() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(null);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", "test-ssl-password");
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is false, should return directly without setting sslPass")
+        void testSslIsFalse() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(false);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", "test-ssl-password");
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true but config is null, should return directly without setting sslPass")
+        void testConfigIsNull() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            dto.setConfig(null);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true but config is empty, should return directly without setting sslPass")
+        void testConfigIsEmpty() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            dto.setConfig(new HashMap<>());
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has no sslPass key, should return directly without setting sslPass")
+        void testNoSslPassInConfig() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            config.put("host", "localhost");
+            config.put("port", 3306);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass but value is null, should return directly without setting sslPass")
+        void testSslPassValueIsNull() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", null);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass but it's empty string, should not set sslPass")
+        void testSslPassIsEmptyString() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", "");
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass but it's blank string (whitespace), should not set sslPass")
+        void testSslPassIsBlankString() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            config.put("sslPass", "   ");
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertNull(dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has valid sslPass string, should set sslPass to dto")
+        void testValidSslPassString() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            String expectedSslPass = "my-secure-ssl-password-123";
+            config.put("sslPass", expectedSslPass);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertEquals(expectedSslPass, dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass with non-String type (Integer), should convert via String.valueOf and set")
+        void testSslPassIsIntegerType() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            Integer sslPassInt = 123456;
+            config.put("sslPass", sslPassInt);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertEquals(String.valueOf(sslPassInt), dto.getSslPass());
+        }
+
+        @Test
+        @DisplayName("ssl is true, config has sslPass with leading/trailing spaces, should set as-is (only blank check skips)")
+        void testSslPassWithLeadingTrailingSpaces() {
+            ModulesService service = spy(modulesService);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setSsl(true);
+            Map<String, Object> config = new HashMap<>();
+            String sslPassWithSpaces = "  password  ";
+            config.put("sslPass", sslPassWithSpaces);
+            dto.setConfig(config);
+
+            doCallRealMethod().when(service).readSslPasswordIfNeed(dto);
+            service.readSslPasswordIfNeed(dto);
+
+            assertEquals(sslPassWithSpaces, dto.getSslPass());
+        }
+    }
 }
