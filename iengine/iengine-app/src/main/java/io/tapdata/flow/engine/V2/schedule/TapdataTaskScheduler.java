@@ -119,7 +119,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private static final long ENGINE_START_PENDING_REFRESH_INTERVAL_MILLIS = 10_000L;
 	private final LinkedBlockingQueue<TaskDto> engineStartTaskQueue = new LinkedBlockingQueue<>();
 	private final Map<String, TaskDto> engineStartPendingTaskMap = new ConcurrentHashMap<>();
-	private final ScheduledExecutorService engineStartTaskScheduler = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Engine-Start-Task-Scheduler"));
+	private final ScheduledExecutorService engineStartTaskScheduler = new ScheduledThreadPoolExecutor(2, r -> new Thread(r, "Engine-Start-Task-Scheduler"));
 	private volatile boolean engineStartTaskSchedulerStarted = false;
 
 	// TAP-12028: 常驻低频对账兜底 + WS(重)连即拉取，确保分配给本引擎(agentId=instanceNo)的
@@ -408,16 +408,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (CollectionUtils.isNotEmpty(tasks)) {
 			logger.info("Found task(s) already running before engine start, will queue these task(s) for rate-limited startup\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
 
-			long baseStartupPingTime = System.currentTimeMillis();
-			int startupSlot = 0;
 			for (TaskDto task : tasks) {
-				long expectedStartupPingTime = baseStartupPingTime + (startupSlot++ * ENGINE_START_TASK_INTERVAL_MILLIS);
-				refreshEngineStartTaskPingTime(task, expectedStartupPingTime);
+				refreshEngineStartTaskPingTime(task, System.currentTimeMillis());
 				try {
+					engineStartPendingTaskMap.put(task.getId().toHexString(), task);
 					engineStartTaskQueue.offer(task);
-					if (task.getId() != null) {
-						engineStartPendingTaskMap.put(task.getId().toHexString(), task);
-					}
 					logger.info("Queued task for rate-limited startup: {} ({})", task.getName(), task.getId().toHexString());
 				} catch (Exception e) {
 					logger.error("Failed to queue task for startup: {} ({}), error: {}", task.getName(), task.getId().toHexString(), e.getMessage(), e);
@@ -449,7 +444,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		try {
 			task.setPingTime(pingTime);
 			Update update = Update.update(TaskDto.PING_TIME_FIELD, pingTime);
-			addAgentIdUpdate(update);
 			clientMongoOperator.update(Query.query(Criteria.where("_id").is(task.getId())), update, ConnectorConstant.TASK_COLLECTION);
 		} catch (Exception e) {
 			logger.warn("Failed to refresh engine startup task ping time: {} ({}), pingTime: {}, error: {}",
@@ -467,12 +461,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 		logger.info("Starting engine start task scheduler with {}ms rate limiting", ENGINE_START_TASK_INTERVAL_MILLIS);
 		engineStartTaskScheduler.scheduleWithFixedDelay(this::processEngineStartTaskQueue, 0, ENGINE_START_TASK_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
-		if (ENGINE_START_TASK_INTERVAL_MILLIS > ENGINE_START_PENDING_REFRESH_INTERVAL_MILLIS) {
-			engineStartTaskScheduler.scheduleWithFixedDelay(this::refreshEngineStartPendingTaskPingTime,
-					ENGINE_START_PENDING_REFRESH_INTERVAL_MILLIS,
-					ENGINE_START_PENDING_REFRESH_INTERVAL_MILLIS,
-					TimeUnit.MILLISECONDS);
-		}
+		engineStartTaskScheduler.scheduleWithFixedDelay(this::refreshEngineStartPendingTaskPingTime, ENGINE_START_PENDING_REFRESH_INTERVAL_MILLIS, ENGINE_START_PENDING_REFRESH_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
 		engineStartTaskSchedulerStarted = true;
 	}
 
@@ -481,7 +470,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	 */
 	private void processEngineStartTaskQueue() {
 		try {
-			refreshEngineStartPendingTaskPingTime();
 			TaskDto task = engineStartTaskQueue.poll();
 			if (task != null) {
 				logger.info("Processing rate-limited task startup: {} ({})", task.getName(), task.getId().toHexString());
