@@ -219,8 +219,8 @@ class SsoLoginControllerTest {
     }
 
     @Test
-    @DisplayName("ACS returns 401 on validation failure without leaking details")
-    void acsValidationFailure() throws Exception {
+@DisplayName("ACS redirects to the login page on validation failure without leaking details")
+void acsValidationFailure() throws Exception {
         when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().enabled(true).build());
         when(samlResponseValidator.validate(any(), anyString(), any()))
                 .thenThrow(new SamlValidationException("signature invalid"));
@@ -229,7 +229,8 @@ class SsoLoginControllerTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         controller.acs(request, response);
 
-        assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
+        assertEquals(HttpServletResponse.SC_FOUND, response.getStatus());
+        assertEquals("/#/login?sso_error=sso_failed", response.getRedirectedUrl());
     }
 
     @Test

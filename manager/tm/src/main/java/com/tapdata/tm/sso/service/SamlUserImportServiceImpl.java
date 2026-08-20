@@ -68,10 +68,6 @@ public class SamlUserImportServiceImpl implements SamlUserImportService {
             for (int i = 0; i < TEMPLATE_HEADERS.length; i++) {
                 header.createCell(i).setCellValue(TEMPLATE_HEADERS[i]);
             }
-            Row example = sheet.createRow(1);
-            example.createCell(0).setCellValue("jane.doe@example.com");
-            example.createCell(1).setCellValue("jane.doe");
-            example.createCell(2).setCellValue("Analyst,Engineer");
             workbook.write(out);
             return out.toByteArray();
         } catch (Exception e) {

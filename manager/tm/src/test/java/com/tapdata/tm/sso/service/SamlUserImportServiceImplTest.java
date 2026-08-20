@@ -7,6 +7,7 @@ import com.tapdata.tm.sso.dto.ImportPreviewResult;
 import com.tapdata.tm.sso.dto.ImportRowResult;
 import com.tapdata.tm.sso.service.SamlUserImportService.ImportMode;
 import com.tapdata.tm.user.entity.User;
+import com.tapdata.tm.userLog.service.UserLogService;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -49,6 +50,8 @@ class SamlUserImportServiceImplTest {
     private RoleMappingService roleMappingService;
     @Mock
     private MongoTemplate mongoTemplate;
+    @Mock
+    private UserLogService userLogService;
 
     private final UserDetail actor = org.mockito.Mockito.mock(UserDetail.class);
 
@@ -58,13 +61,14 @@ class SamlUserImportServiceImplTest {
         ReflectionTestUtils.setField(service, "samlProvisioningService", samlProvisioningService);
         ReflectionTestUtils.setField(service, "roleMappingService", roleMappingService);
         ReflectionTestUtils.setField(service, "mongoTemplate", mongoTemplate);
+        ReflectionTestUtils.setField(service, "userLogService", userLogService);
     }
 
     private MultipartFile xlsx(String[][] dataRows) throws Exception {
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet("users");
             Row header = sheet.createRow(0);
-            String[] headers = {"email", "username", "displayName", "roleNames"};
+            String[] headers = {"email", "username", "roleNames"};
             for (int i = 0; i < headers.length; i++) {
                 header.createCell(i).setCellValue(headers[i]);
             }
@@ -90,7 +94,8 @@ class SamlUserImportServiceImplTest {
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Row header = wb.getSheetAt(0).getRow(0);
             assertEquals("email", header.getCell(0).getStringCellValue());
-            assertEquals("roleNames", header.getCell(3).getStringCellValue());
+            assertEquals("roleNames", header.getCell(2).getStringCellValue());
+            assertTrue(wb.getSheetAt(0).getRow(1) == null);
         }
     }
 
@@ -98,10 +103,10 @@ class SamlUserImportServiceImplTest {
     @DisplayName("validate dry-run: reports create/skip/failed per row and performs no writes")
     void validateDryRun() throws Exception {
         MultipartFile file = xlsx(new String[][]{
-                {"new@corp.com", "new", "New User", "Analyst"},
-                {"exists@corp.com", "e", "E", ""},
-                {"bad-email", "b", "B", ""},
-                {"new@corp.com", "dup", "Dup", ""}
+                {"new@corp.com", "new", "Analyst"},
+                {"exists@corp.com", "e", ""},
+                {"bad-email", "b", ""},
+                {"new@corp.com", "dup", ""}
         });
         when(mongoTemplate.findOne(any(Query.class), eq(User.class)))
                 .thenAnswer(inv -> inv.getArgument(0).toString().contains("exists@corp.com") ? new User() : null);
@@ -120,8 +125,8 @@ class SamlUserImportServiceImplTest {
     @DisplayName("confirm skip mode: creates new users, leaves existing untouched")
     void confirmSkip() throws Exception {
         MultipartFile file = xlsx(new String[][]{
-                {"new@corp.com", "new", "New", "Analyst"},
-                {"exists@corp.com", "e", "E", "Analyst"}
+                {"new@corp.com", "new", "Analyst"},
+                {"exists@corp.com", "e", "Analyst"}
         });
         when(mongoTemplate.findOne(any(Query.class), eq(User.class)))
                 .thenAnswer(inv -> inv.getArgument(0).toString().contains("exists@corp.com") ? new User() : null);
@@ -138,7 +143,7 @@ class SamlUserImportServiceImplTest {
     @Test
     @DisplayName("confirm update mode: existing user gets role mappings upserted")
     void confirmUpdate() throws Exception {
-        MultipartFile file = xlsx(new String[][]{{"exists@corp.com", "e", "E", "Analyst,Engineer"}});
+        MultipartFile file = xlsx(new String[][]{{"exists@corp.com", "e", "Analyst,Engineer"}});
         User existing = new User();
         existing.setId(new ObjectId());
         when(mongoTemplate.findOne(any(Query.class), eq(User.class))).thenReturn(existing);
@@ -156,7 +161,7 @@ class SamlUserImportServiceImplTest {
     @Test
     @DisplayName("first failed row is reported with a message")
     void failedRowHasMessage() throws Exception {
-        MultipartFile file = xlsx(new String[][]{{"", "x", "X", ""}});
+        MultipartFile file = xlsx(new String[][]{{"", "x", ""}});
         ImportPreviewResult result = service.validate(file, ImportMode.SKIP, actor);
         ImportRowResult row = result.getRows().get(0);
         assertEquals(ImportRowResult.Status.FAILED, row.getStatus());

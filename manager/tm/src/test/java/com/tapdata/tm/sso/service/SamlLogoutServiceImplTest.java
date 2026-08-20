@@ -139,19 +139,19 @@ class SamlLogoutServiceImplTest {
 
     @Test
     @DisplayName("replayed LogoutRequest id is rejected")
-    void replayRejected() {
+    void replayRejected() throws Exception {
         SamlConfig config = baseConfig();
+        config.setSignAuthnRequest(true);
+        config.setSpPrivateKey(keyPair.getPrivateKeyPem());
         LogoutRedirectResult built = service.buildLogoutRequest(config, "user@x", null, null);
-        Map<String, String> params;
-        try {
-            params = queryParams(built.getRedirectUrl());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        Map<String, String> params = queryParams(built.getRedirectUrl());
+        String signedQuery = "SAMLRequest=" + enc(params.get("SAMLRequest"))
+                + "&SigAlg=" + enc(params.get("SigAlg"));
         when(replayCacheService.recordIfFirstUse(org.mockito.ArgumentMatchers.eq("logoutrequest"),
                 org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
         assertThrows(SamlValidationException.class, () ->
-                service.parseLogoutRequest(config, params.get("SAMLRequest"), null, null, null));
+                service.parseLogoutRequest(config, params.get("SAMLRequest"), params.get("SigAlg"),
+                        params.get("Signature"), signedQuery));
     }
 
     @Test

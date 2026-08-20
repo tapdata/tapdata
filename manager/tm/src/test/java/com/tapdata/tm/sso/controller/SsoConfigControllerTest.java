@@ -152,6 +152,7 @@ class SsoConfigControllerTest {
     @Test
     @DisplayName("user-import/template streams the workbook bytes as an attachment")
     void downloadImportTemplate() throws Exception {
+        when(samlConfigService.isEnabled()).thenReturn(true);
         byte[] bytes = "XLSX".getBytes();
         when(samlUserImportService.buildTemplate()).thenReturn(bytes);
         HttpServletResponse response = mock(HttpServletResponse.class);
@@ -172,6 +173,7 @@ class SsoConfigControllerTest {
     @Test
     @DisplayName("user-import/validate parses mode and delegates with the login user")
     void validateImport() {
+        when(samlConfigService.isEnabled()).thenReturn(true);
         MockMultipartFile file = new MockMultipartFile("file", new byte[]{1});
         UserDetail actor = mock(UserDetail.class);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
@@ -187,6 +189,7 @@ class SsoConfigControllerTest {
     @Test
     @DisplayName("unknown mode falls back to SKIP")
     void confirmImportUnknownModeFallsBackToSkip() {
+        when(samlConfigService.isEnabled()).thenReturn(true);
         MockMultipartFile file = new MockMultipartFile("file", new byte[]{1});
         UserDetail actor = mock(UserDetail.class);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
