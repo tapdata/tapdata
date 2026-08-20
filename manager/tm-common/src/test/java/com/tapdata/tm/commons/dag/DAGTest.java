@@ -552,5 +552,4 @@ public class DAGTest {
 			assertEquals(1, targetDataParentNodes.size());
 		}
 	}
-
 }

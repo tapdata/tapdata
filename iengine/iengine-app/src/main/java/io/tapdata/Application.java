@@ -26,6 +26,8 @@ import io.tapdata.observable.logging.util.LogUtil;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
+
+import com.tapdata.tm.commons.dag.DAGNodeTypeInitializer;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
@@ -250,6 +252,11 @@ public class Application {
 		final ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
 		scheduler.setPoolSize(50);
 		return scheduler;
+	}
+
+	@Bean
+	public DAGNodeTypeInitializer dagNodeTypeInitializer() {
+		return new DAGNodeTypeInitializer();
 	}
 
 	protected static void addRollingFileAppender(String tapdataWorkDir) {
