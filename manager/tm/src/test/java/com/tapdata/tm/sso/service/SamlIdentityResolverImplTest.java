@@ -82,6 +82,26 @@ class SamlIdentityResolverImplTest {
     }
 
     @Test
+    @DisplayName("binding to a logically deleted user is rejected")
+    void deletedBoundUserRejected() {
+        when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().build());
+        User deletedUser = activeUser();
+        deletedUser.setIsDeleted(true);
+        SsoExternalIdentity binding = new SsoExternalIdentity();
+        binding.setTapdataUserId(deletedUser.getId().toHexString());
+        when(mongoTemplate.findOne(any(Query.class), eq(SsoExternalIdentity.class))).thenReturn(binding);
+        // The user query contains the isDeleted filter, so a deleted account is not returned.
+        when(mongoTemplate.findOne(any(Query.class), eq(User.class))).thenReturn(null);
+
+        SamlLoginException exception = assertThrows(SamlLoginException.class,
+                () -> resolver.resolve(subject()));
+
+        assertEquals(SamlLoginError.USER_NOT_FOUND.getCode(), exception.getCode());
+        verify(samlProvisioningService, never()).provisionUser(any(), any(), any(), any());
+        verify(mongoTemplate, never()).insert(any(SsoExternalIdentity.class));
+    }
+
+    @Test
     @DisplayName("no binding: resolves by email and creates a binding")
     void resolvesByEmailAndBinds() {
         when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().build());

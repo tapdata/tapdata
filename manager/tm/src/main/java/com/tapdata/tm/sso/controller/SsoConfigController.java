@@ -23,12 +23,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -111,6 +113,7 @@ public class SsoConfigController extends BaseController {
     @Operation(summary = "Download the SSO batch user import template (.xlsx)")
     @GetMapping("/user-import/template")
     public void downloadImportTemplate(HttpServletResponse response) {
+        requireSamlEnabled();
         byte[] bytes = samlUserImportService.buildTemplate();
         response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
         response.setHeader("Content-Disposition", "attachment; filename=sso-user-import-template.xlsx");
@@ -127,6 +130,7 @@ public class SsoConfigController extends BaseController {
     public ResponseMessage<ImportPreviewResult> validateImport(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "mode", required = false, defaultValue = "SKIP") String mode) {
+        requireSamlEnabled();
         return success(samlUserImportService.validate(file, parseMode(mode), getLoginUser()));
     }
 
@@ -135,7 +139,15 @@ public class SsoConfigController extends BaseController {
     public ResponseMessage<ImportPreviewResult> confirmImport(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "mode", required = false, defaultValue = "SKIP") String mode) {
+        requireSamlEnabled();
         return success(samlUserImportService.confirm(file, parseMode(mode), getLoginUser()));
+    }
+
+    private void requireSamlEnabled() {
+        if (!samlConfigService.isEnabled()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "SAML user import is unavailable while SAML login is disabled");
+        }
     }
 
     private SamlUserImportService.ImportMode parseMode(String mode) {

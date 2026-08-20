@@ -22,7 +22,7 @@ public interface SamlUserImportService {
     }
 
     /** Expected header, in column order. */
-    String[] TEMPLATE_HEADERS = {"email", "username", "displayName", "roleNames"};
+    String[] TEMPLATE_HEADERS = {"email", "username", "roleNames"};
 
     /** Sheet name used by the generated template. */
     String TEMPLATE_SHEET = "users";

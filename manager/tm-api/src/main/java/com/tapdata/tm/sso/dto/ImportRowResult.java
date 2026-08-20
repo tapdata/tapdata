@@ -32,9 +32,6 @@ public class ImportRowResult {
     /** Parsed username. */
     private String username;
 
-    /** Parsed display name. */
-    private String displayName;
-
     /** Parsed role names. */
     private List<String> roleNames;
 

@@ -47,13 +47,17 @@ public class SamlIdentityResolverImpl implements SamlIdentityResolver {
         }
         SamlConfig config = samlConfigService.getConfig();
 
-        // 1. Existing binding wins.
+        // 1. Existing binding wins. If a binding exists but the bound user is gone
+        //    (deleted/frozen by an admin), refuse login with a clear reason rather
+        //    than silently falling through to an email re-match.
         SsoExternalIdentity binding = findBinding(subject.getIdpEntityId(), subject.getNameId());
         if (binding != null && StringUtils.isNotBlank(binding.getTapdataUserId())) {
             User user = findUserById(binding.getTapdataUserId());
-            if (user != null) {
-                return ensureActive(user);
+            if (user == null) {
+                throw new SamlLoginException(SamlLoginError.USER_NOT_FOUND,
+                        "Bound TapData user no longer exists");
             }
+            return ensureActive(user);
         }
 
         // 2. Match by email (NameID or mapped email claim).
@@ -64,7 +68,8 @@ public class SamlIdentityResolverImpl implements SamlIdentityResolver {
         User user = findUserByEmail(email);
         if (user == null) {
             if (!config.isJitProvisioningEnabled()) {
-                throw new SamlValidationException("No matching TapData user and JIT provisioning is disabled");
+                throw new SamlLoginException(SamlLoginError.USER_NOT_FOUND,
+                        "No matching TapData user and JIT provisioning is disabled");
             }
             // 3. JIT provisioning: create the user (roles resolved from claimGroups, if any),
             //    then bind. Roles are set only here, at first creation.
@@ -153,16 +158,19 @@ public class SamlIdentityResolverImpl implements SamlIdentityResolver {
         if (!org.bson.types.ObjectId.isValid(userId)) {
             return null;
         }
-        Query query = Query.query(Criteria.where("_id").is(new org.bson.types.ObjectId(userId)));
+        // A binding must never resurrect a logically deleted account. Keep legacy
+        // users without the flag compatible, while explicitly excluding true.
+        Query query = Query.query(Criteria.where("_id").is(new org.bson.types.ObjectId(userId))
+                .orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false)));
         return mongoTemplate.findOne(query, User.class);
     }
 
     private User ensureActive(User user) {
         if (user.getAccountStatus() == 0) {
-            throw new SamlValidationException("User account is disabled");
+            throw new SamlLoginException(SamlLoginError.USER_DISABLED, "User account is disabled");
         }
         if (user.getAccountStatus() == 2) {
-            throw new SamlValidationException("User account is pending approval");
+            throw new SamlLoginException(SamlLoginError.USER_PENDING, "User account is pending approval");
         }
         return user;
     }
