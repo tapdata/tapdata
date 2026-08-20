@@ -82,4 +82,11 @@ public interface ShareCdcReaderExCode_13 {
 			dynamicDescriptionCN = "映射标识：{}，表名：{}"
 	)
 	String TABLE_MAPPING_NOT_FOUND = "13012";
+	@TapExCode(
+			describe = "Failed to ensure dynamically added tables are included in share CDC. The log collector did not become ready in time.",
+			describeCN = "未能将动态新增表纳入共享挖掘。挖掘任务在等待时间内未就绪。",
+			dynamicDescription = "Tables: {}",
+			dynamicDescriptionCN = "表：{}"
+	)
+	String ENSURE_TABLES_FAILED = "13013";
 }

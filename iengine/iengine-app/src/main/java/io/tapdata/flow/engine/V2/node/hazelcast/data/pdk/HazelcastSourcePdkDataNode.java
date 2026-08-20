@@ -1374,13 +1374,27 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		if (sourceConn == null || StringUtils.isBlank(sourceConn.getId())) {
 			return;
 		}
+		Node<?> node = dataProcessorContext.getNode();
+		if (node == null || StringUtils.isBlank(node.getId())) {
+			throw new TapCodeException(ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, "Source node id is empty")
+					.dynamicDescriptionParameters(String.valueOf(tableNames));
+		}
 		Map<String, Object> body = new HashMap<>();
 		body.put("syncTaskId", taskDto.getId().toHexString());
 		body.put("connectionId", sourceConn.getId());
+		body.put("nodeId", node.getId());
 		body.put("tableNames", tableNames);
 		body.put("waitReady", true);
-		obsLogger.info("Ensure share cdc tables before listen, connectionId: {}, tables: {}", sourceConn.getId(), tableNames);
-		clientMongoOperator.postOne(body, ConnectorConstant.LOG_COLLECTOR_ENSURE_TABLES, Object.class);
+		obsLogger.info("Ensure share cdc tables before listen, connectionId: {}, nodeId: {}, tables: {}", sourceConn.getId(), node.getId(), tableNames);
+		try {
+			clientMongoOperator.postOne(body, ConnectorConstant.LOG_COLLECTOR_ENSURE_TABLES, Object.class);
+		} catch (Exception e) {
+			if (e instanceof TapCodeException tapCodeException) {
+				throw tapCodeException;
+			}
+			throw new TapCodeException(ShareCdcReaderExCode_13.ENSURE_TABLES_FAILED, e.getMessage(), e)
+					.dynamicDescriptionParameters(String.valueOf(tableNames));
+		}
 	}
 
 	private void checkPollingCDCIfNeed() {
