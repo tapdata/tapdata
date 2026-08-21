@@ -142,8 +142,8 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
     private Assertion extractAssertion(Response response, SamlConfig config) {
         List<Assertion> assertions = response.getAssertions();
         List<EncryptedAssertion> encryptedAssertions = response.getEncryptedAssertions();
-        int assertionCount = assertions == null ? 0 : assertions.size();
-        int encryptedCount = encryptedAssertions == null ? 0 : encryptedAssertions.size();
+        int assertionCount = assertions.size();
+        int encryptedCount = encryptedAssertions.size();
         if (assertionCount + encryptedCount != 1) {
             throw new SamlValidationException("SAMLResponse must contain exactly one assertion");
         }
