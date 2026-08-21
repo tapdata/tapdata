@@ -100,7 +100,7 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
 
         validateConditions(assertion.getConditions(), config, now, skew);
         validateSubjectConfirmation(assertion, config, now, skew, expectedInResponseTo);
-        enforceReplay(assertion);
+        enforceReplay(assertion, config);
 
         return buildSubject(assertion, config);
     }
@@ -251,6 +251,12 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
                     && !expectedInResponseTo.equals(data.getInResponseTo())) {
                 continue;
             }
+            if (expectedInResponseTo == null && StringUtils.isNotBlank(data.getInResponseTo())) {
+                // An IdP-initiated response has no local request to correlate. A
+                // non-empty InResponseTo is therefore suspicious and must not be
+                // accepted when the request cookie is absent.
+                continue;
+            }
             if (expectedInResponseTo == null && !config.isIdpInitiatedEnabled()) {
                 // No local request correlation means this is IdP-initiated; reject it
                 // whenever that flow is disabled, regardless of the response field.
@@ -264,11 +270,12 @@ public class SamlResponseValidatorImpl implements SamlResponseValidator {
         }
     }
 
-    private void enforceReplay(Assertion assertion) {
+    private void enforceReplay(Assertion assertion, SamlConfig config) {
         String assertionId = assertion.getID();
         Instant notOnOrAfter = assertion.getConditions().getNotOnOrAfter();
         if (StringUtils.isBlank(assertionId)
-                || !replayCacheService.recordIfFirstUse("assertion", assertionId, Date.from(notOnOrAfter))) {
+                || !replayCacheService.recordIfFirstUse("assertion", assertionId,
+                Date.from(notOnOrAfter.plusSeconds(Math.max(0,  config.getClockSkewSeconds()))))) {
             throw new SamlValidationException("Assertion has already been used (replay detected)");
         }
     }

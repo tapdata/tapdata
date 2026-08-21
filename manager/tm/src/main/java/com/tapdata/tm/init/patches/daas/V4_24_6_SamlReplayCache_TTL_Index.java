@@ -23,11 +23,11 @@ import java.util.concurrent.TimeUnit;
  * (a replayed message) fail, and a TTL index on {@code createdAt} so consumed
  * records expire automatically at their validated protocol expiry.
  */
-@PatchAnnotation(appType = AppType.DAAS, version = "4.24-2")
-public class V4_24_2_SamlReplayCache_TTL_Index extends AbsPatch {
-    private static final Logger logger = LogManager.getLogger(V4_24_2_SamlReplayCache_TTL_Index.class);
+@PatchAnnotation(appType = AppType.DAAS, version = "4.24-6")
+public class V4_24_6_SamlReplayCache_TTL_Index extends AbsPatch {
+    private static final Logger logger = LogManager.getLogger(V4_24_6_SamlReplayCache_TTL_Index.class);
 
-    public V4_24_2_SamlReplayCache_TTL_Index(PatchType type, PatchVersion version) {
+    public V4_24_6_SamlReplayCache_TTL_Index(PatchType type, PatchVersion version) {
         super(type, version);
     }
 

@@ -38,6 +38,7 @@ import java.security.Signature;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -56,6 +57,15 @@ import java.util.zip.InflaterInputStream;
 public class SamlLogoutServiceImpl implements SamlLogoutService {
 
     private static final String REDIRECT_SIG_ALG = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256";
+    private static final int MAX_LOGOUT_REQUEST_BASE64_LENGTH = 1024 * 1024;
+    private static final int MAX_LOGOUT_XML_LENGTH = 256 * 1024;
+    private static final Map<String, String> REDIRECT_SIGNATURE_ALGORITHMS = Map.of(
+            "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", "SHA256withRSA",
+            "http://www.w3.org/2001/04/xmldsig-more#rsa-sha384", "SHA384withRSA",
+            "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512", "SHA512withRSA",
+            "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256", "SHA256withECDSA",
+            "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha384", "SHA384withECDSA",
+            "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512", "SHA512withECDSA");
 
     private static final Set<String> WEAK_SIGNATURE_ALGS = Set.of(
             "http://www.w3.org/2000/09/xmldsig#rsa-sha1",
@@ -233,6 +243,9 @@ public class SamlLogoutServiceImpl implements SamlLogoutService {
 
     private XMLObject inflateAndUnmarshall(String base64) {
         try {
+            if (StringUtils.isBlank(base64) || base64.length() > MAX_LOGOUT_REQUEST_BASE64_LENGTH) {
+                throw new IllegalArgumentException("SAML logout message is too large");
+            }
             byte[] deflated = Base64.getMimeDecoder().decode(base64.trim());
             Inflater inflater = new Inflater(true);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -240,6 +253,9 @@ public class SamlLogoutServiceImpl implements SamlLogoutService {
                 byte[] buffer = new byte[1024];
                 int read;
                 while ((read = in.read(buffer)) != -1) {
+                    if ((long) out.size() + read > MAX_LOGOUT_XML_LENGTH) {
+                        throw new IllegalArgumentException("SAML logout message is too large after decompression");
+                    }
                     out.write(buffer, 0, read);
                 }
             }
@@ -268,7 +284,11 @@ public class SamlLogoutServiceImpl implements SamlLogoutService {
         try {
             X509Certificate cert = SamlPemUtil.parseCertificate(config.getIdpSigningCertificate());
             PublicKey publicKey = cert.getPublicKey();
-            Signature verifier = Signature.getInstance("SHA256withRSA");
+            String jcaAlgorithm = REDIRECT_SIGNATURE_ALGORITHMS.get(sigAlg);
+            if (jcaAlgorithm == null) {
+                throw new SamlValidationException("Unsupported signature algorithm");
+            }
+            Signature verifier = Signature.getInstance(jcaAlgorithm);
             verifier.initVerify(publicKey);
             verifier.update(signedQuery.getBytes(StandardCharsets.UTF_8));
             if (!verifier.verify(Base64.getDecoder().decode(signature))) {

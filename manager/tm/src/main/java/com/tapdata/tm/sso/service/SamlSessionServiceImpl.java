@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.util.Date;
 import java.util.List;
@@ -71,6 +72,17 @@ public class SamlSessionServiceImpl implements SamlSessionService {
         }
         Date notOnOrAfter = session.getSessionNotOnOrAfter();
         return notOnOrAfter != null && !new Date().before(notOnOrAfter);
+    }
+
+    /** Revoke expired IdP sessions even when no subsequent API request touches them. */
+    @Scheduled(fixedDelay = 300_000L)
+    public void cleanupExpiredSessions() {
+        List<SsoSession> expired = mongoTemplate.find(
+                Query.query(Criteria.where("sessionNotOnOrAfter").lte(new Date())), SsoSession.class);
+        for (SsoSession session : expired) {
+            revokeToken(session.getAccessTokenId());
+            deleteSession(session);
+        }
     }
 
     private long revokeToken(String accessTokenId) {

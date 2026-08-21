@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.regex.Pattern;
@@ -110,7 +111,7 @@ public class SamlUserImportServiceImpl implements SamlUserImportService {
             fail(row, "email is required");
             return;
         }
-        email = email.trim().toLowerCase();
+        email = email.trim().toLowerCase(Locale.ROOT);
         row.setEmail(email);
         if (!EMAIL.matcher(email).matches()) {
             fail(row, "email is not a valid address");
@@ -122,21 +123,27 @@ public class SamlUserImportServiceImpl implements SamlUserImportService {
         }
 
         User existing = findByEmail(email);
-        if (existing == null) {
-            row.setStatus(ImportRowResult.Status.CREATE);
-            if (!dryRun) {
-                samlProvisioningService.provisionUser(email, row.getUsername(), row.getRoleNames(), actor);
+        try {
+            if (existing == null) {
+                row.setStatus(ImportRowResult.Status.CREATE);
+                if (!dryRun) {
+                    samlProvisioningService.provisionUser(email, row.getUsername(), row.getRoleNames(), actor);
+                }
+                return;
             }
-            return;
-        }
-        if (mode == ImportMode.UPDATE) {
-            row.setStatus(ImportRowResult.Status.UPDATE);
-            if (!dryRun) {
-                updateUser(existing, row.getUsername(), row.getRoleNames(), actor);
+            if (mode == ImportMode.UPDATE) {
+                row.setStatus(ImportRowResult.Status.UPDATE);
+                if (!dryRun) {
+                    updateUser(existing, row.getUsername(), row.getRoleNames(), actor);
+                }
+            } else {
+                row.setStatus(ImportRowResult.Status.SKIP);
+                row.setMessage("user already exists");
             }
-        } else {
-            row.setStatus(ImportRowResult.Status.SKIP);
-            row.setMessage("user already exists");
+        } catch (Exception e) {
+            // Isolate a bad row so earlier successful rows remain auditable and the
+            // remaining file can still be processed.
+            fail(row, StringUtils.defaultIfBlank(e.getMessage(), "row processing failed"));
         }
     }
 

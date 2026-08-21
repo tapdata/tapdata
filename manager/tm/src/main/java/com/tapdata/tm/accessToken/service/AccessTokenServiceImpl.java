@@ -17,6 +17,7 @@ import com.tapdata.tm.user.service.UserServiceImpl;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.sso.entity.SsoSession;
 import com.tapdata.tm.utils.UUIDUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
@@ -49,6 +51,9 @@ public class AccessTokenServiceImpl implements AccessTokenService {
 
     @Autowired
     SettingsService settingsService;
+
+    @Autowired
+    MongoTemplate mongoTemplate;
 
     /** 解析后的 token 不活跃超时（秒），来自 Settings；带短期缓存，避免每次校验都查库 */
     private static final long TTL_CACHE_MS = 30_000L;
@@ -131,6 +136,19 @@ public class AccessTokenServiceImpl implements AccessTokenService {
         AccessTokenEntity accessTokenEntity = accessTokenRepository.getMongoOperations().findById(accessToken, AccessTokenEntity.class);
         if (accessTokenEntity == null)
             return null;
+
+        if (AuthType.SAML_LOGIN.getValue().equals(accessTokenEntity.getAuthType())) {
+            SsoSession ssoSession = mongoTemplate.findOne(
+                    Query.query(Criteria.where("accessTokenId").is(accessToken)), SsoSession.class);
+            if (ssoSession != null && ssoSession.getSessionNotOnOrAfter() != null
+                    && !new Date().before(ssoSession.getSessionNotOnOrAfter())) {
+                // IdP session expiry is authoritative for SAML tokens. Revoke both
+                // records so an expired assertion cannot be used again.
+                accessTokenRepository.getMongoOperations().remove(accessTokenEntity);
+                mongoTemplate.remove(Query.query(Criteria.where("accessTokenId").is(accessToken)), SsoSession.class);
+                return null;
+            }
+        }
 
         long now = System.currentTimeMillis();
         boolean isAccessCodeAuthType = AuthType.ACCESS_CODE.getValue().equals(accessTokenEntity.getAuthType());

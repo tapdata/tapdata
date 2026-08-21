@@ -17,11 +17,11 @@ import org.springframework.data.mongodb.core.index.IndexDefinition;
  * Creates the unique compound index (idpEntityId, nameId) on the SsoExternalIdentity
  * collection so that a NameID from a given IdP maps to exactly one binding.
  */
-@PatchAnnotation(appType = AppType.DAAS, version = "4.24-1")
-public class V4_24_1_SsoExternalIdentity_Index extends AbsPatch {
-    private static final Logger logger = LogManager.getLogger(V4_24_1_SsoExternalIdentity_Index.class);
+@PatchAnnotation(appType = AppType.DAAS, version = "4.24-5")
+public class V4_24_5_SsoExternalIdentity_Index extends AbsPatch {
+    private static final Logger logger = LogManager.getLogger(V4_24_5_SsoExternalIdentity_Index.class);
 
-    public V4_24_1_SsoExternalIdentity_Index(PatchType type, PatchVersion version) {
+    public V4_24_5_SsoExternalIdentity_Index(PatchType type, PatchVersion version) {
         super(type, version);
     }
 

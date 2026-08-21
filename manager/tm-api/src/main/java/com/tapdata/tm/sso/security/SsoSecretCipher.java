@@ -21,9 +21,7 @@ import java.util.Base64;
  * the ciphertext (which already carries the GCM authentication tag) and the whole
  * blob is Base64 encoded for storage. The 256-bit master key is injected from the
  * {@code SSO_MASTER_KEY} environment variable / property and is never persisted or
- * logged. For the current test deployment, a fixed development fallback is retained
- * when neither setting is supplied; production deployments must override it with a
- * secret-managed value. This intentionally replaces the legacy {@code AES256Util} (hardcoded key,
+ * logged. This intentionally replaces the legacy {@code AES256Util} (hardcoded key,
  * ECB mode) which is unsuitable for storing private keys.
  */
 @Component
@@ -40,7 +38,7 @@ public class SsoSecretCipher {
     private final SecureRandom secureRandom = new SecureRandom();
     private final byte[] masterKey;
 
-    public SsoSecretCipher(@Value("${sso.master.key:${SSO_MASTER_KEY:F2QiotN6p1mNV3IW+M8PXU41TEVtOJiy5kZ9yNLuW00=}}") String configuredKey) {
+    public SsoSecretCipher(@Value("${SSO_MASTER_KEY:${sso.master.key:}}") String configuredKey) {
         this.masterKey = deriveMasterKey(configuredKey);
     }
 

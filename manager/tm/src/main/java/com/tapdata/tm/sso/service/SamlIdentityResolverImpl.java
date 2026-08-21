@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -133,7 +134,7 @@ public class SamlIdentityResolverImpl implements SamlIdentityResolver {
             }
         }
         String nameId = subject.getNameId();
-        return nameId == null ? null : nameId.trim();
+        return nameId == null ? null : nameId.trim().toLowerCase(Locale.ROOT);
     }
 
     private SsoExternalIdentity findBinding(String idpEntityId, String nameId) {

@@ -84,6 +84,7 @@ public class SsoLoginController extends BaseController {
     @Operation(summary = "Start SP-Initiated SAML login (redirect to IdP)")
     @GetMapping("/login")
     public void login(@RequestParam(value = "relayState", required = false) String relayState,
+                      HttpServletRequest request,
                       HttpServletResponse response) throws IOException {
         if (!isSafeLocalRedirect(relayState)) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid RelayState");
@@ -95,8 +96,13 @@ public class SsoLoginController extends BaseController {
             return;
         }
         AuthnRequestResult result = samlAuthnRequestService.buildRedirect(config, relayState);
-        response.addCookie(buildRequestIdCookie(result.getRequestId()));
+        response.addCookie(buildRequestIdCookie(result.getRequestId(), request));
         response.sendRedirect(result.getRedirectUrl());
+    }
+
+    /** Compatibility overload for direct callers; MVC uses the request-aware method above. */
+    void login(String relayState, HttpServletResponse response) throws IOException {
+        login(relayState, null, response);
     }
 
     @Operation(summary = "Assertion Consumer Service (IdP posts SAML response here)")
@@ -207,6 +213,10 @@ public class SsoLoginController extends BaseController {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "SAML login is not enabled");
             return;
         }
+        if (!isSafeLocalRedirect(relayState)) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid RelayState");
+            return;
+        }
         // LogoutResponse completes an SP-Initiated flow: nothing to terminate here.
         if (StringUtils.isNotBlank(samlResponse)) {
             response.sendRedirect(buildPostLogoutRedirect(config, relayState));
@@ -250,6 +260,20 @@ public class SsoLoginController extends BaseController {
         if (StringUtils.isBlank(sigAlg)) {
             return null;
         }
+        String rawQuery = request == null ? null : request.getQueryString();
+        String rawRequest = rawQueryParameter(rawQuery, "SAMLRequest");
+        String rawRelay = rawQueryParameter(rawQuery, "RelayState");
+        String rawSigAlg = rawQueryParameter(rawQuery, "SigAlg");
+        if (StringUtils.isNotBlank(rawRequest) && StringUtils.isNotBlank(rawSigAlg)) {
+            StringBuilder raw = new StringBuilder("SAMLRequest=").append(rawRequest);
+            if (rawRelay != null) {
+                raw.append("&RelayState=").append(rawRelay);
+            }
+            raw.append("&SigAlg=").append(rawSigAlg);
+            return raw.toString();
+        }
+        // Test clients and servlet containers may not expose the raw query string;
+        // retain a standards-compliant fallback for those callers.
         StringBuilder sb = new StringBuilder();
         sb.append("SAMLRequest=").append(URLEncoder.encode(samlRequest, StandardCharsets.UTF_8));
         if (StringUtils.isNotBlank(relayState)) {
@@ -257,6 +281,20 @@ public class SsoLoginController extends BaseController {
         }
         sb.append("&SigAlg=").append(URLEncoder.encode(sigAlg, StandardCharsets.UTF_8));
         return sb.toString();
+    }
+
+    private String rawQueryParameter(String query, String name) {
+        if (StringUtils.isBlank(query)) {
+            return null;
+        }
+        for (String part : query.split("&", -1)) {
+            int equals = part.indexOf('=');
+            String key = equals >= 0 ? part.substring(0, equals) : part;
+            if (name.equals(key)) {
+                return equals >= 0 ? part.substring(equals + 1) : "";
+            }
+        }
+        return null;
     }
 
     private String buildPostLogoutRedirect(SamlConfig config, String relayState) {
@@ -341,13 +379,35 @@ public class SsoLoginController extends BaseController {
         return LOGIN_ERROR_REDIRECT + "?sso_error=" + URLEncoder.encode(code, StandardCharsets.UTF_8);
     }
 
-    private Cookie buildRequestIdCookie(String requestId) {
+    private Cookie buildRequestIdCookie(String requestId, HttpServletRequest request) {
         Cookie cookie = new Cookie(REQUEST_ID_COOKIE, requestId);
         cookie.setHttpOnly(true);
-        cookie.setSecure(true);
+        boolean secure = isSecureRequest(request);
+        cookie.setSecure(secure);
+        // SameSite=None is required for the cross-site IdP POST. It is only valid
+        // with Secure, so use Lax for private HTTP deployments where None would be
+        // rejected by browsers.
+        cookie.setAttribute("SameSite", secure ? "None" : "Lax");
         cookie.setPath("/");
         cookie.setMaxAge(600);
         return cookie;
+    }
+
+    private boolean isSecureRequest(HttpServletRequest request) {
+        if (request == null) {
+            return false;
+        }
+        if (request.isSecure()) {
+            return true;
+        }
+        String forwardedProto = request.getHeader("X-Forwarded-Proto");
+        if (StringUtils.isNotBlank(forwardedProto)
+                && "https".equalsIgnoreCase(forwardedProto.split(",", 2)[0].trim())) {
+            return true;
+        }
+        String forwarded = request.getHeader("Forwarded");
+        return StringUtils.isNotBlank(forwarded)
+                && forwarded.toLowerCase(java.util.Locale.ROOT).contains("proto=https");
     }
 
     private String readRequestIdCookie(HttpServletRequest request) {

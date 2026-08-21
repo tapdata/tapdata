@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Default {@link SamlProvisioningService}. Roles are resolved by exact name and created
@@ -56,7 +57,7 @@ public class SamlProvisioningServiceImpl implements SamlProvisioningService {
         if (StringUtils.isBlank(email)) {
             throw new IllegalArgumentException("email must not be blank");
         }
-        String normalizedEmail = email.trim();
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
 
         CreateUserRequest request = new CreateUserRequest();
         request.setEmail(normalizedEmail);
