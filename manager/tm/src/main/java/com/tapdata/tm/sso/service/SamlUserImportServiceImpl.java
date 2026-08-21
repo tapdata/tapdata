@@ -44,7 +44,9 @@ import java.util.regex.Pattern;
 @Service
 public class SamlUserImportServiceImpl implements SamlUserImportService {
 
-    private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+    // Possessive quantifiers prevent regex backtracking on untrusted import data.
+    private static final Pattern EMAIL = Pattern.compile(
+            "\\A[^@\\s]++@[^@\\s.]++(?:\\.[^@\\s.]++)++\\z");
 
     private final DataFormatter dataFormatter = new DataFormatter();
 
@@ -189,7 +191,7 @@ public class SamlUserImportServiceImpl implements SamlUserImportService {
         if (userChanged) {
             mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(user.getId())), userUpdate, User.class);
         }
-        userLogService.addUserLog(Modular.USER, Operation.BATCH_UPDATE, actor,
+        userLogService.addUserLog(Modular.USER, Operation.UPDATE, actor,
                 principalId, user.getEmail(), StringUtils.join(roleNames == null ? List.of() : roleNames, ","), false);
     }
 
