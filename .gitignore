@@ -127,6 +127,10 @@ fileObserveLogAppenderV2/
 iengine/test
 iengine/**/debug_data
 iengine/**/cache
+!iengine/modules/observable-module/src/main/java/io/tapdata/observable/logging/cache/
+!iengine/modules/observable-module/src/main/java/io/tapdata/observable/logging/cache/**
+!iengine/modules/observable-module/src/test/java/io/tapdata/observable/logging/cache/
+!iengine/modules/observable-module/src/test/java/io/tapdata/observable/logging/cache/**
 
 
 **/.jython_cache/
@@ -137,7 +141,5 @@ sybase-poc-temp/
 .tmStartMsg.json
 
 run-resources
-data/
-ll
 
 **/.proxy-instance-id

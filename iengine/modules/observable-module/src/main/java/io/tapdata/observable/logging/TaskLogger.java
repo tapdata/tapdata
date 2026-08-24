@@ -25,6 +25,8 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -37,6 +39,7 @@ import java.util.function.Consumer;
  * @author Dexter
  **/
 public class TaskLogger extends ObsLogger {
+	private static final Logger LOGGER = LoggerFactory.getLogger(TaskLogger.class);
 	private static final Long RECORD_CEILING_DEFAULT = 500L;
 	private static final Long INTERVAL_CEILING_DEFAULT = 500L;
 	private static final long serialVersionUID = -5640539419072201312L;
@@ -213,7 +216,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.TRACE.toString());
 		builder.message(formatMessage(message, params));
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	public void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
@@ -225,7 +228,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.DEBUG.toString());
 		builder.message(formatMessage(message, params));
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	public void info(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
@@ -237,7 +240,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.INFO.toString());
 		builder.message(formatMessage(message, params));
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	public void warn(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
@@ -249,7 +252,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.WARN.toString());
 		builder.message(formatMessage(message, params));
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	public void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
@@ -266,7 +269,7 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.ERROR.toString());
 		buildErrorMessage(throwable, parameterizedMessage, builder);
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
 	}
 
 	@Nullable
@@ -291,7 +294,15 @@ public class TaskLogger extends ObsLogger {
 		builder.level(Level.FATAL.toString());
 		buildErrorMessage(throwable, parameterizedMessage, builder);
 
-		logAppendFactory.appendLog(builder.build());
+		appendLog(builder.build());
+	}
+
+	private void appendLog(MonitoringLogsDto logsDto) {
+		if (testTask) {
+			logAppendFactory.appendLogWithoutCache(logsDto);
+			return;
+		}
+		logAppendFactory.appendLog(logsDto);
 	}
 
 	@Override
@@ -354,6 +365,7 @@ public class TaskLogger extends ObsLogger {
 				tapObsAppender.start();
 			}
 		}
+		resumeCache();
 	}
 
 	public void close() throws Exception {
@@ -379,6 +391,26 @@ public class TaskLogger extends ObsLogger {
 						.build();
 				manager.setRolloverStrategy(strategy);
 				manager.setTriggeringPolicy(compositeTriggeringPolicy);
+			}
+		}
+	}
+
+	void pauseCache() {
+		if (logAppendFactory != null && !testTask) {
+			try {
+				logAppendFactory.deactivateTask(taskId);
+			} catch (RuntimeException e) {
+				LOGGER.warn("Deactivate task CacheObserveLogs failed, taskId={}", taskId, e);
+			}
+		}
+	}
+
+	void resumeCache() {
+		if (logAppendFactory != null && !testTask) {
+			try {
+				logAppendFactory.activateTask(taskId, taskName);
+			} catch (RuntimeException e) {
+				LOGGER.warn("Activate task CacheObserveLogs failed, taskId={}", taskId, e);
 			}
 		}
 	}

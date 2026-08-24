@@ -134,7 +134,10 @@ make_package_connectors() {
   mv $CONNECTOR_DIR/connectors/dist $CONNECTOR_DIR/connectors/backup
   mkdir -p $CONNECTOR_DIR/connectors/dist/
   for item in $CONNECTORS_LIST; do
-    find $CONNECTOR_DIR/connectors/backup/ -type f -name "${item}" | xargs -I {} mv {} $CONNECTOR_DIR/connectors/dist/
+    base_name=${item%.jar}
+    while IFS= read -r -d '' jar; do
+      mv "$jar" "$CONNECTOR_DIR/connectors/dist/"
+    done < <(find $CONNECTOR_DIR/connectors/backup/ -type f \( -name "${item}" -o -name "${base_name}-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].jar" \) -print0)
   done
 
   mkdir -p $OUTPUT_DIR/connectors/dist/

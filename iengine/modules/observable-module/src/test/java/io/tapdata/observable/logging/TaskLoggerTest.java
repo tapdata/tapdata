@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.TriggeringPolicy;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -208,6 +209,88 @@ public class TaskLoggerTest {
             verify(taskLogger, times(1)).closeCatchData();
             Assertions.assertFalse((Boolean) ReflectionTestUtils.getField(taskLogger, "enableDebugLogger"));
 
+        }
+
+        @Test
+        void testCacheLifecycleDelegatesToAppenderFactory() {
+            TaskLogger taskLogger = mock(TaskLogger.class);
+            AppenderFactory appenderFactory = mock(AppenderFactory.class);
+            ReflectionTestUtils.setField(taskLogger, "taskId", "task-id");
+            ReflectionTestUtils.setField(taskLogger, "taskName", "task-name");
+            ReflectionTestUtils.setField(taskLogger, "logAppendFactory", appenderFactory);
+            doCallRealMethod().when(taskLogger).pauseCache();
+            doCallRealMethod().when(taskLogger).resumeCache();
+
+            taskLogger.resumeCache();
+            taskLogger.pauseCache();
+
+            verify(appenderFactory).activateTask("task-id", "task-name");
+            verify(appenderFactory).deactivateTask("task-id");
+        }
+
+        @Test
+        void testCacheLifecycleFailureDoesNotEscapeLogger() {
+            TaskLogger taskLogger = mock(TaskLogger.class);
+            AppenderFactory appenderFactory = mock(AppenderFactory.class);
+            ReflectionTestUtils.setField(taskLogger, "taskId", "task-id");
+            ReflectionTestUtils.setField(taskLogger, "taskName", "task-name");
+            ReflectionTestUtils.setField(taskLogger, "logAppendFactory", appenderFactory);
+            doCallRealMethod().when(taskLogger).pauseCache();
+            doCallRealMethod().when(taskLogger).resumeCache();
+            doThrow(new IllegalStateException("activate failed"))
+                    .when(appenderFactory).activateTask("task-id", "task-name");
+            doThrow(new IllegalStateException("deactivate failed"))
+                    .when(appenderFactory).deactivateTask("task-id");
+
+            Assertions.assertDoesNotThrow(taskLogger::resumeCache);
+            Assertions.assertDoesNotThrow(taskLogger::pauseCache);
+        }
+
+        @Test
+        void testStartActivatesCacheAfterAppenderStarts() {
+            TaskLogger taskLogger = mock(TaskLogger.class);
+            AppenderFactory appenderFactory = mock(AppenderFactory.class);
+            Appender<?> appender = mock(Appender.class);
+            List<Appender<?>> appenders = new ArrayList<>();
+            appenders.add(appender);
+            ReflectionTestUtils.setField(taskLogger, "taskId", "task-id");
+            ReflectionTestUtils.setField(taskLogger, "taskName", "task-name");
+            ReflectionTestUtils.setField(taskLogger, "logAppendFactory", appenderFactory);
+            ReflectionTestUtils.setField(taskLogger, "tapObsAppenders", appenders);
+            doCallRealMethod().when(taskLogger).start();
+            doCallRealMethod().when(taskLogger).resumeCache();
+
+            taskLogger.start();
+
+            org.mockito.InOrder order = inOrder(appender, appenderFactory);
+            order.verify(appender).start();
+            order.verify(appenderFactory).activateTask("task-id", "task-name");
+        }
+
+        @Test
+        void testTestTaskDoesNotActivateCacheAndAppendsDirectly() {
+            TaskLogger taskLogger = mock(TaskLogger.class);
+            AppenderFactory appenderFactory = mock(AppenderFactory.class);
+            ReflectionTestUtils.setField(taskLogger, "taskId", "test-task-id");
+            ReflectionTestUtils.setField(taskLogger, "taskName", "test-task-name");
+            ReflectionTestUtils.setField(taskLogger, "testTask", true);
+            ReflectionTestUtils.setField(taskLogger, "logAppendFactory", appenderFactory);
+            ReflectionTestUtils.setField(taskLogger, "tapObsAppenders", new ArrayList<>());
+            doCallRealMethod().when(taskLogger).start();
+            doCallRealMethod().when(taskLogger).resumeCache();
+            doCallRealMethod().when(taskLogger).noNeedLog(any());
+            doCallRealMethod().when(taskLogger).info(
+                    ArgumentMatchers.<Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder>>any(),
+                    anyString(),
+                    any(Object[].class));
+
+            taskLogger.start();
+            taskLogger.info(() -> MonitoringLogsDto.builder().taskId("test-task-id"), "test log");
+
+            verify(appenderFactory, never()).activateTask(anyString(), anyString());
+            verify(appenderFactory, never()).appendLog(any());
+            verify(appenderFactory).appendLogWithoutCache(argThat(log ->
+                    "test-task-id".equals(log.getTaskId()) && "test log".equals(log.getMessage())));
         }
     }
 

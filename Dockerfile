@@ -170,7 +170,7 @@ IFS=','; for raw in $CONNECTOR_IDS; do
     continue
   fi
 
-  cp "$jar" "/app/pdk/dist/${id}-connector.jar" || true
+  cp "$jar" "/app/pdk/dist/$(basename "$jar")" || true
 done
 EOF
 

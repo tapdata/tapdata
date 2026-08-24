@@ -8,6 +8,7 @@ import io.tapdata.firedome.PrometheusName;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkBaseNode;
 import io.tapdata.flow.engine.V2.task.OpType;
 import io.tapdata.flow.engine.V2.util.TaskOperationQueue;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -113,9 +114,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private static final ScheduledExecutorService taskResetRetryServiceScheduledThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Task-Reset-Retry-Service-Scheduled-Runner"));
 	//private ThreadPoolExecutorEx threadPoolExecutorEx;
 
-	// 引擎启动时任务接管的频率控制
+	// Frequency control of task takeover during engine startup (value range [1s ~ 60s], default is 10s)
+	private static final long ENGINE_START_TASK_INTERVAL_MILLIS = Math.min(Math.max(CommonUtils.getPropertyLong("ENGINE_START_TASK_INTERVAL_MILLIS", 10_000L), 1_000L), 60_000L);
+	private static final long ENGINE_START_PENDING_REFRESH_INTERVAL_MILLIS = 10_000L;
 	private final LinkedBlockingQueue<TaskDto> engineStartTaskQueue = new LinkedBlockingQueue<>();
-	private final ScheduledExecutorService engineStartTaskScheduler = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Engine-Start-Task-Scheduler"));
+	private final Map<String, TaskDto> engineStartPendingTaskMap = new ConcurrentHashMap<>();
+	private final ScheduledExecutorService engineStartTaskScheduler = new ScheduledThreadPoolExecutor(2, r -> new Thread(r, "Engine-Start-Task-Scheduler"));
 	private volatile boolean engineStartTaskSchedulerStarted = false;
 
 	// TAP-12028: 常驻低频对账兜底 + WS(重)连即拉取，确保分配给本引擎(agentId=instanceNo)的
@@ -246,10 +250,17 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
 					taskId = startTaskOperation.getTaskDto().getId().toHexString();
 					TaskDto taskDto = startTaskOperation.getTaskDto();
-					if (!taskLock.tryRun(taskId, ()-> startTask(taskDto), 1L, TimeUnit.SECONDS)) {
-						logger.warn("Start task {} failed because of task lock, will ignored", taskDto.getName());
-						ObsLoggerFactory.getInstance().getObsLogger(taskDto).warn("Start task failed because of task lock, will ignored");
-						ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
+					try {
+						if (engineStartPendingTaskMap.containsKey(taskId)) {
+							refreshEngineStartTaskPingTime(taskDto, System.currentTimeMillis());
+						}
+						if (!taskLock.tryRun(taskId, ()-> startTask(taskDto), 1L, TimeUnit.SECONDS)) {
+							logger.warn("Start task {} failed because of task lock, will ignored", taskDto.getName());
+							ObsLoggerFactory.getInstance().getObsLogger(taskDto).warn("Start task failed because of task lock, will ignored");
+							ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
+						}
+					} finally {
+						engineStartPendingTaskMap.remove(taskId);
 					}
 				} else if (taskOperation instanceof StopTaskOperation stopTaskOperation) {
 					Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
@@ -397,9 +408,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (CollectionUtils.isNotEmpty(tasks)) {
 			logger.info("Found task(s) already running before engine start, will queue these task(s) for rate-limited startup\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
 
-			// 将任务加入队列
 			for (TaskDto task : tasks) {
+				refreshEngineStartTaskPingTime(task, System.currentTimeMillis());
 				try {
+					engineStartPendingTaskMap.put(task.getId().toHexString(), task);
 					engineStartTaskQueue.offer(task);
 					logger.info("Queued task for rate-limited startup: {} ({})", task.getName(), task.getId().toHexString());
 				} catch (Exception e) {
@@ -410,8 +422,33 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			// 启动调度器（如果还没启动）
 			startEngineStartTaskScheduler();
 		} else {
-            logger.info("No task(s) found to start");
-        }
+			logger.info("No task(s) found to start");
+		}
+	}
+
+	private void refreshEngineStartPendingTaskPingTime() {
+		if (engineStartPendingTaskMap.isEmpty()) {
+			return;
+		}
+		long pingTime = System.currentTimeMillis();
+		engineStartPendingTaskMap.values()
+				.stream()
+				.filter(task -> task != null && task.getId() != null)
+				.forEach(task -> refreshEngineStartTaskPingTime(task, pingTime));
+	}
+
+	private void refreshEngineStartTaskPingTime(TaskDto task, long pingTime) {
+		if (task == null || task.getId() == null) {
+			return;
+		}
+		try {
+			task.setPingTime(pingTime);
+			Update update = Update.update(TaskDto.PING_TIME_FIELD, pingTime);
+			clientMongoOperator.update(Query.query(Criteria.where("_id").is(task.getId())), update, ConnectorConstant.TASK_COLLECTION);
+		} catch (Exception e) {
+			logger.warn("Failed to refresh engine startup task ping time: {} ({}), pingTime: {}, error: {}",
+					task.getName(), task.getId().toHexString(), pingTime, e.getMessage(), e);
+		}
 	}
 
 	/**
@@ -422,8 +459,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 
-		logger.info("Starting engine start task scheduler with 10-second rate limiting");
-		engineStartTaskScheduler.scheduleWithFixedDelay(this::processEngineStartTaskQueue, 0, 10, TimeUnit.SECONDS);
+		logger.info("Starting engine start task scheduler with {}ms rate limiting", ENGINE_START_TASK_INTERVAL_MILLIS);
+		engineStartTaskScheduler.scheduleWithFixedDelay(this::processEngineStartTaskQueue, 0, ENGINE_START_TASK_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+		engineStartTaskScheduler.scheduleWithFixedDelay(this::refreshEngineStartPendingTaskPingTime, ENGINE_START_PENDING_REFRESH_INTERVAL_MILLIS, ENGINE_START_PENDING_REFRESH_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
 		engineStartTaskSchedulerStarted = true;
 	}
 
@@ -894,18 +932,18 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 		String taskId = taskClient.getTask().getId().toHexString();
-		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask());
 		try {
 			removeTask(taskId);
-			obsLogger.trace(String.format("Remove memory task client succeed, task: %s[%s]",
-					taskClient.getTask().getName(), taskClient.getTask().getId()));
+			logger.trace("Remove memory task client succeed, task: {}[{}]",
+					taskClient.getTask().getName(), taskClient.getTask().getId());
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Remove memory task client failed, task: %s[%s]",
-					taskClient.getTask().getName(), taskClient.getTask().getId()), e);
+				taskClient.getTask().getName(), taskClient.getTask().getId()), e);
 		}
 		try {
 			destroyCache(taskClient);
-			obsLogger.trace(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()));
+			logger.trace("Destroy memory task client cache succeed, task: {}[{}]",
+					taskClient.getTask().getName(), taskClient.getTask().getId());
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()), e);
 		}
