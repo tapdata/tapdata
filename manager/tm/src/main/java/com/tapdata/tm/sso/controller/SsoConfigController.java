@@ -74,6 +74,12 @@ public class SsoConfigController extends BaseController {
         return success(samlValidationService.validate(form));
     }
 
+    @Operation(summary = "Test the SAML configuration")
+    @PostMapping("/test")
+    public ResponseMessage<SamlValidationResult> test(@RequestBody SamlConfigForm form) {
+        return success(samlValidationService.validate(form));
+    }
+
     @Operation(summary = "Parse an IdP metadata XML document to prefill IdP fields")
     @PostMapping("/import-idp-metadata")
     public ResponseMessage<IdpMetadata> importIdpMetadata(@RequestBody MetadataImportRequest request) {

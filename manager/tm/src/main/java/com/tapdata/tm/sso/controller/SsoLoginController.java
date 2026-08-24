@@ -159,7 +159,7 @@ public class SsoLoginController extends BaseController {
             log.warn("SAML ACS validation failed: {}", e.getMessage());
             response.sendRedirect(buildLoginErrorRedirect(resolveErrorCode(e)));
         } catch (Exception e) {
-            log.error("SAML ACS processing error: {}", e.getMessage());
+            log.error("SAML ACS processing error", e);
             response.sendRedirect(buildLoginErrorRedirect(SamlLoginError.SSO_FAILED.getCode()));
         }
     }

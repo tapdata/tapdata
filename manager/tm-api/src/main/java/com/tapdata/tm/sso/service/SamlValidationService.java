@@ -21,4 +21,5 @@ public interface SamlValidationService {
      * @return the validation result (errors + warnings).
      */
     SamlValidationResult validate(SamlConfigForm form);
+
 }

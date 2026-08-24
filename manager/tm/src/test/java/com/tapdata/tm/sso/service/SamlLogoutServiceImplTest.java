@@ -49,6 +49,7 @@ class SamlLogoutServiceImplTest {
                 .idpEntityId("https://idp/entity")
                 .idpSloUrl("https://idp/slo")
                 .idpSigningCertificate(keyPair.getCertificatePem())
+                .spPrivateKey(keyPair.getPrivateKeyPem())
                 .nameIdFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress")
                 .build();
     }
@@ -72,6 +73,8 @@ class SamlLogoutServiceImplTest {
         assertTrue(result.getRedirectUrl().startsWith("https://idp/slo?"));
         assertTrue(result.getRedirectUrl().contains("SAMLRequest="));
         assertTrue(result.getRedirectUrl().contains("RelayState=state-1"));
+        assertTrue(result.getRedirectUrl().contains("SigAlg="));
+        assertTrue(result.getRedirectUrl().contains("Signature="));
     }
 
     @Test
@@ -161,6 +164,8 @@ class SamlLogoutServiceImplTest {
         assertTrue(result.getRedirectUrl().startsWith("https://idp/slo?"));
         assertTrue(result.getRedirectUrl().contains("SAMLResponse="));
         assertTrue(result.getRedirectUrl().contains("RelayState=state-2"));
+        assertTrue(result.getRedirectUrl().contains("SigAlg="));
+        assertTrue(result.getRedirectUrl().contains("Signature="));
     }
 
     @Test

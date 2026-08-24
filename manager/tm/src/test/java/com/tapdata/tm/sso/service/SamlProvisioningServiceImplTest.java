@@ -115,16 +115,21 @@ class SamlProvisioningServiceImplTest {
     }
 
     @Test
-    @DisplayName("no role names -> user created with empty role list, no role lookups")
+    @DisplayName("no role names -> user receives registered default roles")
     void provisionsUserWithoutRoles() {
+        RoleDto defaultRole = new RoleDto();
+        defaultRole.setId(new ObjectId());
+        defaultRole.setRegisterUserDefault(true);
+        when(roleService.findAll(any(Query.class))).thenReturn(List.of(defaultRole));
         User created = new User();
         created.setId(new ObjectId());
         when(mongoTemplate.findOne(any(Query.class), any())).thenReturn(created);
 
         service.provisionUser("nobody@corp.com", "nobody", null, actor);
 
-        verify(roleService, never()).findOne(any(Query.class));
-        verify(userService, times(1)).save(any(CreateUserRequest.class), any());
+        ArgumentCaptor<CreateUserRequest> captor = ArgumentCaptor.forClass(CreateUserRequest.class);
+        verify(userService, times(1)).save(captor.capture(), any());
+        assertEquals(List.of(defaultRole.getId().toHexString()), captor.getValue().getRoleusers());
     }
 
     @Test

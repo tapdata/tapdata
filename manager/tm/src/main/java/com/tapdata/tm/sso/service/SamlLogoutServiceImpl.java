@@ -50,7 +50,7 @@ import java.util.zip.InflaterInputStream;
 /**
  * OpenSAML-backed {@link SamlLogoutService}. Builds standards-compliant LogoutRequest /
  * LogoutResponse messages for the HTTP-Redirect binding (DEFLATE + Base64 + URL-encode,
- * optionally signed with the SP private key) and validates inbound LogoutRequests against
+ * signed with the SP private key) and validates inbound LogoutRequests against
  * the IdP signing certificate, rejecting weak algorithms and replayed message ids.
  */
 @Service
@@ -212,11 +212,11 @@ public class SamlLogoutServiceImpl implements SamlLogoutService {
         if (StringUtils.isNotBlank(relayState)) {
             query.append("&RelayState=").append(urlEncode(relayState));
         }
-        if (config.isSignAuthnRequest()) {
-            query.append("&SigAlg=").append(urlEncode(REDIRECT_SIG_ALG));
-            String signature = signQuery(query.toString(), config.getSpPrivateKey());
-            query.append("&Signature=").append(urlEncode(signature));
-        }
+        // IdP providers such as AD FS require LogoutRequest and LogoutResponse
+        // messages to be signed even when AuthnRequest signing is disabled.
+        query.append("&SigAlg=").append(urlEncode(REDIRECT_SIG_ALG));
+        String signature = signQuery(query.toString(), config.getSpPrivateKey());
+        query.append("&Signature=").append(urlEncode(signature));
         String separator = config.getIdpSloUrl().contains("?") ? "&" : "?";
         return config.getIdpSloUrl() + separator + query;
     }

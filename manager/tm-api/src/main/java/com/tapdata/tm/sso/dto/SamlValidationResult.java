@@ -17,6 +17,7 @@ public class SamlValidationResult {
     private boolean valid;
     private final List<String> errors = new ArrayList<>();
     private final List<String> warnings = new ArrayList<>();
+    private final List<String> details = new ArrayList<>();
 
     public void addError(String message) {
         errors.add(message);
@@ -24,6 +25,10 @@ public class SamlValidationResult {
 
     public void addWarning(String message) {
         warnings.add(message);
+    }
+
+    public void addDetail(String message) {
+        details.add(message);
     }
 
     /** Recompute {@link #valid} from the current error list. */

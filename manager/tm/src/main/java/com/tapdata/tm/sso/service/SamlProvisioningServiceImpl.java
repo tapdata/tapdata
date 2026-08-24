@@ -7,6 +7,7 @@ import com.tapdata.tm.user.dto.CreateUserRequest;
 import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.service.UserService;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -78,6 +79,17 @@ public class SamlProvisioningServiceImpl implements SamlProvisioningService {
                 if (StringUtils.isNotBlank(roleName)) {
                     roleIds.add(resolveOrCreateRoleId(roleName, actor));
                 }
+            }
+        }
+        if (roleIds.isEmpty()) {
+            List<RoleDto> defaultRoles = roleService.findAll(
+                    Query.query(Criteria.where("register_user_default").is(true)));
+            if (defaultRoles != null) {
+                defaultRoles.stream()
+                        .map(RoleDto::getId)
+                        .filter(java.util.Objects::nonNull)
+                        .map(ObjectId::toHexString)
+                        .forEach(roleIds::add);
             }
         }
         return roleIds;

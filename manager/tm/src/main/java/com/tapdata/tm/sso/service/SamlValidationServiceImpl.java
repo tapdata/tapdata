@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateFactory;
+import java.net.URI;
 import java.util.Locale;
 import java.util.Set;
 
@@ -34,6 +35,11 @@ public class SamlValidationServiceImpl implements SamlValidationService {
         requireField(result, form.getIdpSsoUrl(), "IdP SSO URL (idpSsoUrl)");
         requireField(result, form.getIdpSigningCertificate(), "IdP signing certificate (idpSigningCertificate)");
 
+        validateUrl(result, form.getSpAcsUrl(), "SP ACS URL");
+        validateUrl(result, form.getSpSloUrl(), "SP SLO URL");
+        validateUrl(result, form.getIdpSsoUrl(), "IdP SSO URL");
+        validateUrl(result, form.getIdpSloUrl(), "IdP SLO URL");
+
         validateCertificate(result, form.getIdpSigningCertificate(), "IdP signing certificate");
         validateCertificate(result, form.getSpCertificate(), "SP certificate");
         validateAlgorithm(result, form.getSignatureAlgorithm());
@@ -47,6 +53,21 @@ public class SamlValidationServiceImpl implements SamlValidationService {
     private void requireField(SamlValidationResult result, String value, String label) {
         if (StringUtils.isBlank(value)) {
             result.addError(label + " is required");
+        }
+    }
+
+    private void validateUrl(SamlValidationResult result, String value, String label) {
+        if (StringUtils.isBlank(value)) {
+            return;
+        }
+        try {
+            URI uri = URI.create(value.trim());
+            boolean http = "http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme());
+            if (!http || StringUtils.isBlank(uri.getHost()) || uri.getUserInfo() != null || uri.getFragment() != null) {
+                result.addError(label + " must be a valid HTTP or HTTPS URL");
+            }
+        } catch (IllegalArgumentException e) {
+            result.addError(label + " must be a valid HTTP or HTTPS URL");
         }
     }
 
@@ -73,6 +94,9 @@ public class SamlValidationServiceImpl implements SamlValidationService {
             factory.generateCertificate(new ByteArrayInputStream(normalized.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {
             result.addError(label + " is not a valid X.509 certificate");
+            if (StringUtils.isNotBlank(e.getMessage())) {
+                result.addDetail(label + ": " + e.getMessage());
+            }
         }
     }
 
