@@ -61,7 +61,7 @@ public class ExternalStorageController extends BaseController {
 	@PostMapping
 	public ResponseMessage<ExternalStorageDto> save(@RequestBody(required = false) ExternalStorageDto externalStorage) {
 		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
-			return success(externalStorageService.save(externalStorage, getLoginUser()));
+			return success(maskUriPassword(externalStorageService.save(externalStorage, getLoginUser())));
 		} else {
 			throw new BizException("NotAuthorized");
 		}
@@ -77,7 +77,7 @@ public class ExternalStorageController extends BaseController {
 	@PatchMapping()
 	public ResponseMessage<ExternalStorageDto> update(@RequestBody ExternalStorageDto externalStorage) {
 		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
-			return success(externalStorageService.update(externalStorage, getLoginUser()));
+			return success(maskUriPassword(externalStorageService.update(externalStorage, getLoginUser())));
 		} else {
 			throw new BizException("NotAuthorized");
 		}
@@ -145,7 +145,7 @@ public class ExternalStorageController extends BaseController {
 	public ResponseMessage<ExternalStorageDto> updateById(@PathVariable("id") String id, @RequestBody ExternalStorageDto externalStorage) {
 		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
 			externalStorage.setId(MongoUtils.toObjectId(id));
-			return success(externalStorageService.update(externalStorage, getLoginUser()));
+			return success(maskUriPassword(externalStorageService.update(externalStorage, getLoginUser())));
 		}else{
 			throw new BizException("NotAuthorized");
 		}
@@ -165,10 +165,7 @@ public class ExternalStorageController extends BaseController {
 														@RequestParam(value = "fields", required = false) String fieldsJson) {
 		Field fields = parseField(fieldsJson);
 		ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(id), fields, getLoginUser());
-		if (null != externalStorageDto) {
-			externalStorageDto.setUri(externalStorageDto.maskUriPassword());
-		}
-		return success(externalStorageDto);
+		return success(maskUriPassword(externalStorageDto));
 	}
 
 	/**
@@ -241,7 +238,7 @@ public class ExternalStorageController extends BaseController {
 		if (filter == null) {
 			filter = new Filter();
 		}
-		return success(externalStorageService.findOne(filter, getLoginUser()));
+		return success(maskUriPassword(externalStorageService.findOne(filter, getLoginUser())));
 	}
 
 	/**
@@ -292,7 +289,14 @@ public class ExternalStorageController extends BaseController {
 	@PostMapping("upsertWithWhere")
 	public ResponseMessage<ExternalStorageDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody ExternalStorageDto externalStorage) {
 		Where where = parseWhere(whereJson);
-		return success(externalStorageService.upsertByWhere(where, externalStorage, getLoginUser()));
+		return success(maskUriPassword(externalStorageService.upsertByWhere(where, externalStorage, getLoginUser())));
+	}
+
+	private ExternalStorageDto maskUriPassword(ExternalStorageDto externalStorageDto) {
+		if (null != externalStorageDto) {
+			externalStorageDto.setUri(externalStorageDto.maskUriPassword());
+		}
+		return externalStorageDto;
 	}
 
 	@Operation(summary = "Set default external storage")

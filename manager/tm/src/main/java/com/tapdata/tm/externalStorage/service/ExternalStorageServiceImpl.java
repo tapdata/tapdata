@@ -9,6 +9,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -99,7 +100,7 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 				sendTestConnection(result, userDetail);
 			}
 		}
-		return result;
+		return maskPasswordIfNeed(result);
 	}
 
 
@@ -280,6 +281,11 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 			return null;
 		}
 		return super.findById(new ObjectId(id), new Field());
+	}
+
+	@Override
+	public ExternalStorageDto upsertByWhere(Where where, ExternalStorageDto dto, UserDetail userDetail) {
+		return maskPasswordIfNeed(super.upsertByWhere(where, dto, userDetail));
 	}
 
 	@Override

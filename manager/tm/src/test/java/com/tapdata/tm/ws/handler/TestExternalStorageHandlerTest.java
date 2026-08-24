@@ -89,6 +89,8 @@ public class TestExternalStorageHandlerTest {
             when(dataSourceDefinitionService.dataSourceTypesV2(userDetail, filter)).thenReturn(list);
             MessageInfo messageInfo = testExternalStorageHandler.wrapMessageInfo(userDetail, externalStorageConfig, MessageType.TEST_EXTERNAL_STORAGE);
             assertEquals("Mongodb", messageInfo.getData().get("database_type"));
+            Map<String, Object> connectorConfig = (Map<String, Object>) messageInfo.getData().get("config");
+            assertEquals("mongodb://admin:password@localhost:27017/test", connectorConfig.get("uri"));
         }
 
     }
