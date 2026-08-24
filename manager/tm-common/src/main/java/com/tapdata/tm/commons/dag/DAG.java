@@ -81,6 +81,10 @@ public class DAG implements Serializable, Cloneable {
     @Setter
     private String ownerId;
 
+    static {
+        goInit();
+    }
+
     public static void goInit() {
         try {
             ClassPathScanningCandidateComponentProvider classPathScanningCandidateComponentProvider =
