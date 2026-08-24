@@ -23,6 +23,7 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.utils.AppType;
 import io.tapdata.utils.UnitTestUtils;
 import org.apache.logging.log4j.Logger;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
@@ -887,6 +888,243 @@ public class TapdataTaskSchedulerTest {
 			verify(logger, times(1)).info(anyString(), anyString(), anyString());
 			verify(logger, times(1)).warn(anyString(), anyString(), anyString(), any(Exception.class));
 			verify(taskOpRespDto, times(0)).getSuccessIds();
+		}
+	}
+
+	@Nested
+	@DisplayName("Method refreshEngineStartTaskPingTime test")
+	class RefreshEngineStartTaskPingTimeTest {
+		private TapdataTaskScheduler scheduler;
+		private ClientMongoOperator clientMongoOperator;
+		private Logger logger;
+
+		@BeforeEach
+		void setUp() {
+			scheduler = new TapdataTaskScheduler();
+			clientMongoOperator = mock(ClientMongoOperator.class);
+			logger = mock(Logger.class);
+			ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
+			ReflectionTestUtils.setField(scheduler, "logger", logger);
+		}
+
+		@Test
+		@DisplayName("refreshEngineStartTaskPingTime with null task should return immediately")
+		void testWithNullTask() {
+			ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartTaskPingTime", null, System.currentTimeMillis());
+			verifyNoInteractions(clientMongoOperator);
+		}
+
+		@Test
+		@DisplayName("refreshEngineStartTaskPingTime with task id null should return immediately")
+		void testWithNullTaskId() {
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(null);
+			taskDto.setName("test-task");
+
+			ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartTaskPingTime", taskDto, System.currentTimeMillis());
+			verifyNoInteractions(clientMongoOperator);
+		}
+
+		@Test
+		@DisplayName("refreshEngineStartTaskPingTime normal case should update ping time")
+		void testNormalCase() {
+			ObjectId taskId = new ObjectId();
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(taskId);
+			taskDto.setName("test-task");
+			long pingTime = System.currentTimeMillis();
+
+			ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartTaskPingTime", taskDto, pingTime);
+
+			assertEquals(pingTime, taskDto.getPingTime());
+			verify(clientMongoOperator, times(1)).update(
+					argThat(query -> {
+						Object id = query.getQueryObject().get("_id");
+						return taskId.equals(id);
+					}),
+					argThat(update -> {
+						Document set = update.getUpdateObject().get("$set", Document.class);
+						return set != null && pingTime == ((Number) set.get(TaskDto.PING_TIME_FIELD)).longValue();
+					}),
+					eq(ConnectorConstant.TASK_COLLECTION)
+			);
+		}
+
+		@Test
+		@DisplayName("refreshEngineStartTaskPingTime when clientMongoOperator throws exception should catch and log")
+		void testWhenClientMongoOperatorThrowsException() {
+			ObjectId taskId = new ObjectId();
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(taskId);
+			taskDto.setName("test-task");
+			long pingTime = System.currentTimeMillis();
+
+			RuntimeException exception = new RuntimeException("DB connection error");
+			when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString())).thenThrow(exception);
+
+			assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartTaskPingTime", taskDto, pingTime));
+			assertEquals(pingTime, taskDto.getPingTime());
+			verify(logger, times(1)).warn(
+					contains("Failed to refresh engine startup task ping time"),
+					eq(taskDto.getName()),
+					eq(taskId.toHexString()),
+					eq(pingTime),
+					eq(exception.getMessage()),
+					eq(exception)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Method refreshEngineStartPendingTaskPingTime test")
+	class RefreshEngineStartPendingTaskPingTimeTest {
+		private TapdataTaskScheduler scheduler;
+		private ClientMongoOperator clientMongoOperator;
+		private Logger logger;
+
+		@BeforeEach
+		void setUp() {
+			scheduler = new TapdataTaskScheduler();
+			clientMongoOperator = mock(ClientMongoOperator.class);
+			logger = mock(Logger.class);
+			ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
+			ReflectionTestUtils.setField(scheduler, "logger", logger);
+		}
+
+		@Test
+		@DisplayName("refreshEngineStartPendingTaskPingTime with empty map should return immediately")
+		void testWithEmptyMap() {
+			Map<String, TaskDto> emptyMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(scheduler, "engineStartPendingTaskMap", emptyMap);
+
+			ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartPendingTaskPingTime");
+			verifyNoInteractions(clientMongoOperator);
+		}
+
+		@Test
+		@DisplayName("refreshEngineStartPendingTaskPingTime with multiple valid tasks should update all")
+		void testWithMultipleValidTasks() {
+			ObjectId taskId1 = new ObjectId();
+			TaskDto task1 = new TaskDto();
+			task1.setId(taskId1);
+			task1.setName("task-1");
+
+			ObjectId taskId2 = new ObjectId();
+			TaskDto task2 = new TaskDto();
+			task2.setId(taskId2);
+			task2.setName("task-2");
+
+			ObjectId taskId3 = new ObjectId();
+			TaskDto task3 = new TaskDto();
+			task3.setId(taskId3);
+			task3.setName("task-3");
+
+			Map<String, TaskDto> pendingMap = new ConcurrentHashMap<>();
+			pendingMap.put(taskId1.toHexString(), task1);
+			pendingMap.put(taskId2.toHexString(), task2);
+			pendingMap.put(taskId3.toHexString(), task3);
+			ReflectionTestUtils.setField(scheduler, "engineStartPendingTaskMap", pendingMap);
+
+			ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartPendingTaskPingTime");
+
+			verify(clientMongoOperator, times(3)).update(any(Query.class), any(Update.class), eq(ConnectorConstant.TASK_COLLECTION));
+
+			long pingTime1 = task1.getPingTime();
+			long pingTime2 = task2.getPingTime();
+			long pingTime3 = task3.getPingTime();
+			assertEquals(pingTime1, pingTime2);
+			assertEquals(pingTime2, pingTime3);
+			assertTrue(pingTime1 > 0);
+		}
+
+		@Test
+		@DisplayName("refreshEngineStartPendingTaskPingTime with null id tasks should filter them")
+		void testWithInvalidTasksShouldFilter() {
+			ObjectId validTaskId = new ObjectId();
+			TaskDto validTask = new TaskDto();
+			validTask.setId(validTaskId);
+			validTask.setName("valid-task");
+
+			TaskDto nullIdTask = new TaskDto();
+			nullIdTask.setId(null);
+			nullIdTask.setName("null-id-task");
+
+			Map<String, TaskDto> pendingMap = new ConcurrentHashMap<>();
+			pendingMap.put(validTaskId.toHexString(), validTask);
+			pendingMap.put("null-id-key", nullIdTask);
+			ReflectionTestUtils.setField(scheduler, "engineStartPendingTaskMap", pendingMap);
+
+			ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartPendingTaskPingTime");
+
+			verify(clientMongoOperator, times(1)).update(
+					argThat(query -> validTaskId.equals(query.getQueryObject().get("_id"))),
+					any(Update.class),
+					eq(ConnectorConstant.TASK_COLLECTION)
+			);
+			assertTrue(validTask.getPingTime() > 0);
+		}
+
+		@Test
+		@DisplayName("refreshEngineStartPendingTaskPingTime should use same ping time for all tasks")
+		void testSamePingTimeForAllTasks() {
+			int taskCount = 5;
+			Map<String, TaskDto> pendingMap = new ConcurrentHashMap<>();
+			List<TaskDto> tasks = new ArrayList<>();
+			for (int i = 0; i < taskCount; i++) {
+				ObjectId taskId = new ObjectId();
+				TaskDto task = new TaskDto();
+				task.setId(taskId);
+				task.setName("task-" + i);
+				pendingMap.put(taskId.toHexString(), task);
+				tasks.add(task);
+			}
+			ReflectionTestUtils.setField(scheduler, "engineStartPendingTaskMap", pendingMap);
+
+			ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartPendingTaskPingTime");
+
+			long expectedPingTime = tasks.get(0).getPingTime();
+			for (TaskDto task : tasks) {
+				assertEquals(expectedPingTime, task.getPingTime());
+			}
+			verify(clientMongoOperator, times(taskCount)).update(any(Query.class), any(Update.class), eq(ConnectorConstant.TASK_COLLECTION));
+		}
+
+		@Test
+		@DisplayName("refreshEngineStartPendingTaskPingTime when some updates throw exception should continue and log")
+		void testWhenSomeUpdatesThrowException() {
+			ObjectId taskId1 = new ObjectId();
+			TaskDto task1 = new TaskDto();
+			task1.setId(taskId1);
+			task1.setName("task-1");
+
+			ObjectId taskId2 = new ObjectId();
+			TaskDto task2 = new TaskDto();
+			task2.setId(taskId2);
+			task2.setName("task-2");
+
+			Map<String, TaskDto> pendingMap = new ConcurrentHashMap<>();
+			pendingMap.put(taskId1.toHexString(), task1);
+			pendingMap.put(taskId2.toHexString(), task2);
+			ReflectionTestUtils.setField(scheduler, "engineStartPendingTaskMap", pendingMap);
+
+			RuntimeException exception = new RuntimeException("DB error");
+			when(clientMongoOperator.update(any(Query.class), any(Update.class), eq(ConnectorConstant.TASK_COLLECTION)))
+					.thenThrow(exception)
+					.thenReturn(mock(com.mongodb.client.result.UpdateResult.class));
+
+			assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartPendingTaskPingTime"));
+
+			verify(clientMongoOperator, times(2)).update(any(Query.class), any(Update.class), eq(ConnectorConstant.TASK_COLLECTION));
+			verify(logger, times(1)).warn(
+					contains("Failed to refresh engine startup task ping time"),
+					eq(task1.getName()),
+					eq(taskId1.toHexString()),
+					any(Long.class),
+					eq(exception.getMessage()),
+					eq(exception)
+			);
+			assertTrue(task1.getPingTime() > 0);
+			assertTrue(task2.getPingTime() > 0);
 		}
 	}
 
