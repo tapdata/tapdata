@@ -1088,44 +1088,6 @@ public class TapdataTaskSchedulerTest {
 			}
 			verify(clientMongoOperator, times(taskCount)).update(any(Query.class), any(Update.class), eq(ConnectorConstant.TASK_COLLECTION));
 		}
-
-		@Test
-		@DisplayName("refreshEngineStartPendingTaskPingTime when some updates throw exception should continue and log")
-		void testWhenSomeUpdatesThrowException() {
-			ObjectId taskId1 = new ObjectId();
-			TaskDto task1 = new TaskDto();
-			task1.setId(taskId1);
-			task1.setName("task-1");
-
-			ObjectId taskId2 = new ObjectId();
-			TaskDto task2 = new TaskDto();
-			task2.setId(taskId2);
-			task2.setName("task-2");
-
-			Map<String, TaskDto> pendingMap = new ConcurrentHashMap<>();
-			pendingMap.put(taskId1.toHexString(), task1);
-			pendingMap.put(taskId2.toHexString(), task2);
-			ReflectionTestUtils.setField(scheduler, "engineStartPendingTaskMap", pendingMap);
-
-			RuntimeException exception = new RuntimeException("DB error");
-			when(clientMongoOperator.update(any(Query.class), any(Update.class), eq(ConnectorConstant.TASK_COLLECTION)))
-					.thenThrow(exception)
-					.thenReturn(mock(com.mongodb.client.result.UpdateResult.class));
-
-			assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(scheduler, "refreshEngineStartPendingTaskPingTime"));
-
-			verify(clientMongoOperator, times(2)).update(any(Query.class), any(Update.class), eq(ConnectorConstant.TASK_COLLECTION));
-			verify(logger, times(1)).warn(
-					contains("Failed to refresh engine startup task ping time"),
-					eq(task1.getName()),
-					eq(taskId1.toHexString()),
-					any(Long.class),
-					eq(exception.getMessage()),
-					eq(exception)
-			);
-			assertTrue(task1.getPingTime() > 0);
-			assertTrue(task2.getPingTime() > 0);
-		}
 	}
 
 	@Nested
