@@ -16,6 +16,16 @@ Data trace 在做字段级链路匹配时，需要知道每个节点的当前字
 
 需要注意：`analyseFields` 只在解析出的来源字段不再出现在当前 JS 输出模型中时，补写 `originalFieldName`/`previousFieldName`。如果脚本同时保留了原字段和新别名，当前实现不会强制覆盖已有字段元信息。
 
+## 产品边界
+
+本功能的定位是为 Data trace 提供 JS 节点字段改名的最佳努力匹配，不作为 JS 运行结果的完整语义分析。下面边界需要在产品语义上保持明确：
+
+1. **静态解析优先保证可终止**：脚本静态解析出的字段映射可能和引擎推演出的输出模型不完全一致。字段转传链路如果出现重复字段，会停止继续追溯，避免模型推演或任务保存校验被循环映射阻塞。
+2. **返回对象只取可解析语句**：解析器优先读取顶层 `function process(...)` 函数体中的语句级 `return`；没有顶层 `process` 函数时才读取脚本顶层 `return`。辅助函数里的 `return`、`if/for/while` 等控制块里的卫语句 `return` 不作为返回对象。可解析的返回对象仍只限简单变量或简单对象字面量。
+3. **对象字面量只做外层定位**：返回变量对象字面量和直接 `return { ... }` 都会用大括号匹配读取完整外层对象，嵌套对象后面的顶层直连字段不会因为第一个 `}` 被截断；但嵌套对象、数组和函数参数内部字段不会展开，包含内部逗号的复杂字面量仍可能无法可靠分割。
+4. **注释和正则只覆盖常见写法**：注释剥离会识别字符串、模板字符串和常见正则字面量，避免正则字面量中的引号影响后续 `//` 注释处理；这不是完整 JavaScript 词法器，复杂语法仍按“不可靠场景”处理。
+5. **空原字段名按同名字段兜底**：字段条目存在但节点元数据没有记录 `originalFieldName` 时，Data trace filter 和流式 trace data 会把空来源字段按当前字段名处理为恒等映射，避免最终目标节点从 trace filter 结果中消失，或 `tracedFields[].originName` 返回空串。这只是缺省兜底，不代表系统推断出了额外的真实改名关系。
+
 ## JsFieldMapper 的解析规则
 
 `parseMapping` 的返回值含义是：
@@ -42,8 +52,8 @@ pymtMthdIntrlNamEng -> pymt_mthd_intrl_nam_eng
 解析过程分为四步：
 
 1. 去掉行注释和块注释，避免注释里的 `return`、赋值和 `delete` 干扰解析。
-2. 提取第一个 `return` 语句；如果返回表达式是简单变量，例如 `return ret;`，继续解析该变量；如果返回表达式是简单对象字面量，例如 `return { newField: record.oldField };`，直接解析对象内容。
-3. 对 `return ret;` 这类返回变量，找到该变量的对象字面量赋值，例如 `const ret = { newField: record.oldField }`。
+2. 提取可解析的返回对象：优先在顶层 `function process(...)` 函数体中查找语句级 `return`，没有顶层 `process` 函数时再查找脚本顶层 `return`。如果返回表达式是简单变量，例如 `return ret;`，继续解析该变量；如果返回表达式是简单对象字面量，例如 `return { newField: record.oldField };`，直接解析对象内容。
+3. 对 `return ret;` 这类返回变量，找到该变量的对象字面量赋值，例如 `const ret = { newField: record.oldField }`，并用大括号匹配读取完整对象体。
 4. 对 `return ret;` 这类返回变量，继续扫描返回变量上的点号赋值和删除语句，例如 `ret.newField = record.oldField`、`ret.alias = ret.knownField`、`delete ret.field`。
 
 当前实现只识别简单标识符字段名，变量名和字段名需要满足：
@@ -186,24 +196,29 @@ fieldB -> field_b
 
 说明：`delete ret.fieldA` 会把 `fieldA` 从最终映射中移除。
 
-### 8. 取第一个 return 语句中的简单变量
+### 8. 选择第一个可解析的顶层返回对象
 
 ```javascript
-var first = { fieldA: record.first_a };
-var second = { fieldA: record.second_a };
-return first;
-return second;
+function trim(value) {
+  return value;
+}
+
+function process(record) {
+  if (!record.id) return;
+  var ret = { newName: record.old_name };
+  return ret;
+}
 ```
 
 解析结果：
 
 ```text
-fieldA -> first_a
+newName -> old_name
 ```
 
-说明：实现按源码文本选择第一个 `return` 语句。只有该 `return` 返回简单变量时才继续解析，后续 `return` 不会再改变返回对象的选择。
+说明：辅助函数里的 `return value;` 和 `if` 控制块里的 `return;` 不会作为 JS 节点返回对象。对于同一搜索范围内多个可解析的顶层 `return`，仍以第一个可解析返回对象为准。
 
-### 9. 忽略注释中的 return、赋值和 delete
+### 9. 忽略注释中的 return、赋值和 delete，并处理常见正则字面量
 
 ```javascript
 var ret = {
@@ -223,13 +238,29 @@ return ret;
 fieldA -> safe_a
 ```
 
-说明：注释会先被替换为空白，注释中的脚本文本不会参与映射解析。
+正则字面量中的引号不会影响后续注释剥离：
+
+```javascript
+var ret = {};
+ret.name = record.raw_name.replace(/'/g, '');
+// return record;
+ret.code = record.cd;
+return ret;
+```
+
+解析结果：
+
+```text
+code -> cd
+```
+
+说明：注释会先被替换为空白，注释中的脚本文本不会参与映射解析。常见位置上的正则字面量会被整体跳过，避免正则里的引号把后续脚本误判成字符串。
 
 ## 不支持或不可靠场景
 
 下面场景源于 JS 语法本身的灵活性，当前正则解析器不会支持，或者只能得到不完整/不可靠结果。
 
-### 1. 其他非简单 return 表达式
+### 1. 非简单 return 表达式不能作为返回对象
 
 ```javascript
 return build(record);
@@ -237,17 +268,17 @@ return build(record);
 
 结果：不解析。
 
-原因：第一个 `return` 返回的是函数调用表达式，不是 `return ret;` 这类简单标识符，也不是 `return { newField: record.oldField };` 这类简单对象字面量。
+原因：返回表达式是函数调用，不是 `return ret;` 这类简单标识符，也不是 `return { newField: record.oldField };` 这类简单对象字面量。
 
 ```javascript
 var ret = { fieldA: record.field_a };
-return record.field_a;
+return build(record);
 return ret;
 ```
 
-结果：不解析。
+结果：可能解析出 `fieldA -> field_a`。
 
-原因：第一个 `return` 已经确定脚本返回结果；即使后面还有简单 `return ret;`，也不会再参与返回变量选择。`record.field_a` 也不是可追踪输出对象。
+原因：非简单 `return` 会被跳过，解析器会继续寻找后续可解析的顶层 `return`。这是为了容忍卫语句和辅助逻辑的静态兜底，不表达真实 JavaScript 控制流；如果复杂 `return` 在运行时先返回，后续解析结果只代表最佳努力的字段血缘。
 
 ```javascript
 var ret = { fieldA: record.field_a };
@@ -336,18 +367,21 @@ return ret;
 
 ```javascript
 var ret = {
-  user: {
-    id: record.user_id
-  },
-  tags: [record.tag_a, record.tag_b],
-  direct: record.direct_field
+  a: record.x,
+  nested: { k: record.y },
+  c: record.z
 };
 return ret;
 ```
 
-结果：不可靠。
+解析结果：
 
-原因：返回变量对象字面量的提取仍是轻量正则解析；直接 `return { ... }` 虽会寻找匹配的大括号，但属性分割仍只是按逗号切分，不理解嵌套结构、数组或函数参数中的逗号。
+```text
+a -> x
+c -> z
+```
+
+原因：外层对象体会用大括号匹配完整截取，所以 `nested` 后面的顶层直连字段 `c` 可以被解析；但 `nested.k` 不会展开成字段血缘。属性分割仍只是按逗号切分，不理解数组、函数参数或更深层对象中的内部逗号，这类复杂值仍不可靠。
 
 ### 7. 展开运算符、Object.assign 和批量复制
 
@@ -429,7 +463,7 @@ return ret;
 
 结果：不可靠。
 
-原因：注释会被剔除，但字符串和模板字符串中的内容不会被完整词法屏蔽。如果字符串里恰好包含 `ret.xxx = record.xxx`、`return xxx;` 这类文本，可能被正则误识别。
+原因：注释剥离和返回对象定位会识别字符串边界，但后续赋值扫描仍不是完整 JavaScript 词法分析。如果字符串里恰好包含 `ret.xxx = record.xxx` 这类文本，可能被正则误识别。
 
 ### 10. Optional chaining、空值合并等现代表达式
 
@@ -474,4 +508,4 @@ var ret = {
 return ret;
 ```
 
-如果脚本需要大量动态字段、复杂表达式、嵌套对象或多字段计算，当前实现无法提供完整字段来源关系；这类场景需要引入真正的 JavaScript AST/数据流分析，或者在节点配置中显式维护字段映射。
+如果脚本需要大量动态字段、复杂表达式、包含内部逗号的复杂对象/数组或多字段计算，当前实现无法提供完整字段来源关系；这类场景需要引入真正的 JavaScript AST/数据流分析，或者在节点配置中显式维护字段映射。
