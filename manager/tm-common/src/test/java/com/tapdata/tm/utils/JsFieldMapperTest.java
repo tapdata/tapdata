@@ -90,6 +90,23 @@ class JsFieldMapperTest {
         }
 
         @Test
+        void parsesReturnedVariableObjectLiteralFieldsAfterNestedObjectValues() {
+            String script = """
+                    var ret = {
+                        a: record.x,
+                        nested: { k: record.y },
+                        c: record.z
+                    };
+                    return ret;
+                    """;
+
+            assertEquals(Map.of(
+                    "a", "x",
+                    "c", "z"
+            ), JsFieldMapper.parseMapping(script));
+        }
+
+        @Test
         void parsesDirectObjectAssignmentWithoutDeclaration() {
             String script = """
                     ret = {
@@ -123,6 +140,34 @@ class JsFieldMapperTest {
                     """;
 
             assertEquals(Map.of("fieldA", "field_a"), JsFieldMapper.parseMapping(script));
+        }
+
+        @Test
+        void usesReturnFromProcessBodyAfterGuardClause() {
+            String script = """
+                    function process(record) {
+                        if (!record.id) return;
+                        var ret = { newName: record.old_name };
+                        return ret;
+                    }
+                    """;
+
+            assertEquals(Map.of("newName", "old_name"), JsFieldMapper.parseMapping(script));
+        }
+
+        @Test
+        void ignoresReturnInsideHelperFunctionBeforeProcess() {
+            String script = """
+                    function trim(value) {
+                        return value;
+                    }
+                    function process(record) {
+                        var ret = { code: record.cd };
+                        return ret;
+                    }
+                    """;
+
+            assertEquals(Map.of("code", "cd"), JsFieldMapper.parseMapping(script));
         }
 
         @Test
@@ -290,6 +335,19 @@ class JsFieldMapperTest {
                     """;
 
             assertEquals(Map.of("fieldA", "safe_a"), JsFieldMapper.parseMapping(script));
+        }
+
+        @Test
+        void regexLiteralQuotesDoNotPreventFollowingLineCommentRemoval() {
+            String script = """
+                    var ret = {};
+                    ret.name = record.raw_name.replace(/'/g, '');
+                    // return record;
+                    ret.code = record.cd;
+                    return ret;
+                    """;
+
+            assertEquals(Map.of("code", "cd"), JsFieldMapper.parseMapping(script));
         }
     }
 }

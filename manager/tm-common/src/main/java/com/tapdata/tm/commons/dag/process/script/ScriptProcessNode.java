@@ -27,10 +27,12 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -197,7 +199,10 @@ public class ScriptProcessNode extends ProcessorNode {
                 .forEach(field -> {
                     String fieldOriginName = fieldNameMapping.get(field.getFieldName());
                     TapField sourceField = sourceFieldMap.get(fieldOriginName);
-                    while (null == sourceField && fieldNameMapping.containsKey(fieldOriginName)) {
+                    Set<String> visitedFieldNames = new HashSet<>();
+                    while (null == sourceField
+                            && fieldNameMapping.containsKey(fieldOriginName)
+                            && visitedFieldNames.add(fieldOriginName)) {
                         fieldOriginName = fieldNameMapping.get(fieldOriginName);
                         sourceField = sourceFieldMap.get(fieldOriginName);
                     }

@@ -14,8 +14,8 @@ import java.util.regex.Pattern;
  * <p>当前实现是面向字段血缘推导的轻量级启发式解析，不是完整 JavaScript AST 解析器。
  * 支持的场景：
  * <ul>
- *     <li>第一个简单返回语句：{@code return ret;}。</li>
- *     <li>第一个返回语句直接返回简单对象字面量：{@code return { newField: record.oldField };}。</li>
+ *     <li>{@code process} 函数体或脚本顶层的简单返回语句：{@code return ret;}。</li>
+ *     <li>{@code process} 函数体或脚本顶层直接返回简单对象字面量：{@code return { newField: record.oldField };}。</li>
  *     <li>{@code var/let/const ret = { newField: record.oldField }} 或 {@code ret = {...}} 对象字面量。</li>
  *     <li>{@code ret.newField = record.oldField} 形式的点号赋值。</li>
  *     <li>{@code ret.aliasField = ret.knownField} 形式的同对象字段转传，前提是来源字段已解析。</li>
@@ -39,7 +39,7 @@ public final class JsFieldMapper {
 
     /**
      * 从给定的 JavaScript 脚本中解析字段映射关系。
-     * 先提取第一个 return 语句，再解析返回对象与 record 的赋值关系。
+     * 先提取可解析的 return 语句，再解析返回对象与 record 的赋值关系。
      *
      * @param jsCode 完整的 JavaScript 代码字符串
      * @return 映射表（新字段名 → 原字段名），若无映射则返回空 Map
@@ -166,6 +166,8 @@ public final class JsFieldMapper {
                 builder.append("  ");
                 i++;
                 inBlockComment = true;
+            } else if (current == '/' && isRegexLiteralStart(builder)) {
+                i = appendRegexLiteral(jsCode, builder, i);
             } else {
                 builder.append(current);
                 if (current == '\'') {
@@ -180,35 +182,287 @@ public final class JsFieldMapper {
         return builder.toString();
     }
 
+    private static int appendRegexLiteral(String jsCode, StringBuilder builder, int start) {
+        int end = findRegexLiteralEnd(jsCode, start);
+        builder.append(jsCode, start, end + 1);
+        return end;
+    }
+
+    private static int findRegexLiteralEnd(String jsCode, int start) {
+        boolean inCharacterClass = false;
+
+        for (int i = start + 1; i < jsCode.length(); i++) {
+            char current = jsCode.charAt(i);
+            if (current == '\\' && i + 1 < jsCode.length()) {
+                i++;
+                continue;
+            }
+            if (current == '[') {
+                inCharacterClass = true;
+            } else if (current == ']') {
+                inCharacterClass = false;
+            } else if (current == '/' && !inCharacterClass) {
+                while (i + 1 < jsCode.length() && Character.isLetter(jsCode.charAt(i + 1))) {
+                    i++;
+                }
+                return i;
+            }
+            if (current == '\r' || current == '\n') {
+                return i;
+            }
+        }
+        return jsCode.length() - 1;
+    }
+
+    private static boolean isRegexLiteralStart(StringBuilder builder) {
+        int previous = previousNonWhitespaceIndex(builder);
+        if (previous < 0) {
+            return true;
+        }
+
+        char previousChar = builder.charAt(previous);
+        if ("([{=,:;!&|?+-*~%^<>".indexOf(previousChar) >= 0) {
+            return true;
+        }
+        if (Character.isJavaIdentifierPart(previousChar)) {
+            String previousWord = previousWord(builder, previous);
+            return "return".equals(previousWord)
+                    || "throw".equals(previousWord)
+                    || "case".equals(previousWord)
+                    || "delete".equals(previousWord)
+                    || "typeof".equals(previousWord)
+                    || "void".equals(previousWord)
+                    || "new".equals(previousWord)
+                    || "in".equals(previousWord)
+                    || "of".equals(previousWord)
+                    || "instanceof".equals(previousWord);
+        }
+        return false;
+    }
+
+    private static boolean isRegexLiteralStart(String jsCode, int rangeStart, int slashIndex) {
+        int previous = previousNonWhitespaceIndex(jsCode, rangeStart, slashIndex - 1);
+        if (previous < 0) {
+            return true;
+        }
+
+        char previousChar = jsCode.charAt(previous);
+        if ("([{=,:;!&|?+-*~%^<>".indexOf(previousChar) >= 0) {
+            return true;
+        }
+        if (Character.isJavaIdentifierPart(previousChar)) {
+            String previousWord = previousWord(jsCode, previous);
+            return "return".equals(previousWord)
+                    || "throw".equals(previousWord)
+                    || "case".equals(previousWord)
+                    || "delete".equals(previousWord)
+                    || "typeof".equals(previousWord)
+                    || "void".equals(previousWord)
+                    || "new".equals(previousWord)
+                    || "in".equals(previousWord)
+                    || "of".equals(previousWord)
+                    || "instanceof".equals(previousWord);
+        }
+        return false;
+    }
+
+    private static int previousNonWhitespaceIndex(StringBuilder builder) {
+        for (int i = builder.length() - 1; i >= 0; i--) {
+            if (!Character.isWhitespace(builder.charAt(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int previousNonWhitespaceIndex(String jsCode, int startInclusive, int endInclusive) {
+        for (int i = endInclusive; i >= startInclusive; i--) {
+            if (!Character.isWhitespace(jsCode.charAt(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static String previousWord(StringBuilder builder, int end) {
+        int start = end;
+        while (start > 0 && Character.isJavaIdentifierPart(builder.charAt(start - 1))) {
+            start--;
+        }
+        return builder.substring(start, end + 1);
+    }
+
+    private static String previousWord(String jsCode, int end) {
+        int start = end;
+        while (start > 0 && Character.isJavaIdentifierPart(jsCode.charAt(start - 1))) {
+            start--;
+        }
+        return jsCode.substring(start, end + 1);
+    }
+
     /**
-     * 提取第一个 return 语句的返回表达式。
+     * 优先从 process 函数体提取语句级 return；没有 process 函数时退回脚本顶层。
      */
     private static ReturnExpression extractReturnExpression(String jsCode) {
+        int[] searchRange = findReturnSearchRange(jsCode);
         Pattern returnPattern = Pattern.compile(
                 "\\breturn\\b"
         );
         Matcher matcher = returnPattern.matcher(jsCode);
-        if (!matcher.find()) {
-            return null;
+        matcher.region(searchRange[0], searchRange[1]);
+        while (matcher.find()) {
+            if (!isTopLevelReturnStatement(jsCode, searchRange[0], matcher.start())) {
+                continue;
+            }
+            ReturnExpression returnExpression = readReturnExpression(jsCode, matcher.end(), searchRange[1]);
+            if (returnExpression != null) {
+                return returnExpression;
+            }
         }
-        int expressionStart = skipInlineWhitespace(jsCode, matcher.end());
-        if (expressionStart >= jsCode.length()) {
+        return null;
+    }
+
+    private static int[] findReturnSearchRange(String jsCode) {
+        int[] processBody = findNamedFunctionBody(jsCode, "process");
+        return processBody == null ? new int[]{0, jsCode.length()} : processBody;
+    }
+
+    private static int[] findNamedFunctionBody(String jsCode, String functionName) {
+        Pattern functionPattern = Pattern.compile(
+                "\\bfunction\\s+" + Pattern.quote(functionName) + "\\s*\\([^)]*\\)\\s*\\{",
+                Pattern.DOTALL
+        );
+        Matcher matcher = functionPattern.matcher(jsCode);
+        while (matcher.find()) {
+            if (!isAtTopLevel(jsCode, 0, matcher.start())) {
+                continue;
+            }
+            int openBrace = matcher.end() - 1;
+            int closeBrace = findMatchingBrace(jsCode, openBrace);
+            if (closeBrace > openBrace) {
+                return new int[]{openBrace + 1, closeBrace};
+            }
+        }
+        return null;
+    }
+
+    private static boolean isTopLevelReturnStatement(String jsCode, int rangeStart, int returnIndex) {
+        return isAtTopLevel(jsCode, rangeStart, returnIndex)
+                && isStatementStart(jsCode, rangeStart, returnIndex);
+    }
+
+    private static boolean isAtTopLevel(String jsCode, int rangeStart, int endExclusive) {
+        int depth = 0;
+        for (int i = rangeStart; i < endExclusive; i++) {
+            char current = jsCode.charAt(i);
+            if (current == '\'' || current == '"' || current == '`') {
+                i = skipQuotedLiteral(jsCode, i);
+            } else if (current == '/' && isRegexLiteralStart(jsCode, rangeStart, i)) {
+                i = findRegexLiteralEnd(jsCode, i);
+            } else if (current == '{') {
+                depth++;
+            } else if (current == '}' && depth > 0) {
+                depth--;
+            }
+        }
+        return depth == 0;
+    }
+
+    private static int skipQuotedLiteral(String jsCode, int start) {
+        char quote = jsCode.charAt(start);
+        for (int i = start + 1; i < jsCode.length(); i++) {
+            char current = jsCode.charAt(i);
+            if (current == '\\' && i + 1 < jsCode.length()) {
+                i++;
+                continue;
+            }
+            if (current == quote) {
+                return i;
+            }
+        }
+        return jsCode.length() - 1;
+    }
+
+    private static boolean isStatementStart(String jsCode, int rangeStart, int returnIndex) {
+        int previous = previousNonWhitespaceIndex(jsCode, rangeStart, returnIndex - 1);
+        if (previous < 0) {
+            return true;
+        }
+
+        char previousChar = jsCode.charAt(previous);
+        if (previousChar == ';' || previousChar == '{' || previousChar == '}') {
+            return true;
+        }
+        return hasLineBreakBetween(jsCode, previous + 1, returnIndex)
+                && (previousChar != ')' || !isControlStatementBeforeParenthesis(jsCode, rangeStart, previous));
+    }
+
+    private static boolean hasLineBreakBetween(String jsCode, int startInclusive, int endExclusive) {
+        for (int i = startInclusive; i < endExclusive; i++) {
+            char current = jsCode.charAt(i);
+            if (current == '\r' || current == '\n') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isControlStatementBeforeParenthesis(String jsCode, int rangeStart, int closeParenIndex) {
+        int openParen = findMatchingOpenParenthesis(jsCode, rangeStart, closeParenIndex);
+        if (openParen < 0) {
+            return false;
+        }
+        int wordEnd = previousNonWhitespaceIndex(jsCode, rangeStart, openParen - 1);
+        if (wordEnd < 0 || !Character.isJavaIdentifierPart(jsCode.charAt(wordEnd))) {
+            return false;
+        }
+        String word = previousWord(jsCode, wordEnd);
+        return "if".equals(word)
+                || "for".equals(word)
+                || "while".equals(word)
+                || "with".equals(word)
+                || "switch".equals(word)
+                || "catch".equals(word);
+    }
+
+    private static int findMatchingOpenParenthesis(String jsCode, int rangeStart, int closeParenIndex) {
+        int depth = 0;
+        for (int i = closeParenIndex; i >= rangeStart; i--) {
+            char current = jsCode.charAt(i);
+            if (current == ')') {
+                depth++;
+            } else if (current == '(') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private static ReturnExpression readReturnExpression(String jsCode, int returnKeywordEnd, int rangeEnd) {
+        int expressionStart = skipInlineWhitespace(jsCode, returnKeywordEnd, rangeEnd);
+        if (expressionStart >= rangeEnd) {
             return null;
         }
         if (jsCode.charAt(expressionStart) == '{') {
             int closeBrace = findMatchingBrace(jsCode, expressionStart);
-            if (closeBrace < 0) {
+            if (closeBrace < 0 || closeBrace >= rangeEnd) {
                 return null;
             }
             return ReturnExpression.objectLiteral(jsCode.substring(expressionStart + 1, closeBrace));
         }
-        String returnedExpression = readSimpleReturnExpression(jsCode, expressionStart).trim();
-        return returnedExpression.matches(IDENTIFIER) ? ReturnExpression.variable(returnedExpression) : null;
+        String returnedExpression = readSimpleReturnExpression(jsCode, expressionStart, rangeEnd).trim();
+        if (!returnedExpression.matches(IDENTIFIER) || "record".equals(returnedExpression)) {
+            return null;
+        }
+        return ReturnExpression.variable(returnedExpression);
     }
 
-    private static int skipInlineWhitespace(String jsCode, int start) {
+    private static int skipInlineWhitespace(String jsCode, int start, int endExclusive) {
         int index = start;
-        while (index < jsCode.length()) {
+        while (index < endExclusive) {
             char current = jsCode.charAt(index);
             if (current != ' ' && current != '\t' && current != '\f') {
                 break;
@@ -218,9 +472,9 @@ public final class JsFieldMapper {
         return index;
     }
 
-    private static String readSimpleReturnExpression(String jsCode, int start) {
+    private static String readSimpleReturnExpression(String jsCode, int start, int endExclusive) {
         int index = start;
-        while (index < jsCode.length()) {
+        while (index < endExclusive) {
             char current = jsCode.charAt(index);
             if (current == ';' || current == '\r' || current == '\n') {
                 break;
@@ -259,6 +513,8 @@ public final class JsFieldMapper {
                 inDoubleQuote = true;
             } else if (current == '`') {
                 inTemplateLiteral = true;
+            } else if (current == '/' && isRegexLiteralStart(jsCode, openBraceIndex, i)) {
+                i = findRegexLiteralEnd(jsCode, i);
             } else if (current == '{') {
                 depth++;
             } else if (current == '}') {
@@ -276,15 +532,20 @@ public final class JsFieldMapper {
      * 返回对象字面量的大括号内容（不含外层大括号）。
      */
     private static String extractObjectLiteral(String jsCode, String varName) {
-        // 匹配 var varName = { ... } 或 varName = { ... } (可能带 let/const)
+        // 匹配 var varName = { 或 varName = { (可能带 let/const)，再用括号匹配读取完整对象体。
         Pattern pattern = Pattern.compile(
                 "(?:\\b(?:var|let|const)\\s+)?\\b" + Pattern.quote(varName) +
-                "\\s*=\\s*\\{([^}]*)\\}",
+                "\\s*=\\s*\\{",
                 Pattern.DOTALL
         );
         Matcher matcher = pattern.matcher(jsCode);
         if (matcher.find()) {
-            return matcher.group(1);
+            int openBrace = matcher.end() - 1;
+            int closeBrace = findMatchingBrace(jsCode, openBrace);
+            if (closeBrace < 0) {
+                return null;
+            }
+            return jsCode.substring(openBrace + 1, closeBrace);
         }
         return null;
     }

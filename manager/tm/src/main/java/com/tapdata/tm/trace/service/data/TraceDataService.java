@@ -754,7 +754,7 @@ public class TraceDataService {
             if (StringUtils.isBlank(trackedField)) {
                 continue;
             }
-            String originName = targetFieldMapping.getOrDefault(trackedField, trackedField);
+            String originName = StringUtils.defaultIfBlank(targetFieldMapping.get(trackedField), trackedField);
             String currentName = findFieldByOrigin(currentFieldMapping, originName, trackedField);
             if (StringUtils.isBlank(currentName)) {
                 continue;

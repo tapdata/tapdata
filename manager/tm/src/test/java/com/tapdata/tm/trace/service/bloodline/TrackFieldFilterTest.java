@@ -97,6 +97,30 @@ class TrackFieldFilterTest {
     }
 
     @Test
+    void removeUselessFields_shouldFallbackTargetOriginToFieldName_whenOriginalNameBlank() {
+        LineageTableNode source = new LineageTableNode("A", "connA", "connNameA", "pdkA", new LineageMetadataInstance());
+        source.setId("nodeA");
+        LineageTableNode target = new LineageTableNode("B", "connB", "connNameB", "pdkB", new LineageMetadataInstance());
+        target.setId("nodeB");
+
+        Dag dag = new Dag();
+        dag.setNodes(new ArrayList<>(List.of(source, target)));
+        dag.setEdges(new ArrayList<>(List.of(new Edge("nodeA", "nodeB"))));
+
+        when(fieldOriginalNameMapping.findFinalTargetLineageTableNode(eq(dag))).thenReturn(target);
+
+        Map<String, Map<String, String>> fieldNameMapping = new HashMap<>();
+        fieldNameMapping.put("nodeA", Map.of("fieldA", ""));
+        fieldNameMapping.put("nodeB", Map.of("fieldA", ""));
+
+        Map<String, Map<String, String>> result = filter.removeUselessFields(dag, List.of("fieldA"), fieldNameMapping);
+
+        assertEquals(Map.of("nodeA", Map.of("fieldA", "fieldA"), "nodeB", Map.of("fieldA", "fieldA")), result);
+        assertEquals(2, dag.getNodes().size());
+        assertEquals(1, dag.getEdges().size());
+    }
+
+    @Test
     void removeUnTraceFilterFieldName_shouldReturnEmpty_whenTraceFilterEmpty() {
         Dag dag = new Dag();
         dag.setNodes(new ArrayList<>());
