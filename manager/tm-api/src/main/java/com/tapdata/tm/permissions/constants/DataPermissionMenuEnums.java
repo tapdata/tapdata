@@ -25,6 +25,7 @@ public enum DataPermissionMenuEnums {
 	ConnHeartbeatTack(DataPermissionDataTypeEnums.Task, null),
 	MemCacheTack(DataPermissionDataTypeEnums.Task, null),
 	TaskRebalance(DataPermissionDataTypeEnums.Task, initTaskRebalancePermissionName()),
+	ExceptionEvents(DataPermissionDataTypeEnums.Task, initExceptionEventsPermissionName()),
 	INSPECT_TACK(DataPermissionDataTypeEnums.INSPECT, null),
 	Modules(DataPermissionDataTypeEnums.Modules, initAllDataPermissionName(DataPermissionDataTypeEnums.Modules,"v2_data-server-list_all_data")),
 	;
@@ -91,6 +92,13 @@ public enum DataPermissionMenuEnums {
 		Map<String, String> allDataPermissionName = new HashMap<>();
 		allDataPermissionName.put(DataPermissionActionEnums.View.name(), "v2_task_rebalance");
 		allDataPermissionName.put(DataPermissionActionEnums.Edit.name(), "v2_task_rebalance_Edit");
+		return allDataPermissionName;
+	}
+
+	public static Map<String, String> initExceptionEventsPermissionName() {
+		Map<String, String> allDataPermissionName = new HashMap<>();
+		allDataPermissionName.put(DataPermissionActionEnums.View.name(), "v2_exception_events");
+		allDataPermissionName.put(DataPermissionActionEnums.Edit.name(), "v2_exception_events_Edit");
 		return allDataPermissionName;
 	}
 }

@@ -77,7 +77,11 @@ public enum AlarmKeyEnum {
     API_SERVER_ERROR_RATE_WARN(Constant.TYPE_API_SERVER, "API Server每分钟错误率 >= ${rate}s 并持续${min}分钟时邮件告警", 210),
 
     API_SERVER_CONNECTION_POOL_DEFICIENCY_WARN(Constant.TYPE_API_SERVER, "When the number of connections in any API Server connection pool exceeds the alarm threshold", 220),
-    API_SERVER_CONNECTION_POOL_IDLE_WARN(Constant.TYPE_API_SERVER, "When the number of connections in the connection pool of any API Server falls below the alarm threshold", 230)
+    API_SERVER_CONNECTION_POOL_IDLE_WARN(Constant.TYPE_API_SERVER, "When the number of connections in the connection pool of any API Server falls below the alarm threshold", 230),
+
+    TASK_DQL_EVENT(Constant.TYPE_EVENT),
+    TASK_DQL_SAVE_FAILED(Constant.TYPE_EVENT),
+    TASK_DQL_RECOVERY_FAILED(Constant.TYPE_EVENT)
     ;
 
 
