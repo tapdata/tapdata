@@ -66,6 +66,7 @@ public class DqlEventDto implements Serializable {
     public static final String FIELD_RECOVERY_ATTEMPTS = "recovery_attempts";
     public static final String FIELD_CREATED = "created";
     public static final String FIELD_UPDATED = "updated";
+    public static final String FIELD_TTL_AT = "ttl_at";
 
     private String id;
     private String eventId;
@@ -124,4 +125,5 @@ public class DqlEventDto implements Serializable {
     private List<DqlRecoveryAttemptDto> recoveryAttempts;
     private Date created;
     private Date updated;
+    private Date ttlAt;
 }

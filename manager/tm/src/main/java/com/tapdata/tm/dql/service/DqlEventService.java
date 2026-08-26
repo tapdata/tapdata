@@ -242,6 +242,7 @@ public class DqlEventService {
         dto.setOverwriteRisk(false);
         dto.setCreated(now);
         dto.setUpdated(now);
+        dto.setTtlAt(now);
         return dto;
     }
 

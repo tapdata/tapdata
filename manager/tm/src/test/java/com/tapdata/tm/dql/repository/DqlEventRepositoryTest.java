@@ -1,5 +1,8 @@
 package com.tapdata.tm.dql.repository;
 
+import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
 import com.tapdata.tm.dql.entity.DqlEventEntity;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
@@ -40,6 +43,42 @@ class DqlEventRepositoryTest {
         verify(mongoTemplate, never()).createCollection("dql_events");
         verify(mongoTemplate.indexOps("dql_events")).createIndex(argThat(indexDefinition ->
                 "idx_task_record_identity_event_time".equals(indexDefinition.getIndexOptions().getString("name"))));
+    }
+
+    @Test
+    @DisplayName("locking recoverable events refreshes ttl in the same update")
+    void lockEventsRefreshesTtl() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertEquals(1L, repository.lockEvents(List.of("DQL-1"), "DQLB-1"));
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateMulti(any(Query.class), updateCaptor.capture(), eq(DqlEventEntity.class));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlEventStatusEnum.REPROCESSING.name(), set.get("status"));
+        assertEquals(set.get("updated"), set.get("ttl_at"));
+    }
+
+    @Test
+    @DisplayName("finishing recovery refreshes event ttl")
+    void completeEventRefreshesTtl() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+        DqlRecoveryAttemptDto attempt = new DqlRecoveryAttemptDto();
+        attempt.setFinishedAt(new Date());
+
+        assertEquals(true, repository.completeEvent("DQL-1", "DQLB-1", attempt));
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DqlEventEntity.class));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlEventStatusEnum.RECOVERED.name(), set.get("status"));
+        assertEquals(set.get("updated"), set.get("ttl_at"));
     }
 
     @Test

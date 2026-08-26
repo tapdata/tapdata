@@ -1,0 +1,28 @@
+[
+  {
+    "createIndexes": "dql_events",
+    "indexes": [
+      {
+        "key": {
+          "ttl_at": 1
+        },
+        "expireAfterSeconds": 1209600,
+        "name": "idx_dql_event_ttl",
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "dql_recovery_batches",
+    "indexes": [
+      {
+        "key": {
+          "ttl_at": 1
+        },
+        "expireAfterSeconds": 1209600,
+        "name": "idx_dql_batch_ttl",
+        "background": true
+      }
+    ]
+  }
+]

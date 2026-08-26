@@ -1,0 +1,83 @@
+package com.tapdata.tm.dql.repository;
+
+import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
+import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
+import com.tapdata.tm.dql.entity.DqlRecoveryBatchEntity;
+import org.bson.Document;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.index.IndexOperations;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+
+import java.util.Date;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class DqlRecoveryBatchRepositoryTest {
+
+    @Test
+    @DisplayName("init ensures batch query indexes when collection already exists")
+    void initEnsuresQueryIndexesWhenCollectionExists() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+
+        new DqlRecoveryBatchRepository(mongoTemplate);
+
+        verify(mongoTemplate, never()).createCollection("dql_recovery_batches");
+        verify(mongoTemplate.indexOps("dql_recovery_batches")).createIndex(argThat(indexDefinition ->
+                "idx_task_created".equals(indexDefinition.getIndexOptions().getString("name"))));
+    }
+
+    @Test
+    @DisplayName("create initializes batch ttl from created time")
+    void createInitializesTtlFromCreated() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.save(any(DqlRecoveryBatchEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        DqlRecoveryBatchDto batch = new DqlRecoveryBatchDto();
+        batch.setBatchId("DQLB-1");
+        Date created = new Date(1787580000000L);
+        batch.setCreated(created);
+
+        DqlRecoveryBatchDto saved = repository.create(batch);
+
+        assertEquals(created, saved.getCreated());
+        assertEquals(created, saved.getTtlAt());
+    }
+
+    @Test
+    @DisplayName("finishing batch refreshes ttl in the same update")
+    void finishRefreshesTtl() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlRecoveryBatchRepository repository = new DqlRecoveryBatchRepository(mongoTemplate);
+        when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(DqlRecoveryBatchEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        repository.finish("DQLB-1", DqlRecoveryBatchStatusEnum.SUCCESS, "done");
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate).updateFirst(any(Query.class), updateCaptor.capture(), eq(DqlRecoveryBatchEntity.class));
+        Document set = updateCaptor.getValue().getUpdateObject().get("$set", Document.class);
+        assertEquals(DqlRecoveryBatchStatusEnum.SUCCESS.name(), set.get("status"));
+        assertEquals(set.get("finished_at"), set.get("updated"));
+        assertEquals(set.get("updated"), set.get("ttl_at"));
+    }
+
+    private MongoTemplate mongoTemplate() {
+        MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+        IndexOperations indexOperations = mock(IndexOperations.class);
+        when(mongoTemplate.collectionExists("dql_recovery_batches")).thenReturn(true);
+        when(mongoTemplate.indexOps("dql_recovery_batches")).thenReturn(indexOperations);
+        return mongoTemplate;
+    }
+}

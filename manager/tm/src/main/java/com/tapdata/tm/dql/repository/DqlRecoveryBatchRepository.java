@@ -38,25 +38,26 @@ public class DqlRecoveryBatchRepository {
     protected void init() {
         if (!mongoTemplate.collectionExists(collectionName)) {
             mongoTemplate.createCollection(collectionName);
-            mongoTemplate.indexOps(collectionName).createIndex(new Index()
-                    .on(DqlRecoveryBatchDto.FIELD_BATCH_ID, Sort.Direction.ASC)
-                    .unique()
-                    .named("uk_batch_id"));
-            mongoTemplate.indexOps(collectionName).createIndex(new Index()
-                    .on(DqlRecoveryBatchDto.FIELD_TASK_ID, Sort.Direction.ASC)
-                    .on(DqlRecoveryBatchDto.FIELD_CREATED, Sort.Direction.DESC)
-                    .named("idx_task_created"));
-            mongoTemplate.indexOps(collectionName).createIndex(new Index()
-                    .on(DqlRecoveryBatchDto.FIELD_STATUS, Sort.Direction.ASC)
-                    .on(DqlRecoveryBatchDto.FIELD_CREATED, Sort.Direction.DESC)
-                    .named("idx_status_created"));
         }
+        mongoTemplate.indexOps(collectionName).createIndex(new Index()
+                .on(DqlRecoveryBatchDto.FIELD_BATCH_ID, Sort.Direction.ASC)
+                .unique()
+                .named("uk_batch_id"));
+        mongoTemplate.indexOps(collectionName).createIndex(new Index()
+                .on(DqlRecoveryBatchDto.FIELD_TASK_ID, Sort.Direction.ASC)
+                .on(DqlRecoveryBatchDto.FIELD_CREATED, Sort.Direction.DESC)
+                .named("idx_task_created"));
+        mongoTemplate.indexOps(collectionName).createIndex(new Index()
+                .on(DqlRecoveryBatchDto.FIELD_STATUS, Sort.Direction.ASC)
+                .on(DqlRecoveryBatchDto.FIELD_CREATED, Sort.Direction.DESC)
+                .named("idx_status_created"));
     }
 
     public DqlRecoveryBatchDto create(DqlRecoveryBatchDto dto) {
         Date now = new Date();
         dto.setCreated(Optional.ofNullable(dto.getCreated()).orElse(now));
         dto.setUpdated(now);
+        dto.setTtlAt(Optional.ofNullable(dto.getTtlAt()).orElse(dto.getCreated()));
         DqlRecoveryBatchEntity saved = mongoTemplate.save(convert(dto));
         return convert(saved);
     }
@@ -70,9 +71,11 @@ public class DqlRecoveryBatchRepository {
     }
 
     public void updateStatus(String batchId, DqlRecoveryBatchStatusEnum status, String message) {
+        Date now = new Date();
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
-                .set(DqlRecoveryBatchDto.FIELD_UPDATED, new Date());
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
         if (message != null) {
             update.set(DqlRecoveryBatchDto.FIELD_MESSAGE, message);
         }
@@ -80,10 +83,12 @@ public class DqlRecoveryBatchRepository {
     }
 
     public void markRunning(String batchId) {
+        Date now = new Date();
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, DqlRecoveryBatchStatusEnum.RUNNING.name())
-                .set(DqlRecoveryBatchDto.FIELD_STARTED_AT, new Date())
-                .set(DqlRecoveryBatchDto.FIELD_UPDATED, new Date());
+                .set(DqlRecoveryBatchDto.FIELD_STARTED_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
         mongoTemplate.updateFirst(batchQuery(batchId), update, entityClass);
     }
 
@@ -100,10 +105,12 @@ public class DqlRecoveryBatchRepository {
     }
 
     public void finish(String batchId, DqlRecoveryBatchStatusEnum status, String message) {
+        Date now = new Date();
         Update update = new Update()
                 .set(DqlRecoveryBatchDto.FIELD_STATUS, status.name())
-                .set(DqlRecoveryBatchDto.FIELD_FINISHED_AT, new Date())
-                .set(DqlRecoveryBatchDto.FIELD_UPDATED, new Date());
+                .set(DqlRecoveryBatchDto.FIELD_FINISHED_AT, now)
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
         if (message != null) {
             update.set(DqlRecoveryBatchDto.FIELD_MESSAGE, message);
         }
@@ -111,9 +118,11 @@ public class DqlRecoveryBatchRepository {
     }
 
     private void increase(String batchId, String field) {
+        Date now = new Date();
         Update update = new Update()
                 .inc(field, 1)
-                .set(DqlRecoveryBatchDto.FIELD_UPDATED, new Date());
+                .set(DqlRecoveryBatchDto.FIELD_UPDATED, now)
+                .set(DqlRecoveryBatchDto.FIELD_TTL_AT, now);
         mongoTemplate.updateFirst(batchQuery(batchId), update, entityClass);
     }
 

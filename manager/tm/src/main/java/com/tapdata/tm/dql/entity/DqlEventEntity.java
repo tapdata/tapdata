@@ -125,4 +125,6 @@ public class DqlEventEntity extends Entity {
     private List<DqlRecoveryAttemptDto> recoveryAttempts;
     private Date created;
     private Date updated;
+    @Field(DqlEventDto.FIELD_TTL_AT)
+    private Date ttlAt;
 }

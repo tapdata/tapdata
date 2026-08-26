@@ -39,6 +39,7 @@
 | R18 | 未知异常需要批量保护，避免 DLQ 风暴 | 新增 `DlqStormGuard`，按任务、节点、表、错误码、时间窗口限流 |
 | R19 | 页面和日志区分“记录已隔离”和“任务共享异常重试/停止” | DLQ 页面展示记录级事件；共享异常通过任务状态、告警和说明文案表达 |
 | R20 | 同记录异常后若后续成功写入，需要提示重放覆盖风险 | `record_identity` 记录业务键，Engine 成功写入回调标记前序事件 `overwrite_risk=true` |
+| R21 | DQL 数据默认保留 14 天 | `dql_events`、`dql_recovery_batches` 使用 `ttl_at` 单字段 TTL 索引；创建时取 `created`，重处理状态推进时刷新 |
 
 ### 2.2 不做内容
 
@@ -52,7 +53,7 @@
 - 不支持客户直接修改 `dql_events` 集合。
 - 不做同一业务键后续事件自动阻塞等待。
 - 不对无主键、无唯一键、无幂等能力的任意拓扑承诺无重复。
-- 不在 POC 中实现生产级保留策略、容量配额和归档。
+- 除默认 14 天 TTL 外，不在 POC 中实现可配置保留策略、容量配额和归档。
 - 不设置吞吐或延迟验收阈值；POC 只做功能和结果定性证明。
 
 ## 3. 代码现状依据
@@ -158,6 +159,7 @@ flowchart LR
 9. 暂停任务如果 TaskClient 已释放，使用 recovery-only runner 从源节点边界注入事件，完成后不改变任务业务状态。
 10. 批量回放按单事件串行 + 队列屏障执行，优先满足 POC 的顺序可证明性。
 11. 每条 DQL 事件保存 `record_identity`，Engine 按主键、唯一索引、全字段 hash 的优先级生成；后续同记录成功写入只标记覆盖风险，不自动阻止用户重放。
+12. `dql_events` 和 `dql_recovery_batches` 使用独立 `ttl_at` 字段执行默认 14 天清理；创建时与 `created` 一致，重处理和批次状态推进时与 `updated` 同步刷新。
 
 ## 5. 领域模型
 
@@ -360,6 +362,8 @@ public class DqlEventEntity extends Entity {
   private List<DqlRecoveryAttempt> recoveryAttempts;
   private Date created;
   private Date updated;
+  @Field("ttl_at")
+  private Date ttlAt;
 }
 ```
 
@@ -404,6 +408,7 @@ public class DqlEventEntity extends Entity {
 | `later_success_capture_seq` | 否 | 后续成功事件在任务内的捕获序号 |
 | `later_success_dml_type` | 否 | 后续成功事件 DML 类型 |
 | `recovery_attempts` | 否 | 人工重处理历史，追加写 |
+| `ttl_at` | 是 | Mongo TTL 起算时间。新建时等于 `created`；进入重处理、重处理完成/失败或释放批次锁时刷新 |
 
 ### 6.2 Payload 格式
 
@@ -532,12 +537,16 @@ public class DqlRecoveryBatchEntity extends Entity {
   private String message;
   private Date created;
   private Date updated;
+  @Field("ttl_at")
+  private Date ttlAt;
 }
 ```
 
+`ttl_at` 新建时等于 `created`。批次进入 `DISPATCHED`、`RUNNING`，处理结果计数变化，以及进入 `SUCCESS`、`PARTIAL_FAILED`、`FAILED`、`CANCELED` 等终态时，与 `updated` 使用同一个时间值刷新。
+
 ### 6.6 索引
 
-索引由 `DqlEventRepository.init()` 创建，风格参考 `TaskSkipErrorTableRepository.init()`。
+普通查询索引分别由 `DqlEventRepository.init()` 和 `DqlRecoveryBatchRepository.init()` 创建，风格参考 `TaskSkipErrorTableRepository.init()`；两个 TTL 索引由 iDaaS 初始化脚本 `manager/tm/src/main/resources/init/idaas/4.22-7.json` 创建。
 
 ```javascript
 db.dql_events.createIndex(
@@ -563,6 +572,11 @@ db.dql_events.createIndex(
 db.dql_events.createIndex(
   { event_id: 1 },
   { name: "uk_event_id", unique: true }
+)
+
+db.dql_events.createIndex(
+  { ttl_at: 1 },
+  { name: "idx_dql_event_ttl", expireAfterSeconds: 1209600 }
 )
 
 db.dql_events.createIndex(
@@ -593,7 +607,31 @@ db.dql_recovery_batches.createIndex(
   { status: 1, created: -1 },
   { name: "idx_status_created" }
 )
+
+db.dql_recovery_batches.createIndex(
+  { ttl_at: 1 },
+  { name: "idx_dql_batch_ttl", expireAfterSeconds: 1209600 }
+)
 ```
+
+### 6.7 TTL 生命周期
+
+`ttl_at` 必须保存为 BSON Date。TTL 索引为单字段索引，默认 `expireAfterSeconds=1209600`，即从 `ttl_at` 起 14 天后由 MongoDB 后台任务清理；删除时间允许存在 Mongo TTL Monitor 的调度延迟。
+
+`dql_events.ttl_at` 更新规则：
+
+| 场景 | `ttl_at` 取值 |
+| --- | --- |
+| 创建 `PENDING` 或 `NOT_REPROCESSABLE` 事件 | 与 `created` 相同 |
+| `PENDING` 或 `RECOVERY_FAILED` 进入 `REPROCESSING` | 与本次 `updated` 相同 |
+| `REPROCESSING` 进入 `RECOVERED` 或 `RECOVERY_FAILED` | 与本次 `updated` 相同 |
+| 批次启动或派发失败，事件锁被释放 | 与本次 `updated` 相同 |
+
+状态、`current_batch_id`、`updated` 和 `ttl_at` 必须在同一次 Mongo 条件更新中写入，避免事件状态已经变化但 TTL 仍使用旧时间。`RECOVERY_FAILED` 再次重处理时也必须刷新，不能只覆盖首次 `PENDING` 重处理。
+
+`dql_recovery_batches.ttl_at` 创建时与 `created` 相同；状态推进、事件结果计数更新和批次结束时，与 `updated` 使用同一个时间值刷新。这样事件和批次均至少从最后一次有效重处理活动起保留 14 天。
+
+iDaaS 初始化脚本 `4.22-7.json` 必须对 `dql_events` 和 `dql_recovery_batches` 执行 `createIndexes`，TTL 索引不再由 Repository 启动时重复创建。脚本可为已经存在的集合补建索引；历史文档若没有 `ttl_at` 不会被 Mongo TTL 自动删除，上线前如环境中已存在 DQL 数据，需要按 `created` 回填 `ttl_at`。
 
 ## 7. TM 后端详细设计
 

@@ -143,6 +143,9 @@ public class DqlEventRepository {
         Assert.notNull(dto.getEventId(), "eventId must not be null!");
 
         Query query = Query.query(uniqueCriteria(dto));
+        Date now = new Date();
+        Date created = Optional.ofNullable(dto.getCreated()).orElse(now);
+        Date ttlAt = Optional.ofNullable(dto.getTtlAt()).orElse(created);
         Update update = new Update();
         set(update, DqlEventDto.FIELD_EVENT_ID, dto.getEventId());
         set(update, DqlEventDto.FIELD_TASK_ID, dto.getTaskId());
@@ -192,8 +195,9 @@ public class DqlEventRepository {
         set(update, DqlEventDto.FIELD_LATER_SUCCESS_EVENT_TIME, dto.getLaterSuccessEventTime());
         set(update, DqlEventDto.FIELD_LATER_SUCCESS_CAPTURE_SEQ, dto.getLaterSuccessCaptureSeq());
         set(update, DqlEventDto.FIELD_LATER_SUCCESS_DML_TYPE, dto.getLaterSuccessDmlType());
-        update.set(DqlEventDto.FIELD_UPDATED, new Date());
-        update.setOnInsert(DqlEventDto.FIELD_CREATED, Optional.ofNullable(dto.getCreated()).orElseGet(Date::new));
+        set(update, DqlEventDto.FIELD_TTL_AT, ttlAt);
+        update.set(DqlEventDto.FIELD_UPDATED, now);
+        update.setOnInsert(DqlEventDto.FIELD_CREATED, created);
 
         DqlEventEntity entity = mongoTemplate.findAndModify(
                 query,
@@ -298,16 +302,19 @@ public class DqlEventRepository {
         Criteria criteria = Criteria.where(DqlEventDto.FIELD_EVENT_ID).in(eventIds)
                 .and(DqlEventDto.FIELD_STATUS).in(DqlEventStatusEnum.PENDING.name(), DqlEventStatusEnum.RECOVERY_FAILED.name());
         Query query = Query.query(criteria);
+        Date now = new Date();
         Update update = new Update()
                 .set(DqlEventDto.FIELD_STATUS, DqlEventStatusEnum.REPROCESSING.name())
                 .set(DqlEventDto.FIELD_CURRENT_BATCH_ID, batchId)
-                .set(DqlEventDto.FIELD_UPDATED, new Date());
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
         UpdateResult result = mongoTemplate.updateMulti(query, update, entityClass);
         return result.getModifiedCount();
     }
 
     public boolean completeEvent(String eventId, String batchId, DqlRecoveryAttemptDto attempt) {
         Query query = batchEventQuery(eventId, batchId);
+        Date now = new Date();
         Update update = new Update()
                 .set(DqlEventDto.FIELD_STATUS, DqlEventStatusEnum.RECOVERED.name())
                 .set(DqlEventDto.FIELD_CURRENT_BATCH_ID, null)
@@ -316,13 +323,15 @@ public class DqlEventRepository {
                 .set(DqlEventDto.FIELD_LAST_RECOVERY_USER_NAME, attempt.getOperatorName())
                 .set(DqlEventDto.FIELD_LAST_RECOVERY_RESULT, DqlRecoveryAttemptResultEnum.SUCCESS.name())
                 .inc(DqlEventDto.FIELD_RECOVERY_COUNT, 1)
-                .set(DqlEventDto.FIELD_UPDATED, new Date());
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
         update.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
         return mongoTemplate.updateFirst(query, update, entityClass).getModifiedCount() > 0;
     }
 
     public boolean failEvent(String eventId, String batchId, DqlRecoveryAttemptDto attempt) {
         Query query = batchEventQuery(eventId, batchId);
+        Date now = new Date();
         Update update = new Update()
                 .set(DqlEventDto.FIELD_STATUS, DqlEventStatusEnum.RECOVERY_FAILED.name())
                 .set(DqlEventDto.FIELD_CURRENT_BATCH_ID, null)
@@ -331,7 +340,8 @@ public class DqlEventRepository {
                 .set(DqlEventDto.FIELD_LAST_RECOVERY_USER_NAME, attempt.getOperatorName())
                 .set(DqlEventDto.FIELD_LAST_RECOVERY_RESULT, attempt.getResult())
                 .inc(DqlEventDto.FIELD_RECOVERY_COUNT, 1)
-                .set(DqlEventDto.FIELD_UPDATED, new Date());
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
         update.push(DqlEventDto.FIELD_RECOVERY_ATTEMPTS, attempt);
         return mongoTemplate.updateFirst(query, update, entityClass).getModifiedCount() > 0;
     }
@@ -339,10 +349,12 @@ public class DqlEventRepository {
     public long releaseBatchLocks(String batchId, DqlEventStatusEnum targetStatus) {
         Query query = Query.query(Criteria.where(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(batchId)
                 .and(DqlEventDto.FIELD_STATUS).is(DqlEventStatusEnum.REPROCESSING.name()));
+        Date now = new Date();
         Update update = new Update()
                 .set(DqlEventDto.FIELD_STATUS, targetStatus.name())
                 .set(DqlEventDto.FIELD_CURRENT_BATCH_ID, null)
-                .set(DqlEventDto.FIELD_UPDATED, new Date());
+                .set(DqlEventDto.FIELD_UPDATED, now)
+                .set(DqlEventDto.FIELD_TTL_AT, now);
         return mongoTemplate.updateMulti(query, update, entityClass).getModifiedCount();
     }
 

@@ -67,6 +67,9 @@ class DqlEventServiceTest {
         assertEquals("DQL-64f000-000042", result.getEventId());
         assertEquals(DqlEventStatusEnum.PENDING.name(), result.getStatus());
         assertFalse(result.isDuplicate());
+        ArgumentCaptor<DqlEventDto> eventCaptor = forClass(DqlEventDto.class);
+        verify(eventRepository).upsert(eventCaptor.capture());
+        assertEquals(eventCaptor.getValue().getCreated(), eventCaptor.getValue().getTtlAt());
         verify(alarmService).notifyEventCreated(any(DqlEventDto.class));
     }
 

@@ -50,4 +50,6 @@ public class DqlRecoveryBatchEntity extends Entity {
     private String message;
     private Date created;
     private Date updated;
+    @Field(DqlRecoveryBatchDto.FIELD_TTL_AT)
+    private Date ttlAt;
 }

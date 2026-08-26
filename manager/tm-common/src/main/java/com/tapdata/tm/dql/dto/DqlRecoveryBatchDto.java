@@ -29,6 +29,7 @@ public class DqlRecoveryBatchDto implements Serializable {
     public static final String FIELD_MESSAGE = "message";
     public static final String FIELD_CREATED = "created";
     public static final String FIELD_UPDATED = "updated";
+    public static final String FIELD_TTL_AT = "ttl_at";
 
     private String id;
     private String batchId;
@@ -51,4 +52,5 @@ public class DqlRecoveryBatchDto implements Serializable {
     private String message;
     private Date created;
     private Date updated;
+    private Date ttlAt;
 }
