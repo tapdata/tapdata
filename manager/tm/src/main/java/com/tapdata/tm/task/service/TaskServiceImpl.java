@@ -259,7 +259,9 @@ public class TaskServiceImpl extends TaskService{
     public static final String COLLECTION_ID = "collectionId";
     public static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
             "mqQueueString", "mqTopicString", "brokerURL", "mqUsername", "mqPassword", "nameSrvAddr", "ftpHost", "ftpUsername", "ftpPassword",
-            "rawLogServerHost", "databaseName", "username", "user", "password", "sslPass");
+            "rawLogServerHost", "databaseName", "username", "user", "password", "sslPass",
+            // Standardized connection keys used by group export/vault flows.
+            "database_host", "database_port", "database_username", "database_password", "database_uri");
     protected static final String PROCESSOR_THREAD_NUM="processorThreadNum";
     protected static final String CATALOG="catalog";
     protected static final String ELEMENT_TYEP="elementType";
@@ -3021,6 +3023,7 @@ public class TaskServiceImpl extends TaskService{
                                     metadataInstancesDto.setCustomId(null);
                                     metadataInstancesDto.setLastUpdBy(null);
                                     metadataInstancesDto.setUserId(null);
+                                    maskExportMetadata(metadataInstancesDto);
                                     jsonList.add(new TaskUpAndLoadDto(METADATA_INSTANCES, JsonUtil.toJsonUseJackson(metadataInstancesDto)));
                                 }
                             }
@@ -3028,14 +3031,7 @@ public class TaskServiceImpl extends TaskService{
                             if (node instanceof DataParentNode) {
                                 String connectionId = ((DataParentNode<?>) node).getConnectionId();
                                 DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), user);
-                                Map<String, Object> config = dataSourceConnectionDto.getConfig();
-                                if (null != config) {
-                                    config.forEach((k, v) -> {
-                                        if (MASK_PROPERTIES.contains(k)) {
-                                            config.put(k, "");
-                                        }
-                                    });
-                                }
+                                maskExportConnection(dataSourceConnectionDto);
                                 dataSourceConnectionDto.setConnectionString(null);
                                 dataSourceConnectionDto.setCreateUser(null);
                                 dataSourceConnectionDto.setCustomId(null);
@@ -3047,6 +3043,7 @@ public class TaskServiceImpl extends TaskService{
                                 String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
                                 MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
                                         Query.query(Criteria.where(QUALIFIED_NAME).is(databaseQualifiedName).and(IS_DELETED).ne(true)), user);
+                                maskExportMetadata(dataSourceMetadataInstance);
                                 jsonList.add(new TaskUpAndLoadDto(METADATA_INSTANCES, JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
                                 jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
                             }
@@ -3064,6 +3061,37 @@ public class TaskServiceImpl extends TaskService{
             }
         }
         return JsonUtil.toJsonUseJackson(jsonList);
+    }
+
+    private void maskExportConnection(DataSourceConnectionDto connection) {
+        if (connection == null) {
+            return;
+        }
+        Map<String, Object> config = connection.getConfig();
+        if (config != null) {
+            config.forEach((k, v) -> {
+                if (MASK_PROPERTIES.contains(k)) {
+                    config.put(k, "");
+                }
+            });
+        }
+        connection.setDatabase_host("");
+        connection.setDatabase_port(null);
+        connection.setDatabase_username("");
+        connection.setDatabase_password("");
+        connection.setDatabase_uri("");
+        connection.setDatasourceInstanceTag("");
+    }
+
+    private void maskExportMetadata(MetadataInstancesDto metadata) {
+        if (metadata == null || metadata.getSource() == null) {
+            return;
+        }
+        metadata.getSource().setDatabase_host("");
+        metadata.getSource().setDatabase_port(null);
+        metadata.getSource().setDatabase_username("");
+        metadata.getSource().setDatabase_password("");
+        metadata.getSource().setDatabase_uri("");
     }
 
     private void addContentToTar(TarArchiveOutputStream taos, Map<String, byte[]> contents) throws IOException {
