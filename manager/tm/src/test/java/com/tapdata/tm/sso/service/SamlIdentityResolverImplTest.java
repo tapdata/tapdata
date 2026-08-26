@@ -115,6 +115,27 @@ class SamlIdentityResolverImplTest {
     }
 
     @Test
+    @DisplayName("mixed-case email claim is lower-cased, matching how emails are stored")
+    void emailClaimIsNormalized() {
+        Map<String, List<String>> attrs = new HashMap<>();
+        attrs.put("email", java.util.Collections.singletonList("  Jane.Doe@Example.com "));
+        SamlAuthenticatedSubject s = subject();
+        s.setAttributes(attrs);
+
+        when(samlConfigService.getConfig()).thenReturn(
+                SamlConfig.builder().jitProvisioningEnabled(true).claimEmail("email").build());
+        when(mongoTemplate.findOne(any(Query.class), eq(SsoExternalIdentity.class))).thenReturn(null);
+        when(mongoTemplate.findOne(any(Query.class), eq(User.class))).thenReturn(null);
+        UserDetail actor = org.mockito.Mockito.mock(UserDetail.class);
+        when(userService.loadUserByUsername("admin@admin.com")).thenReturn(actor);
+        when(samlProvisioningService.provisionUser(eq("jane.doe@example.com"), any(), any(), eq(actor)))
+                .thenReturn(activeUser());
+
+        resolver.resolve(s);
+        verify(samlProvisioningService).provisionUser(eq("jane.doe@example.com"), any(), any(), eq(actor));
+    }
+
+    @Test
     @DisplayName("no user + JIT disabled -> rejected (secure default)")
     void jitDisabledRejects() {
         when(samlConfigService.getConfig()).thenReturn(SamlConfig.builder().jitProvisioningEnabled(false).build());

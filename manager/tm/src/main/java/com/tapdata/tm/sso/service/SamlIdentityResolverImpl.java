@@ -130,11 +130,20 @@ public class SamlIdentityResolverImpl implements SamlIdentityResolver {
         if (StringUtils.isNotBlank(config.getClaimEmail()) && attributes != null) {
             List<String> values = attributes.get(config.getClaimEmail());
             if (values != null && !values.isEmpty() && StringUtils.isNotBlank(values.get(0))) {
-                return values.get(0).trim();
+                return normalizeEmail(values.get(0));
             }
         }
-        String nameId = subject.getNameId();
-        return nameId == null ? null : nameId.trim().toLowerCase(Locale.ROOT);
+        return normalizeEmail(subject.getNameId());
+    }
+
+    /**
+     * Emails are stored lower-cased ({@code SamlProvisioningServiceImpl.provisionUser} and the
+     * bulk import both normalize), while {@code findUserByEmail} matches exactly. Every path that
+     * produces an email for lookup must normalize the same way, or a mixed-case claim value such
+     * as {@code Jane.Doe@Example.com} silently misses the account it belongs to.
+     */
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 
     private SsoExternalIdentity findBinding(String idpEntityId, String nameId) {
