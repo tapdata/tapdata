@@ -12,6 +12,8 @@ import com.tapdata.tm.dql.vo.DqlEventQueryVo;
 import com.tapdata.tm.dql.vo.DqlEventReportResultVo;
 import com.tapdata.tm.dql.vo.DqlEventReportVo;
 import com.tapdata.tm.dql.vo.DqlEventSummaryVo;
+import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
+import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
@@ -48,6 +50,16 @@ public class DqlEventController extends BaseController {
     public ResponseMessage<DqlEventReportResultVo> report(@PathVariable("taskId") String taskId,
                                                           @RequestBody DqlEventReportVo request) {
         return success(eventService.report(taskId, request));
+    }
+
+    /**
+     * Receives successful normal record writes from Engine and marks previous DLQ events for the same record with overwrite risk.
+     */
+    @Operation(summary = "Engine reports a successful record write after DLQ skip")
+    @PostMapping({"/api/task/{taskId}/dql-events/record-success/report", "/api/Task/{taskId}/dql-events/record-success/report"})
+    public ResponseMessage<DqlRecordSuccessReportResultVo> reportRecordSuccess(@PathVariable("taskId") String taskId,
+                                                                               @RequestBody DqlRecordSuccessReportVo request) {
+        return success(eventService.reportRecordSuccess(taskId, request));
     }
 
     /**

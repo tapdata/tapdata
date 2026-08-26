@@ -270,6 +270,12 @@ public class DqlRecoveryBatchService {
         ordered.setCaptureSeq(event.getCaptureSeq());
         ordered.setDmlType(event.getDmlType());
         ordered.setSourceTable(event.getSourceTable());
+        ordered.setOverwriteRisk(event.getOverwriteRisk());
+        ordered.setOverwriteRiskMessage(event.getOverwriteRiskMessage());
+        ordered.setLaterSuccessAt(event.getLaterSuccessAt());
+        ordered.setLaterSuccessEventTime(event.getLaterSuccessEventTime());
+        ordered.setLaterSuccessCaptureSeq(event.getLaterSuccessCaptureSeq());
+        ordered.setLaterSuccessDmlType(event.getLaterSuccessDmlType());
         return ordered;
     }
 

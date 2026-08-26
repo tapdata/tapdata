@@ -23,6 +23,12 @@ public class DqlRecoveryPreviewVo implements Serializable {
         private Long captureSeq;
         private String dmlType;
         private String sourceTable;
+        private Boolean overwriteRisk;
+        private String overwriteRiskMessage;
+        private Date laterSuccessAt;
+        private Date laterSuccessEventTime;
+        private Long laterSuccessCaptureSeq;
+        private String laterSuccessDmlType;
     }
 
     @Data

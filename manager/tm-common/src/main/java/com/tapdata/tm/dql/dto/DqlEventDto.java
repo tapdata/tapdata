@@ -31,6 +31,9 @@ public class DqlEventDto implements Serializable {
     public static final String FIELD_EVENT_KEY = "event_key";
     public static final String FIELD_EVENT_KEY_MISSING = "event_key_missing";
     public static final String FIELD_EVENT_IDENTITY = "event_identity";
+    public static final String FIELD_RECORD_IDENTITY = "record_identity";
+    public static final String FIELD_RECORD_IDENTITY_TYPE = "record_identity_type";
+    public static final String FIELD_RECORD_IDENTITY_FIELDS = "record_identity_fields";
     public static final String FIELD_PAYLOAD_FORMAT = "payload_format";
     public static final String FIELD_PAYLOAD_DATA = "payload_data";
     public static final String FIELD_PAYLOAD_HASH = "payload_hash";
@@ -40,6 +43,10 @@ public class DqlEventDto implements Serializable {
     public static final String FIELD_PAYLOAD_PREVIEW_TRUNCATED = "payload_preview_truncated";
     public static final String FIELD_ERROR_TYPE = "error_type";
     public static final String FIELD_ERROR_CODE = "error_code";
+    public static final String FIELD_EXCEPTION_SCOPE = "exception_scope";
+    public static final String FIELD_ROUTE_DECISION = "route_decision";
+    public static final String FIELD_CLASSIFICATION_REASON = "classification_reason";
+    public static final String FIELD_CLASSIFICATION_CONFIDENCE = "classification_confidence";
     public static final String FIELD_ERROR_DETAILS = "error_details";
     public static final String FIELD_ERROR_DETAILS_TRUNCATED = "error_details_truncated";
     public static final String FIELD_RAW_ERROR_REF = "raw_error_ref";
@@ -50,6 +57,12 @@ public class DqlEventDto implements Serializable {
     public static final String FIELD_LAST_RECOVERY_USER_NAME = "last_recovery_user_name";
     public static final String FIELD_LAST_RECOVERY_RESULT = "last_recovery_result";
     public static final String FIELD_CURRENT_BATCH_ID = "current_batch_id";
+    public static final String FIELD_OVERWRITE_RISK = "overwrite_risk";
+    public static final String FIELD_OVERWRITE_RISK_MESSAGE = "overwrite_risk_message";
+    public static final String FIELD_LATER_SUCCESS_AT = "later_success_at";
+    public static final String FIELD_LATER_SUCCESS_EVENT_TIME = "later_success_event_time";
+    public static final String FIELD_LATER_SUCCESS_CAPTURE_SEQ = "later_success_capture_seq";
+    public static final String FIELD_LATER_SUCCESS_DML_TYPE = "later_success_dml_type";
     public static final String FIELD_RECOVERY_ATTEMPTS = "recovery_attempts";
     public static final String FIELD_CREATED = "created";
     public static final String FIELD_UPDATED = "updated";
@@ -76,6 +89,9 @@ public class DqlEventDto implements Serializable {
     private Map<String, Object> eventKey;
     private Boolean eventKeyMissing;
     private String eventIdentity;
+    private String recordIdentity;
+    private String recordIdentityType;
+    private List<String> recordIdentityFields;
     private String payloadFormat;
     private Object payloadData;
     private String payloadHash;
@@ -85,6 +101,10 @@ public class DqlEventDto implements Serializable {
     private Boolean payloadPreviewTruncated;
     private String errorType;
     private String errorCode;
+    private String exceptionScope;
+    private String routeDecision;
+    private String classificationReason;
+    private String classificationConfidence;
     private String errorDetails;
     private Boolean errorDetailsTruncated;
     private String rawErrorRef;
@@ -95,6 +115,12 @@ public class DqlEventDto implements Serializable {
     private String lastRecoveryUserName;
     private String lastRecoveryResult;
     private String currentBatchId;
+    private Boolean overwriteRisk;
+    private String overwriteRiskMessage;
+    private Date laterSuccessAt;
+    private Date laterSuccessEventTime;
+    private Long laterSuccessCaptureSeq;
+    private String laterSuccessDmlType;
     private List<DqlRecoveryAttemptDto> recoveryAttempts;
     private Date created;
     private Date updated;

@@ -14,6 +14,8 @@ import com.tapdata.tm.dql.vo.DqlEventQueryVo;
 import com.tapdata.tm.dql.vo.DqlEventReportResultVo;
 import com.tapdata.tm.dql.vo.DqlEventReportVo;
 import com.tapdata.tm.dql.vo.DqlEventSummaryVo;
+import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
+import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
@@ -52,6 +54,24 @@ class DqlEventControllerTest {
 
         assertSame(result, response.getData());
         verify(eventService).report("64f000000000000000000001", request);
+    }
+
+    @Test
+    @DisplayName("record success report uses task id from path")
+    void recordSuccessReportUsesPathTaskId() {
+        DqlEventService eventService = mock(DqlEventService.class);
+        DqlEventController controller = new DqlEventController(eventService, mock(DqlRecoveryBatchService.class));
+        DqlRecordSuccessReportVo request = new DqlRecordSuccessReportVo();
+        request.setRecordIdentity("key:orders:id=1001");
+        DqlRecordSuccessReportResultVo result = new DqlRecordSuccessReportResultVo();
+        result.setEventId("DQL-64f000-000001");
+        result.setMarked(true);
+        when(eventService.reportRecordSuccess("64f000000000000000000001", request)).thenReturn(result);
+
+        ResponseMessage<DqlRecordSuccessReportResultVo> response = controller.reportRecordSuccess("64f000000000000000000001", request);
+
+        assertSame(result, response.getData());
+        verify(eventService).reportRecordSuccess("64f000000000000000000001", request);
     }
 
     @Test

@@ -58,6 +58,12 @@ public class DqlEventEntity extends Entity {
     private Boolean eventKeyMissing;
     @Field(DqlEventDto.FIELD_EVENT_IDENTITY)
     private String eventIdentity;
+    @Field(DqlEventDto.FIELD_RECORD_IDENTITY)
+    private String recordIdentity;
+    @Field(DqlEventDto.FIELD_RECORD_IDENTITY_TYPE)
+    private String recordIdentityType;
+    @Field(DqlEventDto.FIELD_RECORD_IDENTITY_FIELDS)
+    private List<String> recordIdentityFields;
     @Field(DqlEventDto.FIELD_PAYLOAD_FORMAT)
     private String payloadFormat;
     @Field(DqlEventDto.FIELD_PAYLOAD_DATA)
@@ -76,6 +82,14 @@ public class DqlEventEntity extends Entity {
     private String errorType;
     @Field(DqlEventDto.FIELD_ERROR_CODE)
     private String errorCode;
+    @Field(DqlEventDto.FIELD_EXCEPTION_SCOPE)
+    private String exceptionScope;
+    @Field(DqlEventDto.FIELD_ROUTE_DECISION)
+    private String routeDecision;
+    @Field(DqlEventDto.FIELD_CLASSIFICATION_REASON)
+    private String classificationReason;
+    @Field(DqlEventDto.FIELD_CLASSIFICATION_CONFIDENCE)
+    private String classificationConfidence;
     @Field(DqlEventDto.FIELD_ERROR_DETAILS)
     private String errorDetails;
     @Field(DqlEventDto.FIELD_ERROR_DETAILS_TRUNCATED)
@@ -95,6 +109,18 @@ public class DqlEventEntity extends Entity {
     private String lastRecoveryResult;
     @Field(DqlEventDto.FIELD_CURRENT_BATCH_ID)
     private String currentBatchId;
+    @Field(DqlEventDto.FIELD_OVERWRITE_RISK)
+    private Boolean overwriteRisk;
+    @Field(DqlEventDto.FIELD_OVERWRITE_RISK_MESSAGE)
+    private String overwriteRiskMessage;
+    @Field(DqlEventDto.FIELD_LATER_SUCCESS_AT)
+    private Date laterSuccessAt;
+    @Field(DqlEventDto.FIELD_LATER_SUCCESS_EVENT_TIME)
+    private Date laterSuccessEventTime;
+    @Field(DqlEventDto.FIELD_LATER_SUCCESS_CAPTURE_SEQ)
+    private Long laterSuccessCaptureSeq;
+    @Field(DqlEventDto.FIELD_LATER_SUCCESS_DML_TYPE)
+    private String laterSuccessDmlType;
     @Field(DqlEventDto.FIELD_RECOVERY_ATTEMPTS)
     private List<DqlRecoveryAttemptDto> recoveryAttempts;
     private Date created;

@@ -5,6 +5,7 @@
 - Jira：TAP-12615
 - 主题：TapData 异常事件（DLQ）与受控重处理 POC
 - 编写日期：2026-08-25
+- 更新日期：2026-08-26
 - 文档类型：详细设计
 - 基础文档：`doc/TAP-12615-DLQ-controlled-reprocessing-design.md`
 
@@ -19,8 +20,8 @@
 | 编号 | 需求 | 详细设计覆盖 |
 | --- | --- | --- |
 | R1 | 格式错误、Poison Record、转换失败记录可进入 DLQ | Engine 增加目标写入捕获和处理节点捕获两条链路 |
-| R2 | 开启跳过异常后异常记录隔离，正常记录继续同步 | `SkipData` 模式下先落库 DLQ，再返回 skip；正常事件继续走原 DAG |
-| R3 | 结构化保存到 MongoDB `dql_events` | 新增 `dql_events` 集合、实体、索引和上报 API |
+| R2 | 开启 DLQ 后同一任务内分层生效 | `DlqExceptionClassifier` 先判断 `TASK_RETRY`、`RECORD_DLQ`、`TASK_ERROR`，再决定任务重试或 DLQ 入库 |
+| R3 | 结构化保存到 MongoDB `dql_events` | 新增 `dql_events` 集合、实体、索引和上报 API；集合只保存记录级 DLQ 事件 |
 | R4 | 独立“异常事件”菜单 | Web 新增路由、菜单、API 封装和列表/详情页面 |
 | R5 | 按任务、表、关键字、I/U/D 等查询 | TM 查询 API 提供分页、过滤和任务权限过滤 |
 | R6 | 支持单条和批量回放 | TM 批次服务 + Engine `dqlRecovery` 消息处理 |
@@ -31,19 +32,28 @@
 | R11 | 可见即可操作 | 新增菜单权限；POC 中菜单可见即可发起操作，同时后端做任务数据范围过滤 |
 | R12 | `error_details` 截断 | TM 统一执行错误详情截断和敏感字段脱敏 |
 | R13 | 建立 `task_id + event_time` 索引 | Mongo 字段按 Jira 口径使用 `task_id`、`event_time` |
-| R14 | DLQ 告警和重处理失败告警 | 新增告警 key、模板和触发点 |
+| R14 | DLQ 告警和重处理失败告警 | 新增告警 key、模板和触发点；共享异常复用现有任务告警 |
 | R15 | 证明无重复、顺序、无丢失 | 提供受限适用范围和 POC 证据采集口径 |
+| R16 | 网络抖动、数据库临时不可用等共享异常走任务级重试 | 复用 `TaskRetryService`，DLQ 开启时不禁用现有重试 |
+| R17 | 任务级重试耗尽后任务错误并告警，不批量写 DLQ | 分类器返回 `TASK_RETRY` 或 `TASK_ERROR` 时不调用 DLQ 上报 |
+| R18 | 未知异常需要批量保护，避免 DLQ 风暴 | 新增 `DlqStormGuard`，按任务、节点、表、错误码、时间窗口限流 |
+| R19 | 页面和日志区分“记录已隔离”和“任务共享异常重试/停止” | DLQ 页面展示记录级事件；共享异常通过任务状态、告警和说明文案表达 |
+| R20 | 同记录异常后若后续成功写入，需要提示重放覆盖风险 | `record_identity` 记录业务键，Engine 成功写入回调标记前序事件 `overwrite_risk=true` |
 
 ### 2.2 不做内容
 
-- 不改 TapData 现有任务级重试策略。
+- 不改 TapData 现有任务级重试策略、重试间隔、最大重试时间和重试耗尽后的任务失败语义。
 - 不做“记录级重试耗尽后自动进入 DLQ”链路。
+- 不做“所有异常先进入记录级重试，再进入 DLQ”的统一链路。
+- 不把网络、连接、数据库临时不可用等共享故障期间的积压数据批量转换为 DLQ 记录。
+- 不对未知异常默认无限逐条写入 DLQ；未知异常必须受批量保护约束。
 - 不支持在线编辑或下载异常 Payload。
-- 不支持跨任务批量重处理。
+- 不支持跨任务批量重处理；同一任务内批量允许跨表。
 - 不支持客户直接修改 `dql_events` 集合。
 - 不做同一业务键后续事件自动阻塞等待。
 - 不对无主键、无唯一键、无幂等能力的任意拓扑承诺无重复。
 - 不在 POC 中实现生产级保留策略、容量配额和归档。
+- 不设置吞吐或延迟验收阈值；POC 只做功能和结果定性证明。
 
 ## 3. 代码现状依据
 
@@ -51,7 +61,8 @@
 
 | 文件 | 现状 | 设计使用方式 |
 | --- | --- | --- |
-| `iengine/modules/skip-error-event-module/.../SkipErrorEventAspectTask.java` | `SkipData` 模式下目标写入失败后拆成单条，单条失败可跳过并写日志 | 作为目标写入异常进入 DLQ 的主捕获点 |
+| `iengine/modules/skip-error-event-module/.../SkipErrorEventAspectTask.java` | `SkipData` 模式下目标写入失败后拆成单条，单条失败可跳过并写日志 | 作为目标写入异常进入 DLQ 的主捕获点，但必须前置异常分类和风暴保护 |
+| `iengine/iengine-app/.../TaskRetryService.java` | 已实现任务级重试窗口、重试间隔和重试耗尽判断 | 共享临时异常继续复用该能力，不因 DLQ 开启而旁路 |
 | `iengine/api/.../SkipErrorDataAspect.java` | 暴露 `TapTable`、`TapRecordEvent` 列表、`PDKMethodInvoker`、写入函数 | 扩展上报所需上下文 |
 | `iengine/iengine-app/.../HazelcastTargetPdkDataNode.java` | 执行 `SkipErrorDataAspect`；已处理 `TapdataRecoveryEvent` 完成回调 | 新增 DLQ recovery event 的目标完成回调 |
 | `iengine/iengine-app/.../HazelcastProcessorBaseNode.java` | 处理节点异常进入 `errorHandle(...)` | 新增处理节点记录级异常捕获切面 |
@@ -91,7 +102,11 @@ flowchart LR
     S["Source Node"]
     P["Processor Nodes"]
     T["Target Node"]
+    R["DlqExceptionClassifier"]
+    SG["DlqStormGuard"]
     C1["DQL Capture Reporter"]
+    RT["Existing Task Retry"]
+    EH["Task errorHandle + alarm"]
     RC["DQL Recovery Coordinator"]
     G["Source Read Gate"]
   end
@@ -111,8 +126,16 @@ flowchart LR
   end
 
   S --> P --> T
-  P -->|record-local exception| C1
-  T -->|write exception| C1
+  P -->|processor error| R
+  T -->|write error| R
+  R -->|TASK_RETRY| RT
+  RT -->|recovered| S
+  RT -->|exhausted| EH
+  R -->|TASK_ERROR| EH
+  R -->|UNKNOWN| SG
+  SG -->|allow single record| C1
+  SG -->|threshold reached| EH
+  R -->|RECORD_DLQ| C1
   C1 --> API --> DS --> DB
   DS --> AL
   MENU --> LIST --> API
@@ -126,11 +149,15 @@ flowchart LR
 
 1. Mongo 持久化字段使用 Jira 确认的 `task_id`、`event_time` 等 snake_case 字段；Java DTO 和 VO 使用 camelCase，并通过 `@Field` 映射。
 2. 目标写入异常复用 `SkipErrorDataAspect` 捕获，处理节点异常新增 `SkipErrorProcessAspect` 捕获。
-3. Engine 上报使用 TM 内部 API，保持告警、去重、截断和状态规则在 TM 收敛。
-4. 重处理消息使用独立 `dqlRecovery` WebSocket handler，不扩展 `DataSyncMq.OP_TYPE_*`。
-5. 运行中任务不调用 `TaskService.pause(...)`；改用 Engine 内部 source read gate 暂停正常读取。
-6. 暂停任务如果 TaskClient 已释放，使用 recovery-only runner 从源节点边界注入事件，完成后不改变任务业务状态。
-7. 批量回放按单事件串行 + 队列屏障执行，优先满足 POC 的顺序可证明性。
+3. 捕获到异常后必须先经过 `DlqExceptionClassifier`，只有 `RECORD_DLQ` 决策才允许上报 `dql_events`。
+4. 共享临时异常复用现有 `TaskRetryService`，DLQ 开启不改变 `retry_interval_second`、`max_retry_time_minute` 和重试耗尽后的失败语义。
+5. 未知异常进入 `DlqStormGuard`，在同一任务、节点、表、错误码和时间窗口内达到阈值后停止逐条 DLQ，转任务错误或任务级重试。
+6. Engine 上报使用 TM 内部 API，保持告警、去重、截断和状态规则在 TM 收敛。
+7. 重处理消息使用独立 `dqlRecovery` WebSocket handler，不扩展 `DataSyncMq.OP_TYPE_*`。
+8. 运行中任务不调用 `TaskService.pause(...)`；改用 Engine 内部 source read gate 暂停正常读取。
+9. 暂停任务如果 TaskClient 已释放，使用 recovery-only runner 从源节点边界注入事件，完成后不改变任务业务状态。
+10. 批量回放按单事件串行 + 队列屏障执行，优先满足 POC 的顺序可证明性。
+11. 每条 DQL 事件保存 `record_identity`，Engine 按主键、唯一索引、全字段 hash 的优先级生成；后续同记录成功写入只标记覆盖风险，不自动阻止用户重放。
 
 ## 5. 领域模型
 
@@ -171,11 +198,28 @@ flowchart LR
 
 | 枚举 | 适用场景 |
 | --- | --- |
-| `MALFORMED_RECORD` | 记录字段格式、类型转换、长度、非空等记录局部问题 |
+| `MALFORMED_RECORD` | 记录字段格式、类型转换、日期格式、非空等记录局部问题 |
 | `POISON_RECORD` | 当前任务规则下必然失败，但修复规则后可恢复的业务记录 |
 | `TRANSFORM_ERROR` | JS 或自定义处理节点对单条 DML 处理失败 |
-| `TARGET_WRITE_ERROR` | 目标端写入约束或类型不匹配等错误 |
-| `UNKNOWN_RECORD_ERROR` | 可跳过但无法更细分类的记录级异常 |
+| `TARGET_CONSTRAINT_ERROR` | 目标端唯一键、非空、长度、类型等单条记录约束错误 |
+| `UNKNOWN_RECORD_ERROR` | 可定位到单条记录、未触发批量保护、但无法更细分类的记录级异常 |
+
+`DqlExceptionScope`：
+
+| 枚举 | 含义 |
+| --- | --- |
+| `RECORD` | 异常可归因到单条 `TapRecordEvent`，允许进入 DLQ |
+| `TASK_SHARED` | 网络、连接、数据库临时不可用等影响一批或整个任务的共享异常 |
+| `SYSTEM` | TM、资源、线程中断、进程关闭、任务配置等系统或任务级异常 |
+| `UNKNOWN` | 尚不能确定影响范围，需要进入批量保护判断 |
+
+`DqlRouteDecision`：
+
+| 枚举 | 含义 |
+| --- | --- |
+| `RECORD_DLQ` | 写入 `dql_events`，DLQ 保存成功后返回 skip |
+| `TASK_RETRY` | 抛回现有任务错误处理，由 `TaskRetryService` 判断是否继续重试 |
+| `TASK_ERROR` | 不进入 DLQ，任务进入错误状态并触发现有告警 |
 
 ### 5.2 状态机
 
@@ -249,6 +293,12 @@ public class DqlEventEntity extends Entity {
   private Boolean eventKeyMissing;
   @Field("event_identity")
   private String eventIdentity;
+  @Field("record_identity")
+  private String recordIdentity;
+  @Field("record_identity_type")
+  private String recordIdentityType;
+  @Field("record_identity_fields")
+  private List<String> recordIdentityFields;
   @Field("payload_format")
   private String payloadFormat;
   @Field("payload_data")
@@ -267,6 +317,14 @@ public class DqlEventEntity extends Entity {
   private String errorType;
   @Field("error_code")
   private String errorCode;
+  @Field("exception_scope")
+  private String exceptionScope;
+  @Field("route_decision")
+  private String routeDecision;
+  @Field("classification_reason")
+  private String classificationReason;
+  @Field("classification_confidence")
+  private String classificationConfidence;
   @Field("error_details")
   private String errorDetails;
   @Field("error_details_truncated")
@@ -286,6 +344,18 @@ public class DqlEventEntity extends Entity {
   private String lastRecoveryResult;
   @Field("current_batch_id")
   private String currentBatchId;
+  @Field("overwrite_risk")
+  private Boolean overwriteRisk;
+  @Field("overwrite_risk_message")
+  private String overwriteRiskMessage;
+  @Field("later_success_at")
+  private Date laterSuccessAt;
+  @Field("later_success_event_time")
+  private Date laterSuccessEventTime;
+  @Field("later_success_capture_seq")
+  private Long laterSuccessCaptureSeq;
+  @Field("later_success_dml_type")
+  private String laterSuccessDmlType;
   @Field("recovery_attempts")
   private List<DqlRecoveryAttempt> recoveryAttempts;
   private Date created;
@@ -315,11 +385,24 @@ public class DqlEventEntity extends Entity {
 | `event_key` | 否 | 主键/唯一键摘要，不能包含全量敏感字段 |
 | `event_key_missing` | 是 | 是否无法抽取主键 |
 | `event_identity` | 是 | 去重身份 |
+| `record_identity` | 是 | 同一业务记录身份；Engine 按主键、唯一索引、全字段 hash 优先级生成 |
+| `record_identity_type` | 是 | `PRIMARY_KEY`、`UNIQUE_INDEX`、`FULL_FIELD_HASH`、`UNKNOWN` |
+| `record_identity_fields` | 否 | 参与生成同一记录身份的字段名；全字段 hash 时可为空 |
 | `payload_data` | 是 | 原始 TapRecordEvent 快照 |
 | `payload_complete` | 是 | 是否具备重处理所需完整 Payload |
 | `payload_preview` | 是 | 页面展示用脱敏预览 |
 | `error_details` | 是 | 截断、脱敏后的错误详情 |
+| `exception_scope` | 是 | 进入 `dql_events` 的主记录固定为 `RECORD`，用于审计分类结果 |
+| `route_decision` | 是 | 进入 `dql_events` 的主记录固定为 `RECORD_DLQ` |
+| `classification_reason` | 是 | 分类命中的错误码、节点类型、异常链或保护规则摘要 |
+| `classification_confidence` | 是 | `EXACT`、`RULE`、`UNKNOWN_SINGLE` 等，用于识别误分类风险 |
 | `status` | 是 | 事件状态 |
+| `overwrite_risk` | 否 | 异常后同记录是否存在后续成功写入 |
+| `overwrite_risk_message` | 否 | 前端提示文案，提醒继续重放可能覆盖后续成功数据 |
+| `later_success_at` | 否 | 后续成功写入上报到 TM 的时间 |
+| `later_success_event_time` | 否 | 后续成功事件自身的事件时间 |
+| `later_success_capture_seq` | 否 | 后续成功事件在任务内的捕获序号 |
+| `later_success_dml_type` | 否 | 后续成功事件 DML 类型 |
 | `recovery_attempts` | 否 | 人工重处理历史，追加写 |
 
 ### 6.2 Payload 格式
@@ -483,6 +566,11 @@ db.dql_events.createIndex(
 )
 
 db.dql_events.createIndex(
+  { task_id: 1, task_record_id: 1, table_id: 1, record_identity: 1, event_time: -1, capture_seq: -1 },
+  { name: "idx_task_record_identity_event_time" }
+)
+
+db.dql_events.createIndex(
   { task_id: 1, task_record_id: 1, table_id: 1, event_identity: 1, failed_node_id: 1 },
   {
     name: "uk_task_event_identity",
@@ -516,7 +604,10 @@ manager/tm-common/src/main/java/com/tapdata/tm/dql/
   DqlEventStatusEnum.java
   DqlRecoveryBatchStatusEnum.java
   DqlRecoveryAttemptResultEnum.java
+  DqlRecordIdentityTypeEnum.java
   DqlErrorTypeEnum.java
+  DqlExceptionScopeEnum.java
+  DqlRouteDecisionEnum.java
   dto/
     DqlEventDto.java
     DqlRecoveryBatchDto.java
@@ -528,6 +619,8 @@ manager/tm-common/src/main/java/com/tapdata/tm/dql/
     DqlRecoveryPreviewVo.java
     DqlRecoveryRequestVo.java
     DqlRecoveryResultReportVo.java
+    DqlRecordSuccessReportVo.java
+    DqlRecordSuccessReportResultVo.java
     DqlEventSummaryVo.java
 
 manager/tm/src/main/java/com/tapdata/tm/dql/
@@ -542,6 +635,7 @@ manager/tm/src/main/java/com/tapdata/tm/dql/
     DqlRecoveryBatchService.java
     DqlEventAlarmService.java
     DqlEventPermissionService.java
+    DqlReportValidationService.java
   controller/
     DqlEventController.java
 ```
@@ -550,7 +644,8 @@ manager/tm/src/main/java/com/tapdata/tm/dql/
 
 `DqlEventService`：
 
-- `report(DqlEventReportVo vo)`：Engine 上报异常事件。
+- `report(DqlEventReportVo vo)`：Engine 上报异常事件，只接受 `exceptionScope=RECORD` 且 `routeDecision=RECORD_DLQ` 的记录级事件。
+- `reportRecordSuccess(String taskId, DqlRecordSuccessReportVo vo)`：Engine 上报同记录后续成功写入，标记前序未完成 DQL 事件的覆盖风险。
 - `page(DqlEventQueryVo query, UserDetail user)`：分页查询。
 - `detail(String eventId, UserDetail user)`：详情查询。
 - `summary(DqlEventQueryVo query, UserDetail user)`：统计。
@@ -575,6 +670,7 @@ manager/tm/src/main/java/com/tapdata/tm/dql/
 - `notifySaveFailed(...)`。
 - `notifyRecoveryFailed(DqlRecoveryBatchDto batch)`。
 - `notifyBatchPartialFailed(DqlRecoveryBatchDto batch)`。
+- `notifyStormGuardTriggered(...)`：未知异常保护触发时告警，或把该信息并入现有任务错误告警。
 
 `DqlEventPermissionService`：
 
@@ -610,6 +706,9 @@ POST /api/task/{taskId}/dql-events/report
   "eventTime": 1787580000000,
   "eventKey": { "id": 1001 },
   "eventIdentity": "sha256:...",
+  "recordIdentity": "key:orders:id=1001",
+  "recordIdentityType": "PRIMARY_KEY",
+  "recordIdentityFields": ["id"],
   "payloadFormat": "tap-record-event-json-v1",
   "payloadData": {},
   "payloadHash": "sha256:...",
@@ -618,6 +717,10 @@ POST /api/task/{taskId}/dql-events/report
   "payloadPreview": {},
   "errorType": "TRANSFORM_ERROR",
   "errorCode": "JS_PROCESS_FAILED",
+  "exceptionScope": "RECORD",
+  "routeDecision": "RECORD_DLQ",
+  "classificationReason": "JS process failed on single TapRecordEvent",
+  "classificationConfidence": "RULE",
   "errorDetails": "..."
 }
 ```
@@ -636,11 +739,61 @@ POST /api/task/{taskId}/dql-events/report
 
 1. 校验 `taskId` 合法，任务存在。
 2. 对 `errorDetails` 和 `payloadPreview` 执行 TM 侧二次截断和脱敏。
-3. 若 `captureSeq` 为空，由 TM 原子分配。
-4. 若 `eventIdentity` 为空，由 TM 根据 Payload 生成。
-5. 按唯一索引 upsert。
-6. 新增主记录时触发 DLQ 告警；重复上报时只返回已有事件，不重复告警。
-7. 保存失败向 Engine 返回错误，Engine 不允许 skip。
+3. 标准化并校验路由元数据：`exceptionScope` 为空时保存为 `RECORD`，`routeDecision` 为空时保存为 `RECORD_DLQ`；若 Engine 显式上报其他值，TM 返回错误，Engine 不允许 skip。
+4. 若 `captureSeq` 为空，由 TM 原子分配。
+5. 若 `recordIdentity` 为空，由 TM 根据 `eventKey` 或 `payloadHash` 兜底生成；准确性以 Engine 按主键、唯一索引、全字段 hash 生成的显式值为准。
+6. 若 `eventIdentity` 为空，由 TM 根据 Payload 和 `recordIdentity` 生成。
+7. 按唯一索引 upsert。
+8. 新增主记录时触发 DLQ 告警；重复上报时只返回已有事件，不重复告警。
+9. 保存失败向 Engine 返回错误，Engine 不允许 skip。
+
+### 7.3.1 Engine 后续成功写入回调 API
+
+```http
+POST /api/task/{taskId}/dql-events/record-success/report
+```
+
+接口性质：Engine 内部回调接口。仅用于在普通任务流后续成功写入同一业务记录时，标记已有 DQL 事件的重放覆盖风险。
+
+请求体：
+
+```json
+{
+  "taskRecordId": "64f...",
+  "sourceTable": "orders",
+  "targetTable": "orders_sink",
+  "tableId": "orders",
+  "eventKey": { "id": 1001 },
+  "recordIdentity": "key:orders:id=1001",
+  "recordIdentityType": "PRIMARY_KEY",
+  "recordIdentityFields": ["id"],
+  "dmlType": "U",
+  "eventTime": 1787580100000,
+  "captureSeq": 12,
+  "payloadHash": "sha256:...",
+  "successAt": 1787580102300
+}
+```
+
+响应：
+
+```json
+{
+  "marked": true,
+  "eventId": "DQL-12615-000001",
+  "recordIdentity": "key:orders:id=1001",
+  "overwriteRiskMessage": "该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作"
+}
+```
+
+处理规则：
+
+1. 校验 `taskId` 和请求体。
+2. 如果 `recordIdentity` 为空，按 `eventKey` 或 `payloadHash` 兜底生成。
+3. 查询同 `task_id`、同 `record_identity`、同 `task_record_id` 和 `table_id` 的未完成事件，状态范围为 `PENDING`、`REPROCESSING`、`RECOVERY_FAILED`。
+4. 如果上报包含 `eventTime`，只标记 `event_time <= laterSuccessEventTime` 的前序异常事件。
+5. 按 `event_time DESC, capture_seq DESC, failed_at DESC` 选择最新一条并原子设置 `overwrite_risk=true` 及后续成功摘要字段。
+6. 未匹配到事件时返回 `marked=false`；不创建新主记录，不改变状态。
 
 ### 7.4 查询 API
 
@@ -682,6 +835,12 @@ GET /api/dql-events
       "dmlType": "U",
       "errorType": "TRANSFORM_ERROR",
       "errorCode": "JS_PROCESS_FAILED",
+      "routeDecision": "RECORD_DLQ",
+      "classificationReason": "JS process failed on single TapRecordEvent",
+      "recordIdentity": "key:orders:id=1001",
+      "recordIdentityType": "PRIMARY_KEY",
+      "overwriteRisk": true,
+      "overwriteRiskMessage": "该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作",
       "eventTime": 1787580000000,
       "failedAt": 1787580010000,
       "status": "PENDING",
@@ -711,6 +870,9 @@ GET /api/dql-events/{eventId}
 - `errorDetails`。
 - `recoveryAttempts`。
 - 当前批次摘要。
+- 异常分类字段：`exceptionScope`、`routeDecision`、`classificationReason`、`classificationConfidence`。
+- 记录身份字段：`recordIdentity`、`recordIdentityType`、`recordIdentityFields`。
+- 覆盖风险字段：`overwriteRisk`、`overwriteRiskMessage`、`laterSuccessAt`、`laterSuccessEventTime`、`laterSuccessCaptureSeq`、`laterSuccessDmlType`。
 - 不返回完整 `payloadData`。
 
 完整 Payload 只给 Engine 回放使用，不暴露给 Web。
@@ -763,7 +925,13 @@ POST /api/dql-events/recovery/preview
       "eventTime": 1787580000000,
       "captureSeq": 1,
       "dmlType": "I",
-      "sourceTable": "orders"
+      "sourceTable": "orders",
+      "overwriteRisk": true,
+      "overwriteRiskMessage": "该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作",
+      "laterSuccessAt": 1787580102300,
+      "laterSuccessEventTime": 1787580100000,
+      "laterSuccessCaptureSeq": 12,
+      "laterSuccessDmlType": "U"
     }
   ],
   "blockedEvents": [],
@@ -771,7 +939,7 @@ POST /api/dql-events/recovery/preview
 }
 ```
 
-预览校验失败时，`canSubmit=false`，并返回每条事件的原因。
+预览校验失败时，`canSubmit=false`，并返回每条事件的原因。校验必须确认任务处于 `running` 或可回放暂停态；任务 `stop`、未完成初始化、已有恢复批次运行中、任务不存在、任务版本不兼容时均拒绝。
 
 ### 7.8 发起重处理 API
 
@@ -848,9 +1016,9 @@ TM 处理时必须校验：
 
 ## 8. Engine 捕获详细设计
 
-### 8.1 目标写入异常捕获
+### 8.1 捕获入口和分类前置
 
-现有流程：
+现有目标写入异常流程：
 
 ```text
 HazelcastTargetPdkDataNode
@@ -864,36 +1032,115 @@ HazelcastTargetPdkDataNode
   -> return skip
 ```
 
-新增流程：
+调整后必须把异常分类放到 DLQ 上报之前：
 
 ```text
-single write failed
-  -> checkSkipByThrowable
-  -> checkSkipByLimitMode
-  -> DqlEventReporter.report(...)
-  -> logSkipEvent(...)
-  -> return skip
+write/process failed
+  -> DlqExceptionClassifier.classify(error, stage, node, event, batchContext)
+  -> if TASK_RETRY: throw original error to current task error path
+  -> if TASK_ERROR: throw original or wrapped non-skippable error
+  -> if UNKNOWN: DlqStormGuard.decide(...)
+  -> if RECORD_DLQ: check skip limit and report DQL event
+  -> report success: log skip event and return skip
+  -> report failed: rollback metric and throw DqlEventReportException
 ```
+
+批量写入失败时先做批量级分类：
+
+- 命中连接不可用、网络抖动、目标库不可用、连接池耗尽、TM 不可用、线程中断、任务停止等共享异常时，不进入拆单 DLQ，直接抛回现有任务错误处理。
+- 无法判断为共享异常，且异常可能由个别记录触发时，保留现有拆单逻辑。
+- 拆单后的单条失败仍需再次分类；只有 `RECORD_DLQ` 才允许上报。
 
 `checkSkip(...)` 逻辑调整：
 
 ```text
-if throwable is skippable:
-  increase skip metric candidate
-  if limit allows:
-    report DQL event
-    if report success:
-      log skip event
-      return true
-    else:
-      rollback candidate metric
-      throw DqlEventReportException
+classification = classifier.classify(...)
+if classification.routeDecision == TASK_RETRY:
+  throw original error
+if classification.routeDecision == TASK_ERROR:
+  throw non-skippable error
+if classification.scope == UNKNOWN:
+  classification = stormGuard.decide(classification)
+if classification.routeDecision != RECORD_DLQ:
+  throw original or guarded error
+if throwable is skippable and limit allows:
+  report DQL event with classification fields
+  if report success:
+    log skip event
+    return true
+  rollback candidate metric
+  throw DqlEventReportException
 return false
 ```
 
-注意：当前代码先 `skipCounts.addAndGet(1)`，新增上报失败时应回滚计数，避免显示已跳过但无 DLQ 主记录。
+注意：当前代码先 `skipCounts.addAndGet(1)`，新增上报失败或路由被保护时应回滚计数，避免显示已跳过但无 DLQ 主记录。
 
-### 8.2 处理节点异常捕获
+### 8.2 `DlqExceptionClassifier`
+
+分类器输入：
+
+| 输入 | 说明 |
+| --- | --- |
+| `Throwable error` | 原始异常链，优先识别 `TapCodeException` 和错误码 |
+| `failedStage` | `SOURCE_READ`、`PROCESSOR`、`TARGET_WRITE`、`TM_CALLBACK` 等 |
+| `nodeType` | 源、处理、目标、连接器、TM 回调等节点类型 |
+| `TapRecordEvent event` | 单条事件；无法构造时不能进入可重处理 DLQ |
+| `BatchContext` | 是否批量写失败、批次大小、已拆单数量、同类异常数量 |
+| `TaskContext` | 任务类型、任务状态、是否启用 `SkipData`、重试配置快照 |
+
+分类器输出：
+
+| 字段 | 说明 |
+| --- | --- |
+| `exceptionScope` | `RECORD`、`TASK_SHARED`、`SYSTEM`、`UNKNOWN` |
+| `routeDecision` | `RECORD_DLQ`、`TASK_RETRY`、`TASK_ERROR` |
+| `errorType` | 写入 `dql_events.error_type` 的记录级错误类型 |
+| `classificationReason` | 命中的规则摘要，用于日志和页面展示 |
+| `classificationConfidence` | `EXACT`、`RULE`、`UNKNOWN_SINGLE` |
+
+核心规则：
+
+| 规则 | 输出 |
+| --- | --- |
+| 网络抖动、连接超时、连接拒绝、连接池耗尽、数据库临时不可用 | `TASK_SHARED` + `TASK_RETRY` |
+| 目标库持续不可用、重试耗尽后的同类共享故障 | `TASK_SHARED` + `TASK_ERROR` |
+| TM 不可用、Engine 线程中断、OOM、任务被停止、进程关闭 | `SYSTEM` + `TASK_ERROR` |
+| 账号密码错误、权限不足、目标表不存在、任务配置非法、脚本初始化失败 | `SYSTEM` + `TASK_ERROR` |
+| 可定位到单条 DML 的字段类型、长度、非空、唯一约束、格式校验失败 | `RECORD` + `RECORD_DLQ` |
+| JS 或自定义处理节点对单条 DML 执行失败，且不是外部依赖或资源不足导致 | `RECORD` + `RECORD_DLQ` |
+| 源连接器解析阶段无法构造 `TapRecordEvent` | `SYSTEM` 或 `TASK_SHARED` + `TASK_ERROR/TASK_RETRY` |
+| 能定位单条事件但错误码未归类 | `UNKNOWN`，交给 `DlqStormGuard` |
+
+分类器必须保持保守：无法证明是记录级确定性异常时，不应直接进入 DLQ。
+
+### 8.3 `DlqStormGuard`
+
+`DlqStormGuard` 用于防止未知异常形成 DLQ 风暴。建议按以下维度建立内存窗口，必要时同步到任务 attrs 或 TM 侧轻量状态：
+
+```text
+guardKey = taskId + failedNodeId + tableId + errorCode + normalizedErrorMessage
+window = dql.unknown.guard.windowSeconds
+threshold = dql.unknown.guard.maxEvents
+```
+
+处理规则：
+
+1. `exceptionScope != UNKNOWN` 时不进入保护器。
+2. 未知异常能够定位单条记录，且同一窗口内计数未超过阈值，可作为 `UNKNOWN_RECORD_ERROR` 写入 DLQ，`classificationConfidence=UNKNOWN_SINGLE`。
+3. 计数超过阈值或同一批次未知异常比例超过阈值时，保护器返回 `TASK_RETRY` 或 `TASK_ERROR`，Engine 停止继续写入 DLQ。
+4. 保护触发后记录任务日志，并触发任务告警或专用保护告警，告警中展示保护维度、窗口、阈值和被抑制的估算记录数。
+5. 窗口过期后允许重新评估，避免一次误判永久阻断。
+
+POC 默认建议：
+
+| 配置 | 默认值 | 说明 |
+| --- | --- | --- |
+| `dql.unknown.guard.windowSeconds` | `60` | 未知异常统计窗口 |
+| `dql.unknown.guard.maxEvents` | `20` | 单窗口最多允许进入 DLQ 的未知事件数 |
+| `dql.unknown.guard.maxBatchRatio` | `0.2` | 同批未知异常占比超过该值时触发保护 |
+| `dql.unknown.guard.decision` | `TASK_RETRY` | 保护触发后的默认路由 |
+
+### 8.4 处理节点异常捕获
 
 为覆盖 JS 转换失败，新增 `SkipErrorProcessAspect`：
 
@@ -927,10 +1174,11 @@ interceptHandlers.register(SkipErrorProcessAspect.class, this::handleProcessSkip
 处理节点跳过条件：
 
 - 任务类型是 migrate 或 sync。
-- 任务启用 `skipErrorEvent.errorMode = SkipData`。
+- 任务启用 `skipErrorEvent.errorMode = SkipData` 或 POC DLQ 开关。
 - 输入是 DML `TapRecordEvent`。
-- 异常是记录局部异常，或错误码在允许列表内。
+- `DlqExceptionClassifier` 输出 `exceptionScope=RECORD` 且 `routeDecision=RECORD_DLQ`。
 - 不属于任务级、连接级、初始化级、资源级错误。
+- 未触发未知异常批量保护。
 - DLQ 上报成功。
 
 建议允许列表：
@@ -939,22 +1187,25 @@ interceptHandlers.register(SkipErrorProcessAspect.class, this::handleProcessSkip
 - 自定义处理节点脚本执行失败。
 - 字段类型转换失败。
 - 字段长度、非空、格式校验失败。
+- 目标端单条约束冲突或类型不匹配。
 
 不允许跳过：
 
 - 脚本引擎初始化失败。
 - 连接不可用。
+- 网络或数据库临时不可用。
 - TM 不可用。
 - OOM、线程中断、进程关闭。
 - 任务配置非法。
+- 同类未知异常触发保护阈值。
 
-### 8.3 格式错误覆盖口径
+### 8.5 格式错误覆盖口径
 
 POC 中“格式错误”必须能形成 `TapRecordEvent` 才能进入 DLQ。例如字段类型、长度、日期格式、非空等记录局部问题。如果源连接器在解析阶段无法构造任何 `TapRecordEvent`，则没有可恢复 Payload，不能进入可重处理 DLQ；此类错误保持任务级错误处理。
 
 文档和演示应把“格式错误”限定为可定位到单条记录的格式错误。
 
-### 8.4 事件时间和捕获顺序
+### 8.6 事件时间和捕获顺序
 
 `event_time` 取值顺序：
 
@@ -974,7 +1225,7 @@ findAndModify Task
 
 TM 把返回的 `attrs.dqlEventSeq` 写入 `dql_events.capture_seq`。
 
-### 8.5 Event Identity
+### 8.7 Event Identity
 
 `event_identity` 生成顺序：
 
@@ -985,7 +1236,7 @@ TM 把返回的 `attrs.dqlEventSeq` 写入 `dql_events.capture_seq`。
 
 `event_identity` 用于避免重复保存 DLQ 主记录，不用于证明业务幂等。
 
-### 8.6 DML 类型识别
+### 8.8 DML 类型识别
 
 | TapEvent 类型 | `dml_type` |
 | --- | --- |
@@ -995,7 +1246,7 @@ TM 把返回的 `attrs.dqlEventSeq` 写入 `dql_events.capture_seq`。
 
 其他事件类型不进入本期 DLQ。
 
-### 8.7 上报失败
+### 8.9 上报失败
 
 如果 `DqlEventReporter.report(...)` 失败：
 
@@ -1195,7 +1446,7 @@ POC 默认策略：单事件失败后继续处理后续事件。这样能满足�
 
 - 错误来自 JS 处理函数执行，且输入是 DML：`TRANSFORM_ERROR`。
 - JS 引擎初始化失败：任务级错误，不进入 DLQ。
-- JS 执行超时：POC 默认视为处理节点异常；如果超时由外部服务或资源不足导致，研发可配置为不跳过。
+- JS 执行超时：如果超时可稳定归因到单条脚本逻辑和输入数据，按 `TRANSFORM_ERROR`；如果由外部服务、网络、数据库或资源不足导致，按共享异常走任务级重试或任务错误。
 
 ### 10.3 自定义处理节点失败
 
@@ -1205,7 +1456,7 @@ POC 默认策略：单事件失败后继续处理后续事件。这样能满足�
 - `ScriptException`
 - 包含 input record 的 `TapEventException`
 
-只要能够定位到单条输入 DML 并且不是系统级错误，即可按 `TRANSFORM_ERROR` 上报。
+只有能够定位到单条输入 DML，且 `DlqExceptionClassifier` 未识别为系统级、共享临时或未知批量异常时，才可按 `TRANSFORM_ERROR` 上报。
 
 ## 11. TM 批次并发控制
 
@@ -1347,6 +1598,7 @@ export function fetchDqlRecoveryBatch(batchId: string)
 | 类型 | `dmlType` |
 | 错误类型 | `errorType` |
 | 错误码 | `errorCode` |
+| 路由依据 | `classificationReason` |
 | 事件时间 | `eventTime` |
 | 失败时间 | `failedAt` |
 | 状态 | `status` |
@@ -1359,7 +1611,7 @@ export function fetchDqlRecoveryBatch(batchId: string)
 详情分区：
 
 - 基本信息：事件 ID、任务、节点、表、DML、事件时间、捕获顺序。
-- 错误信息：错误类型、错误码、错误详情。
+- 错误信息：错误类型、错误码、路由依据、分类可信度、错误详情。
 - Payload 预览：key、before、after、截断字段、脱敏字段。
 - 重处理历史：attempt 列表。
 - 当前批次：如果状态为 `REPROCESSING`，展示批次 ID 和当前进度。
@@ -1432,7 +1684,8 @@ POC 口径是“可见即可操作”，因此功能权限只定义 View。为�
 ```java
 TASK_DQL_EVENT(Constant.TYPE_EVENT),
 TASK_DQL_SAVE_FAILED(Constant.TYPE_EVENT),
-TASK_DQL_RECOVERY_FAILED(Constant.TYPE_EVENT)
+TASK_DQL_RECOVERY_FAILED(Constant.TYPE_EVENT),
+TASK_DQL_STORM_GUARD(Constant.TYPE_EVENT)
 ```
 
 追加位置必须遵守 `TaskSaveServiceImpl.supplementAlarm(...)` 中“新增任务告警 key 时请追加到末尾”的约束。
@@ -1463,6 +1716,12 @@ TASK_DQL_RECOVERY_FAILED(Constant.TYPE_EVENT)
 | `pageUrl` | 异常事件页面定位 |
 | `batchId` | 重处理批次 ID |
 | `operatorName` | 操作人 |
+| `routeDecision` | 路由决策 |
+| `classificationReason` | 分类或保护原因 |
+| `guardKey` | 未知异常保护维度 |
+| `guardWindowSeconds` | 保护窗口 |
+| `guardThreshold` | 保护阈值 |
+| `suppressedCountEstimate` | 被抑制的 DLQ 数量估算 |
 
 ### 14.3 触发规则
 
@@ -1472,8 +1731,10 @@ TASK_DQL_RECOVERY_FAILED(Constant.TYPE_EVENT)
 | DLQ 保存失败导致任务不能 skip | `TASK_DQL_SAVE_FAILED` 或任务错误告警携带该原因 |
 | 单事件重处理失败 | `TASK_DQL_RECOVERY_FAILED` |
 | 批次部分失败 | `TASK_DQL_RECOVERY_FAILED` |
+| 共享临时异常进入任务级重试或重试耗尽 | 复用现有任务重试/任务错误告警，不生成 DLQ 告警 |
+| 未知异常保护触发 | `TASK_DQL_STORM_GUARD` 或任务错误告警携带保护原因 |
 
-告警发送间隔复用现有告警设置。即使告警被抑制，`dql_events` 仍逐条保存。
+告警发送间隔复用现有告警设置。即使告警被抑制，记录级 `dql_events` 仍逐条保存；共享异常和被保护的未知批量异常不产生 `dql_events` 主记录。
 
 ## 15. 配置项
 
@@ -1491,6 +1752,10 @@ POC 新增系统配置建议：
 | `dql.recovery.eventTimeoutSeconds` | `60` | 单事件回放超时 |
 | `dql.recovery.batchTimeoutSeconds` | `1800` | 批次超时 |
 | `dql.recovery.continueOnEventFailure` | `true` | 单事件失败后继续后续事件 |
+| `dql.unknown.guard.windowSeconds` | `60` | 未知异常保护统计窗口 |
+| `dql.unknown.guard.maxEvents` | `20` | 单窗口允许进入 DLQ 的未知事件数 |
+| `dql.unknown.guard.maxBatchRatio` | `0.2` | 同批未知异常占比保护阈值 |
+| `dql.unknown.guard.decision` | `TASK_RETRY` | 保护触发后的默认路由 |
 
 ## 16. 一致性设计
 
@@ -1546,6 +1811,8 @@ POC 报告中的业务对账：
 ```text
 唯一输入事件数 = 首次成功事件数 + 进入 DLQ 的唯一事件数
 进入 DLQ 的唯一事件数 = 已恢复事件数 + 当前未恢复事件数
+共享临时异常期间 dql_events 新增数 = 0
+未知异常保护触发后保护窗口内持续新增 DLQ 主记录数 = 0
 ```
 
 ## 17. 错误处理和补偿
@@ -1554,7 +1821,13 @@ POC 报告中的业务对账：
 
 | 场景 | 处理 |
 | --- | --- |
+| 共享临时异常 | 抛回现有任务错误处理，由 `TaskRetryService` 判断任务级重试；不写 `dql_events` |
+| 共享异常重试耗尽 | 任务进入错误状态并触发现有任务告警；不把积压数据批量写入 DLQ |
+| 持久任务异常或系统异常 | 走现有 `errorHandle`，不写 DLQ |
 | 异常不可跳过 | 走现有 `errorHandle` |
+| 记录级确定性异常 | 上报 DLQ 成功后返回 skip，正常任务继续 |
+| 未知单条异常未触发保护 | 可按 `UNKNOWN_RECORD_ERROR` 上报 DLQ，并记录 `classificationConfidence=UNKNOWN_SINGLE` |
+| 未知异常触发保护 | 停止继续写 DLQ，转任务级重试或任务错误，并告警 |
 | 达到跳过数量或比例限制 | 不写 DLQ，走现有错误处理 |
 | DLQ 上报成功 | 返回 skip，正常任务继续 |
 | DLQ 上报失败 | 不 skip，任务进入错误处理 |
@@ -1588,6 +1861,7 @@ POC 报告中的业务对账：
 ### 18.1 任务兼容
 
 - 未开启 `skipErrorEvent.errorMode = SkipData` 的任务不受影响。
+- 开启 DLQ 的任务仍保留现有任务级重试能力，不能因 DLQ 开关而绕过 `TaskRetryService`。
 - `SkipTable` 和 `SkipTableForMigrateSnapshot` 不进入记录级 DLQ。
 - 现有 `Task.attrs.skipErrorEvent` 统计保持不变。
 - 现有 `TaskSkipErrorTable` 表级跳过能力保持不变。
@@ -1611,13 +1885,15 @@ POC 报告中的业务对账：
 - 新增 `dql_events`、`dql_recovery_batches` 实体、DTO、VO。
 - 新增 Repository 并初始化索引。
 - 新增查询、详情、统计 API。
-- 新增 Engine 上报 API。
+- 新增 Engine 上报 API，并校验 `exceptionScope=RECORD`、`routeDecision=RECORD_DLQ`。
 - 新增 recovery preview/start/report API。
 
 ### 19.2 Engine 捕获
 
+- 新增 `DlqExceptionClassifier`。
+- 新增 `DlqStormGuard`。
 - 新增 `DqlEventReporter`。
-- 扩展 `SkipErrorEventAspectTask` 的目标写入异常上报。
+- 扩展 `SkipErrorEventAspectTask` 的目标写入异常分类和上报。
 - 新增 `SkipErrorProcessAspect`。
 - 在 `HazelcastProcessorBaseNode.tryProcess(...)` 接入处理节点异常跳过。
 - 新增事件序列化、脱敏预览和错误分类工具。
@@ -1641,7 +1917,7 @@ POC 报告中的业务对账：
 
 ### 19.5 告警和初始化
 
-- 新增告警 key 和模板。
+- 新增告警 key 和模板，未知异常保护可以新增 key 或并入任务错误告警模板。
 - 新增默认告警设置补齐。
 - 新增权限初始化脚本。
 - 新增索引初始化 patch。
@@ -1650,14 +1926,18 @@ POC 报告中的业务对账：
 
 为保证结果可证明，POC 环境必须满足：
 
+- 使用同一个开启 DLQ 的任务同时演示任务级重试和记录级 DLQ，不能拆成“未开启跳过任务演示重试、开启跳过任务演示 DLQ”两套口径。
 - 使用可定位到单条记录的格式错误数据。
 - 使用 JS 处理节点演示转换失败，且当前版本只使用 JavaScript。
+- 使用目标端字段长度、类型、非空或唯一键约束演示确定性记录异常直接进入 DLQ。
+- 使用网络断开、目标数据库临时停止或连接拒绝演示共享临时异常进入任务级重试，恢复后从原进度继续，且 `dql_events` 不大量增加。
+- 使用持续不可用场景演示任务级重试耗尽后任务进入错误状态并告警，不把积压数据批量写入 DLQ。
+- 使用同类未知异常批量触发场景演示 `DlqStormGuard`，证明保护触发后不继续生成 DLQ 风暴。
 - 测试表有主键或唯一业务键。
 - 目标端使用支持幂等或 Exactly-Once 的写入策略。
-- 开启 `SkipData` 时演示直接进入 DLQ，不展示记录级重试耗尽。
-- 另起一轮未开启跳过异常的任务，用于展示现有任务级重试。
-- 批量重处理只选择同一任务。
+- 批量重处理只选择同一任务，允许同一任务下跨表。
 - 顺序证明只针对所选批次。
+- 不设置吞吐或延迟阈值，只证明路由、状态、告警、DLQ 计数和恢复结果正确。
 
 ## 21. 需求符合性检查
 
@@ -1665,8 +1945,14 @@ POC 报告中的业务对账：
 | --- | --- |
 | 独立异常事件菜单 | 新增 `/exception-events` 和 `v2_exception_events` |
 | 按任务、表、关键字、类型查询 | `GET /api/dql-events` 支持过滤 |
-| 异常数据记录到 `dql_events` | 新增集合，字段使用 `task_id`、`event_time` |
+| 异常数据记录到 `dql_events` | 新增集合，字段使用 `task_id`、`event_time`，只保存记录级 DLQ 事件 |
 | `task_id + event_time` 索引 | `idx_task_event_time` 覆盖 |
+| 同一任务内分层生效 | `DlqExceptionClassifier` 先输出 `TASK_RETRY`、`RECORD_DLQ` 或 `TASK_ERROR` |
+| 共享临时异常走任务级重试 | 复用 `TaskRetryService`，不生成 `dql_events` |
+| 共享故障恢复后从原进度继续 | 任务重试路径保持现有进度语义，不做 DLQ 记录 |
+| 任务级重试耗尽 | 任务错误 + 现有告警，不把积压数据批量写入 DLQ |
+| 记录级确定性异常直接 DLQ | 字段、约束、格式、转换等单条记录异常上报 `dql_events` |
+| 未知异常批量保护 | `DlqStormGuard` 达阈值后停止持续写入 DLQ，转任务级处理 |
 | 单条回放 | `POST /api/dql-events/recovery` 支持单 ID |
 | 批量回放 | 同 API 支持多 ID，批次集合管理 |
 | 按事件时间顺序 | TM 固化排序，Engine 串行屏障 |
@@ -1675,19 +1961,20 @@ POC 报告中的业务对账：
 | 状态和次数维护 | `status`、`recovery_count`、`last_recovery_time` |
 | 权限可见即可操作 | 新增菜单权限，POC 操作不额外要求 Edit/Start |
 | `error_details` 截断 | TM 二次截断和脱敏 |
-| 告警 | 新增 DLQ 进入、保存失败、恢复失败告警 |
+| 告警 | 新增 DLQ 进入、保存失败、恢复失败告警；共享异常复用任务告警 |
 | Insert/Update/Delete | Payload 序列化和回放覆盖 I/U/D |
-| 正常数据继续同步 | skip 只隔离失败单条事件 |
+| 正常数据继续同步 | skip 只隔离失败单条事件，共享异常恢复后任务从原进度继续 |
 | 无重复和无丢失证明 | 通过主键/幂等/Exactly-Once 受限证明 |
+| 不设置吞吐/延迟阈值 | POC 只做功能和结果定性证明 |
 
 ## 22. 结论
 
-本详细设计在现有 TapData 架构上可以落地，并覆盖 TAP-12615 已确认需求。核心实现路径是：
+本详细设计在现有 TapData 架构上可以落地，并覆盖 TAP-12615 V1.2 已确认需求。核心实现路径是：
 
-- 在记录级错误真正被 skip 前结构化保存到 `dql_events`。
-- 对目标写入异常和处理节点异常分别建立捕获点，覆盖客户要求的三类异常。
-- 通过 TM 批次锁、事件锁和 Engine 串行屏障实现受控重处理。
+- 先在 Engine 捕获点引入 `DlqExceptionClassifier` 和 `DlqStormGuard`，确保 DLQ 开启后仍能保留现有任务级重试，且共享异常不会被拆成大量记录级 DLQ。
+- 仅对 `RECORD_DLQ` 决策的确定性记录异常生成 `dql_events`，并通过 TM 完成去重、截断、脱敏、告警和状态管理。
+- 使用独立异常事件菜单提供查询、详情、单条/批量重处理和恢复审计。
 - 运行中任务使用内部读取闸门暂停正常流量，暂停任务使用 recovery-only runner，避免破坏任务业务状态。
-- 告警、权限、页面查询和审计围绕 `dql_events` 主记录展开，恢复过程不产生新的异常主记录。
+- 告警、权限、页面查询和审计围绕 `dql_events` 主记录展开；共享临时异常、重试耗尽和未知批量保护通过任务状态、任务告警和日志表达，不产生新的异常主记录。
 
-该方案的关键约束是 POC 场景必须选择有主键/唯一键且支持幂等或 Exactly-Once 的目标写入模式。超出该范围时，系统仍能提供异常隔离、查询、告警和审计，但不能承诺目标端无重复。
+该方案的关键约束是 POC 场景必须选择有主键/唯一键且支持幂等或 Exactly-Once 的目标写入模式，并提前冻结异常分类规则、未知异常保护阈值和共享故障注入方式。超出该范围时，系统仍能提供异常隔离、查询、告警和审计，但不能承诺目标端无重复，也不能把共享故障下的积压数据解释为 DLQ 记录。

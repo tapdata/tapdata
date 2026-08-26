@@ -3,6 +3,7 @@ package com.tapdata.tm.dql.vo;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -26,6 +27,9 @@ public class DqlEventReportVo implements Serializable {
     private Map<String, Object> eventKey;
     private Boolean eventKeyMissing;
     private String eventIdentity;
+    private String recordIdentity;
+    private String recordIdentityType;
+    private List<String> recordIdentityFields;
     private String payloadFormat;
     private Object payloadData;
     private String payloadHash;
@@ -35,6 +39,10 @@ public class DqlEventReportVo implements Serializable {
     private Boolean payloadPreviewTruncated;
     private String errorType;
     private String errorCode;
+    private String exceptionScope;
+    private String routeDecision;
+    private String classificationReason;
+    private String classificationConfidence;
     private String errorDetails;
     private String rawErrorRef;
 }

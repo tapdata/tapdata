@@ -4,6 +4,8 @@
 
 本文面向 TapData Web 前端开发人员，基于 TAP-12615 的概要设计、详细设计以及已完成的服务端 API 接口文档，细化“异常事件（DLQ）与受控重处理”在 Web 端的页面结构、交互流程、接口调用、状态展示、错误处理和组件拆分。
 
+更新日期：2026-08-26。本文已同步 TAP-12615 V1.2 的分层路由口径：异常事件页面只展示进入 `dql_events` 的记录级 DLQ 事件；网络抖动、数据库临时不可用等共享临时异常继续通过现有任务状态、任务告警和日志表达，不在本页面伪造成 DLQ 记录。
+
 本文只描述前端交互与实现落点，不重新设计服务端接口，不包含测试脚本或 Xray 内容。
 
 输入文档：
@@ -30,6 +32,7 @@
 前端需要提供一个跨任务统一入口，让有权限的用户可以发现、筛选、查看并重处理 DLQ 异常事件。核心目标如下：
 
 - 新增独立菜单“异常事件”，不挂在单个任务监控页签下。
+- 页面对象只代表记录级 DLQ 事件，不代表所有任务异常。
 - 支持按任务、表名、关键字、DML 类型、错误类型、事件状态、失败时间范围查询。
 - 支持查看事件详情，包括基本信息、错误信息、Payload 预览、重处理历史和当前批次信息。
 - 支持单条和批量发起重处理。
@@ -49,6 +52,7 @@
 | 不在前端绕过后端的任务可见范围、事件状态、批次锁校验 | 任务可见范围、事件状态和批次锁属于安全与一致性规则，必须以后端为准。前端可以做体验层校验，例如禁用不可选行、提示跨任务不可批量，但不能替代后端判断；否则用户仍可能通过接口调用、页面状态滞后、多窗口并发等方式绕过限制。 | 前端只做选择禁用和本地提示；提交前仍调用 preview，提交后仍以服务端错误码和批次状态为准。 |
 | 不模拟 Engine 回放结果 | 重处理结果必须来自真实 Engine 执行和 TM 状态回写。前端如果根据提交成功就假设批次成功，会误导用户，也会破坏问题排查链路。接口文档也说明当前第一步已创建批次、锁定事件并预留下发结构，Engine 实际回放可能分阶段接入，因此前端必须只展示服务端返回的批次状态、成功数、失败数、跳过数。 | 批次抽屉只展示 `GET /api/dql-events/recovery-batches/{batchId}` 返回结果；提交成功后显示 `DISPATCHED`/服务端状态，不自行置为成功。 |
 | 不移除现有任务监控页签里的表级跳过错误能力 | 现有 `SkipErrorTable` 是表级异常处理能力，TAP-12615 是事件级 DLQ 与批次化重处理能力，两者不是完全替代关系。保留现有入口可以兼容已有用户路径和历史任务行为。 | 新“异常事件”页面作为跨任务、事件级入口新增，不调整或删除任务监控页签里的表级跳过错误页面。 |
+| 不把共享临时异常展示成 DLQ 列表记录 | TAP-12615 V1.2 明确网络抖动、数据库临时不可用等共享异常走任务级重试；重试恢复不生成 DLQ，重试耗尽也不把积压数据批量写入 DLQ。前端如果虚拟出列表行，会破坏“DLQ 只保存记录级确定性异常”的边界。 | 空态、筛选空态和任务跳转文案要说明：若任务处于重试中或错误状态，请到任务监控/告警查看；本页面只展示已隔离的记录级异常。 |
 
 ## 3. 命名和展示口径
 
@@ -61,6 +65,7 @@
 | 菜单标题 | 异常事件 | 侧边栏入口 |
 | 页面标题 | 异常事件 | 路由标题 |
 | 列表对象 | 异常事件 | 对应 `dql_events` 主记录 |
+| 共享临时异常 | 任务级重试/任务错误 | 不对应 `dql_events` 主记录，不出现在异常事件列表 |
 | 操作按钮 | 重处理 | 对应服务端 recovery API |
 | 进度对象 | 重处理批次 | 对应 `dql_recovery_batches` |
 
@@ -255,8 +260,19 @@ export type DqlErrorType =
   | 'MALFORMED_RECORD'
   | 'POISON_RECORD'
   | 'TRANSFORM_ERROR'
-  | 'TARGET_WRITE_ERROR'
+  | 'TARGET_CONSTRAINT_ERROR'
   | 'UNKNOWN_RECORD_ERROR'
+
+export type DqlExceptionScope =
+  | 'RECORD'
+  | 'TASK_SHARED'
+  | 'SYSTEM'
+  | 'UNKNOWN'
+
+export type DqlRouteDecision =
+  | 'RECORD_DLQ'
+  | 'TASK_RETRY'
+  | 'TASK_ERROR'
 
 export type DqlRecoveryBatchStatus =
   | 'CREATED'
@@ -272,6 +288,12 @@ export type DqlRecoveryAttemptResult =
   | 'FAILED'
   | 'SKIPPED'
   | 'TIMEOUT'
+
+export type DqlRecordIdentityType =
+  | 'PRIMARY_KEY'
+  | 'UNIQUE_INDEX'
+  | 'FULL_FIELD_HASH'
+  | 'UNKNOWN'
 
 export interface DqlEventQueryParams {
   taskId?: string
@@ -299,6 +321,16 @@ export interface DqlEventListItem {
   dmlType: 'I' | 'U' | 'D'
   errorType: DqlErrorType
   errorCode?: string
+  routeDecision?: DqlRouteDecision
+  classificationReason?: string
+  recordIdentity?: string
+  recordIdentityType?: DqlRecordIdentityType
+  overwriteRisk?: boolean
+  overwriteRiskMessage?: string
+  laterSuccessAt?: number | string | null
+  laterSuccessEventTime?: number | string | null
+  laterSuccessCaptureSeq?: number | null
+  laterSuccessDmlType?: 'I' | 'U' | 'D' | string | null
   eventTime?: number | string
   failedAt?: number | string
   status: DqlEventStatus
@@ -320,12 +352,17 @@ export interface DqlEventDetail extends DqlEventListItem {
   captureSeq?: number
   eventKey?: Record<string, unknown>
   eventKeyMissing?: boolean
+  recordIdentityFields?: string[]
   payloadFormat?: string
   payloadHash?: string
   payloadSize?: number
   payloadComplete?: boolean
   payloadPreview?: Record<string, unknown>
   payloadPreviewTruncated?: boolean
+  exceptionScope?: DqlExceptionScope
+  routeDecision?: DqlRouteDecision
+  classificationReason?: string
+  classificationConfidence?: 'EXACT' | 'RULE' | 'UNKNOWN_SINGLE' | string
   errorDetails?: string
   rawErrorRef?: string
   recoveryAttempts?: DqlRecoveryAttempt[]
@@ -346,6 +383,12 @@ export interface DqlRecoveryPreview {
     captureSeq?: number
     dmlType?: 'I' | 'U' | 'D'
     sourceTable?: string
+    overwriteRisk?: boolean
+    overwriteRiskMessage?: string
+    laterSuccessAt?: number | string | null
+    laterSuccessEventTime?: number | string | null
+    laterSuccessCaptureSeq?: number | null
+    laterSuccessDmlType?: 'I' | 'U' | 'D' | string | null
   }>
   blockedEvents: Array<{
     eventId?: string
@@ -365,6 +408,11 @@ export interface DqlRecoveryBatch {
   successCount: number
   failedCount: number
   skippedCount: number
+  recoveryMode?: 'LIVE_TASK' | 'RECOVERY_ONLY' | string
+  taskStatusBefore?: string
+  taskStatusAfter?: string
+  sourceReadPaused?: boolean
+  sourceReadResumeResult?: string
   orderedEventIds?: string[]
   eventIds?: string[]
   startedAt?: number | string | null
@@ -504,6 +552,8 @@ export interface DqlRecoveryAttempt {
 | DML | `dmlType` | 90 | 标签展示 Insert/Update/Delete |
 | 错误类型 | `errorType` | 180 | 枚举文案 |
 | 错误码 | `errorCode` | 180 | 超长省略，tooltip |
+| 覆盖风险 | `overwriteRisk` | 120 | true 时展示 warning 图标和 tooltip |
+| 路由依据 | `classificationReason` | 220 | 超长省略，tooltip |
 | 事件时间 | `eventTime` | 180 | 可排序 |
 | 失败时间 | `failedAt` | 180 | 默认倒序，可排序 |
 | 状态 | `status` | 140 | 状态标签 |
@@ -515,6 +565,8 @@ export interface DqlRecoveryAttempt {
 
 - `targetTable`
 - `eventTime`
+- `classificationReason`
+- `overwriteRisk`
 - `lastRecoveryTime`
 
 通过 `TablePage enable-custom-columns="exceptionEvents"` 允许用户自行调整列显示。选择列和操作列锁定，不参与隐藏。
@@ -550,6 +602,12 @@ export interface DqlRecoveryAttempt {
 | 筛选无结果 | 有筛选且 total 为 0 | `el-empty`：未找到匹配的异常事件 |
 | 接口失败 | 列表请求失败 | 保留筛选，表格空态上方显示错误消息，提供刷新按钮 |
 | 无权限 | 接口返回 `NoPermission` | 页面级无权限提示，停止自动刷新 |
+
+无数据空态的辅助说明建议使用：
+
+```text
+本页面只展示已隔离到 DLQ 的记录级异常。网络抖动、数据库临时不可用等共享异常会走任务级重试，请在任务监控或告警中查看。
+```
 
 错误详情和 Payload 内容必须以纯文本或 JSON viewer 展示，不能用 `dangerouslyUseHTMLString` 渲染服务端错误内容。
 
@@ -592,8 +650,26 @@ export interface DqlRecoveryAttempt {
 | `MALFORMED_RECORD` | 记录格式错误 |
 | `POISON_RECORD` | 毒性记录 |
 | `TRANSFORM_ERROR` | 转换处理错误 |
-| `TARGET_WRITE_ERROR` | 目标写入错误 |
+| `TARGET_CONSTRAINT_ERROR` | 目标约束错误 |
 | `UNKNOWN_RECORD_ERROR` | 未知记录错误 |
+
+### 9.5 路由决策
+
+虽然列表中的 `dql_events` 主记录固定为 `RECORD_DLQ`，仍建议前端展示服务端返回的 `classificationReason`，帮助用户理解为什么该事件被隔离。`TASK_RETRY` 和 `TASK_ERROR` 不会作为列表行出现，只通过任务状态、任务告警和日志表达。
+
+服务端契约：如果 Engine 上报异常事件时省略 `exceptionScope` 或 `routeDecision`，TM 会分别保存为 `RECORD` 和 `RECORD_DLQ`；如果显式上报其他路由值，TM 会拒绝写入 DLQ。前端只按返回字段展示，不需要补齐或修正路由值。
+
+### 9.6 覆盖风险
+
+当后端返回 `overwriteRisk=true` 时，表示该异常事件发生后，同一业务记录后续已有成功写入事件。继续重放可能用旧异常 payload 覆盖目标端较新的数据。
+
+展示规则：
+
+- 列表行在事件 ID 或操作区附近展示 warning 图标，tooltip 使用 `overwriteRiskMessage`。
+- 详情抽屉在头部或基本信息区展示 warning alert，文案使用服务端返回的 `overwriteRiskMessage`。
+- 重处理预览弹窗在 `orderedEvents` 中标出风险行，并在确认按钮上方汇总展示风险事件数量。
+- 该提示不自动禁用重处理；用户仍可在确认后继续，但必须在提交前看到风险说明。
+- 辅助字段 `laterSuccessAt`、`laterSuccessEventTime`、`laterSuccessCaptureSeq`、`laterSuccessDmlType` 可展示为“后续成功事件”摘要。
 
 ## 10. 查询和刷新交互
 
@@ -706,6 +782,9 @@ export interface DqlRecoveryAttempt {
 | 字段 | 展示 |
 | --- | --- |
 | Event Identity | `eventIdentity`，支持复制 |
+| Record Identity | `recordIdentity`，支持复制 |
+| Record Identity Type | `recordIdentityType`，展示主键/唯一索引/全字段 hash 来源 |
+| Record Identity Fields | `recordIdentityFields`，展示用于定位同一记录的字段名 |
 | Payload Hash | `payloadHash`，支持复制 |
 | Payload Size | `payloadSize`，格式化为 B/KB/MB |
 | Payload Complete | `payloadComplete`，false 时展示不可重处理原因 |
@@ -715,6 +794,9 @@ export interface DqlRecoveryAttempt {
 
 - 错误类型：`errorType` 文案。
 - 错误码：`errorCode`。
+- 路由决策：`routeDecision`，列表事件固定为 `RECORD_DLQ`。
+- 路由依据：`classificationReason`。
+- 分类可信度：`classificationConfidence`。
 - 错误详情：`errorDetails`，使用 `<pre>` 或只读文本区域，最多展示安全返回内容。
 - 原始错误引用：`rawErrorRef`，如果返回则展示为可复制文本，不作为下载链接。
 
@@ -745,6 +827,12 @@ Payload 预览：
 - 仅在 `status=REPROCESSING` 且 `currentBatch` 存在时展示。
 - 展示批次 ID、状态、成功/失败/跳过数。
 - 提供“查看进度”按钮打开 `RecoveryBatchDrawer`。
+
+覆盖风险：
+
+- 如果 `overwriteRisk=true`，在头部操作区下方展示 warning alert。
+- Alert 文案使用 `overwriteRiskMessage`，默认文案为“该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作”。
+- 在事件标识区补充展示 `laterSuccessAt`、`laterSuccessEventTime`、`laterSuccessCaptureSeq`、`laterSuccessDmlType`，帮助用户判断风险来源。
 
 ### 11.4 详情刷新
 
@@ -792,6 +880,7 @@ POST /api/dql-events/recovery/preview
 - 请求中按钮进入 loading。
 - 成功后打开 `RecoveryPreviewDialog`。
 - 预览弹窗展示 `taskName`、`orderedEvents`、`blockedEvents`、`message`。
+- 如果任一 `orderedEvents[].overwriteRisk=true`，弹窗必须展示覆盖风险提示。
 - 如果 `canSubmit=false` 或 `blockedEvents` 非空，确认按钮禁用。
 - 如果接口返回错误码，按错误码映射展示。
 
@@ -809,6 +898,7 @@ POST /api/dql-events/recovery/preview
 - 事件数量：1
 - 执行顺序：服务端已按 `eventTime ASC, captureSeq ASC, eventId ASC` 排序
 - 影响提示：将使用当前已发布任务配置重处理原始事件；重处理期间任务正常同步可能短暂暂停；Payload 不会被修改。
+- 覆盖风险：当 `orderedEvents` 中存在 `overwriteRisk=true` 时，在确认按钮上方展示 warning alert 和风险事件列表。
 
 确认按钮：
 
@@ -882,6 +972,9 @@ POST /api/dql-events/recovery
 - `DqlRecovery.CrossTaskNotAllowed`
 - `DqlRecovery.EventNotReprocessable`
 - `DqlRecovery.EventLockFailed`
+- `DqlRecovery.TaskNotRunnable`
+- `DqlRecovery.BatchAlreadyRunning`
+- `DqlRecovery.TaskVersionChanged`
 
 前端必须按后端响应重新提示，不能只依赖本地校验。
 
@@ -894,6 +987,7 @@ POST /api/dql-events/recovery
 - `orderedEvents` 表格，展示服务端排序后的执行顺序。
 - `blockedEvents` 表格，展示不可提交事件和原因。
 - 执行影响提示。
+- 任务状态说明：如果服务端返回任务不可运行、任务版本变化或已有批次运行中，确认按钮禁用。
 
 `orderedEvents` 表格列：
 
@@ -905,6 +999,9 @@ POST /api/dql-events/recovery
 | DML | `dmlType` |
 | 事件时间 | `eventTime` |
 | 捕获顺序 | `captureSeq` |
+| 覆盖风险 | `overwriteRisk` |
+
+当风险列为 true 时，展示 warning 图标；鼠标悬停或点击展示 `overwriteRiskMessage`，并可附带后续成功事件时间和 DML 摘要。
 
 如果 `orderedEvents` 超过 100 条：
 
@@ -960,6 +1057,11 @@ POST /api/dql-events/recovery
 | 成功 | `successCount` |
 | 失败 | `failedCount` |
 | 跳过 | `skippedCount` |
+| 回放模式 | `recoveryMode` |
+| 发起前任务状态 | `taskStatusBefore` |
+| 完成后任务状态 | `taskStatusAfter` |
+| 普通读取暂停 | `sourceReadPaused` |
+| 普通读取恢复结果 | `sourceReadResumeResult` |
 | 开始时间 | `startedAt` |
 | 结束时间 | `finishedAt` |
 
@@ -1033,15 +1135,26 @@ GET /api/dql-events/recovery-batches/{batchId}
 | `DqlRecovery.EventNotReprocessable` | 存在不可重处理事件 | 展示 blocked events 或 message，刷新列表 |
 | `DqlRecovery.EventLockFailed` | 发起时锁定失败 | 提示状态已变化，清空选择并刷新列表 |
 | `DqlRecovery.BatchNotFound` | 批次不存在 | 关闭批次抽屉，提示批次不存在或已无权限查看 |
+| `DqlEvent.InvalidRouteDecision` | Engine 上报了非记录级 DLQ 路由 | 前端一般不可见；如查询或详情返回该错误，展示服务端 message 并提示刷新 |
+| `DqlRecovery.TaskNotRunnable` | 任务不处于运行中或可回放暂停态 | 在预览弹窗展示阻塞原因，提示到任务监控查看任务状态 |
+| `DqlRecovery.BatchAlreadyRunning` | 同一任务已有恢复批次运行中 | 提示已有批次运行中，刷新列表并引导查看进度 |
+| `DqlRecovery.TaskVersionChanged` | 预览后任务版本变化 | 保留弹窗，提示重新预览 |
+| `DqlRecovery.PayloadIncomplete` | Payload 不完整 | 展示不可重处理原因，刷新列表 |
 | 其他错误 | 服务端或网络异常 | 使用通用错误提示，保留当前页面状态 |
 
-网络异常：
+页面请求网络异常：
 
 - 列表请求失败：表格区展示错误，不清空筛选。
 - 详情请求失败：抽屉内展示重试按钮。
 - 预览请求失败：关闭按钮可用，确认按钮不可用。
 - 提交请求失败：保持预览弹窗打开，用户可重试或取消。
 - 批次轮询失败：保留最近一次批次数据，显示“刷新失败”，下一轮继续尝试；连续失败 3 次后停止轮询并提供手动刷新。
+
+任务运行时网络或数据库异常：
+
+- 这类异常属于 TAP-12615 V1.2 的共享临时异常，应由任务级重试、任务状态和任务告警承载。
+- 异常事件页面不新增虚拟行、不统计为 DLQ 数量，也不提供重处理入口。
+- 用户从空态、任务名链接或告警定位任务监控页面查看重试中、恢复或错误状态。
 
 ## 16. 文案设计
 
@@ -1052,6 +1165,7 @@ GET /api/dql-events/recovery-batches/{batchId}
 | 菜单 | 异常事件 |
 | 页面空态 | 暂无异常事件 |
 | 筛选空态 | 未找到匹配的异常事件 |
+| 空态辅助说明 | 本页面只展示已隔离到 DLQ 的记录级异常。共享临时异常请在任务监控或告警中查看。 |
 | 单条按钮 | 重处理 |
 | 失败后单条按钮 | 重新处理 |
 | 批量按钮 | 重处理所选 |
@@ -1101,6 +1215,7 @@ page_title_exception_events: '异常事件'
 ```text
 packages_business_exception_events_empty
 packages_business_exception_events_filter_empty
+packages_business_exception_events_empty_route_tip
 packages_business_exception_events_reprocess
 packages_business_exception_events_reprocess_selected
 packages_business_exception_events_reprocess_again
@@ -1114,6 +1229,9 @@ packages_business_exception_events_lock_failed_message
 packages_business_exception_events_batch_close_tip
 packages_business_exception_events_payload_preview_truncated
 packages_business_exception_events_payload_incomplete
+packages_business_exception_events_task_not_runnable
+packages_business_exception_events_batch_running
+packages_business_exception_events_task_version_changed
 ```
 
 状态、错误类型、批次状态建议也维护 i18n key，避免组件中散落硬编码。
@@ -1350,6 +1468,9 @@ const currentBatchId = ref('')
 | 确认提交 | 发起批次 | `POST /api/dql-events/recovery` |
 | 查看进度 | 打开批次抽屉 | `GET /api/dql-events/recovery-batches/{batchId}` |
 | 批次运行中 | 3 秒轮询 | `GET /api/dql-events/recovery-batches/{batchId}` |
+| 查看共享异常 | 从任务名跳转任务监控或从告警进入任务 | 不调用 DLQ 页面 API |
+
+说明：共享临时异常、任务级重试、任务级重试耗尽和未知异常保护触发，不会生成 `dql_events` 主记录，因此不会出现在 `GET /api/dql-events` 中。
 
 ## 23. 关键边界处理
 
@@ -1390,6 +1511,10 @@ const currentBatchId = ref('')
 
 如果后端后续返回每条事件 attempt 结果，前端可在 `RecoveryBatchDrawer` 事件列表中增强展示，但不影响本次交互闭环。
 
+### 23.7 共享异常没有 DLQ 记录
+
+当用户从任务告警或任务监控进入异常事件页面，但列表为空时，前端不能提示“任务没有异常”。应按空态辅助说明解释：本页面只展示已隔离到 DLQ 的记录级异常；共享临时异常走任务级重试或任务错误，不会生成 DLQ 记录。
+
 ## 24. 研发落地顺序
 
 建议前端按以下顺序实现：
@@ -1429,9 +1554,14 @@ const currentBatchId = ref('')
 | 发起后看进度 | `RecoveryBatchDrawer` |
 | 批次终态刷新 | 轮询终态后刷新列表和统计 |
 | 可见即可操作 | 前端仅校验菜单权限，不追加任务操作权限 |
+| 同一任务内分层生效 | 前端只展示 `RECORD_DLQ` 事件；共享异常引导到任务监控和告警 |
+| 共享临时异常不生成 DLQ | 空态和说明文案明确本页面不代表所有任务异常 |
+| 路由依据展示 | 列表隐藏列和详情错误信息展示 `classificationReason` |
+| 任务状态保护 | 预览/批次展示任务不可运行、已有批次、版本变化等服务端结果 |
+| 未知异常保护 | 前端不虚拟保护事件，只展示服务端已有 DLQ 事件和告警/任务入口 |
 
 ## 26. 结论
 
-本设计在不改变服务端 API 的前提下，给出可直接落地的前端交互方案：新增独立“异常事件”列表页，复用现有 `PageContainer`、`TablePage`、`FilterBar` 和抽屉/弹窗体系，通过预览确认和批次进度抽屉把单条、批量受控重处理串成完整闭环。
+本设计基于已同步的服务端 API 口径，给出可直接落地的前端交互方案：新增独立“异常事件”列表页，复用现有 `PageContainer`、`TablePage`、`FilterBar` 和抽屉/弹窗体系，通过预览确认和批次进度抽屉把单条、批量受控重处理串成完整闭环。
 
-实现时前端必须以服务端状态和错误码为准，尤其是事件是否可重处理、批量是否同任务、批次是否终态这些关键判断；前端只做体验层前置约束，不替代后端校验。
+实现时前端必须以服务端状态和错误码为准，尤其是事件是否可重处理、批量是否同任务、批次是否终态、任务是否可回放这些关键判断；前端只做体验层前置约束，不替代后端校验。异常事件页面只代表记录级 DLQ，不承载共享临时异常的任务级重试展示。

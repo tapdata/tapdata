@@ -4,6 +4,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
@@ -13,6 +14,8 @@ import com.tapdata.tm.dql.vo.DqlEventQueryVo;
 import com.tapdata.tm.dql.vo.DqlEventReportResultVo;
 import com.tapdata.tm.dql.vo.DqlEventReportVo;
 import com.tapdata.tm.dql.vo.DqlEventSummaryVo;
+import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
+import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,11 +27,14 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class DqlEventService {
     private static final int ERROR_DETAILS_MAX_LENGTH = 4000;
+    static final String OVERWRITE_RISK_MESSAGE = "该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作";
 
     private final DqlEventRepository eventRepository;
     private final DqlEventAlarmService alarmService;
@@ -63,6 +69,8 @@ public class DqlEventService {
         if (StringUtils.isBlank(taskId)) {
             throw new BizException("IllegalArgument", "taskId");
         }
+        validateRouteMetadata(report);
+        fillRecordIdentity(report);
         if (StringUtils.isBlank(report.getEventIdentity())) {
             report.setEventIdentity(generateIdentity(taskId, report));
         }
@@ -111,6 +119,45 @@ public class DqlEventService {
         summary.setRecoveryFailed(eventRepository.countByStatus(query, DqlEventStatusEnum.RECOVERY_FAILED));
         summary.setNotReprocessable(eventRepository.countByStatus(query, DqlEventStatusEnum.NOT_REPROCESSABLE));
         return summary;
+    }
+
+    private void validateRouteMetadata(DqlEventReportVo report) {
+        if (StringUtils.isBlank(report.getExceptionScope())) {
+            report.setExceptionScope("RECORD");
+        } else if (!StringUtils.equalsIgnoreCase("RECORD", report.getExceptionScope())) {
+            throw new BizException("DqlEvent.InvalidRouteDecision", "exceptionScope");
+        } else {
+            report.setExceptionScope("RECORD");
+        }
+        if (StringUtils.isBlank(report.getRouteDecision())) {
+            report.setRouteDecision("RECORD_DLQ");
+        } else if (!StringUtils.equalsIgnoreCase("RECORD_DLQ", report.getRouteDecision())) {
+            throw new BizException("DqlEvent.InvalidRouteDecision", "routeDecision");
+        } else {
+            report.setRouteDecision("RECORD_DLQ");
+        }
+    }
+
+    /**
+     * Marks the latest unresolved DLQ event for the same business record when Engine reports a later successful write.
+     */
+    public DqlRecordSuccessReportResultVo reportRecordSuccess(String taskId, DqlRecordSuccessReportVo report) {
+        if (report == null) {
+            throw new BizException("IllegalArgument", "vo");
+        }
+        if (StringUtils.isBlank(taskId)) {
+            throw new BizException("IllegalArgument", "taskId");
+        }
+        fillRecordIdentity(report);
+        DqlEventDto marked = eventRepository.markLaterSuccess(taskId, report, OVERWRITE_RISK_MESSAGE);
+        DqlRecordSuccessReportResultVo result = new DqlRecordSuccessReportResultVo();
+        result.setMarked(marked != null);
+        result.setRecordIdentity(report.getRecordIdentity());
+        if (marked != null) {
+            result.setEventId(marked.getEventId());
+            result.setOverwriteRiskMessage(marked.getOverwriteRiskMessage());
+        }
+        return result;
     }
 
     private void checkQueryPermission(DqlEventQueryVo query, UserDetail user) {
@@ -170,6 +217,9 @@ public class DqlEventService {
         dto.setEventKey(report.getEventKey());
         dto.setEventKeyMissing(Optional.ofNullable(report.getEventKeyMissing()).orElse(report.getEventKey() == null || report.getEventKey().isEmpty()));
         dto.setEventIdentity(report.getEventIdentity());
+        dto.setRecordIdentity(report.getRecordIdentity());
+        dto.setRecordIdentityType(report.getRecordIdentityType());
+        dto.setRecordIdentityFields(report.getRecordIdentityFields());
         dto.setPayloadFormat(Optional.ofNullable(report.getPayloadFormat()).orElse("tap-record-event-json-v1"));
         dto.setPayloadData(report.getPayloadData());
         dto.setPayloadHash(report.getPayloadHash());
@@ -179,12 +229,17 @@ public class DqlEventService {
         dto.setPayloadPreviewTruncated(Optional.ofNullable(report.getPayloadPreviewTruncated()).orElse(false));
         dto.setErrorType(report.getErrorType());
         dto.setErrorCode(report.getErrorCode());
+        dto.setExceptionScope(report.getExceptionScope());
+        dto.setRouteDecision(report.getRouteDecision());
+        dto.setClassificationReason(report.getClassificationReason());
+        dto.setClassificationConfidence(report.getClassificationConfidence());
         dto.setErrorDetails(truncateErrorDetails(report.getErrorDetails(), dto));
         dto.setRawErrorRef(report.getRawErrorRef());
         dto.setStatus(Boolean.FALSE.equals(dto.getPayloadComplete())
                 ? DqlEventStatusEnum.NOT_REPROCESSABLE.name()
                 : DqlEventStatusEnum.PENDING.name());
         dto.setRecoveryCount(0);
+        dto.setOverwriteRisk(false);
         dto.setCreated(now);
         dto.setUpdated(now);
         return dto;
@@ -217,16 +272,71 @@ public class DqlEventService {
                 taskId,
                 nullToEmpty(report.getTaskRecordId()),
                 nullToEmpty(report.getTableId()),
+                nullToEmpty(report.getRecordIdentity()),
                 nullToEmpty(report.getDmlType()),
                 String.valueOf(report.getEventTime()),
                 nullToEmpty(report.getPayloadHash()),
                 String.valueOf(report.getPayloadData()),
                 nullToEmpty(report.getFailedNodeId())
         );
+        return "sha256:" + sha256(source);
+    }
+
+    private void fillRecordIdentity(DqlEventReportVo report) {
+        if (StringUtils.isNotBlank(report.getRecordIdentity())) {
+            if (StringUtils.isBlank(report.getRecordIdentityType())) {
+                report.setRecordIdentityType(DqlRecordIdentityTypeEnum.UNKNOWN.name());
+            }
+            return;
+        }
+        RecordIdentity identity = buildRecordIdentity(report.getTableId(), report.getSourceTable(), report.getEventKey(), report.getPayloadHash());
+        report.setRecordIdentity(identity.identity());
+        report.setRecordIdentityType(identity.type());
+        report.setRecordIdentityFields(identity.fields());
+    }
+
+    private void fillRecordIdentity(DqlRecordSuccessReportVo report) {
+        if (StringUtils.isNotBlank(report.getRecordIdentity())) {
+            if (StringUtils.isBlank(report.getRecordIdentityType())) {
+                report.setRecordIdentityType(DqlRecordIdentityTypeEnum.UNKNOWN.name());
+            }
+            return;
+        }
+        RecordIdentity identity = buildRecordIdentity(report.getTableId(), report.getSourceTable(), report.getEventKey(), report.getPayloadHash());
+        report.setRecordIdentity(identity.identity());
+        report.setRecordIdentityType(identity.type());
+        report.setRecordIdentityFields(identity.fields());
+    }
+
+    private RecordIdentity buildRecordIdentity(String tableId, String sourceTable, Map<String, Object> eventKey, String payloadHash) {
+        String table = Optional.ofNullable(tableId).filter(StringUtils::isNotBlank)
+                .orElseGet(() -> Optional.ofNullable(sourceTable).orElse(""));
+        if (eventKey != null && !eventKey.isEmpty()) {
+            List<String> fields = eventKey.keySet().stream().sorted().toList();
+            String keyValues = fields.stream()
+                    .map(field -> field + "=" + String.valueOf(eventKey.get(field)))
+                    .collect(Collectors.joining(","));
+            return new RecordIdentity(
+                    "key:" + table + ":" + keyValues,
+                    DqlRecordIdentityTypeEnum.PRIMARY_KEY.name(),
+                    fields
+            );
+        }
+        if (StringUtils.isNotBlank(payloadHash)) {
+            return new RecordIdentity(
+                    "hash:" + table + ":" + payloadHash,
+                    DqlRecordIdentityTypeEnum.FULL_FIELD_HASH.name(),
+                    List.of()
+            );
+        }
+        return new RecordIdentity(null, null, null);
+    }
+
+    private String sha256(String source) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(source.getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder("sha256:");
+            StringBuilder builder = new StringBuilder();
             for (byte b : bytes) {
                 builder.append(String.format("%02x", b));
             }
@@ -238,5 +348,8 @@ public class DqlEventService {
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private record RecordIdentity(String identity, String type, List<String> fields) {
     }
 }

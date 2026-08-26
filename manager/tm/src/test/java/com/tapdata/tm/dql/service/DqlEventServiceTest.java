@@ -5,6 +5,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dql.DqlEventStatusEnum;
+import com.tapdata.tm.dql.DqlRecordIdentityTypeEnum;
 import com.tapdata.tm.dql.DqlRecoveryAttemptResultEnum;
 import com.tapdata.tm.dql.DqlRecoveryBatchStatusEnum;
 import com.tapdata.tm.dql.dto.DqlEventDto;
@@ -16,12 +17,15 @@ import com.tapdata.tm.dql.vo.DqlEventQueryVo;
 import com.tapdata.tm.dql.vo.DqlEventReportResultVo;
 import com.tapdata.tm.dql.vo.DqlEventReportVo;
 import com.tapdata.tm.dql.vo.DqlEventSummaryVo;
+import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
+import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.Date;
@@ -36,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -81,6 +86,86 @@ class DqlEventServiceTest {
         assertTrue(result.isDuplicate());
         verify(eventRepository, never()).upsert(any(DqlEventDto.class));
         verify(alarmService, never()).notifyEventCreated(any(DqlEventDto.class));
+    }
+
+    @Test
+    @DisplayName("report persists record identity fields used for later success risk detection")
+    void reportPersistsRecordIdentityFields() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventReportVo report = reportVo();
+        report.setRecordIdentity("key:orders:id=1001");
+        report.setRecordIdentityType(DqlRecordIdentityTypeEnum.PRIMARY_KEY.name());
+        report.setRecordIdentityFields(List.of("id"));
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.report(TASK_ID, report);
+
+        ArgumentCaptor<DqlEventDto> captor = forClass(DqlEventDto.class);
+        verify(eventRepository).upsert(captor.capture());
+        assertEquals("key:orders:id=1001", captor.getValue().getRecordIdentity());
+        assertEquals(DqlRecordIdentityTypeEnum.PRIMARY_KEY.name(), captor.getValue().getRecordIdentityType());
+        assertEquals(List.of("id"), captor.getValue().getRecordIdentityFields());
+    }
+
+    @Test
+    @DisplayName("report persists route classification metadata used by frontend detail")
+    void reportPersistsRouteClassificationMetadata() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventReportVo report = reportVo();
+        report.setExceptionScope("RECORD");
+        report.setRouteDecision("RECORD_DLQ");
+        report.setClassificationReason("JS process failed on single TapRecordEvent");
+        report.setClassificationConfidence("RULE");
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.report(TASK_ID, report);
+
+        ArgumentCaptor<DqlEventDto> captor = forClass(DqlEventDto.class);
+        verify(eventRepository).upsert(captor.capture());
+        assertEquals("RECORD", captor.getValue().getExceptionScope());
+        assertEquals("RECORD_DLQ", captor.getValue().getRouteDecision());
+        assertEquals("JS process failed on single TapRecordEvent", captor.getValue().getClassificationReason());
+        assertEquals("RULE", captor.getValue().getClassificationConfidence());
+    }
+
+    @Test
+    @DisplayName("report rejects explicit non DLQ route metadata")
+    void reportRejectsExplicitNonDqlRouteMetadata() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventReportVo report = reportVo();
+        report.setExceptionScope("TASK_SHARED");
+        report.setRouteDecision("TASK_RETRY");
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BizException exception = assertThrows(BizException.class, () -> service.report(TASK_ID, report));
+
+        assertEquals("DqlEvent.InvalidRouteDecision", exception.getErrorCode());
+        verify(eventRepository, never()).upsert(any(DqlEventDto.class));
+    }
+
+    @Test
+    @DisplayName("report defaults missing route metadata to record DLQ")
+    void reportDefaultsMissingRouteMetadataToRecordDql() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlEventReportVo report = reportVo();
+        report.setExceptionScope(null);
+        report.setRouteDecision(null);
+        when(eventRepository.findDuplicate(eq(TASK_ID), any())).thenReturn(null);
+        when(eventRepository.upsert(any(DqlEventDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.report(TASK_ID, report);
+
+        ArgumentCaptor<DqlEventDto> captor = forClass(DqlEventDto.class);
+        verify(eventRepository).upsert(captor.capture());
+        assertEquals("RECORD", captor.getValue().getExceptionScope());
+        assertEquals("RECORD_DLQ", captor.getValue().getRouteDecision());
     }
 
     @Test
@@ -133,6 +218,12 @@ class DqlEventServiceTest {
         later.setEventTime(new Date(2000));
         DqlEventDto earlier = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
         earlier.setEventTime(new Date(1000));
+        earlier.setOverwriteRisk(true);
+        earlier.setOverwriteRiskMessage("该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作");
+        earlier.setLaterSuccessAt(new Date(3000));
+        earlier.setLaterSuccessEventTime(new Date(2500));
+        earlier.setLaterSuccessCaptureSeq(7L);
+        earlier.setLaterSuccessDmlType("U");
         DqlEventDto blocked = event("DQL-64f000-000002", TASK_ID, 2L, DqlEventStatusEnum.RECOVERED);
         blocked.setEventTime(new Date(1000));
         when(eventRepository.findByEventIds(List.of("DQL-64f000-000003", "DQL-64f000-000001", "DQL-64f000-000002")))
@@ -145,6 +236,13 @@ class DqlEventServiceTest {
         assertFalse(preview.isCanSubmit());
         assertEquals(List.of("DQL-64f000-000001", "DQL-64f000-000003"),
                 preview.getOrderedEvents().stream().map(DqlRecoveryPreviewVo.OrderedEvent::getEventId).toList());
+        DqlRecoveryPreviewVo.OrderedEvent first = preview.getOrderedEvents().get(0);
+        assertTrue(first.getOverwriteRisk());
+        assertEquals("该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作", first.getOverwriteRiskMessage());
+        assertEquals(new Date(3000), first.getLaterSuccessAt());
+        assertEquals(new Date(2500), first.getLaterSuccessEventTime());
+        assertEquals(7L, first.getLaterSuccessCaptureSeq());
+        assertEquals("U", first.getLaterSuccessDmlType());
         assertEquals("DQL-64f000-000002", preview.getBlockedEvents().get(0).getEventId());
         assertEquals("status RECOVERED is not reprocessable", preview.getBlockedEvents().get(0).getReason());
     }
@@ -184,6 +282,24 @@ class DqlEventServiceTest {
         BizException exception = assertThrows(BizException.class, () -> service.start(request, user()));
 
         assertEquals("IllegalArgument", exception.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("record success report marks previous unresolved DLQ event as overwrite risk")
+    void recordSuccessReportMarksPreviousDqlEventRisk() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlEventService service = new DqlEventService(eventRepository, mock(DqlEventAlarmService.class));
+        DqlRecordSuccessReportVo report = recordSuccessReport();
+        DqlEventDto marked = event("DQL-64f000-000001", TASK_ID, 1L, DqlEventStatusEnum.PENDING);
+        marked.setOverwriteRisk(true);
+        marked.setOverwriteRiskMessage("该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作");
+        when(eventRepository.markLaterSuccess(eq(TASK_ID), eq(report), any())).thenReturn(marked);
+
+        DqlRecordSuccessReportResultVo result = service.reportRecordSuccess(TASK_ID, report);
+
+        assertTrue(result.isMarked());
+        assertEquals("DQL-64f000-000001", result.getEventId());
+        assertEquals("该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作", result.getOverwriteRiskMessage());
     }
 
     @Test
@@ -265,6 +381,9 @@ class DqlEventServiceTest {
         report.setDmlType("U");
         report.setEventTime(1787580000000L);
         report.setEventKey(Map.of("id", 1001));
+        report.setRecordIdentity("key:orders:id=1001");
+        report.setRecordIdentityType(DqlRecordIdentityTypeEnum.PRIMARY_KEY.name());
+        report.setRecordIdentityFields(List.of("id"));
         report.setEventIdentity("sha256:identity");
         report.setPayloadFormat("tap-record-event-json-v1");
         report.setPayloadData(Map.of("after", Map.of("id", 1001)));
@@ -275,6 +394,22 @@ class DqlEventServiceTest {
         report.setErrorType("TRANSFORM_ERROR");
         report.setErrorCode("JS_PROCESS_FAILED");
         report.setErrorDetails("script failed");
+        return report;
+    }
+
+    private static DqlRecordSuccessReportVo recordSuccessReport() {
+        DqlRecordSuccessReportVo report = new DqlRecordSuccessReportVo();
+        report.setTaskRecordId("record-1");
+        report.setTableId("orders");
+        report.setSourceTable("orders");
+        report.setTargetTable("orders_sink");
+        report.setRecordIdentity("key:orders:id=1001");
+        report.setRecordIdentityType(DqlRecordIdentityTypeEnum.PRIMARY_KEY.name());
+        report.setRecordIdentityFields(List.of("id"));
+        report.setDmlType("U");
+        report.setEventTime(1787580100000L);
+        report.setCaptureSeq(12L);
+        report.setSuccessAt(1787580102300L);
         return report;
     }
 
