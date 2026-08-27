@@ -10,7 +10,7 @@
 
 F07 的兼容边界不是重新实现 SkipErrorTable，而是确保 DQL 新路径不会改变旧任务的路由和告警语义。检查结果如下：
 
-1. Engine 的数据捕获、目标写入后处理和处理节点失败三个入口现在统一受系统级 `dql.event.enabled` 保护。DQL 关闭或运行时配置未初始化时，入口保持旧路径，不会因残留 handler wiring 产生 DQL 事件。
+1. Engine 的数据捕获、目标写入后处理和处理节点失败三个入口现在统一受系统级 `dql.event.enabled` 保护。显式关闭 DQL 时入口保持旧路径；配置对象为空时入口也会 fail-closed，不会因残留 handler wiring 产生 DQL 事件。正常未配置场景遵循 F05 的默认值 `dql.event.enabled=true`，因此不改变默认启用语义。
 2. `SkipTable`、`Disable` 和 `SkipData` 不会创建 `TaskSkipErrorTable`；`SkipTableForMigrateSnapshot` 仍只对迁移任务生效。既有 `SkipErrorTable` 的全量/增量表状态判断逻辑未修改。
 3. 共享网络异常仍由任务级重试和原有任务告警处理；C12 已覆盖共享异常不进入 DQL 的回归约束。DQL 告警为追加能力，未替换 `TASK_STATUS_ERROR` 等旧任务告警路径。
 4. F01-F06 引入的权限、告警、配置、初始化和索引变更均不改变旧 API 的返回语义；真实 TM/Engine/Mongo 环境中的升级、通知渠道和存量任务验证仍由 G05、G08、G09、G12 承接。
