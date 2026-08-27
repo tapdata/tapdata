@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
 import io.tapdata.aspect.SkipErrorDataAspect;
+import io.tapdata.aspect.SkipErrorProcessAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AbstractAspectTask;
@@ -88,6 +89,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
     public SkipErrorEventAspectTask() {
         interceptHandlers.register(SkipErrorDataAspect.class, this::skipErrorDataNoeAspectHandle);
+        interceptHandlers.register(SkipErrorProcessAspect.class, this::skipErrorProcessAspectHandle);
     }
 
     private void save2TaskAttrs() {
@@ -299,6 +301,43 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         return this.skipErrorDataNoeAspect.apply(aspect);
     }
 
+    /**
+     * Captures a single DML event failed by a processor before the node falls
+     * back to its existing task-level error handling path.
+     */
+    public AspectInterceptResult skipErrorProcessAspectHandle(SkipErrorProcessAspect aspect) {
+        if (aspect == null || aspect.getInputEvent() == null
+                || !(aspect.getInputEvent().getTapEvent() instanceof TapRecordEvent event)
+                || aspect.getError() == null) {
+            return null;
+        }
+
+        String tableId = event.getTableId();
+        DqlFailedStage failedStage = aspect.getProcessStage() == null
+                ? DqlFailedStage.PROCESSOR : aspect.getProcessStage();
+        DqlClassificationResult classification = dqlExceptionClassifier.classify(
+                aspect.getError(), new DqlClassificationContext(
+                        failedStage,
+                        DqlNodeType.PROCESSOR,
+                        event,
+                        DqlBatchContext.singleRecord(),
+                        currentDqlTaskContext()));
+        if (classification.getExceptionScope() == DqlExceptionScope.UNKNOWN) {
+            classification = dlqStormGuard.protect(classification, DqlStormGuardContext.singleRecord(
+                    taskId, aspect.getNodeId(), tableId, errorCode(aspect.getError()),
+                    aspect.getError().getMessage()));
+        }
+        if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
+            return null;
+        }
+
+        TapTable table = resolveProcessorTable(aspect, tableId);
+        reportDqlEvent(table, event, tableId, aspect.getError(), classification,
+                failedStage, aspect.getNodeId(), aspect.getNodeName(), null);
+        logSkipEvent(event, aspect.getError());
+        return new AspectInterceptResult().intercepted(true);
+    }
+
     public AspectInterceptResult skipErrorDataNoeAspectImpl(SkipErrorDataAspect aspect) {
         aspect.getPdkMethodInvoker().setEnableSkipErrorEvent(true);
 
@@ -416,11 +455,25 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                                 String tableId,
                                 Throwable error,
                                 DqlClassificationResult classification) {
+        reportDqlEvent(table, event, tableId, error, classification,
+                DqlFailedStage.TARGET_WRITE, null, null, tableId);
+    }
+
+    private void reportDqlEvent(TapTable table,
+                                TapRecordEvent event,
+                                String tableId,
+                                Throwable error,
+                                DqlClassificationResult classification,
+                                DqlFailedStage failedStage,
+                                String failedNodeId,
+                                String failedNodeName,
+                                String targetTable) {
         try {
             if (dqlEventReporter == null) {
                 throw new DqlEventReportException(taskId, "DQL TM reporter is unavailable");
             }
-            DqlEventReport report = buildDqlEventReport(table, event, tableId, error, classification);
+            DqlEventReport report = buildDqlEventReport(table, event, tableId, error, classification,
+                    failedStage, failedNodeId, failedNodeName, targetTable);
             dqlEventReporter.report(taskId, report);
         } catch (DqlEventReportException exception) {
             throw exception;
@@ -434,6 +487,19 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                                                String tableId,
                                                Throwable error,
                                                DqlClassificationResult classification) {
+        return buildDqlEventReport(table, event, tableId, error, classification,
+                DqlFailedStage.TARGET_WRITE, null, null, tableId);
+    }
+
+    private DqlEventReport buildDqlEventReport(TapTable table,
+                                               TapRecordEvent event,
+                                               String tableId,
+                                               Throwable error,
+                                               DqlClassificationResult classification,
+                                               DqlFailedStage failedStage,
+                                               String failedNodeId,
+                                               String failedNodeName,
+                                               String targetTable) {
         TaskDto currentTask = getTask();
         DqlEventReport report = new DqlEventReport();
         if (currentTask != null) {
@@ -443,9 +509,11 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             report.setAgentId(currentTask.getAgentId());
         }
         report.setTaskRecordId(report.getTaskRecordId() == null ? taskId : report.getTaskRecordId());
-        report.setFailedStage(DqlFailedStage.TARGET_WRITE.name());
+        report.setFailedStage(failedStage == null ? null : failedStage.name());
+        report.setFailedNodeId(failedNodeId);
+        report.setFailedNodeName(failedNodeName);
         report.setSourceTable(event.getTableId());
-        report.setTargetTable(tableId);
+        report.setTargetTable(targetTable);
         report.setTableId(tableId);
         report.setDmlType(dmlType(event));
         report.setEventTime(event.getReferenceTime() == null ? event.getTime() : event.getReferenceTime());
@@ -461,6 +529,19 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         identity.applyTo(report);
         classification.applyTo(report);
         return report;
+    }
+
+    private TapTable resolveProcessorTable(SkipErrorProcessAspect aspect, String tableId) {
+        if (aspect.getProcessorBaseContext() == null
+                || aspect.getProcessorBaseContext().getTapTableMap() == null
+                || tableId == null || tableId.isBlank()) {
+            return null;
+        }
+        try {
+            return aspect.getProcessorBaseContext().getTapTableMap().get(tableId);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private String dmlType(TapRecordEvent event) {

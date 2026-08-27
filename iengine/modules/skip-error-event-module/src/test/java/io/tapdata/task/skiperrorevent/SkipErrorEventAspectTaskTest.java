@@ -2,8 +2,13 @@ package io.tapdata.task.skiperrorevent;
 
 import com.tapdata.tm.commons.function.ThrowableFunction;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.SkipErrorDataAspect;
+import io.tapdata.aspect.SkipErrorProcessAspect;
+import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -40,6 +45,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -344,6 +350,108 @@ public class SkipErrorEventAspectTaskTest {
             Map<String, AtomicLong> tableMetrics = metrics.get(tableId);
             return tableMetrics == null || tableMetrics.get("skip") == null
                     ? 0L : tableMetrics.get("skip").get();
+        }
+    }
+
+    @Nested
+    class ProcessCaptureTest {
+        private final DqlEventReporter reporter = mock(DqlEventReporter.class);
+        private final ProcessorBaseContext processorBaseContext = mock(ProcessorBaseContext.class);
+
+        @BeforeEach
+        void setUpProcessCapture() {
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "dqlEventReporter", reporter);
+            when(processorBaseContext.getTaskDto()).thenReturn(skipErrorEventAspectTask.getTask());
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "taskId", "task-1");
+            ReflectionTestUtils.setField(skipErrorEventAspectTask, "log", mock(Log.class));
+        }
+
+        @Test
+        void processorRecordFailureShouldReportAndIntercept() {
+            TapdataEvent inputEvent = insertTapdataEvent(1);
+            TapCodeException processFailure = new TapCodeException(
+                    ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED);
+            DqlEventReportResult acknowledgement = new DqlEventReportResult();
+            acknowledgement.setEventId("dql-process-event-1");
+            when(reporter.report(eq("task-1"), any(DqlEventReport.class))).thenReturn(acknowledgement);
+
+            AspectInterceptResult result = skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                    processAspect(inputEvent, processFailure));
+
+            assertNotNull(result);
+            assertTrue(result.isIntercepted());
+            ArgumentCaptor<DqlEventReport> reportCaptor = ArgumentCaptor.forClass(DqlEventReport.class);
+            verify(reporter).report(eq("task-1"), reportCaptor.capture());
+            DqlEventReport report = reportCaptor.getValue();
+            assertEquals(DqlRouteDecision.RECORD_DLQ, report.getRouteDecision());
+            assertEquals(DqlFailedStage.PROCESSOR.name(), report.getFailedStage());
+            assertEquals("processor-1", report.getFailedNodeId());
+            assertEquals("processor node", report.getFailedNodeName());
+        }
+
+        @Test
+        void processorInitializationFailureShouldUseExistingErrorHandlePath() {
+            AspectInterceptResult result = skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                    processAspect(insertTapdataEvent(1), new TapCodeException(
+                            ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED)));
+
+            assertNull(result);
+            verifyNoInteractions(reporter);
+        }
+
+        @Test
+        void processorSharedFailureShouldUseExistingErrorHandlePath() {
+            AspectInterceptResult result = skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                    processAspect(insertTapdataEvent(1), new TapCodeException(PDKExCode_10.RETRYABLE_ERROR)));
+
+            assertNull(result);
+            verifyNoInteractions(reporter);
+        }
+
+        @Test
+        void processorReportFailureShouldPropagateWithoutInterception() {
+            DqlEventReportException reportFailure = new DqlEventReportException("task-1", "TM unavailable");
+            when(reporter.report(eq("task-1"), any(DqlEventReport.class))).thenThrow(reportFailure);
+
+            DqlEventReportException thrown = assertThrows(DqlEventReportException.class,
+                    () -> skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                            processAspect(insertTapdataEvent(1), new TapCodeException(
+                                    ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED))));
+
+            assertSame(reportFailure, thrown);
+        }
+
+        @Test
+        void nonDmlProcessorFailureShouldUseExistingErrorHandlePath() {
+            TapdataEvent heartbeat = new TapdataEvent();
+            AspectInterceptResult result = skipErrorEventAspectTask.skipErrorProcessAspectHandle(
+                    processAspect(heartbeat, new TapCodeException(
+                            ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED)));
+
+            assertNull(result);
+            verifyNoInteractions(reporter);
+        }
+
+        private SkipErrorProcessAspect processAspect(TapdataEvent inputEvent, Throwable error) {
+            return new SkipErrorProcessAspect()
+                    .inputEvent(inputEvent)
+                    .processorBaseContext(processorBaseContext)
+                    .error(error)
+                    .processStage(DqlFailedStage.PROCESSOR)
+                    .nodeId("processor-1")
+                    .nodeName("processor node");
+        }
+
+        private TapdataEvent insertTapdataEvent(int id) {
+            TapdataEvent inputEvent = new TapdataEvent();
+            inputEvent.setTapEvent(insertEvent(id));
+            return inputEvent;
+        }
+
+        private TapRecordEvent insertEvent(int id) {
+            return TapInsertRecordEvent.create()
+                    .table("orders")
+                    .after(Map.of("id", id, "name", "order-" + id));
         }
     }
 }

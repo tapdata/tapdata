@@ -43,6 +43,7 @@
 | C05 | 已完成 | `steps/C05-engine-storm-guard.md` |
 | C06 | 已完成 | `steps/C06-engine-event-reporter.md` |
 | C07 | 已完成 | `steps/C07-engine-target-write-capture.md` |
+| C08 | 已完成 | `steps/C08-engine-process-capture.md` |
 
 ## 回归记录
 

@@ -13,18 +13,21 @@ import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
+import io.tapdata.aspect.SkipErrorProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.dql.classifier.DqlFailedStage;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.DelayHandler;
@@ -268,16 +271,30 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				singleProcess(tapdataEvent, processedEventList);
 			}
 		} catch (TapCodeException e) {
-			errorHandle(e);
+			if (!interceptProcessorError(tapdataEvent, e)) {
+				errorHandle(e);
+			}
 		} catch (Exception e) {
 			Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
-			if (null != matchThrowable) {
-				errorHandle(matchThrowable);
-			} else {
-				errorHandle(new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, e).addEvent(tapdataEvent.getTapEvent()));
+			Throwable error = null != matchThrowable
+					? matchThrowable
+					: new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, e).addEvent(tapdataEvent.getTapEvent());
+			if (!interceptProcessorError(tapdataEvent, error)) {
+				errorHandle(error);
 			}
 		}
 		return result.get();
+	}
+
+	private boolean interceptProcessorError(TapdataEvent tapdataEvent, Throwable error) {
+		AspectInterceptResult interceptResult = executeAspect(new SkipErrorProcessAspect()
+				.processorBaseContext(processorBaseContext)
+				.inputEvent(tapdataEvent)
+				.error(error)
+				.processStage(DqlFailedStage.PROCESSOR)
+				.nodeId(getNode().getId())
+				.nodeName(getNode().getName()));
+		return interceptResult != null && interceptResult.isIntercepted();
 	}
 
 	protected void singleProcess(TapdataEvent tapdataEvent, List<TapdataEvent> processedEventList) {
