@@ -224,15 +224,15 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 					externalStorageDtoPage.setTotal(externalStorageDtoPage.getTotal() + 1);
 				}
 			}
-			externalStorageDtoPage.setItems(maskPasswordIfNeed(externalStorageDtoPage.getItems()));
-			externalStorageDtoPage.getItems().forEach(ets -> {
-				if (null == ets.getCreateAt() && null != ets.getId()) {
-					ObjectId id = ets.getId();
-					int timestamp = id.getTimestamp();
-					ets.setCreateAt(new Date(timestamp * 1000L));
-				}
-			});
 		}
+		externalStorageDtoPage.setItems(maskPasswordIfNeed(externalStorageDtoPage.getItems()));
+		externalStorageDtoPage.getItems().forEach(ets -> {
+			if (null == ets.getCreateAt() && null != ets.getId()) {
+				ObjectId id = ets.getId();
+				int timestamp = id.getTimestamp();
+				ets.setCreateAt(new Date(timestamp * 1000L));
+			}
+		});
 		return externalStorageDtoPage;
 	}
 
