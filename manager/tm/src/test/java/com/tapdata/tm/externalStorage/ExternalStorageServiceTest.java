@@ -62,6 +62,10 @@ import static org.mockito.Mockito.when;
         ExternalStorageEntity externalStorage = new ExternalStorageEntity();
         externalStorage.setName(mark);
         externalStorage.setUri("mongodb://test:password@127.0.0.1:27017/test");
+        externalStorage.setSsl(true);
+        externalStorage.setSslCA("ca");
+        externalStorage.setSslKey("key");
+        externalStorage.setSslPass("pass");
         ExternalStorageDto externalStorageDto = new ExternalStorageDto();
         BeanUtils.copyProperties(externalStorage,externalStorageDto);
         list.add(externalStorage);
@@ -82,6 +86,9 @@ import static org.mockito.Mockito.when;
             if (!cloud) {
                 ExternalStorageDto actualData = externalStorageDtoPage.getItems().get(0);
                 assertEquals(mark, actualData.getName());
+                assertEquals(ExternalStorageDto.MASK_PWD, actualData.getSslCA());
+                assertEquals(ExternalStorageDto.MASK_PWD, actualData.getSslKey());
+                assertEquals(ExternalStorageDto.MASK_PWD, actualData.getSslPass());
                 assertEquals("mongodb://test:******@127.0.0.1:27017/test", actualData.getUri());
             }else {
                 assertEquals(1,externalStorageDtoPage.getTotal());

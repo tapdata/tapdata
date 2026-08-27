@@ -62,6 +62,26 @@ public class ExternalStorageControllerTest {
         return controller;
     }
 
+    @Test
+    void saveShouldMaskSensitiveFieldsInResponse() {
+        ExternalStorageController controller = prepareController();
+        ExternalStorageService externalStorageService = (ExternalStorageService) ReflectionTestUtils.getField(controller, "externalStorageService");
+        UserDetail userDetail = controller.getLoginUser();
+        ExternalStorageDto saved = mongodbStorage("mongodb://admin:password@localhost:27017/test");
+        saved.setSslCA("ca");
+        saved.setSslKey("key");
+        saved.setSslPass("pass");
+        saved.setAccessToken("token");
+        when(externalStorageService.save(any(ExternalStorageDto.class), Mockito.eq(userDetail))).thenReturn(saved);
+
+        ResponseMessage<ExternalStorageDto> response = controller.save(mongodbStorage("mongodb://admin:password@localhost:27017/test"));
+
+        assertEquals(ExternalStorageDto.MASK_PWD, response.getData().getSslCA());
+        assertEquals(ExternalStorageDto.MASK_PWD, response.getData().getSslKey());
+        assertEquals(ExternalStorageDto.MASK_PWD, response.getData().getSslPass());
+        assertEquals(ExternalStorageDto.MASK_PWD, response.getData().getAccessToken());
+    }
+
     private ExternalStorageDto mongodbStorage(String uri) {
         ExternalStorageDto externalStorageDto = new ExternalStorageDto();
         externalStorageDto.setType(ExternalStorageType.mongodb.name());
