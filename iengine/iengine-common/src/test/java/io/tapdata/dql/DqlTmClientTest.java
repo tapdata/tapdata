@@ -16,6 +16,7 @@ import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlRecordSuccessReportResult;
 import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.model.DqlRouteDecision;
+import io.tapdata.dql.model.DqlStormGuardReport;
 import io.tapdata.exception.ManagementException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -119,6 +120,24 @@ class DqlTmClientTest {
         assertEquals("batch-1", operator.calls.get(0).payload().get("batchId"));
         assertEquals("BATCH_STARTED", operator.calls.get(0).payload().get("type"));
         assertEquals(100L, operator.calls.get(0).payload().get("startedAt"));
+    }
+
+    @Test
+    @DisplayName("Storm Guard reports use a safe observability endpoint")
+    void stormGuardReportUsesContractPath() {
+        RecordingMongoOperator operator = new RecordingMongoOperator();
+        DqlTmClient client = new DqlTmClient(operator);
+        operator.respond("task/task-1/dql-events/storm-guard/report", Boolean.TRUE);
+        DqlStormGuardReport report = new DqlStormGuardReport();
+        report.setTaskName("Orders");
+        report.setGuardKey("guard-sha256");
+        report.setRouteDecision(DqlRouteDecision.TASK_RETRY);
+        report.setSafeReason("count exceeded");
+
+        assertTrue(client.reportStormGuard(TASK_ID, report));
+        assertEquals("task/task-1/dql-events/storm-guard/report", operator.calls.get(0).resource());
+        assertEquals("guard-sha256", operator.calls.get(0).payload().get("guardKey"));
+        assertFalse(operator.calls.get(0).payload().containsKey("payloadData"));
     }
 
     @Test

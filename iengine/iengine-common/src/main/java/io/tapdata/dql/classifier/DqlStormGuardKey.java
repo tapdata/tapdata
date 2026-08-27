@@ -1,6 +1,9 @@
 package io.tapdata.dql.classifier;
 
 import java.text.Normalizer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -91,6 +94,26 @@ public final class DqlStormGuardKey {
 
     public String getNormalizedErrorMessage() {
         return normalizedErrorMessage;
+    }
+
+    /**
+     * Returns a stable identifier suitable for observability payloads.
+     * The normalized dimensions are intentionally kept local to the Engine;
+     * TM receives only this digest and cannot reconstruct the error text.
+     */
+    public String getSafeIdentifier() {
+        byte[] digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256")
+                    .digest(toString().getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException exception) {
+            return "hash:" + Integer.toHexString(hashCode());
+        }
+        StringBuilder result = new StringBuilder("sha256:");
+        for (int index = 0; index < 12; index++) {
+            result.append(String.format(Locale.ROOT, "%02x", digest[index]));
+        }
+        return result.toString();
     }
 
     @Override

@@ -21,6 +21,7 @@ import io.tapdata.dql.classifier.DqlClassificationContext;
 import io.tapdata.dql.classifier.DqlExceptionClassifier;
 import io.tapdata.dql.classifier.DqlFailedStage;
 import io.tapdata.dql.classifier.DqlNodeType;
+import io.tapdata.dql.classifier.DqlStormGuardDecision;
 import io.tapdata.dql.classifier.DqlStormGuardContext;
 import io.tapdata.dql.classifier.DqlTaskContext;
 import io.tapdata.dql.client.DqlTmClient;
@@ -32,6 +33,7 @@ import io.tapdata.dql.model.DqlExceptionScope;
 import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlPayloadSnapshot;
 import io.tapdata.dql.model.DqlRouteDecision;
+import io.tapdata.dql.model.DqlStormGuardReport;
 import io.tapdata.dql.preview.DqlPayloadPreview;
 import io.tapdata.dql.preview.DqlPayloadPreviewBuilder;
 import io.tapdata.dql.reporter.DqlEventReportException;
@@ -437,17 +439,20 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                         DqlBatchContext.singleRecord(),
                         currentDqlTaskContext()));
         AtomicLong skipMetric;
+        DqlStormGuardDecision stormGuardDecision = null;
         if (classification.getExceptionScope() == DqlExceptionScope.UNKNOWN) {
             skipMetric = reserveSkipCandidate(tableId, classification);
-            classification = dlqStormGuard.protect(classification, DqlStormGuardContext.singleRecord(
+            stormGuardDecision = dlqStormGuard.evaluate(classification, DqlStormGuardContext.singleRecord(
                     taskId, aspect.getNodeId(), tableId, errorCode(aspect.getError()),
                     aspect.getError().getMessage()));
+            classification = stormGuardDecision.getClassificationResult();
         } else {
             skipMetric = reserveSkipCandidate(tableId, classification);
         }
         boolean committed = false;
         try {
             if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
+                reportStormGuard(stormGuardDecision);
                 logTaskLevelHandling(tableId, classification);
                 return null;
             }
@@ -576,6 +581,44 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         }
     }
 
+    private void reportStormGuard(DqlStormGuardDecision decision) {
+        if (decision == null || !decision.isGuardTriggered() || dqlEventReporter == null) {
+            return;
+        }
+        TaskDto currentTask = getTask();
+        DqlStormGuardReport report = new DqlStormGuardReport();
+        report.setTaskName(currentTask == null || StringUtils.isBlank(currentTask.getName())
+                ? taskId : currentTask.getName());
+        report.setAgentId(currentTask == null ? null : currentTask.getAgentId());
+        if (decision.getGuardKey() != null) {
+            report.setGuardKey(decision.getGuardKey().getSafeIdentifier());
+        }
+        long windowMillis = decision.getWindowExpiresAtMillis() - decision.getWindowStartMillis();
+        if (windowMillis > 0L) {
+            report.setWindowSeconds(windowMillis / 1000L);
+        }
+        report.setWindowCount(decision.getWindowCount());
+        report.setGuardThreshold(decision.getMaxEvents());
+        if (decision.getBatchRatio() >= 0d) {
+            report.setBatchRatio(decision.getBatchRatio());
+        }
+        report.setMaxBatchRatio(decision.getMaxBatchRatio());
+        report.setSuppressedCountEstimate(decision.getSuppressedCount());
+        report.setRouteDecision(decision.getClassificationResult().getRouteDecision());
+        report.setSafeReason(decision.getClassificationResult().getClassificationReason());
+        report.setOccurredAt(System.currentTimeMillis());
+        try {
+            dqlEventReporter.reportStormGuard(taskId, report);
+        } catch (RuntimeException exception) {
+            // Storm Guard is a routing safety valve; an observability callback
+            // failure must not change the already selected task-level route.
+            if (log != null) {
+                log.warn("DQL Storm Guard report failed for task {}: {}", taskId,
+                        exception.getMessage());
+            }
+        }
+    }
+
     private boolean checkSkip(TapTable table,
                                String tableName,
                                TapRecordEvent tapRecordEvent,
@@ -586,13 +629,16 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         }
         DqlClassificationResult classification = classify(ex, tapRecordEvent, DqlBatchContext.singleRecord());
         AtomicLong skipMetric = reserveSkipCandidate(tableName, classification);
+        DqlStormGuardDecision stormGuardDecision = null;
         if (classification.getExceptionScope() == DqlExceptionScope.UNKNOWN) {
-            classification = dlqStormGuard.protect(classification, DqlStormGuardContext.singleRecord(
+            stormGuardDecision = dlqStormGuard.evaluate(classification, DqlStormGuardContext.singleRecord(
                     taskId, null, tableName, errorCode(ex), ex.getMessage()));
+            classification = stormGuardDecision.getClassificationResult();
         }
         boolean committed = false;
         try {
             if (classification.getRouteDecision() != DqlRouteDecision.RECORD_DLQ) {
+                reportStormGuard(stormGuardDecision);
                 logTaskLevelHandling(tableName, classification);
                 return false;
             }

@@ -7,6 +7,7 @@ import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlRecordSuccessReportResult;
 import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.model.DqlRouteDecision;
+import io.tapdata.dql.model.DqlStormGuardReport;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.Objects;
@@ -74,6 +75,29 @@ public class DqlEventReporter {
             Boolean acknowledged = tmClient.reportRecovery(taskId, report);
             if (!Boolean.TRUE.equals(acknowledged)) {
                 throw new DqlEventReportException(taskId, "TM recovery acknowledgement was not successful");
+            }
+            return acknowledged;
+        } catch (DqlEventReportException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new DqlEventReportException(taskId, exception);
+        }
+    }
+
+    /**
+     * Reports Storm Guard activation without affecting the task-level route if TM is unavailable.
+     */
+    public Boolean reportStormGuard(String taskId, DqlStormGuardReport report) {
+        if (StringUtils.isBlank(taskId)) {
+            throw new IllegalArgumentException("taskId must not be blank");
+        }
+        if (report == null) {
+            throw new IllegalArgumentException("report must not be null");
+        }
+        try {
+            Boolean acknowledged = tmClient.reportStormGuard(taskId, report);
+            if (!Boolean.TRUE.equals(acknowledged)) {
+                throw new DqlEventReportException(taskId, "TM Storm Guard acknowledgement was not successful");
             }
             return acknowledged;
         } catch (DqlEventReportException exception) {

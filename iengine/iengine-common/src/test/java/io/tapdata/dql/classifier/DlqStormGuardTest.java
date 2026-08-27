@@ -174,6 +174,19 @@ class DlqStormGuardTest {
     }
 
     @Test
+    @DisplayName("safe guard identifiers do not expose normalized error text")
+    void createsSafeIdentifier() {
+        DqlStormGuardKey key = DqlStormGuardKey.of(
+                TASK_ID, NODE_ID, TABLE_ID, "E-UNKNOWN", "password=secret-value");
+
+        assertTrue(key.getSafeIdentifier().startsWith("sha256:"));
+        assertFalse(key.getSafeIdentifier().contains("password"));
+        assertFalse(key.getSafeIdentifier().contains("secret-value"));
+        assertEquals(key.getSafeIdentifier(), DqlStormGuardKey.of(
+                TASK_ID, NODE_ID, TABLE_ID, "E-UNKNOWN", "password=secret-value").getSafeIdentifier());
+    }
+
+    @Test
     @DisplayName("a non-locatable unknown event cannot be promoted to a record DLQ")
     void rejectsNonLocatableUnknownEvent() {
         DlqStormGuard guard = new DlqStormGuard(config(20, 0.2d, DqlRouteDecision.TASK_ERROR), () -> 1_000L);

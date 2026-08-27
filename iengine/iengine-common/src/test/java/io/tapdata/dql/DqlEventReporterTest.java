@@ -10,6 +10,7 @@ import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlRecordSuccessReportResult;
 import io.tapdata.dql.model.DqlRecoveryReport;
 import io.tapdata.dql.model.DqlRouteDecision;
+import io.tapdata.dql.model.DqlStormGuardReport;
 import io.tapdata.dql.reporter.DqlEventReportException;
 import io.tapdata.dql.reporter.DqlEventReporter;
 import io.tapdata.exception.ManagementException;
@@ -67,6 +68,19 @@ class DqlEventReporterTest {
 
         assertTrue(acknowledged);
         assertEquals(1, client.recoveryReportCalls);
+    }
+
+    @Test
+    @DisplayName("reporter forwards a Storm Guard alarm report")
+    void reportsStormGuard() {
+        RecordingDqlTmClient client = new RecordingDqlTmClient(Boolean.TRUE);
+        DqlEventReporter reporter = new DqlEventReporter(client);
+        DqlStormGuardReport report = new DqlStormGuardReport();
+        report.setGuardKey("guard-sha256");
+        report.setRouteDecision(DqlRouteDecision.TASK_RETRY);
+
+        assertTrue(reporter.reportStormGuard(TASK_ID, report));
+        assertEquals(1, client.stormGuardReportCalls);
     }
 
     @Test
@@ -159,6 +173,7 @@ class DqlEventReporterTest {
         private int reportCalls;
         private int successReportCalls;
         private int recoveryReportCalls;
+        private int stormGuardReportCalls;
 
         private RecordingDqlTmClient(DqlEventReportResult response) {
             super(new NoopMongoOperator());
@@ -213,6 +228,15 @@ class DqlEventReporterTest {
         @Override
         public Boolean reportRecovery(String taskId, DqlRecoveryReport report) {
             recoveryReportCalls++;
+            if (failure != null) {
+                throw failure;
+            }
+            return recoveryResponse;
+        }
+
+        @Override
+        public Boolean reportStormGuard(String taskId, DqlStormGuardReport report) {
+            stormGuardReportCalls++;
             if (failure != null) {
                 throw failure;
             }

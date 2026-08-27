@@ -16,6 +16,7 @@ import com.tapdata.tm.dql.vo.DqlEventReportVo;
 import com.tapdata.tm.dql.vo.DqlEventSummaryVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportResultVo;
 import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
+import com.tapdata.tm.dql.vo.DqlStormGuardReportVo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -231,6 +232,21 @@ public class DqlEventService {
             result.setOverwriteRiskMessage(marked.getOverwriteRiskMessage());
         }
         return result;
+    }
+
+    /**
+     * Receives the safe observability signal for an Engine Storm Guard decision.
+     * This path only creates the task alarm; it never persists an exception event.
+     */
+    public void reportStormGuard(String taskId, DqlStormGuardReportVo report) {
+        if (StringUtils.isBlank(taskId)) {
+            throw new BizException("IllegalArgument", "taskId");
+        }
+        if (report == null) {
+            throw new BizException("IllegalArgument", "vo");
+        }
+        report.setTaskId(taskId);
+        alarmService.notifyStormGuard(report);
     }
 
     private Collection<String> resolveQueryTaskIds(DqlEventQueryVo query, UserDetail user) {

@@ -19,6 +19,7 @@ import io.tapdata.dql.model.DqlEventReportResult;
 import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlErrorType;
 import io.tapdata.dql.model.DqlRouteDecision;
+import io.tapdata.dql.model.DqlStormGuardReport;
 import io.tapdata.dql.model.DqlClassificationConfidence;
 import io.tapdata.dql.classifier.DqlFailedStage;
 import io.tapdata.dql.reporter.DqlEventReportException;
@@ -381,6 +382,14 @@ public class SkipErrorEventAspectTaskTest {
 
             assertSame(protectedFailure, thrown);
             verify(reporter, times(20)).report(eq("task-1"), any(DqlEventReport.class));
+            ArgumentCaptor<DqlStormGuardReport> guardReportCaptor =
+                    ArgumentCaptor.forClass(DqlStormGuardReport.class);
+            verify(reporter).reportStormGuard(eq("task-1"), guardReportCaptor.capture());
+            DqlStormGuardReport guardReport = guardReportCaptor.getValue();
+            assertTrue(guardReport.getGuardKey().startsWith("sha256:"));
+            assertEquals(DqlRouteDecision.TASK_RETRY, guardReport.getRouteDecision());
+            assertEquals(21L, guardReport.getWindowCount());
+            assertEquals(20L, guardReport.getGuardThreshold());
             assertEquals(20L, skipCount("orders"));
             assertLogContains(taskLog, "DQL task-level");
         }

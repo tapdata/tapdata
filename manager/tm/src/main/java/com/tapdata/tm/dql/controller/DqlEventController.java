@@ -18,6 +18,7 @@ import com.tapdata.tm.dql.vo.DqlRecordSuccessReportVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
+import com.tapdata.tm.dql.vo.DqlStormGuardReportVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -149,6 +150,18 @@ public class DqlEventController extends BaseController {
     public ResponseMessage<Boolean> reportRecovery(@PathVariable("taskId") String taskId,
                                                    @RequestBody DqlRecoveryResultReportVo request) {
         recoveryBatchService.report(taskId, request);
+        return success(Boolean.TRUE);
+    }
+
+    /**
+     * Receives a safe Storm Guard activation signal from Engine for task-level alarm handling.
+     */
+    @Operation(summary = "Engine reports DQL Storm Guard activation")
+    @PostMapping({"/api/task/{taskId}/dql-events/storm-guard/report", "/api/Task/{taskId}/dql-events/storm-guard/report"})
+    @IgnoreRequestBodyLog
+    public ResponseMessage<Boolean> reportStormGuard(@PathVariable("taskId") String taskId,
+                                                     @RequestBody DqlStormGuardReportVo request) {
+        eventService.reportStormGuard(taskId, request);
         return success(Boolean.TRUE);
     }
 

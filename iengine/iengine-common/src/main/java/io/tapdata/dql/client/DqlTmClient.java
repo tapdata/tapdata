@@ -8,6 +8,7 @@ import io.tapdata.dql.model.DqlEventReportResult;
 import io.tapdata.dql.model.DqlRecordSuccessReport;
 import io.tapdata.dql.model.DqlRecordSuccessReportResult;
 import io.tapdata.dql.model.DqlRecoveryReport;
+import io.tapdata.dql.model.DqlStormGuardReport;
 import io.tapdata.exception.ManagementException;
 import org.apache.commons.lang3.StringUtils;
 
@@ -24,6 +25,7 @@ public class DqlTmClient {
     public static final String EVENT_REPORT_RESOURCE = "task/%s/dql-events/report";
     public static final String RECORD_SUCCESS_REPORT_RESOURCE = "task/%s/dql-events/record-success/report";
     public static final String RECOVERY_REPORT_RESOURCE = "task/%s/dql-events/recovery/report";
+    public static final String STORM_GUARD_REPORT_RESOURCE = "task/%s/dql-events/storm-guard/report";
 
     private final HttpClientMongoOperator operator;
 
@@ -41,6 +43,10 @@ public class DqlTmClient {
 
     public Boolean reportRecovery(String taskId, DqlRecoveryReport report) {
         return post(taskId, report, RECOVERY_REPORT_RESOURCE, Boolean.class);
+    }
+
+    public Boolean reportStormGuard(String taskId, DqlStormGuardReport report) {
+        return post(taskId, report, STORM_GUARD_REPORT_RESOURCE, Boolean.class);
     }
 
     private <T> T post(String taskId, Object request, String resourcePattern, Class<T> responseType) {
