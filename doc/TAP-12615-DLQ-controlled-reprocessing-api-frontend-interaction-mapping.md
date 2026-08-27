@@ -2,94 +2,102 @@
 
 ## 1. 文档目的
 
-本文解释后端 DLQ 异常事件 API 如何支撑前端交互设计文档中的页面、抽屉、弹窗和轮询流程。接口定义以 `TAP-12615-DLQ-controlled-reprocessing-api.md` 为准，本文补充“用户动作、调用顺序、关键字段、注意事项”的对应关系。
+本文解释后端 DLQ 异常事件 API 如何支撑当前 Web UI 的列表、详情和受控重处理流程。前端交互和数据契约以 `TAP-12615-DLQ-controlled-reprocessing-api.md` 的 2026-08-27 版本为准；本文只补充“用户动作、调用顺序、关键字段、刷新条件”的对应关系，不扩展新的前端依赖。
 
-更新日期：2026-08-26。本文已同步 TAP-12615 V1.2 的分层路由口径：异常事件页面只消费 `RECORD_DLQ` 记录级事件；共享临时异常、任务级重试、任务级重试耗尽和未知异常保护通过任务状态、任务告警和日志表达，不会出现在 DLQ 列表中。
+异常事件页面只消费 `RECORD_DLQ` 记录级事件。共享临时异常、任务级重试、任务级重试耗尽和未知异常保护仍通过任务状态、任务告警和日志表达，不会出现在 DLQ 列表中。
 
 参考文档：
 
-- `doc/TAP-12615-DLQ-controlled-reprocessing-frontend-interaction-design.md`
 - `doc/TAP-12615-DLQ-controlled-reprocessing-api.md`
+- `doc/TAP-12615-DLQ-controlled-reprocessing-frontend-interaction-design.md`
 
 ## 2. 前端页面与 API 总览
 
+当前 Web UI 依赖 5 个接口：
+
 | 前端模块 | 用户动作 | API | 说明 |
 | --- | --- | --- | --- |
-| 异常事件列表页 | 进入页面、分页、筛选、排序、刷新 | `GET /api/dql-events` | 返回分页事件列表，服务端按任务可见范围过滤。 |
-| 状态统计区 | 初始化统计、切换筛选后刷新统计 | `GET /api/dql-events/summary` | 返回各状态数量，供 SummaryTabs 展示。 |
-| 详情抽屉 | 点击事件 ID 或详情按钮 | `GET /api/dql-events/{eventId}` | 返回事件详情、payload 预览、重处理历史和当前批次摘要。 |
-| 重处理预览弹窗 | 单条或批量重处理前预览 | `POST /api/dql-events/recovery/preview` | 校验可重处理性，并返回服务端排序后的事件顺序和阻塞原因。 |
-| 重处理确认 | 用户确认后提交 | `POST /api/dql-events/recovery` | `confirm` 必须为 `true`，创建批次并锁定事件。 |
-| 批次进度抽屉 | 查看进度、轮询批次 | `GET /api/dql-events/recovery-batches/{batchId}` | 返回批次状态和处理计数，前端按状态决定是否继续轮询。 |
-| Engine 回调 | Engine 上报异常、后续成功写入或重处理结果 | `POST /api/task/{taskId}/dql-events/report`、`POST /api/task/{taskId}/dql-events/record-success/report`、`POST /api/task/{taskId}/dql-events/recovery/report` | 内部接口，不由 Web 前端直接调用；后续成功写入会影响列表、详情和预览的覆盖风险提示。 |
+| 异常事件列表页 | 进入页面、分页、筛选、刷新 | `GET /api/dql-events` | 返回分页事件列表，默认 `skip=0`、`limit=20`、`order=-failedAt`。 |
+| 状态统计区 | 初始化、修改筛选或切换状态 | `GET /api/dql-events/summary` | 使用与列表相同的非状态筛选条件，不传 `status`、`skip`、`limit`、`order`。 |
+| 详情抽屉 | 点击“详情”或“查看进度” | `GET /api/dql-events/{eventId}` | 返回完整事件安全视图和 `recoveryAttempts`；`eventId` 只用于接口定位，不在页面展示。 |
+| 重处理预览弹窗 | 单条或批量重处理前预览 | `POST /api/dql-events/recovery/preview` | 由服务端重新校验、返回阻塞项并确定最终顺序。 |
+| 重处理确认 | 用户确认后提交 | `POST /api/dql-events/recovery` | 使用预览结果 `orderedEvents` 中的 `eventId` 提交，`confirm` 必须为 `true`。 |
+
+`GET /api/dql-events/recovery-batches/{batchId}` 可以由服务端保留用于运维诊断，但当前 Web UI 不调用，也不展示独立批次进度抽屉。
 
 ### 2.1 分层路由约定
 
-| Engine 路由结果 | 是否调用 DLQ 上报 API | 前端可见位置 |
+| Engine 路由结果 | 是否写入 DLQ | 前端可见位置 |
 | --- | --- | --- |
-| `RECORD_DLQ` | 是，调用 `POST /api/task/{taskId}/dql-events/report` | 异常事件列表、详情、统计、重处理 |
-| `TASK_RETRY` | 否 | 任务监控、任务状态、现有任务告警 |
-| `TASK_ERROR` | 否 | 任务监控、任务错误告警、任务日志 |
-| 未知异常触发保护 | 否 | 任务监控、任务告警或保护告警、任务日志 |
+| `RECORD_DLQ` | 是 | 异常事件列表、详情、统计和重处理流程 |
+| `TASK_RETRY` | 否 | 任务监控、任务状态和现有任务告警 |
+| `TASK_ERROR` | 否 | 任务监控、任务错误告警和任务日志 |
+| 未知异常触发保护 | 否 | 任务监控、保护告警或任务日志 |
 
-因此，`GET /api/dql-events` 返回为空只能说明当前筛选条件下没有记录级 DLQ 事件，不能说明任务没有发生共享异常或任务级重试。
+因此，`GET /api/dql-events` 返回为空只表示当前筛选条件下没有记录级 DLQ 事件，不能据此判断任务没有发生共享异常或任务级重试。
 
 ## 3. 页面初始化
 
-前端进入 `/exception-events` 页面后建议并行调用：
+前端进入“高级功能 / 异常事件”后并行调用：
 
 1. `GET /api/dql-events/summary`
 2. `GET /api/dql-events?skip=0&limit=20&order=-failedAt`
 
-列表接口返回 `Page<DqlEventDto>`：
+列表响应：
 
-- `total` 用于分页总数。
-- `items` 用于表格行数据。
-- 列表响应已清空 `payloadData`，不会把完整 payload 返回给浏览器。
-- 列表响应已清空 `recoveryAttempts`，详情抽屉再按需加载历史。
+```json
+{
+  "items": [/* DqlEvent[] */],
+  "total": 128
+}
+```
 
-## 4. 筛选与状态统计
+`eventId` 是表格行主键及后续详情、预览、提交请求的定位字段，但不作为可见列展示。列表不返回完整 Payload，前端只在详情接口中消费服务端生成的安全预览。
 
-列表和统计接口使用同一组查询参数：
+## 4. 筛选、统计与路由同步
 
-| 前端筛选项 | Query 参数 | 服务端行为 |
-| --- | --- | --- |
-| 任务 | `taskId`、`taskName` | `taskId` 精确匹配，`taskName` 模糊匹配。 |
-| 源表 | `sourceTable` | 模糊匹配。 |
-| 目标表 | `targetTable` | 模糊匹配。 |
-| 关键字 | `keyword` | 匹配事件 ID、任务名、源表、目标表、错误码、错误详情、路由依据。 |
-| DML | `dmlType` | 精确匹配 `I`、`U`、`D`。 |
-| 错误类型 | `errorType` | 精确匹配错误类型枚举。 |
-| 状态 | `status` | 精确匹配事件状态枚举。 |
-| 失败时间 | `startTime`、`endTime` | 按 `failedAt` 毫秒时间戳范围过滤。 |
+### 4.1 筛选分组
 
-状态 Tab 展示推荐使用 `summary` 返回字段：
+| 前端区域 | 筛选项 | Query 参数 | 服务端行为 |
+| --- | --- | --- | --- |
+| 高频筛选 | 关键词 | `keyword` | 至少匹配 `taskName`、`errorCode`。 |
+| 高频筛选 | 任务 | `taskId` | 精确匹配任务；`taskName` 作为预留任务名筛选参数。 |
+| 高频筛选 | DML | `dmlType` | 精确匹配 `I`、`U`、`D`。 |
+| 高频筛选 | 错误类型 | `errorType` | 精确匹配 `DqlErrorType`。 |
+| 更多筛选 | 来源表 | `sourceTable` | 表名包含匹配。 |
+| 更多筛选 | 目标表 | `targetTable` | 表名包含匹配。 |
+| 更多筛选 | 失败时间 | `startTime`、`endTime` | 按 `failedAt` 闭区间过滤；当前控件传 Unix 毫秒字符串，服务端建议兼容 ISO 8601。 |
+| 状态标签 | 事件状态 | `status` | 精确匹配 `DqlEventStatus`。 |
 
-| Tab | 字段 | 列表筛选值 |
+筛选和状态写入 URL query；页面加载时从 query 恢复。更多筛选只有在用户点击“应用筛选”后才更新 query 并刷新列表和统计。
+
+### 4.2 状态统计
+
+| 标签 | 汇总字段 | 列表筛选值 |
 | --- | --- | --- |
 | 全部 | `total` | 不传 `status` |
 | 待处理 | `pending` | `PENDING` |
-| 重处理中 | `reprocessing` | `REPROCESSING` |
+| 处理中 | `reprocessing` | `REPROCESSING` |
 | 已恢复 | `recovered` | `RECOVERED` |
-| 重处理失败 | `recoveryFailed` | `RECOVERY_FAILED` |
+| 恢复失败 | `recoveryFailed` | `RECOVERY_FAILED` |
 | 不可重处理 | `notReprocessable` | `NOT_REPROCESSABLE` |
 
-如果希望统计展示“当前非状态筛选条件下的全状态分布”，前端请求 summary 时应去掉当前 `status` 参数。
+汇总请求必须去掉当前 `status`，确保各状态数字始终表示同一组非状态筛选条件下的分布。
 
-## 5. 排序关系
+## 5. 列表展示与排序
 
-前端 `TablePage` 的自定义排序可以直接映射到 `order` 参数：
+列表是远程分页表格，默认按 `failedAt` 倒序。来源表、目标表、事件时间、最近重处理时间默认隐藏，可通过显示列设置开启。
 
-| 前端排序字段 | 降序参数 | 升序参数 |
-| --- | --- | --- |
-| 失败时间 | `-failedAt` | `failedAt` |
-| 事件时间 | `-eventTime` | `eventTime` |
-| 重处理次数 | `-recoveryCount` | `recoveryCount` |
-| 最近重处理时间 | `-lastRecoveryTime` | `lastRecoveryTime` |
+`DqlEvent` 至少包含：
 
-服务端会把 camelCase 字段转换为 Mongo 字段，例如 `recoveryCount -> recovery_count`、`lastRecoveryTime -> last_recovery_time`。也兼容 `failed_at desc` 这类 snake_case 写法。
+- 内部定位：`id`、`eventId`。
+- 任务和表：`taskId`、`taskName`、`sourceTable`、`targetTable`。
+- 事件和错误：`dmlType`、`errorType`、`errorCode`、`eventTime`、`failedAt`、`captureSeq`。
+- 生命周期：`status`、`recoveryCount`、`lastRecoveryTime`。
 
-## 6. 详情抽屉
+当前契约只固定默认排序参数 `-failedAt`。如果后续增加其他服务端排序字段，应先更新 API 契约，再开放对应的前端远程排序入口。
+
+## 6. 详情抽屉与进度展示
 
 打开详情时调用：
 
@@ -97,183 +105,108 @@
 GET /api/dql-events/{eventId}
 ```
 
-详情接口支撑前端 5 个展示区：
+详情接口支撑以下展示区：
 
 | 前端区域 | 关键响应字段 |
 | --- | --- |
-| 基本信息 | `eventId`、`taskId`、`taskName`、`sourceNodeName`、`failedNodeName`、`sourceTable`、`targetTable`、`dmlType`、`eventTime`、`failedAt`、`captureSeq` |
-| 事件标识 | `eventIdentity`、`eventKey`、`eventKeyMissing`、`payloadHash`、`payloadSize`、`payloadComplete` |
-| 错误信息 | `errorType`、`errorCode`、`exceptionScope`、`routeDecision`、`classificationReason`、`classificationConfidence`、`errorDetails`、`rawErrorRef` |
-| Payload 预览 | `payloadPreview`、`payloadPreviewTruncated`、`payloadComplete` |
-| 重处理历史 | `recoveryAttempts` |
+| 任务与表流向 | `taskName`、`sourceTable`、`targetTable`、`sourceNodeName`、`targetNodeName` |
+| 失败位置 | `failedNodeName`、`stage`、`tableId`、`dmlType`、`eventTime`、`failedAt`、`captureSeq` |
+| Payload 元数据 | `eventKey`、`eventKeyMissing`、`payloadFormat`、`payloadHash`、`payloadSize`、`payloadComplete` |
+| 错误信息 | `errorType`、`errorCode`、`errorDetails`、`rawErrorRef` |
+| Payload 安全预览 | `payloadPreview`、`payloadPreviewTruncated`、`payloadComplete` |
+| 重处理历史与进度 | `recoveryAttempts` |
 
-安全说明：
+安全要求：
 
-- 详情接口不会返回完整 `payloadData`。
-- 前端只展示 `payloadPreview`，不提供编辑、下载、复制完整 payload 的入口。
+- 页面不展示事件 ID，也不提供事件 ID 复制入口。
+- 详情不要求返回完整 `payloadData`；前端只展示服务端脱敏、限长后的 `payloadPreview`。
 - `errorDetails` 按纯文本展示，不能作为 HTML 渲染。
+- `payloadComplete=false` 表示原始 Payload 不完整；`payloadPreviewTruncated=true` 只表示展示预览被截断，两者必须使用不同提示。
 
-当前批次说明：
+当事件状态为 `REPROCESSING` 时，详情抽屉每 3 秒重新请求当前事件，使用 `recoveryAttempts` 中 `result=RUNNING` 的记录展示当前进度，并在 attempt 进入终态或事件离开 `REPROCESSING` 后停止轮询。
 
-- 当事件存在 `currentBatchId` 时，详情接口会返回 `currentBatch`。
-- 前端在 `status=REPROCESSING` 且 `currentBatch` 存在时展示“查看进度”按钮。
-- 点击“查看进度”后使用 `currentBatch.batchId` 打开批次进度抽屉。
+## 7. 单条与批量重处理
 
-路由展示说明：
-
-- 列表、详情、统计和重处理预览只消费 `RECORD_DLQ` 主记录；共享临时异常和任务级异常不进入这些页面 API。
-- Engine 上报异常事件时如果省略 `exceptionScope` 或 `routeDecision`，TM 会分别保存为 `RECORD` 和 `RECORD_DLQ`；如果显式上报其他值，TM 拒绝入库。
-- 前端展示的 `classificationReason`、`classificationConfidence` 用于解释该事件为何进入 DLQ，不代表页面需要展示任务级重试或系统异常记录。
-
-覆盖风险提示：
-
-- 列表、详情和重处理预览均可能返回 `overwriteRisk`、`overwriteRiskMessage`、`laterSuccessAt`、`laterSuccessEventTime`、`laterSuccessCaptureSeq`、`laterSuccessDmlType`。
-- 当 `overwriteRisk=true` 时，前端应展示服务端返回的提示文案：`该事件异常后，同记录后续存在成功执行的事件，继续重放存在数据覆盖风险，请谨慎操作`。
-- 该提示来源于 Engine 调用 `POST /api/task/{taskId}/dql-events/record-success/report`。Web 前端不直接调用该接口，只消费风险字段。
-- 覆盖风险提示不改变事件状态，也不自动禁用重处理按钮；前端需要在用户确认重处理前明确展示，尤其是单条重处理详情和批量预览弹窗。
-
-## 7. 单条重处理
-
-单条重处理入口来自列表行或详情抽屉。调用顺序必须是：
+单条和批量重处理使用相同调用顺序：
 
 1. `POST /api/dql-events/recovery/preview`
-2. 用户确认
-3. `POST /api/dql-events/recovery`
+2. 展示服务端排序、阻塞原因和固定影响说明
+3. 用户确认
+4. `POST /api/dql-events/recovery`
 
-预览请求：
+列表仅允许勾选 `PENDING`、`RECOVERY_FAILED`，且一次选择必须属于同一 `taskId`。这些前端限制只是体验优化，预览和提交接口都必须重新执行同样的校验。
+
+### 7.1 预览
 
 ```json
 {
-  "eventIds": ["DQL-64f000-000001"]
+  "eventIds": ["dlq_01J8K6CB1A2M04Q9X001"]
 }
 ```
 
-预览响应：
+预览响应处理：
 
-- `canSubmit=true`：确认按钮可用。
-- `orderedEvents`：展示服务端确认的执行顺序。
-- `blockedEvents`：展示不可提交事件和原因；存在阻塞项时确认按钮禁用。
+- 只有 `canSubmit=true` 才允许确认。
+- `orderedEvents` 是服务端确定的最终顺序，界面按数组顺序展示。
+- `blockedEvents` 除内部 `eventId` 外，还应包含 `sourceTable`、`targetTable`、`dmlType`、`eventTime`、`captureSeq` 和面向用户的 `message`；界面使用这些业务字段识别记录，不展示 `eventId`。
+- 影响说明固定为：使用当前已发布任务配置重处理原始事件；同步可能短暂暂停，完成后恢复；Payload 不会被修改。
 
-确认请求：
+### 7.2 提交
+
+提交请求的 `eventIds` 必须从本次预览响应的 `orderedEvents` 依次提取，不能继续使用用户最初的勾选顺序。
 
 ```json
 {
-  "eventIds": ["DQL-64f000-000001"],
+  "eventIds": ["dlq_01J8K6CB1A2M04Q9X001"],
   "confirm": true
 }
 ```
 
-`confirm` 缺失或为 `false` 时，服务端返回 `IllegalArgument`，参数为 `confirm`。
+提交接口仍须再次校验事件状态、任务归属和 Payload 完整性，并返回完整 `DqlRecoveryBatch`。前端提交成功后关闭预览、清空选择并刷新列表和统计，不自动打开新的批次抽屉。
 
-## 8. 批量重处理
+## 8. 刷新与进度入口
 
-批量重处理与单条重处理使用相同 API，只是 `eventIds` 包含多条事件。
+| 场景 | 前端行为 | 停止条件 |
+| --- | --- | --- |
+| 当前列表存在 `REPROCESSING` | 每 8 秒静默刷新列表和汇总 | 当前页不再存在 `REPROCESSING` 或页面卸载 |
+| 打开 `REPROCESSING` 事件详情 | 每 3 秒刷新事件详情 | attempt 结束、事件离开 `REPROCESSING`、抽屉关闭或页面卸载 |
+| 提交重处理成功 | 立即刷新列表和汇总 | 单次动作 |
 
-后端规则：
+列表行“查看进度”直接打开该事件的详情抽屉。重处理运行态、完成态、失败原因都由 `recoveryAttempts` 承载。
 
-- 所有事件必须属于同一任务，否则返回 `DqlRecovery.CrossTaskNotAllowed`。
-- 事件状态必须是 `PENDING` 或 `RECOVERY_FAILED`。
-- `payloadComplete=false` 的事件不可提交。
-- 发起时服务端会再次锁定事件；锁定失败返回 `DqlRecovery.EventLockFailed`。
-- 任务必须处于运行中或 Engine 可回放暂停态；任务停止、未完成初始化、任务版本变化或同任务已有批次运行中时不可提交。
+## 9. 权限与错误处理
 
-前端本地同任务和状态校验只是体验优化，最终以预览接口和发起接口返回为准。
+页面路由仍由异常事件菜单权限控制，服务端按用户可见任务范围过滤列表、汇总、详情和重处理操作；不能通过 `eventId` 或可选的 `batchId` 越权读取。
 
-## 9. 批次进度抽屉
+前端按 HTTP 语义和服务端可展示 `message` 处理错误：
 
-发起重处理成功后，响应返回 `DqlRecoveryBatchDto`：
+| HTTP 语义 | 典型场景 | 前端处理 |
+| --- | --- | --- |
+| `400` | 参数缺失、格式错误、`confirm` 非 true | 保留当前页面或弹窗，展示 message。 |
+| `404` | 事件不存在或已无权限访问 | 关闭详情，刷新列表；不泄露资源是否属于其他任务。 |
+| `409` | 状态变化、跨任务、重复批次、Payload 不完整等提交冲突 | 禁止或停止提交，展示 message，清空失效选择并刷新列表。 |
+| 无权限 | 菜单或任务数据权限不足 | 展示无权限状态并停止相关自动刷新。 |
 
-- `batchId`
-- `taskId`
-- `taskName`
-- `status`
-- `selectedCount`
-- `successCount`
-- `failedCount`
-- `skippedCount`
-- `recoveryMode`
-- `taskStatusBefore`
-- `taskStatusAfter`
-- `sourceReadPaused`
-- `sourceReadResumeResult`
-- `orderedEventIds`
-- `startedAt`
-- `finishedAt`
-- `message`
+不要依赖前端禁用态兜底状态冲突，也不要根据提交成功自行推断重处理成功。
 
-前端打开批次抽屉后调用：
+## 10. Engine 内部接口关系
 
-```http
-GET /api/dql-events/recovery-batches/{batchId}
-```
+Web 前端不直接调用 Engine 内部接口，但它们决定页面数据来源和状态变化：
 
-轮询规则：
-
-| 批次状态 | 前端行为 |
-| --- | --- |
-| `CREATED`、`DISPATCHED`、`RUNNING` | 每 3 秒继续请求批次详情。 |
-| `SUCCESS`、`PARTIAL_FAILED`、`FAILED`、`CANCELED` | 停止轮询，刷新列表和统计。 |
-
-进度百分比按 `(successCount + failedCount + skippedCount) / selectedCount` 计算；当 `selectedCount=0` 时展示 0%。
-
-## 10. 自动刷新
-
-列表中存在 `REPROCESSING` 事件时，前端可以每 8 秒静默刷新：
-
-1. `GET /api/dql-events`
-2. `GET /api/dql-events/summary`
-
-批次抽屉打开时，批次轮询独立执行，不依赖列表自动刷新。批次到达终态后，前端应刷新列表和统计，让事件状态从 `REPROCESSING` 更新为终态。
-
-## 11. 权限与错误处理
-
-页面接口需要菜单权限 `v2_exception_events`，并由服务端按任务可见范围过滤。前端直接访问路由或轮询时遇到 `NoPermission`，应展示无权限状态并停止对应请求。
-
-常见错误码映射：
-
-| code | 推荐前端处理 |
-| --- | --- |
-| `IllegalArgument` | 展示接口 message；如果参数是 `confirm`，提示需要重新确认后提交。 |
-| `NoPermission` | 展示无权限状态，停止自动刷新或轮询。 |
-| `DqlEvent.NotFound` | 关闭详情抽屉并刷新列表。 |
-| `DqlRecovery.CrossTaskNotAllowed` | 提示只能处理同一任务，清空选择。 |
-| `DqlRecovery.EventNotReprocessable` | 展示预览阻塞原因或接口 message，刷新列表。 |
-| `DqlRecovery.EventLockFailed` | 提示事件状态已变化，清空选择并刷新列表。 |
-| `DqlRecovery.BatchNotFound` | 关闭批次抽屉，提示批次不存在或已无权限查看。 |
-| `DqlEvent.InvalidRouteDecision` | 一般只发生在 Engine 内部上报；前端遇到时展示服务端 message 并刷新。 |
-| `DqlRecovery.TaskNotRunnable` | 在预览弹窗展示阻塞原因，引导到任务监控查看状态。 |
-| `DqlRecovery.BatchAlreadyRunning` | 提示同一任务已有重处理批次运行中，刷新列表并引导查看进度。 |
-| `DqlRecovery.TaskVersionChanged` | 提示任务版本已变化，需要重新预览。 |
-| `DqlRecovery.PayloadIncomplete` | 展示 Payload 不完整，不允许提交。 |
-
-## 12. Engine 内部接口关系
-
-Web 前端不直接调用 Engine 回调接口，但这些接口决定页面数据来源和状态变化：
-
-| Engine 行为 | API | 对前端可见影响 |
+| Engine 行为 | 内部 API 或处理 | 对前端可见影响 |
 | --- | --- | --- |
 | 捕获记录级确定性异常 | `POST /api/task/{taskId}/dql-events/report` | 列表新增 `PENDING` 或 `NOT_REPROCESSABLE` 事件。 |
-| 同记录后续成功写入 | `POST /api/task/{taskId}/dql-events/record-success/report` | 已存在的前序 `PENDING`、`REPROCESSING` 或 `RECOVERY_FAILED` 事件标记 `overwriteRisk=true`，列表、详情和预览展示覆盖风险提示。 |
-| 捕获共享临时异常 | 不调用 DLQ 上报 API | 异常事件列表不新增记录；用户从任务监控或告警查看任务级重试。 |
-| 任务级重试耗尽 | 不调用 DLQ 上报 API | 异常事件列表不新增积压记录；用户从任务错误状态和告警查看。 |
-| 未知异常保护触发 | 不调用 DLQ 上报 API | 异常事件列表不继续新增未知事件；用户从保护告警或任务日志查看。 |
-| 批次开始 | `POST /api/task/{taskId}/dql-events/recovery/report`，`type=BATCH_STARTED` | 批次状态变为 `RUNNING`。 |
-| 单事件结果 | `type=EVENT_RESULT` | 事件变为 `RECOVERED` 或 `RECOVERY_FAILED`，批次计数递增。 |
-| 批次完成 | `type=BATCH_FINISHED` | 批次进入 `SUCCESS` 或 `PARTIAL_FAILED`。 |
-| 批次失败 | `type=BATCH_FAILED` | 批次进入 `FAILED`，未完成事件释放为 `RECOVERY_FAILED`。 |
+| 捕获共享临时异常 | 不写 DLQ | 异常事件列表不新增记录；用户从任务监控或告警查看任务级重试。 |
+| 单事件开始回放 | 结果回调写入运行中 attempt | 详情 `recoveryAttempts` 出现 `RUNNING`。 |
+| 单事件完成或失败 | 结果回调更新事件和 attempt | 列表状态及详情历史变为 `RECOVERED` 或 `RECOVERY_FAILED`。 |
+| 批次完成或失败 | 批次状态在服务端收敛 | 当前 UI 通过各事件详情历史观察，不新增批次页面。 |
 
-## 13. 本次 API 补充点
+## 11. 当前契约关键点
 
-结合前端交互设计，后端已补充以下保障：
-
-1. 详情接口返回 `currentBatch`，支撑 `REPROCESSING` 事件从详情进入批次进度抽屉。
-2. 列表和详情接口清空完整 `payloadData`，避免完整 payload 暴露到浏览器。
-3. 列表接口支持前端 camelCase 排序字段，包含 `recoveryCount` 和 `lastRecoveryTime`。
-4. 发起重处理接口强制要求 `confirm=true`，保证预览后确认的交互语义可以由服务端兜底。
-5. 上报、列表和详情补充 `exceptionScope`、`routeDecision`、`classificationReason`、`classificationConfidence`，支撑前端展示 DLQ 入库原因。
-6. 批次 DTO 补充 `recoveryMode`、`taskStatusBefore`、`taskStatusAfter`、`sourceReadPaused`、`sourceReadResumeResult`，支撑任务状态保护说明。
-7. 错误码补充任务不可回放、已有批次运行、任务版本变化、Payload 不完整和非法路由场景。
-8. 异常事件补充 `recordIdentity`、`recordIdentityType`、`recordIdentityFields` 和 `overwriteRisk` 系列字段，支撑“同记录后续成功写入后的重放覆盖风险”提示。
-9. Engine 内部补充 `POST /api/task/{taskId}/dql-events/record-success/report`，用于在普通成功写入后标记前序 DQL 事件，不要求前端新增调用路径。
-
-以上补充不要求前端新增调用路径，但需要同步类型定义、列表/详情展示字段、空态说明和错误码映射。
+1. 当前 Web UI 依赖列表、汇总、详情、预览、提交 5 个接口。
+2. 事件 ID 只用于接口定位和前端内部行键，不在界面展示。
+3. `DqlErrorType` 的目标写入错误值为 `TARGET_WRITE_ERROR`。
+4. `DqlRecoveryAttempt.result` 支持 `RUNNING`、`SUCCESS`、`FAILED`、`SKIPPED`、`TIMEOUT`。
+5. 预览是服务端权威校验，提交使用预览后的顺序并再次校验。
+6. 进度由事件详情的 `recoveryAttempts` 承载，不使用独立批次进度抽屉。
+7. 当前批次查询接口仅为服务端可选诊断能力，不是 Web 联调阻塞项。

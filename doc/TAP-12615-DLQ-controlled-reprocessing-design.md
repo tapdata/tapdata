@@ -5,7 +5,7 @@
 - Jira：TAP-12615
 - 主题：TapData 异常事件（DLQ）与受控重处理 POC
 - 编写日期：2026-08-25
-- 更新日期：2026-08-26
+- 更新日期：2026-08-27
 - 范围：需求总结、现状分析、功能设计和可行性边界
 - 不包含：Xray 测试用例设计、测试脚本实现、详细开发排期
 
@@ -122,7 +122,7 @@ flowchart LR
 | Engine Task Retry | 对共享临时异常复用现有 `TaskRetryService`、重试间隔、最大重试时间和重试耗尽后的错误状态 |
 | TM `dlqevent` 域服务 | 管理 `dql_events`、批次、权限、查询、状态流转、告警触发，并拒绝非记录级异常上报 |
 | Engine DLQ Recovery | 接收 TM 重处理命令，按批次顺序把事件从源节点边界重新注入任务处理链 |
-| Web 异常事件菜单 | 独立列表、详情、筛选、单条和批量重处理、批次结果展示；在空结果或任务异常上下文中说明共享异常不会产生 DLQ |
+| Web 异常事件菜单 | 独立列表、详情、筛选、单条和批量重处理；通过事件详情的 `recoveryAttempts` 展示进度和结果，并在空结果或任务异常上下文中说明共享异常不会产生 DLQ |
 | Alarm | 复用现有任务错误/重试告警，新增 DLQ 进入、DLQ 保存失败、重处理失败告警 |
 | Inspect/Data Validation | POC 重处理后复用现有数据校验证明结果 |
 
@@ -139,15 +139,19 @@ Jira 评论中明确集合名为 `dql_events`。本文按已确认口径使用�
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `_id` | ObjectId | DLQ 事件 ID |
-| `event_id` | String | 对外展示 ID，可由任务、表、事件身份哈希生成 |
+| `event_id` | String | 对外 API 定位 ID，可由任务、表、事件身份哈希生成；当前页面不展示 |
 | `task_id` | String | 任务 ID |
 | `task_record_id` | String | 当前任务运行记录 ID |
 | `task_name` | String | 冗余任务名，便于列表展示 |
 | `task_version` | Long | 捕获时任务版本 |
 | `agent_id` | String | 捕获事件的引擎节点 |
 | `source_node_id` | String | 源节点 ID |
+| `source_node_name` | String | 源节点名称，供详情展示 |
+| `target_node_id` | String | 目标节点 ID，可选 |
+| `target_node_name` | String | 目标节点名称，供详情展示，可选 |
 | `failed_node_id` | String | 失败节点 ID |
 | `failed_node_name` | String | 失败节点名称 |
+| `failed_stage` | String | 失败阶段；对外详情字段映射为 `stage` |
 | `source_table` | String | 源表名 |
 | `target_table` | String | 目标表名 |
 | `table_id` | String | TapRecordEvent 表 ID |
@@ -159,8 +163,8 @@ Jira 评论中明确集合名为 `dql_events`。本文按已确认口径使用�
 | `event_identity` | String | 事件幂等身份，优先用原始事件唯一标识，缺失时用稳定哈希 |
 | `payload` | Object/Binary | 完整 TapRecordEvent 快照，供重处理反序列化使用 |
 | `payload_preview` | Object | UI 展示用截断和脱敏后的预览 |
-| `payload_truncated` | Boolean | UI 预览是否被截断 |
-| `error_type` | String | `MALFORMED`、`POISON_RECORD`、`TRANSFORM_ERROR`、`WRITE_CONSTRAINT` 等 |
+| `payload_preview_truncated` | Boolean | UI 安全预览是否被截断，与原始 Payload 是否完整分开表达 |
+| `error_type` | String | `MALFORMED_RECORD`、`POISON_RECORD`、`TRANSFORM_ERROR`、`TARGET_WRITE_ERROR`、`UNKNOWN_RECORD_ERROR` |
 | `error_code` | String | TapData 完整错误码 |
 | `error_details` | String | 截断、脱敏后的错误详情 |
 | `error_details_truncated` | Boolean | 错误详情是否被截断 |
@@ -175,11 +179,11 @@ Jira 评论中明确集合名为 `dql_events`。本文按已确认口径使用�
 | `last_recovery_user_id` | String | 最近操作人 |
 | `last_recovery_result` | String | 最近重处理结果摘要 |
 | `current_batch_id` | String | 当前运行批次 ID |
-| `attempts` | Array | 重处理尝试历史，POC 阶段内嵌保存 |
+| `recovery_attempts` | Array | 重处理尝试历史，POC 阶段内嵌保存；对外映射为 `recoveryAttempts` |
 | `created` | Date | 创建时间 |
 | `updated` | Date | 更新时间 |
 
-`attempts` 元素建议包含：
+`recovery_attempts` 元素建议包含：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -190,10 +194,12 @@ Jira 评论中明确集合名为 `dql_events`。本文按已确认口径使用�
 | `started_at` | Date | 开始时间 |
 | `finished_at` | Date | 结束时间 |
 | `task_version` | Long | 重处理使用的任务版本 |
-| `result` | String | `SUCCESS`、`FAILED`、`SKIPPED` |
+| `result` | String | `RUNNING`、`SUCCESS`、`FAILED`、`SKIPPED`、`TIMEOUT` |
 | `message` | String | 结果摘要 |
 | `error_code` | String | 失败错误码 |
 | `error_details` | String | 截断、脱敏后的失败原因 |
+
+对外 `DqlRecoveryAttempt` 将内部 `error_details` 映射为 `errorMessage`；当前 Web 契约只依赖 `attemptId`、`batchId`、`startedAt`、`finishedAt`、`result`、`message`、`errorMessage`。
 
 ### 6.2 `dql_recovery_batches`
 
@@ -468,7 +474,12 @@ POST /api/task/{taskId}/dql-events/report
   "taskVersion": 12,
   "agentId": "string",
   "sourceNodeId": "string",
+  "sourceNodeName": "mysql_src",
+  "targetNodeId": "target-node",
+  "targetNodeName": "mysql_sink",
   "failedNodeId": "string",
+  "failedNodeName": "JS Processor",
+  "failedStage": "TRANSFORM",
   "sourceTable": "orders",
   "targetTable": "orders_sink",
   "tableId": "orders",
@@ -513,7 +524,7 @@ GET /api/dql-events/summary
 - `limit`
 - `order`
 
-`keyword` 只匹配安全字段：任务名、表名、事件 ID、错误码、脱敏后的错误摘要、Payload 预览。不能搜索完整原始 Payload，避免敏感数据扩大暴露面。
+当前前端契约要求 `keyword` 至少匹配任务名和错误码。来源表、目标表分别通过 `sourceTable`、`targetTable` 做包含匹配；不要把完整原始 Payload 纳入搜索，避免敏感数据扩大暴露面。
 
 ### 10.3 重处理 API
 
@@ -523,7 +534,9 @@ POST /api/dql-events/recovery
 GET /api/dql-events/recovery-batches/{batchId}
 ```
 
-`preview` 用于返回前置校验结果、排序后的事件列表、不可执行原因和预计批次数量。
+`preview` 用于返回前置校验结果、排序后的事件列表和不可执行原因。前端只有在 `canSubmit=true` 时允许确认，并必须按 `orderedEvents` 顺序提取 `eventId` 后提交。
+
+`GET /api/dql-events/recovery-batches/{batchId}` 由服务端保留为可选诊断接口，当前 Web UI 不调用。页面通过事件详情的 `recoveryAttempts` 查看运行态、完成态和失败原因。
 
 `recovery` 请求体：
 
@@ -539,9 +552,18 @@ GET /api/dql-events/recovery-batches/{batchId}
 ```json
 {
   "batchId": "string",
+  "taskId": "task-orders",
+  "taskName": "订单同步",
   "status": "RUNNING",
   "selectedCount": 2,
-  "orderedEventIds": ["eventId1", "eventId2"]
+  "successCount": 0,
+  "failedCount": 0,
+  "skippedCount": 0,
+  "eventIds": ["eventId1", "eventId2"],
+  "orderedEventIds": ["eventId1", "eventId2"],
+  "startedAt": "2026-08-27T08:00:00.000Z",
+  "finishedAt": null,
+  "message": null
 }
 ```
 
@@ -549,56 +571,41 @@ GET /api/dql-events/recovery-batches/{batchId}
 
 ### 11.1 菜单入口
 
-新增一级或运维分组下的“异常事件”菜单。页面不是任务监控页签的补充，而是跨任务统一查询入口。
+在“高级功能”分组下新增“异常事件”菜单。页面不是任务监控页签的补充，而是跨任务统一查询入口。
 
 菜单权限按 Jira 已确认口径执行：用户能看到该菜单即可查看并执行重处理。POC 阶段只给授权运维和数据工程师角色开放该菜单。产品化阶段建议拆分为“查看异常事件”和“执行重处理”两个权限动作。
 
 ### 11.2 列表页
 
-列表顶部提供：
+列表顶部提供状态汇总标签和两层筛选：
 
-- 任务选择
-- 表名输入
-- 关键字输入
-- DML 类型选择：Insert、Update、Delete
-- 错误类型选择
-- 状态选择
-- 时间范围
-- 刷新
+- 高频筛选：关键字、任务、DML 类型、错误类型。
+- 更多筛选：来源表、目标表、失败时间范围，点击“应用筛选”后生效。
+- 筛选和状态写入 URL query，页面加载时恢复。
+- 刷新和显示列设置。
 
-列表列：
-
-- 事件 ID
-- 任务
-- 源表 / 目标表
-- DML
-- 错误类型
-- 错误码
-- 路由依据
-- 事件时间
-- 失败时间
-- 状态
-- 重处理次数
-- 最近重处理时间
-- 操作
+列表列使用 `eventId` 作为内部行键，但不在界面展示。来源表、目标表、事件时间、最近重处理时间默认隐藏；默认可见列包括任务、DML、错误类型、错误码、失败时间、状态、重处理次数和操作。
 
 状态统计：
 
 - 待处理
-- 重处理中
+- 处理中
 - 已恢复
-- 重处理失败
+- 恢复失败
 - 不可重处理
+
+列表存在 `REPROCESSING` 事件时，每 8 秒静默刷新列表和汇总。
 
 ### 11.3 详情页
 
 详情展示：
 
-- 基本信息：任务、表、节点、DML、事件时间、捕获顺序。
-- 错误信息：错误类型、错误码、路由依据、截断后的安全错误详情。
+- 基本信息：任务和表流向、源/目标节点、失败节点和阶段、DML、事件时间、捕获顺序。
+- 错误信息：错误类型、错误码、截断后的安全错误详情和原始错误引用。
 - Payload 预览：脱敏和截断后的 before/after/key 字段。
-- 重处理历史：每次尝试的批次、操作人、开始时间、结束时间、结果和失败摘要。
-- 批次信息：如果事件处于重处理中，展示当前批次 ID 和进度。
+- 重处理历史：`recoveryAttempts` 展示运行中、成功、失败、跳过和超时记录。
+
+事件 ID 只用于详情接口定位，不在详情中展示。事件处于 `REPROCESSING` 时，详情每 3 秒刷新，直到运行中的 attempt 结束。
 
 详情页不能提供 Payload 编辑和下载入口。
 
@@ -609,7 +616,9 @@ GET /api/dql-events/recovery-batches/{batchId}
 - 默认不允许选择 `RECOVERED`。
 - `REPROCESSING` 行禁用选择。
 - 提交前必须弹出确认，说明将使用当前已发布任务配置回放原始事件。
-- 提交后跳转或打开批次进度抽屉。
+- 只有 preview 返回 `canSubmit=true` 才能确认；阻塞事件通过表名、DML、事件时间和捕获顺序识别，不展示 eventId。
+- recovery 请求使用 preview 的 `orderedEvents` 顺序，而不是用户最初勾选顺序。
+- 提交后刷新列表和汇总，不打开独立批次进度抽屉；“查看进度”打开事件详情。
 
 ## 12. 权限设计
 
@@ -753,8 +762,8 @@ TM 主要职责：
 TapData Web 建议新增：
 
 - API：`packages/api/src/core/dql-event.ts`
-- 页面：异常事件列表、详情抽屉、批次进度抽屉
-- 路由和菜单：异常事件
+- 页面：异常事件列表、详情抽屉、重处理预览弹窗
+- 路由和菜单：高级功能 / 异常事件
 - i18n：菜单、状态、错误类型、操作确认和错误提示
 
 已有 `SkipErrorTable.vue` 的分页、错误弹窗、恢复按钮和状态样式可作为交互参考，但新页面不应挂在单个任务监控页签内。
@@ -778,23 +787,24 @@ TapData Web 建议新增：
 ### 16.2 单条重处理
 
 1. 用户在异常事件详情点击重处理。
-2. TM 校验权限、任务状态、事件状态和 Payload 完整性。
-3. TM 创建批次并锁定该事件为 `REPROCESSING`。
-4. TM 下发重处理命令到 Agent。
-5. Engine 暂停正常源读取，注入原始事件。
-6. 事件按当前任务规则重新经过 DAG。
-7. Engine 上报成功或失败。
-8. TM 更新事件状态和 attempts。
-9. Engine 恢复正常源读取。
+2. Web 调用 preview，TM 校验权限、任务状态、事件状态、业务键和 Payload 完整性，并返回最终顺序。
+3. 用户确认后，Web 按 preview 的 `orderedEvents` 顺序调用 recovery。
+4. TM 再次执行相同校验，创建批次并锁定该事件为 `REPROCESSING`。
+5. TM 下发重处理命令到 Agent，Web 刷新列表，不打开批次抽屉。
+6. Engine 暂停正常源读取，注入原始事件。
+7. 事件按当前任务规则重新经过 DAG。
+8. Engine 上报成功或失败，TM 更新事件状态和 attempts。
+9. 用户从事件详情的 `recoveryAttempts` 查看进度和结果。
+10. Engine 恢复正常源读取。
 
 ### 16.3 批量重处理
 
 1. 用户选择同一任务下多条事件。
-2. TM 固化排序结果并创建批次。
-3. Engine 按 `ordered_event_ids` 逐条注入。
-4. 每条事件独立记录结果。
-5. 批次结束后，TM 汇总成功、失败、未执行数量。
-6. 页面展示批次明细；失败事件可再次重处理。
+2. TM 在 preview 中固化排序结果，并返回可提交与阻塞事件。
+3. Web 按 `orderedEvents` 顺序提交；TM 再次校验并创建批次。
+4. Engine 按 `ordered_event_ids` 逐条注入。
+5. 每条事件独立记录结果，批次结束后 TM 汇总成功、失败、未执行数量。
+6. 页面通过列表状态和各事件详情的 `recoveryAttempts` 展示结果；失败事件可再次重处理。
 
 ## 17. 风险和限制
 
@@ -841,7 +851,7 @@ POC 环境确定后需要冻结以下参数：
 6. 告警 key、模板和 DLQ 事件告警；共享异常继续复用现有任务告警。
 7. TM 批次创建、事件锁定和结果更新。
 8. Engine DLQ recovery event、正常源读取暂停和源节点重注入。
-9. Web 单条和批量重处理、批次结果展示。
+9. Web 单条和批量重处理、详情 attempt 进度和结果展示。
 10. POC 数据校验和分层路由证据模板。
 
 ## 20. 结论
