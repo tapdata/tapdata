@@ -23,6 +23,7 @@
 | B02 | 已完成 | `steps/B02-event-repository.md` |
 | B03 | 已完成 | `steps/B03-batch-repository.md` |
 | B04 | 已完成 | `steps/B04-ttl-lifecycle.md` |
+| B05 | 已完成 | `steps/B05-ttl-index-initialization.md` |
 
 ## 回归记录
 
