@@ -204,21 +204,6 @@ public class ScriptUtil {
 		return isAllowedHostClass(className, null);
 	}
 
-	public static final Set<String> WORKFLOW_FORBIDDEN_HOST_CLASSES = new HashSet<>(Arrays.asList(
-			"com.tapdata.constant.NetworkUtil",
-			"com.tapdata.processor.util.CustomRest",
-			"com.tapdata.http.HttpUtil",
-			"com.tapdata.processor.util.CustomTcp",
-			"com.tapdata.processor.util.CustomMongodb"
-	));
-
-	public static boolean isAllowedHostClass(String className, ClassLoader externalClassLoader, ScriptSandboxPolicy policy) {
-		if (policy == ScriptSandboxPolicy.WORKFLOW && WORKFLOW_FORBIDDEN_HOST_CLASSES.contains(className)) {
-			return false;
-		}
-		return isAllowedHostClass(className, externalClassLoader);
-	}
-
 	public static boolean isAllowedHostClass(String className, ClassLoader externalClassLoader) {
 		if (ALLOWED_HOST_CLASSES.contains(className)) {
 			return true;
