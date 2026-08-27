@@ -117,11 +117,58 @@ class DqlRecoveryCoordinatorImplTest {
         assertEquals("FAILED", reports.get(1).getResult());
     }
 
+    @Test
+    void usesRecoveryOnlyRunnerForPausedTaskAndClosesItAfterTheBatch() throws Exception {
+        List<String> emitted = new ArrayList<>();
+        List<String> closed = new ArrayList<>();
+        DqlRecoveryOnlyRunner runner = DqlRecoveryOnlyRunner.open(
+                new DqlRecoveryOnlyRunner.TaskSnapshot("task-1", 7L, "paused"),
+                new DqlReplaySourceNode() {
+                    @Override
+                    public void enqueue(com.tapdata.entity.TapdataDqlRecoveryEvent event) {
+                        emitted.add(event.getEventId());
+                    }
+
+                    @Override
+                    public void close() {
+                        closed.add("source");
+                    }
+                },
+                () -> closed.add("context")
+        );
+        DqlRecoveryCoordinatorImpl coordinator = coordinator(
+                eventId -> completeSnapshot(),
+                event -> {
+                    throw new AssertionError("paused task must not use the normal event sink");
+                },
+                (eventId, timeoutMillis) -> DqlRecoveryBarrier.Outcome.SUCCESS,
+                new ArrayList<>(),
+                () -> false,
+                command -> runner
+        );
+
+        coordinator.start(command("event-1", "event-2"));
+
+        assertTrue(coordinator.awaitIdle(2, TimeUnit.SECONDS));
+        assertEquals(List.of("event-1", "event-2"), emitted);
+        assertEquals(List.of("source", "context"), closed);
+        assertFalse(runner.normalSourceStarted());
+    }
+
     private DqlRecoveryCoordinatorImpl coordinator(DqlRecoveryEventSource source,
                                                     DqlRecoveryEventSink sink,
                                                     DqlRecoveryBarrier barrier,
                                                     List<DqlRecoveryReport> reports,
                                                     DqlRecoveryExecutionPolicy policy) {
+        return coordinator(source, sink, barrier, reports, policy, command -> null);
+    }
+
+    private DqlRecoveryCoordinatorImpl coordinator(DqlRecoveryEventSource source,
+                                                    DqlRecoveryEventSink sink,
+                                                    DqlRecoveryBarrier barrier,
+                                                    List<DqlRecoveryReport> reports,
+                                                    DqlRecoveryExecutionPolicy policy,
+                                                    DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory) {
         DqlRecoveryReportSender reportSender = (command, report) -> {
             synchronized (reports) {
                 reports.add(report);
@@ -134,7 +181,8 @@ class DqlRecoveryCoordinatorImplTest {
                 reportSender,
                 policy,
                 1000L,
-                executor
+                executor,
+                recoveryOnlyRunnerFactory
         );
     }
 

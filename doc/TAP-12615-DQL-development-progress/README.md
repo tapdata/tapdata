@@ -72,7 +72,7 @@
 | E02 | 已完成 | `steps/E02-dql-recovery-event.md` |
 | E03 | 已完成 | `steps/E03-recovery-coordinator.md` |
 | E04 | 已完成 | `steps/E04-live-source-read-gate.md` |
-| E05 | 未开始 | 待生成 |
+| E05 | 已完成 | `steps/E05-recovery-only-runner.md` |
 | E06 | 未开始 | 待生成 |
 | E07 | 未开始 | 待生成 |
 | E08 | 未开始 | 待生成 |

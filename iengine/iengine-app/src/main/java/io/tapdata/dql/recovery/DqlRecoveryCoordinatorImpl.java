@@ -32,6 +32,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private final DqlRecoveryExecutionPolicy executionPolicy;
     private final long barrierTimeoutMillis;
     private final Executor executor;
+    private final DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory;
     private final ConcurrentMap<String, AtomicBoolean> activeBatches = new ConcurrentHashMap<>();
     private final Object idleMonitor = new Object();
 
@@ -42,6 +43,18 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                                       DqlRecoveryExecutionPolicy executionPolicy,
                                       long barrierTimeoutMillis,
                                       Executor executor) {
+        this(eventSource, eventSink, barrier, reportSender, executionPolicy,
+                barrierTimeoutMillis, executor, command -> null);
+    }
+
+    public DqlRecoveryCoordinatorImpl(DqlRecoveryEventSource eventSource,
+                                      DqlRecoveryEventSink eventSink,
+                                      DqlRecoveryBarrier barrier,
+                                      DqlRecoveryReportSender reportSender,
+                                      DqlRecoveryExecutionPolicy executionPolicy,
+                                      long barrierTimeoutMillis,
+                                      Executor executor,
+                                      DqlRecoveryOnlyRunner.Factory recoveryOnlyRunnerFactory) {
         this.eventSource = Objects.requireNonNull(eventSource, "eventSource must not be null");
         this.eventSink = Objects.requireNonNull(eventSink, "eventSink must not be null");
         this.barrier = Objects.requireNonNull(barrier, "barrier must not be null");
@@ -52,6 +65,8 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         }
         this.barrierTimeoutMillis = barrierTimeoutMillis;
         this.executor = Objects.requireNonNull(executor, "executor must not be null");
+        this.recoveryOnlyRunnerFactory = Objects.requireNonNull(
+                recoveryOnlyRunnerFactory, "recoveryOnlyRunnerFactory must not be null");
     }
 
     @Override
@@ -91,12 +106,17 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
     private void executeBatch(DqlRecoveryMessageDto command,
                               List<String> orderedEventIds,
                               AtomicBoolean terminal) {
+        DqlRecoveryOnlyRunner recoveryOnlyRunner = null;
         try {
+            recoveryOnlyRunner = recoveryOnlyRunnerFactory.open(command);
+            DqlRecoveryEventSink sink = recoveryOnlyRunner == null
+                    ? eventSink
+                    : recoveryOnlyRunner::replay;
             for (String eventId : orderedEventIds) {
                 if (terminal.get()) {
                     return;
                 }
-                EventExecutionResult result = executeEvent(command, eventId);
+                EventExecutionResult result = executeEvent(command, eventId, sink);
                 if (result.successful()) {
                     continue;
                 }
@@ -109,12 +129,21 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
         } catch (RuntimeException exception) {
             failBatchOnce(command, terminal, message(exception));
         } finally {
+            if (recoveryOnlyRunner != null) {
+                try {
+                    recoveryOnlyRunner.close();
+                } catch (RuntimeException exception) {
+                    failBatchOnce(command, terminal, message(exception));
+                }
+            }
             activeBatches.remove(command.getBatchId(), terminal);
             signalIdle();
         }
     }
 
-    private EventExecutionResult executeEvent(DqlRecoveryMessageDto command, String eventId) {
+    private EventExecutionResult executeEvent(DqlRecoveryMessageDto command,
+                                              String eventId,
+                                              DqlRecoveryEventSink sink) {
         String attemptId = UUID.randomUUID().toString();
         long startedAt = System.currentTimeMillis();
         reportSender.reportEventStarted(command, eventId, attemptId, startedAt);
@@ -133,7 +162,7 @@ public class DqlRecoveryCoordinatorImpl implements DqlRecoveryCoordinator {
                     command.getTaskVersion(),
                     snapshot
             );
-            eventSink.enqueue(recoveryEvent);
+            sink.enqueue(recoveryEvent);
             result = barrierResult(eventId, barrier.await(eventId, barrierTimeoutMillis));
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();

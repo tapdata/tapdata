@@ -157,11 +157,11 @@ Update E03 progress documentation and commit with `feat(TAP-12615): add recovery
 **Interfaces:**
 - Produces: a runner lifecycle that accepts a task snapshot and recovery batch without calling normal task start or source connection read APIs.
 
-- [ ] **Step 1: Write the failing test** — prove paused task status is unchanged, source read is never started, saved events are emitted in order, and all runner resources close.
-- [ ] **Step 2: Run test to verify it fails** — run `mvn -pl iengine/iengine-app -Dtest=DqlRecoveryOnlyRunnerTest test`; expect missing runner behavior.
-- [ ] **Step 3: Write minimal implementation** — build the runner behind a narrow factory, replace only the source boundary with replay input, and close every created resource in reverse order.
-- [ ] **Step 4: Run test to verify it passes** — run runner, coordinator, and existing task lifecycle tests.
-- [ ] **Step 5: Commit** — record paused-task semantics and commit `feat(TAP-12615): add paused task recovery runner`.
+- [x] **Step 1: Write the failing test** — prove paused task status is unchanged, source read is never started, saved events are emitted in order, and all runner resources close.
+- [x] **Step 2: Run test to verify it fails** — test execution first exposed an invalid `null` Payload fixture; E02 serializer validation remained unchanged.
+- [x] **Step 3: Write minimal implementation** — build the runner behind a narrow factory, replace only the source boundary with replay input, and close every created resource in reverse order.
+- [x] **Step 4: Run test to verify it passes** — runner and coordinator tests passed with 5/5; affected Engine modules compiled successfully.
+- [x] **Step 5: Commit** — record paused-task semantics and commit `feat(TAP-12615): add paused task recovery runner`.
 
 ### Task 5: E06 source-boundary injection
 
