@@ -425,8 +425,59 @@ class DqlRecoveryBatchServiceTest {
         BizException exception = assertThrows(BizException.class, () -> service.start(request, user()));
 
         assertEquals("DqlRecovery.EventLockFailed", exception.getErrorCode());
-        verify(eventRepository).releaseBatchLocks(anyString(), eq(DqlEventStatusEnum.PENDING));
-        verify(batchRepository).finish(anyString(), eq(DqlRecoveryBatchStatusEnum.FAILED), eq("Failed to lock selected events"));
+        verify(eventRepository).releaseBatchLocks(anyString(), eq(Map.of(
+                "DQL-1", DqlEventStatusEnum.PENDING)));
+        verify(batchRepository).finish(anyString(), eq(DqlRecoveryBatchStatusEnum.CANCELED), eq("Failed to lock selected events"));
+        verify(taskLockRepository).release(eq(TASK_ID), anyString());
+    }
+
+    @Test
+    @DisplayName("partial event locking restores each selected event's original status")
+    void startRestoresOriginalStatusAfterPartialLock() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class), taskLockRepository, mock(MessageQueueServiceImpl.class));
+        DqlEventDto pending = event("DQL-1", TASK_ID, DqlEventStatusEnum.PENDING, "agent-1");
+        DqlEventDto failed = event("DQL-2", TASK_ID, DqlEventStatusEnum.RECOVERY_FAILED, "agent-1");
+        when(eventRepository.findByEventIds(anyList())).thenReturn(List.of(pending, failed));
+        when(batchRepository.create(any(DqlRecoveryBatchDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(taskLockRepository.tryAcquire(eq(TASK_ID), anyString())).thenReturn(true);
+        when(eventRepository.lockEvents(eq(List.of("DQL-1", "DQL-2")), anyString())).thenReturn(1L);
+        DqlRecoveryRequestVo request = request(List.of("DQL-1", "DQL-2"));
+        request.setConfirm(true);
+
+        assertThrows(BizException.class, () -> service.start(request, user()));
+
+        verify(eventRepository).releaseBatchLocks(anyString(), eq(Map.of(
+                "DQL-1", DqlEventStatusEnum.PENDING,
+                "DQL-2", DqlEventStatusEnum.RECOVERY_FAILED)));
+        verify(batchRepository).finish(anyString(), eq(DqlRecoveryBatchStatusEnum.CANCELED), eq("Failed to lock selected events"));
+    }
+
+    @Test
+    @DisplayName("event lock failure compensates the created batch and any acquired event locks")
+    void startCompensatesWhenEventLockThrows() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        DqlRecoveryTaskLockRepository taskLockRepository = mock(DqlRecoveryTaskLockRepository.class);
+        DqlRecoveryBatchService service = lockedService(eventRepository, batchRepository,
+                mock(DqlEventAlarmService.class), taskLockRepository, mock(MessageQueueServiceImpl.class));
+        when(eventRepository.findByEventIds(List.of("DQL-1")))
+                .thenReturn(List.of(event("DQL-1", TASK_ID, DqlEventStatusEnum.RECOVERY_FAILED, "agent-1")));
+        when(batchRepository.create(any(DqlRecoveryBatchDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(taskLockRepository.tryAcquire(eq(TASK_ID), anyString())).thenReturn(true);
+        when(eventRepository.lockEvents(eq(List.of("DQL-1")), anyString()))
+                .thenThrow(new RuntimeException("event store unavailable"));
+        DqlRecoveryRequestVo request = request(List.of("DQL-1"));
+        request.setConfirm(true);
+
+        assertThrows(RuntimeException.class, () -> service.start(request, user()));
+
+        verify(eventRepository).releaseBatchLocks(anyString(), eq(Map.of(
+                "DQL-1", DqlEventStatusEnum.RECOVERY_FAILED)));
+        verify(batchRepository).finish(anyString(), eq(DqlRecoveryBatchStatusEnum.CANCELED), eq("event store unavailable"));
         verify(taskLockRepository).release(eq(TASK_ID), anyString());
     }
 
@@ -493,7 +544,8 @@ class DqlRecoveryBatchServiceTest {
         RuntimeException exception = assertThrows(RuntimeException.class, () -> service.start(request, user()));
 
         assertSame(cause, exception);
-        verify(eventRepository).releaseBatchLocks(anyString(), eq(DqlEventStatusEnum.PENDING));
+        verify(eventRepository).releaseBatchLocks(anyString(), eq(Map.of(
+                "DQL-1", DqlEventStatusEnum.PENDING)));
         verify(batchRepository).finish(anyString(), eq(DqlRecoveryBatchStatusEnum.FAILED), eq("queue unavailable"));
         verify(taskLockRepository).release(eq(TASK_ID), anyString());
     }

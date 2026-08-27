@@ -173,6 +173,7 @@ public class DqlRecoveryBatchService {
                 .map(DqlRecoveryPreviewVo.OrderedEvent::getEventId)
                 .toList();
         List<DqlEventDto> events = eventRepository.findByEventIds(orderedEventIds);
+        Map<String, DqlEventStatusEnum> originalEventStatuses = originalEventStatuses(events);
         RecoveryTaskContext taskContext = strictRecoveryValidation() ? loadTaskContext(preview.getTaskId()) : null;
         String batchId = buildBatchId();
         if (!acquireTaskLock(preview.getTaskId(), batchId)) {
@@ -210,13 +211,18 @@ public class DqlRecoveryBatchService {
         try {
             locked = eventRepository.lockEvents(orderedEventIds, batch.getBatchId());
         } catch (RuntimeException e) {
-            releaseTaskLock(preview.getTaskId(), batchId);
+            try {
+                eventRepository.releaseBatchLocks(batch.getBatchId(), originalEventStatuses);
+                batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.CANCELED, e.getMessage());
+            } finally {
+                releaseTaskLock(preview.getTaskId(), batchId);
+            }
             throw e;
         }
         if (locked != orderedEventIds.size()) {
             try {
-                eventRepository.releaseBatchLocks(batch.getBatchId(), DqlEventStatusEnum.PENDING);
-                batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.FAILED, "Failed to lock selected events");
+                eventRepository.releaseBatchLocks(batch.getBatchId(), originalEventStatuses);
+                batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.CANCELED, "Failed to lock selected events");
             } finally {
                 releaseTaskLock(preview.getTaskId(), batchId);
             }
@@ -229,7 +235,7 @@ public class DqlRecoveryBatchService {
             return batch;
         } catch (RuntimeException e) {
             try {
-                eventRepository.releaseBatchLocks(batch.getBatchId(), DqlEventStatusEnum.PENDING);
+                eventRepository.releaseBatchLocks(batch.getBatchId(), originalEventStatuses);
                 batchRepository.finish(batch.getBatchId(), DqlRecoveryBatchStatusEnum.FAILED, e.getMessage());
             } finally {
                 releaseTaskLock(preview.getTaskId(), batchId);
@@ -508,6 +514,19 @@ public class DqlRecoveryBatchService {
         if (taskLockRepository != null) {
             taskLockRepository.release(taskId, batchId);
         }
+    }
+
+    private Map<String, DqlEventStatusEnum> originalEventStatuses(List<DqlEventDto> events) {
+        return events.stream()
+                .filter(event -> StringUtils.isNotBlank(event.getEventId()))
+                .map(event -> {
+                    DqlEventStatusEnum status = DqlEventStatusEnum.parse(event.getStatus());
+                    return status == null ? null : Map.entry(event.getEventId(), status);
+                })
+                .filter(java.util.Objects::nonNull)
+                .filter(entry -> entry.getValue() != null && entry.getValue().reprocessable())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                        (first, ignored) -> first, LinkedHashMap::new));
     }
 
     private record RecoveryTaskContext(TaskDto task, boolean agentAvailable) {

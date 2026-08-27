@@ -700,7 +700,8 @@ manager/tm/src/main/java/com/tapdata/tm/dql/
 - `appendAttempt(...)`：追加 attempts。
 - `completeEvent(...)`：单事件成功。
 - `failEvent(...)`：单事件失败。
-- `releaseBatchLocks(...)`：下发失败时释放锁。
+- `releaseBatchLocks(batchId, targetStatus)`：批次执行失败时将仍处于 `REPROCESSING` 的事件统一释放到目标状态。
+- `releaseBatchLocks(batchId, originalStatuses)`：批次创建或派发前失败时，按事件锁定前的 `PENDING` / `RECOVERY_FAILED` 状态补偿释放。
 
 `DqlRecoveryBatchService`：
 
@@ -1038,10 +1039,11 @@ Web 必须使用 preview 返回的 `orderedEvents` 生成请求 `eventIds`。提
 
 1. 执行与 preview 相同的校验。
 2. 创建 `dql_recovery_batches`，状态 `CREATED`。
-3. 原子锁定事件为 `REPROCESSING`。
-4. 更新批次为 `DISPATCHED`。
-5. 通过 `MessageQueueService` 下发 `dqlRecovery` 消息。
-6. 下发失败时释放事件锁，批次置 `FAILED`。
+3. 原子锁定事件为 `REPROCESSING`，并校验实际修改数等于选中数。
+4. 如果数量不一致或事件锁调用异常，按锁定前的事件状态补偿释放，批次置 `CANCELED`，不下发消息。
+5. 更新批次为 `DISPATCHED`。
+6. 通过 `MessageQueueService` 下发 `dqlRecovery` 消息。
+7. 下发或派发前状态更新失败时，按锁定前的事件状态释放事件锁，批次置 `FAILED`。
 
 ### 7.9 Engine 结果回调 API
 
@@ -1477,8 +1479,8 @@ DqlRecovery.fail(taskId, batchId, eventId, attemptId, error)
 | 失败点 | 处理 |
 | --- | --- |
 | TM 创建批次失败 | 不锁定事件，API 返回失败 |
-| 事件锁定数量不足 | 回滚已锁定事件，批次置 `CANCELED` |
-| WebSocket 下发失败 | 释放事件锁，批次置 `FAILED` |
+| 事件锁定数量不足或锁定调用异常 | 按已锁事件的原始 `PENDING` / `RECOVERY_FAILED` 状态回滚，批次置 `CANCELED` |
+| WebSocket 下发或派发前状态更新失败 | 释放当前批次的事件锁，批次置 `FAILED` |
 | Agent 离线 | 进入消息队列等待；超过超时后批次置 `FAILED` 并释放锁 |
 | Engine 接受后任务不存在 | 批次 `FAILED`，事件回到原状态或 `RECOVERY_FAILED` |
 | 单事件回放失败 | 该事件 `RECOVERY_FAILED`，批次继续处理下一条 |
@@ -1583,7 +1585,7 @@ db.dql_recovery_locks.createIndex(
 }
 ```
 
-如果更新数不等于选中数，批次创建失败。
+如果更新数不等于选中数，批次创建失败。补偿释放必须继续带上当前批次和 `REPROCESSING` 条件；对于批次尚未下发的失败路径，TM 根据锁定前事件快照将事件分别恢复为原来的 `PENDING` 或 `RECOVERY_FAILED`，避免把原本已失败的事件错误恢复为 `PENDING`。
 
 ## 12. Web 详细设计
 

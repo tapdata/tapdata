@@ -29,7 +29,9 @@ import org.springframework.util.Assert;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -367,8 +369,33 @@ public class DqlEventRepository {
     }
 
     public long releaseBatchLocks(String batchId, DqlEventStatusEnum targetStatus) {
-        Query query = Query.query(Criteria.where(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(batchId)
-                .and(DqlEventDto.FIELD_STATUS).is(DqlEventStatusEnum.REPROCESSING.name()));
+        return releaseBatchLocks(batchId, null, targetStatus);
+    }
+
+    public long releaseBatchLocks(String batchId, Map<String, DqlEventStatusEnum> targetStatuses) {
+        if (StringUtils.isBlank(batchId) || targetStatuses == null || targetStatuses.isEmpty()) {
+            return 0;
+        }
+        Map<DqlEventStatusEnum, List<String>> eventIdsByStatus = new EnumMap<>(DqlEventStatusEnum.class);
+        targetStatuses.forEach((eventId, targetStatus) -> {
+            if (StringUtils.isNotBlank(eventId) && targetStatus != null && targetStatus.reprocessable()) {
+                eventIdsByStatus.computeIfAbsent(targetStatus, ignored -> new ArrayList<>()).add(eventId);
+            }
+        });
+        long released = 0;
+        for (Map.Entry<DqlEventStatusEnum, List<String>> entry : eventIdsByStatus.entrySet()) {
+            released += releaseBatchLocks(batchId, entry.getValue(), entry.getKey());
+        }
+        return released;
+    }
+
+    private long releaseBatchLocks(String batchId, List<String> eventIds, DqlEventStatusEnum targetStatus) {
+        Criteria criteria = Criteria.where(DqlEventDto.FIELD_CURRENT_BATCH_ID).is(batchId)
+                .and(DqlEventDto.FIELD_STATUS).is(DqlEventStatusEnum.REPROCESSING.name());
+        if (eventIds != null && !eventIds.isEmpty()) {
+            criteria.and(DqlEventDto.FIELD_EVENT_ID).in(eventIds);
+        }
+        Query query = Query.query(criteria);
         Date now = new Date();
         Update update = new Update()
                 .set(DqlEventDto.FIELD_STATUS, targetStatus.name())

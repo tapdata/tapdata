@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -292,6 +293,38 @@ class DqlEventRepositoryTest {
         Document releaseSet = releaseUpdateCaptor.getValue().getUpdateObject().get("$set", Document.class);
         assertNull(releaseSet.get(DqlEventDto.FIELD_CURRENT_BATCH_ID));
         assertTtlRefreshed(releaseSet);
+    }
+
+    @Test
+    @DisplayName("releasing a partially locked batch restores each event's original status")
+    void releaseBatchLocksRestoresOriginalStatuses() {
+        MongoTemplate mongoTemplate = mongoTemplate();
+        DqlEventRepository repository = new DqlEventRepository(mongoTemplate);
+        when(mongoTemplate.updateMulti(any(Query.class), any(Update.class), eq(DqlEventEntity.class)))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null))
+                .thenReturn(UpdateResult.acknowledged(1L, 1L, null));
+
+        assertEquals(2L, repository.releaseBatchLocks("DQLB-1", Map.of(
+                "DQL-1", DqlEventStatusEnum.PENDING,
+                "DQL-2", DqlEventStatusEnum.RECOVERY_FAILED)));
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate, org.mockito.Mockito.times(2)).updateMulti(
+                queryCaptor.capture(), updateCaptor.capture(), eq(DqlEventEntity.class));
+        List<Document> queries = queryCaptor.getAllValues().stream()
+                .map(Query::getQueryObject)
+                .toList();
+        List<Document> updates = updateCaptor.getAllValues().stream()
+                .map(Update::getUpdateObject)
+                .map(update -> update.get("$set", Document.class))
+                .toList();
+        assertTrue(queries.stream().allMatch(query -> "DQLB-1".equals(query.get(DqlEventDto.FIELD_CURRENT_BATCH_ID))
+                && DqlEventStatusEnum.REPROCESSING.name().equals(query.get(DqlEventDto.FIELD_STATUS))));
+        assertTrue(updates.stream().map(update -> update.get(DqlEventDto.FIELD_STATUS))
+                .toList().containsAll(List.of(
+                        DqlEventStatusEnum.PENDING.name(),
+                        DqlEventStatusEnum.RECOVERY_FAILED.name())));
     }
 
     @Test
