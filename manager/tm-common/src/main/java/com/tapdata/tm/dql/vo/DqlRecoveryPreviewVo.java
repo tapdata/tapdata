@@ -19,12 +19,9 @@ public class DqlRecoveryPreviewVo implements Serializable {
     private String message = "";
 
     @Data
-    public static class OrderedEvent implements Serializable {
-        private String eventId;
-        private Date eventTime;
-        private Long captureSeq;
-        private String dmlType;
-        private String sourceTable;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class OrderedEvent extends DqlEventDetailVo implements Serializable {
+        private String status;
         private Boolean overwriteRisk;
         private String overwriteRiskMessage;
         private Date laterSuccessAt;

@@ -11,11 +11,18 @@ import com.tapdata.tm.dql.dto.DqlRecoveryAttemptDto;
 import com.tapdata.tm.dql.dto.DqlRecoveryBatchDto;
 import com.tapdata.tm.dql.repository.DqlEventRepository;
 import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
+import com.tapdata.tm.dql.vo.DqlEventDetailVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.service.WorkerService;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
@@ -31,22 +38,42 @@ import java.util.stream.Collectors;
 
 @Service
 public class DqlRecoveryBatchService {
+    private static final int DEFAULT_BATCH_MAX_SIZE = 200;
+    private static final String[] TASK_FIELDS = {"name", "status", "version", "agentId"};
+
     private final DqlEventRepository eventRepository;
     private final DqlRecoveryBatchRepository batchRepository;
     private final DqlEventPermissionService permissionService;
     private final MessageQueueServiceImpl messageQueueService;
     private final DqlEventAlarmService alarmService;
+    private final TaskService taskService;
+    private final WorkerService workerService;
+    private final DqlEventWebMapper webMapper;
 
     public DqlRecoveryBatchService(DqlEventRepository eventRepository,
                                    DqlRecoveryBatchRepository batchRepository,
                                    DqlEventPermissionService permissionService,
                                    MessageQueueServiceImpl messageQueueService,
                                    DqlEventAlarmService alarmService) {
+        this(eventRepository, batchRepository, permissionService, messageQueueService, alarmService, null, null);
+    }
+
+    @Autowired
+    public DqlRecoveryBatchService(DqlEventRepository eventRepository,
+                                   DqlRecoveryBatchRepository batchRepository,
+                                   DqlEventPermissionService permissionService,
+                                   MessageQueueServiceImpl messageQueueService,
+                                   DqlEventAlarmService alarmService,
+                                   TaskService taskService,
+                                   WorkerService workerService) {
         this.eventRepository = eventRepository;
         this.batchRepository = batchRepository;
         this.permissionService = permissionService;
         this.messageQueueService = messageQueueService;
         this.alarmService = alarmService;
+        this.taskService = taskService;
+        this.workerService = workerService;
+        this.webMapper = new DqlEventWebMapper();
     }
 
     public DqlRecoveryPreviewVo preview(DqlRecoveryRequestVo request, UserDetail user) {
@@ -69,18 +96,39 @@ public class DqlRecoveryBatchService {
             preview.setTaskName(first.getTaskName());
         }
 
+        RecoveryTaskContext taskContext = null;
+        if (strictRecoveryValidation() && !events.isEmpty()) {
+            taskContext = loadTaskContext(events.get(0).getTaskId());
+            if (StringUtils.isNotBlank(taskContext.task().getName())) {
+                preview.setTaskName(taskContext.task().getName());
+            }
+        }
+        boolean batchSizeExceeded = eventIds.size() > DEFAULT_BATCH_MAX_SIZE;
+        boolean activeBatchExists = !events.isEmpty()
+                && batchRepository.findActiveByTaskId(events.get(0).getTaskId()) != null;
+
         Map<String, DqlEventDto> eventMap = events.stream().collect(Collectors.toMap(DqlEventDto::getEventId, event -> event, (a, b) -> a, LinkedHashMap::new));
+        Map<String, String> blockedReasons = new LinkedHashMap<>();
         for (String eventId : eventIds) {
             DqlEventDto event = eventMap.get(eventId);
             if (event == null) {
-                preview.getBlockedEvents().add(blocked(eventId, "event not found", null));
-            } else if (!isReprocessable(event)) {
-                preview.getBlockedEvents().add(blocked(eventId, blockedReason(event), event));
+                blockedReasons.put(eventId, "event not found");
+            } else {
+                String reason = previewBlockedReason(event, taskContext, batchSizeExceeded, activeBatchExists);
+                if (reason != null) {
+                    blockedReasons.put(eventId, reason);
+                }
+            }
+        }
+
+        for (String eventId : eventIds) {
+            if (blockedReasons.containsKey(eventId)) {
+                preview.getBlockedEvents().add(blocked(eventId, blockedReasons.get(eventId), eventMap.get(eventId)));
             }
         }
 
         events.stream()
-                .filter(this::isReprocessable)
+                .filter(event -> !blockedReasons.containsKey(event.getEventId()))
                 .sorted(Comparator.comparing(DqlEventDto::getEventTime, Comparator.nullsLast(Date::compareTo))
                         .thenComparing(DqlEventDto::getCaptureSeq, Comparator.nullsLast(Long::compareTo))
                         .thenComparing(DqlEventDto::getEventId))
@@ -106,11 +154,16 @@ public class DqlRecoveryBatchService {
                 .map(DqlRecoveryPreviewVo.OrderedEvent::getEventId)
                 .toList();
         List<DqlEventDto> events = eventRepository.findByEventIds(orderedEventIds);
+        RecoveryTaskContext taskContext = strictRecoveryValidation() ? loadTaskContext(preview.getTaskId()) : null;
         DqlRecoveryBatchDto batch = new DqlRecoveryBatchDto();
         batch.setBatchId(buildBatchId());
         batch.setTaskId(preview.getTaskId());
         batch.setTaskName(preview.getTaskName());
-        batch.setAgentId(events.isEmpty() ? null : events.get(0).getAgentId());
+        batch.setTaskStatusBefore(taskContext == null ? null : taskContext.task().getStatus());
+        batch.setTaskVersion(taskContext == null ? null : taskContext.task().getVersion());
+        batch.setAgentId(taskContext == null
+                ? (events.isEmpty() ? null : events.get(0).getAgentId())
+                : taskContext.task().getAgentId());
         batch.setEventIds(requireEventIds(request));
         batch.setOrderedEventIds(orderedEventIds);
         batch.setOperatorId(user == null ? null : user.getUserId());
@@ -257,6 +310,31 @@ public class DqlRecoveryBatchService {
         return status != null && status.reprocessable() && !Boolean.FALSE.equals(event.getPayloadComplete());
     }
 
+    private String previewBlockedReason(DqlEventDto event,
+                                        RecoveryTaskContext taskContext,
+                                        boolean batchSizeExceeded,
+                                        boolean activeBatchExists) {
+        if (!isReprocessable(event)) {
+            return blockedReason(event);
+        }
+        if (strictRecoveryValidation()) {
+            if (Boolean.TRUE.equals(event.getEventKeyMissing()) || StringUtils.isBlank(event.getRecordIdentity())) {
+                return "event has no business key";
+            }
+            String taskReason = taskContext.taskRecoveryReason(event);
+            if (taskReason != null) {
+                return taskReason;
+            }
+        }
+        if (batchSizeExceeded) {
+            return "recovery batch size exceeds " + DEFAULT_BATCH_MAX_SIZE;
+        }
+        if (activeBatchExists) {
+            return "an active recovery batch already exists";
+        }
+        return null;
+    }
+
     private String blockedReason(DqlEventDto event) {
         DqlEventStatusEnum status = DqlEventStatusEnum.parse(event.getStatus());
         if (status == null || !status.reprocessable()) {
@@ -266,6 +344,34 @@ public class DqlRecoveryBatchService {
             return "payload is incomplete";
         }
         return "event is not reprocessable";
+    }
+
+    private boolean strictRecoveryValidation() {
+        return taskService != null;
+    }
+
+    private RecoveryTaskContext loadTaskContext(String taskId) {
+        if (StringUtils.isBlank(taskId) || !ObjectId.isValid(taskId)) {
+            throw new BizException("Task.NotFound", taskId);
+        }
+        TaskDto task = taskService.findByTaskId(new ObjectId(taskId), TASK_FIELDS);
+        if (task == null) {
+            throw new BizException("Task.NotFound", taskId);
+        }
+        return new RecoveryTaskContext(task, agentAvailable(task.getAgentId()));
+    }
+
+    private boolean agentAvailable(String agentId) {
+        if (workerService == null || StringUtils.isBlank(agentId)) {
+            return false;
+        }
+        WorkerDto worker = workerService.queryWorkerByProcessId(agentId);
+        return worker != null
+                && !Boolean.TRUE.equals(worker.getStopping())
+                && !Boolean.TRUE.equals(worker.getIsDeleted())
+                && !Boolean.TRUE.equals(worker.getDeleted())
+                && worker.getPingTime() != null
+                && !workerService.isAgentTimeout(worker.getPingTime());
     }
 
     private DqlRecoveryPreviewVo.BlockedEvent blocked(String eventId, String message, DqlEventDto event) {
@@ -283,12 +389,38 @@ public class DqlRecoveryBatchService {
     }
 
     private DqlRecoveryPreviewVo.OrderedEvent orderedEvent(DqlEventDto event) {
+        DqlEventDetailVo detail = webMapper.toDetail(event);
         DqlRecoveryPreviewVo.OrderedEvent ordered = new DqlRecoveryPreviewVo.OrderedEvent();
-        ordered.setEventId(event.getEventId());
-        ordered.setEventTime(event.getEventTime());
-        ordered.setCaptureSeq(event.getCaptureSeq());
-        ordered.setDmlType(event.getDmlType());
-        ordered.setSourceTable(event.getSourceTable());
+        ordered.setId(detail.getId());
+        ordered.setEventId(detail.getEventId());
+        ordered.setTaskId(detail.getTaskId());
+        ordered.setTaskName(detail.getTaskName());
+        ordered.setSourceTable(detail.getSourceTable());
+        ordered.setTargetTable(detail.getTargetTable());
+        ordered.setDmlType(detail.getDmlType());
+        ordered.setErrorType(detail.getErrorType());
+        ordered.setErrorCode(detail.getErrorCode());
+        ordered.setEventTime(detail.getEventTime());
+        ordered.setFailedAt(detail.getFailedAt());
+        ordered.setCaptureSeq(detail.getCaptureSeq());
+        ordered.setStatus(event.getStatus());
+        ordered.setRecoveryCount(detail.getRecoveryCount());
+        ordered.setLastRecoveryTime(detail.getLastRecoveryTime());
+        ordered.setSourceNodeName(detail.getSourceNodeName());
+        ordered.setTargetNodeName(detail.getTargetNodeName());
+        ordered.setFailedNodeName(detail.getFailedNodeName());
+        ordered.setStage(detail.getStage());
+        ordered.setTableId(detail.getTableId());
+        ordered.setEventKey(detail.getEventKey());
+        ordered.setEventKeyMissing(detail.getEventKeyMissing());
+        ordered.setPayloadFormat(detail.getPayloadFormat());
+        ordered.setPayloadHash(detail.getPayloadHash());
+        ordered.setPayloadSize(detail.getPayloadSize());
+        ordered.setPayloadComplete(detail.getPayloadComplete());
+        ordered.setPayloadPreview(detail.getPayloadPreview());
+        ordered.setPayloadPreviewTruncated(detail.getPayloadPreviewTruncated());
+        ordered.setErrorDetails(detail.getErrorDetails());
+        ordered.setRawErrorRef(detail.getRawErrorRef());
         ordered.setOverwriteRisk(event.getOverwriteRisk());
         ordered.setOverwriteRiskMessage(event.getOverwriteRiskMessage());
         ordered.setLaterSuccessAt(event.getLaterSuccessAt());
@@ -307,5 +439,23 @@ public class DqlRecoveryBatchService {
 
     private String buildBatchId() {
         return "DQLB-" + new SimpleDateFormat("yyyyMMdd-HHmmssSSS").format(new Date());
+    }
+
+    private record RecoveryTaskContext(TaskDto task, boolean agentAvailable) {
+        private String taskRecoveryReason(DqlEventDto event) {
+            if (!TaskDto.STATUS_RUNNING.equals(task.getStatus()) && !TaskDto.STATUS_STOP.equals(task.getStatus())) {
+                return "task status " + task.getStatus() + " does not support recovery";
+            }
+            if (task.getVersion() == null || event.getTaskVersion() == null) {
+                return "task version is unavailable";
+            }
+            if (!task.getVersion().equals(event.getTaskVersion())) {
+                return "task version has changed";
+            }
+            if (!agentAvailable) {
+                return "agent is not available";
+            }
+            return null;
+        }
     }
 }

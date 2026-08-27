@@ -14,7 +14,12 @@ import com.tapdata.tm.dql.repository.DqlRecoveryBatchRepository;
 import com.tapdata.tm.dql.vo.DqlRecoveryPreviewVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryRequestVo;
 import com.tapdata.tm.dql.vo.DqlRecoveryResultReportVo;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
+import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.service.WorkerService;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -84,6 +90,223 @@ class DqlRecoveryBatchServiceTest {
         assertTrue(json.contains("\"targetTable\":\"orders_sink\""));
         assertTrue(json.contains("\"dmlType\":\"U\""));
         assertTrue(json.contains("\"captureSeq\":7"));
+    }
+
+    @Test
+    @DisplayName("preview accepts a recoverable event when its task and agent are ready")
+    void previewAcceptsEventWhenTaskAndAgentAreReady() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        event.setTargetTable("orders_sink");
+        event.setErrorType("TARGET_WRITE_ERROR");
+        event.setErrorCode("TARGET_WRITE_FAILED");
+        event.setFailedAt(new java.util.Date(1500L));
+        event.setRecoveryCount(2);
+        event.setLastRecoveryTime(new java.util.Date(2000L));
+        TaskDto task = recoveryTask("running", 7L, "agent-1");
+        WorkerDto worker = recoveryWorker("agent-1");
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(task);
+        when(workerService.queryWorkerByProcessId("agent-1")).thenReturn(worker);
+        when(workerService.isAgentTimeout(worker.getPingTime())).thenReturn(false);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+        assertTrue(preview.isCanSubmit());
+        assertEquals(List.of("DQL-1"), preview.getOrderedEvents().stream()
+                .map(DqlRecoveryPreviewVo.OrderedEvent::getEventId).toList());
+        DqlRecoveryPreviewVo.OrderedEvent ordered = preview.getOrderedEvents().get(0);
+        assertEquals("orders_sink", ordered.getTargetTable());
+        assertEquals("TARGET_WRITE_ERROR", ordered.getErrorType());
+        assertEquals("TARGET_WRITE_FAILED", ordered.getErrorCode());
+        assertEquals(new java.util.Date(1500L), ordered.getFailedAt());
+        assertEquals(2, ordered.getRecoveryCount());
+        assertEquals(new java.util.Date(2000L), ordered.getLastRecoveryTime());
+        assertTrue(preview.getBlockedEvents().isEmpty());
+    }
+
+    @Test
+    @DisplayName("preview blocks an event when its business key is missing")
+    void previewBlocksMissingBusinessKey() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        event.setEventKeyMissing(true);
+        event.setRecordIdentity(null);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        prepareReadyTask(taskService, workerService);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+        assertFalse(preview.isCanSubmit());
+        assertTrue(preview.getOrderedEvents().isEmpty());
+        assertEquals("event has no business key", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
+    @DisplayName("preview blocks an event when the current task version has changed")
+    void previewBlocksTaskVersionMismatch() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(recoveryTask("running", 8L, "agent-1"));
+        prepareReadyWorker(workerService);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+        assertFalse(preview.isCanSubmit());
+        assertEquals("task version has changed", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
+    @DisplayName("preview blocks an event when the task status does not support recovery")
+    void previewBlocksUnsupportedTaskStatus() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(recoveryEvent("DQL-1", 7L)));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(recoveryTask(TaskDto.STATUS_EDIT, 7L, "agent-1"));
+        prepareReadyWorker(workerService);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+        assertFalse(preview.isCanSubmit());
+        assertEquals("task status edit does not support recovery", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
+    @DisplayName("preview rejects a selected event when the task no longer exists")
+    void previewRejectsMissingTask() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(recoveryEvent("DQL-1", 7L)));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(null);
+
+        BizException exception = assertThrows(BizException.class,
+                () -> service.preview(request(List.of("DQL-1")), user()));
+
+        assertEquals("Task.NotFound", exception.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("preview blocks all selected events when the assigned agent is unavailable")
+    void previewBlocksUnavailableAgent() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(recoveryEvent("DQL-1", 7L)));
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(recoveryTask("running", 7L, "agent-1"));
+        when(workerService.queryWorkerByProcessId("agent-1")).thenReturn(null);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+        assertFalse(preview.isCanSubmit());
+        assertEquals("agent is not available", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
+    @DisplayName("preview blocks a task with an existing active recovery batch")
+    void previewBlocksActiveBatch() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(recoveryEvent("DQL-1", 7L)));
+        prepareReadyTask(taskService, workerService);
+        DqlRecoveryBatchDto activeBatch = batch("DQLB-active", List.of("DQL-old"));
+        activeBatch.setStatus(DqlRecoveryBatchStatusEnum.RUNNING.name());
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(activeBatch);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(List.of("DQL-1")), user());
+
+        assertFalse(preview.isCanSubmit());
+        assertEquals("an active recovery batch already exists", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
+    @DisplayName("preview blocks every selected event when the batch exceeds the default limit")
+    void previewBlocksBatchOverLimit() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        DqlRecoveryBatchService service = strictService(eventRepository, batchRepository, taskService, workerService);
+        List<String> eventIds = java.util.stream.IntStream.range(0, 201)
+                .mapToObj(index -> "DQL-" + index).toList();
+        List<DqlEventDto> events = java.util.stream.IntStream.range(0, 201)
+                .mapToObj(index -> recoveryEvent("DQL-" + index, 7L)).toList();
+        when(eventRepository.findByEventIds(anyList())).thenReturn(events);
+        prepareReadyTask(taskService, workerService);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+
+        DqlRecoveryPreviewVo preview = service.preview(request(eventIds), user());
+
+        assertFalse(preview.isCanSubmit());
+        assertTrue(preview.getOrderedEvents().isEmpty());
+        assertEquals(201, preview.getBlockedEvents().size());
+        assertEquals("recovery batch size exceeds 200", preview.getBlockedEvents().get(0).getMessage());
+    }
+
+    @Test
+    @DisplayName("start stores the current task status and version in the recovery batch")
+    void startStoresCurrentTaskContext() {
+        DqlEventRepository eventRepository = mock(DqlEventRepository.class);
+        DqlRecoveryBatchRepository batchRepository = mock(DqlRecoveryBatchRepository.class);
+        TaskService taskService = mock(TaskService.class);
+        WorkerService workerService = mock(WorkerService.class);
+        MessageQueueServiceImpl messageQueueService = mock(MessageQueueServiceImpl.class);
+        DqlRecoveryBatchService service = new DqlRecoveryBatchService(
+                eventRepository,
+                batchRepository,
+                mock(DqlEventPermissionService.class),
+                messageQueueService,
+                mock(DqlEventAlarmService.class),
+                taskService,
+                workerService
+        );
+        DqlEventDto event = recoveryEvent("DQL-1", 7L);
+        when(eventRepository.findByEventIds(List.of("DQL-1"))).thenReturn(List.of(event));
+        prepareReadyTask(taskService, workerService);
+        when(batchRepository.findActiveByTaskId(TASK_ID)).thenReturn(null);
+        when(batchRepository.create(any(DqlRecoveryBatchDto.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(eventRepository.lockEvents(eq(List.of("DQL-1")), anyString())).thenReturn(1L);
+        DqlRecoveryRequestVo request = request(List.of("DQL-1"));
+        request.setConfirm(true);
+
+        DqlRecoveryBatchDto result = service.start(request, user());
+
+        assertEquals("running", result.getTaskStatusBefore());
+        assertEquals(7L, result.getTaskVersion());
+        assertEquals("agent-1", result.getAgentId());
     }
 
     @Test
@@ -187,6 +410,61 @@ class DqlRecoveryBatchServiceTest {
                 mock(MessageQueueServiceImpl.class),
                 alarmService
         );
+    }
+
+    private DqlRecoveryBatchService strictService(DqlEventRepository eventRepository,
+                                                  DqlRecoveryBatchRepository batchRepository,
+                                                  TaskService taskService,
+                                                  WorkerService workerService) {
+        return new DqlRecoveryBatchService(
+                eventRepository,
+                batchRepository,
+                mock(DqlEventPermissionService.class),
+                mock(MessageQueueServiceImpl.class),
+                mock(DqlEventAlarmService.class),
+                taskService,
+                workerService
+        );
+    }
+
+    private void prepareReadyTask(TaskService taskService, WorkerService workerService) {
+        when(taskService.findByTaskId(eq(new ObjectId(TASK_ID)), eq("name"), eq("status"), eq("version"), eq("agentId")))
+                .thenReturn(recoveryTask("running", 7L, "agent-1"));
+        prepareReadyWorker(workerService);
+    }
+
+    private void prepareReadyWorker(WorkerService workerService) {
+        WorkerDto worker = recoveryWorker("agent-1");
+        when(workerService.queryWorkerByProcessId("agent-1")).thenReturn(worker);
+        when(workerService.isAgentTimeout(worker.getPingTime())).thenReturn(false);
+    }
+
+    private DqlEventDto recoveryEvent(String eventId, long taskVersion) {
+        DqlEventDto event = event(eventId, TASK_ID, DqlEventStatusEnum.PENDING, "agent-1");
+        event.setTaskVersion(taskVersion);
+        event.setEventKey(Map.of("id", eventId));
+        event.setEventKeyMissing(false);
+        event.setRecordIdentity("orders|id=" + eventId);
+        return event;
+    }
+
+    private TaskDto recoveryTask(String status, long version, String agentId) {
+        TaskDto task = new TaskDto();
+        task.setName("sync_order");
+        task.setStatus(status);
+        task.setVersion(version);
+        task.setAgentId(agentId);
+        return task;
+    }
+
+    private WorkerDto recoveryWorker(String processId) {
+        WorkerDto worker = new WorkerDto();
+        worker.setProcessId(processId);
+        worker.setPingTime(System.currentTimeMillis());
+        worker.setStopping(false);
+        worker.setIsDeleted(false);
+        worker.setDeleted(false);
+        return worker;
     }
 
     private DqlRecoveryRequestVo request(List<String> eventIds) {
