@@ -89,7 +89,24 @@
 | F04 | 已完成（待集成验证） | `steps/F04-alarm-trigger-integration.md` |
 | F05 | 已完成（待集成验证） | `steps/F05-dql-runtime-configuration.md` |
 | F06 | 已完成（待集成验证） | `steps/F06-initialization-compatibility.md` |
-| F07 | 未开始 | 待生成 |
+| F07 | 已完成（待集成验证） | `steps/F07-legacy-compatibility-regression.md` |
+
+### 阶段 G：联调、故障注入和 POC 验收
+
+| 步骤 | 状态 | 总结文档 |
+| --- | --- | --- |
+| G01 | 待外部环境 | `steps/G01-e2e-environment-and-dataset.md` |
+| G02 | 待外部环境 | `steps/G02-deterministic-capture.md` |
+| G03 | 待外部环境 | `steps/G03-shared-retry.md` |
+| G04 | 待外部环境 | `steps/G04-storm-guard.md` |
+| G05 | 待外部环境 | `steps/G05-api-permission-security.md` |
+| G06 | 待外部环境 | `steps/G06-recovery-e2e.md` |
+| G07 | 待外部环境 | `steps/G07-order-dedup-reconciliation.md` |
+| G08 | 待外部环境 | `steps/G08-failure-compensation-idempotency.md` |
+| G09 | 待外部环境 | `steps/G09-ttl-integration.md` |
+| G10 | 待外部环境 | `steps/G10-requirements-check.md` |
+| G11 | 待外部环境 | `steps/G11-poc-demo-and-limitations.md` |
+| G12 | 待外部环境 | `steps/G12-release-checklist.md` |
 
 ## 回归记录
 
@@ -106,5 +123,5 @@
 | M2 Engine 捕获闭环 | 已完成（待集成验证） | `milestones/M2-engine-capture-closure.md` |
 | M3 TM 批次控制 | 已完成（待集成验证） | `milestones/M3-tm-recovery-batch-control.md` |
 | M4 Engine 回放闭环 | 已完成（待集成验证） | `milestones/M4-engine-replay-closure.md` |
-| M5 告警与初始化 | 进行中 | 待生成 |
-| M6 POC 验收 | 未开始 | 待生成 |
+| M5 告警与初始化 | 已完成（待集成验证） | `milestones/M5-alarm-initialization.md` |
+| M6 POC 验收 | 进行中（待外部环境） | 待 G01-G12 |

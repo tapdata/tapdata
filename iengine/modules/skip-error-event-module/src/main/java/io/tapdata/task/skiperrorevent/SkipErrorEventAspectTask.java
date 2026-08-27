@@ -348,7 +348,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     public AspectInterceptResult skipErrorDataNoeAspectHandle(SkipErrorDataAspect aspect) {
-        if (aspect == null || !isSkipDataEnabled()) {
+        if (aspect == null || !isSkipDataEnabled() || !isDqlEventEnabled()) {
             return null;
         }
         return this.skipErrorDataNoeAspect.apply(aspect);
@@ -361,7 +361,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
      */
     public Void writeRecordFuncAspectHandle(WriteRecordFuncAspect aspect) {
         if (aspect == null || aspect.getState() != WriteRecordFuncAspect.STATE_START
-                || !isSkipDataEnabled() || dqlEventReporter == null) {
+                || !isSkipDataEnabled() || !isDqlEventEnabled() || dqlEventReporter == null) {
             return null;
         }
         TapTable targetTable = aspect.getTable();
@@ -453,7 +453,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             DqlRecoveryCaptureGuard.notifyFailure(event, aspect.getError());
             return null;
         }
-        if (!isSkipDataEnabled() || dqlEventReporter == null) {
+        if (!isSkipDataEnabled() || !isDqlEventEnabled() || dqlEventReporter == null) {
             return null;
         }
 
@@ -717,6 +717,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private boolean isSkipDataEnabled() {
         return skipErrorEvent != null
                 && skipErrorEvent.getErrorModeEnum() == TaskDto.SkipErrorEvent.ErrorMode.SkipData;
+    }
+
+    private boolean isDqlEventEnabled() {
+        return dqlRuntimeConfig != null && dqlRuntimeConfig.isEventEnabled();
     }
 
     private void reportDqlEvent(TapTable table,
